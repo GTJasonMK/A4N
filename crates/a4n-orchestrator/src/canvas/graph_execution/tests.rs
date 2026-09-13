@@ -2,8 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_canvas_contract::{
-    CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphResumePreparationInput,
-    CanvasGraphRunPreparationInput, CanvasSingleNodeRunPreparationInput,
+    CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphPreparationHostPort,
+    CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
+    CanvasSingleNodeRunPreparationInput,
 };
 use a4n_db::{
     DatabaseConnection,
@@ -313,7 +314,7 @@ impl TestGraphHostPort {
 }
 
 #[async_trait]
-impl CanvasGraphExecutionHostPort for TestGraphHostPort {
+impl CanvasGraphPreparationHostPort for TestGraphHostPort {
     async fn verify_project_editor(&self, user_id: i64, project_id: i64) -> Result<(), String> {
         self.verification_calls
             .lock()
@@ -321,7 +322,10 @@ impl CanvasGraphExecutionHostPort for TestGraphHostPort {
             .push((user_id, project_id));
         Ok(())
     }
+}
 
+#[async_trait]
+impl CanvasGraphExecutionHostPort for TestGraphHostPort {
     async fn execute_node(
         &self,
         input: CanvasGraphNodeExecutionInput,

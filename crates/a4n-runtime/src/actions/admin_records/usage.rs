@@ -8,7 +8,7 @@ pub(super) async fn get_user_usage(
     limit: u64,
 ) -> Result<Vec<UsageLogSummary>, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .user_usage(user_id, limit)
         .await
         .map_err(|error| error.to_string())
@@ -16,7 +16,7 @@ pub(super) async fn get_user_usage(
 
 pub(super) async fn get_token_summary(state: &AppState, user_id: i64) -> Result<Value, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .token_summary(user_id)
         .await
         .map_err(|error| error.to_string())
@@ -27,7 +27,7 @@ pub(super) async fn get_usage_trends(
     input: UsageTrendsInput,
 ) -> Result<Vec<DailyUsagePoint>, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .usage_trends(input)
         .await
         .map_err(|error| error.to_string())
@@ -35,7 +35,7 @@ pub(super) async fn get_usage_trends(
 
 pub(super) async fn get_admin_overview(state: &AppState) -> Result<AdminOverviewSummary, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .overview()
         .await
         .map_err(|error| error.to_string())

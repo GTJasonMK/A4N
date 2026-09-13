@@ -16,7 +16,7 @@ pub async fn preview_batch_generate_part_outlines_request(
         )
         .await?;
     let all_steps = state
-        .outline_preview_application()
+        .outline_batch_part_generation_preview_application()
         .preview_batch_generate_part_outlines(input)
         .await?;
     outline_preview(

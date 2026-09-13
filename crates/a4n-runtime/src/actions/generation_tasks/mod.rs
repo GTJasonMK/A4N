@@ -22,7 +22,7 @@ pub async fn cancel_generation_task(
     input: CancelGenerationTaskInput,
 ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
     state
-        .generation_application()
+        .generation_task_mutation_application()
         .request_generation_cancel(user_id, &input.task_id, input.attempt)
         .await
 }
@@ -34,7 +34,7 @@ pub async fn authorize_generation_task(
     attempt: u32,
 ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError> {
     state
-        .generation_application()
+        .generation_task_read_application()
         .authorize_generation_task(user_id, task_id, attempt)
         .await
 }
@@ -46,7 +46,7 @@ pub async fn generation_task_summary(
     attempt: u32,
 ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
     state
-        .generation_application()
+        .generation_task_read_application()
         .generation_task_summary_for_user(user_id, task_id, attempt)
         .await
 }
@@ -57,7 +57,7 @@ pub async fn list_active_generation_tasks(
     project_id: Option<i64>,
 ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
     state
-        .generation_application()
+        .generation_task_read_application()
         .list_active_generation_task_summaries(user_id, project_id)
         .await
 }
@@ -69,7 +69,7 @@ pub async fn list_generation_task_history(
     cursor: Option<GenerationTaskListCursor>,
 ) -> Result<GenerationTaskHistoryPage, GenerationTaskAccessError> {
     let result = state
-        .generation_application()
+        .generation_task_read_application()
         .list_generation_task_history_summaries(user_id, input.project_id, input.limit, cursor)
         .await?;
     let next_cursor = result
@@ -94,6 +94,6 @@ pub fn subscribe_generation_task(
     after_sequence: Option<u64>,
 ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
     state
-        .generation_application()
+        .generation_task_read_application()
         .subscribe_generation_task(task, after_sequence)
 }

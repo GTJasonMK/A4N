@@ -7,10 +7,8 @@ use a4n_domain::project::{
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
-use crate::project::{
-    ProjectDuplicationApplicationPort, ProjectDuplicationHostPort,
-    project_duplicate_error_to_app_error,
-};
+use crate::project::project_duplicate_error_to_app_error;
+use a4n_api_contract::project::{ProjectDuplicationApplicationPort, ProjectDuplicationHostPort};
 
 struct ProjectDuplicationHostPortRef<'a> {
     inner: &'a mut (dyn ProjectDuplicationHostPort + Sync + 'a),

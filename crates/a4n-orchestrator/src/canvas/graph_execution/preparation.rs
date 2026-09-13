@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_canvas_contract::{
-    CanvasGraphExecutionHostPort, CanvasGraphResumePreparationInput,
+    CanvasGraphPreparationHostPort, CanvasGraphResumePreparationInput,
     CanvasGraphRunPreparationInput, CanvasSingleNodeRunPreparationInput, PreparedCanvasGraphRun,
 };
 use a4n_db::canvas::{CanvasGraphRecordDocument, validate_canvas_record_document_edge_contract};
@@ -23,7 +23,7 @@ impl OrchestratorContext {
     pub async fn prepare_canvas_graph_run_validated(
         &self,
         input: CanvasGraphRunPreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         let document = self
             .load_canvas_execution_document(
@@ -79,7 +79,7 @@ impl OrchestratorContext {
     pub async fn prepare_canvas_single_node_run_validated(
         &self,
         input: CanvasSingleNodeRunPreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         let document = self
             .load_canvas_execution_document(
@@ -131,7 +131,7 @@ impl OrchestratorContext {
     pub async fn prepare_canvas_graph_resume_validated(
         &self,
         input: CanvasGraphResumePreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         let run = self
             .workflow_run_model_by_id(input.workflow_run_id)
@@ -238,7 +238,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         graph_id: i64,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<CanvasGraphRecordDocument, String> {
         host_port.verify_project_editor(user_id, project_id).await?;
         let document = self

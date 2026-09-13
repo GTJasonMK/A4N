@@ -168,47 +168,9 @@ pub struct PersistedGeneratedImageFile {
     pub file_size: i64,
 }
 
-/// Host-facing boundary for image generation task ownership.
-///
-/// Runtime supplies provider and file adapters; queue execution, validation,
-/// workflow state and image persistence remain in the media owner.
+/// Host-facing boundary for Galgame image generation.
 #[async_trait]
-pub trait ImageGenerationApplicationPort: Send + Sync {
-    async fn prepare_scene_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateSceneImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError>;
-
-    async fn prepare_canvas_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateCanvasImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError>;
-
-    async fn prepare_page_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GeneratePageImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError>;
-
-    async fn prepare_batch_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateBatchImagesInput,
-    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError>;
-
-    async fn prepare_object_profile_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: ObjectProfileImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError>;
-
+pub trait GalgameImageGenerationApplicationPort: Send + Sync {
     async fn generate_galgame_image(
         &self,
         host_port: &dyn ImageGenerationHostPort,
@@ -216,19 +178,66 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         input: GenerateGalgameImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError>;
+}
 
-    async fn object_profile_prompt(
+/// Host-facing boundary for object profile image request previews.
+#[async_trait]
+pub trait ImageObjectProfileRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_object_profile_request(
         &self,
+        host_port: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: &ObjectProfileImageInput,
-    ) -> Result<ObjectProfileImagePromptOutput, AppError>;
+        input: ObjectProfileImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+}
 
-    async fn scene_profile_prompt(
+/// Host-facing boundary for batch image request previews.
+#[async_trait]
+pub trait ImageBatchRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_batch_request(
         &self,
+        host_port: &dyn ImageGenerationHostPort,
         user_id: i64,
-        input: &SceneProfileImageInput,
-    ) -> Result<SceneProfileImagePromptOutput, AppError>;
+        input: GenerateBatchImagesInput,
+    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError>;
+}
 
+/// Host-facing boundary for manga page image request previews.
+#[async_trait]
+pub trait ImagePageRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_page_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GeneratePageImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+}
+
+/// Host-facing boundary for canvas image request previews.
+#[async_trait]
+pub trait ImageCanvasRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_canvas_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateCanvasImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+}
+
+/// Host-facing boundary for scene image request previews.
+#[async_trait]
+pub trait ImageSceneRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_scene_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateSceneImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+}
+
+/// Host-facing boundary for queued image generation task ownership.
+#[async_trait]
+pub trait ImageGenerationTaskApplicationPort: Send + Sync {
     async fn start_task(
         &self,
         user_id: i64,
@@ -242,6 +251,22 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
         host_port: &dyn ImageGenerationHostPort,
     ) -> Result<(), String>;
+}
+
+/// Host-facing boundary for profile image prompt generation.
+#[async_trait]
+pub trait ImageProfilePromptApplicationPort: Send + Sync {
+    async fn object_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &ObjectProfileImageInput,
+    ) -> Result<ObjectProfileImagePromptOutput, AppError>;
+
+    async fn scene_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &SceneProfileImageInput,
+    ) -> Result<SceneProfileImagePromptOutput, AppError>;
 }
 
 #[async_trait]

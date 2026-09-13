@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::image::{
-    DeleteImageInput, GeneratedImageSummary, ImageRecordMutationApplicationPort,
+    DeleteImageInput, GeneratedImageIdentity, GeneratedImageSummary, ImageMediaReferencePort,
+    ImagePublicationRecoveryReadPort, ImageRecordMutationApplicationPort,
     ImageRecordReadApplicationPort, ListImagesByChapterInput, ListImagesByProjectInput,
     ListImagesByProjectsInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
     UploadImageInput,
@@ -56,24 +57,20 @@ fn image_publication_recovery_record(
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GeneratedImageIdentity {
-    pub project_id: i64,
-    pub file_path: String,
-    pub image_type: String,
-    pub file_size: Option<i64>,
-}
-
-/// Host-facing image import boundary. File decoding, publication intent
-/// creation and final publication stay in the media owner.
+/// Host-facing boundary for validating and decoding imported image uploads.
 #[async_trait]
-pub trait ImageImportApplicationPort: Send + Sync {
+pub trait ImageImportPreparationApplicationPort: Send + Sync {
     async fn prepare_imported_upload(
         &self,
         user_id: i64,
         input: UploadImageInput,
     ) -> Result<PreparedImportedImageUpload, AppError>;
+}
 
+/// Host-facing boundary for creating and finalizing imported image
+/// publications.
+#[async_trait]
+pub trait ImageImportPublicationApplicationPort: Send + Sync {
     async fn create_imported_publication_intent(
         &self,
         user_id: i64,
@@ -83,11 +80,6 @@ pub trait ImageImportApplicationPort: Send + Sync {
         final_path: String,
         expected_sha256: String,
     ) -> Result<(ImagePublicationRecoveryRecord, OwnedMutexGuard<()>), AppError>;
-
-    async fn imported_image_summary(
-        &self,
-        image_id: i64,
-    ) -> Result<Option<GeneratedImageSummary>, AppError>;
 
     async fn publish_imported_image(
         &self,
@@ -104,22 +96,6 @@ pub trait ImageImportApplicationPort: Send + Sync {
 #[async_trait]
 pub trait ImagePublicationRecoveryPort: Send + Sync {
     async fn lock_image_publications(&self) -> OwnedMutexGuard<()>;
-
-    async fn image_publications_for_recovery(
-        &self,
-        limit: usize,
-        published_after: Option<&str>,
-    ) -> Result<Vec<ImagePublicationRecoveryRecord>, AppError>;
-
-    async fn image_publication_by_id(
-        &self,
-        publication_id: &str,
-    ) -> Result<Option<ImagePublicationRecoveryRecord>, AppError>;
-
-    async fn generated_image_identity(
-        &self,
-        image_id: i64,
-    ) -> Result<Option<GeneratedImageIdentity>, AppError>;
 
     async fn publish_recovered_image(
         &self,
@@ -149,26 +125,6 @@ pub trait ImagePublicationRecoveryPort: Send + Sync {
         version: i64,
         reason: Option<String>,
     ) -> Result<(), AppError>;
-}
-
-/// Host-facing media-reference boundary used by cleanup and orphan scans.
-#[async_trait]
-pub trait ImageMediaReferencePort: Send + Sync {
-    async fn unreferenced_media_paths(&self, paths: &[String]) -> Result<Vec<String>, AppError>;
-
-    async fn media_path_prefix_has_persisted_reference(
-        &self,
-        prefix: &str,
-    ) -> Result<bool, AppError>;
-
-    async fn project_has_active_image_publication(&self, project_id: i64)
-    -> Result<bool, AppError>;
-
-    async fn protected_image_publication_cleanup_paths(
-        &self,
-        project_id: i64,
-        paths: &[String],
-    ) -> Result<HashSet<String>, AppError>;
 }
 
 pub struct PreparedImportedImageUpload {
@@ -560,6 +516,21 @@ impl OrchestratorContext {
 
 #[async_trait]
 impl ImageRecordReadApplicationPort for OrchestratorContext {
+    async fn by_id(
+        &self,
+        user_id: i64,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageSummary>, AppError> {
+        let Some(image) = self.generated_image_by_id(image_id).await? else {
+            return Ok(None);
+        };
+        self.verify_project_permission(image.project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        Ok(Some(super::image_generation::generated_image_summary(
+            &image,
+        )))
+    }
+
     async fn reference_by_ids(
         &self,
         user_id: i64,
@@ -677,7 +648,7 @@ impl ImageRecordMutationApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl ImageImportApplicationPort for OrchestratorContext {
+impl ImageImportPreparationApplicationPort for OrchestratorContext {
     async fn prepare_imported_upload(
         &self,
         user_id: i64,
@@ -686,7 +657,10 @@ impl ImageImportApplicationPort for OrchestratorContext {
         self.prepare_imported_image_upload_for_user_validated(user_id, input)
             .await
     }
+}
 
+#[async_trait]
+impl ImageImportPublicationApplicationPort for OrchestratorContext {
     async fn create_imported_publication_intent(
         &self,
         user_id: i64,
@@ -707,16 +681,6 @@ impl ImageImportApplicationPort for OrchestratorContext {
             )
             .await?;
         Ok((image_publication_recovery_record(publication), guard))
-    }
-
-    async fn imported_image_summary(
-        &self,
-        image_id: i64,
-    ) -> Result<Option<GeneratedImageSummary>, AppError> {
-        Ok(self
-            .generated_image_by_id(image_id)
-            .await?
-            .map(|image| super::image_generation::generated_image_summary(&image)))
     }
 
     async fn publish_imported_image(
@@ -740,11 +704,7 @@ impl ImageImportApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl ImagePublicationRecoveryPort for OrchestratorContext {
-    async fn lock_image_publications(&self) -> OwnedMutexGuard<()> {
-        OrchestratorContext::lock_image_publications(self).await
-    }
-
+impl ImagePublicationRecoveryReadPort for OrchestratorContext {
     async fn image_publications_for_recovery(
         &self,
         limit: usize,
@@ -783,6 +743,13 @@ impl ImagePublicationRecoveryPort for OrchestratorContext {
                 image_type: image.image_type,
                 file_size: image.file_size,
             }))
+    }
+}
+
+#[async_trait]
+impl ImagePublicationRecoveryPort for OrchestratorContext {
+    async fn lock_image_publications(&self) -> OwnedMutexGuard<()> {
+        OrchestratorContext::lock_image_publications(self).await
     }
 
     async fn publish_recovered_image(

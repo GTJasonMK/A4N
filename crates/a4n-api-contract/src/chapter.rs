@@ -83,6 +83,75 @@ pub struct GenerateChapterSceneInput {
     pub scene_prompt: String,
 }
 
+/// Host callbacks for chapter-derived cleanup and RAG synchronization.
+///
+/// File, RAG and derived-artifact side effects stay with the Host; chapter
+/// owners only validate and persist their durable state.
+#[async_trait::async_trait]
+pub trait ChapterDerivedCleanupHostPort: Send + Sync {
+    fn validate_chapter_cleanup_artifacts(
+        &self,
+        artifacts: &a4n_domain::project::ChapterDerivedCleanupArtifacts,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn finish_chapter_derived_cleanup(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        chapter_number: i32,
+        artifacts: a4n_domain::project::ChapterDerivedCleanupArtifacts,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn sync_chapter_rag_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_run_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing chapter content mutation boundary.
+#[async_trait::async_trait]
+pub trait ChapterContentMutationApplicationPort: Send + Sync {
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: UpdateChapterContentInput,
+    ) -> Result<i64, a4n_error::AppError>;
+
+    async fn import(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: ImportChapterInput,
+    ) -> Result<i64, a4n_error::AppError>;
+}
+
+/// Host-facing chapter content synchronization and recovery boundary.
+#[async_trait::async_trait]
+pub trait ChapterContentSyncApplicationPort: Send + Sync {
+    async fn resume(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        workflow_run_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn postprocess(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        chapter_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn cleanup_derived_rag(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        chapter_number: i32,
+        artifacts: &a4n_domain::project::ChapterDerivedCleanupArtifacts,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host callback for chapter-scene generation progress.
 pub type ChapterSceneProgressReporter<'a> =
     &'a (dyn Fn(u32, u32, &str) -> Result<(), a4n_error::AppError> + Send + Sync);
@@ -107,18 +176,22 @@ pub struct ReorderChapterScenesInput {
     pub order: Vec<(i64, i32)>,
 }
 
-/// Host-facing chapter scene boundary.
+/// Host-facing chapter scene read boundary.
 ///
 /// Authorization, scene persistence and ordering remain owned by the chapter
 /// scene application; Runtime receives only API DTOs.
 #[async_trait::async_trait]
-pub trait ChapterSceneApplicationPort: Send + Sync {
+pub trait ChapterSceneReadApplicationPort: Send + Sync {
     async fn list(
         &self,
         user_id: i64,
         chapter_id: i64,
     ) -> Result<Vec<ChapterSceneSummary>, a4n_error::AppError>;
+}
 
+/// Host-facing chapter scene mutation boundary.
+#[async_trait::async_trait]
+pub trait ChapterSceneMutationApplicationPort: Send + Sync {
     async fn update(
         &self,
         user_id: i64,

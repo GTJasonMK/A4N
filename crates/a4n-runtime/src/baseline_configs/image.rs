@@ -1,5 +1,7 @@
 use super::env::{any_env_present, env_i32_or, env_string_or, usize_to_i32};
-use a4n_api_contract::config::{ConfigApplicationPort, ImageConfigInput};
+use a4n_api_contract::config::{
+    ConfigMutationApplicationPort, ConfigReadApplicationPort, ImageConfigInput,
+};
 use a4n_config::{
     app_config::ImageGenConfig, normalize_optional_config_value, optional_non_empty_env_string,
 };
@@ -15,16 +17,17 @@ const PUBLIC_IMAGE_ENV_KEYS: &[&str] = &[
 ];
 
 pub(super) async fn ensure_public_image_config(
-    config_application: &dyn ConfigApplicationPort,
+    config_read_application: &dyn ConfigReadApplicationPort,
+    config_mutation_application: &dyn ConfigMutationApplicationPort,
     fallback: &ImageGenConfig,
 ) -> Result<(), AppError> {
-    if config_application.image_configs_exist().await? {
+    if config_read_application.image_configs_exist().await? {
         return Ok(());
     }
     let Some(seed) = public_image_seed(fallback)? else {
         return Ok(());
     };
-    config_application
+    config_mutation_application
         .insert_baseline_image_if_empty(seed)
         .await?;
     Ok(())

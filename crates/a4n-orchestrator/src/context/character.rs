@@ -16,7 +16,8 @@ use a4n_api_contract::character::{
     UpdateCharacterProfileInput,
 };
 use a4n_api_contract::portrait::{
-    PortraitGenerationSeed, PortraitRecordApplicationPort, PortraitSummary,
+    PortraitGenerationSeed, PortraitRecordMutationApplicationPort,
+    PortraitRecordReadApplicationPort, PortraitSummary,
 };
 use a4n_db::DbHandle;
 use a4n_db_models::models::ai::generated_image;
@@ -1075,7 +1076,9 @@ impl CharacterProfileAttributeDeletionApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorContext {
+impl a4n_api_contract::character::CharacterImplicitReviewReadApplicationPort
+    for OrchestratorContext
+{
     async fn summary(
         &self,
         user_id: i64,
@@ -1083,7 +1086,10 @@ impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorCo
     ) -> Result<ImplicitReviewSummary, AppError> {
         self.implicit_review_summary_validated(user_id, input).await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::character::CharacterImplicitReviewCheckApplicationPort for OrchestratorContext {
     async fn check(
         &self,
         user_id: i64,
@@ -1093,7 +1099,10 @@ impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorCo
         self.check_implicit_update_validated(user_id, input, prompt_renderer)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::character::CharacterImplicitReviewPreviewApplicationPort for OrchestratorContext {
     async fn preview(
         &self,
         user_id: i64,
@@ -1107,7 +1116,10 @@ impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorCo
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::character::CharacterImplicitReviewApplyApplicationPort for OrchestratorContext {
     async fn apply(
         &self,
         user_id: i64,
@@ -1162,7 +1174,7 @@ fn character_profile_rag_warning(error: impl std::fmt::Display) -> String {
 }
 
 #[async_trait::async_trait]
-impl PortraitRecordApplicationPort for OrchestratorContext {
+impl PortraitRecordReadApplicationPort for OrchestratorContext {
     async fn list_by_project(
         &self,
         user_id: i64,
@@ -1205,17 +1217,6 @@ impl PortraitRecordApplicationPort for OrchestratorContext {
         Ok(Some(crate::portrait::portrait_summary(&portrait)?))
     }
 
-    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
-        let portrait = self
-            .character_portrait_by_id(portrait_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("立绘不存在".to_string()))?;
-        self.verify_project_permission(portrait.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.set_primary_character_portrait_record(portrait_id)
-            .await
-    }
-
     async fn missing_generation_seeds(
         &self,
         user_id: i64,
@@ -1234,6 +1235,20 @@ impl PortraitRecordApplicationPort for OrchestratorContext {
                 })
             })
             .collect()
+    }
+}
+
+#[async_trait::async_trait]
+impl PortraitRecordMutationApplicationPort for OrchestratorContext {
+    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
+        let portrait = self
+            .character_portrait_by_id(portrait_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("立绘不存在".to_string()))?;
+        self.verify_project_permission(portrait.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.set_primary_character_portrait_record(portrait_id)
+            .await
     }
 }
 

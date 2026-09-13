@@ -1059,7 +1059,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
+impl a4n_api_contract::config::ConfigReadApplicationPort for OrchestratorContext {
     async fn llm_configs_exist(&self) -> Result<bool, AppError> {
         OrchestratorContext::llm_configs_exist(self).await
     }
@@ -1072,40 +1072,6 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
         OrchestratorContext::video_configs_exist(self).await
     }
 
-    async fn insert_baseline_embedding_if_empty(&self) -> Result<bool, AppError> {
-        OrchestratorContext::insert_baseline_embedding_config_if_empty(self).await
-    }
-
-    async fn insert_baseline_llm_if_empty(&self, input: CreateLlmInput) -> Result<bool, AppError> {
-        OrchestratorContext::insert_baseline_llm_config_if_empty(
-            self,
-            normalize_llm_config_input(input)?,
-        )
-        .await
-    }
-
-    async fn insert_baseline_image_if_empty(
-        &self,
-        input: ImageConfigInput,
-    ) -> Result<bool, AppError> {
-        OrchestratorContext::insert_baseline_image_config_if_empty(
-            self,
-            image_config_params(input)?,
-        )
-        .await
-    }
-
-    async fn insert_baseline_video_if_empty(
-        &self,
-        input: VideoConfigInput,
-    ) -> Result<bool, AppError> {
-        OrchestratorContext::insert_baseline_video_config_if_empty(
-            self,
-            video_config_params(input)?,
-        )
-        .await
-    }
-
     async fn web_search_runtime_config(&self) -> Result<WebSearchRuntimeConfig, AppError> {
         OrchestratorContext::web_search_runtime_config(self).await
     }
@@ -1115,14 +1081,6 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
         caller_user_id: i64,
     ) -> Result<WebSearchConfigSummary, AppError> {
         OrchestratorContext::web_search_config_summary(self, caller_user_id).await
-    }
-
-    async fn update_web_search_config(
-        &self,
-        caller_user_id: i64,
-        input: UpdateWebSearchConfigInput,
-    ) -> Result<WebSearchConfigSummary, AppError> {
-        OrchestratorContext::update_web_search_config(self, caller_user_id, input).await
     }
 
     async fn saved_api_key(
@@ -1197,6 +1155,76 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
             .collect())
     }
 
+    async fn list_image(&self) -> Result<Vec<ImageConfigSummary>, AppError> {
+        self.list_image_config_records()
+            .await?
+            .iter()
+            .map(image_config_summary)
+            .collect()
+    }
+
+    async fn list_video(&self) -> Result<Vec<VideoConfigSummary>, AppError> {
+        self.list_video_config_records()
+            .await?
+            .iter()
+            .map(video_config_summary)
+            .collect()
+    }
+
+    async fn list_embedding(&self) -> Result<Vec<EmbeddingConfigSummary>, AppError> {
+        Ok(self
+            .list_embedding_configs()
+            .await?
+            .iter()
+            .map(embedding_config_summary)
+            .collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::config::ConfigMutationApplicationPort for OrchestratorContext {
+    async fn insert_baseline_embedding_if_empty(&self) -> Result<bool, AppError> {
+        OrchestratorContext::insert_baseline_embedding_config_if_empty(self).await
+    }
+
+    async fn insert_baseline_llm_if_empty(&self, input: CreateLlmInput) -> Result<bool, AppError> {
+        OrchestratorContext::insert_baseline_llm_config_if_empty(
+            self,
+            normalize_llm_config_input(input)?,
+        )
+        .await
+    }
+
+    async fn insert_baseline_image_if_empty(
+        &self,
+        input: ImageConfigInput,
+    ) -> Result<bool, AppError> {
+        OrchestratorContext::insert_baseline_image_config_if_empty(
+            self,
+            image_config_params(input)?,
+        )
+        .await
+    }
+
+    async fn insert_baseline_video_if_empty(
+        &self,
+        input: VideoConfigInput,
+    ) -> Result<bool, AppError> {
+        OrchestratorContext::insert_baseline_video_config_if_empty(
+            self,
+            video_config_params(input)?,
+        )
+        .await
+    }
+
+    async fn update_web_search_config(
+        &self,
+        caller_user_id: i64,
+        input: UpdateWebSearchConfigInput,
+    ) -> Result<WebSearchConfigSummary, AppError> {
+        OrchestratorContext::update_web_search_config(self, caller_user_id, input).await
+    }
+
     async fn create_llm(
         &self,
         caller_user_id: i64,
@@ -1230,14 +1258,6 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
         self.delete_llm_config_if_allowed(config_id).await
     }
 
-    async fn list_image(&self) -> Result<Vec<ImageConfigSummary>, AppError> {
-        self.list_image_config_records()
-            .await?
-            .iter()
-            .map(image_config_summary)
-            .collect()
-    }
-
     async fn create_image(
         &self,
         caller_user_id: i64,
@@ -1267,14 +1287,6 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
         self.delete_image_config_if_allowed(config_id).await
     }
 
-    async fn list_video(&self) -> Result<Vec<VideoConfigSummary>, AppError> {
-        self.list_video_config_records()
-            .await?
-            .iter()
-            .map(video_config_summary)
-            .collect()
-    }
-
     async fn create_video(
         &self,
         caller_user_id: i64,
@@ -1302,15 +1314,6 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
     async fn delete_video(&self, caller_user_id: i64, config_id: i64) -> Result<(), AppError> {
         self.require_settings_admin(caller_user_id).await?;
         self.delete_video_config_if_allowed(config_id).await
-    }
-
-    async fn list_embedding(&self) -> Result<Vec<EmbeddingConfigSummary>, AppError> {
-        Ok(self
-            .list_embedding_configs()
-            .await?
-            .iter()
-            .map(embedding_config_summary)
-            .collect())
     }
 
     async fn create_embedding(

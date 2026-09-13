@@ -71,3 +71,23 @@ pub struct ImportProjectAnalysisSummary {
     pub progress: ProjectImportAnalysisProgress,
     pub analyzed_chapters: usize,
 }
+
+/// Host-facing read boundary for project import-analysis progress.
+///
+/// Analysis execution and cancellation remain with the import-analysis owner.
+#[async_trait::async_trait]
+pub trait ImportAnalysisProgressApplicationPort: Send + Sync {
+    async fn progress(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<ProjectImportAnalysisProgress>, a4n_error::AppError>;
+}
+
+/// Host-facing cancellation boundary for project import analysis.
+///
+/// Analysis execution remains with the import-analysis owner.
+#[async_trait::async_trait]
+pub trait ImportAnalysisCancellationApplicationPort: Send + Sync {
+    async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), a4n_error::AppError>;
+}

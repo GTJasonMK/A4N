@@ -30,19 +30,20 @@ mod json;
 mod persistence;
 mod refine;
 
-/// Host-facing blueprint request-preview boundary.
-///
-/// Permission checks and request construction stay with the blueprint owner;
-/// Runtime supplies only the prompt renderer and provider-preview formatting.
+/// Host-facing boundary for blueprint generation request previews.
 #[async_trait::async_trait]
-pub trait BlueprintRequestPreviewApplicationPort: Send + Sync {
+pub trait BlueprintGenerationPreviewApplicationPort: Send + Sync {
     async fn preview_generation(
         &self,
         user_id: i64,
         input: PreviewBlueprintGenerationInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<BlueprintGenerationPreviewStep, AppError>;
+}
 
+/// Host-facing boundary for blueprint refinement request previews.
+#[async_trait::async_trait]
+pub trait BlueprintRefinementPreviewApplicationPort: Send + Sync {
     async fn preview_refinement(
         &self,
         user_id: i64,
@@ -62,21 +63,10 @@ pub trait BlueprintGenerationApplicationPort: Send + Sync {
         run: &WorkflowResumeRecord,
     ) -> Result<StartBlueprintGenerationInput, AppError>;
 
-    fn refinement_input_from_workflow_run(
-        &self,
-        run: &WorkflowResumeRecord,
-    ) -> Result<StartBlueprintRefinementInput, AppError>;
-
     async fn start_generation(
         &self,
         user_id: i64,
         input: &StartBlueprintGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn start_refinement(
-        &self,
-        user_id: i64,
-        input: &StartBlueprintRefinementInput,
     ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
 
     async fn run_generation(
@@ -85,6 +75,21 @@ pub trait BlueprintGenerationApplicationPort: Send + Sync {
         input: StartBlueprintGenerationInput,
         handle: GenerationTaskHandle,
     ) -> Result<(), String>;
+}
+
+/// Host-facing boundary for blueprint refinement workers.
+#[async_trait::async_trait]
+pub trait BlueprintRefinementApplicationPort: Send + Sync {
+    fn refinement_input_from_workflow_run(
+        &self,
+        run: &WorkflowResumeRecord,
+    ) -> Result<StartBlueprintRefinementInput, AppError>;
+
+    async fn start_refinement(
+        &self,
+        user_id: i64,
+        input: &StartBlueprintRefinementInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
 
     async fn run_refinement(
         &self,
@@ -232,7 +237,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl BlueprintRequestPreviewApplicationPort for OrchestratorContext {
+impl BlueprintGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generation(
         &self,
         user_id: i64,
@@ -251,7 +256,10 @@ impl BlueprintRequestPreviewApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl BlueprintRefinementPreviewApplicationPort for OrchestratorContext {
     async fn preview_refinement(
         &self,
         user_id: i64,
@@ -279,27 +287,12 @@ impl BlueprintGenerationApplicationPort for OrchestratorContext {
         OrchestratorContext::blueprint_generation_input_from_workflow_run(self, run)
     }
 
-    fn refinement_input_from_workflow_run(
-        &self,
-        run: &WorkflowResumeRecord,
-    ) -> Result<StartBlueprintRefinementInput, AppError> {
-        OrchestratorContext::blueprint_refinement_input_from_workflow_run(self, run)
-    }
-
     async fn start_generation(
         &self,
         user_id: i64,
         input: &StartBlueprintGenerationInput,
     ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
         OrchestratorContext::start_blueprint_generation_task(self, user_id, input).await
-    }
-
-    async fn start_refinement(
-        &self,
-        user_id: i64,
-        input: &StartBlueprintRefinementInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_blueprint_refinement_task(self, user_id, input).await
     }
 
     async fn run_generation(
@@ -310,6 +303,24 @@ impl BlueprintGenerationApplicationPort for OrchestratorContext {
     ) -> Result<(), String> {
         OrchestratorContext::run_blueprint_generation_task(self, prompt_renderer, input, handle)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl BlueprintRefinementApplicationPort for OrchestratorContext {
+    fn refinement_input_from_workflow_run(
+        &self,
+        run: &WorkflowResumeRecord,
+    ) -> Result<StartBlueprintRefinementInput, AppError> {
+        OrchestratorContext::blueprint_refinement_input_from_workflow_run(self, run)
+    }
+
+    async fn start_refinement(
+        &self,
+        user_id: i64,
+        input: &StartBlueprintRefinementInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_blueprint_refinement_task(self, user_id, input).await
     }
 
     async fn run_refinement(

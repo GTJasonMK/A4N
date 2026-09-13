@@ -4,7 +4,7 @@
 //! call this crate instead of owning business transactions directly.
 
 pub mod admin;
-pub mod agent;
+pub use a4n_agent_application::agent;
 mod asset;
 pub mod auth;
 mod blueprint;
@@ -53,17 +53,28 @@ mod errors;
 pub(crate) mod test_support;
 
 pub use blueprint::BlueprintGenerationApplicationPort;
-pub use blueprint::BlueprintRequestPreviewApplicationPort;
+pub use blueprint::BlueprintGenerationPreviewApplicationPort;
+pub use blueprint::BlueprintRefinementApplicationPort;
+pub use blueprint::BlueprintRefinementPreviewApplicationPort;
 pub use cleanup_outbox::CleanupOutboxApplicationPort;
 pub use context::OrchestratorContext;
 pub(crate) use context::generation::GenerationTaskStart;
 pub use context::generation::{
-    AuthorizedGenerationTask, GenerationApplicationPort, GenerationTaskAccessError,
-    GenerationTaskHistorySummaries,
+    AuthorizedGenerationTask, GenerationCleanupApplicationPort, GenerationLifecycleApplicationPort,
+    GenerationTaskAccessError, GenerationTaskHistorySummaries,
+    GenerationTaskMutationApplicationPort, GenerationTaskReadApplicationPort,
 };
-pub use outline::OutlinePreviewApplicationPort;
+pub use outline::{
+    OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
+    OutlineChapterCountGenerationPreviewApplicationPort,
+    OutlineChapterRegenerationPreviewApplicationPort,
+    OutlinePartChapterGenerationPreviewApplicationPort,
+    OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
+};
 pub use profile_material::ProfileMaterialUploadApplicationPort;
-pub use shooting_script::ShootingScriptGenerationApplicationPort;
+pub use shooting_script::{
+    ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
+};
 
 pub(crate) use errors::{
     chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,

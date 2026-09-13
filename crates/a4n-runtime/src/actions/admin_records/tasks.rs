@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 pub(super) async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary>, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .pending_tasks()
         .await
         .map_err(|error| error.to_string())
@@ -20,7 +20,7 @@ pub(super) async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result
 
 pub(super) async fn health_check(state: &AppState) -> Result<Value, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .check_database_health()
         .await
         .map_err(|error| error.to_string())?;

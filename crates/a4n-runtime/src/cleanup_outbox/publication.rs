@@ -17,7 +17,7 @@ pub(super) async fn recover_image_publications(
     published_after: &mut Option<String>,
 ) {
     let publications = match state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .image_publications_for_recovery(RECOVERY_LIMIT, published_after.as_deref())
         .await
     {
@@ -51,7 +51,7 @@ async fn recover_image_publication(
         .await;
     // A writer may have committed while recovery waited for the same guard.
     let Some(publication) = state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .image_publication_by_id(&publication.publication_id)
         .await
         .map_err(|error| error.to_string())?
@@ -173,7 +173,7 @@ async fn ensure_published_generated_image_identity(
         )
     })?;
     let image = state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .generated_image_identity(image_id)
         .await
         .map_err(|error| error.to_string())?

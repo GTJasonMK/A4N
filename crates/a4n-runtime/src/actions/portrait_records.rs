@@ -10,7 +10,7 @@ pub async fn list_portraits_by_project(
     input: ListPortraitsByProjectInput,
 ) -> Result<Vec<PortraitSummary>, String> {
     state
-        .portrait_record_application()
+        .portrait_record_read_application()
         .list_by_project(user_id, input.project_id)
         .await
         .map_err(app_error_message)
@@ -22,7 +22,7 @@ pub async fn get_primary_portrait(
     input: GetPrimaryPortraitInput,
 ) -> Result<Option<PortraitSummary>, String> {
     let portrait = state
-        .portrait_record_application()
+        .portrait_record_read_application()
         .primary_by_profile(user_id, input.profile_id)
         .await
         .map_err(app_error_message)?;
@@ -35,7 +35,7 @@ pub async fn set_primary_portrait(
     input: SetPrimaryPortraitInput,
 ) -> Result<(), String> {
     state
-        .portrait_record_application()
+        .portrait_record_mutation_application()
         .set_primary(user_id, input.portrait_id)
         .await
         .map_err(app_error_message)

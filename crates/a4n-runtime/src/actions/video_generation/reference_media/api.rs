@@ -51,7 +51,7 @@ pub async fn preview_reference_media_video_request(
 ) -> Result<ModelRequestPreview, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
-        .video_request_preview_application()
+        .reference_media_video_request_preview_application()
         .preview_reference_media(&host_port, input)
         .await
         .map_err(crate::actions::app_error_message)?;

@@ -69,20 +69,9 @@ use crate::task_queue::PersistentTaskQueue;
 use crate::video::validate_reference_media_start_input;
 pub(crate) use a4n_api_contract::generation_tasks::GenerationTaskStart;
 
-/// Runtime-facing generation boundary.
-///
-/// Generation task access, cancellation and destructive lifecycle coordination
-/// stay owned by this application. Runtime only supplies host routing and the
-/// external cleanup port needed by project reset.
+/// Runtime-facing generation task read boundary.
 #[async_trait::async_trait]
-pub trait GenerationApplicationPort: Send + Sync {
-    async fn request_generation_cancel(
-        &self,
-        requested_by_user_id: i64,
-        task_id: &str,
-        attempt: u32,
-    ) -> Result<GenerationTaskHandle, GenerationTerminalError>;
-
+pub trait GenerationTaskReadApplicationPort: Send + Sync {
     async fn authorize_generation_task(
         &self,
         user_id: i64,
@@ -116,7 +105,22 @@ pub trait GenerationApplicationPort: Send + Sync {
         task: &AuthorizedGenerationTask,
         after_sequence: Option<u64>,
     ) -> Result<GenerationSubscription, GenerationTaskAccessError>;
+}
 
+/// Runtime-facing generation task mutation boundary.
+#[async_trait::async_trait]
+pub trait GenerationTaskMutationApplicationPort: Send + Sync {
+    async fn request_generation_cancel(
+        &self,
+        requested_by_user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskHandle, GenerationTerminalError>;
+}
+
+/// Runtime-facing generation lifecycle boundary.
+#[async_trait::async_trait]
+pub trait GenerationLifecycleApplicationPort: Send + Sync {
     async fn begin_generation_project_lifecycle_gate(
         &self,
         project_id: i64,
@@ -143,16 +147,6 @@ pub trait GenerationApplicationPort: Send + Sync {
     async fn active_generation_tasks(
         &self,
     ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
-
-    async fn expire_generation_snapshot_bodies(
-        &self,
-        limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError>;
-
-    async fn purge_expired_generation_task_trees(
-        &self,
-        limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError>;
 
     async fn pending_generation_lifecycle_operations(
         &self,
@@ -197,6 +191,20 @@ pub trait GenerationApplicationPort: Send + Sync {
         &self,
         project_id: i64,
     ) -> Result<crate::project::ProjectGeneratedDataResetApplicationResult, AppError>;
+}
+
+/// Runtime-facing generation retention and cleanup boundary.
+#[async_trait::async_trait]
+pub trait GenerationCleanupApplicationPort: Send + Sync {
+    async fn expire_generation_snapshot_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError>;
+
+    async fn purge_expired_generation_task_trees(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError>;
 }
 
 /// 生成运行账本 owner；章节生成服务可持有克隆以写 generation run。
@@ -2271,17 +2279,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl GenerationApplicationPort for OrchestratorContext {
-    async fn request_generation_cancel(
-        &self,
-        requested_by_user_id: i64,
-        task_id: &str,
-        attempt: u32,
-    ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
-        OrchestratorContext::request_generation_cancel(self, requested_by_user_id, task_id, attempt)
-            .await
-    }
-
+impl GenerationTaskReadApplicationPort for OrchestratorContext {
     async fn authorize_generation_task(
         &self,
         user_id: i64,
@@ -2328,7 +2326,23 @@ impl GenerationApplicationPort for OrchestratorContext {
     ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
         OrchestratorContext::subscribe_generation_task(self, task, after_sequence)
     }
+}
 
+#[async_trait::async_trait]
+impl GenerationTaskMutationApplicationPort for OrchestratorContext {
+    async fn request_generation_cancel(
+        &self,
+        requested_by_user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
+        OrchestratorContext::request_generation_cancel(self, requested_by_user_id, task_id, attempt)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl GenerationLifecycleApplicationPort for OrchestratorContext {
     async fn begin_generation_project_lifecycle_gate(
         &self,
         project_id: i64,
@@ -2367,20 +2381,6 @@ impl GenerationApplicationPort for OrchestratorContext {
         &self,
     ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
         OrchestratorContext::active_generation_tasks(self).await
-    }
-
-    async fn expire_generation_snapshot_bodies(
-        &self,
-        limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError> {
-        OrchestratorContext::expire_generation_snapshot_bodies(self, limit).await
-    }
-
-    async fn purge_expired_generation_task_trees(
-        &self,
-        limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError> {
-        OrchestratorContext::purge_expired_generation_task_trees(self, limit).await
     }
 
     async fn pending_generation_lifecycle_operations(
@@ -2445,6 +2445,23 @@ impl GenerationApplicationPort for OrchestratorContext {
         project_id: i64,
     ) -> Result<crate::project::ProjectGeneratedDataResetApplicationResult, AppError> {
         OrchestratorContext::reset_project_generated_data_validated(self, project_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl GenerationCleanupApplicationPort for OrchestratorContext {
+    async fn expire_generation_snapshot_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        OrchestratorContext::expire_generation_snapshot_bodies(self, limit).await
+    }
+
+    async fn purge_expired_generation_task_trees(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        OrchestratorContext::purge_expired_generation_task_trees(self, limit).await
     }
 }
 

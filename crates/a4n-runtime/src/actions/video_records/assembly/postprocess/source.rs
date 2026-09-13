@@ -15,7 +15,7 @@ pub(in crate::actions::video_records::assembly) async fn postprocess_edit_source
         || input.source_mime_type.is_some()
         || input.source_data_base64.is_some();
     match state
-        .video_assembly_application()
+        .video_assembly_postprocess_application()
         .prepare_assembly_postprocess_source(plan, input.source_video_id, has_uploaded_source)
         .await
         .map_err(app_error_message)?

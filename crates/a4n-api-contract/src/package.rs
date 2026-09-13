@@ -249,15 +249,12 @@ pub struct UpdatePackagePreferencesInput {
     pub hidden_package_ids: Vec<PackageId>,
 }
 
-/// Host-facing package state and preference boundary.
+/// Host-facing package state read boundary.
 ///
-/// Lifecycle mutation and service ownership remain with the Host/Orchestrator
-/// integration, while these API-facing reads and user settings use one stable
-/// contract instead of the concrete orchestration facade.
+/// Lifecycle ownership remains with the Host/Orchestrator integration, while
+/// Runtime receives only stable package state projections and read decisions.
 #[async_trait::async_trait]
-pub trait PackageApplicationPort: Send + Sync {
-    async fn initialize_states(&self) -> Result<(), a4n_error::AppError>;
-
+pub trait PackageReadApplicationPort: Send + Sync {
     async fn overview(&self) -> Result<Vec<PackageOverview>, a4n_error::AppError>;
 
     async fn list_command_availability(
@@ -274,17 +271,6 @@ pub trait PackageApplicationPort: Send + Sync {
 
     async fn execution_enabled(&self, package_id: PackageId) -> Result<bool, a4n_error::AppError>;
 
-    async fn ensure_execution_enabled(
-        &self,
-        package_id: PackageId,
-    ) -> Result<(), a4n_error::AppError>;
-
-    async fn start_lifecycle(
-        &self,
-        user_id: i64,
-        input: StartPackageLifecycleInput,
-    ) -> Result<PackageLifecycleSummary, a4n_error::AppError>;
-
     fn owned_services(&self, package_id: PackageId) -> Vec<String>;
 
     async fn services_safe_to_stop(
@@ -295,13 +281,6 @@ pub trait PackageApplicationPort: Send + Sync {
     async fn enabled_services(&self) -> Result<Vec<String>, a4n_error::AppError>;
 
     async fn has_workload(&self, package_id: PackageId) -> Result<bool, a4n_error::AppError>;
-
-    async fn advance_lifecycle(
-        &self,
-        operation_id: &str,
-    ) -> Result<PackageLifecycleSummary, a4n_error::AppError>;
-
-    async fn finalize_disable(&self, operation_id: &str) -> Result<(), a4n_error::AppError>;
 
     async fn pending_lifecycle_operations(
         &self,
@@ -317,6 +296,30 @@ pub trait PackageApplicationPort: Send + Sync {
         &self,
         user_id: i64,
     ) -> Result<PackagePreferencesSummary, a4n_error::AppError>;
+}
+
+/// Host-facing package lifecycle and preference mutation boundary.
+#[async_trait::async_trait]
+pub trait PackageMutationApplicationPort: Send + Sync {
+    async fn initialize_states(&self) -> Result<(), a4n_error::AppError>;
+
+    async fn ensure_execution_enabled(
+        &self,
+        package_id: PackageId,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn start_lifecycle(
+        &self,
+        user_id: i64,
+        input: StartPackageLifecycleInput,
+    ) -> Result<PackageLifecycleSummary, a4n_error::AppError>;
+
+    async fn advance_lifecycle(
+        &self,
+        operation_id: &str,
+    ) -> Result<PackageLifecycleSummary, a4n_error::AppError>;
+
+    async fn finalize_disable(&self, operation_id: &str) -> Result<(), a4n_error::AppError>;
 
     async fn update_preferences(
         &self,

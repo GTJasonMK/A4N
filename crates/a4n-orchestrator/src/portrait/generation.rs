@@ -26,8 +26,9 @@ use crate::{
         generation_result_ref, publish_step_progress,
     },
     portrait::{
-        PortraitGenerationApplicationPort, PortraitGenerationHostPort, PortraitProgress,
-        PortraitPromptApplicationPort, PortraitRequestPreviewApplicationPort,
+        PortraitGenerationApplicationPort, PortraitGenerationHostPort,
+        PortraitImageRequestPreviewApplicationPort, PortraitProgress,
+        PortraitPromptApplicationPort, PortraitPromptRequestPreviewApplicationPort,
         PortraitUploadApplicationPort,
     },
 };
@@ -453,7 +454,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl PortraitRequestPreviewApplicationPort for OrchestratorContext {
+impl PortraitPromptRequestPreviewApplicationPort for OrchestratorContext {
     async fn prepare_portrait_prompt_request(
         &self,
         input: &GeneratePortraitPromptInput,
@@ -468,7 +469,10 @@ impl PortraitRequestPreviewApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl PortraitImageRequestPreviewApplicationPort for OrchestratorContext {
     async fn prepare_portrait_request(
         &self,
         input: &GeneratePortraitInput,

@@ -53,7 +53,7 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
             })
         };
         state
-            .character_ai_application()
+            .character_profile_sync_application()
             .sync_profile(
                 user_id,
                 input,

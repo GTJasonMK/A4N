@@ -213,6 +213,36 @@ pub struct RecordOptimizeAgentEventInput {
     pub content: String,
 }
 
+/// Host-facing read boundary for content-optimization sessions.
+///
+/// Session creation, mutation and generation remain with the optimize owner.
+#[async_trait::async_trait]
+pub trait OptimizeSessionReadApplicationPort: Send + Sync {
+    async fn list_sessions(
+        &self,
+        user_id: i64,
+        input: ListOptimizeSessionsInput,
+    ) -> Result<Vec<OptimizationSessionSummary>, a4n_error::AppError>;
+
+    async fn get_session(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<OptimizationSessionSummary, a4n_error::AppError>;
+
+    async fn list_turns(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<Vec<OptimizationTurnSummary>, a4n_error::AppError>;
+
+    async fn list_patch_sets(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<Vec<OptimizationPatchSetSummary>, a4n_error::AppError>;
+}
+
 /// Start one Optimize chat turn through the canonical generation task path.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

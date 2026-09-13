@@ -30,7 +30,7 @@ pub async fn import_project_text_upload(
         })
         .collect::<Vec<_>>();
     state
-        .import_review_application()
+        .import_review_ingestion_application()
         .create_from_parsed(user_id, upload.project_id, &upload.file_name, &chapters)
         .await
 }

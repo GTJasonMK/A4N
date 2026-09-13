@@ -14,15 +14,18 @@ pub(in crate::import_reverse) use workflow_rules::{
     IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE,
 };
 
-/// Runtime-facing reverse-engineering boundary.
+/// Runtime-facing reverse-engineering request-preview boundary.
 #[async_trait::async_trait]
-pub trait ImportReverseApplicationPort: Send + Sync {
+pub trait ImportReversePreviewApplicationPort: Send + Sync {
     async fn prepare_request(
         &self,
         input: a4n_api_contract::import_reverse::ReverseEngineerInput,
         prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
     ) -> Result<a4n_llm::provider::ChatRequest, a4n_error::AppError>;
+}
 
+/// Runtime-facing reverse-engineering execution boundary.
+pub trait ImportReverseGenerationApplicationPort: Send + Sync {
     fn run<'a>(
         &'a self,
         input: a4n_api_contract::import_reverse::ReverseEngineerInput,
@@ -42,20 +45,6 @@ pub trait ImportReverseApplicationPort: Send + Sync {
                 + 'a,
         >,
     >;
-
-    async fn latest(
-        &self,
-        project_id: i64,
-        target: a4n_api_contract::import_reverse::ReverseEngineeringTarget,
-    ) -> Result<
-        Option<a4n_api_contract::import_reverse::ReverseEngineeringCandidate>,
-        a4n_error::AppError,
-    >;
-
-    async fn confirm(
-        &self,
-        workflow_run_id: i64,
-    ) -> Result<a4n_api_contract::import_reverse::ReverseEngineeringCandidate, a4n_error::AppError>;
 }
 
 pub(crate) fn import_reverse_db_error(error: ImportReverseDbError) -> a4n_error::AppError {

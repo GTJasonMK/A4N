@@ -7,7 +7,7 @@ pub async fn apply_implicit_update_decision(
     input: ApplyImplicitUpdateDecisionInput,
 ) -> Result<ApplyImplicitUpdateDecisionResultSummary, String> {
     let applied = state
-        .character_implicit_review_application()
+        .character_implicit_review_apply_application()
         .apply(user_id, input)
         .await
         .map_err(|error| error.to_string())?;

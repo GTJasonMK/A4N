@@ -31,7 +31,7 @@ pub async fn discover_character_profiles(
         active_task_id: progress.task_id,
     });
     state
-        .character_ai_application()
+        .character_discovery_application()
         .discover(user_id, input, prompt_renderer, application_progress)
         .await
         .map_err(|error| error.to_string())

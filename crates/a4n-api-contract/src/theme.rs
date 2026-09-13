@@ -127,14 +127,35 @@ pub struct ThemeSummary {
     pub is_active: bool,
 }
 
-/// Theme/settings application boundary.
+/// Theme/settings read boundary.
 ///
 /// Theme ownership, validation and persistence stay in the implementing
 /// application. Runtime owns only file I/O and package byte handling.
 #[async_trait::async_trait]
-pub trait ThemeApplicationPort: Send + Sync {
+pub trait ThemeReadApplicationPort: Send + Sync {
     async fn list_themes(&self, user_id: i64) -> Result<Vec<ThemeSummary>, a4n_error::AppError>;
 
+    async fn export_theme(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+    ) -> Result<ThemeSummary, a4n_error::AppError>;
+
+    async fn list_resources(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+    ) -> Result<Vec<ThemeResourceRecord>, a4n_error::AppError>;
+
+    async fn get_preference(
+        &self,
+        user_id: i64,
+    ) -> Result<ThemePreferenceSummary, a4n_error::AppError>;
+}
+
+/// Theme/settings mutation boundary.
+#[async_trait::async_trait]
+pub trait ThemeMutationApplicationPort: Send + Sync {
     async fn create_theme(
         &self,
         user_id: i64,
@@ -156,23 +177,11 @@ pub trait ThemeApplicationPort: Send + Sync {
         theme_id: i64,
     ) -> Result<ThemeSummary, a4n_error::AppError>;
 
-    async fn export_theme(
-        &self,
-        user_id: i64,
-        theme_id: i64,
-    ) -> Result<ThemeSummary, a4n_error::AppError>;
-
     async fn import_theme(
         &self,
         user_id: i64,
         input: CreateThemeInput,
     ) -> Result<ThemeSummary, a4n_error::AppError>;
-
-    async fn list_resources(
-        &self,
-        user_id: i64,
-        theme_id: i64,
-    ) -> Result<Vec<ThemeResourceRecord>, a4n_error::AppError>;
 
     async fn upsert_resource(
         &self,
@@ -185,11 +194,6 @@ pub trait ThemeApplicationPort: Send + Sync {
         user_id: i64,
         resource_id: i64,
     ) -> Result<ThemeResourceRecord, a4n_error::AppError>;
-
-    async fn get_preference(
-        &self,
-        user_id: i64,
-    ) -> Result<ThemePreferenceSummary, a4n_error::AppError>;
 
     async fn update_preference(
         &self,

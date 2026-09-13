@@ -153,7 +153,7 @@ pub fn spawn_cleanup_worker(state: AppState) {
 
 async fn expire_generation_snapshot_bodies(state: &AppState) {
     match state
-        .generation_application()
+        .generation_cleanup_application()
         .expire_generation_snapshot_bodies(GENERATION_SNAPSHOT_TTL_LIMIT)
         .await
     {
@@ -167,7 +167,7 @@ async fn expire_generation_snapshot_bodies(state: &AppState) {
 
 async fn purge_expired_generation_task_trees(state: &AppState) {
     match state
-        .generation_application()
+        .generation_cleanup_application()
         .purge_expired_generation_task_trees(GENERATION_TASK_TREE_TTL_LIMIT)
         .await
     {

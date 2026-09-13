@@ -174,7 +174,19 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl super::ImportReverseApplicationPort for OrchestratorContext {
+impl a4n_api_contract::import_reverse::ImportReverseReadApplicationPort for OrchestratorContext {
+    async fn latest(
+        &self,
+        project_id: i64,
+        target: ReverseEngineeringTarget,
+    ) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
+        self.latest_reverse_engineering_candidate_validated(project_id, target)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl super::ImportReversePreviewApplicationPort for OrchestratorContext {
     async fn prepare_request(
         &self,
         input: ReverseEngineerInput,
@@ -183,7 +195,9 @@ impl super::ImportReverseApplicationPort for OrchestratorContext {
         self.prepare_reverse_engineer_request_validated(input, prompt_renderer)
             .await
     }
+}
 
+impl super::ImportReverseGenerationApplicationPort for OrchestratorContext {
     fn run<'a>(
         &'a self,
         input: ReverseEngineerInput,
@@ -204,16 +218,12 @@ impl super::ImportReverseApplicationPort for OrchestratorContext {
             active_task_id,
         ))
     }
+}
 
-    async fn latest(
-        &self,
-        project_id: i64,
-        target: ReverseEngineeringTarget,
-    ) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
-        self.latest_reverse_engineering_candidate_validated(project_id, target)
-            .await
-    }
-
+#[async_trait::async_trait]
+impl a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort
+    for OrchestratorContext
+{
     async fn confirm(&self, workflow_run_id: i64) -> Result<ReverseEngineeringCandidate, AppError> {
         self.confirm_reverse_engineering_candidate_validated(workflow_run_id)
             .await

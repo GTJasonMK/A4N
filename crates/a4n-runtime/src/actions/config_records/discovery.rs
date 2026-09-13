@@ -66,7 +66,7 @@ async fn resolve_model_discovery_api_key(
         .filter(|value| *value > 0)
         .ok_or_else(|| format!("{}模型探测需要有效的已保存配置 ID", kind.label()))?;
     let saved_api_key = state
-        .config_application()
+        .config_read_application()
         .saved_api_key(user_id, config_provider_kind(kind), config_id)
         .await
         .map_err(app_error_message)?

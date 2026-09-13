@@ -10,7 +10,7 @@ use std::time::Duration;
 use crate::AppState;
 
 pub async fn get_package_overview(state: &AppState) -> Result<Vec<PackageOverview>, AppError> {
-    state.package_application().overview().await
+    state.package_read_application().overview().await
 }
 
 pub async fn list_package_command_availability(
@@ -19,7 +19,7 @@ pub async fn list_package_command_availability(
     input: ListPackageCommandAvailabilityInput,
 ) -> Result<Vec<PackageCommandAvailability>, AppError> {
     state
-        .package_application()
+        .package_read_application()
         .list_command_availability(user_id, input)
         .await
 }
@@ -50,7 +50,7 @@ pub async fn command_availability(
     command: &str,
 ) -> Result<PackageCommandAvailability, AppError> {
     state
-        .package_application()
+        .package_read_application()
         .command_availability(user_id, command)
         .await
 }
@@ -68,7 +68,7 @@ pub async fn start_package_lifecycle(
         None
     };
     let summary = state
-        .package_application()
+        .package_mutation_application()
         .start_lifecycle(
             user_id,
             StartPackageLifecycleInput {
@@ -86,7 +86,7 @@ pub async fn start_package_lifecycle(
     }
     progress_package_lifecycle(state, &summary.operation_id, package_id, action).await?;
     state
-        .package_application()
+        .package_read_application()
         .operation(
             user_id,
             GetPackageOperationInput {
@@ -97,7 +97,7 @@ pub async fn start_package_lifecycle(
 }
 
 async fn start_package_services(state: &AppState, package_id: PackageId) -> Result<(), AppError> {
-    let services = state.package_application().owned_services(package_id);
+    let services = state.package_read_application().owned_services(package_id);
     state
         .start_managed_sidecars_for_services(&services)
         .await
@@ -115,7 +115,11 @@ async fn progress_package_lifecycle(
 ) -> Result<(), AppError> {
     if action == PackageLifecycleAction::Enable {
         start_package_services(state, package_id).await?;
-    } else if state.package_application().has_workload(package_id).await? {
+    } else if state
+        .package_read_application()
+        .has_workload(package_id)
+        .await?
+    {
         // A disabling package is not included in the startup enabled-service
         // set. Keep its provider/worker service alive while durable workload
         // or cleanup/reconcile facts still require it, including after a
@@ -124,7 +128,7 @@ async fn progress_package_lifecycle(
     }
 
     let operation = state
-        .package_application()
+        .package_mutation_application()
         .advance_lifecycle(operation_id)
         .await?;
     if action != PackageLifecycleAction::Disable
@@ -139,11 +143,15 @@ async fn progress_package_lifecycle(
         return Ok(());
     }
 
-    if state.package_application().has_workload(package_id).await? {
+    if state
+        .package_read_application()
+        .has_workload(package_id)
+        .await?
+    {
         return Ok(());
     }
     let services = state
-        .package_application()
+        .package_read_application()
         .services_safe_to_stop(package_id)
         .await?;
     state
@@ -154,7 +162,7 @@ async fn progress_package_lifecycle(
             operation: format!("停止功能包 {} 的 managed service", package_id.as_str()),
         })?;
     state
-        .package_application()
+        .package_mutation_application()
         .finalize_disable(operation_id)
         .await?;
     Ok(())
@@ -165,14 +173,17 @@ pub async fn get_package_operation(
     user_id: i64,
     input: GetPackageOperationInput,
 ) -> Result<PackageLifecycleSummary, AppError> {
-    state.package_application().operation(user_id, input).await
+    state
+        .package_read_application()
+        .operation(user_id, input)
+        .await
 }
 
 pub async fn get_package_preferences(
     state: &AppState,
     user_id: i64,
 ) -> Result<PackagePreferencesSummary, AppError> {
-    state.package_application().preferences(user_id).await
+    state.package_read_application().preferences(user_id).await
 }
 
 pub async fn update_package_preferences(
@@ -181,7 +192,7 @@ pub async fn update_package_preferences(
     input: UpdatePackagePreferencesInput,
 ) -> Result<PackagePreferencesSummary, AppError> {
     state
-        .package_application()
+        .package_mutation_application()
         .update_preferences(user_id, input)
         .await
 }
@@ -192,7 +203,7 @@ pub(crate) fn spawn_package_lifecycle_worker(state: AppState) {
     tokio::spawn(async move {
         loop {
             let operations = match state
-                .package_application()
+                .package_read_application()
                 .pending_lifecycle_operations()
                 .await
             {
@@ -250,7 +261,7 @@ pub(crate) async fn package_execution_enabled(
     package_id: PackageId,
 ) -> Result<bool, AppError> {
     state
-        .package_application()
+        .package_read_application()
         .execution_enabled(package_id)
         .await
 }
@@ -260,7 +271,7 @@ pub(crate) async fn ensure_package_execution_enabled(
     package_id: PackageId,
 ) -> Result<(), AppError> {
     state
-        .package_application()
+        .package_mutation_application()
         .ensure_execution_enabled(package_id)
         .await
 }

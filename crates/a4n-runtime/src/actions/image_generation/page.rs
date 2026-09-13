@@ -15,7 +15,7 @@ pub async fn preview_page_image_request(
     let page_number = input.page_number;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .image_generation_application()
+        .image_page_request_preview_application()
         .prepare_page_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;

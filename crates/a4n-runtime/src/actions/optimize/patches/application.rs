@@ -9,7 +9,7 @@ pub async fn apply_optimization_patches(
 ) -> Result<ApplyOptimizationPatchesResponse, String> {
     let host_port = RuntimeOptimizePatchApplyHostPort::new(state);
     state
-        .optimize_application()
+        .optimize_patch_application()
         .apply_patches(user_id, input, &host_port)
         .await
         .map_err(|error| error.to_string())

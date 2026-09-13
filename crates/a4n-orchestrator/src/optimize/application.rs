@@ -66,37 +66,11 @@ pub struct ApplyOptimizePatchesApplicationResult {
     pub word_count: i32,
 }
 
-/// Runtime-facing content-optimization boundary.
+/// Runtime-facing content-optimization session mutation boundary.
 ///
-/// Session persistence, API projections, validation, request construction and
-/// generation execution remain owned by the optimize application. Runtime
-/// only schedules these operations and supplies prompt/host adapters.
+/// Session persistence and validation remain owned by the optimize application.
 #[async_trait]
-pub trait OptimizeApplicationPort: Send + Sync {
-    async fn list_sessions(
-        &self,
-        user_id: i64,
-        input: ListOptimizeSessionsInput,
-    ) -> Result<Vec<OptimizationSessionSummary>, AppError>;
-
-    async fn get_session(
-        &self,
-        user_id: i64,
-        input: OptimizeSessionInput,
-    ) -> Result<OptimizationSessionSummary, AppError>;
-
-    async fn list_turns(
-        &self,
-        user_id: i64,
-        input: OptimizeSessionInput,
-    ) -> Result<Vec<OptimizationTurnSummary>, AppError>;
-
-    async fn list_patch_sets(
-        &self,
-        user_id: i64,
-        input: OptimizeSessionInput,
-    ) -> Result<Vec<OptimizationPatchSetSummary>, AppError>;
-
+pub trait OptimizeSessionMutationApplicationPort: Send + Sync {
     async fn create_analysis_session(
         &self,
         user_id: i64,
@@ -134,14 +108,45 @@ pub trait OptimizeApplicationPort: Send + Sync {
         user_id: i64,
         input: OptimizeSessionInput,
     ) -> Result<(), AppError>;
+}
 
+/// Runtime-facing content-optimization boundary for patch application,
+/// request previews and generation workers.
+#[async_trait]
+pub trait OptimizePatchApplicationPort: Send + Sync {
     async fn apply_patches(
         &self,
         user_id: i64,
         input: ApplyOptimizationPatchesInput,
         host_port: &dyn OptimizePatchApplyHostPort,
     ) -> Result<ApplyOptimizationPatchesResponse, AppError>;
+}
 
+/// Runtime-facing optimization patch request-preview boundary.
+#[async_trait]
+pub trait OptimizePatchPreviewApplicationPort: Send + Sync {
+    async fn preview_propose_patches(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+}
+
+/// Runtime-facing optimization chat request-preview boundary.
+#[async_trait]
+pub trait OptimizeChatPreviewApplicationPort: Send + Sync {
+    async fn preview_send_message(
+        &self,
+        user_id: i64,
+        input: SendOptimizationMessageInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+}
+
+/// Runtime-facing optimization analysis request-preview boundary.
+#[async_trait]
+pub trait OptimizeAnalysisPreviewApplicationPort: Send + Sync {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
@@ -155,37 +160,15 @@ pub trait OptimizeApplicationPort: Send + Sync {
         input: PrepareOptimizationAnalysisSessionInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+}
 
-    async fn preview_send_message(
-        &self,
-        user_id: i64,
-        input: SendOptimizationMessageInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
-
-    async fn preview_propose_patches(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
-
+/// Runtime-facing content-optimization chat generation boundary.
+#[async_trait]
+pub trait OptimizeChatGenerationApplicationPort: Send + Sync {
     async fn start_chat_generation(
         &self,
         user_id: i64,
         input: &StartOptimizeChatGenerationInput,
-    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
-
-    async fn start_analysis_generation(
-        &self,
-        user_id: i64,
-        input: &StartOptimizeAnalysisGenerationInput,
-    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
-
-    async fn start_patch_generation(
-        &self,
-        user_id: i64,
-        input: &StartOptimizePatchGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
 
     async fn run_chat_generation(
@@ -196,6 +179,16 @@ pub trait OptimizeApplicationPort: Send + Sync {
         input: StartOptimizeChatGenerationInput,
         handle: GenerationTaskHandle,
     ) -> Result<(), String>;
+}
+
+/// Runtime-facing content-optimization analysis generation boundary.
+#[async_trait]
+pub trait OptimizeAnalysisGenerationApplicationPort: Send + Sync {
+    async fn start_analysis_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizeAnalysisGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
 
     async fn run_analysis_generation(
         &self,
@@ -203,6 +196,16 @@ pub trait OptimizeApplicationPort: Send + Sync {
         input: StartOptimizeAnalysisGenerationInput,
         handle: GenerationTaskHandle,
     ) -> Result<(), String>;
+}
+
+/// Runtime-facing content-optimization patch generation boundary.
+#[async_trait]
+pub trait OptimizePatchGenerationApplicationPort: Send + Sync {
+    async fn start_patch_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizePatchGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
 
     async fn run_patch_generation(
         &self,
@@ -544,7 +547,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizeApplicationPort for OrchestratorContext {
+impl a4n_api_contract::optimize::OptimizeSessionReadApplicationPort for OrchestratorContext {
     async fn list_sessions(
         &self,
         user_id: i64,
@@ -596,7 +599,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
             .map(|(patch_set, patches)| optimization_patch_set_summary(&patch_set, patches))
             .collect()
     }
+}
 
+#[async_trait]
+impl OptimizeSessionMutationApplicationPort for OrchestratorContext {
     async fn create_analysis_session(
         &self,
         user_id: i64,
@@ -704,7 +710,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizePatchApplicationPort for OrchestratorContext {
     async fn apply_patches(
         &self,
         user_id: i64,
@@ -728,7 +737,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
             word_count: result.word_count,
         })
     }
+}
 
+#[async_trait]
+impl OptimizeAnalysisPreviewApplicationPort for OrchestratorContext {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
@@ -773,7 +785,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizeChatPreviewApplicationPort for OrchestratorContext {
     async fn preview_send_message(
         &self,
         user_id: i64,
@@ -790,7 +805,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizePatchPreviewApplicationPort for OrchestratorContext {
     async fn preview_propose_patches(
         &self,
         user_id: i64,
@@ -807,29 +825,16 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizeChatGenerationApplicationPort for OrchestratorContext {
     async fn start_chat_generation(
         &self,
         user_id: i64,
         input: &StartOptimizeChatGenerationInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         OrchestratorContext::start_optimize_chat_generation_task(self, user_id, input).await
-    }
-
-    async fn start_analysis_generation(
-        &self,
-        user_id: i64,
-        input: &StartOptimizeAnalysisGenerationInput,
-    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        OrchestratorContext::start_optimize_analysis_generation_task(self, user_id, input).await
-    }
-
-    async fn start_patch_generation(
-        &self,
-        user_id: i64,
-        input: &StartOptimizePatchGenerationInput,
-    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        OrchestratorContext::start_optimize_patch_generation_task(self, user_id, input).await
     }
 
     async fn run_chat_generation(
@@ -852,6 +857,17 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
+
+#[async_trait]
+impl OptimizeAnalysisGenerationApplicationPort for OrchestratorContext {
+    async fn start_analysis_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizeAnalysisGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        OrchestratorContext::start_optimize_analysis_generation_task(self, user_id, input).await
+    }
 
     async fn run_analysis_generation(
         &self,
@@ -861,6 +877,17 @@ impl OptimizeApplicationPort for OrchestratorContext {
     ) -> Result<(), String> {
         OrchestratorContext::run_optimize_analysis_generation_task(self, user_id, input, handle)
             .await
+    }
+}
+
+#[async_trait]
+impl OptimizePatchGenerationApplicationPort for OrchestratorContext {
+    async fn start_patch_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizePatchGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        OrchestratorContext::start_optimize_patch_generation_task(self, user_id, input).await
     }
 
     async fn run_patch_generation(

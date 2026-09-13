@@ -1,7 +1,9 @@
 use super::env::{
     any_env_present, env_i32_or, env_string_or, optional_env_json, u64_to_i32, usize_to_i32,
 };
-use a4n_api_contract::config::{ConfigApplicationPort, CreateLlmInput};
+use a4n_api_contract::config::{
+    ConfigMutationApplicationPort, ConfigReadApplicationPort, CreateLlmInput,
+};
 use a4n_config::{
     app_config::LlmConfig, normalize_optional_config_value, optional_non_empty_env_string,
 };
@@ -21,16 +23,17 @@ const PUBLIC_LLM_ENV_KEYS: &[&str] = &[
 ];
 
 pub(super) async fn ensure_public_llm_config(
-    config_application: &dyn ConfigApplicationPort,
+    config_read_application: &dyn ConfigReadApplicationPort,
+    config_mutation_application: &dyn ConfigMutationApplicationPort,
     fallback: &LlmConfig,
 ) -> Result<(), AppError> {
-    if config_application.llm_configs_exist().await? {
+    if config_read_application.llm_configs_exist().await? {
         return Ok(());
     }
     let Some(seed) = public_llm_seed(fallback)? else {
         return Ok(());
     };
-    config_application
+    config_mutation_application
         .insert_baseline_llm_if_empty(seed)
         .await?;
     Ok(())

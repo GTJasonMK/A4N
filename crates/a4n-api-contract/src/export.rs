@@ -1,6 +1,108 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// Host-provided progress and cancellation state for long-running exports.
+pub struct ExportProgress<'a> {
+    reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
+    cancel_checker: Option<&'a (dyn Fn() -> bool + Send + Sync)>,
+}
+
+impl<'a> ExportProgress<'a> {
+    pub fn new(
+        reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
+        cancel_checker: Option<&'a (dyn Fn() -> bool + Send + Sync)>,
+    ) -> Self {
+        Self {
+            reporter,
+            cancel_checker,
+        }
+    }
+
+    pub fn progress(&self, current: u32, total: u32, message: &str) {
+        if let Some(reporter) = self.reporter {
+            reporter(current, total, message);
+        }
+    }
+
+    pub fn check_cancelled(&self) -> Result<(), a4n_error::AppError> {
+        if self.cancel_checker.is_some_and(|check| check()) {
+            Err(a4n_error::AppError::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn without_reporting(&self) -> Self {
+        Self {
+            reporter: None,
+            cancel_checker: self.cancel_checker,
+        }
+    }
+}
+
+/// Host-facing project export boundary.
+#[async_trait::async_trait]
+pub trait ProjectExportApplicationPort: Send + Sync {
+    async fn export_txt(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_markdown(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        title: &str,
+        author: &str,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_outline_json(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_characters_json(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_epub(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        title: &str,
+        author: &str,
+        progress: &ExportProgress<'_>,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_pdf(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        progress: &ExportProgress<'_>,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_batch(
+        &self,
+        user_id: i64,
+        input: BatchExportInput,
+        progress: &ExportProgress<'_>,
+    ) -> Result<Vec<ExportFileData>, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame WebGAL export boundary.
+#[async_trait::async_trait]
+pub trait GalgameExportApplicationPort: Send + Sync {
+    async fn export_galgame_webgal(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ExportProjectInput {

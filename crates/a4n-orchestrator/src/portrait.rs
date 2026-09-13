@@ -45,19 +45,20 @@ pub(crate) use workflow_rules::{
     portrait_prompt_checkpoint_fingerprint, portrait_prompt_workflow_fingerprint,
 };
 
-/// Host-facing boundary for portrait request previews.
-///
-/// Runtime supplies prompt rendering; portrait validation and request
-/// construction stay with the portrait owner.
+/// Host-facing boundary for portrait prompt request previews.
 #[async_trait::async_trait]
-pub trait PortraitRequestPreviewApplicationPort: Send + Sync {
+pub trait PortraitPromptRequestPreviewApplicationPort: Send + Sync {
     async fn prepare_portrait_prompt_request(
         &self,
         input: &ApiGeneratePortraitPromptInput,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<ChatRequest, AppError>;
+}
 
+/// Host-facing boundary for portrait image request previews.
+#[async_trait::async_trait]
+pub trait PortraitImageRequestPreviewApplicationPort: Send + Sync {
     async fn prepare_portrait_request(
         &self,
         input: &ApiGeneratePortraitInput,

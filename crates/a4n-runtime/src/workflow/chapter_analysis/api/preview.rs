@@ -12,7 +12,7 @@ pub async fn preview_chapter_analysis_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let preview = state
-        .chapter_analysis_preview_application()
+        .chapter_analysis_generation_preview_application()
         .preview(user_id, chapter_id, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
@@ -33,7 +33,7 @@ pub async fn preview_resume_chapter_analysis_sync_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let preview = state
-        .chapter_analysis_preview_application()
+        .chapter_analysis_resume_preview_application()
         .preview_resume(user_id, chapter_id, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

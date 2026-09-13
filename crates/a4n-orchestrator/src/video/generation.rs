@@ -620,7 +620,7 @@ impl a4n_api_contract::video::VideoGenerationApplicationPort for OrchestratorCon
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::video::VideoRequestPreviewApplicationPort for OrchestratorContext {
+impl a4n_api_contract::video::CanvasVideoRequestPreviewApplicationPort for OrchestratorContext {
     async fn preview_canvas(
         &self,
         input: GenerateCanvasVideoInput,
@@ -629,7 +629,10 @@ impl a4n_api_contract::video::VideoRequestPreviewApplicationPort for Orchestrato
         self.preview_canvas_video_request_validated(input, host_port)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::video::ChapterVideoRequestPreviewApplicationPort for OrchestratorContext {
     async fn preview_chapter(
         &self,
         host_port: &dyn ChapterVideoPreviewHostPort,
@@ -639,7 +642,12 @@ impl a4n_api_contract::video::VideoRequestPreviewApplicationPort for Orchestrato
         self.preview_chapter_video_request_validated(host_port, input, prompt_override)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::video::ReferenceMediaVideoRequestPreviewApplicationPort
+    for OrchestratorContext
+{
     async fn preview_reference_media(
         &self,
         host_port: &dyn ReferenceMediaVideoPreviewHostPort,

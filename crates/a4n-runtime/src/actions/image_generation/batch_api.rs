@@ -13,7 +13,7 @@ pub async fn preview_batch_images_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let requests = state
-        .image_generation_application()
+        .image_batch_request_preview_application()
         .prepare_batch_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;

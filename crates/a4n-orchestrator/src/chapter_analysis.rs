@@ -99,7 +99,7 @@ pub(crate) use application::{
 };
 pub use application::{
     ChapterAnalysisApplicationProgress, ChapterAnalysisApplicationProgressReporter,
-    ChapterAnalysisGenerationApplicationPort, ChapterAnalysisHostPort,
-    ChapterAnalysisPreviewApplicationPort, ChapterAnalysisRequestPreview,
-    ChapterAnalysisResumeApplicationPort,
+    ChapterAnalysisGenerationApplicationPort, ChapterAnalysisGenerationPreviewApplicationPort,
+    ChapterAnalysisHostPort, ChapterAnalysisRequestPreview, ChapterAnalysisResumeApplicationPort,
+    ChapterAnalysisResumePreviewApplicationPort,
 };

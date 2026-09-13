@@ -10,7 +10,7 @@ pub async fn start_image_generation_typed(
     input: StartImageGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .image_generation_application()
+        .image_generation_task_application()
         .start_task(user_id, &input)
         .await?;
     if !start.should_run {
@@ -24,7 +24,7 @@ pub async fn start_image_generation_typed(
         move |handle| async move {
             let host_port = RuntimeImageGenerationHostPort::new(&worker_state);
             worker_state
-                .image_generation_application()
+                .image_generation_task_application()
                 .run_task(user_id, input, handle, &host_port)
                 .await
         },

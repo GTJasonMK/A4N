@@ -8,7 +8,7 @@ pub async fn export_theme_for_user(
     theme_id: i64,
 ) -> Result<String, AppError> {
     let theme = state
-        .theme_application()
+        .theme_read_application()
         .export_theme(user_id, theme_id)
         .await?;
     serde_json::to_string_pretty(&CreateThemeInput {
@@ -24,5 +24,8 @@ pub async fn import_theme_for_user(
     user_id: i64,
     input: CreateThemeInput,
 ) -> Result<ThemeSummary, AppError> {
-    state.theme_application().import_theme(user_id, input).await
+    state
+        .theme_mutation_application()
+        .import_theme(user_id, input)
+        .await
 }

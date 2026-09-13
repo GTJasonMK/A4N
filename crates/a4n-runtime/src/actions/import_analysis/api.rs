@@ -24,7 +24,7 @@ pub async fn run_import_project_analysis(
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
     state
-        .import_analysis_application()
+        .import_analysis_generation_application()
         .run(
             user_id,
             project_id,
@@ -41,7 +41,7 @@ pub async fn cancel_import_analysis(
     project_id: i64,
 ) -> Result<(), AppError> {
     state
-        .import_analysis_application()
+        .import_analysis_cancellation_application()
         .cancel(user_id, project_id)
         .await
 }

@@ -217,7 +217,7 @@ fn chapter_scene_summary(
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::chapter::ChapterSceneApplicationPort for OrchestratorContext {
+impl a4n_api_contract::chapter::ChapterSceneReadApplicationPort for OrchestratorContext {
     async fn list(
         &self,
         user_id: i64,
@@ -231,7 +231,10 @@ impl a4n_api_contract::chapter::ChapterSceneApplicationPort for OrchestratorCont
                 .collect(),
         )
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::chapter::ChapterSceneMutationApplicationPort for OrchestratorContext {
     async fn update(
         &self,
         user_id: i64,

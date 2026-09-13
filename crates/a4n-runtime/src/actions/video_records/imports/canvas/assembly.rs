@@ -120,7 +120,7 @@ where
         Ok(result) => Ok(result),
         Err(error) => {
             let mark_failed_error = state
-                .video_record_lifecycle_application()
+                .video_record_failure_application()
                 .mark_error_status_and_prompt(record_id, None, "failed", &error)
                 .await
                 .map_err(crate::actions::app_error_message)

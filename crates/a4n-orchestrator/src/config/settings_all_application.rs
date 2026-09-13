@@ -1,5 +1,10 @@
-use a4n_api_contract::admin::AdminPermission;
-use a4n_api_contract::config::ImportAllConfigsInput;
+use a4n_api_contract::{
+    admin::AdminPermission,
+    config::{
+        ImportAllConfigsInput, SettingsAllHostPort, SettingsExportApplicationPort,
+        SettingsImportApplicationPort,
+    },
+};
 use a4n_db::config::{SettingsAllConfigImportInput, SettingsAllConfigRows};
 use a4n_error::AppError;
 use async_trait::async_trait;
@@ -8,39 +13,9 @@ use chrono::Utc;
 use crate::OrchestratorContext;
 
 use super::settings_export_rules::{
-    AllConfigsExport, PromptRow, SETTINGS_ALL_FORMAT_VERSION, import_details_from_counts,
+    AllConfigsExport, SETTINGS_ALL_FORMAT_VERSION, import_details_from_counts,
     normalize_all_configs_export, validate_all_configs_export,
 };
-
-#[async_trait]
-pub trait SettingsAllHostPort: Send + Sync {
-    async fn modified_prompts(&self) -> Result<Vec<PromptRow>, AppError>;
-
-    async fn prepare_prompt_import(
-        &self,
-        rows: &[PromptRow],
-    ) -> Result<Vec<(String, String)>, AppError>;
-
-    async fn import_prompts(&self, rows: Vec<PromptRow>) -> Result<usize, AppError>;
-
-    async fn rollback_prompts(&self, snapshots: Vec<(String, String)>) -> Result<(), AppError>;
-}
-
-#[async_trait]
-pub trait SettingsAllApplicationPort: Send + Sync {
-    async fn export_all_configs_to_json(
-        &self,
-        caller_user_id: i64,
-        host: &dyn SettingsAllHostPort,
-    ) -> Result<String, AppError>;
-
-    async fn import_all_configs(
-        &self,
-        caller_user_id: i64,
-        host: &dyn SettingsAllHostPort,
-        input: ImportAllConfigsInput,
-    ) -> Result<Vec<String>, AppError>;
-}
 
 impl OrchestratorContext {
     pub async fn export_all_configs_to_json_validated(
@@ -121,7 +96,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl SettingsAllApplicationPort for OrchestratorContext {
+impl SettingsExportApplicationPort for OrchestratorContext {
     async fn export_all_configs_to_json(
         &self,
         caller_user_id: i64,
@@ -131,7 +106,10 @@ impl SettingsAllApplicationPort for OrchestratorContext {
             .await?;
         self.export_all_configs_to_json_validated(host).await
     }
+}
 
+#[async_trait]
+impl SettingsImportApplicationPort for OrchestratorContext {
     async fn import_all_configs(
         &self,
         caller_user_id: i64,

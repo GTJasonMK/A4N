@@ -215,7 +215,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::theme::ThemeApplicationPort for OrchestratorContext {
+impl a4n_api_contract::theme::ThemeReadApplicationPort for OrchestratorContext {
     async fn list_themes(&self, user_id: i64) -> Result<Vec<ThemeSummary>, AppError> {
         let themes = self.list_themes_visible_to_user(user_id).await?;
         let theme_ids = themes.iter().map(|theme| theme.id).collect::<Vec<_>>();
@@ -239,6 +239,43 @@ impl a4n_api_contract::theme::ThemeApplicationPort for OrchestratorContext {
             .collect()
     }
 
+    async fn export_theme(&self, user_id: i64, theme_id: i64) -> Result<ThemeSummary, AppError> {
+        let theme = self
+            .export_theme_for_user_validated(user_id, theme_id)
+            .await?;
+        self.theme_summary(user_id, theme).await
+    }
+
+    async fn list_resources(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+    ) -> Result<Vec<ThemeResourceRecord>, AppError> {
+        self.list_theme_resources_for_user_validated(user_id, theme_id)
+            .await
+            .map(|resources| resources.into_iter().map(theme_resource_record).collect())
+    }
+
+    async fn get_preference(
+        &self,
+        user_id: i64,
+    ) -> Result<a4n_api_contract::theme::ThemePreferenceSummary, AppError> {
+        let appearance = self
+            .get_theme_preference_for_user_validated(user_id)
+            .await?
+            .map(|preference| preference.appearance.parse::<ThemeAppearance>())
+            .transpose()
+            .map_err(|error| AppError::ConfigError(format!("主题外观偏好无效：{error}")))?
+            .unwrap_or(ThemeAppearance::System);
+        Ok(a4n_api_contract::theme::ThemePreferenceSummary {
+            user_id,
+            appearance,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorContext {
     async fn create_theme(
         &self,
         user_id: i64,
@@ -272,13 +309,6 @@ impl a4n_api_contract::theme::ThemeApplicationPort for OrchestratorContext {
         self.theme_summary(user_id, theme).await
     }
 
-    async fn export_theme(&self, user_id: i64, theme_id: i64) -> Result<ThemeSummary, AppError> {
-        let theme = self
-            .export_theme_for_user_validated(user_id, theme_id)
-            .await?;
-        self.theme_summary(user_id, theme).await
-    }
-
     async fn import_theme(
         &self,
         user_id: i64,
@@ -286,16 +316,6 @@ impl a4n_api_contract::theme::ThemeApplicationPort for OrchestratorContext {
     ) -> Result<ThemeSummary, AppError> {
         let theme = self.import_theme_for_user_validated(user_id, input).await?;
         self.theme_summary(user_id, theme).await
-    }
-
-    async fn list_resources(
-        &self,
-        user_id: i64,
-        theme_id: i64,
-    ) -> Result<Vec<ThemeResourceRecord>, AppError> {
-        self.list_theme_resources_for_user_validated(user_id, theme_id)
-            .await
-            .map(|resources| resources.into_iter().map(theme_resource_record).collect())
     }
 
     async fn upsert_resource(
@@ -327,23 +347,6 @@ impl a4n_api_contract::theme::ThemeApplicationPort for OrchestratorContext {
             .delete_theme_resource_for_user_validated(user_id, resource_id)
             .await?;
         Ok(theme_resource_record(resource))
-    }
-
-    async fn get_preference(
-        &self,
-        user_id: i64,
-    ) -> Result<a4n_api_contract::theme::ThemePreferenceSummary, AppError> {
-        let appearance = self
-            .get_theme_preference_for_user_validated(user_id)
-            .await?
-            .map(|preference| preference.appearance.parse::<ThemeAppearance>())
-            .transpose()
-            .map_err(|error| AppError::ConfigError(format!("主题外观偏好无效：{error}")))?
-            .unwrap_or(ThemeAppearance::System);
-        Ok(a4n_api_contract::theme::ThemePreferenceSummary {
-            user_id,
-            appearance,
-        })
     }
 
     async fn update_preference(

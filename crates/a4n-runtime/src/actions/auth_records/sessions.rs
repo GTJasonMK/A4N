@@ -6,7 +6,7 @@ pub async fn list_sessions(
     state: &AppState,
     user_id: i64,
 ) -> Result<Vec<SessionSummary>, AppError> {
-    state.auth_application().list_sessions(user_id).await
+    state.auth_read_application().list_sessions(user_id).await
 }
 
 pub async fn revoke_session(
@@ -15,7 +15,7 @@ pub async fn revoke_session(
     session_id: &str,
 ) -> Result<(), AppError> {
     state
-        .auth_application()
+        .auth_mutation_application()
         .revoke_session(user_id, session_id)
         .await
 }

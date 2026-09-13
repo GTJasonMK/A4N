@@ -83,25 +83,30 @@ pub struct GenerateReferenceMediaVideoInput {
     pub input: ReferenceMediaVideoInput,
 }
 
-/// Host-facing request preview boundary for all video entry points.
-///
-/// Video validation and request construction stay in the video owner. Runtime
-/// supplies only the provider and media preview adapters.
+/// Host-facing request preview boundary for canvas video nodes.
 #[async_trait::async_trait]
-pub trait VideoRequestPreviewApplicationPort: Send + Sync {
+pub trait CanvasVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_canvas(
         &self,
         input: crate::canvas::GenerateCanvasVideoInput,
         host_port: &dyn a4n_video_contract::CanvasVideoPreviewHostPort,
     ) -> Result<a4n_video_contract::CanvasVideoRequestPreview, a4n_error::AppError>;
+}
 
+/// Host-facing request preview boundary for chapter videos.
+#[async_trait::async_trait]
+pub trait ChapterVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_chapter(
         &self,
         host_port: &dyn a4n_video_contract::ChapterVideoPreviewHostPort,
         input: GenerateChapterVideoInput,
         prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
     ) -> Result<a4n_video_contract::ChapterVideoRequestPreview, a4n_error::AppError>;
+}
 
+/// Host-facing request preview boundary for reference-media videos.
+#[async_trait::async_trait]
+pub trait ReferenceMediaVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_reference_media(
         &self,
         host_port: &dyn a4n_video_contract::ReferenceMediaVideoPreviewHostPort,
@@ -640,12 +645,12 @@ pub trait VideoRecordMutationApplicationPort: Send + Sync {
     async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError>;
 }
 
-/// Host-facing video import and trim boundary.
+/// Host-facing chapter-video import boundary.
 ///
-/// Runtime supplies inspected file facts; the video owner creates records and
-/// enforces project, chapter, and workflow invariants.
+/// Runtime supplies inspected file facts; the video owner creates the record
+/// and enforces project, chapter, and workflow invariants.
 #[async_trait::async_trait]
-pub trait VideoImportApplicationPort: Send + Sync {
+pub trait ChapterVideoImportApplicationPort: Send + Sync {
     async fn create_imported_chapter_video_record(
         &self,
         project_id: i64,
@@ -656,7 +661,11 @@ pub trait VideoImportApplicationPort: Send + Sync {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+}
 
+/// Host-facing reference-media video import boundary.
+#[async_trait::async_trait]
+pub trait ReferenceMediaVideoImportApplicationPort: Send + Sync {
     async fn create_imported_reference_media_video_record(
         &self,
         project_id: i64,
@@ -669,7 +678,11 @@ pub trait VideoImportApplicationPort: Send + Sync {
         target_source_shot_id: &str,
         target_segment_index: i32,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+}
 
+/// Host-facing Assembly insert-video import boundary.
+#[async_trait::async_trait]
+pub trait AssemblyVideoImportApplicationPort: Send + Sync {
     async fn create_imported_assembly_insert_video_record(
         &self,
         project_id: i64,
@@ -681,7 +694,11 @@ pub trait VideoImportApplicationPort: Send + Sync {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+}
 
+/// Host-facing Canvas video import-record boundary.
+#[async_trait::async_trait]
+pub trait CanvasVideoImportApplicationPort: Send + Sync {
     async fn create_imported_canvas_video_record(
         &self,
         project_id: i64,
@@ -690,7 +707,11 @@ pub trait VideoImportApplicationPort: Send + Sync {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+}
 
+/// Host-facing video trim boundary.
+#[async_trait::async_trait]
+pub trait VideoTrimApplicationPort: Send + Sync {
     async fn prepare_trim(
         &self,
         user_id: i64,
@@ -705,17 +726,9 @@ pub trait VideoImportApplicationPort: Send + Sync {
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
 }
 
-/// Host-facing Assembly planning and push boundary.
+/// Host-facing Assembly postprocess boundary.
 #[async_trait::async_trait]
-pub trait VideoAssemblyApplicationPort: Send + Sync {
-    async fn assembly_records(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        operation: &str,
-    ) -> Result<AssemblyVideoRecords, a4n_error::AppError>;
-
+pub trait VideoAssemblyPostprocessApplicationPort: Send + Sync {
     async fn prepare_assembly_postprocess_edit(
         &self,
         push_video_id: i64,
@@ -734,7 +747,23 @@ pub trait VideoAssemblyApplicationPort: Send + Sync {
         plan: AssemblyPostprocessPlan,
         input: AssemblyPostprocessEditRecordInput,
     ) -> Result<PreparedAssemblyPostprocessEditRecord, a4n_error::AppError>;
+}
 
+/// Host-facing Assembly clip planning boundary.
+#[async_trait::async_trait]
+pub trait VideoAssemblyPlanningApplicationPort: Send + Sync {
+    async fn assembly_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        operation: &str,
+    ) -> Result<AssemblyVideoRecords, a4n_error::AppError>;
+}
+
+/// Host-facing Assembly push boundary.
+#[async_trait::async_trait]
+pub trait VideoAssemblyPushApplicationPort: Send + Sync {
     async fn create_assembly_push_record(
         &self,
         project_id: i64,
@@ -752,17 +781,18 @@ pub trait VideoAssemblyApplicationPort: Send + Sync {
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
 }
 
-/// Host-facing completion and media-cleanup lifecycle boundary.
+/// Host-facing video completion boundary.
 #[async_trait::async_trait]
-pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
-    async fn mark_error_status_and_prompt(
+pub trait VideoRecordCompletionApplicationPort: Send + Sync {
+    async fn complete(
         &self,
-        video_id: i64,
-        prompt_id: Option<i64>,
-        status: &str,
-        message: &str,
-    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+        input: CompleteVideoRecordInput,
+    ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
+}
 
+/// Host-facing video tail-frame boundary.
+#[async_trait::async_trait]
+pub trait VideoTailFrameApplicationPort: Send + Sync {
     async fn create_video_tail_frame(
         &self,
         input: VideoTailFrameInput,
@@ -772,12 +802,23 @@ pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
         &self,
         video_id: i64,
     ) -> Result<(), a4n_error::AppError>;
+}
 
-    async fn complete(
+/// Host-facing video failure-state boundary.
+#[async_trait::async_trait]
+pub trait VideoRecordFailureApplicationPort: Send + Sync {
+    async fn mark_error_status_and_prompt(
         &self,
-        input: CompleteVideoRecordInput,
-    ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
+        video_id: i64,
+        prompt_id: Option<i64>,
+        status: &str,
+        message: &str,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+}
 
+/// Host-facing media-cleanup lifecycle boundary.
+#[async_trait::async_trait]
+pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), a4n_error::AppError>;
 }
 

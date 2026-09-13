@@ -67,7 +67,7 @@ pub(crate) async fn generate_portrait_inline(
             .await?;
     }
     let task = state
-        .generation_application()
+        .generation_task_read_application()
         .generation_task_summary_for_user(user_id, &start.handle.task_id, start.handle.attempt)
         .await
         .map_err(|error| error.to_string())?;
@@ -88,7 +88,7 @@ pub(crate) async fn generate_portrait_inline(
         )
     })?;
     let portrait = state
-        .portrait_record_application()
+        .portrait_record_read_application()
         .by_id(user_id, portrait_id)
         .await
         .map_err(|error| error.to_string())?

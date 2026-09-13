@@ -9,14 +9,15 @@ use a4n_api_contract::canvas::{
 use a4n_canvas_contract::{
     CanvasEditingNodeApplicationPort, CanvasEditingNodeHostPort,
     CanvasGraphExecutionApplicationPort, CanvasGraphExecutionHostPort,
-    CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
-    CanvasImageNodeApplicationInput, CanvasLlmTextNodeApplicationInput,
-    CanvasOutputNodeApplicationInput, CanvasOutputNodeApplicationPort,
-    CanvasPreviewNodeApplicationInput, CanvasProbeNodeApplicationInput,
-    CanvasProbeNodeApplicationPort, CanvasRenderTextNodeApplicationInput,
-    CanvasRenderTextNodeApplicationPort, CanvasSingleNodeRunPreparationInput,
-    CanvasVideoNodeApplicationInput, GenerateCanvasImageInput, GenerateCanvasVideoInput,
-    PreparedCanvasGraphRun,
+    CanvasGraphFailureApplicationPort, CanvasGraphPreparationApplicationPort,
+    CanvasGraphPreparationHostPort, CanvasGraphResumePreparationInput,
+    CanvasGraphRunPreparationInput, CanvasImageNodeApplicationInput,
+    CanvasLlmTextNodeApplicationInput, CanvasOutputNodeApplicationInput,
+    CanvasOutputNodeApplicationPort, CanvasPreviewNodeApplicationInput,
+    CanvasProbeNodeApplicationInput, CanvasProbeNodeApplicationPort,
+    CanvasRenderTextNodeApplicationInput, CanvasRenderTextNodeApplicationPort,
+    CanvasSingleNodeRunPreparationInput, CanvasVideoNodeApplicationInput, GenerateCanvasImageInput,
+    GenerateCanvasVideoInput, PreparedCanvasGraphRun,
 };
 use a4n_db::DbHandle;
 use a4n_db::canvas::{
@@ -459,7 +460,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::canvas::CanvasApplicationPort for OrchestratorContext {
+impl a4n_api_contract::canvas::CanvasReadApplicationPort for OrchestratorContext {
     async fn get_graph(
         &self,
         user_id: i64,
@@ -480,7 +481,10 @@ impl a4n_api_contract::canvas::CanvasApplicationPort for OrchestratorContext {
             .await?;
         self.read_canvas_graph(input).await
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::canvas::CanvasMutationApplicationPort for OrchestratorContext {
     async fn save_graph(
         &self,
         user_id: i64,
@@ -878,11 +882,11 @@ impl CanvasVideoNodeApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl CanvasGraphExecutionApplicationPort for OrchestratorContext {
+impl CanvasGraphPreparationApplicationPort for OrchestratorContext {
     async fn prepare_graph(
         &self,
         input: CanvasGraphRunPreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         self.prepare_canvas_graph_run_validated(input, host_port)
             .await
@@ -891,7 +895,7 @@ impl CanvasGraphExecutionApplicationPort for OrchestratorContext {
     async fn prepare_single_node(
         &self,
         input: CanvasSingleNodeRunPreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         self.prepare_canvas_single_node_run_validated(input, host_port)
             .await
@@ -900,12 +904,15 @@ impl CanvasGraphExecutionApplicationPort for OrchestratorContext {
     async fn prepare_resume(
         &self,
         input: CanvasGraphResumePreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         self.prepare_canvas_graph_resume_validated(input, host_port)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl CanvasGraphExecutionApplicationPort for OrchestratorContext {
     async fn run_prepared(
         &self,
         prepared: PreparedCanvasGraphRun,
@@ -914,7 +921,10 @@ impl CanvasGraphExecutionApplicationPort for OrchestratorContext {
         self.run_prepared_canvas_graph_validated(prepared, host_port)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl CanvasGraphFailureApplicationPort for OrchestratorContext {
     async fn fail_unsubmitted(&self, workflow_run_id: i64, error: &str) -> Result<(), String> {
         self.fail_workflow_run_validated(workflow_run_id, error)
             .await
