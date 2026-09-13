@@ -39,10 +39,17 @@ const secondPlan = structuredClone(plan);
 let holdEdit = false;
 let releaseEdit: (() => void) | null = null;
 let completedEdits = 0;
+let imageGenerationCount = 0;
 Object.assign(window, { holdDirectorEdit: () => { holdEdit = true; }, releaseDirectorEdit: () => releaseEdit?.() });
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (resource, options) => {
   const url = new URL(typeof resource === "string" ? resource : resource instanceof URL ? resource.href : resource.url, location.href);
+  if (url.pathname.endsWith("/generation-tasks/image")) {
+    const input = JSON.parse(String(options?.body ?? "{}"));
+    commands.push({ command: "start_image_generation", input });
+    imageGenerationCount += 1;
+    return new Response(JSON.stringify({ task_id: `director-image-task-${imageGenerationCount}`, attempt: 1, event_schema_version: 1, status: "reserved" }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (!url.pathname.includes("/commands/")) return originalFetch(resource, options);
   const command = decodeURIComponent(url.pathname.split("/").at(-1)!);
   const { input } = JSON.parse(String(options?.body ?? "{}"));
@@ -56,6 +63,7 @@ window.fetch = async (resource, options) => {
     case "list_images_by_projects": result = plan.points.slice(0, -1).map((point, index) => ({ id: index + 1, project_id: 1, image_type: "director_storyboard_frame", file_path: `${location.origin}/e2e/director-timeline/${index < 4 ? "street" : "interior"}.svg?frame=${index}`, prompt: point.description, model: "browser-fixture", width: 1920, height: 1080, file_size: 1000, ai_score: null, is_favorite: false, chapter_id: 1, panel_id: null, metadata_json: null, created_at: null })); break;
     case "list_scene_profiles": result = [{ id: 11, project_id: 1, name: "雨夜街道" }, { id: 22, project_id: 1, name: "旧书店内" }]; break;
     case "list_image_configs": result = [{ id: 7, name: "测试图片模型", model: "fixture-image-model", backend: "openai", base_url: "http://fixture.invalid", has_api_key: true, is_default: true, max_concurrent: 1, supported_sizes: [{ width: 1920, height: 1080 }] }]; break;
+    case "preview_visual_plan_point_generation": result = { aspect_ratio: "16:9", plan_sha256: "b".repeat(64), prompt: input.options.user_description, reference_image_ids: [] }; break;
     case "save_chapter_visual_plan_draft": plan = input.plan; revision += 1; result = view(); break;
     case "edit_chapter_visual_plan_draft": {
       if (holdEdit) { holdEdit = false; await new Promise<void>((resolve) => { releaseEdit = resolve; }); }
