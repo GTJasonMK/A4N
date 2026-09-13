@@ -1,5 +1,6 @@
 use super::{AgentApplication, AgentMessageSnapshot, AgentWorkerRun};
 use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerMessageRequest;
 use serde_json::Value;
 
 /// Runtime-facing boundary for durable assistant/tool observations of a Run.
@@ -42,6 +43,11 @@ pub trait AgentWorkerMessageApplicationPort: Send + Sync {
         client_message_id: String,
         content: String,
         tool_calls: Value,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError>;
+
+    async fn apply_message_request(
+        &self,
+        request: &AgentWorkerMessageRequest,
     ) -> Result<Option<AgentMessageSnapshot>, AppError>;
 }
 
@@ -122,5 +128,12 @@ impl AgentWorkerMessageApplicationPort for AgentApplication {
             tool_calls,
         )
         .await
+    }
+
+    async fn apply_message_request(
+        &self,
+        request: &AgentWorkerMessageRequest,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        AgentApplication::apply_message_request(self, request).await
     }
 }

@@ -214,6 +214,78 @@ impl AgentWorkerExecutionUpdateRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AgentWorkerMessageOperation {
+    AppendTool {
+        execution_id: i64,
+        tool_name: String,
+        tool_call_id: Option<String>,
+        result: serde_json::Value,
+    },
+    AppendAssistantTool {
+        content: String,
+        tool_calls: serde_json::Value,
+    },
+    UpsertAssistantStreaming {
+        client_message_id: String,
+        content: String,
+        reasoning_content: Option<String>,
+    },
+    InterruptAssistantStreaming {
+        client_message_id: String,
+        reason: Option<String>,
+    },
+    CompleteAssistantStreaming {
+        client_message_id: String,
+        content: String,
+        tool_calls: serde_json::Value,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerMessageRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub operation: AgentWorkerMessageOperation,
+}
+
+impl AgentWorkerMessageRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        match &self.operation {
+            AgentWorkerMessageOperation::AppendTool {
+                execution_id,
+                tool_name,
+                ..
+            } => {
+                if *execution_id <= 0 {
+                    return Err(WorkerContractError::InvalidValue {
+                        field: "operation.execution_id",
+                        reason: "must be positive",
+                    });
+                }
+                validate_non_blank("operation.tool_name", tool_name)
+            }
+            AgentWorkerMessageOperation::AppendAssistantTool { .. } => Ok(()),
+            AgentWorkerMessageOperation::UpsertAssistantStreaming {
+                client_message_id, ..
+            }
+            | AgentWorkerMessageOperation::InterruptAssistantStreaming {
+                client_message_id, ..
+            }
+            | AgentWorkerMessageOperation::CompleteAssistantStreaming {
+                client_message_id, ..
+            } => validate_non_blank("operation.client_message_id", client_message_id),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -877,6 +949,41 @@ mod tests {
             .validate(),
             Err(WorkerContractError::InvalidValue {
                 field: "execution_id",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn message_request_validates_operation_specific_identifiers() {
+        let request = AgentWorkerMessageRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            operation: AgentWorkerMessageOperation::AppendTool {
+                execution_id: 2,
+                tool_name: "read".into(),
+                tool_call_id: Some("call-1".into()),
+                result: serde_json::json!({"ok": true}),
+            },
+        };
+        request.validate().expect("message request should be valid");
+        let encoded = serde_json::to_string(&request).expect("message request should serialize");
+        serde_json::from_str::<AgentWorkerMessageRequest>(&encoded)
+            .expect("message request should deserialize");
+
+        let invalid = AgentWorkerMessageRequest {
+            operation: AgentWorkerMessageOperation::AppendTool {
+                execution_id: 0,
+                tool_name: "read".into(),
+                tool_call_id: None,
+                result: serde_json::json!({}),
+            },
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "operation.execution_id",
                 ..
             })
         ));

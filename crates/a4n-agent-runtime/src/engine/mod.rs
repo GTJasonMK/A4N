@@ -1,9 +1,10 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerExecutionApplicationPort, AgentWorkerReadApplicationPort,
-    AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate,
-    child_budget_within_parent, enforce_delegation_limits, validate_agent_budget,
+    AgentRunContext, AgentWorkerExecutionApplicationPort, AgentWorkerMessageApplicationPort,
+    AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
+    WorkerExecutionUpdate, child_budget_within_parent, enforce_delegation_limits,
+    validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -820,7 +821,7 @@ async fn suspend_agent_at_duration_limit(
     {
         if let Some(client_message_id) = stream_client_message_id(claimed.run.id, execution) {
             state
-                .worker_message_application()
+                .worker_message_application(claimed)
                 .interrupt_assistant_streaming_message(
                     claimed,
                     client_message_id,
@@ -863,8 +864,12 @@ async fn process_claimed_run_inner(
     }
     // A model response can be durable before its assistant message. Materialize
     // that decision first, including when a token limit suspended the Run.
-    let recovered_final =
-        recover_model_messages(state.worker_message_application(), claimed, &mut context).await?;
+    let recovered_final = recover_model_messages(
+        &state.worker_message_application(claimed),
+        claimed,
+        &mut context,
+    )
+    .await?;
     let mut messages = chat_messages(&context)?;
     let mut loaded_message_ids = context.messages.iter().map(|message| message.id).collect();
     let mut pinned_user_contents = context
@@ -1244,7 +1249,7 @@ async fn process_claimed_run_inner(
             };
             let response = consume_model_stream(
                 stream,
-                state.worker_message_application(),
+                &state.worker_message_application(claimed),
                 claimed,
                 &stream_client_message_id,
                 cancel,
@@ -1326,7 +1331,7 @@ async fn process_claimed_run_inner(
         // Persist the assistant decision before dispatching side effects so a
         // resumed run can reconstruct the exact tool-call context.
         let tool_calls_payload = serde_json::to_value(&calls)?;
-        let message_application = state.worker_message_application();
+        let message_application = state.worker_message_application(claimed);
         let finalized = if let Some(client_message_id) =
             stream_client_message_id(claimed.run.id, &model_execution)
         {
@@ -2084,7 +2089,7 @@ async fn execute_tool_call(
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
     let descriptor = tool_descriptor(&call.name)?;
-    let message_application = state.worker_message_application();
+    let message_application = state.worker_message_application(claimed);
     let approval_application = state.worker_approval_application();
     let delegation_application = state.worker_delegation_application();
     let editor_response_application = state.editor_response_application();
@@ -2103,7 +2108,7 @@ async fn execute_tool_call(
                 operation: "恢复工具结果，禁止重复执行".into(),
             })?;
         append_tool_observation(
-            message_application,
+            &message_application,
             claimed,
             &execution,
             &call,
@@ -2122,7 +2127,7 @@ async fn execute_tool_call(
     ) {
         let value = json!({"error": execution.error_message.clone().unwrap_or_else(|| "Agent 操作未完成".into())});
         append_tool_observation(
-            message_application,
+            &message_application,
             claimed,
             &execution,
             &call,
@@ -2347,7 +2352,7 @@ async fn execute_tool_call(
                     })
                     .await?;
                 append_tool_observation(
-                    message_application,
+                    &message_application,
                     claimed,
                     &execution,
                     &call,
@@ -2441,7 +2446,7 @@ async fn execute_tool_call(
     };
     let discovered = discovered_tool_names(&call.name, &Some(value.clone()))?;
     append_tool_observation(
-        message_application,
+        &message_application,
         claimed,
         &execution,
         &call,

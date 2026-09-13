@@ -202,7 +202,7 @@ async fn call(
     });
     if !declared {
         state
-            .worker_message_application()
+            .worker_message_application(claimed)
             .append_assistant_tool_message(claimed, String::new(), json!([call]))
             .await?;
     }

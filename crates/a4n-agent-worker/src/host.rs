@@ -12,9 +12,9 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
-    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
+    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -172,6 +172,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerExecutionUpdateRequest,
     ) -> Result<AgentWorkerExecutionSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/execution/update", request)
+            .await
+    }
+
+    async fn apply_message_request(
+        &self,
+        request: &AgentWorkerMessageRequest,
+    ) -> Result<Option<AgentWorkerMessageSnapshotWire>, AppError> {
+        self.request_json(Method::POST, "/internal/agent/message", request)
             .await
     }
 

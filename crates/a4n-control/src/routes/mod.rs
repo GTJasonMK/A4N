@@ -231,6 +231,7 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/execution/update",
             post(agent_runtime::update_worker_execution),
         )
+        .route("/agent/message", post(agent_runtime::apply_message_request))
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

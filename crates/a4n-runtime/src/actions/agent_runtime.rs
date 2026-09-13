@@ -33,9 +33,10 @@ use a4n_llm::provider::{
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerContextSummaryRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease,
+    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1112,6 +1113,20 @@ pub async fn update_worker_execution(
         .update_worker_execution_request(request)
         .await
         .map(Into::into)
+}
+
+pub async fn apply_message_request(
+    state: &AppState,
+    request: &AgentWorkerMessageRequest,
+) -> Result<Option<AgentWorkerMessageSnapshotWire>, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent message 无效: {error}")))?;
+    state
+        .agent_worker_message_application()
+        .apply_message_request(request)
+        .await
+        .map(|snapshot| snapshot.map(Into::into))
 }
 
 pub async fn authorize_agent_host_command(

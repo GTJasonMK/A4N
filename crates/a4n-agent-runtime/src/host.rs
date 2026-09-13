@@ -10,8 +10,8 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AgentRunPayload, AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WorkerRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -61,6 +61,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerExecutionUpdateRequest,
     ) -> Result<AgentWorkerExecutionSnapshotWire, AppError>;
+
+    async fn apply_message_request(
+        &self,
+        request: &AgentWorkerMessageRequest,
+    ) -> Result<Option<AgentWorkerMessageSnapshotWire>, AppError>;
 
     async fn execute_command(
         &self,

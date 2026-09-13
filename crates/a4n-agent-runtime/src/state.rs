@@ -2,24 +2,26 @@ use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
     AgentApplication, AgentApprovalExpiryApplicationPort, AgentEditorClaimApplicationPort,
     AgentEditorResponseApplicationPort, AgentEditorWaitApplicationPort, AgentExecutionSnapshot,
-    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort, AgentRunContext,
-    AgentRunLeaseRecoveryApplicationPort, AgentWorkerActivationApplicationPort,
-    AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
-    AgentWorkerClaimApplicationPort, AgentWorkerCompletionApplicationPort,
-    AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerHistoryApplicationPort,
-    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort,
-    AgentWorkerRecoveryApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort,
+    AgentMessageSnapshot, AgentRunContext, AgentRunLeaseRecoveryApplicationPort,
+    AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
+    AgentWorkerBudgetApplicationPort, AgentWorkerClaimApplicationPort,
+    AgentWorkerCompletionApplicationPort, AgentWorkerDelegationApplicationPort,
+    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
+    AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
+    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
+    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
+    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort, WorkerExecutionInput,
+    WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentRunPayload, AgentWorkerContextSummaryRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease,
+    WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -40,6 +42,12 @@ pub struct AgentRuntimeState {
 
 #[derive(Clone, Copy)]
 pub struct AgentWorkerExecutionHostPort<'a> {
+    state: &'a AgentRuntimeState,
+    claimed: &'a AgentWorkerRun,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct AgentWorkerMessageHostPort<'a> {
     state: &'a AgentRuntimeState,
     claimed: &'a AgentWorkerRun,
 }
@@ -288,6 +296,16 @@ impl AgentRuntimeState {
             .map(Into::into)
     }
 
+    pub async fn apply_agent_worker_message(
+        &self,
+        request: &AgentWorkerMessageRequest,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        self.host
+            .apply_message_request(request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
+    }
+
     pub async fn authorize_agent_host_command(
         &self,
         request: &WorkerRequest<AgentHostCommandPayload>,
@@ -466,8 +484,14 @@ impl AgentRuntimeState {
     pub fn worker_lease_application(&self) -> Arc<dyn AgentWorkerLeaseApplicationPort> {
         self.application.clone()
     }
-    pub fn worker_message_application(&self) -> &dyn AgentWorkerMessageApplicationPort {
-        self.application.as_ref()
+    pub(crate) fn worker_message_application<'a>(
+        &'a self,
+        claimed: &'a AgentWorkerRun,
+    ) -> AgentWorkerMessageHostPort<'a> {
+        AgentWorkerMessageHostPort {
+            state: self,
+            claimed,
+        }
     }
     pub fn worker_read_application(&self) -> &dyn AgentWorkerReadApplicationPort {
         self.application.as_ref()
@@ -572,5 +596,171 @@ impl AgentWorkerExecutionApplicationPort for AgentWorkerExecutionHostPort<'_> {
             .update_worker_execution(request)
             .await
             .map(Into::into)
+    }
+}
+
+impl AgentWorkerMessageHostPort<'_> {
+    fn request(
+        &self,
+        operation: AgentWorkerMessageOperation,
+    ) -> Result<AgentWorkerMessageRequest, AppError> {
+        let request = AgentWorkerMessageRequest {
+            run_id: self.claimed.run.id,
+            lease: self.state.agent_worker_lease_request(self.claimed)?.lease,
+            operation,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent message request 无效: {error}"),
+            operation: "构造 Agent message request".into(),
+        })?;
+        Ok(request)
+    }
+
+    async fn apply(
+        &self,
+        operation: AgentWorkerMessageOperation,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        let request = self.request(operation)?;
+        self.state.apply_agent_worker_message(&request).await
+    }
+
+    async fn apply_required(
+        &self,
+        operation: AgentWorkerMessageOperation,
+        operation_name: &str,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        self.apply(operation)
+            .await?
+            .ok_or_else(|| AppError::InvalidState {
+                current: "Agent message request 没有返回消息".into(),
+                operation: operation_name.into(),
+            })
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerMessageApplicationPort for AgentWorkerMessageHostPort<'_> {
+    async fn append_tool_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_id: i64,
+        tool_name: &str,
+        tool_call_id: Option<&str>,
+        result: Value,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent message claimed run 不一致".into(),
+                operation: "写入 Agent tool message".into(),
+            });
+        }
+        self.apply_required(
+            AgentWorkerMessageOperation::AppendTool {
+                execution_id,
+                tool_name: tool_name.to_string(),
+                tool_call_id: tool_call_id.map(str::to_string),
+                result,
+            },
+            "写入 Agent tool message",
+        )
+        .await
+    }
+
+    async fn append_assistant_tool_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        content: String,
+        tool_calls: Value,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent message claimed run 不一致".into(),
+                operation: "写入 Agent assistant tool message".into(),
+            });
+        }
+        self.apply_required(
+            AgentWorkerMessageOperation::AppendAssistantTool {
+                content,
+                tool_calls,
+            },
+            "写入 Agent assistant tool message",
+        )
+        .await
+    }
+
+    async fn upsert_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        reasoning_content: Option<String>,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent message claimed run 不一致".into(),
+                operation: "更新 Agent streaming message".into(),
+            });
+        }
+        self.apply_required(
+            AgentWorkerMessageOperation::UpsertAssistantStreaming {
+                client_message_id,
+                content,
+                reasoning_content,
+            },
+            "更新 Agent streaming message",
+        )
+        .await
+    }
+
+    async fn interrupt_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        reason: Option<String>,
+    ) -> Result<(), AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent message claimed run 不一致".into(),
+                operation: "中断 Agent streaming message".into(),
+            });
+        }
+        self.apply(AgentWorkerMessageOperation::InterruptAssistantStreaming {
+            client_message_id,
+            reason,
+        })
+        .await
+        .map(|_| ())
+    }
+
+    async fn complete_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        tool_calls: Value,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent message claimed run 不一致".into(),
+                operation: "完成 Agent streaming message".into(),
+            });
+        }
+        self.apply(AgentWorkerMessageOperation::CompleteAssistantStreaming {
+            client_message_id,
+            content,
+            tool_calls,
+        })
+        .await
+    }
+
+    async fn apply_message_request(
+        &self,
+        request: &AgentWorkerMessageRequest,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        self.state
+            .host
+            .apply_message_request(request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
     }
 }
