@@ -25,10 +25,11 @@ use a4n_worker_contract::{
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
-    AgentWorkerMessageRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionUpdateRequest,
+    AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -383,6 +384,26 @@ impl AgentRuntimeState {
             .create_child_run(&request)
             .await
             .map(worker_delegation_result_from_wire)
+    }
+
+    pub async fn read_agent_execution_result(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: a4n_api_contract::agent::ReadAgentExecutionResultInput,
+    ) -> Result<a4n_api_contract::agent::AgentExecutionResultPage, AppError> {
+        let request = AgentWorkerExecutionResultRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            execution_id: input.execution_id,
+            pointer: input.pointer,
+            offset: input.offset,
+            limit: input.limit,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent execution result request 无效: {error}"),
+            operation: "读取 Agent execution result".into(),
+        })?;
+        self.host.read_execution_result(&request).await
     }
 
     pub async fn agent_worker_run_is_terminal(

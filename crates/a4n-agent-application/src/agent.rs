@@ -42,12 +42,13 @@ use a4n_worker_contract::{
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
-    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
+    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3365,6 +3366,22 @@ impl AgentApplication {
         Ok(run)
     }
 
+    async fn worker_run_for_lease_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<AgentWorkerRun, AppError> {
+        let run = self.validate_worker_lease_request(request).await?;
+        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
+        Ok(AgentWorkerRun {
+            run: run.into(),
+            thread: thread_snapshot(thread)?,
+            lease_token: request.lease.fence_token.clone(),
+        })
+    }
+
     pub(crate) async fn read_execution_result_for_run(
         &self,
         context: &AgentRunContext,
@@ -3422,6 +3439,32 @@ impl AgentApplication {
                 .map_err(|_| AppError::InvalidArgument("结果长度超出读取范围".into()))?,
             complete: end == total_chars,
         })
+    }
+
+    pub(crate) async fn read_execution_result_request(
+        &self,
+        request: &AgentWorkerExecutionResultRequest,
+    ) -> Result<a4n_api_contract::agent::AgentExecutionResultPage, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        let context = self.load_run_context(&claimed).await?;
+        self.read_execution_result_for_run(
+            &context,
+            a4n_api_contract::agent::ReadAgentExecutionResultInput {
+                execution_id: request.execution_id.clone(),
+                pointer: request.pointer.clone(),
+                offset: request.offset,
+                limit: request.limit,
+            },
+        )
+        .await
     }
 
     pub(crate) async fn result_refs_for_run(
@@ -3758,21 +3801,12 @@ impl AgentApplication {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let run = self
-            .validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
                 run_id: request.run_id,
                 lease: request.lease.clone(),
             })
             .await?;
-        let thread = agent::thread_by_id(self.connection(), run.thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
-        let claimed = AgentWorkerRun {
-            run: run.into(),
-            thread: thread_snapshot(thread)?,
-            lease_token: request.lease.fence_token.clone(),
-        };
         self.create_child_run(
             &claimed,
             WorkerDelegationInput {

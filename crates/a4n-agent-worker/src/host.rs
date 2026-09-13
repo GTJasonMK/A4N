@@ -1,5 +1,6 @@
 use a4n_agent_application::agent::{AgentExternalTaskWaitSnapshot, AgentRunContext};
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
+use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
 };
@@ -17,7 +18,8 @@ use a4n_worker_contract::{
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
@@ -180,6 +182,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerExecutionUpdateRequest,
     ) -> Result<AgentWorkerExecutionSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/execution/update", request)
+            .await
+    }
+
+    async fn read_execution_result(
+        &self,
+        request: &AgentWorkerExecutionResultRequest,
+    ) -> Result<AgentExecutionResultPage, AppError> {
+        self.request_json(Method::POST, "/internal/agent/execution/result", request)
             .await
     }
 

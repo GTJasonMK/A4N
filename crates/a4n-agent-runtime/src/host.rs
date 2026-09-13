@@ -1,6 +1,7 @@
 use a4n_agent_application::agent::{
     AgentExternalTaskWaitSnapshot, AgentRunContext, AgentWorkflowCancelSnapshot,
 };
+use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
 };
@@ -16,8 +17,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WorkerRequest,
@@ -70,6 +72,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerExecutionUpdateRequest,
     ) -> Result<AgentWorkerExecutionSnapshotWire, AppError>;
+
+    async fn read_execution_result(
+        &self,
+        request: &AgentWorkerExecutionResultRequest,
+    ) -> Result<AgentExecutionResultPage, AppError>;
 
     async fn apply_message_request(
         &self,

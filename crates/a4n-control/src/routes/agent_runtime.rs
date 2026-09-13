@@ -29,7 +29,8 @@ use a4n_worker_contract::{
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
@@ -185,6 +186,21 @@ pub(super) async fn update_worker_execution(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::update_worker_execution(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn read_execution_result(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerExecutionResultRequest>,
+) -> Result<Json<a4n_api_contract::agent::AgentExecutionResultPage>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::read_execution_result(state.runtime(), &input)
         .await
         .map(Json)
         .map_err(Into::into)

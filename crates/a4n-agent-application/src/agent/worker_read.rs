@@ -5,6 +5,7 @@ use a4n_api_contract::agent::{
     SearchAgentToolsInput,
 };
 use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerExecutionResultRequest;
 
 /// Runtime-facing boundary for the two read-only Agent tools available to a
 /// claimed Run.
@@ -40,6 +41,11 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
         &self,
         context: &AgentRunContext,
         input: ReadAgentExecutionResultInput,
+    ) -> Result<AgentExecutionResultPage, AppError>;
+
+    async fn read_execution_result_request(
+        &self,
+        request: &AgentWorkerExecutionResultRequest,
     ) -> Result<AgentExecutionResultPage, AppError>;
 }
 
@@ -82,5 +88,12 @@ impl AgentWorkerReadApplicationPort for AgentApplication {
         input: ReadAgentExecutionResultInput,
     ) -> Result<AgentExecutionResultPage, AppError> {
         AgentApplication::read_execution_result_for_run(self, context, input).await
+    }
+
+    async fn read_execution_result_request(
+        &self,
+        request: &AgentWorkerExecutionResultRequest,
+    ) -> Result<AgentExecutionResultPage, AppError> {
+        AgentApplication::read_execution_result_request(self, request).await
     }
 }

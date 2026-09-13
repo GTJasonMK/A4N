@@ -39,8 +39,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
@@ -1120,6 +1121,19 @@ pub async fn update_worker_execution(
         .update_worker_execution_request(request)
         .await
         .map(Into::into)
+}
+
+pub async fn read_execution_result(
+    state: &AppState,
+    request: &AgentWorkerExecutionResultRequest,
+) -> Result<a4n_api_contract::agent::AgentExecutionResultPage, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent execution result 无效: {error}"))
+    })?;
+    state
+        .agent_worker_read_application()
+        .read_execution_result_request(request)
+        .await
 }
 
 pub async fn apply_message_request(

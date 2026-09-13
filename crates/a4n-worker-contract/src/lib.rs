@@ -198,6 +198,37 @@ pub struct AgentWorkerExecutionUpdateRequest {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExecutionResultRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub execution_id: String,
+    #[serde(default)]
+    pub pointer: String,
+    #[serde(default)]
+    pub offset: u32,
+    pub limit: Option<u32>,
+}
+
+impl AgentWorkerExecutionResultRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("execution_id", &self.execution_id)?;
+        if self.limit == Some(0) {
+            return Err(WorkerContractError::InvalidValue {
+                field: "limit",
+                reason: "must be positive",
+            });
+        }
+        Ok(())
+    }
+}
+
 impl AgentWorkerExecutionUpdateRequest {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         AgentWorkerRunLeaseRequest {
@@ -1489,6 +1520,26 @@ mod tests {
                 field: "execution_id",
                 ..
             })
+        ));
+
+        let result = AgentWorkerExecutionResultRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            execution_id: "11".into(),
+            pointer: "/text".into(),
+            offset: 0,
+            limit: Some(20),
+        };
+        result
+            .validate()
+            .expect("execution result request should be valid");
+        assert!(matches!(
+            AgentWorkerExecutionResultRequest {
+                limit: Some(0),
+                ..result
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue { field: "limit", .. })
         ));
     }
 

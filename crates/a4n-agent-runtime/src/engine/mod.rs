@@ -189,6 +189,7 @@ impl RuntimeAgentToolExecutor {
     /// Execute a validated Agent tool through the owning Host.
     pub(crate) async fn execute(
         &self,
+        claimed: &AgentWorkerRun,
         context: &AgentRunContext,
         name: &str,
         arguments: Value,
@@ -264,8 +265,7 @@ impl RuntimeAgentToolExecutor {
                 >(arguments, name)?;
                 serde_json::to_value(
                     self.state
-                        .worker_read_application()
-                        .read_execution_result_for_run(context, input)
+                        .read_agent_execution_result(claimed, input)
                         .await?,
                 )
                 .map_err(AppError::from)
@@ -2389,6 +2389,7 @@ async fn execute_tool_call(
             .await?;
     let value = match executor
         .execute(
+            claimed,
             context,
             &call.name,
             call.arguments.clone(),
