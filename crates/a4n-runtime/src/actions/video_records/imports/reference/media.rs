@@ -48,7 +48,7 @@ async fn create_imported_reference_media_video(
     let properties = probe_imported_video_properties(&source, "导入参考媒体视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video_import_application()
+        .video_reference_media_import_application()
         .create_imported_reference_media_video_record(
             project_id,
             chapter_id,

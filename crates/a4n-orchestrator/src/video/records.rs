@@ -43,11 +43,12 @@ use a4n_api_contract::{
         AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoRecords,
         CanvasAssemblyPlan, CanvasFramePlan, ChapterVideoImportApplicationPort,
         CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
-        PreparedAssemblyPushRecord, VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort,
-        VideoImportApplicationPort, VideoImportRecordSummary,
-        VideoProviderExecutionApplicationPort, VideoRecordCompletion, VideoRecordCompletionError,
-        VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
-        VideoRecordReadApplicationPort, VideoTailFrameInput, VideoTailFrameSummary, VideoTrimPlan,
+        PreparedAssemblyPushRecord, ReferenceMediaVideoImportApplicationPort,
+        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportApplicationPort,
+        VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
+        VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
+        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
+        VideoTailFrameSummary, VideoTrimPlan,
     },
 };
 
@@ -1644,7 +1645,7 @@ impl ChapterVideoImportApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoImportApplicationPort for crate::OrchestratorContext {
+impl ReferenceMediaVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_reference_media_video_record(
         &self,
         project_id: i64,
@@ -1671,7 +1672,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             .await?;
         Ok(video_import_record_summary(&video, None))
     }
+}
 
+#[async_trait]
+impl VideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_assembly_insert_video_record(
         &self,
         project_id: i64,

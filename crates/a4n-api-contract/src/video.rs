@@ -663,12 +663,9 @@ pub trait ChapterVideoImportApplicationPort: Send + Sync {
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
 }
 
-/// Host-facing video import and trim boundary.
-///
-/// Temporary aggregate for the remaining import/trim workers; each operation
-/// is moved to its focused port independently.
+/// Host-facing reference-media video import boundary.
 #[async_trait::async_trait]
-pub trait VideoImportApplicationPort: Send + Sync {
+pub trait ReferenceMediaVideoImportApplicationPort: Send + Sync {
     async fn create_imported_reference_media_video_record(
         &self,
         project_id: i64,
@@ -681,7 +678,14 @@ pub trait VideoImportApplicationPort: Send + Sync {
         target_source_shot_id: &str,
         target_segment_index: i32,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+}
 
+/// Host-facing video import and trim boundary.
+///
+/// Temporary aggregate for the remaining import/trim workers; each operation
+/// is moved to its focused port independently.
+#[async_trait::async_trait]
+pub trait VideoImportApplicationPort: Send + Sync {
     async fn create_imported_assembly_insert_video_record(
         &self,
         project_id: i64,
