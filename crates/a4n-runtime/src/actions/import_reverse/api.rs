@@ -43,7 +43,7 @@ pub async fn reverse_engineer(
     let target = input.target;
     let prompt_renderer = state;
     let mut result = state
-        .import_reverse_application()
+        .import_reverse_generation_application()
         .run(input, prompt_renderer, progress, active_task_id)
         .await?;
     if target == ReverseEngineeringTarget::Blueprint {
@@ -87,7 +87,7 @@ pub async fn confirm_reverse_engineering_candidate(
         })?;
     access::verify_project_editor(state, user_id, project_id).await?;
     let mut result = state
-        .import_reverse_application()
+        .import_reverse_confirmation_application()
         .confirm(input.workflow_run_id)
         .await?;
     let target = result.target;

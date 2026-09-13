@@ -315,9 +315,15 @@ pub struct AppState {
     /// Host-facing import-analysis cancellation boundary.
     import_analysis_cancellation_application:
         Arc<dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort>,
-    /// Host-facing reverse-engineering boundary.
-    import_reverse_application:
-        Arc<dyn a4n_orchestrator::import_reverse::ImportReverseApplicationPort>,
+    /// Host-facing reverse-engineering request-preview boundary.
+    import_reverse_preview_application:
+        Arc<dyn a4n_orchestrator::import_reverse::ImportReversePreviewApplicationPort>,
+    /// Host-facing reverse-engineering execution boundary.
+    import_reverse_generation_application:
+        Arc<dyn a4n_orchestrator::import_reverse::ImportReverseGenerationApplicationPort>,
+    /// Host-facing reverse-engineering confirmation boundary.
+    import_reverse_confirmation_application:
+        Arc<dyn a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort>,
     /// Reverse-engineering candidate reads stay behind the API contract;
     /// generation and confirmation remain in the owner boundary.
     import_reverse_read_application:
@@ -1703,10 +1709,22 @@ impl AppState {
         self.import_analysis_preview_application.as_ref()
     }
 
-    pub(crate) fn import_reverse_application(
+    pub(crate) fn import_reverse_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_reverse::ImportReverseApplicationPort {
-        self.import_reverse_application.as_ref()
+    ) -> &dyn a4n_orchestrator::import_reverse::ImportReversePreviewApplicationPort {
+        self.import_reverse_preview_application.as_ref()
+    }
+
+    pub(crate) fn import_reverse_generation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::import_reverse::ImportReverseGenerationApplicationPort {
+        self.import_reverse_generation_application.as_ref()
+    }
+
+    pub(crate) fn import_reverse_confirmation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort {
+        self.import_reverse_confirmation_application.as_ref()
     }
 
     pub(crate) fn import_reverse_read_application(
@@ -2418,7 +2436,9 @@ impl AppState {
             import_analysis_preview_application: Arc::new(orchestrator.clone()),
             import_analysis_generation_application: Arc::new(orchestrator.clone()),
             import_analysis_cancellation_application: Arc::new(orchestrator.clone()),
-            import_reverse_application: Arc::new(orchestrator.clone()),
+            import_reverse_preview_application: Arc::new(orchestrator.clone()),
+            import_reverse_generation_application: Arc::new(orchestrator.clone()),
+            import_reverse_confirmation_application: Arc::new(orchestrator.clone()),
             import_reverse_read_application: Arc::new(orchestrator.clone()),
             chapter_analysis_generation_application: Arc::new(orchestrator.clone()),
             chapter_analysis_resume_application: Arc::new(orchestrator.clone()),

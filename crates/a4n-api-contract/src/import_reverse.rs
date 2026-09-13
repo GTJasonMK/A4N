@@ -155,6 +155,17 @@ pub trait ImportReverseReadApplicationPort: Send + Sync {
     ) -> Result<Option<ReverseEngineeringCandidate>, a4n_error::AppError>;
 }
 
+/// Host-facing confirmation boundary for reverse-engineering candidates.
+///
+/// Candidate generation remains with the reverse-engineering owner.
+#[async_trait::async_trait]
+pub trait ImportReverseConfirmationApplicationPort: Send + Sync {
+    async fn confirm(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<ReverseEngineeringCandidate, a4n_error::AppError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

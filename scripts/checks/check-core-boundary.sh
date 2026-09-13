@@ -3035,6 +3035,32 @@ if rg -U -n 'import_reverse_application\(\)\s*\.\s*latest' \
     printf 'Runtime import reverse candidate reads must not use the generation boundary\n' >&2
     exit 1
 fi
+if ! rg -n 'import_reverse_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/import_reverse/request.rs || \
+   ! rg -n 'import_reverse_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/import_reverse/api.rs || \
+   ! rg -n 'import_reverse_confirmation_application\(\)' \
+    crates/a4n-runtime/src/actions/import_reverse/api.rs; then
+    printf 'Runtime import reverse actions must route through split application ports\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait ImportReversePreviewApplicationPort' \
+    crates/a4n-orchestrator/src/import_reverse.rs || \
+   ! rg -n 'pub trait ImportReverseGenerationApplicationPort' \
+    crates/a4n-orchestrator/src/import_reverse.rs || \
+   ! rg -n 'pub trait ImportReverseConfirmationApplicationPort' \
+    crates/a4n-api-contract/src/import_reverse.rs; then
+    printf 'Import-reverse application ports are missing\n' >&2
+    exit 1
+fi
+if rg -n 'ImportReverseApplicationPort|import_reverse_application\(\)' \
+    crates/a4n-api-contract/src/import_reverse.rs \
+    crates/a4n-orchestrator/src/import_reverse.rs \
+    crates/a4n-orchestrator/src/import_reverse \
+    crates/a4n-runtime/src; then
+    printf 'The mixed ImportReverseApplicationPort must remain removed\n' >&2
+    exit 1
+fi
 
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/import_analysis \
