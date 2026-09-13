@@ -471,6 +471,12 @@ impl AgentWorkerDelegationReviewRequest {
 
 pub type AgentWorkerDelegationReviewSnapshotWire = AgentDelegationView;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerRunStatusSnapshotWire {
+    pub terminal: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -1234,6 +1240,15 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn run_status_snapshot_round_trips() {
+        let snapshot = AgentWorkerRunStatusSnapshotWire { terminal: true };
+        let encoded = serde_json::to_string(&snapshot).expect("run status should serialize");
+        let decoded: AgentWorkerRunStatusSnapshotWire =
+            serde_json::from_str(&encoded).expect("run status should deserialize");
+        assert!(decoded.terminal);
     }
 
     #[test]

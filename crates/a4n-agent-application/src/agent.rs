@@ -43,9 +43,9 @@ use a4n_worker_contract::{
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
-    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
-    WorkerLease, WorkerRequest,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
+    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -4351,6 +4351,23 @@ impl AgentApplication {
             .await?
         };
         Ok(AgentWorkerCompletionSnapshotWire { completed })
+    }
+
+    pub(crate) async fn run_is_terminal_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(request).await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        Ok(AgentWorkerRunStatusSnapshotWire {
+            terminal: parse_run_status(&run.status)?.is_terminal(),
+        })
     }
 
     async fn fail_claimed_run(

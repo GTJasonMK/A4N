@@ -254,6 +254,10 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/delegation/review",
             post(agent_runtime::review_agent_delegation),
         )
+        .route(
+            "/agent/run-status",
+            post(agent_runtime::agent_worker_run_is_terminal),
+        )
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

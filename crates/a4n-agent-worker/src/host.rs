@@ -19,7 +19,8 @@ use a4n_worker_contract::{
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -239,6 +240,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerDelegationReviewRequest,
     ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/delegation/review", request)
+            .await
+    }
+
+    async fn run_is_terminal(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/run-status", request)
             .await
     }
 

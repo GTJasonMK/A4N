@@ -782,10 +782,7 @@ async fn process_claimed_run_request(
         }
     }
     if result.is_ok()
-        && let Ok(is_terminal) = state
-            .worker_completion_application()
-            .run_is_terminal(&claimed)
-            .await
+        && let Ok(is_terminal) = state.agent_worker_run_is_terminal(&claimed).await
     {
         terminal = is_terminal;
     }

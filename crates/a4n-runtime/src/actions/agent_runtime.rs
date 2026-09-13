@@ -40,8 +40,8 @@ use a4n_worker_contract::{
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
     AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1223,6 +1223,19 @@ pub async fn review_agent_delegation(
     state
         .agent_worker_delegation_application()
         .review_delegation_request(request)
+        .await
+}
+
+pub async fn agent_worker_run_is_terminal(
+    state: &AppState,
+    request: &AgentWorkerRunLeaseRequest,
+) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent run status 无效: {error}")))?;
+    state
+        .agent_worker_completion_application()
+        .run_is_terminal_request(request)
         .await
 }
 

@@ -2,7 +2,8 @@ use super::{AgentApplication, AgentWorkerRun};
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunStatusSnapshotWire,
 };
 use serde_json::Value;
 
@@ -22,6 +23,11 @@ pub trait AgentWorkerCompletionApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerCompletionRequest,
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError>;
+
+    async fn run_is_terminal_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError>;
 
     async fn complete_child_run(
         &self,
@@ -69,6 +75,13 @@ impl AgentWorkerCompletionApplicationPort for AgentApplication {
         request: &AgentWorkerCompletionRequest,
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         AgentApplication::complete_worker_run_request(self, request).await
+    }
+
+    async fn run_is_terminal_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
+        AgentApplication::run_is_terminal_request(self, request).await
     }
 
     async fn complete_child_run(

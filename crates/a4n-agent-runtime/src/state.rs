@@ -6,13 +6,12 @@ use a4n_agent_application::agent::{
     AgentMessageSnapshot, AgentRunContext, AgentRunLeaseRecoveryApplicationPort,
     AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
     AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot, AgentWorkerClaimApplicationPort,
-    AgentWorkerCompletionApplicationPort, AgentWorkerDelegationApplicationPort,
-    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
-    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
-    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort, WorkerExecutionInput,
-    WorkerExecutionUpdate,
+    AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
+    AgentWorkerFailureApplicationPort, AgentWorkerHistoryApplicationPort,
+    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort,
+    AgentWorkerRecoveryApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
+    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -25,7 +24,8 @@ use a4n_worker_contract::{
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
     AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -301,6 +301,17 @@ impl AgentRuntimeState {
             operation: "审阅 Agent delegation".into(),
         })?;
         self.host.review_delegation(&request).await
+    }
+
+    pub async fn agent_worker_run_is_terminal(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<bool, AppError> {
+        let request = self.agent_worker_lease_request(claimed)?;
+        self.host
+            .run_is_terminal(&request)
+            .await
+            .map(|snapshot: AgentWorkerRunStatusSnapshotWire| snapshot.terminal)
     }
 
     pub async fn wait_agent_worker_run(
@@ -634,9 +645,6 @@ impl AgentRuntimeState {
         }
     }
     pub fn worker_claim_application(&self) -> &dyn AgentWorkerClaimApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn worker_completion_application(&self) -> &dyn AgentWorkerCompletionApplicationPort {
         self.application.as_ref()
     }
     pub fn worker_delegation_application(&self) -> &dyn AgentWorkerDelegationApplicationPort {
