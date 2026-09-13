@@ -509,12 +509,20 @@ impl RuntimeAgentToolExecutor {
                     }
                     input.capability = Some(context.profile_id.clone());
                 }
-                serde_json::to_value(self.state.agent_application().search_tools(input)?)
+                serde_json::to_value(
+                    self.state
+                        .agent_tool_read_application()
+                        .search_tools(input)?,
+                )
             }
             "describe_agent_tool" => {
                 let input = parse_arguments::<DescribeAgentToolInput>(arguments, name)?;
                 ensure_scope_allows_tool(scope, &input.name)?;
-                serde_json::to_value(self.state.agent_application().describe_tool(input)?)
+                serde_json::to_value(
+                    self.state
+                        .agent_tool_read_application()
+                        .describe_tool(input)?,
+                )
             }
             "read_agent_memory" => {
                 let input = parse_arguments::<a4n_api_contract::agent::ReadAgentMemoryInput>(
@@ -4459,14 +4467,14 @@ pub fn search_tools(
     state: &AppState,
     input: SearchAgentToolsInput,
 ) -> Result<AgentToolSearchResult, AppError> {
-    state.agent_application().search_tools(input)
+    state.agent_tool_read_application().search_tools(input)
 }
 
 pub fn describe_tool(
     state: &AppState,
     input: DescribeAgentToolInput,
 ) -> Result<AgentToolDescriptor, AppError> {
-    state.agent_application().describe_tool(input)
+    state.agent_tool_read_application().describe_tool(input)
 }
 
 pub async fn list_memories(
