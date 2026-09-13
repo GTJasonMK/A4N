@@ -52,6 +52,7 @@ name = "a4n-agent-runtime-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-domain",
  "a4n-error",
  "a4n-llm",
  "a4n-worker-contract",
@@ -176,6 +177,7 @@ name = "a4n-control"
 version = "0.1.0"
 dependencies = [
  "a4n-agent-application",
+ "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-config",
  "a4n-domain",
@@ -890,6 +892,7 @@ name = "a4n-runtime"
 version = "0.1.0"
 dependencies = [
  "a4n-agent-application",
+ "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-archive-core",
  "a4n-canvas-contract",

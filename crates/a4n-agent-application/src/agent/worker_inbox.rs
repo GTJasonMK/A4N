@@ -1,56 +1,11 @@
 use super::{AgentApplication, AgentInboxSnapshot, AgentMessageSnapshot, AgentWorkerRun};
+use a4n_agent_runtime_contract::AgentWorkerInboxApplicationPort;
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
     AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
     AgentWorkerInboxSnapshotWire,
 };
-
-/// Runtime-facing boundary for claiming and materializing Agent inbox items.
-#[async_trait::async_trait]
-pub trait AgentWorkerInboxApplicationPort: Send + Sync {
-    async fn claim_inbox_for_thread(
-        &self,
-        thread_id: i64,
-    ) -> Result<Option<AgentInboxSnapshot>, AppError>;
-
-    async fn consume_claimed_inbox(
-        &self,
-        row: &AgentInboxSnapshot,
-    ) -> Result<AgentInboxSnapshot, AppError>;
-
-    async fn persist_claimed_inbox(
-        &self,
-        claimed: &AgentWorkerRun,
-        row: &AgentInboxSnapshot,
-    ) -> Result<(AgentInboxSnapshot, AgentMessageSnapshot), AppError>;
-
-    async fn load_message_for_worker(
-        &self,
-        thread_id: i64,
-        message_id: i64,
-    ) -> Result<AgentMessageSnapshot, AppError>;
-
-    async fn claim_inbox_request(
-        &self,
-        request: &AgentWorkerInboxClaimRequest,
-    ) -> Result<Option<AgentWorkerInboxSnapshotWire>, AppError>;
-
-    async fn consume_inbox_request(
-        &self,
-        request: &AgentWorkerInboxConsumeRequest,
-    ) -> Result<AgentWorkerInboxSnapshotWire, AppError>;
-
-    async fn persist_inbox_request(
-        &self,
-        request: &AgentWorkerInboxPersistRequest,
-    ) -> Result<AgentWorkerInboxPersistSnapshotWire, AppError>;
-
-    async fn load_message_request(
-        &self,
-        request: &AgentWorkerInboxMessageRequest,
-    ) -> Result<a4n_worker_contract::AgentWorkerMessageSnapshotWire, AppError>;
-}
 
 #[async_trait::async_trait]
 impl AgentWorkerInboxApplicationPort for AgentApplication {

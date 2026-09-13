@@ -1,6 +1,6 @@
 use super::*;
 use crate::actions::agent_domains::content_optimization as domain;
-use a4n_agent_application::agent::AgentExecutionSnapshot;
+use a4n_agent_runtime_contract::AgentExecutionSnapshot;
 use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskSummary},
     optimize::OptimizeSessionInput,

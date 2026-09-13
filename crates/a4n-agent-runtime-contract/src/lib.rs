@@ -4,22 +4,42 @@
 //! stable snapshots, worker inputs and ports needed across the process
 //! boundary.
 
-use a4n_api_contract::agent::{AgentBudget, AgentResourceRef, AgentScope};
+use a4n_api_contract::agent::{
+    AgentBudget, AgentDelegationView, AgentEditorRequest, AgentExecutionResultPage,
+    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentToolDescriptor,
+    AgentToolSearchResult, DescribeAgentToolInput, ReadAgentExecutionResultInput,
+    ReadAgentMemoryInput, RespondAgentEditorInput, ReviewAgentDelegationInput,
+    SearchAgentToolsInput,
+};
+use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_worker_contract::{
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
-    AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
-    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerInboxSnapshotWire,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationSnapshotWire,
+    AgentWorkerDelegationStartRequest, AgentWorkerDelegationStartSnapshotWire,
+    AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
+    AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
+    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionResultRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
+    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
+    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+mod ports;
+pub use ports::*;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
 
@@ -214,6 +234,32 @@ pub struct AgentInboxSnapshot {
     pub payload_json: Option<Value>,
     pub status: String,
     pub claim_token: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentExternalTaskWaitSnapshot {
+    pub run_id: i64,
+    pub owner_user_id: i64,
+    pub scope: AgentScope,
+    pub execution_id: i64,
+    pub tool_name: Option<String>,
+    pub arguments_json: Option<Value>,
+    pub duration_exhausted: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentGenerationCancelSnapshot {
+    pub task_id: String,
+    pub attempt: u32,
+    pub requested_by_user_id: i64,
+    pub status: String,
+    pub owner_stopped: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentWorkflowCancelSnapshot {
+    pub workflow_run_id: i64,
+    pub owner_stopped: bool,
 }
 
 impl From<AgentWorkerRunSnapshotWire> for AgentRunSnapshot {
@@ -841,136 +887,6 @@ fn budget_usage_u64(value: &Value, key: &str) -> Result<u64, AppError> {
             operation: "读取 Agent run budget usage".into(),
         }),
     }
-}
-
-#[async_trait::async_trait]
-pub trait AgentWorkerExecutionApplicationPort: Send + Sync {
-    async fn worker_execution_by_key(
-        &self,
-        run_id: i64,
-        key: &str,
-    ) -> Result<Option<AgentExecutionSnapshot>, AppError>;
-
-    async fn create_prepared_execution(
-        &self,
-        input: WorkerExecutionInput,
-    ) -> Result<Option<AgentExecutionSnapshot>, AppError>;
-
-    async fn update_worker_execution(
-        &self,
-        input: WorkerExecutionUpdate,
-    ) -> Result<AgentExecutionSnapshot, AppError>;
-
-    async fn worker_execution_by_key_request(
-        &self,
-        request: &AgentWorkerExecutionLookupRequest,
-    ) -> Result<Option<AgentExecutionSnapshot>, AppError>;
-
-    async fn create_prepared_execution_request(
-        &self,
-        request: &AgentWorkerExecutionCreateRequest,
-    ) -> Result<Option<AgentExecutionSnapshot>, AppError>;
-
-    async fn update_worker_execution_request(
-        &self,
-        request: &AgentWorkerExecutionUpdateRequest,
-    ) -> Result<AgentExecutionSnapshot, AppError>;
-}
-
-#[async_trait::async_trait]
-pub trait AgentWorkerBudgetApplicationPort: Send + Sync {
-    async fn worker_budget_snapshot(
-        &self,
-        run_id: i64,
-    ) -> Result<AgentWorkerBudgetSnapshot, AppError>;
-
-    async fn worker_budget_snapshot_request(
-        &self,
-        request: &AgentWorkerBudgetRequest,
-    ) -> Result<AgentWorkerBudgetSnapshot, AppError>;
-}
-
-#[async_trait::async_trait]
-pub trait AgentWorkerApprovalApplicationPort: Send + Sync {
-    async fn approved_execution(&self, thread_id: i64, execution_id: i64)
-    -> Result<bool, AppError>;
-
-    async fn approved_execution_request(
-        &self,
-        request: &AgentWorkerApprovalCheckRequest,
-    ) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError>;
-
-    async fn request_worker_approval(
-        &self,
-        claimed: &AgentWorkerRun,
-        execution_id: i64,
-        operation_json: Value,
-        resource_preconditions_json: Option<Value>,
-        expires_at: Option<NaiveDateTime>,
-    ) -> Result<(), AppError>;
-
-    async fn request_worker_approval_request(
-        &self,
-        request: &AgentWorkerApprovalRequest,
-    ) -> Result<(), AppError>;
-}
-
-#[async_trait::async_trait]
-pub trait AgentWorkerFailureApplicationPort: Send + Sync {
-    async fn fail_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        error_message: String,
-    ) -> Result<(), AppError>;
-
-    async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError>;
-}
-
-#[async_trait::async_trait]
-pub trait AgentWorkerMessageApplicationPort: Send + Sync {
-    async fn append_tool_message(
-        &self,
-        claimed: &AgentWorkerRun,
-        execution_id: i64,
-        tool_name: &str,
-        tool_call_id: Option<&str>,
-        result: Value,
-    ) -> Result<AgentMessageSnapshot, AppError>;
-
-    async fn append_assistant_tool_message(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: String,
-        tool_calls: Value,
-    ) -> Result<AgentMessageSnapshot, AppError>;
-
-    async fn upsert_assistant_streaming_message(
-        &self,
-        claimed: &AgentWorkerRun,
-        client_message_id: String,
-        content: String,
-        reasoning_content: Option<String>,
-    ) -> Result<AgentMessageSnapshot, AppError>;
-
-    async fn interrupt_assistant_streaming_message(
-        &self,
-        claimed: &AgentWorkerRun,
-        client_message_id: String,
-        reason: Option<String>,
-    ) -> Result<(), AppError>;
-
-    async fn complete_assistant_streaming_message(
-        &self,
-        claimed: &AgentWorkerRun,
-        client_message_id: String,
-        content: String,
-        tool_calls: Value,
-    ) -> Result<Option<AgentMessageSnapshot>, AppError>;
-
-    async fn apply_message_request(
-        &self,
-        request: &AgentWorkerMessageRequest,
-    ) -> Result<Option<AgentMessageSnapshot>, AppError>;
 }
 
 #[cfg(test)]

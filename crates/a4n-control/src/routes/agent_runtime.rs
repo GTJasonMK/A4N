@@ -1,7 +1,7 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_agent_application::agent::AgentExternalTaskWaitSnapshot;
+use a4n_agent_runtime_contract::AgentExternalTaskWaitSnapshot;
 use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,

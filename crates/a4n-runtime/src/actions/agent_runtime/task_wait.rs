@@ -1,5 +1,5 @@
 use super::*;
-use a4n_agent_application::agent::{
+use a4n_agent_runtime_contract::{
     AgentExternalTaskWaitSnapshot, AgentGenerationCancelSnapshot, AgentWorkflowCancelSnapshot,
 };
 

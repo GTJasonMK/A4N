@@ -1,25 +1,8 @@
 use super::AgentApplication;
+use a4n_agent_runtime_contract::{
+    AgentGenerationCancelApplicationPort, AgentGenerationCancelSnapshot,
+};
 use a4n_error::AppError;
-
-/// Runtime-facing boundary for cancelling generation tasks owned by stopped
-/// Agent runs. Workflow cancellation and other worker concerns stay separate.
-#[async_trait::async_trait]
-pub trait AgentGenerationCancelApplicationPort: Send + Sync {
-    async fn generation_cancel_candidates(
-        &self,
-        after_task_id: &str,
-    ) -> Result<Vec<AgentGenerationCancelSnapshot>, AppError>;
-}
-
-/// Minimal projection needed by the generation cancellation scan.
-#[derive(Debug, Clone)]
-pub struct AgentGenerationCancelSnapshot {
-    pub task_id: String,
-    pub attempt: u32,
-    pub requested_by_user_id: i64,
-    pub status: String,
-    pub owner_stopped: bool,
-}
 
 impl AgentApplication {
     pub async fn generation_cancel_candidates(

@@ -1,37 +1,10 @@
 use super::AgentApplication;
 use crate::agent::{agent_db_error_to_app, from_json};
-use a4n_api_contract::agent::AgentScope;
+use a4n_agent_runtime_contract::{
+    AgentExternalTaskWaitApplicationPort, AgentExternalTaskWaitSnapshot,
+};
 use a4n_db::agent;
 use a4n_error::AppError;
-use serde_json::Value;
-
-/// Runtime-facing boundary for reconciling waits on external task results.
-///
-/// Cancellation, editor waits and lease transitions intentionally stay on the
-/// durable worker façade; this port only exposes the scan and wake operations
-/// needed by the external-result reconciler.
-#[async_trait::async_trait]
-pub trait AgentExternalTaskWaitApplicationPort: Send + Sync {
-    async fn external_task_waits(
-        &self,
-        after_run_id: i64,
-    ) -> Result<Vec<AgentExternalTaskWaitSnapshot>, AppError>;
-
-    async fn wake_external_task_wait(&self, run_id: i64, execution_id: i64)
-    -> Result<(), AppError>;
-}
-
-/// Minimal projection needed to reconcile a wait on an external task.
-#[derive(Debug, Clone)]
-pub struct AgentExternalTaskWaitSnapshot {
-    pub run_id: i64,
-    pub owner_user_id: i64,
-    pub scope: AgentScope,
-    pub execution_id: i64,
-    pub tool_name: Option<String>,
-    pub arguments_json: Option<Value>,
-    pub duration_exhausted: bool,
-}
 
 impl AgentApplication {
     pub async fn external_task_waits(

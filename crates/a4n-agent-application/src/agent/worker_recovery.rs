@@ -1,24 +1,7 @@
 use super::{AgentApplication, AgentWorkerRun};
+use a4n_agent_runtime_contract::AgentWorkerRecoveryApplicationPort;
 use a4n_error::AppError;
 use a4n_worker_contract::AgentWorkerRecoveryRequest;
-
-/// Runtime-facing boundary for marking a leased Run as requiring recovery.
-///
-/// Lease fencing and the durable recovery transition remain in the Agent
-/// owner; Runtime only supplies the claimed Run and reason.
-#[async_trait::async_trait]
-pub trait AgentWorkerRecoveryApplicationPort: Send + Sync {
-    async fn mark_recovery_required(
-        &self,
-        claimed: &AgentWorkerRun,
-        reason: String,
-    ) -> Result<(), AppError>;
-
-    async fn mark_recovery_required_request(
-        &self,
-        request: &AgentWorkerRecoveryRequest,
-    ) -> Result<(), AppError>;
-}
 
 #[async_trait::async_trait]
 impl AgentWorkerRecoveryApplicationPort for AgentApplication {

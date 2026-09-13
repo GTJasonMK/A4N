@@ -1,5 +1,5 @@
 use super::*;
-use a4n_agent_application::agent::AgentExecutionSnapshot;
+use a4n_agent_runtime_contract::AgentExecutionSnapshot;
 use a4n_api_contract::agent::*;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanView, EditChapterVisualPlanDraftInput,

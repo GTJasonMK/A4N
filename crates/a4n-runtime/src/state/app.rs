@@ -1332,157 +1332,157 @@ impl AppState {
 
     pub(crate) fn agent_external_task_wait_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentExternalTaskWaitApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentExternalTaskWaitApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_editor_wait_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentEditorWaitApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentEditorWaitApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_editor_claim_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentEditorClaimApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentEditorClaimApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_generation_cancel_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentGenerationCancelApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentGenerationCancelApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_workflow_cancel_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkflowCancelApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkflowCancelApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_budget_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerBudgetApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerBudgetApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_approval_expiry_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentApprovalExpiryApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentApprovalExpiryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_run_lease_recovery_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentRunLeaseRecoveryApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentRunLeaseRecoveryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_lease_application(
         &self,
-    ) -> Arc<dyn a4n_agent_application::agent::AgentWorkerLeaseApplicationPort> {
+    ) -> Arc<dyn a4n_agent_runtime_contract::AgentWorkerLeaseApplicationPort> {
         self.agent_worker_application.clone()
     }
 
     pub(crate) fn agent_worker_claim_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerClaimApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerClaimApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_failure_application(
         &self,
-    ) -> Arc<dyn a4n_agent_application::agent::AgentWorkerFailureApplicationPort> {
+    ) -> Arc<dyn a4n_agent_runtime_contract::AgentWorkerFailureApplicationPort> {
         self.agent_worker_application.clone()
     }
 
     pub(crate) fn agent_worker_wait_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerWaitApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerWaitApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_read_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerReadApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerReadApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_context_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerContextApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerContextApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_execution_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_approval_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerApprovalApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerApprovalApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_completion_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerCompletionApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerCompletionApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_delegation_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerDelegationApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerDelegationApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_history_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerHistoryApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerHistoryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_inbox_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerInboxApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerInboxApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_message_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_usage_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerUsageApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerUsageApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_editor_response_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentEditorResponseApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentEditorResponseApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_recovery_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerRecoveryApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerRecoveryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_activation_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerActivationApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerActivationApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_workflow_binding_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkflowBindingApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkflowBindingApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
