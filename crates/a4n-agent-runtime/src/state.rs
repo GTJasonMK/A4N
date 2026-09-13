@@ -21,12 +21,12 @@ use a4n_worker_contract::{
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerExecutionCreateRequest,
-    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    WorkerLease, WorkerRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
+    AgentWorkerMessageRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -331,6 +331,29 @@ impl AgentRuntimeState {
             operation: "获取 Agent delegation thread".into(),
         })?;
         self.host.ensure_canonical_subagent_thread(&request).await
+    }
+
+    pub async fn append_agent_worker_update(
+        &self,
+        claimed: &AgentWorkerRun,
+        kind: &str,
+        status: &str,
+        public_text: String,
+        payload_json: Option<Value>,
+    ) -> Result<(), AppError> {
+        let request = AgentWorkerEventRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            kind: kind.to_string(),
+            status: status.to_string(),
+            public_text,
+            payload_json,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker event request 无效: {error}"),
+            operation: "写入 Agent worker event".into(),
+        })?;
+        self.host.append_worker_update(&request).await
     }
 
     pub async fn agent_worker_run_is_terminal(

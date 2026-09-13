@@ -2264,8 +2264,8 @@ async fn execute_tool_call(
                 },
             )
             .await?;
-        delegation_application
-            .append_worker_update(
+        state
+            .append_agent_worker_update(
                 claimed,
                 "delegation_started",
                 "published",

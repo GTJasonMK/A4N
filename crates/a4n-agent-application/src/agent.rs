@@ -39,14 +39,14 @@ use a4n_worker_contract::{
     AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
     AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
     AgentWorkerDelegationSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerExecutionCreateRequest,
-    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
+    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
+    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3980,27 +3980,81 @@ impl AgentApplication {
         public_text: impl Into<String>,
         payload_json: Option<Value>,
     ) -> Result<event::Model, AppError> {
+        self.append_worker_update_fields(
+            claimed.run.id,
+            claimed.run.thread_id,
+            claimed.run.turn_id,
+            &claimed.lease_token,
+            kind.to_string(),
+            status.to_string(),
+            public_text.into(),
+            payload_json,
+        )
+        .await
+    }
+
+    async fn append_worker_update_fields(
+        &self,
+        run_id: i64,
+        thread_id: i64,
+        turn_id: i64,
+        lease_token: &str,
+        kind: String,
+        status: String,
+        public_text: String,
+        payload_json: Option<Value>,
+    ) -> Result<event::Model, AppError> {
         agent::append_event_for_run_lease(
             self.connection(),
-            claimed.run.id,
-            &claimed.lease_token,
+            run_id,
+            lease_token,
             AgentEventInput {
-                thread_id: claimed.run.thread_id,
-                turn_id: Some(claimed.run.turn_id),
-                run_id: Some(claimed.run.id),
+                thread_id,
+                turn_id: Some(turn_id),
+                run_id: Some(run_id),
                 execution_id: None,
                 delegation_id: None,
                 message_id: None,
                 actor_kind: "agent".into(),
-                actor_id: Some(claimed.run.id.to_string()),
-                kind: kind.to_string(),
-                status: status.to_string(),
-                public_text: public_text.into(),
+                actor_id: Some(run_id.to_string()),
+                kind,
+                status,
+                public_text,
                 payload_json,
             },
         )
         .await
         .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn append_worker_update_request(
+        &self,
+        request: &AgentWorkerEventRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        self.append_worker_update_fields(
+            run.id,
+            run.thread_id,
+            run.turn_id,
+            &request.lease.fence_token,
+            request.kind.clone(),
+            request.status.clone(),
+            request.public_text.clone(),
+            request.payload_json.clone(),
+        )
+        .await
+        .map(|_| ())
     }
 
     pub(crate) async fn append_tool_message(

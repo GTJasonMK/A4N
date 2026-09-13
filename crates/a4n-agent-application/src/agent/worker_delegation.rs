@@ -7,6 +7,7 @@ use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
     AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
+    AgentWorkerEventRequest,
 };
 use serde_json::Value;
 
@@ -29,6 +30,11 @@ pub trait AgentWorkerDelegationApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerDelegationThreadRequest,
     ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError>;
+
+    async fn append_worker_update_request(
+        &self,
+        request: &AgentWorkerEventRequest,
+    ) -> Result<(), AppError>;
 
     fn inherit_subagent_allowlists(
         &self,
@@ -81,6 +87,13 @@ impl AgentWorkerDelegationApplicationPort for AgentApplication {
         request: &AgentWorkerDelegationThreadRequest,
     ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
         AgentApplication::ensure_canonical_subagent_thread_request(self, request).await
+    }
+
+    async fn append_worker_update_request(
+        &self,
+        request: &AgentWorkerEventRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::append_worker_update_request(self, request).await
     }
 
     fn inherit_subagent_allowlists(

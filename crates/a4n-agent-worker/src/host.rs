@@ -15,7 +15,7 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
-    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
@@ -250,6 +250,16 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/delegation/thread", request)
             .await
+    }
+
+    async fn append_worker_update(
+        &self,
+        request: &AgentWorkerEventRequest,
+    ) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/event", request)
+            .await?;
+        Ok(())
     }
 
     async fn run_is_terminal(

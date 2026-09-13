@@ -503,6 +503,30 @@ pub type AgentWorkerDelegationThreadSnapshotWire = AgentWorkerThreadSnapshotWire
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerEventRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub kind: String,
+    pub status: String,
+    pub public_text: String,
+    pub payload_json: Option<serde_json::Value>,
+}
+
+impl AgentWorkerEventRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("kind", &self.kind)?;
+        validate_non_blank("status", &self.status)?;
+        validate_non_blank("public_text", &self.public_text)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerRunStatusSnapshotWire {
     pub terminal: bool,
 }
@@ -1312,6 +1336,29 @@ mod tests {
             invalid.validate(),
             Err(WorkerContractError::BlankField {
                 field: "capability"
+            })
+        ));
+    }
+
+    #[test]
+    fn event_request_requires_publishable_fields() {
+        let request = AgentWorkerEventRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            kind: "delegation_started".into(),
+            status: "published".into(),
+            public_text: "started".into(),
+            payload_json: Some(serde_json::json!({"capability": "director"})),
+        };
+        request.validate().expect("event request should be valid");
+        let invalid = AgentWorkerEventRequest {
+            public_text: " ".into(),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::BlankField {
+                field: "public_text"
             })
         ));
     }

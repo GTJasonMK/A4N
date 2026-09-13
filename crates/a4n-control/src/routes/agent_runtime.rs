@@ -27,7 +27,7 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
-    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
@@ -318,6 +318,19 @@ pub(super) async fn ensure_agent_canonical_subagent_thread(
         .await
         .map(Json)
         .map_err(Into::into)
+}
+
+pub(super) async fn append_agent_worker_update(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerEventRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::append_agent_worker_update(state.runtime(), &input).await?;
+    Ok(Json(Value::Null))
 }
 
 pub(super) async fn agent_worker_run_is_terminal(
