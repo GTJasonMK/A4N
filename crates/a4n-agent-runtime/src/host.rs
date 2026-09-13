@@ -15,7 +15,7 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
@@ -100,6 +100,9 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerRecoveryRequest,
     ) -> Result<(), AppError>;
+
+    async fn wait_for_editor(&self, request: &AgentWorkerEditorWaitRequest)
+    -> Result<(), AppError>;
 
     async fn claim_inbox(
         &self,

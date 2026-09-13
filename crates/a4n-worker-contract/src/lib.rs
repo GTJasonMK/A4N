@@ -7,7 +7,9 @@
 use serde::{Deserialize, Serialize};
 
 pub use a4n_api_contract::agent::AgentScope;
-use a4n_api_contract::agent::{AgentDelegationView, AgentResourceRef, ReviewAgentDelegationInput};
+use a4n_api_contract::agent::{
+    AgentDelegationView, AgentEditorRequest, AgentResourceRef, ReviewAgentDelegationInput,
+};
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV2, VisualPlanReadView};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use chrono::NaiveDateTime;
@@ -270,6 +272,28 @@ impl AgentWorkerRecoveryRequest {
         }
         .validate()?;
         validate_non_blank("reason", &self.reason)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerEditorWaitRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub editor_request: AgentEditorRequest,
+}
+
+impl AgentWorkerEditorWaitRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank(
+            "editor_request.execution_id",
+            &self.editor_request.execution_id,
+        )
     }
 }
 
@@ -1775,6 +1799,44 @@ mod tests {
             }
             .validate(),
             Err(WorkerContractError::BlankField { field: "reason" })
+        ));
+    }
+
+    #[test]
+    fn editor_wait_request_validates_run_lease_and_execution() {
+        let request = AgentWorkerEditorWaitRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            editor_request: AgentEditorRequest {
+                execution_id: "execution-1".into(),
+                source: a4n_api_contract::agent::AgentEditorSource {
+                    view_instance_id: "view-1".into(),
+                    project_id: 7,
+                    chapter_id: 8,
+                    editor_revision: "revision-1".into(),
+                    scene_id: None,
+                    shot_id: None,
+                    keyframe_id: None,
+                    entity_id: None,
+                },
+                operation: a4n_api_contract::agent::AgentEditorOperation::Inspect,
+            },
+        };
+        request
+            .validate()
+            .expect("editor wait request should be valid");
+        assert!(matches!(
+            AgentWorkerEditorWaitRequest {
+                editor_request: AgentEditorRequest {
+                    execution_id: " ".into(),
+                    ..request.editor_request
+                },
+                ..request
+            }
+            .validate(),
+            Err(WorkerContractError::BlankField {
+                field: "editor_request.execution_id"
+            })
         ));
     }
 

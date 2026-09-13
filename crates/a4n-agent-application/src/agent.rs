@@ -40,7 +40,7 @@ use a4n_worker_contract::{
     AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
     AgentWorkerDelegationSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
@@ -4079,6 +4079,30 @@ impl AgentApplication {
             &claimed.lease_token,
             "external",
             Some(serde_json::to_value(request)?),
+        )
+        .await
+        .map_err(agent_db_error_to_app)?;
+        Ok(())
+    }
+
+    pub(crate) async fn wait_for_editor_request(
+        &self,
+        request: &AgentWorkerEditorWaitRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        agent::wait_run_for_lease_with_request(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+            "external",
+            Some(serde_json::to_value(&request.editor_request)?),
         )
         .await
         .map_err(agent_db_error_to_app)?;

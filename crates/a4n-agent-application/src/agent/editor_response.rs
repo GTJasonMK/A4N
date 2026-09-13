@@ -1,6 +1,7 @@
 use super::{AgentApplication, AgentWorkerRun};
 use a4n_api_contract::agent::AgentEditorRequest;
 use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerEditorWaitRequest;
 
 /// Runtime-facing boundary for releasing and requeueing editor-backed Runs.
 #[async_trait::async_trait]
@@ -9,6 +10,11 @@ pub trait AgentEditorResponseApplicationPort: Send + Sync {
         &self,
         claimed: &AgentWorkerRun,
         request: &AgentEditorRequest,
+    ) -> Result<(), AppError>;
+
+    async fn wait_for_editor_request(
+        &self,
+        request: &AgentWorkerEditorWaitRequest,
     ) -> Result<(), AppError>;
 
     async fn requeue_after_external_response(
@@ -25,6 +31,13 @@ impl AgentEditorResponseApplicationPort for AgentApplication {
         request: &AgentEditorRequest,
     ) -> Result<(), AppError> {
         AgentApplication::wait_for_editor(self, claimed, request).await
+    }
+
+    async fn wait_for_editor_request(
+        &self,
+        request: &AgentWorkerEditorWaitRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::wait_for_editor_request(self, request).await
     }
 
     async fn requeue_after_external_response(

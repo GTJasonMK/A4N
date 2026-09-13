@@ -1,11 +1,10 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
     AgentApplication, AgentApprovalExpiryApplicationPort, AgentDelegationSnapshot,
-    AgentEditorClaimApplicationPort, AgentEditorResponseApplicationPort,
-    AgentEditorWaitApplicationPort, AgentExecutionSnapshot, AgentExternalTaskWaitApplicationPort,
-    AgentGenerationCancelApplicationPort, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
-    AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
+    AgentEditorClaimApplicationPort, AgentEditorWaitApplicationPort, AgentExecutionSnapshot,
+    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort, AgentInboxSnapshot,
+    AgentMessageSnapshot, AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot,
+    AgentTurnSnapshot, AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
     AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
     AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
@@ -22,7 +21,7 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionUpdateRequest,
     AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
@@ -162,6 +161,23 @@ impl AgentRuntimeState {
             operation: "标记 Agent worker recovery".into(),
         })?;
         self.host.mark_recovery_required(&request).await
+    }
+
+    pub async fn wait_for_editor(
+        &self,
+        claimed: &AgentWorkerRun,
+        editor_request: &a4n_api_contract::agent::AgentEditorRequest,
+    ) -> Result<(), AppError> {
+        let request = AgentWorkerEditorWaitRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            editor_request: editor_request.clone(),
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent editor wait request 无效: {error}"),
+            operation: "等待 Agent editor".into(),
+        })?;
+        self.host.wait_for_editor(&request).await
     }
 
     fn agent_worker_lease_request(
@@ -930,9 +946,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn editor_claim_application(&self) -> &dyn AgentEditorClaimApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn editor_response_application(&self) -> &dyn AgentEditorResponseApplicationPort {
         self.application.as_ref()
     }
     pub fn editor_wait_application(&self) -> &dyn AgentEditorWaitApplicationPort {

@@ -241,6 +241,10 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/recovery",
             post(agent_runtime::mark_agent_worker_recovery_required),
         )
+        .route(
+            "/agent/editor/wait",
+            post(agent_runtime::wait_for_agent_editor),
+        )
         .route("/agent/inbox/claim", post(agent_runtime::claim_agent_inbox))
         .route(
             "/agent/inbox/consume",

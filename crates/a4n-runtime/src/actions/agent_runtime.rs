@@ -37,7 +37,7 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
@@ -1176,6 +1176,19 @@ pub async fn mark_agent_worker_recovery_required(
     state
         .agent_worker_recovery_application()
         .mark_recovery_required_request(request)
+        .await
+}
+
+pub async fn wait_for_agent_editor(
+    state: &AppState,
+    request: &AgentWorkerEditorWaitRequest,
+) -> Result<(), AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent editor wait 无效: {error}")))?;
+    state
+        .agent_editor_response_application()
+        .wait_for_editor_request(request)
         .await
 }
 

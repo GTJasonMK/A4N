@@ -2024,7 +2024,6 @@ async fn execute_tool_call(
     let message_application = state.worker_message_application(claimed);
     let approval_application = state.worker_approval_application(claimed);
     let delegation_application = state.worker_delegation_application();
-    let editor_response_application = state.editor_response_application();
 
     // A completed idempotent execution is a durable replay, not a reason to
     // call an external provider twice after a worker restart.
@@ -2249,9 +2248,7 @@ async fn execute_tool_call(
     if context.editor_source.is_some() && editor::needs_editor(&call.name) {
         match editor::request_for_call(context, &execution, &call) {
             Ok(request) => {
-                editor_response_application
-                    .wait_for_editor(claimed, &request)
-                    .await?;
+                state.wait_for_editor(claimed, &request).await?;
                 return Ok((RunProgress::Released, Vec::new()));
             }
             Err(error) => {
