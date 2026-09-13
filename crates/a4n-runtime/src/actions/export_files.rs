@@ -11,7 +11,7 @@ pub async fn export_txt_data(
     project_id: i64,
 ) -> Result<ExportFileData, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_txt(user_id, project_id)
         .await
 }
@@ -24,7 +24,7 @@ pub async fn export_markdown_data(
     author: &str,
 ) -> Result<ExportFileData, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_markdown(user_id, project_id, title, author)
         .await
 }
@@ -35,7 +35,7 @@ pub async fn export_outline_json_data(
     project_id: i64,
 ) -> Result<ExportFileData, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_outline_json(user_id, project_id)
         .await
 }
@@ -46,7 +46,7 @@ pub async fn export_characters_json_data(
     project_id: i64,
 ) -> Result<ExportFileData, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_characters_json(user_id, project_id)
         .await
 }
@@ -60,7 +60,7 @@ pub async fn export_epub_data(
     progress: &ExportProgress<'_>,
 ) -> Result<ExportFileData, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_epub(user_id, project_id, title, author, progress)
         .await
 }
@@ -72,7 +72,7 @@ pub async fn export_pdf_data(
     progress: &ExportProgress<'_>,
 ) -> Result<ExportFileData, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_pdf(user_id, project_id, progress)
         .await
 }
@@ -84,7 +84,7 @@ pub async fn export_batch_data(
     progress: &ExportProgress<'_>,
 ) -> Result<Vec<ExportFileData>, AppError> {
     state
-        .export_application()
+        .project_export_application()
         .export_batch(user_id, input, progress)
         .await
 }

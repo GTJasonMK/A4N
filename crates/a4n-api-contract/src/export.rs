@@ -40,9 +40,9 @@ impl<'a> ExportProgress<'a> {
     }
 }
 
-/// Host-facing export application boundary.
+/// Host-facing project export boundary.
 #[async_trait::async_trait]
-pub trait ExportApplicationPort: Send + Sync {
+pub trait ProjectExportApplicationPort: Send + Sync {
     async fn export_txt(
         &self,
         user_id: i64,
@@ -91,7 +91,11 @@ pub trait ExportApplicationPort: Send + Sync {
         input: BatchExportInput,
         progress: &ExportProgress<'_>,
     ) -> Result<Vec<ExportFileData>, a4n_error::AppError>;
+}
 
+/// Host-facing Galgame WebGAL export boundary.
+#[async_trait::async_trait]
+pub trait GalgameExportApplicationPort: Send + Sync {
     async fn export_galgame_webgal(
         &self,
         user_id: i64,

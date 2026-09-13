@@ -1,5 +1,6 @@
 use a4n_api_contract::export::{
-    BatchExportFormat, BatchExportInput, ExportApplicationPort, ExportFileData, ExportProgress,
+    BatchExportFormat, BatchExportInput, ExportFileData, ExportProgress,
+    GalgameExportApplicationPort, ProjectExportApplicationPort,
 };
 use a4n_db::export::{
     ExportChapter, ExportDocument, chapter_heading, render_markdown_document, render_txt_document,
@@ -194,7 +195,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl ExportApplicationPort for OrchestratorContext {
+impl ProjectExportApplicationPort for OrchestratorContext {
     async fn export_txt(&self, user_id: i64, project_id: i64) -> Result<ExportFileData, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -269,7 +270,10 @@ impl ExportApplicationPort for OrchestratorContext {
             .await?;
         self.run_batch_export_validated(input, progress).await
     }
+}
 
+#[async_trait::async_trait]
+impl GalgameExportApplicationPort for OrchestratorContext {
     async fn export_galgame_webgal(
         &self,
         user_id: i64,

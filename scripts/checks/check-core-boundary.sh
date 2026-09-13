@@ -991,12 +991,12 @@ fi
 
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext|actions::access' \
     crates/a4n-runtime/src/actions/export_files.rs; then
-    printf 'Runtime export actions must consume ExportApplicationPort instead of the concrete orchestrator or duplicate authorization\n' >&2
+    printf 'Runtime project export actions must consume ProjectExportApplicationPort instead of the concrete orchestrator or duplicate authorization\n' >&2
     exit 1
 fi
 
-if ! rg -n 'export_application\(\)' crates/a4n-runtime/src/actions/export_files.rs; then
-    printf 'Runtime export actions must route through ExportApplicationPort\n' >&2
+if ! rg -n 'project_export_application\(\)' crates/a4n-runtime/src/actions/export_files.rs; then
+    printf 'Runtime project export actions must route through ProjectExportApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1010,16 +1010,16 @@ if rg -n 'pub struct ExportProgress|a4n_orchestrator::export::ExportProgress' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ExportApplicationPort' crates/a4n-api-contract/src/export.rs; then
-    printf 'ExportApplicationPort contract is missing from the API contract\n' >&2
+if rg -n '(^|[^A-Za-z])ExportApplicationPort($|[^A-Za-z])|(^|[^A-Za-z_])export_application\(\)' \
+    crates/a4n-api-contract/src/export.rs \
+    crates/a4n-orchestrator/src \
+    crates/a4n-runtime/src; then
+    printf 'The mixed ExportApplicationPort must remain removed\n' >&2
     exit 1
 fi
-if rg -n 'pub trait ExportApplicationPort' crates/a4n-orchestrator/src/export; then
-    printf 'ExportApplicationPort must not be redefined in the orchestrator\n' >&2
-    exit 1
-fi
-if rg -n 'a4n_orchestrator::export::ExportApplicationPort' crates/a4n-runtime/src; then
-    printf 'Runtime export adapters must consume the API contract directly\n' >&2
+if ! rg -n 'pub trait ProjectExportApplicationPort' crates/a4n-api-contract/src/export.rs || \
+   ! rg -n 'pub trait GalgameExportApplicationPort' crates/a4n-api-contract/src/export.rs; then
+    printf 'Project and Galgame export contracts are missing from the API contract\n' >&2
     exit 1
 fi
 
@@ -1511,13 +1511,13 @@ fi
 
 if rg -n '\.orchestrator\(\)|OrchestratorContext' \
     crates/a4n-runtime/src/actions/galgame_records/webgal_export.rs; then
-    printf 'Runtime WebGAL export must consume ExportApplicationPort\n' >&2
+    printf 'Runtime WebGAL export must consume GalgameExportApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'export_application\(\)' \
+if ! rg -n 'galgame_export_application\(\)' \
     crates/a4n-runtime/src/actions/galgame_records/webgal_export.rs; then
-    printf 'Runtime WebGAL export must route through ExportApplicationPort\n' >&2
+    printf 'Runtime WebGAL export must route through GalgameExportApplicationPort\n' >&2
     exit 1
 fi
 

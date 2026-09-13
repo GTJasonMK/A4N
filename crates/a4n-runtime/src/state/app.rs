@@ -332,9 +332,10 @@ pub struct AppState {
     /// stay in the API contract rather than the mixed mutation boundary.
     import_review_read_application:
         Arc<dyn a4n_api_contract::import_review::ImportReviewReadApplicationPort>,
-    /// Host-facing export boundary. Export authorization and format rendering
-    /// remain in the export owner; Runtime only adapts progress callbacks.
-    export_application: Arc<dyn a4n_api_contract::export::ExportApplicationPort>,
+    /// Host-facing project export boundary. Authorization and format
+    /// rendering remain in the export owner; Runtime only adapts progress.
+    project_export_application: Arc<dyn a4n_api_contract::export::ProjectExportApplicationPort>,
+    galgame_export_application: Arc<dyn a4n_api_contract::export::GalgameExportApplicationPort>,
     /// Host-facing video-record read boundary.
     video_record_read_application: Arc<dyn a4n_api_contract::video::VideoRecordReadApplicationPort>,
     /// Host-facing ordinary video-record mutation boundary.
@@ -1717,10 +1718,16 @@ impl AppState {
         self.import_review_read_application.as_ref()
     }
 
-    pub(crate) fn export_application(
+    pub(crate) fn project_export_application(
         &self,
-    ) -> &dyn a4n_api_contract::export::ExportApplicationPort {
-        self.export_application.as_ref()
+    ) -> &dyn a4n_api_contract::export::ProjectExportApplicationPort {
+        self.project_export_application.as_ref()
+    }
+
+    pub(crate) fn galgame_export_application(
+        &self,
+    ) -> &dyn a4n_api_contract::export::GalgameExportApplicationPort {
+        self.galgame_export_application.as_ref()
     }
 
     pub(crate) fn video_record_read_application(
@@ -2391,7 +2398,8 @@ impl AppState {
             chapter_analysis_preview_application: Arc::new(orchestrator.clone()),
             import_review_application: Arc::new(orchestrator.clone()),
             import_review_read_application: Arc::new(orchestrator.clone()),
-            export_application: Arc::new(orchestrator.clone()),
+            project_export_application: Arc::new(orchestrator.clone()),
+            galgame_export_application: Arc::new(orchestrator.clone()),
             video_record_read_application: Arc::new(orchestrator.clone()),
             video_record_mutation_application: Arc::new(orchestrator.clone()),
             video_import_application: Arc::new(orchestrator.clone()),
