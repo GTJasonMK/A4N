@@ -1,7 +1,7 @@
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     generation::{generation_spec, prompt_artifact},
-    media::media_asset,
+    media::{media_asset, media_provenance},
 };
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
@@ -44,7 +44,8 @@ pub(super) async fn load_media_workflow_v2_reset_scope<C>(
 where
     C: ConnectionTrait,
 {
-    let images = generated_image::Entity::find()
+    let (protected_image_ids, _) = crate::chapter_visual_plan::visual_plan_resource_ids(db).await?;
+    let all_images = generated_image::Entity::find()
         .select_only()
         .column(generated_image::Column::Id)
         .column(generated_image::Column::FilePath)
@@ -53,6 +54,23 @@ where
         .into_model::<ImageScopeRow>()
         .all(db)
         .await?;
+    let protected_paths = if protected_image_ids.is_empty() {
+        std::collections::BTreeSet::new()
+    } else {
+        generated_image::Entity::find()
+            .select_only()
+            .column(generated_image::Column::FilePath)
+            .filter(generated_image::Column::Id.is_in(protected_image_ids.iter().copied()))
+            .into_tuple::<String>()
+            .all(db)
+            .await?
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let images = all_images
+        .into_iter()
+        .filter(|image| !protected_image_ids.contains(&image.id))
+        .collect::<Vec<_>>();
     let videos = generated_video::Entity::find()
         .select_only()
         .column(generated_video::Column::Id)
@@ -63,7 +81,7 @@ where
         .into_model::<VideoScopeRow>()
         .all(db)
         .await?;
-    let generated_assets = media_asset::Entity::find()
+    let all_generated_assets = media_asset::Entity::find()
         .select_only()
         .column(media_asset::Column::Id)
         .column(media_asset::Column::FilePath)
@@ -74,10 +92,36 @@ where
         .into_model::<MediaAssetScopeRow>()
         .all(db)
         .await?;
+    let protected_asset_ids = all_generated_assets
+        .iter()
+        .filter(|asset| {
+            asset
+                .file_path
+                .as_ref()
+                .is_some_and(|path| protected_paths.contains(path))
+        })
+        .map(|asset| asset.id)
+        .collect::<Vec<_>>();
+    let protected_spec_ids = if protected_asset_ids.is_empty() {
+        Vec::new()
+    } else {
+        media_provenance::Entity::find()
+            .filter(media_provenance::Column::MediaAssetId.is_in(protected_asset_ids.clone()))
+            .all(db)
+            .await?
+            .into_iter()
+            .filter_map(|row| row.generation_spec_id)
+            .collect::<Vec<_>>()
+    };
+    let generated_assets = all_generated_assets
+        .into_iter()
+        .filter(|asset| !protected_asset_ids.contains(&asset.id))
+        .collect::<Vec<_>>();
     let generation_spec_ids = generation_spec::Entity::find()
         .select_only()
         .column(generation_spec::Column::Id)
         .filter(generation_spec::Column::ProjectId.eq(project_id))
+        .filter(generation_spec::Column::Id.is_not_in(protected_spec_ids))
         .into_tuple::<i64>()
         .all(db)
         .await?;

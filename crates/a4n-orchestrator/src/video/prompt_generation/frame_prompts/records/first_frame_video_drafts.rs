@@ -52,9 +52,11 @@ pub(in crate::video) fn first_frame_video_prompt_drafts(
                     ))
                 })?;
             let start_first_frame = if prompt.shot_number == 1 {
-                json!(first_frame_by_number.get(&1).ok_or_else(|| {
-                    AppError::InvalidArgument("首帧串联视频提示词缺少初始首帧 #1".to_string())
-                })?)
+                match first_frame_by_number.get(&1) {
+                    Some(frame) => json!(frame),
+                    None if segment.director_constraints.is_some() => Value::Null,
+                    None => return Err(AppError::InvalidArgument("首帧串联视频提示词缺少初始首帧 #1".to_string())),
+                }
             } else {
                 Value::Null
             };
@@ -86,17 +88,19 @@ pub(in crate::video) fn first_frame_video_prompt_drafts(
                         "continuity_check": prompt.continuity_check.clone(),
                         "source_prompt_type": source_prompt_type,
                         "first_frame_chain": {
-                            "start_source": if prompt.shot_number == 1 {
+                            "start_source": if segment.director_constraints.is_some() {
+                                "director_timeline"
+                            } else if prompt.shot_number == 1 {
                                 "generated_first_frame"
                             } else {
                                 "previous_video_tail_frame"
                             },
-                            "first_frame_prompt_number": if prompt.shot_number == 1 {
+                            "first_frame_prompt_number": if prompt.shot_number == 1 && segment.director_constraints.is_none() {
                                 Value::from(1)
                             } else {
                                 Value::Null
                             },
-                            "previous_video_shot_number": if prompt.shot_number > 1 {
+                            "previous_video_shot_number": if prompt.shot_number > 1 && segment.director_constraints.is_none() {
                                 Value::from(prompt.shot_number - 1)
                             } else {
                                 Value::Null

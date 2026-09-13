@@ -3,6 +3,7 @@
 
 import type { ImageSize } from "./config";
 import type { ThemeMode } from "./theme";
+import type { GenerationStartRequestMeta } from "./generationContracts";
 
 export const HOST_API_COMMANDS = [
   "accept_import_review",
@@ -280,6 +281,7 @@ export const HOST_API_COMMANDS = [
   "preview_test_image_config_request",
   "preview_test_llm_config_request",
   "preview_video_provider_request_by_video_id",
+  "preview_visual_plan_point_generation",
   "prompt_list",
   "prompt_list_categories",
   "prompt_list_project_overrides",
@@ -303,6 +305,7 @@ export const HOST_API_COMMANDS = [
   "read_canvas_graph",
   "read_chapter_visual_plan",
   "read_recent_logs",
+  "read_visual_plan_prompt_candidate",
   "record_optimize_agent_event",
   "refresh_token",
   "register_user",
@@ -358,6 +361,7 @@ export const HOST_API_COMMANDS = [
   "start_package_lifecycle",
   "start_portrait_generation",
   "start_video_generation",
+  "start_visual_plan_prompt_generation",
   "sync_all_character_profiles",
   "sync_blueprint_materials",
   "sync_character_from_chapters",
@@ -422,6 +426,7 @@ export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<strin
   ["start_blueprint_refinement", "/generation-tasks/blueprint-refinement"],
   ["start_chapter_generation", "/generation-tasks/chapter"],
   ["start_image_generation", "/generation-tasks/image"],
+  ["start_visual_plan_prompt_generation", "/generation-tasks/director-prompt"],
   ["start_inspiration_generation", "/generation-tasks/inspiration"],
   ["start_optimize_analysis_generation", "/generation-tasks/optimize-analysis"],
   ["start_optimize_chat_generation", "/generation-tasks/optimize-chat"],
@@ -538,6 +543,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "start_outline_generation": "full",
   "start_portrait_generation": "full",
   "start_video_generation": "full",
+  "start_visual_plan_prompt_generation": "full",
   "sync_all_character_profiles": "full",
   "sync_blueprint_materials": "full",
   "sync_character_from_chapters": "full",
@@ -648,7 +654,7 @@ export interface AgentEditorRequest {
   source: AgentEditorSource;
 }
 
-export type AgentEditorResponse = { kind: "state"; state: AgentEditorState } | { editor_revision: string; kind: "draft"; plan: ChapterVisualPlanV2 } | { kind: "save_draft"; plan: ChapterVisualPlanV2; state: AgentEditorState } | { kind: "ready_to_write"; state: AgentEditorState } | { kind: "error"; message: string };
+export type AgentEditorResponse = { kind: "state"; state: AgentEditorState } | { editor_revision: string; kind: "draft"; plan: ChapterVisualPlanV3 } | { kind: "save_draft"; plan: ChapterVisualPlanV3; state: AgentEditorState } | { kind: "ready_to_write"; state: AgentEditorState } | { kind: "error"; message: string };
 
 export interface AgentEditorReply {
   error_message: string | null;
@@ -1706,6 +1712,7 @@ export interface CallKindOverview {
   prompt_cache_hit_ratio: number | null;
   prompt_cache_hit_tokens: number;
   prompt_cache_miss_tokens: number;
+  prompt_cache_write_tokens: number | null;
   prompt_tokens: number;
   success: number;
   total_tokens: number;
@@ -1717,6 +1724,7 @@ export interface DailyCallMetric {
   llm_calls: number;
   llm_prompt_cache_hit_tokens: number;
   llm_prompt_cache_miss_tokens: number;
+  llm_prompt_cache_write_tokens: number | null;
   llm_total_tokens: number;
   video_calls: number;
 }
@@ -1736,6 +1744,7 @@ export interface LlmWorkflowMetric {
   prompt_cache_hit_ratio: number | null;
   prompt_cache_hit_tokens: number;
   prompt_cache_miss_tokens: number;
+  prompt_cache_write_tokens: number | null;
   prompt_tokens: number;
   step_key: string;
   success: number;
@@ -1768,6 +1777,7 @@ export interface RecentLlmCall {
   prompt_cache_hit_ratio: number | null;
   prompt_cache_hit_tokens: number | null;
   prompt_cache_miss_tokens: number | null;
+  prompt_cache_write_tokens: number | null;
   prompt_tokens: number | null;
   provider: string | null;
   stable_prefix_tokens: number | null;
@@ -4538,29 +4548,13 @@ export interface ForeshadowingWriteResult {
   warnings: string[];
 }
 
-export type ChapterVisualPlanSchemaVersion = "chapter_visual_plan_v2";
+export type ChapterVisualPlanSchemaVersion = "chapter_visual_plan_v3";
 
 export type ChapterVisualPlanStatus = "draft" | "confirmed" | "superseded" | "stale";
 
 export type ChapterVisualPlanAuthoringMode = "collaborative" | "manual";
 
-export type VisualEntityKindV1 = "character" | "object" | "environment" | "text" | "effect";
-
 export type VisualUserAdditionKindV1 = "entity" | "dialogue" | "action" | "location" | "story_fact" | "visual_motif" | "sound" | "other";
-
-export type VisualInterpolationV1 = "hold" | "linear" | "ease_in" | "ease_out" | "ease_in_out";
-
-export type VisualFacingV1 = "left" | "right" | "front" | "back" | "profile_left" | "profile_right" | "unspecified";
-
-export type VisualRelationKindV1 = "left_of" | "right_of" | "above" | "below" | "in_front_of" | "behind" | "inside" | "overlapping" | "facing" | "looking_at" | "touching" | "holding" | "following" | "custom";
-
-export type VisualEntityEventKindV1 = "enter" | "exit" | "move" | "action" | "dialogue" | "expression" | "gaze" | "pose" | "interaction" | "transform" | "custom";
-
-export type VisualCameraEventKindV1 = "cut" | "pan" | "tilt" | "push_in" | "pull_out" | "track" | "dolly" | "crane" | "handheld" | "whip_pan" | "zoom" | "focus" | "shake" | "orbit" | "reframe" | "custom";
-
-export type VisualSoundEventKindV1 = "dialogue" | "voice_over" | "narration" | "ambient" | "effect" | "music" | "silence";
-
-export type VisualTechniqueKindV1 = "montage" | "split_screen" | "slow_motion" | "fast_motion" | "freeze_frame" | "flashback" | "dream" | "subjective" | "symbolic" | "silhouette" | "reflection" | "overlay" | "text_on_screen" | "lighting" | "color_grade" | "match_action" | "offscreen" | "custom";
 
 export interface VisualUserAdditionV1 {
   description: string;
@@ -4570,213 +4564,97 @@ export interface VisualUserAdditionV1 {
   rationale: string;
 }
 
-export interface VisualRectV1 {
-  height: number;
-  width: number;
-  x: number;
-  y: number;
-}
-
-export interface VisualEntityStateV1 {
-  action: string | null;
-  bounds: VisualRectV1;
-  dialogue: string | null;
-  entity_id: string;
-  expression: string | null;
-  facing: VisualFacingV1;
-  gaze_target_entity_id: string | null;
-  notes: string | null;
-  opacity: number;
-  pose: string | null;
-  rotation_degrees: number;
-  visible: boolean;
-  z_index: number;
-}
-
-export interface VisualCameraStateV1 {
-  center_x: number;
-  center_y: number;
-  focus_entity_id: string | null;
-  framing_note: string | null;
-  rotation_degrees: number;
-  zoom: number;
-}
-
-export interface VisualRelationV1 {
-  id: string;
-  kind: VisualRelationKindV1;
-  label: string | null;
-  source_entity_id: string;
-  target_entity_id: string;
-}
-
-export interface VisualKeyframeV1 {
-  at_ms: number;
-  camera: VisualCameraStateV1;
-  entity_states: VisualEntityStateV1[];
-  id: string;
-  interpolation_to_next: VisualInterpolationV1;
-  label: string;
-  relations: VisualRelationV1[];
-}
-
-export interface VisualEntityEventV1 {
-  description: string;
-  end_ms: number;
-  entity_id: string;
-  id: string;
-  kind: VisualEntityEventKindV1;
-  parameters: Record<string, string>;
-  source_span_ids: string[];
-  start_ms: number;
-  target_entity_id: string | null;
-  user_addition_ids: string[];
-}
-
-export interface VisualCameraEventV1 {
-  description: string;
-  end_ms: number;
-  id: string;
-  kind: VisualCameraEventKindV1;
-  parameters: Record<string, string>;
-  source_span_ids: string[];
-  start_ms: number;
-  target_entity_id: string | null;
-  user_addition_ids: string[];
-}
-
-export interface VisualSoundEventV1 {
-  content: string;
-  end_ms: number;
-  id: string;
-  kind: VisualSoundEventKindV1;
-  parameters: Record<string, string>;
-  source_span_ids: string[];
-  speaker_entity_id: string | null;
-  start_ms: number;
-  user_addition_ids: string[];
-}
-
-export interface VisualTechniqueEventV1 {
-  description: string;
-  end_ms: number;
-  id: string;
-  kind: VisualTechniqueKindV1;
-  parameters: Record<string, string>;
-  source_span_ids: string[];
-  start_ms: number;
-  user_addition_ids: string[];
-}
-
-export interface VisualFrameV2 {
-  background: string | null;
-  height: number;
-  width: number;
-}
-
-export interface VisualEntityV2 {
-  description: string;
-  id: string;
-  kind: VisualEntityKindV1;
-  label: string;
-}
-
-export interface VisualKeyframeV2 {
-  at_ms: number;
-  camera: VisualCameraStateV1;
-  entity_states: VisualEntityStateV1[];
-  id: string;
-  interpolation_to_next: VisualInterpolationV1;
-  label: string;
-  relations: VisualRelationV1[];
-}
-
-export interface VisualEntityEventV2 {
-  description: string;
-  end_ms: number;
-  entity_id: string;
-  id: string;
-  kind: VisualEntityEventKindV1;
-  parameters: Record<string, string>;
-  start_ms: number;
-  target_entity_id: string | null;
-}
-
-export interface VisualCameraEventV2 {
-  description: string;
-  end_ms: number;
-  id: string;
-  kind: VisualCameraEventKindV1;
-  parameters: Record<string, string>;
-  start_ms: number;
-  target_entity_id: string | null;
-}
-
-export interface VisualSoundEventV2 {
-  content: string;
-  end_ms: number;
-  id: string;
-  kind: VisualSoundEventKindV1;
-  parameters: Record<string, string>;
-  speaker_entity_id: string | null;
-  start_ms: number;
-}
-
-export interface VisualTechniqueEventV2 {
-  description: string;
-  end_ms: number;
-  id: string;
-  kind: VisualTechniqueKindV1;
-  parameters: Record<string, string>;
-  start_ms: number;
-}
-
-export interface VisualTransitionV2 {
-  duration_ms: number;
-  kind: ShootingTransitionTypeV1;
-  notes: string | null;
-  preserved_action: string | null;
-  preserved_sound: string | null;
-}
-
-export interface VisualShotV2 {
-  camera_angle: ShootingCameraAngleV1 | null;
-  camera_events: VisualCameraEventV2[];
-  camera_height: ShootingCameraHeightV1 | null;
-  composition: string | null;
-  continuity_notes: string[];
-  coverage: ShootingCoverageV1;
-  duration_ms: number;
-  entity_events: VisualEntityEventV2[];
-  id: string;
-  keyframes: VisualKeyframeV2[];
-  lens_intent: string | null;
-  narrative_purpose: string;
-  shot_size: ShootingShotSizeV1 | null;
-  sound_events: VisualSoundEventV2[];
-  technique_events: VisualTechniqueEventV2[];
-  title: string;
-  transition_to_next: VisualTransitionV2 | null;
-}
-
-export interface VisualSceneV2 {
-  editing_mode: ShootingEditingModeV1;
-  focal_entity_id: string | null;
-  id: string;
-  intercut_group_id: string | null;
-  location: string | null;
-  narrative_purpose: string;
-  participant_entity_ids: string[];
-  shots: VisualShotV2[];
-  time_of_day: string | null;
-  title: string;
-}
-
-export interface ChapterVisualPlanV2 {
-  entities: VisualEntityV2[];
-  frame: VisualFrameV2;
-  scenes: VisualSceneV2[];
+export interface ChapterVisualPlanV3 {
+  frame: VisualFrameV3;
+  points: VisualPointV3[];
   schema_version: ChapterVisualPlanSchemaVersion;
+  segments: VisualSegmentV3[];
+}
+
+export interface VisualFrameV3 {
+  height: number;
+  width: number;
+}
+
+export interface VisualPointV3 {
+  at_ms: number;
+  description: string;
+  id: string;
+  image_id: number | null;
+  label: string;
+  reference_image_ids: number[];
+}
+
+export interface VisualSegmentV3 {
+  end_point_id: string;
+  id: string;
+  prompt: string;
+  scene_binding: SceneBindingV3 | null;
+  start_point_id: string;
+  title: string;
+  use_end_point_image: boolean;
+}
+
+export type SceneBindingV3 = { kind: "scene"; scene_profile_id: number } | { from_scene_profile_id: number; kind: "transition"; to_scene_profile_id: number };
+
+export interface VisualSegmentProjectionV3 {
+  end_frame: VisualPointV3 | null;
+  end_ms: number;
+  frame: VisualFrameV3;
+  keyframes: VisualPointV3[];
+  prompt: string;
+  scene_binding: SceneBindingV3;
+  segment_id: string;
+  start_ms: number;
+  title: string;
+}
+
+export interface VisualPlanPointGenerationOptions {
+  config_id: number | null;
+  expected_revision: number;
+  point_id: string;
+  record_id: number;
+  size: ImageSize | null;
+  source_chapter_id: number;
+  user_description: string;
+}
+
+export interface PreviewVisualPlanPointInput {
+  options: VisualPlanPointGenerationOptions;
+  project_id: number;
+}
+
+export interface VisualPlanPointGenerationPreview {
+  aspect_ratio: string;
+  plan_sha256: string;
+  prompt: string;
+  reference_image_ids: number[];
+}
+
+export interface StartVisualPlanPromptGenerationInput {
+  expected_revision: number;
+  meta: GenerationStartRequestMeta;
+  project_id: number;
+  record_id: number;
+  segment_id: string;
+  source_chapter_id: number;
+  user_description: string;
+}
+
+export interface VisualPlanPromptCandidate {
+  model: string;
+  plan_revision: number;
+  plan_sha256: string;
+  prompt: string;
+  record_id: number;
+  segment_id: string;
+  source_chapter_id: number;
+  user_description: string;
+}
+
+export interface ReadVisualPlanPromptCandidateInput {
+  generation_run_id: number;
+  project_id: number;
 }
 
 export interface ChapterVisualPlanSourceInput {
@@ -4789,7 +4667,7 @@ export interface SaveChapterVisualPlanDraftInput {
   editor_revision?: string | null;
   expected_revision?: number | null;
   expected_source_hash?: string | null;
-  plan: ChapterVisualPlanV2;
+  plan: ChapterVisualPlanV3;
   project_id: number;
   record_id?: number | null;
   source_chapter_id: number;
@@ -4821,7 +4699,7 @@ export interface ChapterVisualPlanSourceView {
 }
 
 export interface ChapterVisualPlanView {
-  plan: ChapterVisualPlanV2;
+  plan: ChapterVisualPlanV3;
   record: ChapterVisualPlanRecordSummary;
 }
 
@@ -4829,7 +4707,7 @@ export interface ChapterVisualPlanSetView {
   confirmed: ChapterVisualPlanView | null;
   draft: ChapterVisualPlanView | null;
   source: ChapterVisualPlanSourceView;
-  starter_plan: ChapterVisualPlanV2;
+  starter_plan: ChapterVisualPlanV3;
 }
 
 export interface ReadChapterVisualPlanInput {
@@ -4840,36 +4718,18 @@ export interface ReadChapterVisualPlanInput {
   view: VisualPlanReadView;
 }
 
-export type VisualPlanReadView = { kind: "outline"; limit?: number | null; offset?: number } | { kind: "shot"; limit?: number | null; offset?: number; shot_id: string } | { keyframe_id: string; kind: "keyframe"; shot_id: string } | { entity_id: string; kind: "entity" } | { expected_hash?: string | null; kind: "source"; limit?: number | null; offset?: number };
+export type VisualPlanReadView = { kind: "outline"; limit?: number | null; offset?: number } | { kind: "point"; point_id: string } | { kind: "segment"; segment_id: string } | { expected_hash?: string | null; kind: "source"; limit?: number | null; offset?: number };
 
 export interface VisualPlanOutlineItem {
-  duration_ms: number;
-  keyframe_count: number;
-  scene_id: string;
-  scene_title: string;
-  shot_id: string | null;
-  title: string | null;
-}
-
-export type VisualPlanProjection = { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "shot"; scene_id: string; shot: VisualPlanShotDetails } | { keyframe: VisualKeyframeV2; kind: "keyframe"; shot_id: string } | { entity: VisualEntityV2; kind: "entity" } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
-
-export interface VisualPlanKeyframeIndex {
-  at_ms: number;
-  id: string;
-  label: string;
-}
-
-export interface VisualPlanShotDetails {
-  composition: string | null;
-  duration_ms: number;
-  id: string;
-  keyframes: VisualPlanKeyframeIndex[];
-  lens_intent: string | null;
-  narrative_purpose: string;
-  next_offset: number | null;
+  end_ms: number;
+  point_count: number;
+  scene_binding: SceneBindingV3 | null;
+  segment_id: string;
+  start_ms: number;
   title: string;
-  total_keyframes: number;
 }
+
+export type VisualPlanProjection = { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "point"; point: VisualPointV3 } | { kind: "segment"; points: VisualPointV3[]; segment: VisualSegmentV3 } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
 
 export interface ChapterVisualPlanReadResult {
   projection: VisualPlanProjection;
@@ -4877,14 +4737,7 @@ export interface ChapterVisualPlanReadResult {
   source_hash: string;
 }
 
-export interface VisualShotFieldChanges {
-  composition: string | null;
-  lens_intent: string | null;
-  narrative_purpose: string | null;
-  title: string | null;
-}
-
-export type VisualPlanEditOperation = { changes: VisualShotFieldChanges; kind: "update_shot_fields"; shot_id: string };
+export type VisualPlanEditOperation = { kind: "insert_point"; point: VisualPointV3 } | { kind: "update_point"; point: VisualPointV3 } | { at_ms: number; kind: "move_point"; point_id: string } | { kind: "remove_point"; point_id: string } | { kind: "update_segment"; segment: VisualSegmentV3 } | { kind: "split_segment"; left_prompt: string; left_scene_binding?: SceneBindingV3 | null; point_id: string; right_prompt: string; right_scene_binding?: SceneBindingV3 | null; right_segment_id: string; segment_id: string } | { kind: "merge_segments"; left_segment_id: string; prompt: string; right_segment_id: string; scene_binding?: SceneBindingV3 | null } | { kind: "move_segment_boundary"; left_segment_id: string; point_id: string } | { duration_ms: number; kind: "scale_timeline" } | { frame: VisualFrameV3; kind: "set_frame" };
 
 export interface EditChapterVisualPlanDraftInput {
   editor_revision?: string | null;
@@ -4929,6 +4782,7 @@ export interface ChapterVisualPlanEditResult {
   changes: VisualPlanFieldChange[];
   resource: AgentResourceRef;
   validation: VisualPlanValidationResult;
+  visual_plan: ChapterVisualPlanView;
 }
 
 export interface ChapterVisualPlanValidationResult {
@@ -5046,13 +4900,16 @@ export interface ShootingVisualPlanSourceV1 {
   plan_version: number;
 }
 
-export interface ShootingVisualConstraintsV1 {
-  camera_events: VisualCameraEventV1[];
-  continuity_notes: string[];
-  entity_events: VisualEntityEventV1[];
-  keyframes: VisualKeyframeV1[];
-  sound_events: VisualSoundEventV1[];
-  technique_events: VisualTechniqueEventV1[];
+export interface ShootingVisualConstraintsV3 {
+  end_frame: VisualPointV3 | null;
+  end_ms: number;
+  frame: VisualFrameV3;
+  keyframes: VisualPointV3[];
+  prompt: string;
+  scene_binding: SceneBindingV3;
+  segment_id: string;
+  start_ms: number;
+  title: string;
 }
 
 export interface ShootingShotV1 {
@@ -5085,7 +4942,7 @@ export interface ShootingShotV1 {
   transition_in: string;
   transition_out: string;
   user_addition_ids: string[];
-  visual_constraints: ShootingVisualConstraintsV1 | null;
+  visual_constraints: VisualSegmentProjectionV3 | null;
   visual_shot_id: string | null;
 }
 

@@ -895,9 +895,18 @@ def optimization_patch_response() -> dict[str, Any]:
 
 
 def optimization_chat_response(combined: str) -> dict[str, Any]:
-    states = [value["loop_state"] for value in embedded_json_objects(combined)
+    objects = embedded_json_objects(combined)
+    states = [value["loop_state"] for value in objects
               if isinstance(value.get("loop_state"), dict)]
-    observations = states[-1].get("observations", []) if states else []
+    if states and "observations_ref" in states[-1]:
+        records = [value["loop_observation"] for value in objects if isinstance(value.get("loop_observation"), dict)]
+        if [record["sequence"] for record in records] != list(range(1, len(records) + 1)):
+            raise ValueError("optimization observations are not an intact ordered history")
+        observations = [record["value"] for record in records]
+        if states[-1]["progress"]["observation_count"] != len(observations):
+            raise ValueError("optimization request lost full observations")
+    else:
+        observations = states[-1].get("observations", []) if states else []
     instruction = re.search(r"# 本次用户指令\s*\n([\s\S]*?)\n# 可用工具", combined)
     current = instruction.group(1) if instruction else ""
     if "A4N_OPTIMIZATION_WAIT" in current:
@@ -935,10 +944,13 @@ def shooting_span_ids(combined: str) -> list[str]:
     return ids
 
 
-def shooting_layout_response() -> dict[str, Any]:
+def shooting_layout_response(combined: str) -> dict[str, Any]:
+    indexes = re.findall(r"只细化 narrative_unit_index=(\d+)", combined)
+    if not indexes:
+        raise UnhandledPromptError("layout prompt contains no target unit index")
     return {
         "schema_version": "screenplay_layout_unit_detail_v1",
-        "narrative_unit_index": 1,
+        "narrative_unit_index": int(indexes[-1]),
         "transition_contracts": [],
         "title": "封闭通道的七分钟",
         "slugline": "内景 旧车站封闭通道 夜",
@@ -952,24 +964,29 @@ def shooting_layout_response() -> dict[str, Any]:
 
 
 def shooting_adaptation_response(combined: str) -> dict[str, Any]:
-    evidence = source_span_id(combined, "进入地下机房", len(shooting_span_ids(combined)) - 1)
+    context = next((value for value in embedded_json_objects(combined)
+                    if isinstance(value.get("unit"), dict) and isinstance(value.get("locked_visual_unit"), dict)), None)
+    if context is None:
+        raise UnhandledPromptError("adaptation requires a locked director unit")
+    unit, locked = context["unit"], context["locked_visual_unit"]
     return {
         "schema_version": "screenplay_unit_adaptation_v1",
-        "narrative_unit_index": 1,
+        "narrative_unit_index": unit["narrative_unit_index"],
         "performance_facts": [
             {
-                "fact_index": 1,
-                "source_span_ids": [evidence],
-                "actor": "林岚",
+                "fact_index": index,
+                "source_span_ids": [],
+                "user_addition_ids": ["director:" + shot["segment_id"]],
+                "actor": next(iter(unit["participants"]), None),
                 "objective": "用行动验证周衡是否可信。",
                 "obstacle": "时间异常与周衡的反常影子都缺少解释。",
-                "visible_action": "在墙上划下齿轮暗记后走入地下机房。",
+                "visible_action": shot["prompt"],
                 "reaction": "短暂停顿后收紧怀表。",
                 "dialogue_intent": None,
                 "entry_state": "警觉地观察周衡。",
                 "exit_state": "坚定进入地下机房继续调查。",
                 "required": True,
-            }
+            } for index, shot in enumerate(locked["shots"], 1)
         ],
     }
 
@@ -1106,17 +1123,10 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
         if not isinstance(fact, dict) or not isinstance(fact.get("source_span_ids"), list):
             raise UnhandledPromptError("shooting performance fact is invalid")
         for shot_index, planned in enumerate(planned_shots):
-            if not isinstance(planned, dict) or not isinstance(
-                planned.get("source_span_ids"), list
-            ):
+            if not isinstance(planned, dict) or not isinstance(planned.get("segment_id"), str):
                 raise UnhandledPromptError("locked visual shot is invalid")
-            overlap = [
-                span_id
-                for span_id in fact["source_span_ids"]
-                if span_id in planned["source_span_ids"]
-            ]
-            if overlap:
-                facts_by_shot[shot_index].append((fact, overlap))
+            if "director:" + planned["segment_id"] in fact.get("user_addition_ids", []):
+                facts_by_shot[shot_index].append((fact, fact["source_span_ids"]))
                 break
         else:
             raise UnhandledPromptError(
@@ -1129,7 +1139,6 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
     participants = screenplay.get("participants")
     if not isinstance(participants, list):
         raise UnhandledPromptError("screenplay plan unit participants are invalid")
-    has_bound_participants = bool(locked.get("participant_entity_ids"))
 
     shots = []
     for shot_index, (planned, assigned_facts) in enumerate(
@@ -1144,23 +1153,16 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
         shot.update(
             {
                 "shot_index": shot_index,
-                "shot_id": planned["id"],
+                "shot_id": planned["segment_id"],
                 "title": planned["title"],
-                "source_span_ids": list(planned["source_span_ids"]),
-                "visual_shot_id": planned["id"],
+                "source_span_ids": list(dict.fromkeys(span for _, sources in assigned_facts for span in sources)),
+                "visual_shot_id": planned["segment_id"],
                 "planned_start_ms": start_ms,
                 "planned_end_ms": end_ms,
-                "user_addition_ids": list(planned.get("user_addition_ids", [])),
-                "visual_constraints": {
-                    "keyframes": list(planned.get("keyframes", [])),
-                    "entity_events": list(planned.get("entity_events", [])),
-                    "camera_events": list(planned.get("camera_events", [])),
-                    "sound_events": list(planned.get("sound_events", [])),
-                    "technique_events": list(planned.get("technique_events", [])),
-                    "continuity_notes": list(planned.get("continuity_notes", [])),
-                },
-                "coverage": planned["coverage"],
-                "narrative_purpose": planned["narrative_purpose"],
+                "user_addition_ids": ["director:" + planned["segment_id"]],
+                "visual_constraints": planned,
+                "coverage": "must_show",
+                "narrative_purpose": planned["prompt"],
                 "subject": next(
                     (
                         fact.get("actor")
@@ -1179,7 +1181,7 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
                 "spatial_anchors": [],
                 "blocking": {
                     "start": f"{planned['title']} 的起始状态。",
-                    "movement": planned["narrative_purpose"],
+                    "movement": planned["prompt"],
                     "end": f"{planned['title']} 的结束状态。",
                 },
                 "continuity_requirements": list(planned.get("continuity_notes", [])),
@@ -1192,10 +1194,10 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
             beat.update(
                 {
                     "beat_index": beat_index,
-                    "beat_id": f"{planned['id']}_fact_{fact['fact_index']}",
+                    "beat_id": f"{planned['segment_id']}_fact_{fact['fact_index']}",
                     "source_span_ids": overlap,
-                    "user_addition_ids": list(planned.get("user_addition_ids", [])),
-                    "actor": fact.get("actor") if has_bound_participants else None,
+                    "user_addition_ids": list(fact.get("user_addition_ids", [])),
+                    "actor": fact.get("actor"),
                     "objective": fact["objective"],
                     "obstacle": fact["obstacle"],
                     "visible_action": fact["visible_action"],
@@ -2086,66 +2088,18 @@ def manga_prompt_optimization_response(combined: str) -> dict[str, str]:
     }
 
 
-def chapter_visual_plan_fixture() -> dict[str, Any]:
-    def keyframe(keyframe_id: str, at_ms: int) -> dict[str, Any]:
-        return {
-            "id": keyframe_id,
-            "at_ms": at_ms,
-            "label": keyframe_id,
-            "interpolation_to_next": "hold",
-            "camera": {
-                "center_x": 0.5,
-                "center_y": 0.5,
-                "zoom": 1.0,
-                "rotation_degrees": 0.0,
-                "focus_entity_id": None,
-                "framing_note": None,
-            },
-            "entity_states": [],
-            "relations": [],
-        }
-
+def chapter_visual_plan_fixture(scene_profile_id: int) -> dict[str, Any]:
     return {
-        "schema_version": "chapter_visual_plan_v2",
-        "frame": {"width": 16, "height": 16, "background": None},
-        "entities": [],
-        "scenes": [
-            {
-                "id": "scene_fixture",
-                "title": "Fixture scene",
-                "narrative_purpose": "Fixture scene purpose",
-                "editing_mode": "continuity",
-                "intercut_group_id": None,
-                "location": None,
-                "time_of_day": None,
-                "participant_entity_ids": [],
-                "focal_entity_id": None,
-                "shots": [
-                    {
-                        "id": "shot_fixture",
-                        "title": "Fixture shot",
-                        "duration_ms": 1000,
-                        "narrative_purpose": "Fixture shot purpose",
-                        "coverage": "must_show",
-                        "shot_size": None,
-                        "camera_angle": None,
-                        "camera_height": None,
-                        "lens_intent": None,
-                        "composition": None,
-                        "keyframes": [
-                            keyframe("keyframe_fixture_start", 0),
-                            keyframe("keyframe_fixture_end", 1000),
-                        ],
-                        "entity_events": [],
-                        "camera_events": [],
-                        "sound_events": [],
-                        "technique_events": [],
-                        "continuity_notes": [],
-                        "transition_to_next": None,
-                    }
-                ],
-            }
+        "schema_version": "chapter_visual_plan_v3",
+        "frame": {"width": 1024, "height": 1024},
+        "points": [
+            {"id": point_id, "at_ms": at_ms, "label": point_id,
+             "image_id": None, "description": "车站中的分镜画面", "reference_image_ids": []}
+            for point_id, at_ms in [("start", 0), ("end", 1000)]
         ],
+        "segments": [{"id": "shot_fixture", "title": "Fixture shot", "start_point_id": "start", "end_point_id": "end",
+                      "prompt": "林岚停在通道入口，抬头观察墙上的钟。", "scene_binding": {"kind": "scene", "scene_profile_id": scene_profile_id},
+                      "use_end_point_image": False}],
     }
 
 
@@ -2286,9 +2240,33 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
     return main_fixture(body, current_messages)
 
 
+def message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list) or any(
+        not isinstance(part, dict) or not isinstance(part.get("text"), str)
+        for part in content
+    ):
+        raise ValueError("text fixture requires text content blocks")
+    return "".join(part["text"] for part in content)
+
+
+def cache_fixture_usage(protocol: str) -> dict[str, Any]:
+    """Fixed billing counters test normalization, not a simulated cache engine."""
+    if protocol == "anthropic":
+        return {"input_tokens": 600, "cache_read_input_tokens": 9000, "cache_creation_input_tokens": 400, "output_tokens": 0}
+    if protocol == "gemini":
+        return {"promptTokenCount": 10000, "cachedContentTokenCount": 9000, "candidatesTokenCount": 100, "totalTokenCount": 10100}
+    if protocol == "responses":
+        return {"input_tokens": 10000, "output_tokens": 100, "total_tokens": 10100,
+                "input_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
+    return {"prompt_tokens": 10000, "completion_tokens": 100, "total_tokens": 10100,
+            "prompt_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
+
+
 def response_for(body: dict[str, Any]) -> str:
     messages = body.get("messages") or []
-    combined = "\n".join(str(message.get("content", "")) for message in messages)
+    combined = "\n".join(message_text(message.get("content", "")) for message in messages)
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):
         return "pong"
 
@@ -2366,6 +2344,9 @@ def response_for(body: dict[str, Any]) -> str:
     if "你是影视分段导演" in combined and "constraints.selected_duration_secs" in combined:
         return json.dumps(video_segment_plan_response(combined), ensure_ascii=False)
 
+    if "你是导演分镜助手" in combined:
+        return "从起点画面开始，镜头缓缓推进；人物沿通道走向门口并停步，光线随开门动作逐渐改变。遵循已给定的内部关键帧和场景，不推断下一镜头的图片。"
+
     if "chapter_shooting_design_unit" in combined or "ShootingSceneV1" in combined:
         return json.dumps(shooting_design_response(combined), ensure_ascii=False)
 
@@ -2379,7 +2360,7 @@ def response_for(body: dict[str, Any]) -> str:
         "chapter_screenplay_layout_unit" in combined
         or "screenplay_layout_unit_detail_v1" in combined
     ):
-        return json.dumps(shooting_layout_response(), ensure_ascii=False)
+        return json.dumps(shooting_layout_response(combined), ensure_ascii=False)
 
     if "chapter_foreshadowing_events" in combined:
         return json.dumps(chapter_analysis_foreshadowing_response(combined), ensure_ascii=False)
@@ -2750,6 +2731,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
             lifecycle_fixture = str(body.get("model", "")).removeprefix("a4n-llm-lifecycle-")
             if lifecycle_fixture in {"ok", "length", "missing", "slow"}:
                 agent_fixture = {"content": "partial answer " * 200 if lifecycle_fixture == "slow" else "LLM lifecycle fixture output"}
+            elif body.get("a4n_test_cache_usage") is True:
+                agent_fixture = {"content": "雨夜里，角色谨慎地推开仓库门。"}
             else:
                 agent_fixture = agent_chat_fixture(body)
         except (ValueError, KeyError, TypeError) as error:
@@ -2825,6 +2808,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 "choices": [{"index": 0, "delta": {}, "finish_reason": {"length": "length", "missing": None}.get(lifecycle_fixture, "stop")}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             }
+            if body.get("a4n_test_cache_usage") is True:
+                final["usage"] = cache_fixture_usage("chat")
             self.wfile.write(("data: " + json.dumps(final) + "\n\n").encode("utf-8"))
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
@@ -2898,16 +2883,14 @@ class ProviderHandler(BaseHTTPRequestHandler):
             elif path == "/v1/messages":
                 if not self.headers.get("x-api-key") or not self.headers.get("anthropic-version") or body.get("stream") is not True:
                     raise ValueError("Messages requires native auth/version and stream")
-                def text_content(value: Any) -> str:
-                    return value if isinstance(value, str) else "\n".join(part["text"] for part in value)
-                messages = [{"role": "system", "content": text_content(body.get("system", []))}]
-                messages += [{"role": item["role"], "content": text_content(item["content"])} for item in body["messages"]]
+                messages = [{"role": "system", "content": message_text(body.get("system", []))}]
+                messages += [{"role": item["role"], "content": message_text(item["content"])} for item in body["messages"]]
             else:
                 if not self.headers.get("x-goog-api-key") or "alt=sse" not in self.path:
                     raise ValueError("Gemini requires native auth and alt=sse")
                 messages = [{"role": "system", "content": "\n".join(part["text"] for part in body.get("systemInstruction", {}).get("parts", []))}]
                 messages += [{"role": "assistant" if item["role"] == "model" else "user", "content": "\n".join(part["text"] for part in item["parts"])} for item in body["contents"]]
-            content = response_for({"messages": messages})
+            content = "雨夜里，角色谨慎地推开仓库门。" if body.get("a4n_test_cache_usage") is True else response_for({"messages": messages})
         except (KeyError, TypeError, ValueError, UnhandledPromptError) as error:
             self._json(422, {"error": {"message": str(error)}})
             return True
@@ -2930,6 +2913,14 @@ class ProviderHandler(BaseHTTPRequestHandler):
         else:
             events = [{"candidates": [{"content": {"role": "model", "parts": [{"text": content}]}, "finishReason": "STOP"}],
                        "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 1, "totalTokenCount": 3}}]
+        if body.get("a4n_test_cache_usage") is True:
+            if path == "/v1/responses":
+                events[-1]["response"]["usage"] = cache_fixture_usage("responses")
+            elif path == "/v1/messages":
+                events[0]["message"]["usage"] = cache_fixture_usage("anthropic")
+                events[-2]["usage"]["output_tokens"] = 100
+            else:
+                events[0]["usageMetadata"] = cache_fixture_usage("gemini")
         data = "".join(f"data: {json.dumps(event, ensure_ascii=False)}\n\n" for event in events).encode("utf-8")
         self._bytes(200, "text/event-stream", data)
         return True

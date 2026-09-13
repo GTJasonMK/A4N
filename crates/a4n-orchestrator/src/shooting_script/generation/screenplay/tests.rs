@@ -50,6 +50,7 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
         existing: None,
         visual_plan,
         visual_plan_projection,
+        scene_profiles: Vec::new(),
         layout_unit_system_prompt: String::new(),
         unit_adaptation_system_prompt: String::new(),
         design_unit_system_prompt: String::new(),
@@ -176,10 +177,32 @@ fn adaptation_rejects_non_contiguous_fact_indexes() {
     let layout = layout_unit();
     let output = adaptation(2);
 
-    let error = validate_unit_adaptation(&output, &layout)
-        .expect_err("fact indexes must start at one and remain contiguous");
+    let prepared = prepared();
+    let error = validate_unit_adaptation(
+        &output,
+        &layout,
+        &prepared.visual_plan_projection.narrative_units[0],
+    )
+    .expect_err("fact indexes must start at one and remain contiguous");
 
     assert!(error.to_string().contains("fact_index=2"));
+}
+
+#[test]
+fn adaptation_accepts_director_facts_without_fabricating_source_spans() {
+    let prepared = prepared();
+    let visual_unit = &prepared.visual_plan_projection.narrative_units[0];
+    let mut output = adaptation(1);
+    let fact = &mut output.performance_facts[0];
+    fact.source_span_ids.clear();
+    fact.user_addition_ids = vec![crate::chapter_visual_plan::segment_addition_id(
+        &visual_unit.shots[0].segment_id,
+    )];
+    assert!(validate_unit_adaptation(&output, &layout_unit(), visual_unit).is_ok());
+    output.performance_facts[0].user_addition_ids = vec!["director:missing".into()];
+    assert!(validate_unit_adaptation(&output, &layout_unit(), visual_unit).is_err());
+    output.performance_facts.clear();
+    assert!(validate_unit_adaptation(&output, &layout_unit(), visual_unit).is_ok());
 }
 
 #[test]
@@ -241,6 +264,7 @@ fn adaptation(fact_index: u32) -> ScreenplayUnitAdaptationV1 {
         performance_facts: vec![ScreenplayPerformanceFactV1 {
             fact_index,
             source_span_ids: vec!["span-1".into()],
+            user_addition_ids: Vec::new(),
             actor: Some("甲".into()),
             objective: "开门".into(),
             obstacle: "门锁".into(),

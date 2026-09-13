@@ -30,17 +30,16 @@ pub(in crate::video) fn video_units_for_segment_plan(
     segment_plan: &[VideoSegmentPlan],
     duration_secs: i32,
 ) -> Result<Vec<VideoUnitPlan>, AppError> {
-    if segment_plan
-        .iter()
-        .any(|segment| segment.duration_secs != duration_secs)
-    {
+    if segment_plan.iter().any(|segment| {
+        segment.director_constraints.is_none() && segment.duration_secs != duration_secs
+    }) {
         return Err(AppError::InvalidArgument(
             "视频片段规划时长与当前视频单元时长不一致".to_string(),
         ));
     }
     let mut units = Vec::with_capacity(expected_video_unit_count(segment_plan));
     for (index, segment) in segment_plan.iter().enumerate() {
-        push_content_unit(&mut units, segment, duration_secs)?;
+        push_content_unit(&mut units, segment, segment.duration_secs)?;
         let Some(next_segment) = segment_plan.get(index + 1) else {
             continue;
         };
@@ -62,20 +61,28 @@ pub(in crate::video) fn video_unit_for_target_segment(
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("片段规划中不存在目标片段 {target_segment_number}"))
         })?;
-    if segment.duration_secs != duration_secs {
+    if segment.director_constraints.is_none() && segment.duration_secs != duration_secs {
         return Err(AppError::InvalidArgument(format!(
             "目标片段 {target_segment_number} 时长与当前视频单元时长不一致"
         )));
     }
     let mut units = Vec::with_capacity(1);
-    push_content_unit(&mut units, segment, duration_secs)?;
+    push_content_unit(&mut units, segment, segment.duration_secs)?;
     let mut unit = units.pop().expect("target content unit was just pushed");
     let end_frame_number = target_segment_number
         .checked_add(1)
         .ok_or_else(|| AppError::InvalidArgument("目标片段编号超过边界帧可表示范围".to_string()))?;
     unit.unit_number = target_segment_number;
     unit.start_frame_number = Some(target_segment_number);
-    unit.end_frame_number = Some(end_frame_number);
+    unit.end_frame_number = if segment
+        .director_constraints
+        .as_ref()
+        .is_some_and(|director| director.end_frame.is_none())
+    {
+        None
+    } else {
+        Some(end_frame_number)
+    };
     unit.storyboard_number = Some(target_segment_number);
     unit.prompt_segment.segment_number = target_segment_number;
     Ok(unit)
@@ -96,7 +103,15 @@ fn push_content_unit(
         unit_number,
         duration_secs,
         start_frame_number: Some(unit_number),
-        end_frame_number: unit_number.checked_add(1),
+        end_frame_number: if segment
+            .director_constraints
+            .as_ref()
+            .is_some_and(|director| director.end_frame.is_none())
+        {
+            None
+        } else {
+            unit_number.checked_add(1)
+        },
         storyboard_number: Some(unit_number),
         kind: VideoExecutionUnitKindV2::Content(VideoContentUnitV2 {
             source_segment_number: segment.segment_number,
@@ -135,6 +150,7 @@ fn push_action_bridge_unit(
     let spatial_anchors =
         unique_anchors(from.spatial_anchors.iter().chain(to.spatial_anchors.iter()));
     let prompt_segment = VideoSegmentPlanV2 {
+        director_constraints: None,
         schema_version: VIDEO_SEGMENT_PLAN_V2.to_string(),
         segment_number: unit_number,
         source_shot_id: format!("bridge:{}->{}", from.source_shot_id, to.source_shot_id),

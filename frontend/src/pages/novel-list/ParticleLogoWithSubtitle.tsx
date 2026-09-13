@@ -35,6 +35,7 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     const particles: Particle[] = [];
     const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     const mouse = { x: -1000, y: -1000, active: false };
+    let mouseIdleTimeout: number | null = null;
     const img = new Image();
     let animationId: number | null = null;
     let visible = true;
@@ -46,6 +47,15 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     const startAnimation = () => {
       if (animationId != null || !particles.length || !visible || document.hidden || motionPreference.matches) return;
       animationId = window.requestAnimationFrame(animate);
+    };
+    const clearMouseIdleTimeout = () => {
+      if (mouseIdleTimeout != null) window.clearTimeout(mouseIdleTimeout);
+      mouseIdleTimeout = null;
+    };
+    const stopMouseInteraction = () => {
+      mouseIdleTimeout = null;
+      mouse.active = false;
+      startAnimation();
     };
 
     const randomInsideCanvas = (span: number) => edgePadding + Math.random() * (span - edgePadding * 2);
@@ -95,11 +105,15 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
       mouse.x = (e.clientX - rect.left) * scaleX;
       mouse.y = (e.clientY - rect.top) * scaleY;
       mouse.active = true;
+      clearMouseIdleTimeout();
+      mouseIdleTimeout = window.setTimeout(stopMouseInteraction, 180);
       startAnimation();
     };
 
     const handleMouseLeave = () => {
+      clearMouseIdleTimeout();
       mouse.active = false;
+      startAnimation();
     };
 
     canvas.addEventListener("mousemove", handleMouseMove);
@@ -124,10 +138,10 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
         const logoOffsetY = 20;
 
         // 采样 Logo 像素
-        const sampling = 2;
+        const sampling = 2.5;
         for (let y = 0; y < logoHeight; y += sampling) {
           for (let x = 0; x < logoWidth; x += sampling) {
-            const i = (y * logoWidth + x) * 4;
+            const i = (Math.floor(y) * logoWidth + Math.floor(x)) * 4;
             const alpha = imageData.data[i + 3];
 
             if (alpha > 128) {
@@ -240,6 +254,7 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     return () => {
       // StrictMode and route changes can dispose the canvas before the SVG loads.
       img.onload = null;
+      clearMouseIdleTimeout();
       stopAnimation();
       visibilityObserver.disconnect();
       document.removeEventListener("visibilitychange", syncAnimation);

@@ -123,6 +123,8 @@ function normalizeGenerationOperation(
   operation: ImageGenerationOperation,
 ): ImageGenerationOperation {
   switch (operation.kind) {
+    case "visual_plan_point":
+      return { ...operation, options: { ...operation.options, config_id: normalizeImageConfigId(operation.options.config_id) } };
     case "scene":
       return {
         ...operation,

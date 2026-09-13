@@ -4,12 +4,16 @@
 //! 可以从同一份方案投影，不能各自重新解释章节。
 
 mod contracts;
-mod contracts_v2;
-mod projection;
-mod validation;
-mod validation_v2;
+mod contracts_v3;
+mod editing_v3;
+mod validation_v3;
 
 pub use contracts::*;
-pub use contracts_v2::*;
-pub use projection::*;
-pub use validation::ChapterVisualPlanValidationError;
+pub use contracts_v3::*;
+
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
+#[error("章节视觉编排字段 {path} 无效: {message}")]
+pub struct ChapterVisualPlanValidationError {
+    pub path: String,
+    pub message: String,
+}

@@ -1,5 +1,6 @@
 #[derive(Default)]
 pub(in crate::admin::generation_analytics) struct CallKindAccumulator {
+    pub(in crate::admin::generation_analytics) cache_usage_incomplete: bool,
     pub(in crate::admin::generation_analytics) calls: i64,
     pub(in crate::admin::generation_analytics) success: i64,
     pub(in crate::admin::generation_analytics) failed: i64,
@@ -9,12 +10,14 @@ pub(in crate::admin::generation_analytics) struct CallKindAccumulator {
     pub(in crate::admin::generation_analytics) completion_tokens: i64,
     pub(in crate::admin::generation_analytics) prompt_cache_hit_tokens: i64,
     pub(in crate::admin::generation_analytics) prompt_cache_miss_tokens: i64,
+    pub(in crate::admin::generation_analytics) prompt_cache_write_tokens: Option<i64>,
     pub(in crate::admin::generation_analytics) duration_total_ms: i64,
     pub(in crate::admin::generation_analytics) duration_count: i64,
 }
 
 #[derive(Default)]
 pub(in crate::admin::generation_analytics) struct LlmWorkflowAccumulator {
+    pub(in crate::admin::generation_analytics) cache_usage_incomplete: bool,
     pub(in crate::admin::generation_analytics) calls: i64,
     pub(in crate::admin::generation_analytics) success: i64,
     pub(in crate::admin::generation_analytics) failed: i64,
@@ -24,6 +27,7 @@ pub(in crate::admin::generation_analytics) struct LlmWorkflowAccumulator {
     pub(in crate::admin::generation_analytics) completion_tokens: i64,
     pub(in crate::admin::generation_analytics) prompt_cache_hit_tokens: i64,
     pub(in crate::admin::generation_analytics) prompt_cache_miss_tokens: i64,
+    pub(in crate::admin::generation_analytics) prompt_cache_write_tokens: Option<i64>,
     pub(in crate::admin::generation_analytics) duration_total_ms: i64,
     pub(in crate::admin::generation_analytics) duration_count: i64,
     pub(in crate::admin::generation_analytics) stable_prefix_tokens_total: i64,

@@ -59,22 +59,36 @@ pub fn default_video_segment_recipes(
     }
     let recipes = segments
         .iter()
-        .map(|segment| VideoSegmentExecutionRecipeV1 {
-            schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
-            segment_number: segment.segment_number,
-            workflow_mode: VideoSegmentWorkflowModeV1::ChatVideo,
-            style: style.to_string(),
-            prompt_output_language: prompt_output_language.to_string(),
-            duration_secs: segment.duration_secs,
-            duration_secs_options: vec![segment.duration_secs],
-            aspect_ratio: segment.aspect_ratio.clone(),
-            reference_image_ids: Vec::new(),
-            video_library_image_ids: Vec::new(),
-            guidance_mode: VideoSegmentGuidanceModeV1::None,
-            guidance_reference_image_ids: Vec::new(),
-            continuity_source_video_id: None,
-            reference_media: None,
-            adopted_video_id: None,
+        .map(|segment| {
+            let images = segment
+                .director_constraints
+                .as_ref()
+                .map_or_else(Vec::new, |director| director.image_ids());
+            VideoSegmentExecutionRecipeV1 {
+                schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
+                segment_number: segment.segment_number,
+                workflow_mode: if segment.director_constraints.is_some() {
+                    VideoSegmentWorkflowModeV1::FirstFrameChain
+                } else {
+                    VideoSegmentWorkflowModeV1::ChatVideo
+                },
+                style: style.to_string(),
+                prompt_output_language: prompt_output_language.to_string(),
+                duration_secs: segment.duration_secs,
+                duration_secs_options: vec![segment.duration_secs],
+                aspect_ratio: segment.aspect_ratio.clone(),
+                reference_image_ids: images.clone(),
+                video_library_image_ids: Vec::new(),
+                guidance_mode: if !images.is_empty() {
+                    VideoSegmentGuidanceModeV1::Keyframes
+                } else {
+                    VideoSegmentGuidanceModeV1::None
+                },
+                guidance_reference_image_ids: images,
+                continuity_source_video_id: None,
+                reference_media: None,
+                adopted_video_id: None,
+            }
         })
         .collect::<Vec<_>>();
     validate_video_segment_recipes_for_plan(&recipes, segments, style)?;
@@ -110,6 +124,10 @@ pub fn carry_forward_video_segment_recipes(
             continue;
         };
         let previous_segment = &previous_segments[previous_index];
+        // A changed director plan supplies a fresh recipe; old bindings cannot override it.
+        if previous_segment.director_constraints != next.director_constraints {
+            continue;
+        }
         let previous = &previous_recipes[previous_index];
         *recipe = previous.clone();
         recipe.segment_number = next.segment_number;
@@ -535,6 +553,71 @@ mod tests {
         recipe.reference_image_ids = vec![11, 12];
 
         assert_eq!(recipe.provider_reference_image_ids(), vec![11, 12]);
+    }
+
+    #[test]
+    fn director_images_can_be_configured_in_steps_but_not_dropped_at_execution() {
+        use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
+        let mut plan = ChapterVisualPlanV3::starter();
+        plan.points[1].at_ms = 6000;
+        plan.points[0].image_id = Some(11);
+        plan.segments[0].prompt = "推近门口".into();
+        plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+            scene_profile_id: 1,
+        });
+        let mut segment = segment(1);
+        segment.director_constraints = Some(plan.project().unwrap().remove(0));
+        let mut recipe = default_video_segment_recipes(&[segment.clone()], "cinematic", "zh_cn")
+            .unwrap()
+            .remove(0);
+        assert!(recipe.validate_director_generation(&segment).is_ok());
+        let mut changed = segment.clone();
+        changed.director_constraints.as_mut().unwrap().keyframes[0].image_id = Some(12);
+        let carried = carry_forward_video_segment_recipes(
+            &[segment.clone()],
+            &[recipe.clone()],
+            &[changed],
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+        assert_eq!(carried[0].provider_reference_image_ids(), vec![12]);
+        recipe.workflow_mode = VideoSegmentWorkflowModeV1::BoundaryFrames;
+        recipe.guidance_mode = VideoSegmentGuidanceModeV1::None;
+        assert!(recipe.validate_for_plan(&segment, "cinematic").is_ok());
+        assert!(
+            recipe
+                .validate_director_generation(&segment)
+                .unwrap_err()
+                .contains("未使用全部导演图片")
+        );
+        recipe.guidance_mode = VideoSegmentGuidanceModeV1::Keyframes;
+        recipe.guidance_reference_image_ids = vec![11];
+        assert!(
+            recipe
+                .validate_director_generation(&segment)
+                .unwrap_err()
+                .contains("显式关联目标尾帧")
+        );
+        recipe.workflow_mode = VideoSegmentWorkflowModeV1::FirstFrameChain;
+        assert!(recipe.validate_director_generation(&segment).is_ok());
+        recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
+        recipe.continuity_source_video_id = Some(7);
+        assert!(
+            recipe
+                .validate_director_generation(&segment)
+                .unwrap_err()
+                .contains("替换当前起点")
+        );
+        let director = segment.director_constraints.as_mut().unwrap();
+        assert_eq!(director.video_duration_secs(), Ok(6));
+        director.end_ms = 6500;
+        assert!(
+            director
+                .video_duration_secs()
+                .unwrap_err()
+                .contains("不会自动舍入")
+        );
     }
 
     #[test]

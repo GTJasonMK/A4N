@@ -40,6 +40,7 @@ impl Default for CountingLlmProvider {
                 total_tokens: 5,
                 prompt_cache_hit_tokens: None,
                 prompt_cache_miss_tokens: None,
+                prompt_cache_write_tokens: None,
             }),
             finish_reason: Some("stop".to_string()),
             reasoning_content: None,

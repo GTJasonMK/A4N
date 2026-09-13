@@ -653,7 +653,7 @@ def start_provider(
     if args.provider_url:
         base_url = normalize_provider_url(args.provider_url)
         wait_for_provider(base_url, args.provider_start_timeout, None)
-        return Provider(base_url, None, None), None
+        return Provider(base_url, None, None), request_log_path.expanduser().resolve() if request_log_path else None
     if args.provider_host not in {"127.0.0.1", "localhost"}:
         raise RunnerError("内置 mock provider 只允许绑定 loopback host")
     script = args.provider_script.expanduser().resolve()

@@ -4,6 +4,12 @@ pub(super) fn i64_from_i32(value: Option<i32>) -> i64 {
     i64::from(value.unwrap_or(0))
 }
 
+pub(super) fn add_reported_tokens(total: &mut Option<i64>, value: Option<i32>) {
+    if let Some(value) = value {
+        *total = Some(total.unwrap_or(0) + i64::from(value));
+    }
+}
+
 pub(super) fn add_duration(acc: &mut CallKindAccumulator, duration_ms: Option<i64>) {
     if let Some(duration_ms) = duration_ms {
         acc.duration_total_ms += duration_ms;
@@ -66,10 +72,9 @@ pub(super) fn avg_f64(total: f64, count: i64) -> Option<f64> {
     }
 }
 
-pub(super) fn cache_hit_ratio(hit: i64, miss: i64) -> Option<f64> {
-    let total = hit + miss;
-    if total > 0 {
-        Some(hit as f64 / total as f64)
+pub(super) fn cache_hit_ratio(hit: i64, input: i64) -> Option<f64> {
+    if input > 0 && (0..=input).contains(&hit) {
+        Some(hit as f64 / input as f64)
     } else {
         None
     }

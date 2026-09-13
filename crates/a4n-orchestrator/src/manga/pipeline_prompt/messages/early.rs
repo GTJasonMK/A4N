@@ -1,4 +1,5 @@
 use a4n_error::AppError;
+use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
 
 use a4n_domain::source_spans::SourceSpan;
@@ -12,7 +13,7 @@ pub(in crate::manga) fn manga_character_binding_user_message(
     events_json: Value,
     source_spans: &[SourceSpan],
     reference_assets: Value,
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     build_manga_step_user_message(
         "manga_character_binding",
         "基于事件卡片、章节正文和角色立绘参考绑定本章出场角色身份与外观",
@@ -40,7 +41,7 @@ pub(in crate::manga) fn manga_speech_selection_user_message(
     events_json: Value,
     source_spans: &[SourceSpan],
     reference_assets: Value,
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     let chapter_context = event_source_span_windows(&events_json, source_spans)?;
     build_manga_step_user_message(
         "manga_speech_selection",

@@ -103,6 +103,48 @@ fn non_client_provider_http_error_stays_internal() {
     ));
 }
 
+#[tokio::test]
+async fn retries_transient_image_download_failures() {
+    use tokio::io::AsyncWriteExt;
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind image test server");
+    let url = format!(
+        "http://{}/generated",
+        listener.local_addr().expect("image test server address")
+    );
+    let server = tokio::spawn(async move {
+        for (declared_length, body) in [
+            (12, b"\x89PNG".as_slice()),
+            (12, b"\x89PNG\r\n\x1a\nrest".as_slice()),
+        ] {
+            let (mut stream, _) = listener.accept().await.expect("accept image request");
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {declared_length}\r\nConnection: close\r\n\r\n"
+            );
+            stream
+                .write_all(headers.as_bytes())
+                .await
+                .expect("write image response headers");
+            stream
+                .write_all(body)
+                .await
+                .expect("write image response body");
+            stream.shutdown().await.expect("close image response");
+        }
+    });
+
+    let client = build_image_http_client().expect("image HTTP client");
+    let (bytes, format) = download_image_url(&client, &url, None)
+        .await
+        .expect("transient image download should be retried");
+
+    assert_eq!(format, "png");
+    assert_eq!(bytes, b"\x89PNG\r\n\x1a\nrest");
+    server.await.expect("image test server");
+}
+
 #[test]
 fn decodes_data_uri_input_image() {
     let decoded = decode_data_uri_image(

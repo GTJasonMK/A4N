@@ -21,7 +21,18 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
         "task_instruction_chapter_video_segment_plan",
     )?;
     let user_instruction = rule_text(&rules, "user_instruction_chapter_video_segment_plan")?;
-    let payload = json!({
+    let directed = current_shot
+        .get("director_constraints")
+        .filter(|value| !value.is_null());
+    let duration_secs = if directed.is_some() {
+        current_shot
+            .get("segment_duration_secs")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| AppError::InvalidArgument("导演镜头缺少计划时长".into()))?
+    } else {
+        i64::from(context.duration_secs)
+    };
+    let mut payload = json!({
         "task": task,
         "chapter": {
             "source_spans": source_span_prompt_values(source_spans),
@@ -32,7 +43,7 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
         "current_shot": current_shot,
         "constraints": {
             "style": context.style,
-            "selected_duration_secs": context.duration_secs,
+            "selected_duration_secs": duration_secs,
             "aspect_ratio": context.aspect_ratio,
             "style_preservation_rule": rule_value(&rules, "style_preservation_rule")?,
             "time_budget_rule": rule_value(&rules, "time_budget_rule")?,
@@ -73,6 +84,21 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
             "performance_action_script_rule": "当 current_shot.participants 非空时，emotion_action_goals 和 performance_plan.action_script 都必须非空，character 必须来自 participants；action_script 每个对象必须同时包含 character、body、movement、hands、gaze、timing 六个非空字符串字段，禁止空字符串、null、对象、数组或省略字段。hands 没有明显动作时也要写“手未接触道具”或“双手保持稳定”等可见静止状态。仅当 participants 为空的纯环境镜头时，这两个数组必须都返回 []，不要把场景、地点、天气或光影伪装成人物；环境动态写入 performance_plan.time_blocks。"
         }
     });
+    if directed.is_some() {
+        payload["output_contract"]["segment_count_rule"] = json!(
+            "当前镜头由导演编排固定，只能输出一个 segment；不能拆分、合并或改变时长。完整保留 director_constraints 中的 prompt、场景关系与关键帧约束。"
+        );
+        payload["constraints"]["director_constraints"] =
+            directed.cloned().expect("directed constraint");
+        let director: a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3 =
+            serde_json::from_value(directed.cloned().expect("directed constraint"))?;
+        payload["constraints"]["aspect_ratio"] = json!(
+            director
+                .frame
+                .aspect_ratio()
+                .map_err(AppError::InvalidArgument)?
+        );
+    }
     render_strict_json_user_prompt(
         context.prompt_renderer,
         context.project_id,

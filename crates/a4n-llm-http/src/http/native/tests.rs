@@ -164,3 +164,73 @@ fn native_json_requests_map_owned_fields_and_reject_unsupported_options() {
     request.stop_sequences = Some(vec!["STOP".into()]);
     assert!(responses::request_body(&request, "model", Default::default()).is_err());
 }
+
+#[test]
+fn responses_preserves_all_stable_boundaries_and_skips_dynamic_cache_writes() {
+    let mut request =
+        ChatRequest::system_user("stable rules", "shared context\nnew task", None, None);
+    request
+        .add_cache_breakpoint(1, "shared context".len())
+        .unwrap();
+    request
+        .configure_prompt_cache("openai-responses", "gpt-5.6-luna", None, Some(7))
+        .unwrap();
+    let body = responses::request_body(&request, "gpt-5.6-luna", Default::default()).unwrap();
+    assert_eq!(body["prompt_cache_options"]["mode"], "explicit");
+    for (index, text) in [(0, "stable rules"), (1, "shared context")] {
+        assert_eq!(body["input"][index]["content"][0]["text"], text);
+        assert_eq!(
+            body["input"][index]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+    }
+    assert_eq!(body["input"][1]["content"][1]["text"], "\nnew task");
+    assert!(
+        body["input"][1]["content"][1]
+            .get("prompt_cache_breakpoint")
+            .is_none()
+    );
+}
+
+#[test]
+fn responses_caches_native_dialogue_from_its_first_user_message() {
+    let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
+    request
+        .configure_prompt_cache("openai-responses", "gpt-5.6-luna", None, Some(7))
+        .unwrap();
+    let body = responses::request_body(&request, "gpt-5.6-luna", Default::default()).unwrap();
+    assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
+    assert_eq!(body["input"][1]["content"], "initial task");
+}
+
+#[test]
+fn native_usage_normalizes_cache_misses_and_preserves_write_tokens() {
+    let response = collect(
+        LlmProtocolKind::OpenAiResponses,
+        &[json!({"type": "response.completed", "response": {
+            "status": "completed", "output": [],
+            "usage": {"input_tokens": 10000, "output_tokens": 100, "total_tokens": 10100,
+                "input_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
+        }})],
+    )
+    .unwrap();
+    let usage = response.usage.unwrap();
+    assert_eq!(usage.prompt_cache_hit_tokens, Some(9000));
+    assert_eq!(usage.prompt_cache_miss_tokens, Some(1000));
+    assert_eq!(usage.prompt_cache_write_tokens, Some(400));
+    let response = collect(LlmProtocolKind::GeminiGenerateContent, &[
+        json!({"candidates": [{"content": {"parts": [{"text": "ok"}]}, "finishReason": "STOP"}]}),
+        json!({"usageMetadata": {"promptTokenCount": 10000, "totalTokenCount": 10100,
+            "cachedContentTokenCount": 9000}})
+    ]).unwrap();
+    assert_eq!(response.usage.unwrap().prompt_cache_miss_tokens, Some(1000));
+    let error = collect(LlmProtocolKind::GeminiGenerateContent, &[
+        json!({"candidates": [{"content": {"parts": [{"text": "ok"}]}, "finishReason": "STOP"}],
+            "usageMetadata": {"promptTokenCount": 100, "totalTokenCount": 101, "cachedContentTokenCount": 101}})
+    ]).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("缓存命中 token 数超过 prompt token 数")
+    );
+}

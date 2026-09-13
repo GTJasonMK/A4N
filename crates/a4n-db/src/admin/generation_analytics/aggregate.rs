@@ -1,8 +1,9 @@
 use super::*;
 
 use super::metrics::{
-    add_duration, add_llm_status, add_media_status, i64_from_i32, is_context_over_budget_failure,
-    llm_context_plan_metrics, llm_status_bucket, media_duration_ms, media_status_bucket,
+    add_duration, add_llm_status, add_media_status, add_reported_tokens, i64_from_i32,
+    is_context_over_budget_failure, llm_context_plan_metrics, llm_status_bucket, media_duration_ms,
+    media_status_bucket,
 };
 use super::projections::{
     call_kind_overview, recent_llm_call, recent_media_call, sorted_llm_workflows,
@@ -29,6 +30,10 @@ pub(super) fn build_generation_call_analytics(
 
     for call in &llm_calls {
         let context_metrics = llm_context_plan_metrics(call);
+        let cache_usage_incomplete = match call.prompt_tokens {
+            Some(tokens) => tokens > 0 && call.prompt_cache_hit_tokens.is_none(),
+            None => call.completion_tokens.is_some() || call.prompt_cache_hit_tokens.is_some(),
+        };
         let day = call.created_at.date();
         let daily_entry = daily.entry(day).or_insert_with(|| DailyCallMetric {
             date: day.format("%Y-%m-%d").to_string(),
@@ -38,6 +43,10 @@ pub(super) fn build_generation_call_analytics(
         daily_entry.llm_total_tokens += i64_from_i32(call.total_tokens);
         daily_entry.llm_prompt_cache_hit_tokens += i64_from_i32(call.prompt_cache_hit_tokens);
         daily_entry.llm_prompt_cache_miss_tokens += i64_from_i32(call.prompt_cache_miss_tokens);
+        add_reported_tokens(
+            &mut daily_entry.llm_prompt_cache_write_tokens,
+            call.prompt_cache_write_tokens,
+        );
 
         let overview_entry = overview
             .get_mut("llm")
@@ -49,6 +58,11 @@ pub(super) fn build_generation_call_analytics(
         overview_entry.completion_tokens += i64_from_i32(call.completion_tokens);
         overview_entry.prompt_cache_hit_tokens += i64_from_i32(call.prompt_cache_hit_tokens);
         overview_entry.prompt_cache_miss_tokens += i64_from_i32(call.prompt_cache_miss_tokens);
+        add_reported_tokens(
+            &mut overview_entry.prompt_cache_write_tokens,
+            call.prompt_cache_write_tokens,
+        );
+        overview_entry.cache_usage_incomplete |= cache_usage_incomplete;
         add_duration(overview_entry, call.duration_ms);
 
         let workflow_key = (call.workflow.clone(), call.step_key.clone());
@@ -64,6 +78,11 @@ pub(super) fn build_generation_call_analytics(
         workflow_entry.completion_tokens += i64_from_i32(call.completion_tokens);
         workflow_entry.prompt_cache_hit_tokens += i64_from_i32(call.prompt_cache_hit_tokens);
         workflow_entry.prompt_cache_miss_tokens += i64_from_i32(call.prompt_cache_miss_tokens);
+        add_reported_tokens(
+            &mut workflow_entry.prompt_cache_write_tokens,
+            call.prompt_cache_write_tokens,
+        );
+        workflow_entry.cache_usage_incomplete |= cache_usage_incomplete;
         if let Some(duration_ms) = call.duration_ms {
             workflow_entry.duration_total_ms += duration_ms;
             workflow_entry.duration_count += 1;

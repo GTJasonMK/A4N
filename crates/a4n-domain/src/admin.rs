@@ -141,6 +141,7 @@ pub struct CallKindOverview {
     pub completion_tokens: i64,
     pub prompt_cache_hit_tokens: i64,
     pub prompt_cache_miss_tokens: i64,
+    pub prompt_cache_write_tokens: Option<i64>,
     pub prompt_cache_hit_ratio: Option<f64>,
     pub avg_duration_ms: Option<i64>,
 }
@@ -154,6 +155,7 @@ pub struct DailyCallMetric {
     pub llm_total_tokens: i64,
     pub llm_prompt_cache_hit_tokens: i64,
     pub llm_prompt_cache_miss_tokens: i64,
+    pub llm_prompt_cache_write_tokens: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -169,6 +171,7 @@ pub struct LlmWorkflowMetric {
     pub completion_tokens: i64,
     pub prompt_cache_hit_tokens: i64,
     pub prompt_cache_miss_tokens: i64,
+    pub prompt_cache_write_tokens: Option<i64>,
     pub prompt_cache_hit_ratio: Option<f64>,
     pub avg_duration_ms: Option<i64>,
     pub avg_stable_prefix_tokens: Option<i64>,
@@ -204,6 +207,7 @@ pub struct RecentLlmCall {
     pub total_tokens: Option<i32>,
     pub prompt_cache_hit_tokens: Option<i32>,
     pub prompt_cache_miss_tokens: Option<i32>,
+    pub prompt_cache_write_tokens: Option<i32>,
     pub prompt_cache_hit_ratio: Option<f64>,
     pub duration_ms: Option<i64>,
     pub streamed: bool,

@@ -124,7 +124,11 @@ pub(in crate::project_family_import) fn remap_visual_plan_identity(
             Ok((
                 Some(map_required(&maps.visual_plan_ids, id, label)?),
                 Some(version),
-                Some(sha256.to_string()),
+                Some(maps.visual_plan_sha256s.get(&id).cloned().ok_or_else(|| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "{label} 缺少已重映射的导演编排哈希: {id}"
+                    ))
+                })?),
             ))
         }
         _ => Err(ProjectFamilyImportError::invalid_package(format!(
@@ -238,6 +242,7 @@ mod tests {
 
         let mut maps = ImportIdMaps::default();
         maps.visual_plan_ids.insert(7, 17);
+        maps.visual_plan_sha256s.insert(7, "a".repeat(64));
         assert_eq!(
             remap_visual_plan_identity(Some(7), Some(2), Some(&"a".repeat(64)), &maps, "方案")
                 .expect("visual identity should remap"),

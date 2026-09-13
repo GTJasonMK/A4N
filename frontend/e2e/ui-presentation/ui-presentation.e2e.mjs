@@ -308,7 +308,7 @@ describe("UI presentation and workspace continuity", () => {
     }
   });
 
-  it("stops idle logo rendering, resumes on pointer movement, and stops after leaving", async () => {
+  it("bounds logo rendering during interaction and stops when the pointer rests", async () => {
     await browser.url("/");
     const canvas = await $("canvas[role=img]");
     await canvas.waitForDisplayed();
@@ -321,8 +321,29 @@ describe("UI presentation and workspace continuity", () => {
       return steady >= 2;
     }, { timeout: 15_000, interval: 300 });
     const settled = await draws();
-    await canvas.moveTo();
+    const location = await canvas.getLocation();
+    const size = await canvas.getSize();
+    const center = { x: Math.round(location.x + size.width / 2), y: Math.round(location.y + size.height / 2) };
+    const movement = browser.action("pointer").move(center);
+    for (let step = 0; step < 16; step++) {
+      movement.move({ x: center.x + (step % 2 ? 40 : -40), y: center.y, duration: 150 });
+    }
+    await movement.perform();
     await browser.waitUntil(async () => (await draws()).attached > settled.attached);
+    await canvas.moveTo();
+    await browser.pause(3_000);
+    const hovering = await draws();
+    await browser.pause(500);
+    assert.equal((await draws()).attached, hovering.attached, "A stationary pointer must allow the logo to stop rendering");
+    for (const width of [1024, 390]) {
+      await browser.setWindowSize(width, 900);
+      assert.equal(
+        await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+        0,
+        `horizontal overflow at ${width}px`,
+      );
+    }
+    await browser.setWindowSize(1440, 900);
     await $('//button[normalize-space()="设置"]').click();
     await $(".a4n-settings-layout").waitForDisplayed();
     await browser.pause(350);

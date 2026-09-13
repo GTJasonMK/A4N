@@ -1,8 +1,10 @@
 import { Bot, ChevronRight, CircleAlert, Wrench } from "lucide-react";
 import type { AgentMessageView } from "../../api/agent";
-import { MarkdownText } from "../ui/MarkdownText";
-import { formatDateTime } from "../../i18n/format";
+import { usePacedStreamText } from "../../hooks/usePacedStreamText";
 import type { Locale } from "../../i18n";
+import { formatDateTime } from "../../i18n/format";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { MarkdownText } from "../ui/MarkdownText";
 
 export interface AgentMessageRowProps {
   message: AgentMessageView;
@@ -350,6 +352,9 @@ export function AgentMessageRow({
 
         {isTool ? (
           <ToolResultBlock message={message} locale={locale} />
+        ) : message.role === "assistant" &&
+          (hasContent || message.status === "streaming") ? (
+          <AssistantMessageContent message={message} locale={locale} />
         ) : hasContent ? (
           <MarkdownText
             className="break-words text-xs leading-relaxed text-book-text-main"
@@ -360,6 +365,56 @@ export function AgentMessageRow({
         )}
       </div>
     </article>
+  );
+}
+
+function AssistantMessageContent({
+  message,
+  locale,
+}: {
+  message: AgentMessageView;
+  locale: Locale;
+}) {
+  const pacedStream = usePacedStreamText(
+    message.content,
+    message.status === "streaming",
+    true,
+  );
+  const streamDisplaying = message.status === "streaming" || pacedStream.hasPendingText;
+
+  if (!streamDisplaying) {
+    return (
+      <MarkdownText
+        className="break-words text-xs leading-relaxed text-book-text-main"
+        text={pacedStream.displayedText}
+      />
+    );
+  }
+
+  return (
+    <div className="min-w-0 break-words text-xs leading-relaxed text-book-text-main" role="status">
+      {pacedStream.displayedText ? (
+        <div className="whitespace-pre-wrap">{pacedStream.displayedText}</div>
+      ) : null}
+      {pacedStream.isThinking ? (
+        <LoadingSpinner
+          size="sm"
+          text={
+            pacedStream.displayedText
+              ? undefined
+              : locale === "zh-CN"
+                ? "正在思考"
+                : "Thinking"
+          }
+          className="mt-1"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="ml-0.5 inline-block h-[14px] w-[7px] animate-pulse bg-book-accent align-text-bottom"
+        />
+      )}
+    </div>
   );
 }
 

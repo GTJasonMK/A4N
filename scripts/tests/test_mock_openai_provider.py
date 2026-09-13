@@ -37,6 +37,23 @@ from mock_openai_provider import (
 
 
 class MockOpenAIProviderTest(unittest.TestCase):
+    def test_cache_content_blocks_and_immutable_loop_observations(self) -> None:
+        self.assertEqual(response_for({"messages": [{"role": "user", "content": [
+            {"type": "text", "text": "pi"}, {"type": "text", "text": "ng"}
+        ]}]}), "pong")
+        with self.assertRaises(ValueError):
+            response_for({"messages": [{"role": "user", "content": [{"type": "image_url"}]}]})
+        observation = {"tool": "get_project_information", "success": True,
+                       "result": {"content": {"source_spans": [{"text": "林岚走进机房。"}]}}}
+        request = {"messages": [
+            {"role": "system", "content": "content_optimization_chat_agent_loop"},
+            {"role": "user", "content": json.dumps({"loop_observation": {"sequence": 1, "value": observation}}, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps({"loop_state": {"observations_ref": "previous messages", "progress": {"observation_count": 1}}})},
+        ]}
+        decision = json.loads(response_for(request))
+        self.assertEqual(decision["arguments"]["tool"], "edit_article")
+        self.assertEqual(decision["arguments"]["arguments"]["patches"][0]["old_text"], "林岚走进机房。")
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.temp_dir = tempfile.TemporaryDirectory()
@@ -494,25 +511,15 @@ class MockOpenAIProviderTest(unittest.TestCase):
         ]
         locked_shots = [
             {
-                "id": f"shot_{index}",
+                "segment_id": f"shot_{index}",
                 "title": f"画面 {index}",
                 "start_ms": (index - 1) * 1000,
                 "end_ms": index * 1000,
-                "source_span_ids": [span["id"]],
-                "user_addition_ids": [],
-                "narrative_purpose": span["text"],
-                "coverage": "must_show",
-                "shot_size": None,
-                "camera_angle": None,
-                "camera_height": None,
-                "lens_intent": None,
-                "composition": None,
+                "frame": {"width": 1920, "height": 1080},
+                "prompt": span["text"],
+                "scene_binding": {"kind": "scene", "scene_profile_id": 1},
                 "keyframes": [],
-                "entity_events": [],
-                "camera_events": [],
-                "sound_events": [],
-                "technique_events": [],
-                "continuity_notes": [],
+                "end_frame": None,
             }
             for index, span in enumerate(spans, 1)
         ]
@@ -550,6 +557,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                                 {
                                     "fact_index": 1,
                                     "source_span_ids": ["ch1:s2:f1"],
+                                    "user_addition_ids": ["director:shot_2"],
                                     "actor": "林岚",
                                     "objective": "进入机房",
                                     "obstacle": "通道昏暗",
@@ -575,14 +583,14 @@ class MockOpenAIProviderTest(unittest.TestCase):
         )
         self.assertEqual(
             [shot["source_span_ids"] for shot in response["shots"]],
-            [["ch1:s1:f1"], ["ch1:s2:f1"]],
+            [[], ["ch1:s2:f1"]],
         )
         self.assertEqual(response["shots"][0]["performance_beats"], [])
         self.assertEqual(
             response["shots"][1]["performance_beats"][0]["source_span_ids"],
             ["ch1:s2:f1"],
         )
-        self.assertIsNone(response["shots"][1]["performance_beats"][0]["actor"])
+        self.assertEqual(response["shots"][1]["performance_beats"][0]["actor"], "林岚")
 
     def test_shooting_span_ids_requires_structured_source_spans(self) -> None:
         with self.assertRaisesRegex(ValueError, "shooting script prompt contains no source spans"):

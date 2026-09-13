@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use a4n_domain::ImageSize;
 pub use a4n_domain::chapter_visual_plan::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -28,7 +29,7 @@ pub struct SaveChapterVisualPlanDraftInput {
     /// Required for an Agent write bound to an editor view; obtained by inspect_editor_target.
     #[serde(default)]
     pub editor_revision: Option<String>,
-    pub plan: ChapterVisualPlanV2,
+    pub plan: ChapterVisualPlanV3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -59,13 +60,13 @@ pub struct ChapterVisualPlanRecordSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanView {
     pub record: ChapterVisualPlanRecordSummary,
-    pub plan: ChapterVisualPlanV2,
+    pub plan: ChapterVisualPlanV3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanSetView {
     pub source: ChapterVisualPlanSourceView,
-    pub starter_plan: ChapterVisualPlanV2,
+    pub starter_plan: ChapterVisualPlanV3,
     pub draft: Option<ChapterVisualPlanView>,
     pub confirmed: Option<ChapterVisualPlanView>,
 }
@@ -107,19 +108,11 @@ pub enum VisualPlanReadView {
         #[serde(default)]
         limit: Option<u32>,
     },
-    Shot {
-        shot_id: String,
-        #[serde(default)]
-        offset: u32,
-        #[serde(default)]
-        limit: Option<u32>,
+    Point {
+        point_id: String,
     },
-    Keyframe {
-        shot_id: String,
-        keyframe_id: String,
-    },
-    Entity {
-        entity_id: String,
+    Segment {
+        segment_id: String,
     },
     Source {
         #[serde(default)]
@@ -133,32 +126,12 @@ pub enum VisualPlanReadView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct VisualPlanOutlineItem {
-    pub scene_id: String,
-    pub scene_title: String,
-    pub shot_id: Option<String>,
-    pub title: Option<String>,
-    pub duration_ms: u64,
-    pub keyframe_count: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct VisualPlanKeyframeIndex {
-    pub id: String,
-    pub at_ms: u64,
-    pub label: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct VisualPlanShotDetails {
-    pub id: String,
+    pub segment_id: String,
     pub title: String,
-    pub duration_ms: u64,
-    pub narrative_purpose: String,
-    pub composition: Option<String>,
-    pub lens_intent: Option<String>,
-    pub keyframes: Vec<VisualPlanKeyframeIndex>,
-    pub total_keyframes: usize,
-    pub next_offset: Option<u32>,
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub point_count: usize,
+    pub scene_binding: Option<SceneBindingV3>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -169,16 +142,12 @@ pub enum VisualPlanProjection {
         total: usize,
         next_offset: Option<u32>,
     },
-    Shot {
-        scene_id: String,
-        shot: VisualPlanShotDetails,
+    Point {
+        point: VisualPointV3,
     },
-    Keyframe {
-        shot_id: String,
-        keyframe: VisualKeyframeV2,
-    },
-    Entity {
-        entity: VisualEntityV2,
+    Segment {
+        segment: VisualSegmentV3,
+        points: Vec<VisualPointV3>,
     },
     Source {
         text: String,
@@ -195,45 +164,7 @@ pub struct ChapterVisualPlanReadResult {
     pub projection: VisualPlanProjection,
 }
 
-/// Omitted fields stay unchanged. null clears optional text; required text
-/// rejects null. Timing, identity and arbitrary JSON paths are not editable.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct VisualShotFieldChanges {
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::serde_update::deserialize_non_null_update_field"
-    )]
-    pub title: Option<String>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::serde_update::deserialize_non_null_update_field"
-    )]
-    pub narrative_purpose: Option<String>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::serde_update::deserialize_nullable_update_field"
-    )]
-    pub composition: Option<Option<String>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "crate::serde_update::deserialize_nullable_update_field"
-    )]
-    pub lens_intent: Option<Option<String>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum VisualPlanEditOperation {
-    UpdateShotFields {
-        shot_id: String,
-        changes: VisualShotFieldChanges,
-    },
-}
+pub use a4n_domain::chapter_visual_plan::VisualPlanEditOperationV3 as VisualPlanEditOperation;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -291,6 +222,7 @@ pub struct VisualPlanValidationResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanEditResult {
+    pub visual_plan: ChapterVisualPlanView,
     pub resource: crate::agent::AgentResourceRef,
     pub changed: bool,
     pub changes: Vec<VisualPlanFieldChange>,
@@ -303,15 +235,86 @@ pub struct ChapterVisualPlanValidationResult {
     pub validation: VisualPlanValidationResult,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct VisualPlanPointGenerationOptions {
+    pub source_chapter_id: i64,
+    pub record_id: i64,
+    pub expected_revision: i32,
+    pub point_id: String,
+    pub user_description: String,
+    pub config_id: Option<i64>,
+    #[serde(default)]
+    pub size: Option<ImageSize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewVisualPlanPointInput {
+    pub project_id: i64,
+    pub options: VisualPlanPointGenerationOptions,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct VisualPlanPointGenerationPreview {
+    pub prompt: String,
+    pub reference_image_ids: Vec<i64>,
+    pub aspect_ratio: String,
+    pub plan_sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StartVisualPlanPromptGenerationInput {
+    pub meta: crate::generation_tasks::GenerationStartRequestMeta,
+    pub project_id: i64,
+    pub source_chapter_id: i64,
+    pub record_id: i64,
+    pub expected_revision: i32,
+    pub segment_id: String,
+    pub user_description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct VisualPlanPromptCandidate {
+    pub record_id: i64,
+    pub source_chapter_id: i64,
+    pub plan_revision: i32,
+    pub plan_sha256: String,
+    pub segment_id: String,
+    pub prompt: String,
+    pub user_description: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReadVisualPlanPromptCandidateInput {
+    pub project_id: i64,
+    pub generation_run_id: i64,
+}
+
 /// Host-facing read boundary for chapter visual plans.
 ///
 /// Authorization, persistence reads and API projection stay with the visual
 /// plan owner; Runtime only routes complete results.
 #[async_trait::async_trait]
 pub trait ChapterVisualPlanReadApplicationPort: Send + Sync {
+    async fn preview_point_generation(
+        &self,
+        user_id: i64,
+        input: PreviewVisualPlanPointInput,
+    ) -> Result<VisualPlanPointGenerationPreview, a4n_error::AppError>;
+
+    async fn prompt_candidate(
+        &self,
+        user_id: i64,
+        input: ReadVisualPlanPromptCandidateInput,
+    ) -> Result<VisualPlanPromptCandidate, a4n_error::AppError>;
     fn project_editor(
         &self,
-        plan: &ChapterVisualPlanV2,
+        plan: &ChapterVisualPlanV3,
         view: &VisualPlanReadView,
     ) -> Result<VisualPlanProjection, a4n_error::AppError>;
 
@@ -340,6 +343,21 @@ pub trait ChapterVisualPlanReadApplicationPort: Send + Sync {
 /// visual plan owner; Runtime only routes mutation results.
 #[async_trait::async_trait]
 pub trait ChapterVisualPlanMutationApplicationPort: Send + Sync {
+    async fn start_prompt_generation(
+        &self,
+        user_id: i64,
+        input: &StartVisualPlanPromptGenerationInput,
+    ) -> Result<
+        crate::generation_tasks::GenerationTaskStart,
+        crate::generation_tasks::GenerationTaskStartError,
+    >;
+
+    async fn run_prompt_generation(
+        &self,
+        user_id: i64,
+        input: StartVisualPlanPromptGenerationInput,
+        handle: crate::generation_tasks::GenerationTaskHandle,
+    ) -> Result<(), String>;
     async fn save_draft(
         &self,
         user_id: i64,

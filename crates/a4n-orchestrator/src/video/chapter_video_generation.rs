@@ -68,6 +68,7 @@ struct VideoPromptValidationCache {
 
 #[derive(Default)]
 struct SharedSegmentValidationIndex {
+    segments_by_number: HashMap<i32, VideoSegmentPlanV2>,
     segment_numbers_by_shot: HashMap<String, HashMap<i32, i32>>,
     recipes_by_number: HashMap<i32, VideoSegmentExecutionRecipeV1>,
 }
@@ -838,6 +839,10 @@ impl OrchestratorContext {
                 cache.shared_segment_indexes.insert(
                     plan_id,
                     SharedSegmentValidationIndex {
+                        segments_by_number: segments
+                            .into_iter()
+                            .map(|segment| (segment.segment_number, segment))
+                            .collect(),
                         segment_numbers_by_shot,
                         recipes_by_number,
                     },
@@ -853,6 +858,14 @@ impl OrchestratorContext {
             .ok_or_else(|| {
                 invalid_argument(format!("当前规划缺少片段 {segment_number} 的执行方案"))
             })?;
+        let segment = cache
+            .shared_segment_indexes
+            .get(&plan_id)
+            .and_then(|index| index.segments_by_number.get(&segment_number))
+            .ok_or_else(|| invalid_argument("当前规划缺少执行片段"))?;
+        recipe
+            .validate_director_generation(segment)
+            .map_err(AppError::InvalidArgument)?;
         let plan_identity = plan
             .metadata_json
             .as_ref()
@@ -1224,6 +1237,7 @@ mod tests {
 
     fn index() -> SharedSegmentValidationIndex {
         SharedSegmentValidationIndex {
+            segments_by_number: HashMap::new(),
             segment_numbers_by_shot: HashMap::from([(
                 "shot-a".to_string(),
                 HashMap::from([(1, 7), (2, 8)]),

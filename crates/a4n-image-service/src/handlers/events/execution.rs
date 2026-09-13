@@ -6,9 +6,12 @@ use a4n_sidecar_bootstrap::service_event_channel;
 use axum::body::Bytes;
 use base64::Engine as _;
 use futures::Stream;
+use std::time::Duration;
 
 use crate::contracts::{ImageGenerationOutput, ImageProviderPayload};
 use crate::protocol::service_error;
+
+const IMAGE_PROGRESS_HEARTBEAT: Duration = Duration::from_secs(5);
 
 pub(super) fn image_generation_event_stream(
     request: ServiceRequest<ImageProviderPayload>,
@@ -43,19 +46,35 @@ pub(super) fn image_generation_event_stream(
                 })
         };
         tokio::pin!(provider_task);
-        tokio::select! {
-            _ = event_tx.closed() => {},
-            result = &mut provider_task => {
-                let event = match result {
-                    Ok(output) => CapabilityTaskEvent::completed_or_failed(
+        let mut sequence = 2;
+        let mut heartbeat = tokio::time::interval(IMAGE_PROGRESS_HEARTBEAT);
+        heartbeat.tick().await;
+        loop {
+            tokio::select! {
+                _ = event_tx.closed() => break,
+                _ = heartbeat.tick() => {
+                    if event_tx.send(CapabilityTaskEvent::progress_message(
                         task_id.clone(),
-                        2,
-                        output,
-                        "image generation output serialization failed",
-                    ),
-                    Err(error) => CapabilityTaskEvent::failed(task_id, 2, service_error(error)),
-                };
-                let _ = event_tx.send(event).await;
+                        sequence,
+                        "image sidecar 正在等待 provider 完成",
+                    )).await.is_err() {
+                        break;
+                    }
+                    sequence += 1;
+                }
+                result = &mut provider_task => {
+                    let event = match result {
+                        Ok(output) => CapabilityTaskEvent::completed_or_failed(
+                            task_id.clone(),
+                            sequence,
+                            output,
+                            "image generation output serialization failed",
+                        ),
+                        Err(error) => CapabilityTaskEvent::failed(task_id.clone(), sequence, service_error(error)),
+                    };
+                    let _ = event_tx.send(event).await;
+                    break;
+                }
             }
         }
     });

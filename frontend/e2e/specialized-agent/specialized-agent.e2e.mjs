@@ -83,8 +83,8 @@ async function field(label, tag = "input", scope = null) {
 }
 
 async function openAgent() {
-  await click("更多", await $("section.a4n-visual-plan"));
-  await click("打开导演编排 Agent");
+  if (await $(".director-mobile-inspector").isDisplayed()) await browser.keys("Escape");
+  await click("导演 Agent", await $(".director-tool-rail"));
   const console = await $("section[aria-label='领域 Agent 控制台']");
   await console.waitForDisplayed();
   await (await console.$("textarea")).waitForEnabled();
@@ -138,7 +138,7 @@ async function approve(runId, command) {
 async function openDirector() {
   await browser.url(`${process.env.A4N_BROWSER_E2E_BASE_URL}/write/${fixture.project_id}?chapter=1`);
   await click("导演编排");
-  await $("section.a4n-visual-plan").waitForDisplayed({ timeout: 60_000 });
+  await $("section.director-workspace").waitForDisplayed({ timeout: 60_000 });
 }
 
 async function capture(width, suffix) {
@@ -194,21 +194,21 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     await openDirector();
     const firstTab = await browser.getWindowHandle();
     const before = await savedPlan();
-    const composition = `原视图的构图 ${Date.now()}`;
-    const runId = await send({ mode: "editor", save_editor: true, composition });
-    await (await $$("button.a4n-visual-plan__timeline-shot"))[1].click();
+    const prompt = `原视图的镜头描述 ${Date.now()}`;
+    const runId = await send({ mode: "editor", save_editor: true, prompt });
+    await (await $$("button.director-segment"))[1].click();
     await approve(runId, "save_editor_draft");
     await approve(runId, "edit_chapter_visual_plan_draft");
     const completed = await waitRun(runId, "completed");
     const after = await savedPlan();
     const expected = structuredClone(before.plan);
-    expected.scenes[0].shots[0].composition = composition;
+    expected.segments[0].prompt = prompt;
     assert.deepEqual(after.plan, expected);
     assert.equal(after.record.revision, before.record.revision + 1);
     const requests = completed.events.filter((event) => event.run_id === runId && event.editor_request).map((event) => event.editor_request);
     assert.ok(requests.length >= 5);
     assert.ok(requests.every((request) => request.source.shot_id === "shot-1"));
-    assert.match(await $(".a4n-visual-plan__timeline-shot--selected").getAttribute("aria-label"), /用户并发改名/);
+    assert.match(await $(".director-segment.is-selected").getAttribute("aria-label"), /用户并发改名/);
     checks.push("关闭弹窗后完成 inspect/read/save/inspect/edit；发送后切选区仍只改原镜头，选区保持");
     if (native) {
       assert.equal(await nativeApi("/src/utils/runtimeMode.ts", "shouldUseHttpBackend", []), false);
@@ -221,7 +221,7 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     await browser.newWindow(await browser.getUrl());
     const secondTab = await browser.getWindowHandle();
     await openDirector();
-    await (await $$("button.a4n-visual-plan__timeline-shot"))[1].click();
+    await (await $$("button.director-segment"))[1].click();
     const secondRun = await send({ mode: "inspect_only" });
     const second = await waitRun(secondRun, "completed");
     const secondSource = second.events.find((event) => event.run_id === secondRun && event.editor_request).editor_request.source;
@@ -230,19 +230,19 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     checks.push("同一 canonical thread 的两个标签页按各自 Turn 绑定来源");
 
     await browser.switchToWindow(firstTab);
-    const blockedRun = await send({ mode: "editor", save_editor: true, composition: "不得覆盖未提交弹窗" });
+    const blockedRun = await send({ mode: "editor", save_editor: true, prompt: "不得覆盖未提交弹窗" });
     await waitRun(blockedRun, "waiting", "approval");
-    await click("更多", await $("section.a4n-visual-plan"));
-    await click("编辑镜头");
-    const draftField = await field("构图说明");
-    await draftField.setValue("仍在输入、尚未提交的构图");
+    await (await $$("button.director-segment"))[0].click();
+    await click("与后一段合并");
+    const draftField = await field("合并后的变化描述", "textarea");
+    await draftField.setValue("仍在输入、尚未提交的描述");
     await browser.switchToWindow(secondTab);
     await approve(blockedRun, "save_editor_draft");
     const blocked = await waitRun(blockedRun, "completed");
-    assert.ok(blocked.executions.some((execution) => execution.run_id === blockedRun && execution.status === "failed" && /弹窗/.test(execution.error || "")));
+    assert.ok(blocked.executions.some((execution) => execution.run_id === blockedRun && execution.status === "failed" && /拆分|合并/.test(execution.error || "")));
     assert.deepEqual(await savedPlan(), after);
     await browser.switchToWindow(firstTab);
-    assert.equal(await (await field("构图说明")).getValue(), "仍在输入、尚未提交的构图");
+    assert.equal(await (await field("合并后的变化描述", "textarea")).getValue(), "仍在输入、尚未提交的描述");
     checks.push("另一标签页批准不会覆盖原视图的未提交弹窗；失败保持原文案和保存版本");
     await browser.switchToWindow(secondTab);
 

@@ -67,7 +67,7 @@ async fn insert_video_prompts(
             )?);
             active.generated_video_id = Set(None);
             active.timeline_item_id = Set(None);
-            active.metadata_json = Set(None);
+            // Keep required language metadata; remap embedded IDs before this transaction commits.
         }
     );
     Ok(())
@@ -193,6 +193,7 @@ async fn update_video_prompt_refs(
     }
     let mut generated_video_id_case = CaseStatement::new();
     let mut metadata_case = CaseStatement::new();
+    let mut visual_prompt_case = CaseStatement::new();
     let mut prompt_ids = Vec::with_capacity(package.chapter_video_prompts.len());
     for prompt in &package.chapter_video_prompts {
         let new_id = map_required(
@@ -208,14 +209,36 @@ async fn update_video_prompt_refs(
                 "章节视频提示词 generated_video_id",
             )?),
         );
+        let metadata = remap_video_metadata(prompt.metadata_json.as_ref(), maps)?;
+        let visual_prompt =
+            if prompt.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
+                let segments = metadata
+                    .as_ref()
+                    .and_then(|value| value.get("segments"))
+                    .ok_or_else(|| {
+                        ProjectFamilyImportError::invalid_package("视频分段规划缺少 segments")
+                    })?;
+                serde_json::json!({"segments": segments}).to_string()
+            } else {
+                prompt.visual_prompt.clone()
+            };
+        visual_prompt_case = visual_prompt_case.case(
+            chapter_video_prompt::Column::Id.eq(new_id),
+            Expr::value(visual_prompt),
+        );
         metadata_case = metadata_case.case(
             chapter_video_prompt::Column::Id.eq(new_id),
-            Expr::value(remap_video_metadata(prompt.metadata_json.as_ref(), maps)?)
-                .cast_as(Alias::new("json")),
+            Expr::value(metadata).cast_as(Alias::new("json")),
         );
         prompt_ids.push(new_id);
     }
     let updated = chapter_video_prompt::Entity::update_many()
+        .col_expr(
+            chapter_video_prompt::Column::VisualPrompt,
+            visual_prompt_case
+                .finally(Expr::col(chapter_video_prompt::Column::VisualPrompt))
+                .into(),
+        )
         .col_expr(
             chapter_video_prompt::Column::GeneratedVideoId,
             generated_video_id_case

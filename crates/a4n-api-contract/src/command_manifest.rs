@@ -605,6 +605,7 @@ command_specs! {
     "preview_test_image_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_test_llm_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_video_provider_request_by_video_id" => args_preview_video_provider_request_by_video_id, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
+    "preview_visual_plan_point_generation" => args_preview_visual_plan_point_generation, result_visual_plan_point_generation_preview, "chapter", effect(READ_EFFECT);
     "prompt_list" => empty_args_schema, result_prompt_list, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_categories" => empty_args_schema, result_prompt_list_categories, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_project_overrides" => args_project_id, result_prompt_list_project_overrides, "prompt", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
@@ -628,6 +629,7 @@ command_specs! {
     "read_canvas_graph" => args_read_canvas_graph, result_read_canvas_graph, "canvas", effect(READ_EFFECT), context(NO_CONTEXT);
     "read_chapter_visual_plan" => args_read_chapter_visual_plan, result_read_chapter_visual_plan, "chapter", effect(READ_EFFECT);
     "read_recent_logs" => args_read_recent_logs, result_read_recent_logs, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "read_visual_plan_prompt_candidate" => args_read_visual_plan_prompt_candidate, result_visual_plan_prompt_candidate, "chapter", effect(READ_EFFECT);
     "record_optimize_agent_event" => args_record_optimize_agent_event, result_unit, "optimize", context(NO_CONTEXT);
     "refresh_token" => args_refresh_token, result_refresh_token, "auth", identity(PUBLIC_IDENTITY), secrets(REFRESH_TOKEN_SECRET_POINTERS);
     "register_user" => args_register_user, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
@@ -683,6 +685,7 @@ command_specs! {
     "start_package_lifecycle" => args_start_package_lifecycle, result_package_lifecycle, "system", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), idempotency("operation_id");
     "start_portrait_generation" => args_start_portrait_generation, result_generation_task_handle, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_video_generation" => args_start_video_generation, result_generation_task_handle, "video", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
+    "start_visual_plan_prompt_generation" => args_start_visual_plan_prompt_generation, result_generation_task_handle, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "sync_all_character_profiles" => args_sync_all_character_profiles, result_sync_all_character_profiles, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "sync_blueprint_materials" => args_project_id, result_blueprint_mutation, "blueprint", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "sync_character_from_chapters" => args_sync_character_from_chapters, result_sync_character_from_chapters, "chapter", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
@@ -870,11 +873,11 @@ fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
         kind: "host_api".into(),
         domain: spec.domain.into(),
         summary: match spec.name {
-            "read_chapter_visual_plan" => "Read a saved visual plan's outline, one shot/keyframe/entity, or a bounded source text range. Pin record_id and expected_revision to continue reading the same version. Does not read an editor's unsaved draft.".into(),
+            "read_chapter_visual_plan" => "Read the timeline outline, an image point, a shot segment, or bounded source text. Points own images and time; segments can span several points. Pin record_id and expected_revision. Does not read an editor's unsaved draft.".into(),
             "review_agent_delegation" => "Explicitly accept a child's delivered resources or request revision, recording the reason and exact inspected versions. Acceptance requires successful parent read/verification executions for every delivered resource; delegate results and child completion text are not evidence. A final reply alone never accepts a delegation.".into(),
             "read_canvas_graph" => "Read a paged graph index, or selected node IDs with incident edges and neighbor IDs. Use expected_version when continuing a read. Never creates a graph; node configs are returned only when requested.".into(),
             "edit_canvas_graph" => "Apply 1..20 typed node-config or connection edits at expected_version. Reuses graph/port/reference validation and transactional CAS. Unrelated nodes and edges keep their IDs; returns actual changed records and the saved version. Does not run the graph.".into(),
-            "edit_chapter_visual_plan_draft" => "Update only specified text fields of an existing shot in a saved collaborative draft, using record_id and expected_revision. Returns actual before/after changes and draft validation. No timing/identity changes or formal confirmation. Unchanged values keep the revision.".into(),
+            "edit_chapter_visual_plan_draft" => "Edit a saved director timeline with typed operations: image points, shot segments, shared boundaries, proportional retiming, image bindings and scene/prompt fields. Inserting a point does not split a shot. End images are opt-in. Requires record_id and expected_revision; returns the updated plan and actual changes. Does not confirm the plan.".into(),
             "validate_chapter_visual_plan" => "Check a saved plan at the specified revision with draft or confirmed structure rules. Returns the first diagnostic with its path; never confirms the plan or assesses visual quality.".into(),
             _ => spec.name.replace('_', " "),
         },
@@ -1528,6 +1531,28 @@ fn args_chapter_visual_plan_record() -> Value {
 
 fn args_read_chapter_visual_plan() -> Value {
     strict_typed_input_schema::<crate::chapter_visual_plan::ReadChapterVisualPlanInput>()
+}
+
+fn args_read_visual_plan_prompt_candidate() -> Value {
+    strict_typed_input_schema::<crate::chapter_visual_plan::ReadVisualPlanPromptCandidateInput>()
+}
+
+fn result_visual_plan_prompt_candidate() -> Value {
+    typed_schema::<crate::chapter_visual_plan::VisualPlanPromptCandidate>()
+}
+
+fn args_preview_visual_plan_point_generation() -> Value {
+    strict_typed_input_schema::<crate::chapter_visual_plan::PreviewVisualPlanPointInput>()
+}
+
+fn result_visual_plan_point_generation_preview() -> Value {
+    typed_schema::<crate::chapter_visual_plan::VisualPlanPointGenerationPreview>()
+}
+
+fn args_start_visual_plan_prompt_generation() -> Value {
+    strict_runtime_typed_input_schema::<
+        crate::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
+    >()
 }
 
 fn args_respond_agent_editor() -> Value {

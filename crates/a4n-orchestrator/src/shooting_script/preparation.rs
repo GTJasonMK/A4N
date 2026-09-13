@@ -45,6 +45,7 @@ impl OrchestratorContext {
                 &visual_plan.plan,
                 &source_spans,
             )?;
+        let scene_profiles = self.visual_plan_scene_context(&visual_plan.plan).await?;
         let layout_unit_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
             &HashMap::new(),
@@ -97,6 +98,7 @@ impl OrchestratorContext {
                 "sha256": visual_plan.record.plan_sha256,
             },
             "visual_plan": &visual_plan.plan,
+            "scene_profiles": &scene_profiles,
             "temperature": 0.2,
         });
         let input_fingerprint_sha256 =
@@ -108,6 +110,7 @@ impl OrchestratorContext {
             existing,
             visual_plan,
             visual_plan_projection,
+            scene_profiles,
             layout_unit_system_prompt,
             unit_adaptation_system_prompt,
             design_unit_system_prompt,

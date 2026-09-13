@@ -33,14 +33,14 @@ pub(in crate::http) fn required_usize(value: &Value, field: &str) -> Result<usiz
         .map_err(|_| internal_error(format!("LLM 响应字段 {field} 超出 usize 范围")))
 }
 
-pub(super) fn optional_usize(
+pub(in crate::http) fn optional_usize(
     value: Option<&Value>,
     field: &str,
 ) -> Result<Option<usize>, AppError> {
     value.map(|value| required_usize(value, field)).transpose()
 }
 
-pub(super) fn optional_nested_usize(
+pub(in crate::http) fn optional_nested_usize(
     value: &Value,
     path: &[&str],
     field: &str,

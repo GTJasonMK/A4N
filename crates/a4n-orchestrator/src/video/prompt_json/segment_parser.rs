@@ -96,11 +96,16 @@ pub(in crate::video) fn parse_stored_video_segment_plan_for_reuse(
                 "已存视频分段规划 segment_number {segment_number} 包含已废弃的 reference_image_ids；片段规划不再绑定具体素材，请删除旧规划并重新生成"
             )));
         }
-        let source_span_ids = validate_source_span_ids(
-            segment.source_span_ids.clone(),
-            source_spans,
-            &format!("已存视频分段规划 segment_number {}", segment_number),
-        )?;
+        let source_span_ids =
+            if segment.source_span_ids.is_empty() && segment.director_constraints.is_some() {
+                Vec::new()
+            } else {
+                validate_source_span_ids(
+                    segment.source_span_ids.clone(),
+                    source_spans,
+                    &format!("已存视频分段规划 segment_number {}", segment_number),
+                )?
+            };
         let segment = VideoSegmentPlan {
             source_span_ids,
             ..segment
@@ -173,7 +178,27 @@ fn parse_video_segment_plan_inner(
             &segment.covered_beat_ids,
             segment_number,
         )?;
+        let shot = defaults
+            .shooting_script_projection
+            .shot(&segment.source_shot_id)
+            .ok_or_else(|| AppError::InvalidArgument("视频片段引用了不存在的镜头".into()))?;
+        if shot.director_constraints.is_some() && shot_segment_count != 1 {
+            return Err(AppError::InvalidArgument(format!(
+                "导演镜头 {} 必须对应一个片段，不能重新拆镜头",
+                shot.source_shot_id
+            )));
+        }
+        let source_span_ids = if source_span_ids.is_empty() && shot.director_constraints.is_some() {
+            Vec::new()
+        } else {
+            validate_source_span_ids(
+                source_span_ids,
+                source_spans,
+                &format!("视频分段规划 segment_number {segment_number}"),
+            )?
+        };
         let segment = VideoSegmentPlan {
+            director_constraints: shot.director_constraints.clone(),
             schema_version: VIDEO_SEGMENT_PLAN_V2.to_string(),
             segment_number,
             source_shot_id: segment.source_shot_id,
@@ -190,13 +215,20 @@ fn parse_video_segment_plan_inner(
             performance_plan: segment.performance_plan,
             material_coverage: segment.material_coverage,
             transition_to_next: None,
-            source_span_ids: validate_source_span_ids(
-                source_span_ids,
-                source_spans,
-                &format!("视频分段规划 segment_number {}", segment_number),
-            )?,
-            duration_secs: defaults.duration_secs,
-            aspect_ratio: defaults.aspect_ratio.to_string(),
+            source_span_ids,
+            duration_secs: if shot.director_constraints.is_some() {
+                shot.segment_duration_secs
+            } else {
+                defaults.duration_secs
+            },
+            aspect_ratio: shot
+                .director_constraints
+                .as_ref()
+                .map_or_else(
+                    || Ok(defaults.aspect_ratio.to_string()),
+                    |director| director.frame.aspect_ratio(),
+                )
+                .map_err(AppError::InvalidArgument)?,
             reference_image_ids: Vec::new(),
         };
         let segment = validate_segment_plan(segment)?;
@@ -237,6 +269,10 @@ fn apply_segment_transitions(
                 "视频分段规划引用不存在的 source_shot_id {to_shot_id}"
             ))
         })?;
+        // A director transition is already a timed segment, never an extra bridge clip.
+        if from_shot.director_constraints.is_some() {
+            continue;
+        }
         let Some(contract) = from_shot
             .transition_contracts
             .iter()

@@ -1,7 +1,11 @@
 use super::super::super::contracts::PlannedContextPack;
 
-pub(super) fn render_pack_section(title: &str, packs: Vec<(&PlannedContextPack, &str)>) -> String {
+pub(super) fn render_pack_section(
+    title: &str,
+    packs: Vec<(&PlannedContextPack, &str)>,
+) -> (String, Vec<usize>) {
     let mut context = format!("[{title}]\n");
+    let mut boundaries = Vec::new();
     for (pack, content) in packs {
         context.push_str("\n## ");
         context.push_str(pack.pack_ref.pack_kind.as_str());
@@ -10,6 +14,7 @@ pub(super) fn render_pack_section(title: &str, packs: Vec<(&PlannedContextPack, 
         context.push('\n');
         context.push_str(content);
         context.push('\n');
+        boundaries.push(context.len());
     }
-    context
+    (context, boundaries)
 }

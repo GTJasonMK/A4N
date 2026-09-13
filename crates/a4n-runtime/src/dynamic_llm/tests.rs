@@ -158,6 +158,7 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
                         total_tokens: 5,
                         prompt_cache_hit_tokens: None,
                         prompt_cache_miss_tokens: None,
+                        prompt_cache_write_tokens: None,
                     }),
                 },
             ];
@@ -383,6 +384,8 @@ fn test_chat_request() -> ChatRequest {
         response_format: None,
         stream_include_usage: false,
         cache_scope_key: None,
+        cache_breakpoints: Vec::new(),
+        cache_mode: None,
         cache_system_prefix: false,
         cache_user_prefix_len: None,
         trace_context: None,

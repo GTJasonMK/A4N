@@ -1845,6 +1845,10 @@ fn apply_usage(
             || optional_value_decreased(
                 previous.prompt_cache_miss_tokens,
                 usage.prompt_cache_miss_tokens,
+            )
+            || optional_value_decreased(
+                previous.prompt_cache_write_tokens,
+                usage.prompt_cache_write_tokens,
             ))
     {
         return Err(GenerationSessionError::UsageRegression);
@@ -2253,6 +2257,7 @@ mod tests {
                     total_tokens: 5,
                     prompt_cache_hit_tokens: None,
                     prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
                 },
                 cumulative: true,
             })

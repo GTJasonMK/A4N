@@ -1,8 +1,10 @@
 use std::time::Duration;
 
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, MessageRole};
 use serde_json::{Map, Value, json};
 
+use crate::http::cache::{apply_openai_cache_options, openai_text_content};
 use crate::http::sse::enable_stream_usage;
 
 use super::HttpLlmProvider;
@@ -37,85 +39,39 @@ impl HttpLlmProvider {
         &self,
         request: &ChatRequest,
         stream: bool,
-    ) -> reqwest::RequestBuilder {
-        let user_cache_breakpoint = request.cache_scope_key.as_ref().and_then(|_| {
-            let prefix_len = request.cache_user_prefix_len?;
-            request
-                .messages
-                .iter()
-                .rposition(|message| matches!(message.role, MessageRole::User))
-                .filter(|&index| {
-                    let content = &request.messages[index].content;
-                    prefix_len > 0
-                        && prefix_len <= content.len()
-                        && content.is_char_boundary(prefix_len)
-                })
-                .map(|index| (index, prefix_len))
-        });
-        let cache_breakpoint_index = request
-            .cache_scope_key
-            .as_ref()
-            .filter(|_| user_cache_breakpoint.is_none() && request.cache_system_prefix)
-            .and_then(|_| {
-                request
-                    .messages
-                    .iter()
-                    .rposition(|message| matches!(message.role, MessageRole::System))
-            });
+    ) -> Result<reqwest::RequestBuilder, AppError> {
         let messages: Vec<OpenAiMessage> = request
             .messages
             .iter()
             .enumerate()
-            .map(|(index, message)| OpenAiMessage {
-                role: match message.role {
-                    MessageRole::System => "system".into(),
-                    MessageRole::User => "user".into(),
-                    MessageRole::Assistant => "assistant".into(),
-                    MessageRole::Tool => "tool".into(),
-                },
-                content: if let Some((_, prefix_len)) =
-                    user_cache_breakpoint.filter(|(message_index, _)| *message_index == index)
-                {
-                    let (prefix, suffix) = message.content.split_at(prefix_len);
-                    let mut parts = vec![json!({
-                        "type": "text",
-                        "text": prefix,
-                        "prompt_cache_breakpoint": { "mode": "explicit" }
-                    })];
-                    if !suffix.is_empty() {
-                        parts.push(json!({
-                            "type": "text",
-                            "text": suffix
-                        }));
-                    }
-                    Value::Array(parts)
-                } else if Some(index) == cache_breakpoint_index {
-                    json!([{
-                        "type": "text",
-                        "text": message.content,
-                        "prompt_cache_breakpoint": { "mode": "explicit" }
-                    }])
-                } else {
-                    Value::String(message.content.clone())
-                },
-                tool_calls: message.tool_calls.as_ref().map(|tool_calls| {
-                    tool_calls
-                        .iter()
-                        .map(|tool_call| {
-                            json!({
-                                "id": tool_call.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call.name,
-                                    "arguments": tool_call.arguments.to_string()
-                                }
+            .map(|(index, message)| {
+                Ok(OpenAiMessage {
+                    role: match message.role {
+                        MessageRole::System => "system".into(),
+                        MessageRole::User => "user".into(),
+                        MessageRole::Assistant => "assistant".into(),
+                        MessageRole::Tool => "tool".into(),
+                    },
+                    content: openai_text_content(request, index, "text")?,
+                    tool_calls: message.tool_calls.as_ref().map(|tool_calls| {
+                        tool_calls
+                            .iter()
+                            .map(|tool_call| {
+                                json!({
+                                    "id": tool_call.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool_call.name,
+                                        "arguments": tool_call.arguments.to_string()
+                                    }
+                                })
                             })
-                        })
-                        .collect()
-                }),
-                tool_call_id: message.tool_call_id.clone(),
+                            .collect()
+                    }),
+                    tool_call_id: message.tool_call_id.clone(),
+                })
             })
-            .collect();
+            .collect::<Result<_, AppError>>()?;
 
         let mut body = self.extra_body.clone().unwrap_or_default();
         body.insert("model".into(), Value::String(self.model.clone()));
@@ -137,11 +93,7 @@ impl HttpLlmProvider {
             .to_string(),
             json!(request.max_tokens.unwrap_or(self.caps.max_output_tokens)),
         );
-        insert_optional(
-            &mut body,
-            "prompt_cache_key",
-            request.cache_scope_key.as_deref(),
-        );
+        apply_openai_cache_options(request, &mut body)?;
         insert_optional(
             &mut body,
             "response_format",
@@ -170,6 +122,6 @@ impl HttpLlmProvider {
             request_builder = request_builder.timeout(self.request_timeout());
         }
 
-        request_builder
+        Ok(request_builder)
     }
 }

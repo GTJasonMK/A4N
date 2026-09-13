@@ -5,6 +5,7 @@ export const IMAGE_TYPE_SCENE_MATERIAL = "scene_material" as const;
 export const IMAGE_TYPE_VIDEO_KEY_FRAME = "video_key_frame" as const;
 export const IMAGE_TYPE_VIDEO_START_FRAME = "video_start_frame" as const;
 export const IMAGE_TYPE_VIDEO_STORYBOARD_FRAME = "video_storyboard_frame" as const;
+export const IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME = "director_storyboard_frame" as const;
 export const IMAGE_TYPE_VIDEO_TAIL_FRAME = "video_tail_frame" as const;
 
 export const VIDEO_FRAME_PROMPT_IMAGE_TYPES = [
@@ -14,6 +15,7 @@ export const VIDEO_FRAME_PROMPT_IMAGE_TYPES = [
 ] as const;
 
 export const VIDEO_FRAME_IMAGE_TYPES = [
+  IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME,
   ...VIDEO_FRAME_PROMPT_IMAGE_TYPES,
   IMAGE_TYPE_VIDEO_TAIL_FRAME,
 ] as const;

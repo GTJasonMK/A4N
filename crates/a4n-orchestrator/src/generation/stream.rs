@@ -370,6 +370,10 @@ fn accumulated_generation_usage(
             base.prompt_cache_miss_tokens,
             current.prompt_cache_miss_tokens,
         )?,
+        prompt_cache_write_tokens: add_optional_tokens(
+            base.prompt_cache_write_tokens,
+            current.prompt_cache_write_tokens,
+        )?,
     })
 }
 
@@ -490,6 +494,10 @@ pub(crate) fn generation_usage(usage: UsageInfo) -> Result<GenerationUsage, Gene
             .prompt_cache_miss_tokens
             .map(safe_tokens)
             .transpose()?,
+        prompt_cache_write_tokens: usage
+            .prompt_cache_write_tokens
+            .map(safe_tokens)
+            .transpose()?,
     })
 }
 
@@ -533,6 +541,18 @@ pub(crate) fn provider_usage(usage: &GenerationUsage) -> Result<UsageInfo, Gener
             })?,
         prompt_cache_miss_tokens: usage
             .prompt_cache_miss_tokens
+            .map(usize::try_from)
+            .transpose()
+            .map_err(|_| {
+                public_error(
+                    "generation_event_invalid",
+                    "模型 usage 超出本地范围",
+                    false,
+                    "provider_stream",
+                )
+            })?,
+        prompt_cache_write_tokens: usage
+            .prompt_cache_write_tokens
             .map(usize::try_from)
             .transpose()
             .map_err(|_| {
@@ -737,6 +757,7 @@ mod tests {
                     total_tokens: 30,
                     prompt_cache_hit_tokens: None,
                     prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
                 }),
             },
         ]);
@@ -824,6 +845,7 @@ mod tests {
                 total_tokens: 7,
                 prompt_cache_hit_tokens: None,
                 prompt_cache_miss_tokens: Some(2),
+                prompt_cache_write_tokens: None,
             }),
         }]);
         let publisher = RecordingPublisher::default();
@@ -841,6 +863,7 @@ mod tests {
                     total_tokens: 30,
                     prompt_cache_hit_tokens: Some(5),
                     prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
                 }),
             },
         )
@@ -856,6 +879,7 @@ mod tests {
                 total_tokens: 37,
                 prompt_cache_hit_tokens: Some(5),
                 prompt_cache_miss_tokens: Some(2),
+                prompt_cache_write_tokens: None,
             })
         );
     }
@@ -883,6 +907,7 @@ mod tests {
                     total_tokens: 7,
                     prompt_cache_hit_tokens: Some(2),
                     prompt_cache_miss_tokens: Some(1),
+                    prompt_cache_write_tokens: Some(1),
                 }),
             },
         ]);

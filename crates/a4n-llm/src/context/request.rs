@@ -9,4 +9,4 @@ pub use application::{
 };
 pub use build::context_aware_system_user_request;
 pub use preview::preview_context_aware_chat_request;
-pub use rewrite::replace_request_user_content_from_manifest;
+pub use rewrite::{context_manifest_dynamic_messages, replace_request_user_content_from_manifest};

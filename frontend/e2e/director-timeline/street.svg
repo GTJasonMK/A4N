@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#283b45"/>
+  <path d="M0 170h380v520H0zm400-85h390v640H400zm450 100h640v600H850zm680-160h390v750h-390z" fill="#24333b"/>
+  <path d="M0 780L1920 685v395H0z" fill="#1a2b33"/>
+  <path d="M830 755L540 1080m575-325l205 325M0 917l1920-91" stroke="#809093" stroke-width="3" opacity=".45"/>
+  <rect x="830" y="280" width="530" height="477" rx="4" fill="#493e33"/><rect x="870" y="388" width="250" height="280" fill="#c9a469"/>
+  <path d="M930 400v260m100-260v260m-160-170h250m-250 78h250" stroke="#78633e" stroke-width="10"/>
+  <rect x="1170" y="388" width="140" height="363" fill="#967a4f"/><rect x="1190" y="410" width="100" height="172" fill="#d0b27d"/>
+  <path d="M820 315h560v52H820z" fill="#bfa477"/><text x="1100" y="353" text-anchor="middle" fill="#332d24" font-family="serif" font-size="37" letter-spacing="26">旧书店</text>
+  <ellipse cx="705" cy="914" rx="78" ry="18" fill="#0f2029"/><circle cx="705" cy="661" r="28" fill="#111f28"/>
+  <path d="M681 692l-28 121 27 5-7 85h26l9-86 23 83h25l-23-207z" fill="#172631"/>
+  <path d="M647 670q55-87 118 0z" fill="#556570"/><path d="M706 632v130" stroke="#101d27" stroke-width="6"/>
+  <g stroke="#afc1c6" stroke-width="2" opacity=".27"><path d="M190 140l-60 200m210 60l-80 270m370-560l-90 330m380-390l-44 140m390-50l-67 210m450 60l-80 260m-30-440l-35 100m-900 380l-68 200m510-100l-48 155"/></g>
+</svg>

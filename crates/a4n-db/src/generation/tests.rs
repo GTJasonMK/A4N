@@ -168,10 +168,12 @@ fn usage_trace_fields_calculates_cache_hit_ratio() {
         total_tokens: 15,
         prompt_cache_hit_tokens: Some(8),
         prompt_cache_miss_tokens: Some(2),
+        prompt_cache_write_tokens: Some(1),
     }))
     .expect("usage trace fields should be valid");
 
     assert_eq!(fields.prompt_tokens, Some(10));
+    assert_eq!(fields.prompt_cache_write_tokens, Some(1));
     assert_eq!(fields.completion_tokens, Some(5));
     assert_eq!(fields.total_tokens, Some(15));
     assert_eq!(fields.prompt_cache_hit_tokens, Some(8));
@@ -187,6 +189,7 @@ fn usage_trace_fields_rejects_i32_overflow() {
         total_tokens: i32::MAX as usize + 1,
         prompt_cache_hit_tokens: None,
         prompt_cache_miss_tokens: None,
+        prompt_cache_write_tokens: None,
     }))
     .expect_err("overflowing usage must fail");
 

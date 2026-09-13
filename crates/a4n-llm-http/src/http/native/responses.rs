@@ -3,7 +3,8 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, MessageRole, ToolCall, UsageInfo
 use serde_json::{Map, Value, json};
 
 use super::{empty_chunk, function_definition, required_string};
-use crate::http::response::required_usize;
+use crate::http::cache::{apply_openai_cache_options, openai_text_content};
+use crate::http::response::{optional_nested_usize, required_usize};
 
 pub(in crate::http) fn request_body(
     request: &ChatRequest,
@@ -20,14 +21,14 @@ pub(in crate::http) fn request_body(
         ));
     }
     let mut input = Vec::new();
-    for message in &request.messages {
+    for (index, message) in request.messages.iter().enumerate() {
         if matches!(message.role, MessageRole::Tool) {
             let call_id = message
                 .tool_call_id
                 .as_deref()
                 .filter(|id| !id.is_empty())
                 .ok_or_else(|| AppError::InvalidArgument("工具结果缺少 tool_call_id".into()))?;
-            input.push(json!({"type": "function_call_output", "call_id": call_id, "output": message.content}));
+            input.push(json!({"type": "function_call_output", "call_id": call_id, "output": openai_text_content(request, index, "input_text")?}));
             continue;
         }
         let calls = message.tool_calls.as_deref().unwrap_or_default();
@@ -49,7 +50,12 @@ pub(in crate::http) fn request_body(
             }
         }
         if !message.content.is_empty() || calls.is_empty() {
-            input.push(json!({"role": message.role, "content": message.content}));
+            let kind = if matches!(message.role, MessageRole::Assistant) {
+                "output_text"
+            } else {
+                "input_text"
+            };
+            input.push(json!({"role": message.role, "content": openai_text_content(request, index, kind)?}));
         }
         for call in calls {
             input.push(
@@ -79,9 +85,7 @@ pub(in crate::http) fn request_body(
         }
         body.insert("text".into(), json!({"format": {"type": "json_object"}}));
     }
-    if let Some(key) = &request.cache_scope_key {
-        body.insert("prompt_cache_key".into(), json!(key));
-    }
+    apply_openai_cache_options(request, &mut body)?;
     if let Some(tools) = &request.tools {
         let tools = tools
             .iter()
@@ -197,16 +201,26 @@ fn terminal_chunks(response: &Value, event_kind: &str) -> Result<Vec<ChatChunk>,
     chunk.tool_calls = (!calls.is_empty()).then_some(calls);
     if !response["usage"].is_null() {
         let usage = &response["usage"];
-        chunk.usage = Some(UsageInfo {
-            prompt_tokens: required_usize(&usage["input_tokens"], "usage.input_tokens")?,
-            completion_tokens: required_usize(&usage["output_tokens"], "usage.output_tokens")?,
-            total_tokens: required_usize(&usage["total_tokens"], "usage.total_tokens")?,
-            prompt_cache_hit_tokens: usage
-                .pointer("/input_tokens_details/cached_tokens")
-                .map(|value| required_usize(value, "usage.input_tokens_details.cached_tokens"))
-                .transpose()?,
-            prompt_cache_miss_tokens: None,
-        });
+        chunk.usage = Some(
+            UsageInfo {
+                prompt_tokens: required_usize(&usage["input_tokens"], "usage.input_tokens")?,
+                completion_tokens: required_usize(&usage["output_tokens"], "usage.output_tokens")?,
+                total_tokens: required_usize(&usage["total_tokens"], "usage.total_tokens")?,
+                prompt_cache_hit_tokens: optional_nested_usize(
+                    usage,
+                    &["input_tokens_details", "cached_tokens"],
+                    "usage.input_tokens_details.cached_tokens",
+                )?,
+                prompt_cache_miss_tokens: None,
+                prompt_cache_write_tokens: optional_nested_usize(
+                    usage,
+                    &["input_tokens_details", "cache_write_tokens"],
+                    "usage.input_tokens_details.cache_write_tokens",
+                )?,
+            }
+            .normalize_cache_tokens()
+            .map_err(AppError::LlmError)?,
+        );
     }
     Ok(vec![chunk])
 }

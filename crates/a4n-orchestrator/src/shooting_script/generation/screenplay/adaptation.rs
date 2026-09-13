@@ -52,7 +52,13 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_adaptati
             progress,
             stream_reporter,
             cancel_token,
-            |output| validate_unit_adaptation(output, unit),
+            |output| {
+                validate_unit_adaptation(
+                    output,
+                    unit,
+                    prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?,
+                )
+            },
         )
         .await?;
     progress(
@@ -84,7 +90,13 @@ pub(in crate::shooting_script) async fn restore_screenplay_adaptation_unit(
             workflow_run_id,
             &format!("screenplay_unit_adaptation:{}", unit.narrative_unit_index),
             &request,
-            |output| validate_unit_adaptation(output, unit),
+            |output| {
+                validate_unit_adaptation(
+                    output,
+                    unit,
+                    prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?,
+                )
+            },
         )
         .await
 }
@@ -100,9 +112,15 @@ fn unit_adaptation_request(
         CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT,
         format!("screenplay_unit_adaptation:{}", unit.narrative_unit_index),
         prepared.unit_adaptation_system_prompt.clone(),
-        Some(("shooting_screenplay_layout_unit", unit)),
+        Some((
+            "shooting_screenplay_layout_unit",
+            &serde_json::json!({
+                "unit": unit,
+                "locked_visual_unit": prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?,
+            }),
+        )),
         format!(
-            "只改编以下目标 unit 的 performance_facts，不得使用其他 unit 的 source_span_ids：\n{}",
+            "只改编以下目标 unit 的 performance_facts，以 locked_visual_unit 的镜头 prompt 为导演事实来源，引用 ID 为 director:{{segment_id}}；正文只作为相关上下文，不得把整章动作重复塞入每个单元：\n{}",
             serde_json::to_string(unit)?
         ),
     )

@@ -1,5 +1,6 @@
 use a4n_domain::manga::{MANGA_PAGE_DRAWING_PROMPT_V2, MangaPageV3};
 use a4n_error::AppError;
+use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
 
 use super::common::build_manga_step_user_message;
@@ -8,7 +9,7 @@ use super::inputs::{manga_page_drawing_prompt_page_input, manga_page_planning_in
 pub(in crate::manga) fn manga_page_planning_user_message(
     extraction_summary: Value,
     shooting_script: Value,
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     build_manga_step_user_message(
         "manga_page_planning",
         "基于完整抽取信息规划漫画分页结构",
@@ -25,7 +26,7 @@ pub(in crate::manga) fn manga_page_drawing_prompt_user_message(
     page_plan: &MangaPageV3,
     extraction_summary: &Value,
     reference_assets: &Value,
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     build_manga_step_user_message(
         "manga_page_drawing_prompt",
         &format!("只为第 {page_number} 页生成一个 {MANGA_PAGE_DRAWING_PROMPT_V2} 严格 JSON 对象。"),

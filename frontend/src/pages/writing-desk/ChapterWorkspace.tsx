@@ -220,7 +220,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
         </div>
       ) : (
         <>
-          <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
+          {bottomTab !== "visual_plan" && <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
             <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-base font-semibold text-book-text-main">
               {selectedChapterTitle(activeChapter, activeOutline) || t("writing.chapterLabel", { number: activeNumber })}
             </h2>
@@ -255,7 +255,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 </span>
               ) : null}
             </div>
-          </div>
+          </div>}
 
           {activeChapter && derivedSyncIncomplete ? (
             <div

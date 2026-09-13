@@ -193,6 +193,7 @@ async fn llm_stream_emits_typed_chunks_and_completed_marker() {
         total_tokens: 18,
         prompt_cache_hit_tokens: Some(3),
         prompt_cache_miss_tokens: Some(8),
+        prompt_cache_write_tokens: Some(5),
     };
     let chunks = stream::iter(vec![
         Ok(ChatChunk {

@@ -167,8 +167,9 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
 }
 
 fn host_error(error: String) -> AppError {
-    AppError::InvalidState {
-        current: "image_generation_host".to_string(),
-        operation: error,
-    }
+    let message = error
+        .strip_prefix("内部错误：")
+        .unwrap_or(&error)
+        .to_string();
+    AppError::Internal(anyhow::anyhow!(message))
 }

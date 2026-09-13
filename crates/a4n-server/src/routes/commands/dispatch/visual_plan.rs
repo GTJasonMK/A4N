@@ -1,7 +1,8 @@
 use super::super::{
     ApiError, ServerState, confirm_chapter_visual_plan, discard_chapter_visual_plan_draft,
-    edit_chapter_visual_plan_draft, get_chapter_visual_plan, read_chapter_visual_plan,
-    save_chapter_visual_plan_draft, validate_chapter_visual_plan,
+    edit_chapter_visual_plan_draft, get_chapter_visual_plan, preview_visual_plan_point_generation,
+    read_chapter_visual_plan, read_visual_plan_prompt_candidate, save_chapter_visual_plan_draft,
+    validate_chapter_visual_plan,
 };
 use serde_json::Value;
 
@@ -14,6 +15,12 @@ pub(super) async fn try_dispatch(
     cmd: &str,
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
+        "preview_visual_plan_point_generation" => {
+            preview_visual_plan_point_generation(state, user_id, args).await?
+        }
+        "read_visual_plan_prompt_candidate" => {
+            read_visual_plan_prompt_candidate(state, user_id, args).await?
+        }
         "get_chapter_visual_plan" => get_chapter_visual_plan(state, user_id, args).await?,
         "read_chapter_visual_plan" => read_chapter_visual_plan(state, user_id, args).await?,
         "edit_chapter_visual_plan_draft" => {

@@ -178,6 +178,14 @@ async fn start_generation(
     }
 
     let result = match command {
+        "start_visual_plan_prompt_generation" => {
+            match decode_generation_start_input::<a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput>(input) {
+                Ok(input) => a4n_runtime::host_api::runtime_config::request_scope(user_id, runtime_config_snapshot,
+                    a4n_runtime::host_api::chapter_visual_plan_records::start_visual_plan_prompt_generation(runtime, user_id, input))
+                    .await.map_err(map_video_start_error),
+                Err(error) => Err(error),
+            }
+        }
         "start_chapter_generation" => start!(
             StartChapterGenerationInput,
             a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed
@@ -295,6 +303,7 @@ generation_start_route!(start_blueprint_refinement, "start_blueprint_refinement"
 generation_start_route!(start_outline, "start_outline_generation");
 generation_start_route!(start_portrait, "start_portrait_generation");
 generation_start_route!(start_image, "start_image_generation");
+generation_start_route!(start_director_prompt, "start_visual_plan_prompt_generation");
 generation_start_route!(start_video, "start_video_generation");
 generation_start_route!(start_optimize_chat, "start_optimize_chat_generation");
 generation_start_route!(

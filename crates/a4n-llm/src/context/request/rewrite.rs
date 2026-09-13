@@ -8,30 +8,49 @@ pub fn replace_request_user_content_from_manifest(
     manifest: &LlmContextManifest,
     selected_packs: &[PlannedContextPack],
 ) -> Result<(), AppError> {
-    let non_system_count = request
+    let user_index = request
         .messages
         .iter()
-        .filter(|message| !matches!(message.role, MessageRole::System))
-        .count();
-    let has_non_user_message = request
+        .position(|message| !matches!(message.role, MessageRole::System))
+        .unwrap_or(request.messages.len());
+    if request
         .messages
-        .iter()
-        .any(|message| !matches!(message.role, MessageRole::System | MessageRole::User));
-    if non_system_count > 1 || has_non_user_message {
+        .get(user_index)
+        .is_some_and(|message| !matches!(message.role, MessageRole::User))
+    {
         return Err(AppError::InvalidArgument(
-            "LLM 上下文 manifest 只能重写 system + 单 user 结构的请求".to_string(),
+            "LLM 上下文 manifest 只能重写首条 user 消息，不能覆盖 assistant 或 tool 历史"
+                .to_string(),
         ));
     }
-    let (user_content, stable_prefix_len) =
+    let (user_content, stable_prefix_lens) =
         render_context_manifest_user_content_with_cache_boundary(manifest, selected_packs)?;
-    let mut messages: Vec<ChatMessage> = request
-        .messages
-        .iter()
-        .filter(|message| matches!(message.role, MessageRole::System))
-        .cloned()
-        .collect();
-    messages.push(ChatMessage::user(user_content));
-    request.messages = messages;
-    request.cache_user_prefix_len = stable_prefix_len;
+    // The manifest owns the first user message only. Immutable observations
+    // and later conversation messages remain byte-for-byte intact.
+    if user_index == request.messages.len() {
+        request.messages.push(ChatMessage::user(user_content));
+    } else {
+        request.messages[user_index].content = user_content;
+    }
+    request
+        .cache_breakpoints
+        .retain(|point| point.message_index != user_index);
+    request.cache_user_prefix_len = None;
+    for boundary in stable_prefix_lens {
+        request.add_cache_breakpoint(user_index, boundary)?;
+    }
     Ok(())
+}
+
+pub fn context_manifest_dynamic_messages(
+    request: &ChatRequest,
+    manifest: &LlmContextManifest,
+) -> Result<Vec<ChatMessage>, AppError> {
+    let mut preview = request.clone();
+    replace_request_user_content_from_manifest(&mut preview, manifest, &[])?;
+    Ok(preview
+        .messages
+        .into_iter()
+        .filter(|message| !matches!(message.role, MessageRole::System))
+        .collect())
 }

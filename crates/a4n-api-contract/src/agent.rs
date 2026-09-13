@@ -84,6 +84,11 @@ pub const CANVAS_AGENT_TOOLS: &[&str] = &[
     "wait_workflow_run",
 ];
 pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
+    "list_images_by_projects",
+    "preview_visual_plan_point_generation",
+    "read_visual_plan_prompt_candidate",
+    "start_visual_plan_prompt_generation",
+    "start_image_generation",
     "inspect_editor_target",
     "read_editor_draft",
     "save_editor_draft",
@@ -1099,11 +1104,11 @@ pub enum AgentEditorResponse {
     },
     Draft {
         editor_revision: String,
-        plan: crate::chapter_visual_plan::ChapterVisualPlanV2,
+        plan: crate::chapter_visual_plan::ChapterVisualPlanV3,
     },
     SaveDraft {
         state: AgentEditorState,
-        plan: crate::chapter_visual_plan::ChapterVisualPlanV2,
+        plan: crate::chapter_visual_plan::ChapterVisualPlanV3,
     },
     ReadyToWrite {
         state: AgentEditorState,

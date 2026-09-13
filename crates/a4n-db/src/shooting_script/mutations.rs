@@ -29,6 +29,18 @@ where
     validate_visual_plan_identity(&input.visual_plan)?;
     validate_workflow_run_id(input.workflow_run_id)?;
     validate_script_visual_plan_identity(&input.script, &input.visual_plan)?;
+    validate_director_constraints(
+        db,
+        (
+            input.source.root_project_id,
+            input.source.source_chapter_id,
+            input.source.source_snapshot_id,
+            input.source.source_snapshot_chapter_id,
+        ),
+        &input.visual_plan,
+        &input.script,
+    )
+    .await?;
     let (script_json, script_sha256) = serialize_script(&input.script)?;
     let now = Utc::now().naive_utc();
     let record = chapter_shooting_script::ActiveModel {
@@ -83,6 +95,18 @@ where
             record_id: input.record_id,
             expected_revision: input.expected_revision,
         })?;
+    validate_director_constraints(
+        db,
+        (
+            current.root_project_id,
+            current.source_chapter_id,
+            current.source_snapshot_id,
+            current.source_snapshot_chapter_id,
+        ),
+        &input.visual_plan,
+        &input.script,
+    )
+    .await?;
     if current.script_sha256 == script_sha256
         && current.input_fingerprint_sha256 == input.input_fingerprint_sha256
         && current.visual_plan_id == Some(input.visual_plan.id)
@@ -154,4 +178,37 @@ fn validate_visual_plan_identity(
         ));
     }
     validate_sha256(&identity.sha256, "visual_plan_sha256")
+}
+
+async fn validate_director_constraints<C: ConnectionTrait>(
+    db: &C,
+    source: (i64, i64, Option<i64>, Option<i64>),
+    identity: &super::contracts::ChapterVisualPlanIdentity,
+    script: &a4n_domain::shooting_script::ChapterShootingScriptV1,
+) -> Result<(), ShootingScriptDbError> {
+    let plan = crate::chapter_visual_plan::chapter_visual_plan_by_id(db, identity.id)
+        .await
+        .map_err(|error| match error {
+            crate::chapter_visual_plan::ChapterVisualPlanDbError::Database(error) => {
+                ShootingScriptDbError::Database(error)
+            }
+            error => ShootingScriptDbError::InvalidArgument(error.to_string()),
+        })?;
+    if (
+        plan.record.root_project_id,
+        plan.record.source_chapter_id,
+        plan.record.source_snapshot_id,
+        plan.record.source_snapshot_chapter_id,
+    ) != source
+        || plan.status != a4n_domain::chapter_visual_plan::ChapterVisualPlanStatus::Confirmed
+        || plan.record.plan_version != identity.version
+        || plan.record.plan_sha256 != identity.sha256
+    {
+        return Err(ShootingScriptDbError::InvalidArgument(
+            "导演方案与拍摄剧本来源不一致".into(),
+        ));
+    }
+    script
+        .validate_director_plan(&plan.plan)
+        .map_err(|error| ShootingScriptDbError::InvalidArgument(error.to_string()))
 }

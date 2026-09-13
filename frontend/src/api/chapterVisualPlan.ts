@@ -1,85 +1,75 @@
 import { apiInvoke } from "./index";
+import { generationClient } from "./generationTasks";
+import { normalizeImageConfigId } from "./image/configs";
 import type {
-  ChapterVisualPlanSetView,
-  ChapterVisualPlanV2,
-  ChapterVisualPlanView,
-  ConfirmedChapterVisualPlanView,
-  SaveChapterVisualPlanDraftInput,
+  ChapterVisualPlanSetView, ChapterVisualPlanV3, ChapterVisualPlanView,
+  ConfirmedChapterVisualPlanView, ChapterVisualPlanEditResult,
+  ChapterVisualPlanValidationResult, VisualPlanEditOperation,
+  VisualPlanPointGenerationOptions, VisualPlanPointGenerationPreview,
+  StartVisualPlanPromptGenerationInput, VisualPlanPromptCandidate,
 } from "./generated/host";
+import type { GenerationTaskHandle } from "./generated/generationContracts";
 
 export type {
-  ChapterVisualPlanSetView,
-  ChapterVisualPlanV2,
-  ChapterVisualPlanView,
-  VisualCameraEventKindV1,
-  VisualCameraEventV2,
-  VisualCameraStateV1,
-  VisualEntityEventKindV1,
-  VisualEntityEventV2,
-  VisualEntityKindV1,
-  VisualEntityStateV1,
-  VisualFacingV1,
-  VisualEntityV2,
-  VisualFrameV2,
-  VisualInterpolationV1,
-  VisualKeyframeV2,
-  VisualRelationKindV1,
-  VisualShotV2,
-  VisualSceneV2,
-  VisualSoundEventKindV1,
-  VisualSoundEventV2,
-  VisualTechniqueKindV1,
-  VisualTechniqueEventV2,
+  ChapterVisualPlanSetView, ChapterVisualPlanV3, ChapterVisualPlanView,
+  VisualFrameV3, VisualPointV3, VisualSegmentV3, SceneBindingV3,
+  VisualPlanEditOperation, VisualPlanDiagnostic, VisualPlanPointGenerationPreview,
+  VisualPlanPromptCandidate,
 } from "./generated/host";
 
 const sourceInput = (projectId: number, sourceChapterId: number) => ({
-  project_id: projectId,
-  source_chapter_id: sourceChapterId,
+  project_id: projectId, source_chapter_id: sourceChapterId,
 });
 
 export const getChapterVisualPlan = (projectId: number, sourceChapterId: number) =>
-  apiInvoke<ChapterVisualPlanSetView>("get_chapter_visual_plan", {
-    input: sourceInput(projectId, sourceChapterId),
-  });
+  apiInvoke<ChapterVisualPlanSetView>("get_chapter_visual_plan", { input: sourceInput(projectId, sourceChapterId) });
 
 export const saveChapterVisualPlanDraft = (
-  projectId: number,
-  sourceChapterId: number,
-  current: ChapterVisualPlanView | null,
-  plan: ChapterVisualPlanV2,
-) =>
-  apiInvoke<ChapterVisualPlanView>("save_chapter_visual_plan_draft", {
-    input: {
-      ...sourceInput(projectId, sourceChapterId),
-      authoring_mode: "collaborative",
-      record_id: current?.record.id ?? null,
-      expected_revision: current?.record.revision ?? null,
-      plan,
-    } satisfies SaveChapterVisualPlanDraftInput,
-  });
+  projectId: number, sourceChapterId: number, current: ChapterVisualPlanView | null, plan: ChapterVisualPlanV3,
+) => apiInvoke<ChapterVisualPlanView>("save_chapter_visual_plan_draft", {
+  input: { ...sourceInput(projectId, sourceChapterId), authoring_mode: "collaborative",
+    record_id: current?.record.id ?? null, expected_revision: current?.record.revision ?? null, plan },
+});
+
+export const editChapterVisualPlanDraft = (
+  projectId: number, sourceChapterId: number, current: ChapterVisualPlanView, operation: VisualPlanEditOperation,
+) => apiInvoke<ChapterVisualPlanEditResult>("edit_chapter_visual_plan_draft", {
+  input: { ...sourceInput(projectId, sourceChapterId), record_id: current.record.id,
+    expected_revision: current.record.revision, operation },
+});
+
+export const validateChapterVisualPlan = (
+  projectId: number, sourceChapterId: number, current: ChapterVisualPlanView,
+) => apiInvoke<ChapterVisualPlanValidationResult>("validate_chapter_visual_plan", {
+  input: { ...sourceInput(projectId, sourceChapterId), record_id: current.record.id,
+    expected_revision: current.record.revision, mode: "confirmed" },
+});
 
 export const confirmChapterVisualPlan = (
-  projectId: number,
-  sourceChapterId: number,
-  current: ChapterVisualPlanView,
-) =>
-  apiInvoke<ConfirmedChapterVisualPlanView>("confirm_chapter_visual_plan", {
-    input: {
-      ...sourceInput(projectId, sourceChapterId),
-      record_id: current.record.id,
-      expected_revision: current.record.revision,
-    },
-  });
+  projectId: number, sourceChapterId: number, current: ChapterVisualPlanView,
+) => apiInvoke<ConfirmedChapterVisualPlanView>("confirm_chapter_visual_plan", {
+  input: { ...sourceInput(projectId, sourceChapterId), record_id: current.record.id,
+    expected_revision: current.record.revision },
+});
 
 export const discardChapterVisualPlanDraft = (
-  projectId: number,
-  sourceChapterId: number,
-  current: ChapterVisualPlanView,
-) =>
-  apiInvoke<void>("discard_chapter_visual_plan_draft", {
-    input: {
-      ...sourceInput(projectId, sourceChapterId),
-      record_id: current.record.id,
-      expected_revision: current.record.revision,
-    },
+  projectId: number, sourceChapterId: number, current: ChapterVisualPlanView,
+) => apiInvoke<void>("discard_chapter_visual_plan_draft", {
+  input: { ...sourceInput(projectId, sourceChapterId), record_id: current.record.id,
+    expected_revision: current.record.revision },
+});
+
+export const previewVisualPlanPointGeneration = (projectId: number, options: VisualPlanPointGenerationOptions) =>
+  apiInvoke<VisualPlanPointGenerationPreview>("preview_visual_plan_point_generation", {
+    input: { project_id: projectId, options: { ...options, config_id: normalizeImageConfigId(options.config_id) } },
+  });
+
+export const startVisualPlanPromptGeneration = (input: Omit<StartVisualPlanPromptGenerationInput, "meta">) =>
+  generationClient.start((meta) => apiInvoke<GenerationTaskHandle>("start_visual_plan_prompt_generation", {
+    input: { ...input, meta },
+  }));
+
+export const readVisualPlanPromptCandidate = (projectId: number, generationRunId: number) =>
+  apiInvoke<VisualPlanPromptCandidate>("read_visual_plan_prompt_candidate", {
+    input: { project_id: projectId, generation_run_id: generationRunId },
   });

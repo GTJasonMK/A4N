@@ -4,23 +4,29 @@ import { useI18n } from '../../i18n';
 
 export type ToastType = 'success' | 'error' | 'info';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   message: string;
   type: ToastType;
+  action?: ToastAction;
 }
 
 interface ToastStore {
   toasts: Toast[];
-  addToast: (message: string, type: ToastType) => void;
+  addToast: (message: string, type: ToastType, action?: ToastAction) => void;
   removeToast: (id: string) => void;
 }
 
 export const useToast = create<ToastStore>((set) => ({
   toasts: [],
-  addToast: (message, type) => {
+  addToast: (message, type, action) => {
     const id = Math.random().toString(36).substring(2, 9);
-    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+    set((state) => ({ toasts: [...state.toasts, { id, message, type, action }] }));
     setTimeout(() => {
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
     }, 3000);
@@ -57,6 +63,19 @@ export function ToastContainer() {
             <p className="min-w-0 flex-1 break-words text-xs leading-relaxed text-book-text-main [overflow-wrap:anywhere]">
               {toast.message}
             </p>
+            {toast.action && (
+              <button
+                type="button"
+                className="shrink-0 self-center rounded-md px-1.5 py-1 text-xs font-medium text-book-primary transition-colors hover:bg-book-bg-tertiary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-book-primary"
+                onClick={() => {
+                  const action = toast.action;
+                  removeToast(toast.id);
+                  action?.onClick();
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
             <button
               type="button"
               aria-label={t("feedback.closeToast")}

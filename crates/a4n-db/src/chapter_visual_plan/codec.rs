@@ -1,7 +1,7 @@
 use a4n_db_models::models::chapter::chapter_visual_plan;
 use a4n_domain::chapter_visual_plan::{
-    CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus,
-    ChapterVisualPlanV2,
+    CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus,
+    ChapterVisualPlanV3,
 };
 
 use super::contracts::{ChapterVisualPlanDbError, ParsedChapterVisualPlan};
@@ -9,7 +9,7 @@ use super::contracts::{ChapterVisualPlanDbError, ParsedChapterVisualPlan};
 pub(super) fn parse_record(
     record: chapter_visual_plan::Model,
 ) -> Result<ParsedChapterVisualPlan, ChapterVisualPlanDbError> {
-    if record.contract_version != CHAPTER_VISUAL_PLAN_V2 {
+    if record.contract_version != CHAPTER_VISUAL_PLAN_V3 {
         return Err(ChapterVisualPlanDbError::InvalidState(format!(
             "章节视觉编排 {} 使用不受支持的合同版本: {}",
             record.id, record.contract_version
@@ -26,7 +26,7 @@ pub(super) fn parse_record(
     validate_sha256(&record.plan_sha256, "plan_sha256")?;
     let status = parse_status(&record.status)?;
     let authoring_mode = parse_authoring_mode(&record.authoring_mode)?;
-    let plan: ChapterVisualPlanV2 =
+    let plan: ChapterVisualPlanV3 =
         serde_json::from_value(record.plan_json.clone()).map_err(|error| {
             ChapterVisualPlanDbError::InvalidState(format!(
                 "解析章节视觉编排 {} 失败: {error}",
@@ -62,7 +62,7 @@ pub(super) fn parse_record(
 }
 
 pub(super) fn serialize_plan(
-    plan: &ChapterVisualPlanV2,
+    plan: &ChapterVisualPlanV3,
 ) -> Result<(serde_json::Value, String), ChapterVisualPlanDbError> {
     let plan_json = plan
         .canonical_json()

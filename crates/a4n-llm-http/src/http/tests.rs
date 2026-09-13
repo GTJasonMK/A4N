@@ -17,13 +17,49 @@ fn parse_data_line(line: &str) -> Result<ChatChunk, AppError> {
     }
 }
 
-fn request_body_json(request: reqwest::RequestBuilder) -> Value {
+fn request_body_json(request: Result<reqwest::RequestBuilder, AppError>) -> Value {
+    let request = request.expect("valid request");
     let request = request.build().expect("request should build");
     let body = request
         .body()
         .and_then(reqwest::Body::as_bytes)
         .expect("request should have an in-memory JSON body");
     serde_json::from_slice(body).expect("request body should be JSON")
+}
+
+#[test]
+fn native_agent_initial_request_keeps_implicit_cache_on_the_wire() {
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test/v1", "gpt-5.6-luna", None, 30);
+    let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
+    request.cache_system_prefix = true;
+    request
+        .configure_prompt_cache("openai", "gpt-5.6-luna", None, Some(7))
+        .unwrap();
+    let body = request_body_json(provider.build_request(&request, true));
+    assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
+    assert_eq!(body["messages"][1]["content"], "initial task");
+}
+
+#[test]
+fn provider_factory_rejects_foreign_cache_options_before_http_dispatch() {
+    for provider in ["gemini", "anthropic", "deepseek"] {
+        let error = super::pick_llm_provider(
+            provider,
+            "https://example.test".into(),
+            "alias".into(),
+            None,
+            30,
+            Some(json!({"prompt_cache_options": {"mode": "explicit"}})),
+            ModelCapabilities {
+                max_context_tokens: 4096,
+                max_output_tokens: 1024,
+            },
+        )
+        .err()
+        .expect("foreign cache options must be rejected");
+        assert!(error.to_string().contains("仅适用于 OpenAI"));
+    }
 }
 
 #[test]
@@ -408,7 +444,11 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["prompt_cache_key"], json!("a4n:workflow_run:299"));
-    assert_eq!(body["messages"][0]["content"], "stable session");
+    assert_eq!(body["messages"][0]["content"][0]["text"], "stable session");
+    assert_eq!(
+        body["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
     assert_eq!(
         body["messages"][1]["content"][0]["text"],
         "stable shared context"
@@ -448,7 +488,11 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
         body["messages"][1]["content"][1]["text"],
         "\n\n[当前任务]\npage 2"
     );
-    assert_eq!(body["messages"][0]["content"], "stable session");
+    assert_eq!(body["messages"][0]["content"][0]["text"], "stable session");
+    assert_eq!(
+        body["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
 }
 
 #[test]

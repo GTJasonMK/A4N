@@ -47,6 +47,8 @@ struct GenerationContractBundle {
     start_outline_generation: StartOutlineGenerationInput,
     start_portrait_generation: StartPortraitGenerationInput,
     start_image_generation: StartImageGenerationInput,
+    start_visual_plan_prompt_generation:
+        a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
     start_video_generation: StartVideoGenerationInput,
 }
 
