@@ -79,11 +79,6 @@ pub trait OutlineGenerationApplicationPort: Send + Sync {
 /// request steps; outline validation and prompt construction stay here.
 #[async_trait::async_trait]
 pub trait OutlinePreviewApplicationPort: Send + Sync {
-    async fn preview_batch_generate_part_outlines(
-        &self,
-        input: BatchGeneratePartOutlinesInput,
-    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
-
     async fn preview_generate_chapter_outlines_by_count(
         &self,
         input: GenerateChapterOutlinesByCountInput,
@@ -98,6 +93,15 @@ pub trait OutlinePreviewApplicationPort: Send + Sync {
         &self,
         input: ApplyBeatMappingInput,
     ) -> Result<ChatRequest, AppError>;
+}
+
+/// Host-facing boundary for batch part/chapter outline generation previews.
+#[async_trait::async_trait]
+pub trait OutlineBatchPartGenerationPreviewApplicationPort: Send + Sync {
+    async fn preview_batch_generate_part_outlines(
+        &self,
+        input: BatchGeneratePartOutlinesInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
 }
 
 /// Host-facing boundary for chapter generation within one part previews.

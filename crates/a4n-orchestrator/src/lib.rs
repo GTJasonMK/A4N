@@ -64,6 +64,7 @@ pub use context::generation::{
     GenerationTaskMutationApplicationPort, GenerationTaskReadApplicationPort,
 };
 pub use outline::{
+    OutlineBatchPartGenerationPreviewApplicationPort,
     OutlinePartChapterGenerationPreviewApplicationPort,
     OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
     OutlinePreviewApplicationPort,
