@@ -866,9 +866,54 @@ if rg -U -n 'state\s*\.\s*orchestrator\(\)|OrchestratorContext|a4n_db_models::mo
     exit 1
 fi
 
-if ! rg -U -n 'generation_application\(\)\s*\.\s*reset_project_generated_data_validated' \
+if ! rg -U -n 'generation_lifecycle_application\(\)\s*\.\s*reset_project_generated_data_validated' \
     crates/a4n-runtime/src/actions/generation_tasks/destructive_lifecycle.rs; then
-    printf 'Runtime project generated-data reset must route through GenerationApplicationPort\n' >&2
+    printf 'Runtime project generated-data reset must route through GenerationLifecycleApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait GenerationTaskReadApplicationPort' \
+    crates/a4n-orchestrator/src/context/generation.rs || \
+   ! rg -n 'pub trait GenerationTaskMutationApplicationPort' \
+    crates/a4n-orchestrator/src/context/generation.rs || \
+   ! rg -n 'pub trait GenerationLifecycleApplicationPort' \
+    crates/a4n-orchestrator/src/context/generation.rs || \
+   ! rg -n 'pub trait GenerationCleanupApplicationPort' \
+    crates/a4n-orchestrator/src/context/generation.rs; then
+    printf 'Generation task/lifecycle/cleanup contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n '(^|[^A-Za-z])GenerationApplicationPort($|[^A-Za-z])|(^|[^A-Za-z_])generation_application\(\)' \
+    crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed GenerationApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'generation_task_read_application\(\)' \
+    crates/a4n-runtime/src/actions/generation_tasks/mod.rs \
+    crates/a4n-runtime/src/actions/portrait_generation/application.rs; then
+    printf 'Runtime generation task reads must route through GenerationTaskReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'generation_task_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/generation_tasks/mod.rs \
+    crates/a4n-runtime/src/actions/blueprint_records/generation.rs \
+    crates/a4n-runtime/src/actions/blueprint_records/refinement.rs; then
+    printf 'Runtime generation task mutations must route through GenerationTaskMutationApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'generation_lifecycle_application\(\)' \
+    crates/a4n-runtime/src/actions/generation_tasks/destructive_lifecycle.rs; then
+    printf 'Runtime generation lifecycle must route through GenerationLifecycleApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'generation_cleanup_application\(\)' \
+    crates/a4n-runtime/src/cleanup_outbox/worker.rs; then
+    printf 'Runtime generation retention must route through GenerationCleanupApplicationPort\n' >&2
     exit 1
 fi
 

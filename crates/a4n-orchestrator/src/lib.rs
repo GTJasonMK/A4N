@@ -58,8 +58,9 @@ pub use cleanup_outbox::CleanupOutboxApplicationPort;
 pub use context::OrchestratorContext;
 pub(crate) use context::generation::GenerationTaskStart;
 pub use context::generation::{
-    AuthorizedGenerationTask, GenerationApplicationPort, GenerationTaskAccessError,
-    GenerationTaskHistorySummaries,
+    AuthorizedGenerationTask, GenerationCleanupApplicationPort, GenerationLifecycleApplicationPort,
+    GenerationTaskAccessError, GenerationTaskHistorySummaries,
+    GenerationTaskMutationApplicationPort, GenerationTaskReadApplicationPort,
 };
 pub use outline::OutlinePreviewApplicationPort;
 pub use profile_material::ProfileMaterialUploadApplicationPort;

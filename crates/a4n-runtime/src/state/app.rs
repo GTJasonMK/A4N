@@ -35,9 +35,13 @@ pub struct AppState {
     /// Process-local task handles and snapshots are owned by a4n-task-runtime.
     /// The same instance is injected into the orchestrator for workflow code.
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
-    /// Generation task access and lifecycle coordination stay behind one
-    /// application boundary; Runtime only routes Host actions and workers.
-    generation_application: Arc<dyn a4n_orchestrator::GenerationApplicationPort>,
+    /// Generation task queries and subscriptions stay behind a narrow read
+    /// boundary.
+    generation_task_read_application: Arc<dyn a4n_orchestrator::GenerationTaskReadApplicationPort>,
+    generation_task_mutation_application:
+        Arc<dyn a4n_orchestrator::GenerationTaskMutationApplicationPort>,
+    generation_lifecycle_application: Arc<dyn a4n_orchestrator::GenerationLifecycleApplicationPort>,
+    generation_cleanup_application: Arc<dyn a4n_orchestrator::GenerationCleanupApplicationPort>,
     /// Source-sync preview authorization and projection stay in the
     /// source-sync owner.
     source_sync_read_application:
@@ -1956,10 +1960,28 @@ impl AppState {
         self.task_manager.as_ref()
     }
 
-    pub(crate) fn generation_application(
+    pub(crate) fn generation_task_read_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationApplicationPort {
-        self.generation_application.as_ref()
+    ) -> &dyn a4n_orchestrator::GenerationTaskReadApplicationPort {
+        self.generation_task_read_application.as_ref()
+    }
+
+    pub(crate) fn generation_task_mutation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::GenerationTaskMutationApplicationPort {
+        self.generation_task_mutation_application.as_ref()
+    }
+
+    pub(crate) fn generation_lifecycle_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::GenerationLifecycleApplicationPort {
+        self.generation_lifecycle_application.as_ref()
+    }
+
+    pub(crate) fn generation_cleanup_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::GenerationCleanupApplicationPort {
+        self.generation_cleanup_application.as_ref()
     }
 
     pub(crate) fn source_sync_read_application(
@@ -2242,7 +2264,10 @@ impl AppState {
         let state = Self {
             config: config.clone(),
             task_manager: task_manager.clone(),
-            generation_application: Arc::new(orchestrator.clone()),
+            generation_task_read_application: Arc::new(orchestrator.clone()),
+            generation_task_mutation_application: Arc::new(orchestrator.clone()),
+            generation_lifecycle_application: Arc::new(orchestrator.clone()),
+            generation_cleanup_application: Arc::new(orchestrator.clone()),
             source_sync_read_application: Arc::new(orchestrator.clone()),
             source_sync_mutation_application: Arc::new(orchestrator.clone()),
             shooting_script_record_read_application: Arc::new(orchestrator.clone()),

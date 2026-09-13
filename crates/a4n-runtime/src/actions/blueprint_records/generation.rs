@@ -58,7 +58,7 @@ pub async fn resume_blueprint_generation_workflow(
         .await
     {
         let cleanup = state
-            .generation_application()
+            .generation_task_mutation_application()
             .request_generation_cancel(user_id, &start.handle.task_id, start.handle.attempt)
             .await;
         return Err(match cleanup {
