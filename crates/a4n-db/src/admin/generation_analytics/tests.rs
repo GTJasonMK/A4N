@@ -202,6 +202,20 @@ fn analytics_uses_input_totals_and_preserves_unknown_cache_data() {
         result.recent_llm_calls[0].prompt_cache_write_tokens,
         Some(400)
     );
+    let mut unknown_input = call.clone();
+    unknown_input.prompt_tokens = None;
+    unknown_input.total_tokens = None;
+    let mixed = summarize(vec![call.clone(), unknown_input]);
+    assert_eq!(
+        mixed
+            .overview
+            .iter()
+            .find(|row| row.kind == "llm")
+            .unwrap()
+            .prompt_cache_hit_ratio,
+        None
+    );
+    assert_eq!(mixed.llm_by_workflow[0].prompt_cache_hit_ratio, None);
     call.prompt_cache_hit_tokens = None;
     call.prompt_cache_write_tokens = None;
     let result = summarize(vec![call]);
