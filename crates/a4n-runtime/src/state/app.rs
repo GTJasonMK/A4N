@@ -366,9 +366,11 @@ pub struct AppState {
     /// Canvas output node owner. Runtime supplies only node identity and the
     /// shared workflow snapshot.
     canvas_output_application: Arc<dyn a4n_canvas_contract::CanvasOutputNodeApplicationPort>,
-    /// Canvas media import owner. Runtime supplies upload/file adapters and
-    /// receives API summaries only.
-    canvas_media_import_application: Arc<dyn a4n_canvas_contract::CanvasMediaImportApplicationPort>,
+    /// Canvas media import workers own one media kind each. Runtime supplies
+    /// upload/file adapters and receives API summaries only.
+    canvas_image_import_application: Arc<dyn a4n_canvas_contract::CanvasImageImportApplicationPort>,
+    canvas_video_import_application: Arc<dyn a4n_canvas_contract::CanvasVideoImportApplicationPort>,
+    canvas_audio_import_application: Arc<dyn a4n_canvas_contract::CanvasAudioImportApplicationPort>,
     /// Canvas graph workflow preparation and terminal transition owner.
     canvas_graph_execution_application:
         Arc<dyn a4n_canvas_contract::CanvasGraphExecutionApplicationPort>,
@@ -1961,10 +1963,22 @@ impl AppState {
         self.canvas_output_application.as_ref()
     }
 
-    pub(crate) fn canvas_media_import_application(
+    pub(crate) fn canvas_image_import_application(
         &self,
-    ) -> &dyn a4n_canvas_contract::CanvasMediaImportApplicationPort {
-        self.canvas_media_import_application.as_ref()
+    ) -> &dyn a4n_canvas_contract::CanvasImageImportApplicationPort {
+        self.canvas_image_import_application.as_ref()
+    }
+
+    pub(crate) fn canvas_video_import_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasVideoImportApplicationPort {
+        self.canvas_video_import_application.as_ref()
+    }
+
+    pub(crate) fn canvas_audio_import_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasAudioImportApplicationPort {
+        self.canvas_audio_import_application.as_ref()
     }
 
     pub(crate) fn canvas_graph_execution_application(
@@ -2841,7 +2855,9 @@ impl AppState {
             canvas_editing_application: Arc::new(orchestrator.clone()),
             canvas_probe_application: Arc::new(orchestrator.clone()),
             canvas_output_application: Arc::new(orchestrator.clone()),
-            canvas_media_import_application: Arc::new(orchestrator.clone()),
+            canvas_image_import_application: Arc::new(orchestrator.clone()),
+            canvas_video_import_application: Arc::new(orchestrator.clone()),
+            canvas_audio_import_application: Arc::new(orchestrator.clone()),
             canvas_graph_execution_application: Arc::new(orchestrator.clone()),
             package_read_application,
             package_mutation_application,

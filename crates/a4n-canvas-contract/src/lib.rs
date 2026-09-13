@@ -223,26 +223,31 @@ pub struct CanvasVideoImportApplicationResult {
     pub asset: a4n_api_contract::canvas::CanvasMediaAssetSummary,
 }
 
-/// Host-facing Canvas media import boundary.
-///
-/// Canvas owns authorization, media-asset registration and compensation;
-/// Runtime supplies only upload/file adapters and receives API summaries.
+/// Host-facing Canvas image import boundary.
 #[async_trait]
-pub trait CanvasMediaImportApplicationPort: Send + Sync {
+pub trait CanvasImageImportApplicationPort: Send + Sync {
     async fn import_image(
         &self,
         host_port: &dyn CanvasImageImportHostPort,
         user_id: i64,
         input: CanvasImageImportHostInput,
     ) -> Result<CanvasImageImportApplicationResult, AppError>;
+}
 
+/// Host-facing Canvas video import boundary.
+#[async_trait]
+pub trait CanvasVideoImportApplicationPort: Send + Sync {
     async fn import_video(
         &self,
         host_port: &dyn CanvasVideoImportHostPort,
         user_id: i64,
         input: CanvasVideoImportHostInput,
     ) -> Result<CanvasVideoImportApplicationResult, AppError>;
+}
 
+/// Host-facing Canvas audio import boundary.
+#[async_trait]
+pub trait CanvasAudioImportApplicationPort: Send + Sync {
     async fn import_audio(
         &self,
         user_id: i64,

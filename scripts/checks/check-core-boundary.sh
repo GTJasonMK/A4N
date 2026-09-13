@@ -750,16 +750,26 @@ if ! rg -n 'pub trait CanvasGraphExecutionApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'pub trait CanvasMediaImportApplicationPort' \
+if ! rg -n 'pub trait Canvas(Image|Video|Audio)ImportApplicationPort' \
     crates/a4n-canvas-contract/src/lib.rs; then
-    printf 'CanvasMediaImportApplicationPort contract is missing\n' >&2
+    printf 'Canvas image/video/audio import contracts are missing\n' >&2
     exit 1
 fi
 
-if rg -n 'a4n_orchestrator::canvas::CanvasMediaImportApplicationPort' \
+if rg -n 'canvas_media_import_application\(\)|CanvasMediaImportApplicationPort' \
     crates/a4n-runtime/src/actions/canvas_workflow/media_import \
     crates/a4n-runtime/src/state/app.rs; then
-    printf 'Canvas media import consumers must use a4n-canvas-contract directly\n' >&2
+    printf 'Canvas media import consumers must use media-kind-specific contracts\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'canvas_image_import_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/media_import/image.rs || \
+   ! rg -n 'canvas_video_import_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/media_import/video.rs || \
+   ! rg -n 'canvas_audio_import_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/media_import/audio.rs; then
+    printf 'Canvas media import actions must route through media-kind-specific contracts\n' >&2
     exit 1
 fi
 
@@ -982,7 +992,7 @@ if ! rg -n 'image_import_publication_application\(\)' \
     printf 'Image publication must route through ImageImportPublicationApplicationPort\n' >&2
     exit 1
 fi
-if rg -n 'image_import_application\(\)' crates/a4n-runtime/src; then
+if rg -n '\.image_import_application\(\)' crates/a4n-runtime/src; then
     printf 'Runtime image import must not use the mixed ImageImportApplicationPort\n' >&2
     exit 1
 fi
