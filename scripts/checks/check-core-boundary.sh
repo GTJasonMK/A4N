@@ -1255,22 +1255,31 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext|actions::config_records::s
     crates/a4n-runtime/src/actions/config_records/video/records.rs \
     crates/a4n-runtime/src/actions/config_records/embedding/records.rs \
     crates/a4n-runtime/src/actions/config_records/discovery.rs; then
-    printf 'Runtime config CRUD actions must consume ConfigApplicationPort instead of the concrete orchestrator or duplicate authorization\n' >&2
+    printf 'Runtime config CRUD actions must consume split configuration ports instead of the concrete orchestrator or duplicate authorization\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait ConfigApplicationPort' crates/a4n-api-contract/src/config.rs; then
-    printf 'ConfigApplicationPort contract is missing\n' >&2
+if rg -n '(^|[^A-Za-z])ConfigApplicationPort($|[^A-Za-z])|config_application\(\)' \
+    crates/a4n-api-contract/src/config.rs \
+    crates/a4n-orchestrator/src \
+    crates/a4n-runtime/src; then
+    printf 'The mixed ConfigApplicationPort must remain removed\n' >&2
     exit 1
 fi
 
-if ! rg -n 'config_application\(\)' \
+if ! rg -n 'pub trait Config(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/config.rs; then
+    printf 'Split configuration application contracts are missing\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'config_(read|mutation)_application\(\)' \
     crates/a4n-runtime/src/actions/config_records/llm/records \
     crates/a4n-runtime/src/actions/config_records/image/records.rs \
     crates/a4n-runtime/src/actions/config_records/video/records.rs \
     crates/a4n-runtime/src/actions/config_records/embedding/records.rs \
     crates/a4n-runtime/src/actions/config_records/discovery.rs; then
-    printf 'Runtime config CRUD actions must route through ConfigApplicationPort\n' >&2
+    printf 'Runtime config CRUD actions must route through split configuration ports\n' >&2
     exit 1
 fi
 
@@ -1283,8 +1292,8 @@ for connectivity_file in \
             "$connectivity_file" >&2
         exit 1
     fi
-    if ! rg -n 'config_application\(\)' "$connectivity_file"; then
-        printf '%s must resolve persisted provider config through ConfigApplicationPort\n' \
+    if ! rg -n 'config_read_application\(\)' "$connectivity_file"; then
+        printf '%s must resolve persisted provider config through ConfigReadApplicationPort\n' \
             "$connectivity_file" >&2
         exit 1
     fi

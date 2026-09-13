@@ -8,7 +8,7 @@ pub async fn list_embedding_config(
     state: &AppState,
 ) -> Result<Vec<EmbeddingConfigSummary>, String> {
     state
-        .config_application()
+        .config_read_application()
         .list_embedding()
         .await
         .map_err(|error| error.to_string())
@@ -20,7 +20,7 @@ pub async fn create_embedding_config(
     input: CreateEmbeddingInput,
 ) -> Result<EmbeddingConfigSummary, AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .create_embedding(caller_user_id, input)
         .await
 }
@@ -32,7 +32,7 @@ pub async fn update_embedding_config(
     input: UpdateEmbeddingInput,
 ) -> Result<EmbeddingConfigSummary, AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .update_embedding(caller_user_id, config_id, input)
         .await
 }
@@ -43,7 +43,7 @@ pub async fn set_default_embedding_config(
     config_id: i64,
 ) -> Result<(), AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .set_default_embedding(caller_user_id, config_id)
         .await
 }
@@ -54,7 +54,7 @@ pub async fn delete_embedding_config(
     config_id: i64,
 ) -> Result<(), AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .delete_embedding(caller_user_id, config_id)
         .await
 }
