@@ -810,8 +810,13 @@ if ! rg -n 'project_duplication_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ProjectDuplicationApplicationPort' \
-    crates/a4n-orchestrator/src/project/duplication.rs; then
-    printf 'ProjectDuplicationApplicationPort contract is missing\n' >&2
+    crates/a4n-api-contract/src/project.rs; then
+    printf 'ProjectDuplicationApplicationPort API contract is missing\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ProjectDuplicationApplicationPort' \
+    crates/a4n-orchestrator/src/project; then
+    printf 'ProjectDuplicationApplicationPort must not be redefined in the orchestrator\n' >&2
     exit 1
 fi
 

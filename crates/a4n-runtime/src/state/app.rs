@@ -83,7 +83,7 @@ pub struct AppState {
     /// Project duplication owner. Runtime supplies only media copy/rollback
     /// adapters and receives the final API summary.
     project_duplication_application:
-        Arc<dyn a4n_orchestrator::project::ProjectDuplicationApplicationPort>,
+        Arc<dyn a4n_api_contract::project::ProjectDuplicationApplicationPort>,
     /// Project-family package transfer owner. Runtime supplies archive/file
     /// adapters and receives summaries rather than ORM records.
     project_family_transfer_application:
@@ -1003,7 +1003,7 @@ impl AppState {
 
     pub(crate) fn project_duplication_application(
         &self,
-    ) -> &dyn a4n_orchestrator::project::ProjectDuplicationApplicationPort {
+    ) -> &dyn a4n_api_contract::project::ProjectDuplicationApplicationPort {
         self.project_duplication_application.as_ref()
     }
 
