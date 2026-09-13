@@ -3044,7 +3044,9 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     exit 1
 fi
 
-if ! rg -n 'import_analysis_application\(\)' \
+if ! rg -n 'import_analysis_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/import_analysis/api.rs || \
+   ! rg -n 'import_analysis_cancellation_application\(\)' \
     crates/a4n-runtime/src/actions/import_analysis/api.rs || \
    ! rg -n 'import_analysis_progress_application\(\)' \
     crates/a4n-runtime/src/actions/import_analysis/api.rs || \
@@ -3065,13 +3067,23 @@ if ! rg -n 'import_review_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ImportAnalysisApplicationPort' \
+if ! rg -n 'pub trait ImportAnalysisGenerationApplicationPort' \
     crates/a4n-orchestrator/src/import_analysis/application.rs || \
    ! rg -n 'pub trait ImportAnalysisPreviewApplicationPort' \
     crates/a4n-orchestrator/src/import_analysis/application.rs || \
    ! rg -n 'pub trait ImportAnalysisProgressApplicationPort' \
     crates/a4n-api-contract/src/import.rs; then
     printf 'Import-analysis application ports are missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait ImportAnalysisCancellationApplicationPort' \
+    crates/a4n-api-contract/src/import.rs; then
+    printf 'Import-analysis cancellation contract is missing\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ImportAnalysisApplicationPort|import_analysis_application\(\)' \
+    crates/a4n-orchestrator/src/import_analysis crates/a4n-api-contract/src/import.rs; then
+    printf 'The mixed ImportAnalysisApplicationPort must remain removed\n' >&2
     exit 1
 fi
 if rg -n 'pub trait ImportAnalysisProgressApplicationPort' \

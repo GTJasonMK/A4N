@@ -40,7 +40,7 @@ pub trait ImportAnalysisPreviewApplicationPort: Send + Sync {
 /// import-analysis application. Runtime supplies only prompt/rendering and
 /// cleanup adapters.
 #[async_trait]
-pub trait ImportAnalysisApplicationPort: Send + Sync {
+pub trait ImportAnalysisGenerationApplicationPort: Send + Sync {
     async fn run(
         &self,
         user_id: i64,
@@ -49,8 +49,6 @@ pub trait ImportAnalysisApplicationPort: Send + Sync {
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<ImportProjectAnalysisSummary, AppError>;
-
-    async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), AppError>;
 }
 
 impl OrchestratorContext {
@@ -235,7 +233,7 @@ impl a4n_api_contract::import::ImportAnalysisProgressApplicationPort for Orchest
 }
 
 #[async_trait]
-impl ImportAnalysisApplicationPort for OrchestratorContext {
+impl ImportAnalysisGenerationApplicationPort for OrchestratorContext {
     async fn run(
         &self,
         user_id: i64,
@@ -258,7 +256,10 @@ impl ImportAnalysisApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl a4n_api_contract::import::ImportAnalysisCancellationApplicationPort for OrchestratorContext {
     async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
         self.verify_project_permission(
             project_id,

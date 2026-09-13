@@ -310,8 +310,11 @@ pub struct AppState {
         Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisPreviewApplicationPort>,
     /// Host-facing import-analysis execution boundary. Runtime supplies only
     /// prompt and cleanup adapters for the long-running analysis workflow.
-    import_analysis_application:
-        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisApplicationPort>,
+    import_analysis_generation_application:
+        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisGenerationApplicationPort>,
+    /// Host-facing import-analysis cancellation boundary.
+    import_analysis_cancellation_application:
+        Arc<dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort>,
     /// Host-facing reverse-engineering boundary.
     import_reverse_application:
         Arc<dyn a4n_orchestrator::import_reverse::ImportReverseApplicationPort>,
@@ -1676,10 +1679,16 @@ impl AppState {
         self.package_mutation_application.as_ref()
     }
 
-    pub(crate) fn import_analysis_application(
+    pub(crate) fn import_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisApplicationPort {
-        self.import_analysis_application.as_ref()
+    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisGenerationApplicationPort {
+        self.import_analysis_generation_application.as_ref()
+    }
+
+    pub(crate) fn import_analysis_cancellation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort {
+        self.import_analysis_cancellation_application.as_ref()
     }
 
     pub(crate) fn import_analysis_progress_application(
@@ -2407,7 +2416,8 @@ impl AppState {
             package_mutation_application,
             import_analysis_progress_application: Arc::new(orchestrator.clone()),
             import_analysis_preview_application: Arc::new(orchestrator.clone()),
-            import_analysis_application: Arc::new(orchestrator.clone()),
+            import_analysis_generation_application: Arc::new(orchestrator.clone()),
+            import_analysis_cancellation_application: Arc::new(orchestrator.clone()),
             import_reverse_application: Arc::new(orchestrator.clone()),
             import_reverse_read_application: Arc::new(orchestrator.clone()),
             chapter_analysis_generation_application: Arc::new(orchestrator.clone()),
