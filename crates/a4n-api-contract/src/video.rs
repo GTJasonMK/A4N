@@ -709,12 +709,9 @@ pub trait CanvasVideoImportApplicationPort: Send + Sync {
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
 }
 
-/// Host-facing video import and trim boundary.
-///
-/// Temporary aggregate for the remaining import/trim workers; each operation
-/// is moved to its focused port independently.
+/// Host-facing video trim boundary.
 #[async_trait::async_trait]
-pub trait VideoImportApplicationPort: Send + Sync {
+pub trait VideoTrimApplicationPort: Send + Sync {
     async fn prepare_trim(
         &self,
         user_id: i64,

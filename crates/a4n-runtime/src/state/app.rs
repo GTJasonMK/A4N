@@ -448,7 +448,7 @@ pub struct AppState {
     /// Host-facing ordinary video-record mutation boundary.
     video_record_mutation_application:
         Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
-    /// Host-facing imported-video and trim boundary.
+    /// Focused video import and trim worker boundaries.
     video_chapter_import_application:
         Arc<dyn a4n_api_contract::video::ChapterVideoImportApplicationPort>,
     video_reference_media_import_application:
@@ -457,7 +457,7 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::video::AssemblyVideoImportApplicationPort>,
     video_canvas_import_application:
         Arc<dyn a4n_api_contract::video::CanvasVideoImportApplicationPort>,
-    video_import_application: Arc<dyn a4n_api_contract::video::VideoImportApplicationPort>,
+    video_trim_application: Arc<dyn a4n_api_contract::video::VideoTrimApplicationPort>,
     /// Host-facing Assembly planning and push boundary.
     video_assembly_application: Arc<dyn a4n_api_contract::video::VideoAssemblyApplicationPort>,
     /// Host-facing video completion and cleanup lifecycle boundary.
@@ -2162,12 +2162,6 @@ impl AppState {
         self.video_record_mutation_application.as_ref()
     }
 
-    pub(crate) fn video_import_application(
-        &self,
-    ) -> &dyn a4n_api_contract::video::VideoImportApplicationPort {
-        self.video_import_application.as_ref()
-    }
-
     pub(crate) fn video_chapter_import_application(
         &self,
     ) -> &dyn a4n_api_contract::video::ChapterVideoImportApplicationPort {
@@ -2190,6 +2184,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_api_contract::video::CanvasVideoImportApplicationPort {
         self.video_canvas_import_application.as_ref()
+    }
+
+    pub(crate) fn video_trim_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::VideoTrimApplicationPort {
+        self.video_trim_application.as_ref()
     }
 
     pub(crate) fn video_assembly_application(
@@ -2952,7 +2952,7 @@ impl AppState {
             video_reference_media_import_application: Arc::new(orchestrator.clone()),
             video_assembly_import_application: Arc::new(orchestrator.clone()),
             video_canvas_import_application: Arc::new(orchestrator.clone()),
-            video_import_application: Arc::new(orchestrator.clone()),
+            video_trim_application: Arc::new(orchestrator.clone()),
             video_assembly_application: Arc::new(orchestrator.clone()),
             video_record_lifecycle_application: Arc::new(orchestrator.clone()),
             video_canvas_media_application: Arc::new(orchestrator.clone()),

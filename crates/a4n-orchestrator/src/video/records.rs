@@ -45,11 +45,11 @@ use a4n_api_contract::{
         CanvasVideoImportApplicationPort, ChapterVideoImportApplicationPort,
         CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
         PreparedAssemblyPushRecord, ReferenceMediaVideoImportApplicationPort,
-        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportApplicationPort,
-        VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
-        VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
-        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
-        VideoTailFrameSummary, VideoTrimPlan,
+        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportRecordSummary,
+        VideoProviderExecutionApplicationPort, VideoRecordCompletion, VideoRecordCompletionError,
+        VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
+        VideoRecordReadApplicationPort, VideoTailFrameInput, VideoTailFrameSummary,
+        VideoTrimApplicationPort, VideoTrimPlan,
     },
 };
 
@@ -1728,7 +1728,7 @@ impl CanvasVideoImportApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoImportApplicationPort for crate::OrchestratorContext {
+impl VideoTrimApplicationPort for crate::OrchestratorContext {
     async fn prepare_trim(
         &self,
         user_id: i64,

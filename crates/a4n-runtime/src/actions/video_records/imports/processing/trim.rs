@@ -18,7 +18,7 @@ pub async fn trim_video(
     end_secs: f32,
 ) -> Result<GeneratedVideoSummary, String> {
     let plan = state
-        .video_import_application()
+        .video_trim_application()
         .prepare_trim(user_id, video_id, start_secs, end_secs)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -48,7 +48,7 @@ pub async fn trim_video(
     let source_project_id = source.project_id;
     let source_chapter_id = source.chapter_id;
     let record = match state
-        .video_import_application()
+        .video_trim_application()
         .create_trimmed_record(plan)
         .await
     {
