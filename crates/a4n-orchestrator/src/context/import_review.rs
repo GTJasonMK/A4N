@@ -325,7 +325,7 @@ impl a4n_api_contract::import_review::ImportReviewReadApplicationPort for Orches
 }
 
 #[async_trait]
-impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
+impl crate::import_review::ImportReviewIngestionApplicationPort for OrchestratorContext {
     async fn create_from_parsed(
         &self,
         user_id: i64,
@@ -339,7 +339,12 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
         .await?;
         reviews.iter().map(import_review_summary).collect()
     }
+}
 
+#[async_trait]
+impl a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort
+    for OrchestratorContext
+{
     async fn accept(
         &self,
         user_id: i64,
@@ -371,7 +376,10 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
             .map(|accepted| import_review_summary(&accepted.review))
             .collect()
     }
+}
 
+#[async_trait]
+impl a4n_api_contract::import_review::ImportReviewMutationApplicationPort for OrchestratorContext {
     async fn delete(&self, user_id: i64, input: ImportReviewIdInput) -> Result<(), AppError> {
         self.delete_import_review_for_user_validated(user_id, input.review_id)
             .await

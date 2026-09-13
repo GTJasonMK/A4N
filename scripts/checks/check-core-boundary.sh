@@ -3082,9 +3082,11 @@ if ! rg -n 'import_analysis_generation_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'import_review_application\(\)' \
-    crates/a4n-runtime/src/actions/import_file.rs \
-    crates/a4n-runtime/src/actions/import_review/acceptance.rs \
+if ! rg -n 'import_review_ingestion_application\(\)' \
+    crates/a4n-runtime/src/actions/import_file.rs || \
+   ! rg -n 'import_review_acceptance_application\(\)' \
+    crates/a4n-runtime/src/actions/import_review/acceptance.rs || \
+   ! rg -n 'import_review_mutation_application\(\)' \
     crates/a4n-runtime/src/actions/import_review/mutations.rs || \
    ! rg -n 'import_review_read_application\(\)' \
     crates/a4n-runtime/src/actions/import_review/queries.rs \
@@ -3123,9 +3125,23 @@ if rg -n 'a4n_orchestrator::import_analysis::ImportAnalysisProgressApplicationPo
     exit 1
 fi
 
-if ! rg -n 'pub trait ImportReviewApplicationPort' \
+if ! rg -n 'pub trait ImportReviewIngestionApplicationPort' \
     crates/a4n-orchestrator/src/import_review/mod.rs; then
-    printf 'ImportReviewApplicationPort contract is missing\n' >&2
+    printf 'ImportReviewIngestionApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait ImportReviewAcceptanceApplicationPort' \
+    crates/a4n-api-contract/src/import_review.rs || \
+   ! rg -n 'pub trait ImportReviewMutationApplicationPort' \
+    crates/a4n-api-contract/src/import_review.rs; then
+    printf 'Import-review mutation ports are missing\n' >&2
+    exit 1
+fi
+if rg -n 'ImportReviewApplicationPort|import_review_application\(\)' \
+    crates/a4n-api-contract/src/import_review.rs \
+    crates/a4n-orchestrator/src/import_review \
+    crates/a4n-runtime/src; then
+    printf 'The mixed ImportReviewApplicationPort must remain removed\n' >&2
     exit 1
 fi
 if ! rg -n 'pub trait ImportReviewReadApplicationPort' \

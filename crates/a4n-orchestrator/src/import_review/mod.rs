@@ -2,11 +2,7 @@
 //!
 //! 数据库行为由 `context/import_review.rs` 的私有 `ImportReviewApplication` 持有。
 
-use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
-use a4n_api_contract::import_review::{
-    AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewIdInput,
-    ImportReviewSummary,
-};
+use a4n_api_contract::import_review::ImportReviewSummary;
 use a4n_domain::import_review::ImportChapterDraft;
 use a4n_error::AppError;
 use async_trait::async_trait;
@@ -21,7 +17,7 @@ pub(crate) use rules::calculate_import_dedup;
 /// the import-review owner. Runtime only parses files and supplies cleanup
 /// side effects for accepted chapters.
 #[async_trait]
-pub trait ImportReviewApplicationPort: Send + Sync {
+pub trait ImportReviewIngestionApplicationPort: Send + Sync {
     async fn create_from_parsed(
         &self,
         user_id: i64,
@@ -29,26 +25,4 @@ pub trait ImportReviewApplicationPort: Send + Sync {
         filename: &str,
         chapters: &[ImportChapterDraft],
     ) -> Result<Vec<ImportReviewSummary>, AppError>;
-
-    async fn accept(
-        &self,
-        user_id: i64,
-        input: AcceptImportReviewInput,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-    ) -> Result<ImportReviewSummary, AppError>;
-
-    async fn batch_accept(
-        &self,
-        user_id: i64,
-        input: BatchAcceptImportReviewsInput,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-    ) -> Result<Vec<ImportReviewSummary>, AppError>;
-
-    async fn delete(&self, user_id: i64, input: ImportReviewIdInput) -> Result<(), AppError>;
-
-    async fn reject(
-        &self,
-        user_id: i64,
-        input: ImportReviewIdInput,
-    ) -> Result<ImportReviewSummary, AppError>;
 }

@@ -8,7 +8,7 @@ pub async fn delete_import_review(
     input: ImportReviewIdInput,
 ) -> Result<(), AppError> {
     state
-        .import_review_application()
+        .import_review_mutation_application()
         .delete(user_id, input)
         .await
 }
@@ -19,7 +19,7 @@ pub async fn reject_import_review(
     input: ImportReviewIdInput,
 ) -> Result<ImportReviewSummary, AppError> {
     state
-        .import_review_application()
+        .import_review_mutation_application()
         .reject(user_id, input)
         .await
 }

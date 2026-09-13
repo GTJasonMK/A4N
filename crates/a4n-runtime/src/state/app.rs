@@ -339,10 +339,16 @@ pub struct AppState {
     /// Host-facing chapter-analysis request-preview boundary.
     chapter_analysis_preview_application:
         Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisPreviewApplicationPort>,
-    /// Host-facing import-review boundary. Review authorization, persistence
-    /// and API projection stay in the import-review owner.
-    import_review_application:
-        Arc<dyn a4n_orchestrator::import_review::ImportReviewApplicationPort>,
+    /// Host-facing import-review ingestion boundary. Parsing stays in Runtime;
+    /// queue persistence and projection stay in the import-review owner.
+    import_review_ingestion_application:
+        Arc<dyn a4n_orchestrator::import_review::ImportReviewIngestionApplicationPort>,
+    /// Host-facing import-review acceptance boundary.
+    import_review_acceptance_application:
+        Arc<dyn a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort>,
+    /// Host-facing import-review delete/reject boundary.
+    import_review_mutation_application:
+        Arc<dyn a4n_api_contract::import_review::ImportReviewMutationApplicationPort>,
     /// Host-facing import-review read boundary. Review reads and deduplication
     /// stay in the API contract rather than the mixed mutation boundary.
     import_review_read_application:
@@ -1751,10 +1757,22 @@ impl AppState {
         self.chapter_analysis_preview_application.as_ref()
     }
 
-    pub(crate) fn import_review_application(
+    pub(crate) fn import_review_ingestion_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_review::ImportReviewApplicationPort {
-        self.import_review_application.as_ref()
+    ) -> &dyn a4n_orchestrator::import_review::ImportReviewIngestionApplicationPort {
+        self.import_review_ingestion_application.as_ref()
+    }
+
+    pub(crate) fn import_review_acceptance_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort {
+        self.import_review_acceptance_application.as_ref()
+    }
+
+    pub(crate) fn import_review_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_review::ImportReviewMutationApplicationPort {
+        self.import_review_mutation_application.as_ref()
     }
 
     pub(crate) fn import_review_read_application(
@@ -2443,7 +2461,9 @@ impl AppState {
             chapter_analysis_generation_application: Arc::new(orchestrator.clone()),
             chapter_analysis_resume_application: Arc::new(orchestrator.clone()),
             chapter_analysis_preview_application: Arc::new(orchestrator.clone()),
-            import_review_application: Arc::new(orchestrator.clone()),
+            import_review_ingestion_application: Arc::new(orchestrator.clone()),
+            import_review_acceptance_application: Arc::new(orchestrator.clone()),
+            import_review_mutation_application: Arc::new(orchestrator.clone()),
             import_review_read_application: Arc::new(orchestrator.clone()),
             project_export_application: Arc::new(orchestrator.clone()),
             galgame_export_application: Arc::new(orchestrator.clone()),
