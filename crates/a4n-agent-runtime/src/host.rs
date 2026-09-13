@@ -14,7 +14,8 @@ use a4n_worker_contract::{
     AgentWorkerBudgetSnapshotWire, AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationScopeRequest,
+    AgentWorkerDelegationScopeSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitExpiryRequest,
     AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
@@ -213,6 +214,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerDelegationReviewRequest,
     ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError>;
+
+    async fn inherit_agent_delegation_scope(
+        &self,
+        request: &AgentWorkerDelegationScopeRequest,
+    ) -> Result<AgentWorkerDelegationScopeSnapshotWire, AppError>;
 
     async fn ensure_canonical_subagent_thread(
         &self,

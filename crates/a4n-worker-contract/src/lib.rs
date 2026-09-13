@@ -886,6 +886,19 @@ pub type AgentWorkerDelegationThreadSnapshotWire = AgentWorkerThreadSnapshotWire
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationScopeRequest {
+    pub parent_scope: AgentScope,
+    pub child_scope: AgentScope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationScopeSnapshotWire {
+    pub scope: AgentScope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerDelegationStartRequest {
     pub run_id: i64,
     pub lease: WorkerLease,

@@ -37,6 +37,7 @@ use a4n_worker_contract::{
     AgentWorkerChapterScopeRequest, AgentWorkerCompletionRequest,
     AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
     AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
+    AgentWorkerDelegationScopeRequest, AgentWorkerDelegationScopeSnapshotWire,
     AgentWorkerDelegationStartRequest, AgentWorkerDelegationStartSnapshotWire,
     AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
@@ -1434,6 +1435,17 @@ pub async fn review_agent_delegation(
         .agent_worker_delegation_application()
         .review_delegation_request(request)
         .await
+}
+
+pub async fn inherit_agent_delegation_scope(
+    state: &AppState,
+    request: &AgentWorkerDelegationScopeRequest,
+) -> Result<AgentWorkerDelegationScopeSnapshotWire, AppError> {
+    let mut scope = request.child_scope.clone();
+    state
+        .agent_worker_delegation_application()
+        .inherit_subagent_allowlists(&request.parent_scope, &mut scope)?;
+    Ok(AgentWorkerDelegationScopeSnapshotWire { scope })
 }
 
 pub async fn ensure_agent_canonical_subagent_thread(

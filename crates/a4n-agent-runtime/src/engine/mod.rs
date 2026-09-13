@@ -19,10 +19,10 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalExpiryRequest,
-    AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest, AgentWorkerEditorWaitExpiryRequest,
-    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerRunWire, AgentWorkerToolDescribeRequest,
-    AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest, AgentWorkerDelegationScopeRequest,
+    AgentWorkerEditorWaitExpiryRequest, AgentWorkerExpiredRunRecoveryRequest, AgentWorkerRunWire,
+    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION,
+    WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -2033,7 +2033,6 @@ async fn execute_tool_call(
     let descriptor = tool_descriptor(&call.name)?;
     let message_application = state.worker_message_application(claimed);
     let approval_application = state.worker_approval_application(claimed);
-    let delegation_application = state.worker_delegation_application();
 
     // A completed idempotent execution is a durable replay, not a reason to
     // call an external provider twice after a worker restart.
@@ -2199,8 +2198,14 @@ async fn execute_tool_call(
             )));
         }
         let binding = binding::canonical_subagent_binding(&capability, project_id, chapter_id)?;
-        let mut child_scope = binding.scope(&capability);
-        delegation_application.inherit_subagent_allowlists(&context.scope, &mut child_scope)?;
+        let child_scope = state
+            .host()
+            .inherit_agent_delegation_scope(&AgentWorkerDelegationScopeRequest {
+                parent_scope: context.scope.clone(),
+                child_scope: binding.scope(&capability),
+            })
+            .await?
+            .scope;
         let child_thread = state
             .ensure_agent_canonical_subagent_thread(
                 &executor.worker_request,

@@ -26,7 +26,8 @@ use a4n_worker_contract::{
     AgentWorkerCancelWorkflowRequest, AgentWorkerChapterScopeRequest, AgentWorkerChatRequest,
     AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationScopeRequest,
+    AgentWorkerDelegationScopeSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
@@ -557,6 +558,18 @@ pub(super) async fn review_agent_delegation(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::review_agent_delegation(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn inherit_agent_delegation_scope(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerDelegationScopeRequest>,
+) -> Result<Json<AgentWorkerDelegationScopeSnapshotWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    agent_actions::inherit_agent_delegation_scope(state.runtime(), &input)
         .await
         .map(Json)
         .map_err(Into::into)

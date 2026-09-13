@@ -3,9 +3,9 @@ use a4n_agent_application::agent::{
     AgentApplication, AgentDelegationSnapshot, AgentExecutionSnapshot, AgentInboxSnapshot,
     AgentMessageSnapshot, AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot,
     AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
-    AgentWorkerBudgetSnapshot, AgentWorkerDelegationApplicationPort,
-    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentWorkerBudgetSnapshot, AgentWorkerExecutionApplicationPort,
+    AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort, AgentWorkerRun,
+    WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -894,9 +894,6 @@ impl AgentRuntimeState {
             state: self,
             claimed,
         }
-    }
-    pub fn worker_delegation_application(&self) -> &dyn AgentWorkerDelegationApplicationPort {
-        self.application.as_ref()
     }
     pub fn worker_execution_application<'a>(
         &'a self,

@@ -15,7 +15,8 @@ use a4n_worker_contract::{
     AgentWorkerCancelWorkflowRequest, AgentWorkerChapterScopeRequest, AgentWorkerChatRequest,
     AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationScopeRequest,
+    AgentWorkerDelegationScopeSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
@@ -457,6 +458,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerDelegationReviewRequest,
     ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/delegation/review", request)
+            .await
+    }
+
+    async fn inherit_agent_delegation_scope(
+        &self,
+        request: &AgentWorkerDelegationScopeRequest,
+    ) -> Result<AgentWorkerDelegationScopeSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/delegation/scope", request)
             .await
     }
 

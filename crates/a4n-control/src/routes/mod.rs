@@ -314,6 +314,10 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::review_agent_delegation),
         )
         .route(
+            "/agent/delegation/scope",
+            post(agent_runtime::inherit_agent_delegation_scope),
+        )
+        .route(
             "/agent/delegation/thread",
             post(agent_runtime::ensure_agent_canonical_subagent_thread),
         )
