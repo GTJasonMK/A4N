@@ -2818,6 +2818,30 @@ if rg -n 'OptimizeApplicationPort|OptimizeGenerationApplicationPort|optimize_app
     exit 1
 fi
 
+for contract in CharacterDiscoveryApplicationPort CharacterProfileSyncApplicationPort; do
+    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/character.rs; then
+        printf '%s contract is missing\n' "$contract" >&2
+        exit 1
+    fi
+done
+if ! rg -n 'character_discovery_application\(\)' \
+    crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/request.rs \
+    crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/execution.rs || \
+   ! rg -n 'character_profile_sync_application\(\)' \
+    crates/a4n-runtime/src/actions/character_ai/sync_profile/preview.rs \
+    crates/a4n-runtime/src/actions/character_ai/sync_profile/execution.rs \
+    crates/a4n-runtime/src/actions/character_ai/sync_batch.rs; then
+    printf 'Character workers must route through worker-specific ports\n' >&2
+    exit 1
+fi
+if rg -n 'CharacterAiApplicationPort|character_ai_application\(\)' \
+    crates/a4n-orchestrator/src/character.rs \
+    crates/a4n-runtime/src/actions/character_ai \
+    crates/a4n-runtime/src/state/app.rs; then
+    printf 'The mixed CharacterAiApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
 if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
     crates/a4n-orchestrator/src/context/generation.rs \
     || rg -U -n '^pub use context::generation::\{[^}]*\bGenerationTaskStart\b' \

@@ -109,9 +109,9 @@ pub use conflict::{
     validate_character_conflict_input,
 };
 
-/// Runtime-facing character discovery and timeline-sync boundary.
+/// Runtime-facing character discovery boundary.
 #[async_trait::async_trait]
-pub trait CharacterAiApplicationPort: Send + Sync {
+pub trait CharacterDiscoveryApplicationPort: Send + Sync {
     async fn preview_discovery(
         &self,
         user_id: i64,
@@ -126,7 +126,11 @@ pub trait CharacterAiApplicationPort: Send + Sync {
         prompt_renderer: &dyn PromptRenderer,
         progress: Option<CharacterDiscoveryProgress<'_>>,
     ) -> Result<a4n_api_contract::character::DiscoverCharacterProfilesResult, AppError>;
+}
 
+/// Runtime-facing character profile synchronization boundary.
+#[async_trait::async_trait]
+pub trait CharacterProfileSyncApplicationPort: Send + Sync {
     async fn preview_profile_sync(
         &self,
         user_id: i64,
@@ -161,7 +165,7 @@ pub trait CharacterAiApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-impl CharacterAiApplicationPort for crate::OrchestratorContext {
+impl CharacterDiscoveryApplicationPort for crate::OrchestratorContext {
     async fn preview_discovery(
         &self,
         user_id: i64,
@@ -194,7 +198,10 @@ impl CharacterAiApplicationPort for crate::OrchestratorContext {
         self.discover_character_profiles_validated(input, prompt_renderer, progress)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
     async fn preview_profile_sync(
         &self,
         user_id: i64,

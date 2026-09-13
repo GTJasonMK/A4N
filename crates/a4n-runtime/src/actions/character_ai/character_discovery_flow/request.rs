@@ -10,7 +10,7 @@ pub(crate) async fn character_discovery_preview_step(
 ) -> Result<ChatStatusPreviewStep, String> {
     let prompt_renderer = state;
     let preview = state
-        .character_ai_application()
+        .character_discovery_application()
         .preview_discovery(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

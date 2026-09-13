@@ -137,9 +137,12 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::service_health::ServiceHealthApplicationPort>,
     /// Cleanup claiming, leasing and audit transitions stay with the cleanup owner.
     cleanup_outbox_application: Arc<dyn a4n_cleanup_contract::CleanupOutboxApplicationPort>,
-    /// Character discovery and timeline synchronization remain owned by the
-    /// character application; Runtime only adapts progress and RAG tracing.
-    character_ai_application: Arc<dyn a4n_orchestrator::character::CharacterAiApplicationPort>,
+    /// Character discovery and profile synchronization use separate worker
+    /// boundaries; Runtime only adapts progress and RAG tracing.
+    character_discovery_application:
+        Arc<dyn a4n_orchestrator::character::CharacterDiscoveryApplicationPort>,
+    character_profile_sync_application:
+        Arc<dyn a4n_orchestrator::character::CharacterProfileSyncApplicationPort>,
     /// Host-facing workflow read boundary. Runtime keeps only live handles
     /// and cancellation coordination outside this port.
     workflow_read_application: Arc<dyn a4n_api_contract::workflow::WorkflowReadApplicationPort>,
@@ -1204,10 +1207,16 @@ impl AppState {
         self.cleanup_outbox_application.as_ref()
     }
 
-    pub(crate) fn character_ai_application(
+    pub(crate) fn character_discovery_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterAiApplicationPort {
-        self.character_ai_application.as_ref()
+    ) -> &dyn a4n_orchestrator::character::CharacterDiscoveryApplicationPort {
+        self.character_discovery_application.as_ref()
+    }
+
+    pub(crate) fn character_profile_sync_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::character::CharacterProfileSyncApplicationPort {
+        self.character_profile_sync_application.as_ref()
     }
 
     pub(crate) fn workflow_read_application(
@@ -2525,7 +2534,8 @@ impl AppState {
                 service_manager.clone(),
             )),
             cleanup_outbox_application: Arc::new(orchestrator.clone()),
-            character_ai_application: Arc::new(orchestrator.clone()),
+            character_discovery_application: Arc::new(orchestrator.clone()),
+            character_profile_sync_application: Arc::new(orchestrator.clone()),
             workflow_read_application: Arc::new(orchestrator.clone()),
             workflow_task_lookup_application: Arc::new(orchestrator.clone()),
             task_read_application: Arc::new(orchestrator.clone()),
