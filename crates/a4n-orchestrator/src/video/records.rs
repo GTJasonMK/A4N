@@ -41,13 +41,13 @@ use a4n_api_contract::{
     video::{
         AssemblyClipRecord, AssemblyPostprocessEditRecordInput, AssemblyPostprocessPlan,
         AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoRecords,
-        CanvasAssemblyPlan, CanvasFramePlan, CompleteVideoRecordInput, GeneratedVideoSummary,
-        PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
-        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportApplicationPort,
-        VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
-        VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
-        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
-        VideoTailFrameSummary, VideoTrimPlan,
+        CanvasAssemblyPlan, CanvasFramePlan, ChapterVideoImportApplicationPort,
+        CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
+        PreparedAssemblyPushRecord, VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort,
+        VideoImportApplicationPort, VideoImportRecordSummary,
+        VideoProviderExecutionApplicationPort, VideoRecordCompletion, VideoRecordCompletionError,
+        VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
+        VideoRecordReadApplicationPort, VideoTailFrameInput, VideoTailFrameSummary, VideoTrimPlan,
     },
 };
 
@@ -1614,7 +1614,7 @@ impl VideoProviderExecutionApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoImportApplicationPort for crate::OrchestratorContext {
+impl ChapterVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_chapter_video_record(
         &self,
         project_id: i64,
@@ -1641,7 +1641,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             Some(prepared.prompt.id),
         ))
     }
+}
 
+#[async_trait]
+impl VideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_reference_media_video_record(
         &self,
         project_id: i64,

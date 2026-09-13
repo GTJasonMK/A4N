@@ -645,12 +645,12 @@ pub trait VideoRecordMutationApplicationPort: Send + Sync {
     async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError>;
 }
 
-/// Host-facing video import and trim boundary.
+/// Host-facing chapter-video import boundary.
 ///
-/// Runtime supplies inspected file facts; the video owner creates records and
-/// enforces project, chapter, and workflow invariants.
+/// Runtime supplies inspected file facts; the video owner creates the record
+/// and enforces project, chapter, and workflow invariants.
 #[async_trait::async_trait]
-pub trait VideoImportApplicationPort: Send + Sync {
+pub trait ChapterVideoImportApplicationPort: Send + Sync {
     async fn create_imported_chapter_video_record(
         &self,
         project_id: i64,
@@ -661,7 +661,14 @@ pub trait VideoImportApplicationPort: Send + Sync {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+}
 
+/// Host-facing video import and trim boundary.
+///
+/// Temporary aggregate for the remaining import/trim workers; each operation
+/// is moved to its focused port independently.
+#[async_trait::async_trait]
+pub trait VideoImportApplicationPort: Send + Sync {
     async fn create_imported_reference_media_video_record(
         &self,
         project_id: i64,

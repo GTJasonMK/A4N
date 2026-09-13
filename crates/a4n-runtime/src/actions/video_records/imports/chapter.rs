@@ -56,7 +56,7 @@ async fn create_imported_chapter_video(
     let properties = probe_imported_video_properties(&source, "导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video_import_application()
+        .video_chapter_import_application()
         .create_imported_chapter_video_record(
             project_id,
             chapter_id,

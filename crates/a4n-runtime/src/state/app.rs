@@ -449,6 +449,8 @@ pub struct AppState {
     video_record_mutation_application:
         Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
     /// Host-facing imported-video and trim boundary.
+    video_chapter_import_application:
+        Arc<dyn a4n_api_contract::video::ChapterVideoImportApplicationPort>,
     video_import_application: Arc<dyn a4n_api_contract::video::VideoImportApplicationPort>,
     /// Host-facing Assembly planning and push boundary.
     video_assembly_application: Arc<dyn a4n_api_contract::video::VideoAssemblyApplicationPort>,
@@ -2160,6 +2162,12 @@ impl AppState {
         self.video_import_application.as_ref()
     }
 
+    pub(crate) fn video_chapter_import_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::ChapterVideoImportApplicationPort {
+        self.video_chapter_import_application.as_ref()
+    }
+
     pub(crate) fn video_assembly_application(
         &self,
     ) -> &dyn a4n_api_contract::video::VideoAssemblyApplicationPort {
@@ -2916,6 +2924,7 @@ impl AppState {
             galgame_export_application: Arc::new(orchestrator.clone()),
             video_record_read_application: Arc::new(orchestrator.clone()),
             video_record_mutation_application: Arc::new(orchestrator.clone()),
+            video_chapter_import_application: Arc::new(orchestrator.clone()),
             video_import_application: Arc::new(orchestrator.clone()),
             video_assembly_application: Arc::new(orchestrator.clone()),
             video_record_lifecycle_application: Arc::new(orchestrator.clone()),
