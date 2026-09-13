@@ -363,6 +363,28 @@ impl AgentWorkerExpiredRunRecoveryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerGenerationCancelScanRequest {
+    pub after_task_id: String,
+}
+
+impl AgentWorkerGenerationCancelScanRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerGenerationCancelSnapshotWire {
+    pub task_id: String,
+    pub attempt: u32,
+    pub requested_by_user_id: i64,
+    pub status: String,
+    pub owner_stopped: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerExternalTaskWaitScanRequest {
     pub after_run_id: i64,
 }
@@ -1453,6 +1475,22 @@ mod tests {
         let mut value = serde_json::to_value(request).expect("DTO should serialize");
         value["unexpected"] = true.into();
         assert!(serde_json::from_value::<AgentWorkerCancelGenerationRequest>(value).is_err());
+    }
+
+    #[test]
+    fn generation_cancel_scan_allows_initial_cursor_and_rejects_unknown_fields() {
+        let request = AgentWorkerGenerationCancelScanRequest {
+            after_task_id: String::new(),
+        };
+        request.validate().expect("initial cursor should be valid");
+        let encoded = serde_json::to_string(&request).expect("scan request should serialize");
+        let decoded: AgentWorkerGenerationCancelScanRequest =
+            serde_json::from_str(&encoded).expect("scan request should deserialize");
+        assert_eq!(decoded.after_task_id, request.after_task_id);
+
+        let mut value = serde_json::to_value(request).expect("scan request should serialize");
+        value["unexpected"] = true.into();
+        assert!(serde_json::from_value::<AgentWorkerGenerationCancelScanRequest>(value).is_err());
     }
 
     #[test]

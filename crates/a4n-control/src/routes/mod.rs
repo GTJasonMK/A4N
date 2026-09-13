@@ -327,6 +327,10 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::cancel_agent_generation),
         )
         .route(
+            "/agent/generation/cancel/scan",
+            post(agent_runtime::list_agent_generation_cancel_candidates),
+        )
+        .route(
             "/agent/workflow/cancel",
             post(agent_runtime::cancel_agent_workflow),
         )

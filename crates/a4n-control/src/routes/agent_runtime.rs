@@ -34,9 +34,10 @@ use a4n_worker_contract::{
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
     AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
-    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest,
+    AgentWorkerGenerationCancelScanRequest, AgentWorkerGenerationCancelSnapshotWire,
+    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
@@ -628,6 +629,21 @@ pub(super) async fn cancel_agent_generation(
     )
     .await?;
     Ok(Json(Value::Null))
+}
+
+pub(super) async fn list_agent_generation_cancel_candidates(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerGenerationCancelScanRequest>,
+) -> Result<Json<Vec<AgentWorkerGenerationCancelSnapshotWire>>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::list_agent_generation_cancel_candidates(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn cancel_agent_workflow(

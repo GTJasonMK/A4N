@@ -1,8 +1,8 @@
 use super::*;
-use a4n_agent_application::agent::{AgentGenerationCancelSnapshot, AgentWorkflowCancelSnapshot};
+use a4n_agent_application::agent::AgentWorkflowCancelSnapshot;
 use a4n_worker_contract::{
     AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
-    AgentWorkerExternalTaskWaitWakeRequest,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerGenerationCancelScanRequest,
 };
 
 pub(super) fn is_wait(name: &str) -> bool {
@@ -89,13 +89,15 @@ pub(super) async fn reconcile(state: &AgentRuntimeState) -> Result<(), AppError>
 }
 
 pub(super) async fn cancel_stopped_owned_tasks(state: &AgentRuntimeState) -> Result<(), AppError> {
-    let generation_cancel_application = state.generation_cancel_application();
     let workflow_cancel_application = state.workflow_cancel_application();
     let mut cursor = String::new();
     let mut first_error = None;
     loop {
-        let tasks: Vec<AgentGenerationCancelSnapshot> = generation_cancel_application
-            .generation_cancel_candidates(&cursor)
+        let tasks = state
+            .host()
+            .generation_cancel_candidates(&AgentWorkerGenerationCancelScanRequest {
+                after_task_id: cursor.clone(),
+            })
             .await?;
         if tasks.is_empty() {
             break;

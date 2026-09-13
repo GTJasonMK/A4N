@@ -1,4 +1,4 @@
-use a4n_agent_application::agent::{AgentRunContext, AgentWorkflowCancelSnapshot};
+use a4n_agent_application::agent::AgentRunContext;
 use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
@@ -19,9 +19,10 @@ use a4n_worker_contract::{
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
     AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
-    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest,
+    AgentWorkerGenerationCancelScanRequest, AgentWorkerGenerationCancelSnapshotWire,
+    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
@@ -119,6 +120,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerExpiredRunRecoveryRequest,
     ) -> Result<usize, AppError>;
+
+    async fn generation_cancel_candidates(
+        &self,
+        request: &AgentWorkerGenerationCancelScanRequest,
+    ) -> Result<Vec<AgentWorkerGenerationCancelSnapshotWire>, AppError>;
 
     async fn external_task_waits(
         &self,
@@ -253,17 +259,6 @@ pub trait AgentRuntimeHost: Send + Sync {
         _context: &AgentRunContext,
         _value: &Value,
     ) -> Result<(), AppError> {
-        Ok(())
-    }
-
-    async fn cancel_stopped_workflows(
-        &self,
-        workflows: &[AgentWorkflowCancelSnapshot],
-    ) -> Result<(), AppError> {
-        for workflow in workflows.iter().filter(|workflow| workflow.owner_stopped) {
-            self.cancel_workflow(workflow.workflow_run_id, "所属 Agent 或祖先任务已停止")
-                .await?;
-        }
         Ok(())
     }
 }

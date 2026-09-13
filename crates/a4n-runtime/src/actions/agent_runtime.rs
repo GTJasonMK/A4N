@@ -44,14 +44,16 @@ use a4n_worker_contract::{
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
     AgentWorkerExpiredRunRecoveryRequest, AgentWorkerExternalTaskWaitScanRequest,
     AgentWorkerExternalTaskWaitSnapshotWire, AgentWorkerExternalTaskWaitWakeRequest,
-    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
-    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
-    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
-    AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerFailureRequest, AgentWorkerGenerationCancelScanRequest,
+    AgentWorkerGenerationCancelSnapshotWire, AgentWorkerHistoryRequest,
+    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1477,6 +1479,31 @@ pub async fn list_agent_external_task_waits(
                     tool_name: wait.tool_name,
                     arguments_json: wait.arguments_json,
                     duration_exhausted: wait.duration_exhausted,
+                })
+                .collect()
+        })
+}
+
+pub async fn list_agent_generation_cancel_candidates(
+    state: &AppState,
+    request: &AgentWorkerGenerationCancelScanRequest,
+) -> Result<Vec<AgentWorkerGenerationCancelSnapshotWire>, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent generation cancel scan 无效: {error}"))
+    })?;
+    state
+        .agent_generation_cancel_application()
+        .generation_cancel_candidates(&request.after_task_id)
+        .await
+        .map(|tasks| {
+            tasks
+                .into_iter()
+                .map(|task| AgentWorkerGenerationCancelSnapshotWire {
+                    task_id: task.task_id,
+                    attempt: task.attempt,
+                    requested_by_user_id: task.requested_by_user_id,
+                    status: task.status,
+                    owner_stopped: task.owner_stopped,
                 })
                 .collect()
         })

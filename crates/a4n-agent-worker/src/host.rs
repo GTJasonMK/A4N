@@ -23,9 +23,10 @@ use a4n_worker_contract::{
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
     AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
-    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest,
+    AgentWorkerGenerationCancelScanRequest, AgentWorkerGenerationCancelSnapshotWire,
+    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
@@ -293,6 +294,18 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     ) -> Result<usize, AppError> {
         self.request_json(Method::POST, "/internal/agent/recovery/expired", request)
             .await
+    }
+
+    async fn generation_cancel_candidates(
+        &self,
+        request: &AgentWorkerGenerationCancelScanRequest,
+    ) -> Result<Vec<AgentWorkerGenerationCancelSnapshotWire>, AppError> {
+        self.request_json(
+            Method::POST,
+            "/internal/agent/generation/cancel/scan",
+            request,
+        )
+        .await
     }
 
     async fn external_task_waits(
