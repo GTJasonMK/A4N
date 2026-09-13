@@ -29,8 +29,8 @@ use crate::{
         generation_result_ref, publish_step_progress,
     },
     media::{
-        BatchImageGenerationOutcome, ImageBatchRequestPreviewApplicationPort,
-        ImageCanvasRequestPreviewApplicationPort, ImageGenerationApplicationPort,
+        BatchImageGenerationOutcome, GalgameImageGenerationApplicationPort,
+        ImageBatchRequestPreviewApplicationPort, ImageCanvasRequestPreviewApplicationPort,
         ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationTaskApplicationPort,
         ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
         ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
@@ -405,7 +405,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl ImageGenerationApplicationPort for OrchestratorContext {
+impl GalgameImageGenerationApplicationPort for OrchestratorContext {
     async fn generate_galgame_image(
         &self,
         host_port: &dyn ImageGenerationHostPort,

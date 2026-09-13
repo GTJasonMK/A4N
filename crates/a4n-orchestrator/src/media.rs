@@ -13,10 +13,10 @@ pub(crate) use batch_image_application::{
 };
 pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
-    ImageBatchRequestPreviewApplicationPort, ImageCanvasRequestPreviewApplicationPort,
-    ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
-    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-    ImageGenerationProviderInput, ImageGenerationProviderOutput,
+    GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
+    ImageCanvasRequestPreviewApplicationPort, ImageGenerationExecutionInput,
+    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
+    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
     ImageGenerationTaskApplicationPort, ImageGenerationWorkflowBinding,
     ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
     ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,

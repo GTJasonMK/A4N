@@ -451,9 +451,10 @@ pub struct AppState {
     image_media_reference_application: Arc<dyn a4n_api_contract::image::ImageMediaReferencePort>,
     /// Image provider config lookup stays in the settings owner.
     image_provider_config: Arc<dyn a4n_api_contract::image::ImageProviderConfigPort>,
-    /// Image generation task owner. Runtime supplies only provider and file
-    /// adapters when a worker is started.
-    image_generation_application: Arc<dyn a4n_orchestrator::media::ImageGenerationApplicationPort>,
+    /// Galgame image generation owner. Runtime supplies only provider and
+    /// file adapters when a worker is started.
+    galgame_image_generation_application:
+        Arc<dyn a4n_orchestrator::media::GalgameImageGenerationApplicationPort>,
     /// Canvas image request preview owner.
     image_canvas_request_preview_application:
         Arc<dyn a4n_orchestrator::media::ImageCanvasRequestPreviewApplicationPort>,
@@ -2089,10 +2090,10 @@ impl AppState {
         self.image_provider_config.as_ref()
     }
 
-    pub(crate) fn image_generation_application(
+    pub(crate) fn galgame_image_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageGenerationApplicationPort {
-        self.image_generation_application.as_ref()
+    ) -> &dyn a4n_orchestrator::media::GalgameImageGenerationApplicationPort {
+        self.galgame_image_generation_application.as_ref()
     }
 
     pub(crate) fn image_canvas_request_preview_application(
@@ -2731,7 +2732,7 @@ impl AppState {
             image_publication_recovery_read_application: Arc::new(orchestrator.clone()),
             image_media_reference_application: Arc::new(orchestrator.clone()),
             image_provider_config: Arc::new(orchestrator.clone()),
-            image_generation_application: Arc::new(orchestrator.clone()),
+            galgame_image_generation_application: Arc::new(orchestrator.clone()),
             image_canvas_request_preview_application: Arc::new(orchestrator.clone()),
             image_batch_request_preview_application: Arc::new(orchestrator.clone()),
             image_object_profile_request_preview_application: Arc::new(orchestrator.clone()),

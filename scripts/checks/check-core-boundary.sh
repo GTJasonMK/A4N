@@ -2787,6 +2787,18 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_object_profile_requ
     printf 'Object profile image request previews must not use the mixed image generation port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait GalgameImageGenerationApplicationPort' \
+    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+   ! rg -n 'galgame_image_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/image_generation/direct.rs; then
+    printf 'Galgame image generation must route through GalgameImageGenerationApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n '^[[:space:]]*\.image_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/image_generation; then
+    printf 'Image generation actions must not use the removed mixed image generation port\n' >&2
+    exit 1
+fi
 
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then

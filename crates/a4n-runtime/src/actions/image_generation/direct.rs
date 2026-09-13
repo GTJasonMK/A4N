@@ -76,7 +76,7 @@ pub(crate) async fn generate_galgame_image(
     let progress = ImageGenerationProgress::none();
     let host = RuntimeImageGenerationHostPort::new(state);
     state
-        .image_generation_application()
+        .galgame_image_generation_application()
         .generate_galgame_image(&host, user_id, input, &progress)
         .await
         .map_err(|error| error.to_string())

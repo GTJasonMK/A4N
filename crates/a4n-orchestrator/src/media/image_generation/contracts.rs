@@ -168,10 +168,9 @@ pub struct PersistedGeneratedImageFile {
     pub file_size: i64,
 }
 
-/// Host-facing boundary for image generation request preparation and direct
-/// generation.
+/// Host-facing boundary for Galgame image generation.
 #[async_trait]
-pub trait ImageGenerationApplicationPort: Send + Sync {
+pub trait GalgameImageGenerationApplicationPort: Send + Sync {
     async fn generate_galgame_image(
         &self,
         host_port: &dyn ImageGenerationHostPort,
