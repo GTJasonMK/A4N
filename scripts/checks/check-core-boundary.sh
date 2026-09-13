@@ -1847,8 +1847,7 @@ if ! rg -n 'impl CharacterProfileMutationApplicationPort for OrchestratorContext
 fi
 
 if rg -n 'CharacterAttributeEventHistoryFilter|attribute_event_summary' \
-    crates/a4n-runtime/src/actions/character_records/attributes.rs \
-    crates/a4n-runtime/src/actions/character_records/projections.rs; then
+    crates/a4n-runtime/src/actions/character_records/attributes.rs; then
     printf 'Runtime character attribute history must consume the character read port and owner DTO projection\n' >&2
     exit 1
 fi
@@ -1866,8 +1865,7 @@ if ! rg -n '\.attribute_history\(user_id, input\)' \
 fi
 
 if rg -n 'behavior_record_summary|behavior_records_by_profile' \
-    crates/a4n-runtime/src/actions/character_records/behaviors.rs \
-    crates/a4n-runtime/src/actions/character_records/projections.rs; then
+    crates/a4n-runtime/src/actions/character_records/behaviors.rs; then
     printf 'Runtime character behavior history must consume the character read port and owner DTO projection\n' >&2
     exit 1
 fi
@@ -1881,8 +1879,7 @@ if ! rg -n 'character_profile_read_application\(\)' \
 fi
 
 if rg -n 'snapshot_references_for_user_validated|snapshot_reference_summary' \
-    crates/a4n-runtime/src/actions/character_records/snapshots.rs \
-    crates/a4n-runtime/src/actions/character_records/projections.rs; then
+    crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
     printf 'Runtime character snapshot lists must consume the character read port and owner DTO projection\n' >&2
     exit 1
 fi
@@ -1896,9 +1893,7 @@ if ! rg -n 'character_profile_read_application\(\)' \
 fi
 
 if rg -n 'profile_snapshot_for_user_at_chapter_validated|profile_state_summary_from_snapshot' \
-    crates/a4n-runtime/src/actions/character_records/snapshots.rs \
-    crates/a4n-runtime/src/actions/character_records/projections.rs \
-    crates/a4n-runtime/src/actions/character_records/projections/snapshots.rs; then
+    crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
     printf 'Runtime character snapshot state reads must consume the character read port and owner DTO projection\n' >&2
     exit 1
 fi
