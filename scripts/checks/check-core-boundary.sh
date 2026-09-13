@@ -3304,13 +3304,15 @@ if ! rg -n 'portrait_prompt_application\(\)' \
     crates/a4n-runtime/src/actions/portrait_generation/application.rs || \
    ! rg -n 'portrait_upload_application\(\)' \
     crates/a4n-runtime/src/actions/portrait_generation/application.rs || \
-   ! rg -n 'portrait_request_preview_application\(\)' \
+   ! rg -n 'portrait_prompt_request_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_generation/preview/requests.rs || \
+   ! rg -n 'portrait_image_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/portrait_generation/preview/requests.rs; then
     printf 'Portrait actions must route through split application ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait Portrait(RequestPreview|Prompt|Upload|Generation)ApplicationPort' \
+if ! rg -n 'pub trait Portrait(PromptRequest|ImageRequest|Prompt|Upload|Generation)ApplicationPort' \
     crates/a4n-orchestrator/src/portrait.rs; then
     printf 'Portrait application ports are missing from the portrait owner\n' >&2
     exit 1
