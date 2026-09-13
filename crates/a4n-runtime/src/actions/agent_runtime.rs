@@ -4487,7 +4487,7 @@ pub async fn list_memories(
     scope_id: Option<String>,
 ) -> Result<Vec<AgentMemoryView>, AppError> {
     state
-        .agent_application()
+        .agent_memory_read_application()
         .list_memories(user_id, scope_kind, scope_id)
         .await
 }

@@ -1997,6 +1997,18 @@ impl a4n_api_contract::agent::AgentEventReadApplicationPort for AgentApplication
 }
 
 #[async_trait::async_trait]
+impl a4n_api_contract::agent::AgentMemoryReadApplicationPort for AgentApplication {
+    async fn list_memories(
+        &self,
+        user_id: i64,
+        scope_kind: Option<a4n_api_contract::agent::AgentMemoryScopeKind>,
+        scope_id: Option<String>,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentMemoryView>, AppError> {
+        AgentApplication::list_memories(self, user_id, scope_kind, scope_id).await
+    }
+}
+
+#[async_trait::async_trait]
 impl a4n_api_contract::agent::AgentApplicationPort for AgentApplication {
     async fn ensure_main_thread(
         &self,
