@@ -38,9 +38,9 @@ use super::{
     super::{
         BatchImageExecutionItem, BatchImageGenerationApplicationInput,
         batch_image_rules::{
-            attach_video_frame_reference_image_ids, batch_image_aspect_ratio,
-            ensure_batch_image_item_shape, ensure_batch_reference_image_backend,
-            image_size_for_aspect_ratio, optional_json_i64_field, optional_json_string_field,
+            attach_video_frame_reference_image_ids, ensure_batch_image_item_shape,
+            ensure_batch_reference_image_backend, image_size_for_batch_item,
+            optional_json_i64_field, optional_json_string_field,
         },
     },
     contracts::{
@@ -898,9 +898,8 @@ impl OrchestratorContext {
                     .map_err(AppError::InvalidArgument)?;
                 preview_notes.push(format!("参考图数量：{}", reference_images.len()));
             }
-            let aspect_ratio = batch_image_aspect_ratio(item).map_err(AppError::InvalidArgument)?;
             let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
-            let size = image_size_for_aspect_ratio(&supported_sizes, aspect_ratio)
+            let size = image_size_for_batch_item(&supported_sizes, item)
                 .map_err(AppError::InvalidArgument)?;
             jobs.push(PreparedBatchImageJob {
                 execution: BatchImageExecutionItem {

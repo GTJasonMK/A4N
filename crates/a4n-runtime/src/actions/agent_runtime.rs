@@ -62,6 +62,8 @@ const MAX_BASE_AGENT_TOOLS: usize = 6;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
 const MAX_AGENT_TOOL_SCHEMAS: usize = 12;
 const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
+const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
+const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RunProgress {
@@ -1957,6 +1959,7 @@ async fn consume_model_stream(
     let mut accumulator = ChatStreamAccumulator::default();
     let mut flushed_chars = 0usize;
     let mut last_flush = Instant::now();
+    let mut projection_created = false;
 
     loop {
         let item = tokio::select! {
@@ -1988,15 +1991,30 @@ async fn consume_model_stream(
                 return Err(error);
             }
         };
+        let has_stream_data = chunk
+            .content
+            .as_deref()
+            .is_some_and(|content| !content.is_empty())
+            || chunk
+                .reasoning_content
+                .as_deref()
+                .is_some_and(|content| !content.is_empty())
+            || chunk
+                .tool_calls
+                .as_ref()
+                .is_some_and(|calls| !calls.is_empty());
         accumulator.push(chunk)?;
         let current_chars = accumulator.content().chars().count()
             + accumulator
                 .reasoning_content()
                 .map_or(0, |content| content.chars().count());
-        if current_chars > 0
-            && (current_chars.saturating_sub(flushed_chars) >= 256
-                || last_flush.elapsed() >= Duration::from_millis(500))
-        {
+        if should_flush_stream_projection(
+            has_stream_data,
+            projection_created,
+            current_chars,
+            flushed_chars,
+            last_flush.elapsed(),
+        ) {
             message_application
                 .upsert_assistant_streaming_message(
                     claimed,
@@ -2005,6 +2023,7 @@ async fn consume_model_stream(
                     accumulator.reasoning_content().map(str::to_string),
                 )
                 .await?;
+            projection_created = true;
             flushed_chars = current_chars;
             last_flush = Instant::now();
         }
@@ -2039,6 +2058,19 @@ async fn consume_model_stream(
             .await?;
     }
     Ok(response)
+}
+
+fn should_flush_stream_projection(
+    has_stream_data: bool,
+    projection_created: bool,
+    current_chars: usize,
+    flushed_chars: usize,
+    elapsed: Duration,
+) -> bool {
+    has_stream_data
+        && (!projection_created
+            || current_chars.saturating_sub(flushed_chars) >= AGENT_STREAM_PROJECTION_MAX_CHARS
+            || elapsed >= AGENT_STREAM_PROJECTION_INTERVAL)
 }
 
 /// Executes independent read-only calls with bounded concurrency while keeping
@@ -3704,6 +3736,38 @@ mod tests {
         );
         assert!(json_u32(&json!({"steps_used": "1"}), "steps_used").is_err());
         assert!(json_u64(&json!({"tokens_used": -1}), "tokens_used").is_err());
+    }
+
+    #[test]
+    fn stream_projection_starts_on_first_delta_and_throttles_followup_writes() {
+        assert!(should_flush_stream_projection(
+            true,
+            false,
+            0,
+            0,
+            Duration::from_millis(1),
+        ));
+        assert!(should_flush_stream_projection(
+            true,
+            true,
+            256,
+            0,
+            Duration::from_millis(1),
+        ));
+        assert!(should_flush_stream_projection(
+            true,
+            true,
+            1,
+            0,
+            AGENT_STREAM_PROJECTION_INTERVAL,
+        ));
+        assert!(!should_flush_stream_projection(
+            false,
+            false,
+            0,
+            0,
+            Duration::from_secs(1),
+        ));
     }
 
     #[test]

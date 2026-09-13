@@ -1445,6 +1445,26 @@
         }
       ]
     },
+    "ImageSize": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "width": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
     "InterruptedEvent": {
       "additionalProperties": false,
       "properties": {
@@ -3269,6 +3289,17 @@
         "record_id": {
           "format": "int64",
           "type": "integer"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageSize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "source_chapter_id": {
           "format": "int64",

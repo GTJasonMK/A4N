@@ -94,6 +94,19 @@ try {
   await assertWorkspaceFits("initial");
   await browser.$(".director-inspector").waitForDisplayed();
   await browser.saveScreenshot(path.join(artifacts, "initial.png"));
+  await browser.$('[aria-label="导演 Agent"]').click();
+  await browser.$(".director-agent-inspector").waitForDisplayed();
+  const agentPanel = await browser.execute(() => ({
+    dialogs: document.querySelectorAll('[role="dialog"]').length,
+    inspector: document.querySelector(".director-agent-inspector")?.getBoundingClientRect().toJSON() ?? null,
+    console: document.querySelector(".director-agent-console")?.getBoundingClientRect().toJSON() ?? null,
+  }));
+  assert.equal(agentPanel.dialogs, 0, "desktop director Agent must use the inspector, not a dialog");
+  assert.ok(agentPanel.inspector && agentPanel.console && Math.abs(agentPanel.inspector.height - agentPanel.console.height) <= 1, "director Agent must fill the right inspector");
+  await browser.$('.director-agent-console [aria-label="关闭"]').click();
+  await browser.$(".director-inspector").waitForDisplayed({ reverse: true });
+  await browser.$('[aria-label="属性"]').click();
+  await browser.$(".director-inspector").waitForDisplayed();
   await browser.$('[aria-label="原文"]').click();
   await browser.$('[role="dialog"]').waitForDisplayed();
   assert.equal(await browser.$(".director-inspector").isDisplayed(), true, "opening a dialog must not replace the desktop inspector");
@@ -119,6 +132,22 @@ try {
   await prompt.setValue("镜头缓缓推近，旅人在门前停步。");
   await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "save_chapter_visual_plan_draft" && call.input.plan.segments[0].prompt.includes("缓缓推近"))));
   await browser.saveScreenshot(path.join(artifacts, "desktop-properties.png"));
+  await browser.$$(".director-point")[1].click();
+  await browser.$("button=分镜候选（2）").click();
+  await browser.$('[role="dialog"]').waitForDisplayed();
+  await browser.$(".director-point-candidate-grid").waitForDisplayed();
+  assert.equal((await browser.$$(".director-point-candidate")).length, 2, "one image point must retain multiple generated candidates");
+  assert.equal((await browser.$$("button=切换为此图")).length, 2);
+  await browser.$$("button=切换为此图")[0].click();
+  await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "save_chapter_visual_plan_draft" && call.input.plan.points[1].image_id === 9)));
+  assert.equal((await browser.$$("button=当前绑定")).length, 1, "an image point can bind only one candidate");
+  assert.equal((await browser.$$("button=切换为此图")).length, 1, "the other candidate must remain switchable");
+  assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0, "candidate dialog must not overflow the document");
+  await browser.saveScreenshot(path.join(artifacts, "desktop-candidates.png"));
+  await browser.keys("Escape");
+  await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
+  await assertWorkspaceFits("candidate grid");
+  await browser.$$(".director-point")[0].click();
   await browser.$('[aria-label="收起属性"]').click();
   await browser.$('[aria-label="调整整体时长"]').click();
   await browser.$('[role="dialog"]').waitForDisplayed();
@@ -158,8 +187,19 @@ try {
   await browser.waitUntil(async () => browser.execute(() => getComputedStyle(document.querySelector('[role="dialog"]')).opacity === "1"));
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
   await browser.saveScreenshot(path.join(artifacts, "mobile-properties.png"));
-  await browser.$("button=生成分镜图片").click();
-  await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "start_image_generation")), { timeout: 10_000, timeoutMsg: "one-click generation did not start" });
+  const imageSizeSelect = await browser.$('.director-fields [role="combobox"]');
+  await imageSizeSelect.waitForDisplayed();
+  assert.equal(await imageSizeSelect.isDisplayed(), true, "image property section must expose a size selector");
+  assert.match(await imageSizeSelect.getText(), /1920\s*x\s*1080/);
+  await browser.$("button=重新生成").click();
+  await browser.$(".director-generation").waitForDisplayed();
+  await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "start_image_generation")), { timeout: 10_000, timeoutMsg: "regeneration must start immediately" });
+  assert.equal(await browser.$("button=开始生成").isExisting(), false, "regeneration must not require a second start action");
+  assert.equal(await browser.$(".director-generation-panel").isExisting(), false, "image generation must not open a redundant lower panel");
+  assert.equal(await browser.$("h4=生成分镜图片").isExisting(), false, "image generation must stay in the image properties section");
+  assert.equal(await browser.$('.director-generation [role="combobox"]').isExisting(), false, "generation panel must not duplicate the image size selector");
+  assert.equal(await browser.$(".director-generation img").isExisting(), false, "generation panel must not duplicate the generated preview");
+  assert.equal(await browser.$(".director-generation").$("button=采用候选").isExisting(), false, "image candidates are adopted from the candidate dialog");
   assert.equal((await browser.$$('[role="dialog"]')).length, 1, "image generation must stay in the properties dialog");
   assert.equal(await browser.$("h3=图片点属性").isDisplayed(), true, "generation must not replace the properties heading");
   assert.equal(await browser.$(".director-generation").isDisplayed(), true, "generation progress must render in the properties panel");
@@ -167,6 +207,15 @@ try {
   const generationStart = await browser.execute(() => window.directorCommands.find((call) => call.command === "start_image_generation"));
   assert.equal(generationStart.input.operation.options.config_id, null, "generation must use the configured system default image model");
   assert.equal(generationStart.input.operation.options.user_description, "旅人在雨夜走近旧书店。", "generation must reuse the point description");
+  assert.deepEqual(generationStart.input.operation.options.size, { width: 1920, height: 1080 }, "generation must use the selected image size");
+  const stopGeneration = await browser.$("button=停止生成");
+  const stopRect = await browser.execute((button) => {
+    const rect = button.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom };
+  }, stopGeneration);
+  assert.ok(stopRect.top >= 0 && stopRect.bottom <= 667, "generation cancel action must remain reachable in the mobile dialog");
+  const mobileFooterTop = await browser.execute(() => document.querySelector(".director-mobile-inspector > .a4n-dialog-section:last-child")?.getBoundingClientRect().top ?? 667);
+  assert.ok(stopRect.bottom <= mobileFooterTop, "generation cancel action must not sit behind the mobile footer");
   await browser.saveScreenshot(path.join(artifacts, "mobile-generation.png"));
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
@@ -203,6 +252,7 @@ try {
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
   await browser.saveScreenshot(path.join(artifacts, "mobile-expanded.png"));
   await setViewport(1440, 900);
+  await browser.$$(".director-point")[0].click();
   for (const [label, ratio] of [["9:16 竖屏", 9 / 16], ["1:1 方形", 1], ["4:3", 4 / 3], ["16:9 横屏", 16 / 9]]) {
     await browser.$('[aria-label="画幅"]').click();
     assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-haspopup"), "dialog");
@@ -277,7 +327,8 @@ try {
   assert.match(await browser.$('[aria-label="调整整体时长"]').getText(), /12s/);
   assert.doesNotMatch(await browser.$(".director-save-status").getText(), /保存中/);
   await browser.execute(() => window.switchDirectorChapter(3));
-  await browser.waitUntil(async () => (await browser.$(".director-error").getText()).includes("重新加载"));
+  await browser.$(".director-empty").waitForDisplayed();
+  await browser.$("button=重新加载").waitForDisplayed();
   assert.equal(await browser.$(".director-viewer").isExisting(), false, "a failed chapter load must never display the previous chapter's plan");
   const report = { passed: true, cases: ["all four frame aspect ratios", "viewport fitting inside the real chapter workspace", "compact timeline reserves preview space", "shared track hit targets", "timing dialog and cancelled edits", "default desktop inspector", "container resize without viewport resize", "read-only controls", "points independent of segments", "play/pause", "prompt autosave payload", "proportional retime request", "responsive overflow", "mobile dialog and Escape", "mobile bottom actions reachable", "dialog keyboard isolation", "point and segment boundary pointer gestures", "chapter switch during pending mutation", "chapter load failure never displays the previous plan"], measurements };
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify(report, null, 2));

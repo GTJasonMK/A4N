@@ -12,7 +12,6 @@ interface Props {
   selection: DirectorSelection | null;
   clock: DirectorPlayback;
   editable: boolean;
-  error: string | null;
   sceneNames: ReadonlyMap<number, string>;
   onSelect: (selection: DirectorSelection, atMs: number) => void;
   onEdit: (operation: VisualPlanEditOperation) => Promise<void>;
@@ -21,7 +20,7 @@ interface Props {
 
 type Drag = { kind: "point" | "boundary"; id: string; startX: number; startTime: number; width: number; value: number };
 
-export function DirectorTimeline({ plan, selection, clock, editable, error, sceneNames, onSelect, onEdit, onSplit }: Props) {
+export function DirectorTimeline({ plan, selection, clock, editable, sceneNames, onSelect, onEdit, onSplit }: Props) {
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -156,7 +155,6 @@ export function DirectorTimeline({ plan, selection, clock, editable, error, scen
       </div>
     </div>
     <Modal isOpen={timingOpen} title="调整时长" onClose={closeTiming} footer={<BookButton onClick={closeTiming}>完成</BookButton>}>
-      {error && <p className="director-error" role="alert">{error}</p>}
       <div className="director-timing-fields">
         <label>整体时长 <input className="book-control w-24 px-2 py-1" aria-label="整体时长（秒）" type="number" min="0.001" step="0.001" value={duration} disabled={!editable}
           onChange={(event) => setDuration(event.target.value)} onBlur={() => scaleTimeline(Math.round(Number(duration) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> 秒</label>

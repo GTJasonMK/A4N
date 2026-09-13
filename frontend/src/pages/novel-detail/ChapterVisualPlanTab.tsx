@@ -1,16 +1,19 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useStore } from "zustand";
-import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Play, Redo2, Save, Settings2, SkipBack, SkipForward, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
+import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Play, Plus, Redo2, Save, Settings2, SkipBack, SkipForward, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
+import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV3, VisualPlanPromptCandidate, VisualPlanEditOperation } from "../../api/chapterVisualPlan";
-import { listImagesByProjects, uploadImage, type GeneratedImage } from "../../api/image";
-import { listSceneProfiles, type SceneProfile } from "../../api/sceneProfiles";
+import { IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME, listImagesByProjects, uploadImage, type GeneratedImage, type ImageSize } from "../../api/image";
+import { createSceneProfile, listSceneProfiles, type SceneProfile } from "../../api/sceneProfiles";
 import { respondAgentEditor, type AgentEditorRequest, type AgentEditorResponse, type AgentEditorSource } from "../../api/agent";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Modal } from "../../components/ui/Modal";
+import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { DirectorGeneration } from "./visual-plan/DirectorGeneration";
@@ -21,13 +24,22 @@ import { durationMs, formatTime, pointAt, segmentAt, segmentTimes, type Director
 import "./visual-plan/director.css";
 
 const SceneLibrary = lazy(() => import("./SceneProfilesTab").then((module) => ({ default: module.SceneProfilesTab })));
-type ModalPanel = "source" | "scenes" | "media" | "settings" | "agent";
+type ModalPanel = "source" | "scenes" | "media" | "settings" | "agent" | "candidates";
 type SplitDraft = { segmentId: string; pointId: string; leftPrompt: string; rightPrompt: string; leftScene: SceneBindingV3 | null; rightScene: SceneBindingV3 | null };
 type MergeDraft = { leftId: string; rightId: string; prompt: string; scene: SceneBindingV3 | null };
+
+function directorCandidatePointId(image: GeneratedImage): string | null {
+  if (image.image_type !== IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME || typeof image.metadata_json !== "object" || image.metadata_json === null || Array.isArray(image.metadata_json)) return null;
+  const candidate = (image.metadata_json as Record<string, unknown>).director_candidate;
+  if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return null;
+  const pointId = (candidate as Record<string, unknown>).point_id;
+  return typeof pointId === "string" ? pointId : null;
+}
 
 export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectId: number; canEdit: boolean; chapter: ChapterSummary | null }) {
   const chapterId = chapter?.id ?? null;
   const model = useDirectorPlan(projectId, chapterId, canEdit);
+  const addToast = useToast((state) => state.addToast);
   const plan = model.plan;
   const total = plan ? durationMs(plan) : 0;
   const clock = useDirectorPlayback(total, `${projectId}:${chapterId}`);
@@ -54,10 +66,10 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     observer.observe(workspace);
     return () => observer.disconnect();
   }, [model.loading, plan != null]);
-  const [generation, setGeneration] = useState<DirectorSelection | null>(null);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [scenes, setScenes] = useState<SceneProfile[]>([]);
-  const [assetError, setAssetError] = useState<string | null>(null);
+  const imageSizeState = useImageGenerationSize();
+  const [selectedImageSize, setSelectedImageSize] = useState<ImageSize | null>(null);
   const [split, setSplit] = useState<SplitDraft | null>(null);
   const [merge, setMerge] = useState<MergeDraft | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -67,13 +79,40 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const imageById = useMemo(() => new Map(images.map((image) => [image.id, image])), [images]);
   const point = selection?.kind === "point" ? plan?.points.find((point) => point.id === selection.id) : undefined;
   const segment = selection?.kind === "segment" ? plan?.segments.find((segment) => segment.id === selection.id) : undefined;
+  const pointCandidates = useMemo(() => point && chapterId != null
+    ? images
+      .filter((image) => image.project_id === projectId && image.chapter_id === chapterId && directorCandidatePointId(image) === point.id)
+      .sort((left, right) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")))
+    : [], [chapterId, images, point?.id, projectId]);
+  const pointImageSizes = useMemo(() => plan
+    ? imageSizeState.sizes.filter((size) => size.width * plan.frame.height === size.height * plan.frame.width)
+    : [], [imageSizeState.sizes, plan?.frame.height, plan?.frame.width]);
+  const effectiveImageSize = selectedImageSize && pointImageSizes.some((size) => size.width === selectedImageSize.width && size.height === selectedImageSize.height)
+    ? selectedImageSize
+    : pointImageSizes[0] ?? null;
+  useEffect(() => {
+    setSelectedImageSize((current) => current && pointImageSizes.some((size) => size.width === current.width && size.height === current.height) ? current : null);
+  }, [pointImageSizes]);
   const disabled = !model.editable || model.busy;
-  const hasModal = Boolean(generation || split || merge || modalPanel || (narrow && inspectorOpen));
+  const agentSidebarOpen = modalPanel === "agent" && !narrow && inspectorOpen;
+  const hasModal = Boolean(split || merge || (modalPanel && !agentSidebarOpen) || (narrow && inspectorOpen));
   const openModal = (next: ModalPanel) => {
     setModalPanel(next);
-    if (narrow) setInspectorOpen(false);
+    if (next === "agent" && !narrow) {
+      setInspectorOpen(true);
+    } else if (narrow) {
+      setInspectorOpen(false);
+    }
   };
   const closeModal = () => setModalPanel(null);
+  const closeAgentSidebar = () => {
+    setModalPanel(null);
+    setInspectorOpen(false);
+  };
+  const closeCandidateModal = () => {
+    setModalPanel(null);
+    if (narrow) setInspectorOpen(true);
+  };
 
   const loadAssets = useCallback(async () => {
     const scope = ++assetScope.current;
@@ -84,19 +123,21 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     if (scope !== assetScope.current) return;
     const failures: string[] = [];
     if (results[0].status === "fulfilled") setImages(results[0].value);
-    else failures.push(`图片库加载失败：${String(results[0].reason)}`);
+    else failures.push(extractErrorMessage(results[0].reason, "图片库加载失败"));
     if (results[1].status === "fulfilled") setScenes(results[1].value);
-    else failures.push(`场景库加载失败：${String(results[1].reason)}`);
-    setAssetError(failures.length ? failures.join("；") : null);
-  }, [projectId, chapter?.project_id]);
+    else failures.push(extractErrorMessage(results[1].reason, "场景库加载失败"));
+    if (failures.length) {
+      addToast(failures.join("；"), "error", { label: "重试加载素材", onClick: () => void loadAssets() });
+    }
+  }, [addToast, projectId, chapter?.project_id]);
 
   useEffect(() => {
     setSelection(null);
     setInspectorOpen(!narrow);
     setModalPanel(null);
-    setGeneration(null);
     setSplit(null);
     setMerge(null);
+    setSelectedImageSize(null);
     setImages([]);
     setScenes([]);
     void loadAssets();
@@ -127,9 +168,20 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     if (!current || !current.segments.some((segment) => segment.id === id)) throw new Error("镜头段已不存在");
     model.updateFields({ ...current, segments: current.segments.map((segment) => segment.id === id ? { ...segment, ...fields } : segment) });
   };
+  const rememberImage = useCallback((image: GeneratedImage) => {
+    setImages((current) => current.some((item) => item.id === image.id) ? current : [image, ...current]);
+    if (image.image_type === IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME) {
+      setSelectedImageSize({ width: image.width, height: image.height });
+    }
+  }, []);
+  const rememberScene = useCallback((scene: SceneProfile) => {
+    setScenes((current) => current.some((item) => item.id === scene.id)
+      ? current.map((item) => item.id === scene.id ? scene : item)
+      : [...current, scene]);
+  }, []);
   const edit = async (operation: VisualPlanEditOperation) => {
     clock.getState().pause();
-    await model.mutate(operation).catch(model.report);
+    await model.mutate(operation);
   };
 
   const openSplit = () => {
@@ -154,7 +206,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     if (!model.editable) throw new Error("请先进入草稿编辑模式");
     updatePoint(pointId, { image_id: image.id });
     await model.save();
-    setImages((current) => current.some((item) => item.id === image.id) ? current : [...current, image]);
+    rememberImage(image);
   };
   const adoptPrompt = async (candidate: VisualPlanPromptCandidate) => {
     if (!model.editable || candidate.source_chapter_id !== chapterId) throw new Error("候选不属于当前可编辑章节");
@@ -238,51 +290,81 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
 
   if (!chapter) return <p className="director-empty">选择一个章节，开始编排分镜。</p>;
   if (model.loading) return <LoadingSpinner inline={false} text="正在加载导演编排…" />;
-  if (!plan) return <div className="director-error" role="alert">{model.error}<BookButton onClick={() => void model.reload(true)}>重新加载</BookButton></div>;
+  if (!plan) return <div className="director-empty"><p>{model.error ?? "导演编排暂时无法加载。"}</p><BookButton onClick={() => void model.reload(true)}>重新加载</BookButton></div>;
 
   const selectionSummary = point
     ? `${formatTime(point.at_ms)} · ${point.id === plan.points[0].id || point.id === plan.points.at(-1)?.id ? "固定端点" : "分镜关键帧"}`
     : segment ? segmentTimes(plan, segment).map(formatTime).join(" → ") : "";
+  const isFixedPoint = point != null && (point.id === plan.points[0].id || point.id === plan.points.at(-1)?.id);
+  const pointActions = point && <section className="director-property-actions">
+    <h4>时间线操作</h4>
+    {isFixedPoint
+      ? <p className="director-context-line">固定端点不能拆分或删除。</p>
+      : <div className="director-inline-actions"><BookButton variant="ghost" size="sm" disabled={disabled} onClick={openSplit}>从此处分镜</BookButton><BookButton className="director-delete-point" variant="ghost" size="sm" disabled={disabled} onClick={() => void edit({ kind: "remove_point", point_id: point.id })}><Trash2 size={15} />删除图片点</BookButton></div>}
+  </section>;
   const inspector = <>
         {!narrow && <div className="director-inspector-heading"><h3>{point ? "图片点" : "镜头段"}</h3><p className="director-object-time">{selectionSummary}</p><BookIconButton label="收起属性" onClick={() => setInspectorOpen(false)}><X size={15} /></BookIconButton></div>}
-        {generation?.kind === "point" && generation.id === point?.id && <DirectorGeneration
-          key={`${generation.kind}:${generation.id}`}
-          projectId={projectId}
-          chapterId={chapter.id}
-          plan={plan}
-          target={generation}
-          save={model.save}
-          onAdoptImage={adoptImage}
-          onAdoptPrompt={adoptPrompt}
-          onClose={() => setGeneration(null)}
-        />}
-        {generation?.kind === "segment" && generation.id === segment?.id && <DirectorGeneration
-          key={`${generation.kind}:${generation.id}`}
-          projectId={projectId}
-          chapterId={chapter.id}
-          plan={plan}
-          target={generation}
-          save={model.save}
-          onAdoptImage={adoptImage}
-          onAdoptPrompt={adoptPrompt}
-          onClose={() => setGeneration(null)}
-        />}
-        {point && <fieldset disabled={disabled} className="director-fields">
-          {narrow && <p className="director-object-time">{selectionSummary}</p>}
-          <label>名称<input value={point.label} onChange={(event) => updatePoint(point.id, { label: event.target.value })} /></label>
-          <label>画面描述<textarea rows={4} value={point.description} placeholder="这个时刻的主体、构图和画面状态…" onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
-          <div className="director-inline-actions"><BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />选择图片</BookButton><label className="director-upload-button"><Upload size={15} />上传<input type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label></div>
-          <BookButton variant="secondary" onClick={() => setGeneration({ kind: "point", id: point.id })}><Sparkles size={15} />生成分镜图片</BookButton>
-          <p className="director-context-line">{point.image_id ? "已绑定分镜图片" : "尚未绑定图片"} · {point.reference_image_ids.length} 张参考图</p>
-          {point.image_id && <BookButton variant="ghost" size="sm" onClick={() => updatePoint(point.id, { image_id: null })}>解除图片绑定</BookButton>}
-          <div className="director-inline-actions"><BookButton variant="ghost" size="sm" onClick={openSplit}>从此处分镜</BookButton><BookIconButton label="删除图片点" disabled={disabled || point.id === plan.points[0].id || point.id === plan.points.at(-1)?.id} onClick={() => void edit({ kind: "remove_point", point_id: point.id })}><Trash2 size={15} /></BookIconButton></div>
-        </fieldset>}
+        {point && <>
+          <fieldset disabled={disabled} className="director-fields">
+            {narrow && <p className="director-object-time">{selectionSummary}</p>}
+            <section className="director-property-group">
+              <h4>图片点信息</h4>
+              <label>名称<input value={point.label} onChange={(event) => updatePoint(point.id, { label: event.target.value })} /></label>
+              <label>画面描述<textarea rows={4} value={point.description} placeholder="这个时刻的主体、构图和画面状态…" onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
+            </section>
+            <section className="director-property-group">
+              <h4>图片素材</h4>
+              <p className="director-binding-status" role="status">{point.image_id ? "已绑定分镜图片" : "尚未绑定分镜图片"} · {point.reference_image_ids.length} 张参考图</p>
+              <ImageSizeSelect
+                label="生成尺寸"
+                disabled={disabled}
+                error={imageSizeState.error}
+                loading={imageSizeState.loading}
+                onChange={setSelectedImageSize}
+                sizes={pointImageSizes}
+                value={effectiveImageSize}
+              />
+              {point && !imageSizeState.loading && !imageSizeState.error && pointImageSizes.length === 0 && <p role="alert" className="director-context-line">当前图片配置没有与方案画幅匹配的尺寸，请先在图片模型设置中添加对应尺寸。</p>}
+              <div className="director-point-media-actions">
+                <BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />从素材库选择</BookButton>
+                <label className="director-upload-button"><Upload size={15} />上传本地图片<input type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label>
+              </div>
+              <BookButton variant="secondary" size="sm" disabled={pointCandidates.length === 0} onClick={() => openModal("candidates")}><Images size={15} />分镜候选{pointCandidates.length > 0 ? `（${pointCandidates.length}）` : ""}</BookButton>
+              <DirectorGeneration
+                key={`point:${point.id}`}
+                projectId={projectId}
+                chapterId={chapter.id}
+                plan={plan}
+                target={{ kind: "point", id: point.id }}
+                save={model.save}
+                selectedSize={effectiveImageSize}
+                availableSizes={pointImageSizes}
+                hasCandidates={pointCandidates.length > 0}
+                onImageGenerated={rememberImage}
+                onAdoptPrompt={adoptPrompt}
+              />
+              {point.image_id && <BookButton variant="ghost" size="sm" onClick={() => updatePoint(point.id, { image_id: null })}>解除图片绑定</BookButton>}
+            </section>
+          </fieldset>
+          {!narrow && pointActions}
+        </>}
         {segment && <fieldset disabled={disabled} className="director-fields">
           {narrow && <p className="director-object-time">{selectionSummary}</p>}
           <label>镜头名称<input value={segment.title} onChange={(event) => updateSegment(segment.id, { title: event.target.value })} /></label>
           <label>变化描述<textarea rows={4} value={segment.prompt} placeholder="从起点画面开始，动作、镜头语言、风格和剧情如何变化…" onChange={(event) => updateSegment(segment.id, { prompt: event.target.value })} /></label>
-          <BookButton variant="secondary" onClick={() => setGeneration({ kind: "segment", id: segment.id })}><Sparkles size={15} />生成描述候选</BookButton>
-          <SceneBindingEditor binding={segment.scene_binding} scenes={scenes} onChange={(binding) => updateSegment(segment.id, { scene_binding: binding })} />
+          <DirectorGeneration
+            key={`segment:${segment.id}`}
+            projectId={projectId}
+            chapterId={chapter.id}
+            plan={plan}
+            target={{ kind: "segment", id: segment.id }}
+            save={model.save}
+            selectedSize={effectiveImageSize}
+            availableSizes={pointImageSizes}
+            onImageGenerated={rememberImage}
+            onAdoptPrompt={adoptPrompt}
+          />
+          <SceneBindingEditor key={`segment-scene:${segment.id}`} projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={segment.scene_binding} scenes={scenes} disabled={disabled} onSceneCreated={rememberScene} onChange={(binding) => updateSegment(segment.id, { scene_binding: binding })} />
           <label className="director-checkbox" title="默认只使用起点和段内关键帧，结束点可以是下一镜头。"><input type="checkbox" checked={segment.use_end_point_image} onChange={(event) => updateSegment(segment.id, { use_end_point_image: event.target.checked })} />使用结束点图片作为目标尾帧</label>
           <div className="director-inline-actions"><BookButton variant="ghost" size="sm" onClick={openSplit}>拆分镜头</BookButton><BookButton variant="ghost" size="sm" onClick={openMerge} disabled={disabled || segment.id === plan.segments.at(-1)?.id}>与后一段合并</BookButton></div>
         </fieldset>}
@@ -298,8 +380,6 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
       </div>
     </header>
     <div className="director-alerts">
-    {model.error && <div className="director-error" role="alert">{model.error}<BookButton variant="ghost" size="sm" onClick={() => void model.save().catch(model.report)} disabled={!model.editable || model.busy}>重试保存</BookButton></div>}
-    {assetError && <div className="director-error" role="alert">{assetError}<BookButton variant="ghost" size="sm" onClick={() => void loadAssets()}>重试加载素材</BookButton></div>}
     {model.recovery && <div className="director-notice">此页面有未同步的本地编辑。<BookButton variant="secondary" size="sm" onClick={() => { void confirmDialog({ title: "恢复未同步编辑", message: "将用本地保留的内容更新当前草稿，已确认版本不受影响。", confirmText: "恢复草稿" }).then((accepted) => { if (accepted) void model.restore(); }); }}>恢复草稿</BookButton></div>}
     {model.issues.length > 0 && <div className="director-error" role="alert">{model.issues.map((issue) => <button key={issue.path} type="button" onClick={() => {
       const match = /^(points|segments)\[(\d+)\]/.exec(issue.path);
@@ -308,13 +388,23 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     </div>
 
     <div className="director-tool-rail" role="toolbar" aria-label="导演工具">
-        <Tool icon={Settings2} label="属性" pressed={inspectorOpen} opensDialog={narrow} expanded={inspectorOpen} onClick={() => setInspectorOpen((current) => !current)} />
+        <Tool icon={Settings2} label="属性" pressed={inspectorOpen && !agentSidebarOpen} opensDialog={narrow} expanded={inspectorOpen && !agentSidebarOpen} onClick={() => {
+          if (agentSidebarOpen) {
+            setModalPanel(null);
+            setInspectorOpen(true);
+          } else {
+            setInspectorOpen((current) => !current);
+          }
+        }} />
         <span className="director-tool-divider" aria-hidden="true" />
         <Tool icon={Images} label="素材库" opensDialog expanded={modalPanel === "media"} onClick={() => openModal("media")} />
         <Tool icon={Mountain} label="场景库" opensDialog expanded={modalPanel === "scenes"} onClick={() => openModal("scenes")} />
         <Tool icon={BookOpen} label="原文" opensDialog expanded={modalPanel === "source"} onClick={() => openModal("source")} />
         <Tool icon={Film} label="画幅" opensDialog expanded={modalPanel === "settings"} onClick={() => openModal("settings")} />
-        <Tool icon={Sparkles} label="导演 Agent" opensDialog expanded={modalPanel === "agent"} onClick={() => openModal("agent")} />
+        <Tool icon={Sparkles} label="导演 Agent" pressed={modalPanel === "agent"} opensDialog={narrow} expanded={modalPanel === "agent"} onClick={() => {
+          if (agentSidebarOpen) closeAgentSidebar();
+          else openModal("agent");
+        }} />
     </div>
     <div className={`director-stage ${inspectorOpen && !narrow ? "has-inspector" : ""}`}>
       <div className="director-editing-column">
@@ -327,16 +417,29 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
           </div>
           <Transport clock={clock} plan={plan} />
         </div>
-        <DirectorTimeline plan={plan} selection={selection} clock={clock} editable={!disabled} error={model.error} sceneNames={names} onSelect={select} onEdit={edit} onSplit={openSplit} />
+        <DirectorTimeline plan={plan} selection={selection} clock={clock} editable={!disabled} sceneNames={names} onSelect={select} onEdit={edit} onSplit={openSplit} />
       </div>
-      {inspectorOpen && !narrow && <aside className="director-inspector" aria-label="所选对象属性">{inspector}</aside>}
+      {inspectorOpen && !narrow && <aside className={`director-inspector ${agentSidebarOpen ? "director-agent-inspector" : ""}`} aria-label={agentSidebarOpen ? "导演 Agent" : "所选对象属性"}>
+        {agentSidebarOpen ? <DomainAgentConsole
+          capability="director"
+          projectId={projectId}
+          chapterId={chapter.id}
+          resourceLabel={chapter.title}
+          fill
+          className="director-agent-console min-h-0 flex-1 rounded-none border-0 shadow-none"
+          onClose={closeAgentSidebar}
+          onResourceChanged={() => model.reload()}
+          getEditorSource={getEditorSource}
+          onEditorRequest={editorRequest}
+        /> : inspector}
+      </aside>}
     </div>
 
-    <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setInspectorOpen(false)} className="director-mobile-inspector">{inspector}</Modal>
+    <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setInspectorOpen(false)} className="director-mobile-inspector" footer={narrow ? pointActions : undefined}>{inspector}</Modal>
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
     <Modal isOpen={modalPanel === "scenes"} title="场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={chapter.project_id} canEditProfiles={canEdit} /></Suspense></Modal>
-    <Modal isOpen={modalPanel === "agent"} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl" keepMounted>
-      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
+    <Modal isOpen={modalPanel === "agent" && narrow} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl">
+      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
     </Modal>
     <Modal isOpen={modalPanel === "settings"} title="画幅" onClose={closeModal}>
       <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => <BookButton key={label} variant="secondary" disabled={disabled} onClick={() => { void edit({ kind: "set_frame", frame: { width: Number(width), height: Number(height) } }); closeModal(); }}>{label}</BookButton>)}</div>
@@ -349,13 +452,28 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
         <BookButton variant="ghost" size="sm" disabled={!point || disabled} onClick={() => { if (point) updatePoint(point.id, { reference_image_ids: point.reference_image_ids.includes(image.id) ? point.reference_image_ids.filter((id) => id !== image.id) : [...point.reference_image_ids, image.id] }); }}>{point?.reference_image_ids.includes(image.id) ? "取消参考" : "选作参考"}</BookButton>
       </div></article>)}</div>{images.length === 0 && <p className="director-empty">暂无图片。可以在图片点属性中上传或生成分镜。</p>}
     </Modal>
-    {split && <Modal isOpen title="拆分镜头" onClose={() => setSplit(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then(() => setSplit(null)).catch(model.report); }}>拆分镜头</BookButton>}>
+    <Modal isOpen={modalPanel === "candidates"} title={point ? `${point.label || "图片点"} · 分镜候选` : "分镜候选"} onClose={closeCandidateModal} maxWidthClassName="max-w-4xl">
+      <div className="director-candidate-modal">
+        <p className="director-context-line">{pointCandidates.length} 张候选图 · 只能绑定 1 张；切换后会立即更新大屏幕预览。</p>
+        <div className="director-point-candidate-grid" role="list" aria-label="当前图片点的分镜候选">
+          {pointCandidates.map((image, index) => {
+            const bound = point?.image_id === image.id;
+            return <article key={image.id} className={`director-point-candidate ${bound ? "is-bound" : ""}`} role="listitem">
+              <img src={toMediaSrc(image.file_path)} alt={image.prompt || `分镜候选 ${index + 1}`} loading="lazy" />
+              <span className="director-point-candidate-label">候选 {index + 1}</span>
+              <BookButton variant={bound ? "primary" : "secondary"} size="sm" disabled={disabled || bound} aria-label={bound ? "当前绑定候选图" : "切换绑定为此候选图"} aria-pressed={bound} onClick={() => { if (point) void adoptImage(point.id, image).catch(model.report); }}>{bound ? <><Check size={13} />当前绑定</> : "切换为此图"}</BookButton>
+            </article>;
+          })}
+        </div>
+      </div>
+    </Modal>
+    {split && <Modal isOpen title="拆分镜头" onClose={() => setSplit(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
       <div className="director-fields"><label>分镜位置<select value={split.pointId} onChange={(event) => setSplit({ ...split, pointId: event.target.value })}>{plan.points.filter((point) => { const target = plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</select></label>
-        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value })} /></label><SceneBindingEditor binding={split.leftScene} scenes={scenes} onChange={(leftScene) => setSplit({ ...split, leftScene })} />
-        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor binding={split.rightScene} scenes={scenes} onChange={(rightScene) => setSplit({ ...split, rightScene })} /></div>
+        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene })} />
+        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene })} /></div>
     </Modal>}
-    {merge && <Modal isOpen title="合并镜头" onClose={() => setMerge(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then(() => setMerge(null)).catch(model.report); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
-      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value })} /></label><SceneBindingEditor binding={merge.scene} scenes={scenes} onChange={(scene) => setMerge({ ...merge, scene })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
+    {merge && <Modal isOpen title="合并镜头" onClose={() => setMerge(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
+      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
     </Modal>}
   </section>;
 }
@@ -364,17 +482,98 @@ function Tool({ icon: Icon, label, pressed, opensDialog = false, expanded = fals
   return <button type="button" title={label} aria-label={label} aria-pressed={pressed} aria-haspopup={opensDialog ? "dialog" : undefined} aria-expanded={opensDialog ? expanded : undefined} className={pressed ? "is-active" : ""} onClick={onClick}><Icon size={19} /><span>{label}</span></button>;
 }
 
-function SceneBindingEditor({ binding, scenes, onChange }: { binding: SceneBindingV3 | null; scenes: SceneProfile[]; onChange: (binding: SceneBindingV3 | null) => void }) {
+const NEW_SCENE_VALUE = "__new_scene__";
+type SceneSelectTarget = "entry" | "exit";
+
+function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disabled = false, onSceneCreated, onChange }: {
+  projectId: number;
+  chapterNumber: number;
+  binding: SceneBindingV3 | null;
+  scenes: SceneProfile[];
+  disabled?: boolean;
+  onSceneCreated: (scene: SceneProfile) => void;
+  onChange: (binding: SceneBindingV3 | null) => void;
+}) {
+  const { addToast } = useToast();
   const entry = binding?.kind === "scene" ? binding.scene_profile_id : binding?.from_scene_profile_id;
   const exit = binding?.kind === "scene" ? binding.scene_profile_id : binding?.to_scene_profile_id;
-  const options = <><option value="">选择场景</option>{scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.name}</option>)}</>;
-  return <div className="director-scene-binding"><label>场景方式<select value={binding?.kind ?? "scene"} disabled={scenes.length === 0} onChange={(event) => {
+  const [newSceneTarget, setNewSceneTarget] = useState<SceneSelectTarget | null>(null);
+  const [newSceneName, setNewSceneName] = useState("");
+  const [newSceneDescription, setNewSceneDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+  const resetNewScene = () => {
+    setNewSceneTarget(null);
+    setNewSceneName("");
+    setNewSceneDescription("");
+  };
+  const applyScene = (target: SceneSelectTarget, id: number) => {
+    if (target === "entry") {
+      onChange(binding?.kind === "transition"
+        ? { ...binding, from_scene_profile_id: id }
+        : { kind: "scene", scene_profile_id: id });
+    } else if (binding?.kind === "transition") {
+      onChange({ ...binding, to_scene_profile_id: id });
+    }
+  };
+  const chooseScene = (target: SceneSelectTarget, value: string) => {
+    if (value === NEW_SCENE_VALUE) {
+      setNewSceneTarget(target);
+      setNewSceneName("");
+      setNewSceneDescription("");
+      return;
+    }
+    resetNewScene();
+    const id = Number(value);
+    if (!id) {
+      onChange(null);
+      return;
+    }
+    applyScene(target, id);
+  };
+  const createCustomScene = async () => {
+    const name = newSceneName.trim();
+    if (!name || !newSceneTarget || creating) return;
+    const description = newSceneDescription.trim();
+    setCreating(true);
+    try {
+      const result = await createSceneProfile(projectId, {
+        name,
+        aliases: [],
+        scene_type: "",
+        importance: "",
+        parent_scene_id: null,
+        base_description: description,
+        visual_description: description,
+        spatial_layout: "",
+        atmosphere: "",
+        entry_points_json: [],
+        rules_json: [],
+        first_seen_chapter: Math.max(1, chapterNumber),
+        last_seen_chapter: Math.max(1, chapterNumber),
+        evidence: [],
+        image_prompt_seed: description || name,
+      });
+      onSceneCreated(result.profile);
+      applyScene(newSceneTarget, result.profile.id);
+      resetNewScene();
+    } catch (error) {
+      addToast(extractErrorMessage(error, "自定义场景创建失败"), "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+  const options = <><option value="">选择场景</option>{scenes.map((scene) => <option key={scene.id} value={scene.id}>{scene.name}</option>)}<option value={NEW_SCENE_VALUE}>+ 新建自定义场景</option></>;
+  return <div className="director-scene-binding"><label>场景方式<select value={binding?.kind ?? "scene"} disabled={disabled || creating} onChange={(event) => {
     const first = entry ?? scenes[0]?.id;
-    if (!first) return;
+    if (!first) {
+      setNewSceneTarget("entry");
+      return;
+    }
     onChange(event.target.value === "scene" ? { kind: "scene", scene_profile_id: first } : { kind: "transition", from_scene_profile_id: first, to_scene_profile_id: exit ?? scenes.find((scene) => scene.id !== first)?.id ?? first });
   }}><option value="scene">单一场景</option><option value="transition">场景转场</option></select></label>
-    <label>{binding?.kind === "transition" ? "起始场景" : "场景"}<select value={entry ?? ""} onChange={(event) => { const id = Number(event.target.value); onChange(!id ? null : binding?.kind === "transition" ? { ...binding, from_scene_profile_id: id } : { kind: "scene", scene_profile_id: id }); }}>{options}</select></label>
-    {binding?.kind === "transition" && <label>目标场景<select value={binding.to_scene_profile_id} onChange={(event) => { const id = Number(event.target.value); onChange(id ? { ...binding, to_scene_profile_id: id } : null); }}>{options}</select></label>}
+    <label>{binding?.kind === "transition" ? "起始场景" : "场景"}<select value={newSceneTarget === "entry" ? NEW_SCENE_VALUE : entry ?? ""} disabled={disabled || creating} onChange={(event) => chooseScene("entry", event.target.value)}>{options}</select></label>
+    {binding?.kind === "transition" && <label>目标场景<select value={newSceneTarget === "exit" ? NEW_SCENE_VALUE : binding.to_scene_profile_id} disabled={disabled || creating} onChange={(event) => chooseScene("exit", event.target.value)}>{options}</select></label>}
+    {newSceneTarget && <div className="director-custom-scene"><label>自定义场景名称<input autoFocus value={newSceneName} disabled={disabled || creating} onChange={(event) => setNewSceneName(event.target.value)} placeholder="例如：废弃车站月台" /></label><label>场景描述（可选）<textarea rows={3} value={newSceneDescription} disabled={disabled || creating} onChange={(event) => setNewSceneDescription(event.target.value)} placeholder="补充空间、光线和氛围等信息" /></label><div className="director-inline-actions"><BookButton variant="secondary" size="sm" disabled={disabled || creating || !newSceneName.trim()} onClick={() => void createCustomScene()}><Plus size={14} />保存并绑定</BookButton><BookButton variant="ghost" size="sm" disabled={creating} onClick={resetNewScene}>取消</BookButton></div></div>}
   </div>;
 }
 

@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use a4n_domain::ImageSize;
 pub use a4n_domain::chapter_visual_plan::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -243,6 +244,8 @@ pub struct VisualPlanPointGenerationOptions {
     pub point_id: String,
     pub user_description: String,
     pub config_id: Option<i64>,
+    #[serde(default)]
+    pub size: Option<ImageSize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

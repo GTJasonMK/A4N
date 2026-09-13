@@ -179,6 +179,19 @@ describe("AgentMessageRow", () => {
     expect(html).not.toContain("（空消息）");
   });
 
+  it("shows a thinking state as soon as an assistant stream exists", () => {
+    const html = renderToStaticMarkup(
+      <AgentMessageRow
+        message={message({ status: "streaming" })}
+        locale="zh-CN"
+      />,
+    );
+
+    expect(html).toContain("正在思考");
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain("Agent 未返回文本");
+  });
+
   it("summarizes a generic object by fields instead of exposing inline JSON", () => {
     const html = renderToStaticMarkup(
       <AgentMessageRow
