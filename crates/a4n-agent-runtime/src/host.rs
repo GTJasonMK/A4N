@@ -1,4 +1,3 @@
-use a4n_agent_application::agent::AgentRunContext;
 use a4n_api_contract::agent::{
     AgentExecutionResultPage, AgentToolDescriptor, AgentToolSearchResult,
 };
@@ -29,10 +28,10 @@ use a4n_worker_contract::{
     AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest,
-    AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
+    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -55,7 +54,7 @@ pub trait AgentRuntimeHost: Send + Sync {
     async fn load_run_context(
         &self,
         request: &WorkerRequest<AgentRunPayload>,
-    ) -> Result<AgentRunContext, AppError>;
+    ) -> Result<AgentWorkerRunContextWire, AppError>;
 
     async fn renew_worker_lease(
         &self,
@@ -283,12 +282,4 @@ pub trait AgentRuntimeHost: Send + Sync {
         plan: &ChapterVisualPlanV2,
         view: &VisualPlanReadView,
     ) -> Result<VisualPlanProjection, AppError>;
-
-    async fn notify_external_task_wait(
-        &self,
-        _context: &AgentRunContext,
-        _value: &Value,
-    ) -> Result<(), AppError> {
-        Ok(())
-    }
 }

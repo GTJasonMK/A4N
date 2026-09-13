@@ -1,4 +1,3 @@
-use a4n_agent_application::agent::AgentRunContext;
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
 use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
@@ -159,11 +158,9 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     async fn load_run_context(
         &self,
         request: &WorkerRequest<AgentRunPayload>,
-    ) -> Result<AgentRunContext, AppError> {
-        let context: AgentWorkerRunContextWire = self
-            .request_json(Method::POST, "/internal/agent/context", request)
-            .await?;
-        Ok(AgentRunContext::from_wire(context))
+    ) -> Result<AgentWorkerRunContextWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/context", request)
+            .await
     }
 
     async fn renew_worker_lease(

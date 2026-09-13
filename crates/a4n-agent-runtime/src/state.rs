@@ -120,7 +120,10 @@ impl AgentRuntimeState {
         &self,
         request: &WorkerRequest<AgentRunPayload>,
     ) -> Result<AgentRunContext, AppError> {
-        self.host.load_run_context(request).await
+        self.host
+            .load_run_context(request)
+            .await
+            .map(AgentRunContext::from_wire)
     }
 
     pub async fn read_worker_history(

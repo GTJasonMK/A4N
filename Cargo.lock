@@ -50,7 +50,6 @@ dependencies = [
 name = "a4n-agent-worker"
 version = "0.1.0"
 dependencies = [
- "a4n-agent-application",
  "a4n-agent-runtime",
  "a4n-api-contract",
  "a4n-config",
