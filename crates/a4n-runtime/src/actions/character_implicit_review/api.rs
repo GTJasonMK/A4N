@@ -16,7 +16,7 @@ pub async fn get_implicit_review(
     input: GetImplicitReviewInput,
 ) -> Result<ImplicitReviewSummary, String> {
     state
-        .character_implicit_review_application()
+        .character_implicit_review_read_application()
         .summary(user_id, input)
         .await
         .map_err(|error| error.to_string())

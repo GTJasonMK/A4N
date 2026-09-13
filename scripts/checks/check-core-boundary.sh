@@ -2485,6 +2485,26 @@ if ! rg -n 'pub use a4n_api_contract::character::\{' \
     printf 'Implicit character-review actions must consume the API character contract directly\n' >&2
     exit 1
 fi
+if ! rg -n 'character_implicit_review_read_application\(\)' \
+    crates/a4n-runtime/src/actions/character_implicit_review/api.rs; then
+    printf 'Implicit character-review summary reads must route through the read application port\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait CharacterImplicitReviewReadApplicationPort' \
+    crates/a4n-api-contract/src/character.rs; then
+    printf 'CharacterImplicitReviewReadApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait CharacterImplicitReviewReadApplicationPort' \
+    crates/a4n-orchestrator/src/character; then
+    printf 'CharacterImplicitReviewReadApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::character::CharacterImplicitReviewReadApplicationPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime implicit-review reads must consume the API contract directly\n' >&2
+    exit 1
+fi
 
 if rg -n 'pub use a4n_api_contract::source_sync::SourceSyncDecisionInput' \
     crates/a4n-orchestrator/src/source_sync.rs \

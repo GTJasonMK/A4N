@@ -1075,7 +1075,9 @@ impl CharacterProfileAttributeDeletionApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorContext {
+impl a4n_api_contract::character::CharacterImplicitReviewReadApplicationPort
+    for OrchestratorContext
+{
     async fn summary(
         &self,
         user_id: i64,
@@ -1083,7 +1085,10 @@ impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorCo
     ) -> Result<ImplicitReviewSummary, AppError> {
         self.implicit_review_summary_validated(user_id, input).await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorContext {
     async fn check(
         &self,
         user_id: i64,

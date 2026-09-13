@@ -162,6 +162,10 @@ pub struct AppState {
     /// receives already-projected API results.
     character_implicit_review_application:
         Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewApplicationPort>,
+    /// Host-facing implicit-review read boundary. Summary queries stay in the
+    /// API contract rather than the LLM decision workflow boundary.
+    character_implicit_review_read_application:
+        Arc<dyn a4n_api_contract::character::CharacterImplicitReviewReadApplicationPort>,
     /// Host-facing character profile deletion boundary.
     character_profile_deletion_application:
         Arc<dyn a4n_api_contract::character::CharacterProfileDeletionApplicationPort>,
@@ -1164,6 +1168,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewApplicationPort {
         self.character_implicit_review_application.as_ref()
+    }
+
+    pub(crate) fn character_implicit_review_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::character::CharacterImplicitReviewReadApplicationPort {
+        self.character_implicit_review_read_application.as_ref()
     }
 
     pub(crate) fn character_profile_deletion_application(
@@ -2198,6 +2208,7 @@ impl AppState {
             character_profile_attribute_mutation_application: Arc::new(orchestrator.clone()),
             character_profile_attribute_deletion_application: Arc::new(orchestrator.clone()),
             character_implicit_review_application: Arc::new(orchestrator.clone()),
+            character_implicit_review_read_application: Arc::new(orchestrator.clone()),
             character_profile_deletion_application: Arc::new(orchestrator.clone()),
             character_conflict_application: Arc::new(orchestrator.clone()),
             scene_profile_mutation_application: Arc::new(orchestrator.clone()),

@@ -20,8 +20,7 @@ mod sync_projection;
 mod sync_rules;
 use a4n_api_contract::character::{
     ApplyImplicitUpdateDecisionInput, ApplyImplicitUpdateDecisionResultSummary,
-    CheckImplicitUpdateInput, GetImplicitReviewInput, ImplicitReviewSummary,
-    ImplicitUpdateDecisionSummary,
+    CheckImplicitUpdateInput, ImplicitUpdateDecisionSummary,
 };
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
@@ -308,12 +307,6 @@ pub use implicit_review::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_
 /// owned by the character application; Runtime only supplies prompt rendering.
 #[async_trait::async_trait]
 pub trait CharacterImplicitReviewApplicationPort: Send + Sync {
-    async fn summary(
-        &self,
-        user_id: i64,
-        input: GetImplicitReviewInput,
-    ) -> Result<ImplicitReviewSummary, AppError>;
-
     async fn check(
         &self,
         user_id: i64,
