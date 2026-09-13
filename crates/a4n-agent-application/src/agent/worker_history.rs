@@ -1,5 +1,6 @@
 use super::{AgentApplication, AgentMessageSnapshot};
 use a4n_error::AppError;
+use a4n_worker_contract::{AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire};
 
 /// Runtime-facing boundary for the message history facts used by optimization
 /// continuation.
@@ -11,6 +12,11 @@ pub trait AgentWorkerHistoryApplicationPort: Send + Sync {
     ) -> Result<Vec<AgentMessageSnapshot>, AppError>;
 
     async fn latest_model_input_message_id(&self, run_id: i64) -> Result<Option<i64>, AppError>;
+
+    async fn worker_history_request(
+        &self,
+        request: &AgentWorkerHistoryRequest,
+    ) -> Result<AgentWorkerHistorySnapshotWire, AppError>;
 }
 
 #[async_trait::async_trait]
@@ -24,5 +30,12 @@ impl AgentWorkerHistoryApplicationPort for AgentApplication {
 
     async fn latest_model_input_message_id(&self, run_id: i64) -> Result<Option<i64>, AppError> {
         AgentApplication::latest_model_input_message_id(self, run_id).await
+    }
+
+    async fn worker_history_request(
+        &self,
+        request: &AgentWorkerHistoryRequest,
+    ) -> Result<AgentWorkerHistorySnapshotWire, AppError> {
+        AgentApplication::worker_history_request(self, request).await
     }
 }

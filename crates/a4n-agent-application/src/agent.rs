@@ -43,8 +43,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest,
-    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
+    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
@@ -4890,6 +4891,27 @@ impl AgentApplication {
         self.load_message_for_worker(claimed.run.thread_id, request.message_id)
             .await
             .map(Into::into)
+    }
+
+    pub(crate) async fn worker_history_request(
+        &self,
+        request: &AgentWorkerHistoryRequest,
+    ) -> Result<AgentWorkerHistorySnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        let user_messages = self.user_messages_for_run(request.run_id).await?;
+        let latest_model_input_message_id =
+            self.latest_model_input_message_id(request.run_id).await?;
+        Ok(AgentWorkerHistorySnapshotWire {
+            user_messages: user_messages.into_iter().map(Into::into).collect(),
+            latest_model_input_message_id,
+        })
     }
 
     /// Returns an approved operation for the given execution.  Approval

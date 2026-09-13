@@ -13,7 +13,6 @@ pub(super) async fn process(
     context: &AgentRunContext,
     worker_request: &WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
-    let history_application = state.worker_history_application();
     let latest_start = context
         .executions
         .iter()
@@ -76,14 +75,11 @@ pub(super) async fn process(
                 == Some("completed")
     });
     if previous_finished {
-        let observed = history_application
-            .latest_model_input_message_id(context.run.id)
-            .await?
+        let history = state.read_worker_history(claimed).await?;
+        let observed = history
+            .latest_model_input_message_id
             .ok_or_else(|| AppError::InvalidArgument("内容优化缺少已处理的用户消息边界".into()))?;
-        if let Some(followup) = history_application
-            .user_messages_for_run(context.run.id)
-            .await?
-            .last()
+        if let Some(followup) = history.user_messages.last()
             && followup.id > observed
         {
             start_id = format!("optimization-start:{}", followup.id);
@@ -162,9 +158,10 @@ pub(super) async fn process(
         .final_reply
         .filter(|reply| !reply.trim().is_empty())
         .ok_or_else(|| AppError::InvalidArgument("内容优化结果缺少最终答复".into()))?;
-    let observed = history_application
-        .latest_model_input_message_id(context.run.id)
+    let observed = state
+        .read_worker_history(claimed)
         .await?
+        .latest_model_input_message_id
         .ok_or_else(|| AppError::InvalidArgument("内容优化缺少已处理的用户消息边界".into()))?;
     super::complete_run(state, claimed, reply, observed).await
 }

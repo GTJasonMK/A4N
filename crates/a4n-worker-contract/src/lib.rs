@@ -239,6 +239,23 @@ impl AgentWorkerMemoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerHistoryRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+}
+
+impl AgentWorkerHistoryRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerInboxClaimRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
@@ -866,6 +883,13 @@ pub struct AgentWorkerMessageSnapshotWire {
     pub role: String,
     pub content: String,
     pub payload_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerHistorySnapshotWire {
+    pub user_messages: Vec<AgentWorkerMessageSnapshotWire>,
+    pub latest_model_input_message_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1691,6 +1715,26 @@ mod tests {
             .validate(),
             Err(WorkerContractError::BlankField {
                 field: "claim_token"
+            })
+        ));
+    }
+
+    #[test]
+    fn history_request_validates_run_lease() {
+        let request = AgentWorkerHistoryRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+        };
+        request.validate().expect("history request should be valid");
+        assert!(matches!(
+            AgentWorkerHistoryRequest {
+                run_id: 0,
+                lease: request.lease,
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "run_id",
+                reason: "must be positive"
             })
         ));
     }

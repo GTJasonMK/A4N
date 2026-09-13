@@ -236,6 +236,7 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::read_execution_result),
         )
         .route("/agent/memory", post(agent_runtime::read_memory))
+        .route("/agent/history", post(agent_runtime::read_worker_history))
         .route("/agent/inbox/claim", post(agent_runtime::claim_agent_inbox))
         .route(
             "/agent/inbox/consume",

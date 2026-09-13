@@ -8,11 +8,11 @@ use a4n_agent_application::agent::{
     AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
     AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot, AgentWorkerClaimApplicationPort,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerHistoryApplicationPort,
-    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort,
-    AgentWorkerRecoveryApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
+    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
+    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
+    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort, WorkerExecutionInput,
+    WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -26,12 +26,13 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
-    AgentWorkerInboxPersistSnapshotWire, AgentWorkerMemoryRequest, AgentWorkerMessageOperation,
-    AgentWorkerMessageRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
+    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
+    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire, AgentWorkerMemoryRequest,
+    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -130,6 +131,21 @@ impl AgentRuntimeState {
         request: &WorkerRequest<AgentRunPayload>,
     ) -> Result<AgentRunContext, AppError> {
         self.host.load_run_context(request).await
+    }
+
+    pub async fn read_worker_history(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<AgentWorkerHistorySnapshotWire, AppError> {
+        let request = AgentWorkerHistoryRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker history request 无效: {error}"),
+            operation: "读取 Agent worker history".into(),
+        })?;
+        self.host.read_worker_history(&request).await
     }
 
     fn agent_worker_lease_request(
@@ -878,9 +894,6 @@ impl AgentRuntimeState {
             state: self,
             claimed,
         }
-    }
-    pub fn worker_history_application(&self) -> &dyn AgentWorkerHistoryApplicationPort {
-        self.application.as_ref()
     }
     pub fn worker_inbox_application(&self) -> &dyn AgentWorkerInboxApplicationPort {
         self.application.as_ref()
