@@ -3,7 +3,7 @@ import { useState } from "react";
 import { I18nProvider } from "../../src/i18n";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
-import { ChapterVisualPlanTab } from "../../src/pages/novel-detail/ChapterVisualPlanTab";
+import { ChapterWorkspace, type BottomTab } from "../../src/pages/writing-desk/ChapterWorkspace";
 import { writeCurrentAccessToken, writeCurrentUserId } from "../../src/api/authStorage";
 import type { ChapterVisualPlanV3 } from "../../src/api/chapterVisualPlan";
 import type { ChapterSummary } from "../../src/api/chapter";
@@ -66,6 +66,8 @@ window.fetch = async (resource, options) => {
       } else if (input.operation.kind === "move_segment_boundary") {
         const index = plan.segments.findIndex((segment) => segment.id === input.operation.left_segment_id);
         plan = { ...plan, segments: plan.segments.map((segment, offset) => offset === index ? { ...segment, end_point_id: input.operation.point_id } : offset === index + 1 ? { ...segment, start_point_id: input.operation.point_id } : segment) };
+      } else if (input.operation.kind === "set_frame") {
+        plan = { ...plan, frame: input.operation.frame };
       } else return new Response(JSON.stringify({ message: "UI fixture does not implement this domain edit" }), { status: 501 });
       revision += 1;
       result = { resource: { kind: "chapter_visual_plan", id: "10", revision: String(revision), hash: null, label: null }, changed: true, changes: [], validation: { valid: true, diagnostics: [], mode: "draft" }, visual_plan: view() };
@@ -79,7 +81,27 @@ window.fetch = async (resource, options) => {
 
 function Fixture() {
   const [chapterId, setChapterId] = useState(1);
+  const [bottomTab, setBottomTab] = useState<BottomTab>("visual_plan");
+  const [canEdit, setCanEdit] = useState(true);
   Object.assign(window, { switchDirectorChapter: setChapterId });
-  return <I18nProvider><div className="a4n-app-shell h-dvh overflow-y-auto bg-book-bg"><main style={{ maxWidth: 1360, margin: "0 auto", padding: "24px 20px" }}><ChapterVisualPlanTab projectId={1} canEdit chapter={{ ...chapter, id: chapterId, chapter_number: chapterId, title: chapterId === 1 ? chapter.title : "第二章" }} /></main></div><ConfirmDialogHost /><ToastContainer /></I18nProvider>;
+  Object.assign(window, { setDirectorCanEdit: setCanEdit });
+  const unavailable = () => { throw new Error("This fixture only exercises the director workspace"); };
+  return <I18nProvider initialLocale="zh-CN"><div className="a4n-app-shell flex h-dvh flex-col bg-book-bg">
+    <main className="grid min-h-0 flex-1 p-2 sm:p-3">
+      <ChapterWorkspace
+        projectId={1} activeNumber={chapterId}
+        activeChapter={{ ...chapter, id: chapterId, chapter_number: chapterId, title: chapterId === 1 ? chapter.title : "第二章" }}
+        activeOutline={null} activeChapterContext={null} activeChapterBusy={false}
+        activeChapterGeneratingMessage="" analysisBlockedReason={null}
+        editorContent={chapter.content} dirty={false} savingContent={false}
+        optimizationPatchPreview={null} autoScrollEditorContent={false} wordCount={chapter.word_count}
+        generatingAnalysis={false} bottomTab={bottomTab} onBottomTabChange={setBottomTab}
+        onEditorContentChange={unavailable} onGenerateAnalysis={unavailable}
+        onPreviewGenerateAnalysis={unavailable} onResumeAnalysisSync={unavailable}
+        onPreviewResumeAnalysisSync={unavailable} onResumeDerivedSync={unavailable}
+        onOpenEmbeddingSettings={unavailable} canEdit={canEdit}
+      />
+    </main>
+  </div><ConfirmDialogHost /><ToastContainer /></I18nProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);
