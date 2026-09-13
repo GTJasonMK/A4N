@@ -1,14 +1,12 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
-    AgentApplication, AgentDelegationSnapshot, AgentEditorClaimApplicationPort,
-    AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot, AgentRunContext,
-    AgentRunSnapshot, AgentTurnSnapshot, AgentWorkerActivationApplicationPort,
+    AgentApplication, AgentDelegationSnapshot, AgentExecutionSnapshot, AgentInboxSnapshot,
+    AgentMessageSnapshot, AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot,
     AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerBudgetSnapshot, AgentWorkerDelegationApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
     AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
-    AgentWorkflowBindingApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
+    WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -880,9 +878,6 @@ impl AgentRuntimeState {
         self.agent_worker_notify.notify_waiters();
     }
 
-    pub fn worker_activation_application(&self) -> &dyn AgentWorkerActivationApplicationPort {
-        self.application.as_ref()
-    }
     pub(crate) fn worker_approval_application<'a>(
         &'a self,
         claimed: &'a AgentWorkerRun,
@@ -922,12 +917,6 @@ impl AgentRuntimeState {
             claimed,
         }
     }
-    pub fn worker_inbox_application(&self) -> &dyn AgentWorkerInboxApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn worker_lease_application(&self) -> Arc<dyn AgentWorkerLeaseApplicationPort> {
-        self.application.clone()
-    }
     pub(crate) fn worker_message_application<'a>(
         &'a self,
         claimed: &'a AgentWorkerRun,
@@ -938,12 +927,6 @@ impl AgentRuntimeState {
         }
     }
     pub fn worker_read_application(&self) -> &dyn AgentWorkerReadApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn workflow_binding_application(&self) -> &dyn AgentWorkflowBindingApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn editor_claim_application(&self) -> &dyn AgentEditorClaimApplicationPort {
         self.application.as_ref()
     }
 }
