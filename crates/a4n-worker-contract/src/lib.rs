@@ -335,6 +335,34 @@ impl AgentWorkerApprovalExpiryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerExpiredRunRecoveryRequest {
+    pub limit: u64,
+    pub error_message: Option<String>,
+}
+
+impl AgentWorkerExpiredRunRecoveryRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.limit == 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "limit",
+                reason: "must be positive",
+            });
+        }
+        if self
+            .error_message
+            .as_deref()
+            .is_some_and(|message| message.trim().is_empty())
+        {
+            return Err(WorkerContractError::BlankField {
+                field: "error_message",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerInboxClaimRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
@@ -1895,6 +1923,34 @@ mod tests {
         assert!(matches!(
             AgentWorkerApprovalExpiryRequest { limit: 0 }.validate(),
             Err(WorkerContractError::InvalidValue { field: "limit", .. })
+        ));
+    }
+
+    #[test]
+    fn expired_run_recovery_request_validates_limit_and_message() {
+        AgentWorkerExpiredRunRecoveryRequest {
+            limit: 1,
+            error_message: Some("lease expired".into()),
+        }
+        .validate()
+        .expect("expired run recovery request should be valid");
+        assert!(matches!(
+            AgentWorkerExpiredRunRecoveryRequest {
+                limit: 0,
+                error_message: None,
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue { field: "limit", .. })
+        ));
+        assert!(matches!(
+            AgentWorkerExpiredRunRecoveryRequest {
+                limit: 1,
+                error_message: Some(" ".into()),
+            }
+            .validate(),
+            Err(WorkerContractError::BlankField {
+                field: "error_message"
+            })
         ));
     }
 

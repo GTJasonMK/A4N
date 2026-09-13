@@ -41,9 +41,10 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitExpiryRequest,
     AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionResultRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
-    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
-    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
+    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
+    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
@@ -1216,6 +1217,19 @@ pub async fn expire_agent_approvals(
     state
         .agent_approval_expiry_application()
         .expire_pending_approvals(request.limit)
+        .await
+}
+
+pub async fn recover_expired_agent_runs(
+    state: &AppState,
+    request: &AgentWorkerExpiredRunRecoveryRequest,
+) -> Result<usize, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent expired run recovery 无效: {error}"))
+    })?;
+    state
+        .agent_run_lease_recovery_application()
+        .recover_expired_runs(request.limit, request.error_message.as_deref())
         .await
 }
 

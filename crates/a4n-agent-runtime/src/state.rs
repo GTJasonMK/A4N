@@ -3,14 +3,14 @@ use a4n_agent_application::agent::{
     AgentApplication, AgentDelegationSnapshot, AgentEditorClaimApplicationPort,
     AgentExecutionSnapshot, AgentExternalTaskWaitApplicationPort,
     AgentGenerationCancelApplicationPort, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
-    AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
-    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
-    AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
-    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot, AgentWorkerActivationApplicationPort,
+    AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
+    AgentWorkerBudgetSnapshot, AgentWorkerDelegationApplicationPort,
+    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
+    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
+    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort, WorkerExecutionInput,
+    WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -946,9 +946,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn editor_claim_application(&self) -> &dyn AgentEditorClaimApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn run_lease_recovery_application(&self) -> &dyn AgentRunLeaseRecoveryApplicationPort {
         self.application.as_ref()
     }
     pub fn external_task_wait_application(&self) -> &dyn AgentExternalTaskWaitApplicationPort {

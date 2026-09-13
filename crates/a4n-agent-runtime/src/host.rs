@@ -19,12 +19,13 @@ use a4n_worker_contract::{
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
-    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
+    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
+    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
+    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
+    AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WorkerRequest,
 };
@@ -113,6 +114,11 @@ pub trait AgentRuntimeHost: Send + Sync {
     async fn expire_pending_approvals(
         &self,
         request: &AgentWorkerApprovalExpiryRequest,
+    ) -> Result<usize, AppError>;
+
+    async fn recover_expired_runs(
+        &self,
+        request: &AgentWorkerExpiredRunRecoveryRequest,
     ) -> Result<usize, AppError>;
 
     async fn claim_inbox(

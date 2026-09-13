@@ -253,6 +253,10 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/approval/expire",
             post(agent_runtime::expire_agent_approvals),
         )
+        .route(
+            "/agent/recovery/expired",
+            post(agent_runtime::recover_expired_agent_runs),
+        )
         .route("/agent/inbox/claim", post(agent_runtime::claim_agent_inbox))
         .route(
             "/agent/inbox/consume",

@@ -21,12 +21,12 @@ use a4n_worker_contract::{
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
-    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
+    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
+    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
+    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
+    AgentWorkerInboxSnapshotWire, AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
@@ -282,6 +282,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerApprovalExpiryRequest,
     ) -> Result<usize, AppError> {
         self.request_json(Method::POST, "/internal/agent/approval/expire", request)
+            .await
+    }
+
+    async fn recover_expired_runs(
+        &self,
+        request: &AgentWorkerExpiredRunRecoveryRequest,
+    ) -> Result<usize, AppError> {
+        self.request_json(Method::POST, "/internal/agent/recovery/expired", request)
             .await
     }
 

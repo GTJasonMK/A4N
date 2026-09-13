@@ -18,8 +18,9 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalExpiryRequest,
-    AgentWorkerClaimRequest, AgentWorkerEditorWaitExpiryRequest, AgentWorkerRunWire,
-    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerClaimRequest, AgentWorkerEditorWaitExpiryRequest,
+    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerRunWire, WORKER_SCHEMA_VERSION, WorkerLease,
+    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -581,7 +582,6 @@ async fn drain_runnable_runs(state: &AgentRuntimeState) {
 /// Runs the durable maintenance scans that must continue when Agent execution
 /// lives in an external process rather than inside Control.
 pub async fn maintain_agent_worker(state: &AgentRuntimeState) {
-    let run_lease_recovery_application = state.run_lease_recovery_application();
     let approval_expiry = AgentWorkerApprovalExpiryRequest { limit: 32 };
     if let Err(error) = state
         .host()
@@ -597,10 +597,11 @@ pub async fn maintain_agent_worker(state: &AgentRuntimeState) {
     if let Err(error) = task_wait::reconcile(state).await {
         tracing::warn!(error = %error, "Agent task wait reconciliation failed");
     }
-    if let Err(error) = run_lease_recovery_application
-        .recover_expired_runs(16, Some("Agent worker lease expired"))
-        .await
-    {
+    let recovery = AgentWorkerExpiredRunRecoveryRequest {
+        limit: 16,
+        error_message: Some("Agent worker lease expired".into()),
+    };
+    if let Err(error) = state.host().recover_expired_runs(&recovery).await {
         tracing::warn!(error = %error, "Agent expired-run recovery failed");
     }
 }

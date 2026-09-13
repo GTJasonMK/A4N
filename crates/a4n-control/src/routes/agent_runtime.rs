@@ -32,12 +32,12 @@ use a4n_worker_contract::{
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
-    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
+    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
+    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
+    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
+    AgentWorkerInboxSnapshotWire, AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
@@ -292,6 +292,21 @@ pub(super) async fn expire_agent_approvals(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::expire_agent_approvals(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn recover_expired_agent_runs(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerExpiredRunRecoveryRequest>,
+) -> Result<Json<usize>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::recover_expired_agent_runs(state.runtime(), &input)
         .await
         .map(Json)
         .map_err(Into::into)
