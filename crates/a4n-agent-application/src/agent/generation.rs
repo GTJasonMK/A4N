@@ -2,27 +2,6 @@ use super::*;
 use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
 use a4n_domain::agent::AgentWorkflowOrigin;
 
-// Keep the local name for Agent accounting while the DTO owns snapshot semantics.
-pub fn model_request_snapshot(request: &a4n_llm::provider::ChatRequest) -> Result<Value, AppError> {
-    request.snapshot_value()
-}
-
-pub fn restore_model_request_snapshot(
-    mut value: Value,
-) -> Result<a4n_llm::provider::ChatRequest, AppError> {
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidArgument("模型请求快照必须是对象".into()))?;
-    let trace = object.remove("trace_context");
-    let manifest = object
-        .remove("context_manifest_json")
-        .filter(|v| !v.is_null());
-    let mut request: a4n_llm::provider::ChatRequest = serde_json::from_value(value)?;
-    request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
-    request.context_manifest_json = manifest;
-    Ok(request)
-}
-
 impl AgentApplication {
     pub async fn bound_model_request(
         &self,
@@ -152,7 +131,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)?
             .into_iter()
             .filter(|m| m.role == "user")
-            .map(Into::into)
+            .map(super::message_snapshot)
             .collect())
     }
 
@@ -195,7 +174,7 @@ impl AgentApplication {
     ) -> Result<Option<super::AgentExecutionSnapshot>, AppError> {
         self.execution_by_key(run_id, key)
             .await
-            .map(|row| row.map(Into::into))
+            .map(|row| row.map(super::execution_snapshot))
     }
     pub async fn generation_owner(
         &self,

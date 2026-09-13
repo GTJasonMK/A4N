@@ -1,10 +1,10 @@
 use crate::host::AgentRuntimeHost;
-use a4n_agent_application::agent::{
-    AgentDelegationSnapshot, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot, AgentWorkerApprovalApplicationPort,
-    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
-    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerExecutionInput, WorkerExecutionUpdate,
+use a4n_agent_runtime_contract::{
+    AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot, AgentRunContext,
+    AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
+    AgentWorkerBudgetSnapshot, AgentWorkerExecutionApplicationPort,
+    AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort, AgentWorkerRun,
+    WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -356,7 +356,7 @@ impl AgentRuntimeState {
         &self,
         worker_request: &WorkerRequest<AgentRunPayload>,
         user_id: i64,
-        input: a4n_agent_application::agent::EnsureCanonicalSubagentThreadInput,
+        input: a4n_agent_runtime_contract::EnsureCanonicalSubagentThreadInput,
     ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
         if worker_request.payload.worker_run.thread.owner_user_id != user_id {
             return Err(AppError::Forbidden(
@@ -407,8 +407,8 @@ impl AgentRuntimeState {
     pub async fn create_agent_child_run(
         &self,
         claimed: &AgentWorkerRun,
-        input: a4n_agent_application::agent::WorkerDelegationInput,
-    ) -> Result<a4n_agent_application::agent::WorkerDelegationResult, AppError> {
+        input: a4n_agent_runtime_contract::WorkerDelegationInput,
+    ) -> Result<a4n_agent_runtime_contract::WorkerDelegationResult, AppError> {
         let request = AgentWorkerDelegationStartRequest {
             run_id: claimed.run.id,
             lease: self.agent_worker_lease_request(claimed)?.lease,
@@ -917,58 +917,12 @@ impl AgentRuntimeState {
 
 fn worker_delegation_result_from_wire(
     snapshot: AgentWorkerDelegationStartSnapshotWire,
-) -> a4n_agent_application::agent::WorkerDelegationResult {
-    a4n_agent_application::agent::WorkerDelegationResult {
-        delegation: AgentDelegationSnapshot {
-            id: snapshot.delegation.id,
-            parent_run_id: snapshot.delegation.parent_run_id,
-            parent_execution_id: snapshot.delegation.parent_execution_id,
-            child_thread_id: snapshot.delegation.child_thread_id,
-            child_turn_id: snapshot.delegation.child_turn_id,
-            child_run_id: snapshot.delegation.child_run_id,
-            delegation_key: snapshot.delegation.delegation_key,
-            capability: snapshot.delegation.capability,
-            objective: snapshot.delegation.objective,
-            success_criteria_json: snapshot.delegation.success_criteria_json,
-            scope_json: snapshot.delegation.scope_json,
-            budget_json: snapshot.delegation.budget_json,
-            status: snapshot.delegation.status,
-            result_refs_json: snapshot.delegation.result_refs_json,
-            result_summary: snapshot.delegation.result_summary,
-            error_message: snapshot.delegation.error_message,
-        },
-        child_turn: AgentTurnSnapshot {
-            id: snapshot.child_turn.id,
-            thread_id: snapshot.child_turn.thread_id,
-            input_message_id: snapshot.child_turn.input_message_id,
-            execution_mode: snapshot.child_turn.execution_mode,
-            goal: snapshot.child_turn.goal,
-            model_override_json: snapshot.child_turn.model_override_json,
-        },
-        child_run: AgentRunSnapshot {
-            id: snapshot.child_run.id,
-            thread_id: snapshot.child_run.thread_id,
-            turn_id: snapshot.child_run.turn_id,
-            parent_run_id: snapshot.child_run.parent_run_id,
-            attempt: snapshot.child_run.attempt,
-            status: snapshot.child_run.status,
-            budget_json: snapshot.child_run.budget_json,
-            usage_json: snapshot.child_run.usage_json,
-            worker_id: snapshot.child_run.worker_id,
-            lease_token: snapshot.child_run.lease_token,
-            lease_expires_at: snapshot.child_run.lease_expires_at,
-            created_at: snapshot.child_run.created_at,
-            started_at: snapshot.child_run.started_at,
-        },
-        child_message: AgentMessageSnapshot {
-            id: snapshot.child_message.id,
-            thread_id: snapshot.child_message.thread_id,
-            turn_id: snapshot.child_message.turn_id,
-            run_id: snapshot.child_message.run_id,
-            role: snapshot.child_message.role,
-            content: snapshot.child_message.content,
-            payload_json: snapshot.child_message.payload_json,
-        },
+) -> a4n_agent_runtime_contract::WorkerDelegationResult {
+    a4n_agent_runtime_contract::WorkerDelegationResult {
+        delegation: snapshot.delegation.into(),
+        child_turn: snapshot.child_turn.into(),
+        child_run: snapshot.child_run.into(),
+        child_message: snapshot.child_message.into(),
     }
 }
 

@@ -6,6 +6,7 @@ version = 4
 name = "a4n-agent-application"
 version = "0.1.0"
 dependencies = [
+ "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-db",
  "a4n-db-models",
@@ -28,7 +29,7 @@ dependencies = [
 name = "a4n-agent-runtime"
 version = "0.1.0"
 dependencies = [
- "a4n-agent-application",
+ "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-domain",
  "a4n-error",
@@ -44,6 +45,20 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "a4n-agent-runtime-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm",
+ "a4n-worker-contract",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

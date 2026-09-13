@@ -1,6 +1,6 @@
 use crate::host::AgentRuntimeHost;
 use crate::state::AgentRuntimeState;
-use a4n_agent_application::agent::{
+use a4n_agent_runtime_contract::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
@@ -1365,7 +1365,7 @@ async fn compact_context(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
     context: &mut AgentRunContext,
-    execution_application: &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort,
+    execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
     config_id: Option<i64>,
     capabilities: &a4n_llm::provider::ModelCapabilities,
     covered_through_sequence: i64,
@@ -1440,7 +1440,7 @@ async fn compact_context(
             tool_name: None,
             effect: Some("read".into()),
             replay_policy: Some("safe".into()),
-            arguments_json: Some(a4n_agent_application::agent::model_request_snapshot(
+            arguments_json: Some(a4n_agent_runtime_contract::model_request_snapshot(
                 &request,
             )?),
             resource_preconditions_json: Some(json!({
@@ -1607,7 +1607,7 @@ fn execution_total_tokens(execution: &AgentExecutionSnapshot) -> Result<u64, App
 }
 
 async fn recover_model_messages(
-    message_application: &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort,
+    message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     context: &mut AgentRunContext,
 ) -> Result<Option<(String, i64)>, AppError> {
@@ -1703,7 +1703,7 @@ async fn consume_model_stream(
     stream: std::pin::Pin<
         Box<dyn futures::Stream<Item = Result<a4n_llm::provider::ChatChunk, AppError>> + Send>,
     >,
-    message_application: &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort,
+    message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     stream_client_message_id: &str,
     cancel: &CancellationToken,
@@ -1901,7 +1901,7 @@ async fn execute_tool_calls(
 }
 
 async fn prepare_tool_call(
-    execution_application: &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort,
+    execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
     claimed: &AgentWorkerRun,
     call: &ToolCall,
 ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
@@ -2015,7 +2015,7 @@ fn inbox_message_id(row: &AgentInboxSnapshot) -> Result<Option<i64>, AppError> {
 
 async fn execute_tool_call(
     state: &AgentRuntimeState,
-    execution_application: &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort,
+    execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
     claimed: &AgentWorkerRun,
     context: &AgentRunContext,
     executor: &RuntimeAgentToolExecutor,
@@ -2203,7 +2203,7 @@ async fn execute_tool_call(
             .ensure_agent_canonical_subagent_thread(
                 &executor.worker_request,
                 context.owner_user_id,
-                a4n_agent_application::agent::EnsureCanonicalSubagentThreadInput {
+                a4n_agent_runtime_contract::EnsureCanonicalSubagentThreadInput {
                     canonical_binding_key: binding.key,
                     capability: capability.clone(),
                     title: input.title,
@@ -2397,7 +2397,7 @@ async fn execute_tool_call(
 }
 
 async fn request_approval_if_needed(
-    approval_application: &dyn a4n_agent_application::agent::AgentWorkerApprovalApplicationPort,
+    approval_application: &dyn a4n_agent_runtime_contract::AgentWorkerApprovalApplicationPort,
     claimed: &AgentWorkerRun,
     context: &AgentRunContext,
     call: &ToolCall,
@@ -2432,7 +2432,7 @@ async fn request_approval_if_needed(
 }
 
 async fn append_tool_observation(
-    message_application: &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort,
+    message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     execution: &AgentExecutionSnapshot,
     call: &ToolCall,

@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-api-contract = { path = "../a4n-api-contract" }
+a4n-agent-runtime-contract = { path = "../a4n-agent-runtime-contract" }
 a4n-db = { path = "../a4n-db" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
