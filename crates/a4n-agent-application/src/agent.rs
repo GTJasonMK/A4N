@@ -37,11 +37,11 @@ use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerBudgetRequest, AgentWorkerContextSummaryRequest,
     AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
-    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
-    WorkerLease, WorkerRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
+    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -4255,6 +4255,47 @@ impl AgentApplication {
         .await
         .map(|_| ())
         .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn fail_worker_run(
+        &self,
+        request: &AgentWorkerFailureRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        if run.parent_run_id.is_none() {
+            agent::fail_run_for_lease(
+                self.connection(),
+                request.run_id,
+                &request.lease.fence_token,
+                Some(request.error_message.clone()),
+            )
+            .await
+            .map(|_| ())
+            .map_err(agent_db_error_to_app)
+        } else {
+            agent::fail_child_delegation(
+                self.connection(),
+                a4n_db::agent::AgentChildFailureInput {
+                    child_run_id: request.run_id,
+                    child_lease_token: request.lease.fence_token.clone(),
+                    error_message: request.error_message.clone(),
+                },
+            )
+            .await
+            .map(|_| ())
+            .map_err(agent_db_error_to_app)
+        }
     }
 
     pub(crate) async fn claim_inbox_for_thread(

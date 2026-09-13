@@ -34,10 +34,10 @@ use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease,
+    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1142,6 +1142,19 @@ pub async fn worker_budget_snapshot(
         .worker_budget_snapshot_request(request)
         .await
         .map(Into::into)
+}
+
+pub async fn fail_agent_worker_run(
+    state: &AppState,
+    request: &AgentWorkerFailureRequest,
+) -> Result<(), AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent failure 无效: {error}")))?;
+    state
+        .agent_worker_failure_application()
+        .fail_worker_run(request)
+        .await
 }
 
 pub async fn authorize_agent_host_command(

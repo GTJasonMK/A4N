@@ -2,7 +2,8 @@ use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentWorkerBudgetApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
+    AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort,
+    AgentWorkerReadApplicationPort, AgentWorkerRun,
     WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
     enforce_delegation_limits, validate_agent_budget,
 };
@@ -642,7 +643,7 @@ pub async fn claim_agent_worker_request(
         Ok(request) => Ok(Some(request)),
         Err(error) => {
             let _ = state
-                .worker_failure_application()
+                .worker_failure_application(&claimed)
                 .fail_child_run(&claimed, error.to_string())
                 .await;
             Err(error)
@@ -667,7 +668,7 @@ async fn process_claimed_run(
         Ok(request) => request,
         Err(error) => {
             let _ = state
-                .worker_failure_application()
+                .worker_failure_application(&claimed)
                 .fail_child_run(&claimed, error.to_string())
                 .await;
             return Err(error);
@@ -699,7 +700,7 @@ async fn process_claimed_run_request(
     claimed: AgentWorkerRun,
     request: WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
-    let failure_application = state.worker_failure_application();
+    let failure_application = state.worker_failure_application(&claimed);
     let run_cancel = state
         .register_agent_run_cancellation(claimed.run.id, claimed.run.parent_run_id)
         .await;

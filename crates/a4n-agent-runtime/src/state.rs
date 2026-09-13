@@ -20,8 +20,9 @@ use a4n_worker_contract::{
     AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease,
+    WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -54,6 +55,12 @@ pub(crate) struct AgentWorkerMessageHostPort<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct AgentWorkerBudgetHostPort<'a> {
+    state: &'a AgentRuntimeState,
+    claimed: &'a AgentWorkerRun,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct AgentWorkerFailureHostPort<'a> {
     state: &'a AgentRuntimeState,
     claimed: &'a AgentWorkerRun,
 }
@@ -330,6 +337,23 @@ impl AgentRuntimeState {
             .map(Into::into)
     }
 
+    pub(crate) async fn fail_worker_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        error_message: String,
+    ) -> Result<(), AppError> {
+        let request = AgentWorkerFailureRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            error_message,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent failure request 无效: {error}"),
+            operation: "失败 Agent worker run".into(),
+        })?;
+        self.host.fail_worker_run(&request).await
+    }
+
     pub async fn authorize_agent_host_command(
         &self,
         request: &WorkerRequest<AgentHostCommandPayload>,
@@ -502,8 +526,14 @@ impl AgentRuntimeState {
             claimed,
         }
     }
-    pub fn worker_failure_application(&self) -> Arc<dyn AgentWorkerFailureApplicationPort> {
-        self.application.clone()
+    pub(crate) fn worker_failure_application<'a>(
+        &'a self,
+        claimed: &'a AgentWorkerRun,
+    ) -> AgentWorkerFailureHostPort<'a> {
+        AgentWorkerFailureHostPort {
+            state: self,
+            claimed,
+        }
     }
     pub fn worker_history_application(&self) -> &dyn AgentWorkerHistoryApplicationPort {
         self.application.as_ref()
@@ -656,6 +686,38 @@ impl AgentWorkerBudgetApplicationPort for AgentWorkerBudgetHostPort<'_> {
             .worker_budget_snapshot(request)
             .await
             .map(Into::into)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerFailureApplicationPort for AgentWorkerFailureHostPort<'_> {
+    async fn fail_child_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        error_message: String,
+    ) -> Result<(), AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent failure claimed run 不一致".into(),
+                operation: "持久化 Agent worker failure".into(),
+            });
+        }
+        self.state
+            .fail_worker_run(self.claimed, error_message)
+            .await
+    }
+
+    async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError> {
+        if request.run_id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent failure run_id 与 claimed run {} 不一致",
+                    self.claimed.run.id
+                ),
+                operation: "持久化 Agent worker failure request".into(),
+            });
+        }
+        self.state.host.fail_worker_run(request).await
     }
 }
 

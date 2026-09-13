@@ -12,10 +12,10 @@ use a4n_worker_contract::{
     AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerContextSummaryRequest,
     AgentWorkerEditorProjectionRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerLlmCapabilitiesRequest,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
-    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
+    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -190,6 +190,13 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     ) -> Result<AgentWorkerBudgetSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/budget", request)
             .await
+    }
+
+    async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/failure", request)
+            .await?;
+        Ok(())
     }
 
     async fn execute_command(

@@ -311,6 +311,25 @@ pub struct AgentWorkerBudgetSnapshotWire {
     pub max_duration_seconds: Option<u64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerFailureRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub error_message: String,
+}
+
+impl AgentWorkerFailureRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("error_message", &self.error_message)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -928,6 +947,32 @@ mod tests {
             Err(WorkerContractError::InvalidValue {
                 field: "context_summary",
                 ..
+            })
+        ));
+    }
+
+    #[test]
+    fn failure_request_requires_an_error_message_and_round_trips() {
+        let request = AgentWorkerFailureRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            error_message: "provider failed".into(),
+        };
+        request.validate().expect("failure request should be valid");
+        let encoded = serde_json::to_string(&request).expect("failure request should serialize");
+        let decoded: AgentWorkerFailureRequest =
+            serde_json::from_str(&encoded).expect("failure request should deserialize");
+        assert_eq!(decoded.run_id, request.run_id);
+        assert_eq!(decoded.error_message, request.error_message);
+
+        let invalid = AgentWorkerFailureRequest {
+            error_message: "  ".into(),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::BlankField {
+                field: "error_message"
             })
         ));
     }

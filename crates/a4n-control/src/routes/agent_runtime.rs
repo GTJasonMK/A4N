@@ -24,7 +24,7 @@ use a4n_worker_contract::{
     AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
     AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
@@ -211,6 +211,19 @@ pub(super) async fn worker_budget_snapshot(
         .await
         .map(Json)
         .map_err(Into::into)
+}
+
+pub(super) async fn fail_agent_worker_run(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerFailureRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::fail_agent_worker_run(state.runtime(), &input).await?;
+    Ok(Json(Value::Null))
 }
 
 pub(super) async fn command(
