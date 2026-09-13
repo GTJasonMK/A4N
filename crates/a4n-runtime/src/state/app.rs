@@ -458,7 +458,10 @@ pub struct AppState {
     video_canvas_import_application:
         Arc<dyn a4n_api_contract::video::CanvasVideoImportApplicationPort>,
     video_trim_application: Arc<dyn a4n_api_contract::video::VideoTrimApplicationPort>,
-    /// Host-facing Assembly planning and push boundary.
+    /// Host-facing Assembly clip planning boundary.
+    video_assembly_planning_application:
+        Arc<dyn a4n_api_contract::video::VideoAssemblyPlanningApplicationPort>,
+    /// Temporary aggregate for the remaining Assembly push operations.
     video_assembly_application: Arc<dyn a4n_api_contract::video::VideoAssemblyApplicationPort>,
     video_assembly_postprocess_application:
         Arc<dyn a4n_api_contract::video::VideoAssemblyPostprocessApplicationPort>,
@@ -2200,6 +2203,12 @@ impl AppState {
         self.video_assembly_application.as_ref()
     }
 
+    pub(crate) fn video_assembly_planning_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::VideoAssemblyPlanningApplicationPort {
+        self.video_assembly_planning_application.as_ref()
+    }
+
     pub(crate) fn video_assembly_postprocess_application(
         &self,
     ) -> &dyn a4n_api_contract::video::VideoAssemblyPostprocessApplicationPort {
@@ -2961,6 +2970,7 @@ impl AppState {
             video_assembly_import_application: Arc::new(orchestrator.clone()),
             video_canvas_import_application: Arc::new(orchestrator.clone()),
             video_trim_application: Arc::new(orchestrator.clone()),
+            video_assembly_planning_application: Arc::new(orchestrator.clone()),
             video_assembly_application: Arc::new(orchestrator.clone()),
             video_assembly_postprocess_application: Arc::new(orchestrator.clone()),
             video_record_lifecycle_application: Arc::new(orchestrator.clone()),
