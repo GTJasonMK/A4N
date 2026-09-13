@@ -49,9 +49,10 @@ use a4n_api_contract::{
         VideoAssemblyPushApplicationPort, VideoCanvasMediaApplicationPort,
         VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
         VideoRecordCompletionApplicationPort, VideoRecordCompletionError,
-        VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
-        VideoRecordReadApplicationPort, VideoTailFrameApplicationPort, VideoTailFrameInput,
-        VideoTailFrameSummary, VideoTrimApplicationPort, VideoTrimPlan,
+        VideoRecordFailureApplicationPort, VideoRecordLifecycleApplicationPort,
+        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort,
+        VideoTailFrameApplicationPort, VideoTailFrameInput, VideoTailFrameSummary,
+        VideoTrimApplicationPort, VideoTrimPlan,
     },
 };
 
@@ -1976,7 +1977,7 @@ impl VideoTailFrameApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
+impl VideoRecordFailureApplicationPort for crate::OrchestratorContext {
     async fn mark_error_status_and_prompt(
         &self,
         video_id: i64,
@@ -1990,7 +1991,10 @@ impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
                 .await?,
         ))
     }
+}
 
+#[async_trait]
+impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError> {
         self.delete_generated_video_record_with_cleanup(video_id)
             .await
