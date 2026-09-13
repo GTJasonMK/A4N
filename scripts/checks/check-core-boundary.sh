@@ -1148,8 +1148,10 @@ fi
 
 if ! rg -n 'video_record_lifecycle_application\(\)' \
     crates/a4n-runtime/src/actions/video_records \
-    crates/a4n-runtime/src/actions/video_generation/media/tail_frames; then
-    printf 'video completion and cleanup must route through VideoRecordLifecycleApplicationPort\n' >&2
+    crates/a4n-runtime/src/actions/video_generation/media/tail_frames || \
+   ! rg -n 'video_record_completion_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records/completion.rs; then
+    printf 'video completion and cleanup must route through focused lifecycle contracts\n' >&2
     exit 1
 fi
 
@@ -1159,7 +1161,7 @@ if ! rg -n 'video_canvas_media_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait VideoRecordReadApplicationPort|pub trait VideoRecordMutationApplicationPort|pub trait (ChapterVideoImportApplicationPort|ReferenceMediaVideoImportApplicationPort|AssemblyVideoImportApplicationPort|CanvasVideoImportApplicationPort|VideoTrimApplicationPort)|pub trait VideoAssemblyPlanningApplicationPort|pub trait VideoAssemblyPostprocessApplicationPort|pub trait VideoAssemblyPushApplicationPort|pub trait VideoRecordLifecycleApplicationPort|pub trait VideoCanvasMediaApplicationPort' \
+if ! rg -n 'pub trait VideoRecordReadApplicationPort|pub trait VideoRecordMutationApplicationPort|pub trait (ChapterVideoImportApplicationPort|ReferenceMediaVideoImportApplicationPort|AssemblyVideoImportApplicationPort|CanvasVideoImportApplicationPort|VideoTrimApplicationPort)|pub trait VideoAssemblyPlanningApplicationPort|pub trait VideoAssemblyPostprocessApplicationPort|pub trait VideoAssemblyPushApplicationPort|pub trait VideoRecordCompletionApplicationPort|pub trait VideoRecordLifecycleApplicationPort|pub trait VideoCanvasMediaApplicationPort' \
     crates/a4n-api-contract/src/video.rs; then
     printf 'split video record contracts are missing from the API contract\n' >&2
     exit 1

@@ -466,7 +466,10 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::video::VideoAssemblyPushApplicationPort>,
     video_assembly_postprocess_application:
         Arc<dyn a4n_api_contract::video::VideoAssemblyPostprocessApplicationPort>,
-    /// Host-facing video completion and cleanup lifecycle boundary.
+    /// Host-facing video completion boundary.
+    video_record_completion_application:
+        Arc<dyn a4n_api_contract::video::VideoRecordCompletionApplicationPort>,
+    /// Host-facing media-cleanup lifecycle boundary.
     video_record_lifecycle_application:
         Arc<dyn a4n_api_contract::video::VideoRecordLifecycleApplicationPort>,
     /// Host-facing canvas-media preparation and persistence boundary.
@@ -2222,6 +2225,12 @@ impl AppState {
         self.video_record_lifecycle_application.as_ref()
     }
 
+    pub(crate) fn video_record_completion_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::VideoRecordCompletionApplicationPort {
+        self.video_record_completion_application.as_ref()
+    }
+
     pub(crate) fn video_canvas_media_application(
         &self,
     ) -> &dyn a4n_api_contract::video::VideoCanvasMediaApplicationPort {
@@ -2974,6 +2983,7 @@ impl AppState {
             video_assembly_planning_application: Arc::new(orchestrator.clone()),
             video_assembly_push_application: Arc::new(orchestrator.clone()),
             video_assembly_postprocess_application: Arc::new(orchestrator.clone()),
+            video_record_completion_application: Arc::new(orchestrator.clone()),
             video_record_lifecycle_application: Arc::new(orchestrator.clone()),
             video_canvas_media_application: Arc::new(orchestrator.clone()),
             chapter_visual_plan_read_application: Arc::new(orchestrator.clone()),

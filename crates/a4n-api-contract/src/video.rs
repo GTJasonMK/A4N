@@ -781,7 +781,16 @@ pub trait VideoAssemblyPushApplicationPort: Send + Sync {
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
 }
 
-/// Host-facing completion and media-cleanup lifecycle boundary.
+/// Host-facing video completion boundary.
+#[async_trait::async_trait]
+pub trait VideoRecordCompletionApplicationPort: Send + Sync {
+    async fn complete(
+        &self,
+        input: CompleteVideoRecordInput,
+    ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
+}
+
+/// Host-facing media-cleanup lifecycle boundary.
 #[async_trait::async_trait]
 pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
     async fn mark_error_status_and_prompt(
@@ -801,11 +810,6 @@ pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
         &self,
         video_id: i64,
     ) -> Result<(), a4n_error::AppError>;
-
-    async fn complete(
-        &self,
-        input: CompleteVideoRecordInput,
-    ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
 
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), a4n_error::AppError>;
 }

@@ -98,7 +98,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         }
     };
     match state
-        .video_record_lifecycle_application()
+        .video_record_completion_application()
         .complete(CompleteVideoRecordInput {
             record_id,
             output_path: output_path_str.to_string(),
