@@ -114,6 +114,9 @@ pub struct AppState {
     /// Content-optimization session mutations stay in the optimize owner.
     optimize_session_mutation_application:
         Arc<dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort>,
+    /// Content-optimization patch application and chapter writeback stay in
+    /// the optimize owner.
+    optimize_patch_application: Arc<dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort>,
     /// Content optimization patch application, previews and generation
     /// workers stay in the optimize owner; Runtime only routes Host actions.
     optimize_application: Arc<dyn a4n_orchestrator::optimize::OptimizeApplicationPort>,
@@ -1136,6 +1139,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort {
         self.optimize_session_mutation_application.as_ref()
+    }
+
+    pub(crate) fn optimize_patch_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort {
+        self.optimize_patch_application.as_ref()
     }
 
     pub(crate) fn scene_profile_sync_application(
@@ -2405,6 +2414,7 @@ impl AppState {
             chapter_scene_generation_application: Arc::new(orchestrator.clone()),
             optimize_session_read_application: Arc::new(orchestrator.clone()),
             optimize_session_mutation_application: Arc::new(orchestrator.clone()),
+            optimize_patch_application: Arc::new(orchestrator.clone()),
             optimize_application: Arc::new(orchestrator.clone()),
             scene_profile_sync_application: Arc::new(orchestrator.clone()),
             service_health_application: Arc::new(crate::service_health::ServiceHealthApplication::new(

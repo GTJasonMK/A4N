@@ -2774,6 +2774,13 @@ if ! rg -n 'pub trait OptimizeSessionMutationApplicationPort' \
     printf 'Optimize session mutations must route through the session mutation port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait OptimizePatchApplicationPort' \
+    crates/a4n-orchestrator/src/optimize/application.rs || \
+   ! rg -n 'optimize_patch_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/patches/application.rs; then
+    printf 'Optimize patch application must route through the patch application port\n' >&2
+    exit 1
+fi
 
 if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
     crates/a4n-orchestrator/src/context/generation.rs \

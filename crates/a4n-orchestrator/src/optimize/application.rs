@@ -113,14 +113,19 @@ pub trait OptimizeSessionMutationApplicationPort: Send + Sync {
 /// Runtime-facing content-optimization boundary for patch application,
 /// request previews and generation workers.
 #[async_trait]
-pub trait OptimizeApplicationPort: Send + Sync {
+pub trait OptimizePatchApplicationPort: Send + Sync {
     async fn apply_patches(
         &self,
         user_id: i64,
         input: ApplyOptimizationPatchesInput,
         host_port: &dyn OptimizePatchApplyHostPort,
     ) -> Result<ApplyOptimizationPatchesResponse, AppError>;
+}
 
+/// Runtime-facing content-optimization request-preview and generation
+/// boundary.
+#[async_trait]
+pub trait OptimizeApplicationPort: Send + Sync {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
@@ -689,7 +694,7 @@ impl OptimizeSessionMutationApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizeApplicationPort for OrchestratorContext {
+impl OptimizePatchApplicationPort for OrchestratorContext {
     async fn apply_patches(
         &self,
         user_id: i64,
@@ -713,7 +718,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
             word_count: result.word_count,
         })
     }
+}
 
+#[async_trait]
+impl OptimizeApplicationPort for OrchestratorContext {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
