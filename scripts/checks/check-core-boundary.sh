@@ -2749,6 +2749,22 @@ if rg -n '^pub use a4n_api_contract::optimize::OptimizationPatch' \
     exit 1
 fi
 
+if ! rg -n 'pub trait OptimizeSessionReadApplicationPort' \
+    crates/a4n-api-contract/src/optimize.rs; then
+    printf 'OptimizeSessionReadApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'optimize_session_read_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/sessions.rs; then
+    printf 'Optimize session reads must route through the API read port\n' >&2
+    exit 1
+fi
+if rg -U -n 'optimize_application\(\)\s*\.\s*(list_sessions|get_session|list_turns|list_patch_sets)' \
+    crates/a4n-runtime/src/actions/optimize; then
+    printf 'Optimize session reads must not use the mixed application boundary\n' >&2
+    exit 1
+fi
+
 if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
     crates/a4n-orchestrator/src/context/generation.rs \
     || rg -U -n '^pub use context::generation::\{[^}]*\bGenerationTaskStart\b' \

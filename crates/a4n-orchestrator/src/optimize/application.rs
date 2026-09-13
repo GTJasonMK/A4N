@@ -73,30 +73,6 @@ pub struct ApplyOptimizePatchesApplicationResult {
 /// only schedules these operations and supplies prompt/host adapters.
 #[async_trait]
 pub trait OptimizeApplicationPort: Send + Sync {
-    async fn list_sessions(
-        &self,
-        user_id: i64,
-        input: ListOptimizeSessionsInput,
-    ) -> Result<Vec<OptimizationSessionSummary>, AppError>;
-
-    async fn get_session(
-        &self,
-        user_id: i64,
-        input: OptimizeSessionInput,
-    ) -> Result<OptimizationSessionSummary, AppError>;
-
-    async fn list_turns(
-        &self,
-        user_id: i64,
-        input: OptimizeSessionInput,
-    ) -> Result<Vec<OptimizationTurnSummary>, AppError>;
-
-    async fn list_patch_sets(
-        &self,
-        user_id: i64,
-        input: OptimizeSessionInput,
-    ) -> Result<Vec<OptimizationPatchSetSummary>, AppError>;
-
     async fn create_analysis_session(
         &self,
         user_id: i64,
@@ -544,7 +520,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizeApplicationPort for OrchestratorContext {
+impl a4n_api_contract::optimize::OptimizeSessionReadApplicationPort for OrchestratorContext {
     async fn list_sessions(
         &self,
         user_id: i64,
@@ -596,7 +572,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
             .map(|(patch_set, patches)| optimization_patch_set_summary(&patch_set, patches))
             .collect()
     }
+}
 
+#[async_trait]
+impl OptimizeApplicationPort for OrchestratorContext {
     async fn create_analysis_session(
         &self,
         user_id: i64,
