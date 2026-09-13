@@ -4152,7 +4152,7 @@ pub async fn ensure_main_thread(
     input: EnsureMainAgentThreadInput,
 ) -> Result<AgentThreadView, AppError> {
     state
-        .agent_application()
+        .agent_thread_mutation_application()
         .ensure_main_thread(user_id, input)
         .await
 }
@@ -4163,7 +4163,7 @@ pub async fn create_thread(
     input: CreateAgentThreadInput,
 ) -> Result<AgentThreadView, AppError> {
     state
-        .agent_application()
+        .agent_thread_mutation_application()
         .create_thread(user_id, input)
         .await
 }
@@ -4173,7 +4173,10 @@ pub async fn fork_thread(
     user_id: i64,
     input: ForkAgentThreadInput,
 ) -> Result<AgentThreadView, AppError> {
-    state.agent_application().fork_thread(user_id, input).await
+    state
+        .agent_thread_mutation_application()
+        .fork_thread(user_id, input)
+        .await
 }
 
 pub async fn update_thread(
@@ -4182,7 +4185,7 @@ pub async fn update_thread(
     input: UpdateAgentThreadInput,
 ) -> Result<AgentThreadView, AppError> {
     state
-        .agent_application()
+        .agent_thread_mutation_application()
         .update_thread(user_id, input)
         .await
 }
@@ -4193,7 +4196,7 @@ pub async fn archive_thread(
     input: ArchiveAgentThreadInput,
 ) -> Result<AgentThreadView, AppError> {
     state
-        .agent_application()
+        .agent_thread_mutation_application()
         .archive_thread(user_id, input)
         .await
 }
@@ -4203,7 +4206,10 @@ pub async fn list_threads(
     user_id: i64,
     input: ListAgentThreadsInput,
 ) -> Result<Vec<AgentThreadView>, AppError> {
-    state.agent_application().list_threads(user_id, input).await
+    state
+        .agent_thread_read_application()
+        .list_threads(user_id, input)
+        .await
 }
 
 pub async fn show_thread(
@@ -4212,7 +4218,7 @@ pub async fn show_thread(
     thread_id: &str,
 ) -> Result<AgentThreadSnapshot, AppError> {
     state
-        .agent_application()
+        .agent_thread_read_application()
         .show_thread(user_id, thread_id)
         .await
 }
@@ -4223,7 +4229,7 @@ pub async fn list_messages(
     input: ListAgentMessagesInput,
 ) -> Result<Vec<a4n_api_contract::agent::AgentMessageView>, AppError> {
     state
-        .agent_application()
+        .agent_thread_read_application()
         .list_messages(user_id, input)
         .await
 }
