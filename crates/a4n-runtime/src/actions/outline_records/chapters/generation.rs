@@ -15,7 +15,7 @@ pub async fn preview_generate_part_chapter_outlines_request(
     )
     .await?;
     let steps = state
-        .outline_preview_application()
+        .outline_part_chapter_generation_preview_application()
         .preview_generate_part_chapter_outlines(input)
         .await?;
     outline_preview(

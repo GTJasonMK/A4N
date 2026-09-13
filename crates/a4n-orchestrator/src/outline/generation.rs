@@ -28,8 +28,9 @@ use crate::{
         terminal::CompletionDescriptor,
     },
     outline::{
-        OutlineGenerationApplicationPort, OutlinePartGenerationPreviewApplicationPort,
-        OutlinePartMutationPreviewApplicationPort, OutlineRequestPreviewStep,
+        OutlineGenerationApplicationPort, OutlinePartChapterGenerationPreviewApplicationPort,
+        OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
+        OutlineRequestPreviewStep,
     },
 };
 
@@ -531,7 +532,7 @@ impl OutlinePartMutationPreviewApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+impl OutlinePartChapterGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generate_part_chapter_outlines(
         &self,
         input: GeneratePartChapterOutlinesInput,
@@ -539,7 +540,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
         self.preview_generate_part_chapter_outlines_validated(input)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     async fn preview_batch_generate_part_outlines(
         &self,
         input: BatchGeneratePartOutlinesInput,

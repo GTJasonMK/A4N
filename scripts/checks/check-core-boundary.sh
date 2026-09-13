@@ -2823,6 +2823,18 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_(regenerate_last_par
     printf 'Part outline mutation previews must not use the mixed outline preview port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait OutlinePartChapterGenerationPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/outline/mod.rs || \
+   ! rg -n 'outline_part_chapter_generation_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/outline_records/chapters/generation.rs; then
+    printf 'Part chapter generation previews must route through OutlinePartChapterGenerationPreviewApplicationPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_generate_part_chapter_outlines' \
+    crates/a4n-runtime/src/actions/outline_records/chapters/generation.rs; then
+    printf 'Part chapter generation previews must not use the mixed outline preview port\n' >&2
+    exit 1
+fi
 
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then
