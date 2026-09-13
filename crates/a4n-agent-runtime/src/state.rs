@@ -1,11 +1,10 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
-    AgentApplication, AgentDelegationSnapshot, AgentExecutionSnapshot, AgentInboxSnapshot,
-    AgentMessageSnapshot, AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot,
-    AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
-    AgentWorkerBudgetSnapshot, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort, AgentWorkerRun,
-    WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentDelegationSnapshot, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
+    AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot, AgentWorkerApprovalApplicationPort,
+    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
+    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -35,7 +34,6 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
 pub struct AgentRuntimeState {
-    application: Arc<AgentApplication>,
     host: Arc<dyn AgentRuntimeHost>,
     agent_worker_cancel: CancellationToken,
     agent_worker_notify: Arc<Notify>,
@@ -87,9 +85,8 @@ struct AgentRuntimeSnapshot {
 }
 
 impl AgentRuntimeState {
-    pub fn new(application: Arc<AgentApplication>, host: Arc<dyn AgentRuntimeHost>) -> Self {
+    pub fn new(host: Arc<dyn AgentRuntimeHost>) -> Self {
         Self {
-            application,
             host,
             agent_worker_cancel: CancellationToken::new(),
             agent_worker_notify: Arc::new(Notify::new()),
@@ -736,15 +733,6 @@ impl AgentRuntimeState {
             operation: "失败 Agent worker run".into(),
         })?;
         self.host.fail_worker_run(&request).await
-    }
-
-    pub async fn authorize_agent_host_command(
-        &self,
-        request: &WorkerRequest<AgentHostCommandPayload>,
-    ) -> Result<i64, AppError> {
-        self.application
-            .authorize_worker_host_command(request)
-            .await
     }
 
     pub async fn dispatch_agent_host_command(

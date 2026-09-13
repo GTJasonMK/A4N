@@ -634,13 +634,6 @@ pub async fn claim_agent_worker_request(
     state.host().claim_worker(&request).await
 }
 
-pub async fn authorize_agent_host_command(
-    state: &AgentRuntimeState,
-    request: &WorkerRequest<a4n_worker_contract::AgentHostCommandPayload>,
-) -> Result<i64, AppError> {
-    state.authorize_agent_host_command(request).await
-}
-
 pub async fn execute_claimed_worker_run(
     state: &AgentRuntimeState,
     claimed: AgentWorkerRun,

@@ -1,10 +1,8 @@
 mod host;
 
-use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime::{AgentRuntimeState, engine};
 use host::HttpAgentRuntimeHost;
 use reqwest::Client;
-use sea_orm::Database;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -23,10 +21,7 @@ async fn async_main() -> anyhow::Result<()> {
     init_tracing();
     let control_base_url = format!("http://{}", control_addr()?);
     let worker_id = worker_id()?;
-    let config = a4n_config::app_config_from_env()?;
     let worker_token = a4n_config::required_non_empty_env_string("A4N_AGENT_WORKER_TOKEN")?;
-    let database = Arc::new(Database::connect(&config.database_url).await?);
-    let application = Arc::new(AgentApplication::new(a4n_db::DbHandle::new(database)));
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .build()?;
@@ -35,7 +30,7 @@ async fn async_main() -> anyhow::Result<()> {
         control_base_url.clone(),
         worker_token.clone(),
     ));
-    let runtime = Arc::new(AgentRuntimeState::new(application, host));
+    let runtime = Arc::new(AgentRuntimeState::new(host));
 
     tracing::info!(worker_id = %worker_id, control = %control_base_url, "A4N Agent worker started");
     let mut poll = tokio::time::interval(POLL_INTERVAL);
