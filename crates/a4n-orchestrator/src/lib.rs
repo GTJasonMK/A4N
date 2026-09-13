@@ -53,6 +53,7 @@ mod errors;
 pub(crate) mod test_support;
 
 pub use blueprint::BlueprintGenerationApplicationPort;
+pub use blueprint::BlueprintRefinementApplicationPort;
 pub use blueprint::BlueprintRequestPreviewApplicationPort;
 pub use cleanup_outbox::CleanupOutboxApplicationPort;
 pub use context::OrchestratorContext;

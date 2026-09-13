@@ -554,6 +554,26 @@ if ! rg -n 'pub trait BlueprintRequestPreviewApplicationPort' \
     exit 1
 fi
 
+if ! rg -n 'pub trait BlueprintGenerationApplicationPort' \
+    crates/a4n-orchestrator/src/blueprint.rs || \
+   ! rg -n 'blueprint_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/blueprint_records/generation.rs; then
+    printf 'Blueprint generation workers must route through BlueprintGenerationApplicationPort\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait BlueprintRefinementApplicationPort' \
+    crates/a4n-orchestrator/src/blueprint.rs || \
+   ! rg -n 'blueprint_refinement_application\(\)' \
+    crates/a4n-runtime/src/actions/blueprint_records/refinement.rs; then
+    printf 'Blueprint refinement workers must route through BlueprintRefinementApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n 'blueprint_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/blueprint_records/refinement.rs; then
+    printf 'Blueprint refinement workers must not use the generation port\n' >&2
+    exit 1
+fi
+
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)|actions::access' \
     crates/a4n-runtime/src/actions/canvas_workflow/records_api.rs; then
     printf 'Canvas record actions must consume CanvasApplicationPort instead of the concrete orchestrator facade\n' >&2

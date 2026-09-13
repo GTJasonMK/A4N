@@ -221,6 +221,9 @@ pub struct AppState {
     /// Blueprint generation owner. Runtime supplies task workers and prompt
     /// rendering; workflow persistence stays with the blueprint owner.
     blueprint_generation_application: Arc<dyn a4n_orchestrator::BlueprintGenerationApplicationPort>,
+    /// Blueprint refinement worker boundary.
+    blueprint_refinement_application:
+        Arc<dyn a4n_orchestrator::BlueprintRefinementApplicationPort>,
     /// Host-facing blueprint mutation boundary. Durable version writes remain
     /// owned by the blueprint application.
     blueprint_mutation_application:
@@ -1364,6 +1367,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_orchestrator::BlueprintGenerationApplicationPort {
         self.blueprint_generation_application.as_ref()
+    }
+
+    pub(crate) fn blueprint_refinement_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::BlueprintRefinementApplicationPort {
+        self.blueprint_refinement_application.as_ref()
     }
 
     pub(crate) fn blueprint_mutation_application(
@@ -2560,6 +2569,7 @@ impl AppState {
             blueprint_read_application: Arc::new(orchestrator.clone()),
             blueprint_request_preview_application: Arc::new(orchestrator.clone()),
             blueprint_generation_application: Arc::new(orchestrator.clone()),
+            blueprint_refinement_application: Arc::new(orchestrator.clone()),
             blueprint_mutation_application: Arc::new(orchestrator.clone()),
             chapter_content_read_application: Arc::new(orchestrator.clone()),
             chapter_content_mutation_application: Arc::new(orchestrator.clone()),

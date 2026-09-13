@@ -21,7 +21,7 @@ pub async fn start_blueprint_refinement_typed(
     input: StartBlueprintRefinementInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .blueprint_generation_application()
+        .blueprint_refinement_application()
         .start_refinement(user_id, &input)
         .await?;
     if !start.should_run {
@@ -35,7 +35,7 @@ pub async fn start_blueprint_refinement_typed(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .blueprint_generation_application()
+                .blueprint_refinement_application()
                 .run_refinement(prompt_renderer, input, handle)
                 .await
         },
@@ -49,11 +49,11 @@ pub async fn resume_blueprint_refinement_workflow(
     run: &WorkflowResumeRecord,
 ) -> Result<(), String> {
     let input = state
-        .blueprint_generation_application()
+        .blueprint_refinement_application()
         .refinement_input_from_workflow_run(run)
         .map_err(crate::actions::app_error_message)?;
     let start = state
-        .blueprint_generation_application()
+        .blueprint_refinement_application()
         .start_refinement(user_id, &input)
         .await
         .map_err(|error| error.to_string())?;
@@ -83,7 +83,7 @@ pub async fn resume_blueprint_refinement_workflow(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .blueprint_generation_application()
+                .blueprint_refinement_application()
                 .run_refinement(prompt_renderer, input, handle)
                 .await
         },
