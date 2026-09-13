@@ -61,7 +61,7 @@ pub async fn get_reverse_engineering_candidate(
 ) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
     access::verify_project_access(state, user_id, input.project_id).await?;
     state
-        .import_reverse_application()
+        .import_reverse_read_application()
         .latest(input.project_id, input.target)
         .await
 }

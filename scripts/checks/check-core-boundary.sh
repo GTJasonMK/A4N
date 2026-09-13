@@ -2746,6 +2746,32 @@ if rg -n 'Project(Family|VideoStudio)TransferHostPort|ProjectPackageFileHostPort
     exit 1
 fi
 
+if ! rg -n 'pub trait ImportReverseReadApplicationPort' \
+    crates/a4n-api-contract/src/import_reverse.rs; then
+    printf 'ImportReverseReadApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ImportReverseReadApplicationPort' \
+    crates/a4n-orchestrator/src/import_reverse; then
+    printf 'ImportReverseReadApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::import_reverse::ImportReverseReadApplicationPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime import reverse reads must consume the API contract directly\n' >&2
+    exit 1
+fi
+if ! rg -n 'import_reverse_read_application\(\)' \
+    crates/a4n-runtime/src/actions/import_reverse/api.rs; then
+    printf 'Runtime import reverse candidate reads must route through ImportReverseReadApplicationPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'import_reverse_application\(\)\s*\.\s*latest' \
+    crates/a4n-runtime/src/actions/import_reverse/api.rs; then
+    printf 'Runtime import reverse candidate reads must not use the generation boundary\n' >&2
+    exit 1
+fi
+
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/import_analysis \
     crates/a4n-runtime/src/actions/import_file.rs \

@@ -43,15 +43,6 @@ pub trait ImportReverseApplicationPort: Send + Sync {
         >,
     >;
 
-    async fn latest(
-        &self,
-        project_id: i64,
-        target: a4n_api_contract::import_reverse::ReverseEngineeringTarget,
-    ) -> Result<
-        Option<a4n_api_contract::import_reverse::ReverseEngineeringCandidate>,
-        a4n_error::AppError,
-    >;
-
     async fn confirm(
         &self,
         workflow_run_id: i64,

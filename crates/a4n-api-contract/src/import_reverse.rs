@@ -142,6 +142,19 @@ pub struct ReverseEngineeringCandidate {
     pub applied: Option<Value>,
 }
 
+/// Host-facing read boundary for reverse-engineering candidates.
+///
+/// Candidate generation and confirmation state transitions remain with the
+/// reverse-engineering owner.
+#[async_trait::async_trait]
+pub trait ImportReverseReadApplicationPort: Send + Sync {
+    async fn latest(
+        &self,
+        project_id: i64,
+        target: ReverseEngineeringTarget,
+    ) -> Result<Option<ReverseEngineeringCandidate>, a4n_error::AppError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

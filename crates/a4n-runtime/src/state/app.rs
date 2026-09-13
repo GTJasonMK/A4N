@@ -288,6 +288,10 @@ pub struct AppState {
     /// Host-facing reverse-engineering boundary.
     import_reverse_application:
         Arc<dyn a4n_orchestrator::import_reverse::ImportReverseApplicationPort>,
+    /// Reverse-engineering candidate reads stay behind the API contract;
+    /// generation and confirmation remain in the owner boundary.
+    import_reverse_read_application:
+        Arc<dyn a4n_api_contract::import_reverse::ImportReverseReadApplicationPort>,
     /// Host-facing chapter-analysis generation boundary. Analysis
     /// authorization, workflow state and summaries stay in the chapter owner.
     chapter_analysis_generation_application:
@@ -1586,6 +1590,12 @@ impl AppState {
         self.import_reverse_application.as_ref()
     }
 
+    pub(crate) fn import_reverse_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_reverse::ImportReverseReadApplicationPort {
+        self.import_reverse_read_application.as_ref()
+    }
+
     pub(crate) fn chapter_analysis_generation_application(
         &self,
     ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationApplicationPort {
@@ -2217,6 +2227,7 @@ impl AppState {
             import_analysis_preview_application: Arc::new(orchestrator.clone()),
             import_analysis_application: Arc::new(orchestrator.clone()),
             import_reverse_application: Arc::new(orchestrator.clone()),
+            import_reverse_read_application: Arc::new(orchestrator.clone()),
             chapter_analysis_generation_application: Arc::new(orchestrator.clone()),
             chapter_analysis_resume_application: Arc::new(orchestrator.clone()),
             chapter_analysis_preview_application: Arc::new(orchestrator.clone()),
