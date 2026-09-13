@@ -236,6 +236,19 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::read_execution_result),
         )
         .route("/agent/memory", post(agent_runtime::read_memory))
+        .route("/agent/inbox/claim", post(agent_runtime::claim_agent_inbox))
+        .route(
+            "/agent/inbox/consume",
+            post(agent_runtime::consume_agent_inbox),
+        )
+        .route(
+            "/agent/inbox/persist",
+            post(agent_runtime::persist_agent_inbox),
+        )
+        .route(
+            "/agent/inbox/message",
+            post(agent_runtime::load_agent_inbox_message),
+        )
         .route("/agent/message", post(agent_runtime::apply_message_request))
         .route("/agent/budget", post(agent_runtime::worker_budget_snapshot))
         .route("/agent/failure", post(agent_runtime::fail_agent_worker_run))

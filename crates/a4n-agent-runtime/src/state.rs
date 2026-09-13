@@ -3,8 +3,8 @@ use a4n_agent_application::agent::{
     AgentApplication, AgentApprovalExpiryApplicationPort, AgentDelegationSnapshot,
     AgentEditorClaimApplicationPort, AgentEditorResponseApplicationPort,
     AgentEditorWaitApplicationPort, AgentExecutionSnapshot, AgentExternalTaskWaitApplicationPort,
-    AgentGenerationCancelApplicationPort, AgentMessageSnapshot, AgentRunContext,
-    AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
+    AgentGenerationCancelApplicationPort, AgentInboxSnapshot, AgentMessageSnapshot,
+    AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
     AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
     AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot, AgentWorkerClaimApplicationPort,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
@@ -26,7 +26,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerFailureRequest, AgentWorkerMemoryRequest, AgentWorkerMessageOperation,
+    AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerMemoryRequest, AgentWorkerMessageOperation,
     AgentWorkerMessageRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
     AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
@@ -422,6 +424,94 @@ impl AgentRuntimeState {
             operation: "读取 Agent memory".into(),
         })?;
         self.host.read_memory(&request).await
+    }
+
+    pub async fn claim_agent_inbox(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<Option<AgentInboxSnapshot>, AppError> {
+        let request = AgentWorkerInboxClaimRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            thread_id: claimed.run.thread_id,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent inbox claim request 无效: {error}"),
+            operation: "领取 Agent inbox".into(),
+        })?;
+        self.host
+            .claim_inbox(&request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
+    }
+
+    pub async fn consume_agent_inbox(
+        &self,
+        claimed: &AgentWorkerRun,
+        row: &AgentInboxSnapshot,
+    ) -> Result<AgentInboxSnapshot, AppError> {
+        let claim_token = row
+            .claim_token
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("inbox {} 缺少 claim token", row.id),
+                operation: "消费 Agent inbox".into(),
+            })?;
+        let request = AgentWorkerInboxConsumeRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            inbox_id: row.id,
+            claim_token,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent inbox consume request 无效: {error}"),
+            operation: "消费 Agent inbox".into(),
+        })?;
+        self.host.consume_inbox(&request).await.map(Into::into)
+    }
+
+    pub async fn persist_agent_inbox(
+        &self,
+        claimed: &AgentWorkerRun,
+        row: &AgentInboxSnapshot,
+    ) -> Result<(AgentInboxSnapshot, AgentMessageSnapshot), AppError> {
+        let claim_token = row
+            .claim_token
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("inbox {} 缺少 claim token", row.id),
+                operation: "持久化 Agent inbox".into(),
+            })?;
+        let request = AgentWorkerInboxPersistRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            inbox_id: row.id,
+            claim_token,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent inbox persist request 无效: {error}"),
+            operation: "持久化 Agent inbox".into(),
+        })?;
+        let snapshot: AgentWorkerInboxPersistSnapshotWire =
+            self.host.persist_inbox(&request).await?;
+        Ok((snapshot.inbox.into(), snapshot.message.into()))
+    }
+
+    pub async fn load_agent_inbox_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        message_id: i64,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        let request = AgentWorkerInboxMessageRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            message_id,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent inbox message request 无效: {error}"),
+            operation: "加载 Agent inbox message".into(),
+        })?;
+        self.host.load_inbox_message(&request).await.map(Into::into)
     }
 
     pub async fn agent_worker_run_is_terminal(

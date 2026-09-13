@@ -43,7 +43,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMemoryRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
@@ -2406,6 +2408,44 @@ impl From<inbox::Model> for AgentInboxSnapshot {
     }
 }
 
+impl From<AgentInboxSnapshot> for AgentWorkerInboxSnapshotWire {
+    fn from(snapshot: AgentInboxSnapshot) -> Self {
+        Self {
+            id: snapshot.id,
+            thread_id: snapshot.thread_id,
+            turn_id: snapshot.turn_id,
+            run_id: snapshot.run_id,
+            source_kind: snapshot.source_kind,
+            source_thread_id: snapshot.source_thread_id,
+            inbox_kind: snapshot.inbox_kind,
+            delivery_mode: snapshot.delivery_mode,
+            content: snapshot.content,
+            payload_json: snapshot.payload_json,
+            status: snapshot.status,
+            claim_token: snapshot.claim_token,
+        }
+    }
+}
+
+impl From<AgentWorkerInboxSnapshotWire> for AgentInboxSnapshot {
+    fn from(snapshot: AgentWorkerInboxSnapshotWire) -> Self {
+        Self {
+            id: snapshot.id,
+            thread_id: snapshot.thread_id,
+            turn_id: snapshot.turn_id,
+            run_id: snapshot.run_id,
+            source_kind: snapshot.source_kind,
+            source_thread_id: snapshot.source_thread_id,
+            inbox_kind: snapshot.inbox_kind,
+            delivery_mode: snapshot.delivery_mode,
+            content: snapshot.content,
+            payload_json: snapshot.payload_json,
+            status: snapshot.status,
+            claim_token: snapshot.claim_token,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentWorkerRun {
     pub run: AgentRunSnapshot,
@@ -4743,6 +4783,113 @@ impl AgentApplication {
         .await
         .map(|(inbox, message)| (inbox.into(), message.into()))
         .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn claim_inbox_request(
+        &self,
+        request: &AgentWorkerInboxClaimRequest,
+    ) -> Result<Option<AgentWorkerInboxSnapshotWire>, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        if request.thread_id != claimed.run.thread_id {
+            return Err(AppError::InvalidArgument(
+                "Agent inbox thread 不属于当前 worker run".into(),
+            ));
+        }
+        self.claim_inbox_for_thread(request.thread_id)
+            .await
+            .map(|row| row.map(Into::into))
+    }
+
+    pub(crate) async fn consume_inbox_request(
+        &self,
+        request: &AgentWorkerInboxConsumeRequest,
+    ) -> Result<AgentWorkerInboxSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        let row = inbox::Entity::find_by_id(request.inbox_id)
+            .one(self.connection())
+            .await
+            .map_err(AppError::Database)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Agent inbox 不存在: {}", request.inbox_id))
+            })?;
+        if row.thread_id != claimed.run.thread_id
+            || row.claim_token.as_deref() != Some(request.claim_token.as_str())
+        {
+            return Err(AppError::InvalidState {
+                current: format!("Agent inbox {} 不属于当前 claim", request.inbox_id),
+                operation: "消费 Agent inbox".into(),
+            });
+        }
+        self.consume_claimed_inbox(&row.into())
+            .await
+            .map(Into::into)
+    }
+
+    pub(crate) async fn persist_inbox_request(
+        &self,
+        request: &AgentWorkerInboxPersistRequest,
+    ) -> Result<AgentWorkerInboxPersistSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        let row = inbox::Entity::find_by_id(request.inbox_id)
+            .one(self.connection())
+            .await
+            .map_err(AppError::Database)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Agent inbox 不存在: {}", request.inbox_id))
+            })?;
+        if row.claim_token.as_deref() != Some(request.claim_token.as_str()) {
+            return Err(AppError::InvalidState {
+                current: format!("Agent inbox {} 不属于当前 claim", request.inbox_id),
+                operation: "持久化 Agent inbox".into(),
+            });
+        }
+        let (inbox, message) = self.persist_claimed_inbox(&claimed, &row.into()).await?;
+        Ok(AgentWorkerInboxPersistSnapshotWire {
+            inbox: inbox.into(),
+            message: message.into(),
+        })
+    }
+
+    pub(crate) async fn load_message_request(
+        &self,
+        request: &AgentWorkerInboxMessageRequest,
+    ) -> Result<AgentWorkerMessageSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        self.load_message_for_worker(claimed.run.thread_id, request.message_id)
+            .await
+            .map(Into::into)
     }
 
     /// Returns an approved operation for the given execution.  Approval

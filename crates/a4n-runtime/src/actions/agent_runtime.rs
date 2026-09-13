@@ -40,7 +40,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMemoryRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
@@ -1146,6 +1148,58 @@ pub async fn read_memory(
     state
         .agent_worker_read_application()
         .read_memory_request(request)
+        .await
+}
+
+pub async fn claim_agent_inbox(
+    state: &AppState,
+    request: &AgentWorkerInboxClaimRequest,
+) -> Result<Option<AgentWorkerInboxSnapshotWire>, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent inbox claim 无效: {error}")))?;
+    state
+        .agent_worker_inbox_application()
+        .claim_inbox_request(request)
+        .await
+}
+
+pub async fn consume_agent_inbox(
+    state: &AppState,
+    request: &AgentWorkerInboxConsumeRequest,
+) -> Result<AgentWorkerInboxSnapshotWire, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent inbox consume 无效: {error}")))?;
+    state
+        .agent_worker_inbox_application()
+        .consume_inbox_request(request)
+        .await
+}
+
+pub async fn persist_agent_inbox(
+    state: &AppState,
+    request: &AgentWorkerInboxPersistRequest,
+) -> Result<AgentWorkerInboxPersistSnapshotWire, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent inbox persist 无效: {error}")))?;
+    state
+        .agent_worker_inbox_application()
+        .persist_inbox_request(request)
+        .await
+}
+
+pub async fn load_agent_inbox_message(
+    state: &AppState,
+    request: &AgentWorkerInboxMessageRequest,
+) -> Result<AgentWorkerMessageSnapshotWire, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent inbox message 无效: {error}")))?;
+    state
+        .agent_worker_inbox_application()
+        .load_message_request(request)
         .await
 }
 

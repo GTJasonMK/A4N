@@ -237,6 +237,67 @@ impl AgentWorkerMemoryRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerInboxClaimRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub thread_id: i64,
+}
+
+impl AgentWorkerInboxClaimRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("thread_id", self.thread_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerInboxConsumeRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub inbox_id: i64,
+    pub claim_token: String,
+}
+
+impl AgentWorkerInboxConsumeRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("inbox_id", self.inbox_id)?;
+        validate_non_blank("claim_token", &self.claim_token)
+    }
+}
+
+pub type AgentWorkerInboxPersistRequest = AgentWorkerInboxConsumeRequest;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerInboxMessageRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub message_id: i64,
+}
+
+impl AgentWorkerInboxMessageRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("message_id", self.message_id)
+    }
+}
+
 impl AgentWorkerExecutionResultRequest {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         AgentWorkerRunLeaseRequest {
@@ -845,6 +906,30 @@ pub struct AgentWorkerDelegationSnapshotWire {
     pub result_refs_json: Option<serde_json::Value>,
     pub result_summary: Option<String>,
     pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerInboxSnapshotWire {
+    pub id: i64,
+    pub thread_id: i64,
+    pub turn_id: Option<i64>,
+    pub run_id: Option<i64>,
+    pub source_kind: String,
+    pub source_thread_id: Option<i64>,
+    pub inbox_kind: String,
+    pub delivery_mode: String,
+    pub content: String,
+    pub payload_json: Option<serde_json::Value>,
+    pub status: String,
+    pub claim_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerInboxPersistSnapshotWire {
+    pub inbox: AgentWorkerInboxSnapshotWire,
+    pub message: AgentWorkerMessageSnapshotWire,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1585,6 +1670,28 @@ mod tests {
             }
             .validate(),
             Err(WorkerContractError::InvalidValue { field: "limit", .. })
+        ));
+    }
+
+    #[test]
+    fn inbox_requests_validate_claim_identity() {
+        let request = AgentWorkerInboxClaimRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            thread_id: 9,
+        };
+        request.validate().expect("inbox claim should be valid");
+        assert!(matches!(
+            AgentWorkerInboxConsumeRequest {
+                run_id: 7,
+                lease: valid_request().lease,
+                inbox_id: 10,
+                claim_token: " ".into(),
+            }
+            .validate(),
+            Err(WorkerContractError::BlankField {
+                field: "claim_token"
+            })
         ));
     }
 

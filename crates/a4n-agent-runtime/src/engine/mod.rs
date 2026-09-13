@@ -876,7 +876,7 @@ async fn process_claimed_run_inner(
         .map(|message| message.content.clone())
         .collect::<Vec<_>>();
     append_inbox_messages(
-        state.worker_inbox_application(),
+        state,
         claimed,
         &mut messages,
         &mut loaded_message_ids,
@@ -1020,7 +1020,7 @@ async fn process_claimed_run_inner(
             return Ok(());
         }
         append_inbox_messages(
-            state.worker_inbox_application(),
+            state,
             claimed,
             &mut messages,
             &mut loaded_message_ids,
@@ -2002,35 +2002,28 @@ struct DelegateToolInput {
 }
 
 async fn append_inbox_messages(
-    inbox_application: &dyn a4n_agent_application::agent::AgentWorkerInboxApplicationPort,
+    state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
     messages: &mut Vec<ChatMessage>,
     loaded_message_ids: &mut HashSet<i64>,
     pinned_user_contents: &mut Vec<String>,
 ) -> Result<(), AppError> {
-    while let Some(row) = inbox_application
-        .claim_inbox_for_thread(claimed.run.thread_id)
-        .await?
-    {
+    while let Some(row) = state.claim_agent_inbox(claimed).await? {
         let message_id = inbox_message_id(&row)?;
         if let Some(message_id) = message_id {
             if loaded_message_ids.contains(&message_id) {
-                inbox_application.consume_claimed_inbox(&row).await?;
+                state.consume_agent_inbox(claimed, &row).await?;
                 continue;
             }
-            let message = inbox_application
-                .load_message_for_worker(claimed.run.thread_id, message_id)
-                .await?;
-            inbox_application.consume_claimed_inbox(&row).await?;
+            let message = state.load_agent_inbox_message(claimed, message_id).await?;
+            state.consume_agent_inbox(claimed, &row).await?;
             if message.role == "user" {
                 pinned_user_contents.push(message.content.clone());
             }
             messages.push(chat_message_from_model(&message)?);
             loaded_message_ids.insert(message.id);
         } else {
-            let (_, message) = inbox_application
-                .persist_claimed_inbox(claimed, &row)
-                .await?;
+            let (_, message) = state.persist_agent_inbox(claimed, &row).await?;
             if message.role == "user" {
                 pinned_user_contents.push(message.content.clone());
             }

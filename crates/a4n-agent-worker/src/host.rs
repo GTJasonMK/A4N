@@ -19,7 +19,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
@@ -198,6 +200,38 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerMemoryRequest,
     ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
         self.request_json(Method::POST, "/internal/agent/memory", request)
+            .await
+    }
+
+    async fn claim_inbox(
+        &self,
+        request: &AgentWorkerInboxClaimRequest,
+    ) -> Result<Option<AgentWorkerInboxSnapshotWire>, AppError> {
+        self.request_json(Method::POST, "/internal/agent/inbox/claim", request)
+            .await
+    }
+
+    async fn consume_inbox(
+        &self,
+        request: &AgentWorkerInboxConsumeRequest,
+    ) -> Result<AgentWorkerInboxSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/inbox/consume", request)
+            .await
+    }
+
+    async fn persist_inbox(
+        &self,
+        request: &AgentWorkerInboxPersistRequest,
+    ) -> Result<AgentWorkerInboxPersistSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/inbox/persist", request)
+            .await
+    }
+
+    async fn load_inbox_message(
+        &self,
+        request: &AgentWorkerInboxMessageRequest,
+    ) -> Result<AgentWorkerMessageSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/inbox/message", request)
             .await
     }
 

@@ -18,7 +18,9 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMemoryRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
@@ -82,6 +84,26 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerMemoryRequest,
     ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError>;
+
+    async fn claim_inbox(
+        &self,
+        request: &AgentWorkerInboxClaimRequest,
+    ) -> Result<Option<AgentWorkerInboxSnapshotWire>, AppError>;
+
+    async fn consume_inbox(
+        &self,
+        request: &AgentWorkerInboxConsumeRequest,
+    ) -> Result<AgentWorkerInboxSnapshotWire, AppError>;
+
+    async fn persist_inbox(
+        &self,
+        request: &AgentWorkerInboxPersistRequest,
+    ) -> Result<AgentWorkerInboxPersistSnapshotWire, AppError>;
+
+    async fn load_inbox_message(
+        &self,
+        request: &AgentWorkerInboxMessageRequest,
+    ) -> Result<AgentWorkerMessageSnapshotWire, AppError>;
 
     async fn apply_message_request(
         &self,
