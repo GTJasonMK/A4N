@@ -27,7 +27,10 @@ use crate::{
         GenerationProgressUpdate, generation_public_error, publish_step_progress,
         terminal::CompletionDescriptor,
     },
-    outline::{OutlineGenerationApplicationPort, OutlineRequestPreviewStep},
+    outline::{
+        OutlineGenerationApplicationPort, OutlinePartGenerationPreviewApplicationPort,
+        OutlineRequestPreviewStep,
+    },
 };
 
 use super::{OutlineLlmStreamContext, ProgressReporter, with_outline_llm_stream};
@@ -487,7 +490,7 @@ impl OutlineGenerationApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+impl OutlinePartGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generate_parts(
         &self,
         input: GeneratePartsInput,
@@ -501,7 +504,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         self.preview_regenerate_parts_validated(input).await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     async fn preview_regenerate_last_part(
         &self,
         input: RegenerateLastPartInput,

@@ -14,7 +14,7 @@ pub async fn preview_generate_parts_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let steps = state
-        .outline_preview_application()
+        .outline_part_generation_preview_application()
         .preview_generate_parts(input)
         .await?;
     outline_preview(
@@ -33,7 +33,7 @@ pub async fn preview_regenerate_parts_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let steps = state
-        .outline_preview_application()
+        .outline_part_generation_preview_application()
         .preview_regenerate_parts(input)
         .await?;
     outline_preview(
