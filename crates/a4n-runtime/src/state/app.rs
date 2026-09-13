@@ -353,6 +353,10 @@ pub struct AppState {
     /// Image publication recovery and state-transition owner.
     image_publication_recovery_application:
         Arc<dyn a4n_orchestrator::media::ImagePublicationRecoveryPort>,
+    /// Image publication recovery reads stay behind the API contract; Runtime
+    /// supplies file facts and cleanup side effects separately.
+    image_publication_recovery_read_application:
+        Arc<dyn a4n_api_contract::image::ImagePublicationRecoveryReadPort>,
     /// Persisted media-reference queries used by cleanup and orphan scans.
     image_media_reference_application: Arc<dyn a4n_api_contract::image::ImageMediaReferencePort>,
     /// Image provider config lookup stays in the settings owner.
@@ -1708,6 +1712,12 @@ impl AppState {
         self.image_publication_recovery_application.as_ref()
     }
 
+    pub(crate) fn image_publication_recovery_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::image::ImagePublicationRecoveryReadPort {
+        self.image_publication_recovery_read_application.as_ref()
+    }
+
     pub(crate) fn image_media_reference_application(
         &self,
     ) -> &dyn a4n_api_contract::image::ImageMediaReferencePort {
@@ -2228,6 +2238,7 @@ impl AppState {
             image_record_mutation_application: Arc::new(orchestrator.clone()),
             image_import_application: Arc::new(orchestrator.clone()),
             image_publication_recovery_application: Arc::new(orchestrator.clone()),
+            image_publication_recovery_read_application: Arc::new(orchestrator.clone()),
             image_media_reference_application: Arc::new(orchestrator.clone()),
             image_provider_config: Arc::new(orchestrator.clone()),
             image_generation_application: Arc::new(orchestrator.clone()),

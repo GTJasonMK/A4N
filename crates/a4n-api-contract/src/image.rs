@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use a4n_domain::media::ImagePublicationRecoveryRecord;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -93,6 +94,37 @@ pub trait ImageMediaReferencePort: Send + Sync {
         project_id: i64,
         paths: &[String],
     ) -> Result<HashSet<String>, a4n_error::AppError>;
+}
+
+/// Host-facing read boundary for image publication recovery.
+///
+/// Runtime supplies file facts and cleanup side effects; persisted publication
+/// state remains owned by the media application.
+#[async_trait::async_trait]
+pub trait ImagePublicationRecoveryReadPort: Send + Sync {
+    async fn image_publications_for_recovery(
+        &self,
+        limit: usize,
+        published_after: Option<&str>,
+    ) -> Result<Vec<ImagePublicationRecoveryRecord>, a4n_error::AppError>;
+
+    async fn image_publication_by_id(
+        &self,
+        publication_id: &str,
+    ) -> Result<Option<ImagePublicationRecoveryRecord>, a4n_error::AppError>;
+
+    async fn generated_image_identity(
+        &self,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageIdentity>, a4n_error::AppError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedImageIdentity {
+    pub project_id: i64,
+    pub file_path: String,
+    pub image_type: String,
+    pub file_size: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

@@ -244,7 +244,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
         .unwrap();
     assert_eq!(
         state
-            .image_publication_recovery_application()
+            .image_publication_recovery_read_application()
             .image_publication_by_id(&publication.publication_id)
             .await
             .unwrap()
@@ -284,7 +284,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     .unwrap();
     assert_eq!(
         state
-            .image_publication_recovery_application()
+            .image_publication_recovery_read_application()
             .image_publication_by_id("abandoned-publication")
             .await
             .unwrap()
@@ -333,7 +333,7 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
 
     let recovered = state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .image_publication_by_id(&publication.publication_id)
         .await
         .unwrap()

@@ -476,6 +476,16 @@ if ! rg -n 'image_publication_recovery_application\(\)' \
     printf 'cleanup outbox publication recovery must route through ImagePublicationRecoveryPort\n' >&2
     exit 1
 fi
+if ! rg -n 'image_publication_recovery_read_application\(\)' \
+    crates/a4n-runtime/src/cleanup_outbox/publication.rs; then
+    printf 'cleanup outbox publication reads must route through ImagePublicationRecoveryReadPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'image_publication_recovery_application\(\)\s*\.\s*(image_publications_for_recovery|image_publication_by_id|generated_image_identity)' \
+    crates/a4n-runtime/src/cleanup_outbox/publication.rs; then
+    printf 'cleanup outbox publication reads must not use the state-transition port\n' >&2
+    exit 1
+fi
 
 if ! rg -n 'image_media_reference_application\(\)' \
     crates/a4n-runtime/src/cleanup_outbox/publication.rs \
@@ -874,6 +884,18 @@ fi
 if ! rg -n 'pub trait ImageImportApplicationPort|pub trait ImagePublicationRecoveryPort' \
     crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then
     printf 'image import/recovery contracts are missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait ImagePublicationRecoveryReadPort' crates/a4n-api-contract/src/image.rs; then
+    printf 'image publication recovery read contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ImagePublicationRecoveryReadPort' crates/a4n-orchestrator/src/media; then
+    printf 'ImagePublicationRecoveryReadPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::media::ImagePublicationRecoveryReadPort' crates/a4n-runtime/src; then
+    printf 'Runtime image publication recovery reads must consume the API contract directly\n' >&2
     exit 1
 fi
 if ! rg -n 'pub trait ImageMediaReferencePort' crates/a4n-api-contract/src/image.rs; then
