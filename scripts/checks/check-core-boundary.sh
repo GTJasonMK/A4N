@@ -2727,6 +2727,18 @@ if rg -n 'image_generation_application\(\)' \
     printf 'Queued image generation must not use the request-preparation port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait ImageSceneRequestPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+   ! rg -n 'image_scene_request_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/image_generation/direct.rs; then
+    printf 'Scene image request previews must route through ImageSceneRequestPreviewApplicationPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_scene_request' \
+    crates/a4n-runtime/src/actions/image_generation/direct.rs; then
+    printf 'Scene image request previews must not use the mixed image generation port\n' >&2
+    exit 1
+fi
 
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then

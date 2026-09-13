@@ -31,7 +31,8 @@ use crate::{
     media::{
         BatchImageGenerationOutcome, ImageGenerationApplicationPort, ImageGenerationHostPort,
         ImageGenerationProgress, ImageGenerationTaskApplicationPort,
-        ImageProfilePromptApplicationPort, PreparedImageGenerationRequest,
+        ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
+        PreparedImageGenerationRequest,
     },
 };
 
@@ -403,16 +404,6 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl ImageGenerationApplicationPort for OrchestratorContext {
-    async fn prepare_scene_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateSceneImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError> {
-        self.prepare_scene_image_request_validated(host_port, user_id, input)
-            .await
-    }
-
     async fn prepare_canvas_request(
         &self,
         host_port: &dyn ImageGenerationHostPort,
@@ -461,6 +452,19 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError> {
         self.generate_galgame_image_validated(host_port, user_id, input, progress)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ImageSceneRequestPreviewApplicationPort for OrchestratorContext {
+    async fn prepare_scene_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateSceneImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError> {
+        self.prepare_scene_image_request_validated(host_port, user_id, input)
             .await
     }
 }

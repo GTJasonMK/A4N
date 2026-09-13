@@ -18,7 +18,7 @@ pub async fn preview_scene_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .image_generation_application()
+        .image_scene_request_preview_application()
         .prepare_scene_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
