@@ -98,7 +98,7 @@ pub async fn preview_refine_blueprint_request(
 ) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let request = state
-        .blueprint_request_preview_application()
+        .blueprint_refinement_preview_application()
         .preview_refinement(user_id, input, prompt_renderer)
         .await?;
     chat_status_preview_for_state(

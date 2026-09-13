@@ -227,10 +227,12 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::profile::ForeshadowingMutationApplicationPort>,
     /// Host-facing blueprint read boundary.
     blueprint_read_application: Arc<dyn a4n_api_contract::blueprint::BlueprintReadApplicationPort>,
-    /// Blueprint request construction boundary. Runtime supplies only prompt
-    /// rendering for the preview response.
-    blueprint_request_preview_application:
-        Arc<dyn a4n_orchestrator::BlueprintRequestPreviewApplicationPort>,
+    /// Blueprint generation request preview owner.
+    blueprint_generation_preview_application:
+        Arc<dyn a4n_orchestrator::BlueprintGenerationPreviewApplicationPort>,
+    /// Blueprint refinement request preview owner.
+    blueprint_refinement_preview_application:
+        Arc<dyn a4n_orchestrator::BlueprintRefinementPreviewApplicationPort>,
     /// Blueprint generation owner. Runtime supplies task workers and prompt
     /// rendering; workflow persistence stays with the blueprint owner.
     blueprint_generation_application: Arc<dyn a4n_orchestrator::BlueprintGenerationApplicationPort>,
@@ -1433,10 +1435,16 @@ impl AppState {
         self.blueprint_read_application.as_ref()
     }
 
-    pub(crate) fn blueprint_request_preview_application(
+    pub(crate) fn blueprint_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintRequestPreviewApplicationPort {
-        self.blueprint_request_preview_application.as_ref()
+    ) -> &dyn a4n_orchestrator::BlueprintGenerationPreviewApplicationPort {
+        self.blueprint_generation_preview_application.as_ref()
+    }
+
+    pub(crate) fn blueprint_refinement_preview_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::BlueprintRefinementPreviewApplicationPort {
+        self.blueprint_refinement_preview_application.as_ref()
     }
 
     pub(crate) fn blueprint_generation_application(
@@ -2730,7 +2738,8 @@ impl AppState {
             foreshadowing_read_application: Arc::new(orchestrator.clone()),
             foreshadowing_mutation_application: Arc::new(orchestrator.clone()),
             blueprint_read_application: Arc::new(orchestrator.clone()),
-            blueprint_request_preview_application: Arc::new(orchestrator.clone()),
+            blueprint_generation_preview_application: Arc::new(orchestrator.clone()),
+            blueprint_refinement_preview_application: Arc::new(orchestrator.clone()),
             blueprint_generation_application: Arc::new(orchestrator.clone()),
             blueprint_refinement_application: Arc::new(orchestrator.clone()),
             blueprint_mutation_application: Arc::new(orchestrator.clone()),

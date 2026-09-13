@@ -30,19 +30,20 @@ mod json;
 mod persistence;
 mod refine;
 
-/// Host-facing blueprint request-preview boundary.
-///
-/// Permission checks and request construction stay with the blueprint owner;
-/// Runtime supplies only the prompt renderer and provider-preview formatting.
+/// Host-facing boundary for blueprint generation request previews.
 #[async_trait::async_trait]
-pub trait BlueprintRequestPreviewApplicationPort: Send + Sync {
+pub trait BlueprintGenerationPreviewApplicationPort: Send + Sync {
     async fn preview_generation(
         &self,
         user_id: i64,
         input: PreviewBlueprintGenerationInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<BlueprintGenerationPreviewStep, AppError>;
+}
 
+/// Host-facing boundary for blueprint refinement request previews.
+#[async_trait::async_trait]
+pub trait BlueprintRefinementPreviewApplicationPort: Send + Sync {
     async fn preview_refinement(
         &self,
         user_id: i64,
@@ -236,7 +237,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl BlueprintRequestPreviewApplicationPort for OrchestratorContext {
+impl BlueprintGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generation(
         &self,
         user_id: i64,
@@ -255,7 +256,10 @@ impl BlueprintRequestPreviewApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl BlueprintRefinementPreviewApplicationPort for OrchestratorContext {
     async fn preview_refinement(
         &self,
         user_id: i64,

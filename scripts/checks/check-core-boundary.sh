@@ -541,16 +541,19 @@ if rg -n 'preview_blueprint_(generation|refine)_request_for_user_validated' \
     exit 1
 fi
 
-if ! rg -n 'blueprint_request_preview_application\(\)' \
-    crates/a4n-runtime/src/actions/blueprint_records/generation.rs \
+if ! rg -n 'blueprint_generation_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/blueprint_records/generation.rs || \
+   ! rg -n 'blueprint_refinement_preview_application\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/refinement.rs; then
-    printf 'Runtime blueprint request previews must route through BlueprintRequestPreviewApplicationPort\n' >&2
+    printf 'Runtime blueprint request previews must route through worker-specific preview ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait BlueprintRequestPreviewApplicationPort' \
+if ! rg -n 'pub trait BlueprintGenerationPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/blueprint.rs || \
+   ! rg -n 'pub trait BlueprintRefinementPreviewApplicationPort' \
     crates/a4n-orchestrator/src/blueprint.rs; then
-    printf 'BlueprintRequestPreviewApplicationPort contract is missing\n' >&2
+    printf 'Blueprint worker-specific preview contracts are missing\n' >&2
     exit 1
 fi
 
