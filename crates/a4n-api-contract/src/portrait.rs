@@ -76,12 +76,12 @@ pub struct PortraitReferenceImageSource {
     pub file_path: String,
 }
 
-/// Host-facing portrait record boundary.
+/// Host-facing portrait record read boundary.
 ///
 /// Authorization, persistence and ORM-to-summary projection stay in the
 /// character/portrait owner; hosts consume only stable summaries.
 #[async_trait::async_trait]
-pub trait PortraitRecordApplicationPort: Send + Sync {
+pub trait PortraitRecordReadApplicationPort: Send + Sync {
     async fn list_by_project(
         &self,
         user_id: i64,
@@ -100,13 +100,17 @@ pub trait PortraitRecordApplicationPort: Send + Sync {
         portrait_id: i64,
     ) -> Result<Option<PortraitSummary>, a4n_error::AppError>;
 
-    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), a4n_error::AppError>;
-
     async fn missing_generation_seeds(
         &self,
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<PortraitGenerationSeed>, a4n_error::AppError>;
+}
+
+/// Host-facing portrait record mutation boundary.
+#[async_trait::async_trait]
+pub trait PortraitRecordMutationApplicationPort: Send + Sync {
+    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

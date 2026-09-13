@@ -148,7 +148,7 @@ pub async fn preview_generate_missing_portraits_request(
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let missing_profiles = state
-        .portrait_record_application()
+        .portrait_record_read_application()
         .missing_generation_seeds(user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
@@ -195,7 +195,7 @@ async fn required_portrait(
     portrait_id: i64,
 ) -> Result<PortraitSummary, String> {
     state
-        .portrait_record_application()
+        .portrait_record_read_application()
         .by_id(user_id, portrait_id)
         .await
         .map_err(|error| error.to_string())?

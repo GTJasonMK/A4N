@@ -2711,6 +2711,32 @@ if rg -n 'portrait_generation_application\(\)' \
     exit 1
 fi
 
+if ! rg -n 'pub trait PortraitRecordReadApplicationPort|pub trait PortraitRecordMutationApplicationPort' \
+    crates/a4n-api-contract/src/portrait.rs; then
+    printf 'Portrait record read/mutation contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'PortraitRecordApplicationPort' \
+    crates/a4n-api-contract/src/portrait.rs \
+    crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed PortraitRecordApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'portrait_record_read_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_records.rs \
+    crates/a4n-runtime/src/actions/portrait_generation; then
+    printf 'Portrait record reads must route through PortraitRecordReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'portrait_record_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_records.rs; then
+    printf 'Portrait record mutations must route through PortraitRecordMutationApplicationPort\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'portrait_prompt_application\(\)' \
     crates/a4n-runtime/src/actions/portrait_generation/application.rs || \
    ! rg -n 'portrait_upload_application\(\)' \

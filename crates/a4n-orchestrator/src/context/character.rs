@@ -16,7 +16,8 @@ use a4n_api_contract::character::{
     UpdateCharacterProfileInput,
 };
 use a4n_api_contract::portrait::{
-    PortraitGenerationSeed, PortraitRecordApplicationPort, PortraitSummary,
+    PortraitGenerationSeed, PortraitRecordMutationApplicationPort,
+    PortraitRecordReadApplicationPort, PortraitSummary,
 };
 use a4n_db::DbHandle;
 use a4n_db_models::models::ai::generated_image;
@@ -1167,7 +1168,7 @@ fn character_profile_rag_warning(error: impl std::fmt::Display) -> String {
 }
 
 #[async_trait::async_trait]
-impl PortraitRecordApplicationPort for OrchestratorContext {
+impl PortraitRecordReadApplicationPort for OrchestratorContext {
     async fn list_by_project(
         &self,
         user_id: i64,
@@ -1210,17 +1211,6 @@ impl PortraitRecordApplicationPort for OrchestratorContext {
         Ok(Some(crate::portrait::portrait_summary(&portrait)?))
     }
 
-    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
-        let portrait = self
-            .character_portrait_by_id(portrait_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("立绘不存在".to_string()))?;
-        self.verify_project_permission(portrait.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.set_primary_character_portrait_record(portrait_id)
-            .await
-    }
-
     async fn missing_generation_seeds(
         &self,
         user_id: i64,
@@ -1239,6 +1229,20 @@ impl PortraitRecordApplicationPort for OrchestratorContext {
                 })
             })
             .collect()
+    }
+}
+
+#[async_trait::async_trait]
+impl PortraitRecordMutationApplicationPort for OrchestratorContext {
+    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
+        let portrait = self
+            .character_portrait_by_id(portrait_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("立绘不存在".to_string()))?;
+        self.verify_project_permission(portrait.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.set_primary_character_portrait_record(portrait_id)
+            .await
     }
 }
 

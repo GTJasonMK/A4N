@@ -383,9 +383,12 @@ pub struct AppState {
     /// Upload publication uses a separate media/file adapter boundary.
     profile_material_upload_application:
         Arc<dyn a4n_orchestrator::ProfileMaterialUploadApplicationPort>,
-    /// Host-facing portrait-record boundary. Portrait authorization and DTO
-    /// projection stay in the character/portrait owner.
-    portrait_record_application: Arc<dyn a4n_api_contract::portrait::PortraitRecordApplicationPort>,
+    /// Host-facing portrait-record read boundary. Portrait authorization and
+    /// DTO projection stay in the character/portrait owner.
+    portrait_record_read_application:
+        Arc<dyn a4n_api_contract::portrait::PortraitRecordReadApplicationPort>,
+    portrait_record_mutation_application:
+        Arc<dyn a4n_api_contract::portrait::PortraitRecordMutationApplicationPort>,
     /// Portrait request preview owner. Runtime supplies prompt rendering for
     /// preview construction.
     portrait_request_preview_application:
@@ -1778,10 +1781,16 @@ impl AppState {
         self.profile_material_upload_application.as_ref()
     }
 
-    pub(crate) fn portrait_record_application(
+    pub(crate) fn portrait_record_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::portrait::PortraitRecordApplicationPort {
-        self.portrait_record_application.as_ref()
+    ) -> &dyn a4n_api_contract::portrait::PortraitRecordReadApplicationPort {
+        self.portrait_record_read_application.as_ref()
+    }
+
+    pub(crate) fn portrait_record_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::portrait::PortraitRecordMutationApplicationPort {
+        self.portrait_record_mutation_application.as_ref()
     }
 
     pub(crate) fn portrait_request_preview_application(
@@ -2277,7 +2286,8 @@ impl AppState {
             image_generation_application: Arc::new(orchestrator.clone()),
             profile_material_application: Arc::new(orchestrator.clone()),
             profile_material_upload_application: Arc::new(orchestrator.clone()),
-            portrait_record_application: Arc::new(orchestrator.clone()),
+            portrait_record_read_application: Arc::new(orchestrator.clone()),
+            portrait_record_mutation_application: Arc::new(orchestrator.clone()),
             portrait_request_preview_application: Arc::new(orchestrator.clone()),
             portrait_prompt_application: Arc::new(orchestrator.clone()),
             portrait_upload_application: Arc::new(orchestrator.clone()),

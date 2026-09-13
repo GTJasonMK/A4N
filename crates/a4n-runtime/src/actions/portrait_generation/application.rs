@@ -88,7 +88,7 @@ pub(crate) async fn generate_portrait_inline(
         )
     })?;
     let portrait = state
-        .portrait_record_application()
+        .portrait_record_read_application()
         .by_id(user_id, portrait_id)
         .await
         .map_err(|error| error.to_string())?
