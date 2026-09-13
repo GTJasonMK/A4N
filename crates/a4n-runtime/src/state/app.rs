@@ -461,8 +461,9 @@ pub struct AppState {
     /// Host-facing Assembly clip planning boundary.
     video_assembly_planning_application:
         Arc<dyn a4n_api_contract::video::VideoAssemblyPlanningApplicationPort>,
-    /// Temporary aggregate for the remaining Assembly push operations.
-    video_assembly_application: Arc<dyn a4n_api_contract::video::VideoAssemblyApplicationPort>,
+    /// Host-facing Assembly push boundary.
+    video_assembly_push_application:
+        Arc<dyn a4n_api_contract::video::VideoAssemblyPushApplicationPort>,
     video_assembly_postprocess_application:
         Arc<dyn a4n_api_contract::video::VideoAssemblyPostprocessApplicationPort>,
     /// Host-facing video completion and cleanup lifecycle boundary.
@@ -2197,16 +2198,16 @@ impl AppState {
         self.video_trim_application.as_ref()
     }
 
-    pub(crate) fn video_assembly_application(
-        &self,
-    ) -> &dyn a4n_api_contract::video::VideoAssemblyApplicationPort {
-        self.video_assembly_application.as_ref()
-    }
-
     pub(crate) fn video_assembly_planning_application(
         &self,
     ) -> &dyn a4n_api_contract::video::VideoAssemblyPlanningApplicationPort {
         self.video_assembly_planning_application.as_ref()
+    }
+
+    pub(crate) fn video_assembly_push_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::VideoAssemblyPushApplicationPort {
+        self.video_assembly_push_application.as_ref()
     }
 
     pub(crate) fn video_assembly_postprocess_application(
@@ -2971,7 +2972,7 @@ impl AppState {
             video_canvas_import_application: Arc::new(orchestrator.clone()),
             video_trim_application: Arc::new(orchestrator.clone()),
             video_assembly_planning_application: Arc::new(orchestrator.clone()),
-            video_assembly_application: Arc::new(orchestrator.clone()),
+            video_assembly_push_application: Arc::new(orchestrator.clone()),
             video_assembly_postprocess_application: Arc::new(orchestrator.clone()),
             video_record_lifecycle_application: Arc::new(orchestrator.clone()),
             video_canvas_media_application: Arc::new(orchestrator.clone()),

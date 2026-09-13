@@ -28,7 +28,7 @@ pub async fn push_assembled_chapter_video(
     .await?
     .ok_or_else(|| "当前视频生成流程还没有可推送的成片片段".to_string())?;
     let prepared = state
-        .video_assembly_application()
+        .video_assembly_push_application()
         .create_assembly_push_record(
             project_id,
             chapter_id,

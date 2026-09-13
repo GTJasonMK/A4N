@@ -45,8 +45,8 @@ use a4n_api_contract::{
         CanvasVideoImportApplicationPort, ChapterVideoImportApplicationPort,
         CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
         PreparedAssemblyPushRecord, ReferenceMediaVideoImportApplicationPort,
-        VideoAssemblyApplicationPort, VideoAssemblyPlanningApplicationPort,
-        VideoAssemblyPostprocessApplicationPort, VideoCanvasMediaApplicationPort,
+        VideoAssemblyPlanningApplicationPort, VideoAssemblyPostprocessApplicationPort,
+        VideoAssemblyPushApplicationPort, VideoCanvasMediaApplicationPort,
         VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
         VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
         VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
@@ -1805,7 +1805,7 @@ impl VideoAssemblyPlanningApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
+impl VideoAssemblyPushApplicationPort for crate::OrchestratorContext {
     async fn create_assembly_push_record(
         &self,
         project_id: i64,

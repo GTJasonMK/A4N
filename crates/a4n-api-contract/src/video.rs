@@ -761,11 +761,9 @@ pub trait VideoAssemblyPlanningApplicationPort: Send + Sync {
     ) -> Result<AssemblyVideoRecords, a4n_error::AppError>;
 }
 
-/// Host-facing Assembly planning and push boundary.
-///
-/// Temporary aggregate for the remaining Assembly push operations.
+/// Host-facing Assembly push boundary.
 #[async_trait::async_trait]
-pub trait VideoAssemblyApplicationPort: Send + Sync {
+pub trait VideoAssemblyPushApplicationPort: Send + Sync {
     async fn create_assembly_push_record(
         &self,
         project_id: i64,
