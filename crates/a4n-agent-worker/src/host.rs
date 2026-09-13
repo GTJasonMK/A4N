@@ -6,11 +6,16 @@ use a4n_api_contract::chapter_visual_plan::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
-use a4n_worker_contract::{AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, WorkerRequest};
+use a4n_worker_contract::{
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerCancelGenerationRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse, AgentWorkerWaitRequest,
+    WorkerRequest,
+};
 use async_trait::async_trait;
 use futures::stream;
 use reqwest::{Client, Method};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -66,7 +71,10 @@ impl HttpAgentRuntimeHost {
         })
     }
 
-    async fn request_stream(&self, body: &ChatRequestBody) -> Result<AgentChatStream, AppError> {
+    async fn request_stream(
+        &self,
+        body: &AgentWorkerChatRequest,
+    ) -> Result<AgentChatStream, AppError> {
         let response = self
             .client
             .post(self.url("/internal/agent/llm/chat"))
@@ -86,58 +94,6 @@ impl HttpAgentRuntimeHost {
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ExternalTaskWaitRequest<'a> {
-    run_id: i64,
-    owner_user_id: i64,
-    scope: &'a a4n_api_contract::agent::AgentScope,
-    execution_id: i64,
-    tool_name: Option<&'a str>,
-    arguments_json: Option<&'a Value>,
-    duration_exhausted: bool,
-    runtime_config_snapshot: Option<&'a RuntimeConfigSnapshot>,
-}
-
-#[derive(Debug, Serialize)]
-struct EditorProjectionRequest<'a> {
-    plan: &'a ChapterVisualPlanV2,
-    view: &'a VisualPlanReadView,
-}
-
-#[derive(Debug, Serialize)]
-struct CancelGenerationRequest {
-    user_id: i64,
-    task_id: String,
-    attempt: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct CancelWorkflowRequest {
-    workflow_run_id: i64,
-    reason: String,
-}
-
-#[derive(Debug, Serialize)]
-struct LlmCapabilitiesRequest<'a> {
-    user_id: i64,
-    snapshot: Option<&'a RuntimeConfigSnapshot>,
-    config_id: Option<i64>,
-}
-
-#[derive(Debug, Serialize)]
-struct ChatRequestBody {
-    user_id: i64,
-    snapshot: Option<RuntimeConfigSnapshot>,
-    config_id: Option<i64>,
-    request: Value,
-}
-
-#[derive(Debug, Deserialize)]
-struct PackageStateResponse {
-    enabled: bool,
-}
-
 #[async_trait]
 impl AgentRuntimeHost for HttpAgentRuntimeHost {
     async fn execute_command(
@@ -154,7 +110,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     async fn package_execution_enabled(&self) -> Result<bool, AppError> {
         self.request_json(Method::GET, "/internal/agent/package", &())
             .await
-            .map(|response: PackageStateResponse| response.enabled)
+            .map(|response: AgentWorkerPackageExecutionResponse| response.enabled)
     }
 
     async fn cancel_generation_task(
@@ -167,7 +123,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .request_json(
                 Method::POST,
                 "/internal/agent/generation/cancel",
-                &CancelGenerationRequest {
+                &AgentWorkerCancelGenerationRequest {
                     user_id,
                     task_id,
                     attempt,
@@ -182,7 +138,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .request_json(
                 Method::POST,
                 "/internal/agent/workflow/cancel",
-                &CancelWorkflowRequest {
+                &AgentWorkerCancelWorkflowRequest {
                     workflow_run_id,
                     reason: reason.to_string(),
                 },
@@ -196,15 +152,15 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         wait: &AgentExternalTaskWaitSnapshot,
         snapshot: Option<&RuntimeConfigSnapshot>,
     ) -> Result<Value, AppError> {
-        let request = ExternalTaskWaitRequest {
+        let request = AgentWorkerWaitRequest {
             run_id: wait.run_id,
             owner_user_id: wait.owner_user_id,
-            scope: &wait.scope,
+            scope: wait.scope.clone(),
             execution_id: wait.execution_id,
-            tool_name: wait.tool_name.as_deref(),
-            arguments_json: wait.arguments_json.as_ref(),
+            tool_name: wait.tool_name.clone(),
+            arguments_json: wait.arguments_json.clone(),
             duration_exhausted: wait.duration_exhausted,
-            runtime_config_snapshot: snapshot,
+            runtime_config_snapshot: snapshot.cloned(),
         };
         self.request_json(Method::POST, "/internal/agent/wait", &request)
             .await
@@ -219,9 +175,9 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         self.request_json(
             Method::POST,
             "/internal/agent/llm/capabilities",
-            &LlmCapabilitiesRequest {
+            &AgentWorkerLlmCapabilitiesRequest {
                 user_id,
-                snapshot,
+                snapshot: snapshot.cloned(),
                 config_id,
             },
         )
@@ -236,7 +192,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: ChatRequest,
     ) -> Result<AgentChatStream, AppError> {
         let request = request.snapshot_value()?;
-        self.request_stream(&ChatRequestBody {
+        self.request_stream(&AgentWorkerChatRequest {
             user_id,
             snapshot: snapshot.cloned(),
             config_id,
@@ -253,7 +209,10 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         self.request_json(
             Method::POST,
             "/internal/agent/editor/project",
-            &EditorProjectionRequest { plan, view },
+            &AgentWorkerEditorProjectionRequest {
+                plan: plan.clone(),
+                view: view.clone(),
+            },
         )
         .await
     }

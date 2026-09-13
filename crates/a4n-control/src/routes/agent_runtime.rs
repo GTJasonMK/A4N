@@ -6,7 +6,7 @@ use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
     AgentEvent, AgentEventsInput, AgentMemoryInput, AgentMemoryScopeKind, AgentMemoryView,
-    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentScope, AgentThreadSnapshot,
+    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentThreadSnapshot,
     AgentThreadView, AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput,
     ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
     EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
@@ -14,15 +14,15 @@ use a4n_api_contract::agent::{
     SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
     UpdateAgentThreadInput,
 };
-use a4n_api_contract::chapter_visual_plan::{
-    ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
-};
-use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
+use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerClaimRequest, WorkerRequest,
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerCancelGenerationRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
+    AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerWaitRequest, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -85,16 +85,16 @@ pub(super) async fn command(
 pub(super) async fn agent_package_execution_enabled(
     State(state): State<ServerState>,
     headers: HeaderMap,
-) -> Result<Json<PackageExecutionResponse>, ApiError> {
+) -> Result<Json<AgentWorkerPackageExecutionResponse>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     let enabled = agent_actions::agent_package_execution_enabled(state.runtime()).await?;
-    Ok(Json(PackageExecutionResponse { enabled }))
+    Ok(Json(AgentWorkerPackageExecutionResponse { enabled }))
 }
 
 pub(super) async fn cancel_agent_generation(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<CancelAgentGenerationRequest>,
+    Json(input): Json<AgentWorkerCancelGenerationRequest>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     agent_actions::cancel_agent_owned_generation_task(
@@ -110,7 +110,7 @@ pub(super) async fn cancel_agent_generation(
 pub(super) async fn cancel_agent_workflow(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<CancelAgentWorkflowRequest>,
+    Json(input): Json<AgentWorkerCancelWorkflowRequest>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     agent_actions::cancel_agent_owned_workflow(
@@ -125,7 +125,7 @@ pub(super) async fn cancel_agent_workflow(
 pub(super) async fn read_agent_wait(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<AgentWaitRequest>,
+    Json(input): Json<AgentWorkerWaitRequest>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     let value = agent_actions::read_external_task_wait(
@@ -148,7 +148,7 @@ pub(super) async fn read_agent_wait(
 pub(super) async fn agent_llm_capabilities(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<AgentLlmCapabilitiesRequest>,
+    Json(input): Json<AgentWorkerLlmCapabilitiesRequest>,
 ) -> Result<Json<ModelCapabilities>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     agent_actions::agent_llm_capabilities(
@@ -165,7 +165,7 @@ pub(super) async fn agent_llm_capabilities(
 pub(super) async fn agent_chat(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<AgentChatRequest>,
+    Json(input): Json<AgentWorkerChatRequest>,
 ) -> Result<Response, ApiError> {
     authorize_worker_request(&state, &headers)?;
     let request = serde_json::from_value::<ChatRequest>(input.request)
@@ -198,70 +198,12 @@ pub(super) async fn agent_chat(
 pub(super) async fn project_agent_editor(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<AgentEditorProjectionRequest>,
+    Json(input): Json<AgentWorkerEditorProjectionRequest>,
 ) -> Result<Json<VisualPlanProjection>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     agent_actions::project_agent_editor_draft(state.runtime(), &input.plan, &input.view)
         .map(Json)
         .map_err(Into::into)
-}
-
-#[derive(Debug, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct PackageExecutionResponse {
-    enabled: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CancelAgentGenerationRequest {
-    user_id: i64,
-    task_id: String,
-    attempt: u32,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CancelAgentWorkflowRequest {
-    workflow_run_id: i64,
-    reason: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AgentWaitRequest {
-    run_id: i64,
-    owner_user_id: i64,
-    scope: AgentScope,
-    execution_id: i64,
-    tool_name: Option<String>,
-    arguments_json: Option<Value>,
-    duration_exhausted: bool,
-    runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AgentLlmCapabilitiesRequest {
-    user_id: i64,
-    snapshot: Option<RuntimeConfigSnapshot>,
-    config_id: Option<i64>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AgentChatRequest {
-    user_id: i64,
-    snapshot: Option<RuntimeConfigSnapshot>,
-    config_id: Option<i64>,
-    request: Value,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AgentEditorProjectionRequest {
-    plan: ChapterVisualPlanV2,
-    view: VisualPlanReadView,
 }
 
 fn agent_chat_sse_stream<S>(

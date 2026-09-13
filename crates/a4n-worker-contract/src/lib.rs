@@ -6,6 +6,10 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use a4n_api_contract::agent::AgentScope;
+use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV2, VisualPlanReadView};
+use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
+
 pub const WORKER_SCHEMA_VERSION: u32 = 1;
 pub const AGENT_RUN_OPERATION: &str = "agent.run";
 pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
@@ -110,6 +114,64 @@ impl AgentHostCommandPayload {
         }
         arguments
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerWaitRequest {
+    pub run_id: i64,
+    pub owner_user_id: i64,
+    pub scope: AgentScope,
+    pub execution_id: i64,
+    pub tool_name: Option<String>,
+    pub arguments_json: Option<serde_json::Value>,
+    pub duration_exhausted: bool,
+    pub runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerEditorProjectionRequest {
+    pub plan: ChapterVisualPlanV2,
+    pub view: VisualPlanReadView,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerCancelGenerationRequest {
+    pub user_id: i64,
+    pub task_id: String,
+    pub attempt: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerCancelWorkflowRequest {
+    pub workflow_run_id: i64,
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerLlmCapabilitiesRequest {
+    pub user_id: i64,
+    pub snapshot: Option<RuntimeConfigSnapshot>,
+    pub config_id: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerChatRequest {
+    pub user_id: i64,
+    pub snapshot: Option<RuntimeConfigSnapshot>,
+    pub config_id: Option<i64>,
+    pub request: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerPackageExecutionResponse {
+    pub enabled: bool,
 }
 
 impl<T> WorkerRequest<T> {
@@ -332,5 +394,24 @@ mod tests {
             payload.arguments_with_runtime_snapshot()["runtime_config_snapshot"],
             serde_json::json!({"llm": {}})
         );
+    }
+
+    #[test]
+    fn shared_agent_host_dto_round_trips_and_rejects_unknown_fields() {
+        let request = AgentWorkerCancelGenerationRequest {
+            user_id: 7,
+            task_id: "task-1".into(),
+            attempt: 2,
+        };
+        let encoded = serde_json::to_string(&request).expect("DTO should serialize");
+        let decoded: AgentWorkerCancelGenerationRequest =
+            serde_json::from_str(&encoded).expect("DTO should deserialize");
+        assert_eq!(decoded.user_id, request.user_id);
+        assert_eq!(decoded.task_id, request.task_id);
+        assert_eq!(decoded.attempt, request.attempt);
+
+        let mut value = serde_json::to_value(request).expect("DTO should serialize");
+        value["unexpected"] = true.into();
+        assert!(serde_json::from_value::<AgentWorkerCancelGenerationRequest>(value).is_err());
     }
 }

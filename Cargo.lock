@@ -1204,6 +1204,7 @@ dependencies = [
 name = "a4n-worker-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-api-contract",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
