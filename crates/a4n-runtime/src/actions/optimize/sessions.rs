@@ -59,7 +59,7 @@ pub async fn delete_optimize_session(
     input: OptimizeSessionInput,
 ) -> Result<(), String> {
     state
-        .optimize_application()
+        .optimize_session_mutation_application()
         .delete_session(user_id, input)
         .await
         .map_err(|err| err.to_string())
@@ -71,7 +71,7 @@ pub async fn record_optimize_agent_event(
     input: RecordOptimizeAgentEventInput,
 ) -> Result<(), String> {
     state
-        .optimize_application()
+        .optimize_session_mutation_application()
         .record_agent_event(user_id, input)
         .await
         .map_err(|err| err.to_string())

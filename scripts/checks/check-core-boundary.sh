@@ -2764,6 +2764,16 @@ if rg -U -n 'optimize_application\(\)\s*\.\s*(list_sessions|get_session|list_tur
     printf 'Optimize session reads must not use the mixed application boundary\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait OptimizeSessionMutationApplicationPort' \
+    crates/a4n-orchestrator/src/optimize/application.rs || \
+   ! rg -n 'optimize_session_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/sessions.rs \
+    crates/a4n-runtime/src/actions/optimize/analysis.rs \
+    crates/a4n-runtime/src/actions/optimize/chat.rs \
+    crates/a4n-runtime/src/actions/optimize/patches/status.rs; then
+    printf 'Optimize session mutations must route through the session mutation port\n' >&2
+    exit 1
+fi
 
 if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
     crates/a4n-orchestrator/src/context/generation.rs \

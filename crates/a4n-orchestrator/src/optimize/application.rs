@@ -66,13 +66,11 @@ pub struct ApplyOptimizePatchesApplicationResult {
     pub word_count: i32,
 }
 
-/// Runtime-facing content-optimization boundary.
+/// Runtime-facing content-optimization session mutation boundary.
 ///
-/// Session persistence, API projections, validation, request construction and
-/// generation execution remain owned by the optimize application. Runtime
-/// only schedules these operations and supplies prompt/host adapters.
+/// Session persistence and validation remain owned by the optimize application.
 #[async_trait]
-pub trait OptimizeApplicationPort: Send + Sync {
+pub trait OptimizeSessionMutationApplicationPort: Send + Sync {
     async fn create_analysis_session(
         &self,
         user_id: i64,
@@ -110,7 +108,12 @@ pub trait OptimizeApplicationPort: Send + Sync {
         user_id: i64,
         input: OptimizeSessionInput,
     ) -> Result<(), AppError>;
+}
 
+/// Runtime-facing content-optimization boundary for patch application,
+/// request previews and generation workers.
+#[async_trait]
+pub trait OptimizeApplicationPort: Send + Sync {
     async fn apply_patches(
         &self,
         user_id: i64,
@@ -575,7 +578,7 @@ impl a4n_api_contract::optimize::OptimizeSessionReadApplicationPort for Orchestr
 }
 
 #[async_trait]
-impl OptimizeApplicationPort for OrchestratorContext {
+impl OptimizeSessionMutationApplicationPort for OrchestratorContext {
     async fn create_analysis_session(
         &self,
         user_id: i64,
@@ -683,7 +686,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizeApplicationPort for OrchestratorContext {
     async fn apply_patches(
         &self,
         user_id: i64,

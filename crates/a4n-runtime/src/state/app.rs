@@ -111,8 +111,11 @@ pub struct AppState {
     /// Content-optimization session reads stay behind the API contract.
     optimize_session_read_application:
         Arc<dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort>,
-    /// Content optimization mutations, projections and generation workers
-    /// stay in the optimize owner; Runtime only routes Host actions.
+    /// Content-optimization session mutations stay in the optimize owner.
+    optimize_session_mutation_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort>,
+    /// Content optimization patch application, previews and generation
+    /// workers stay in the optimize owner; Runtime only routes Host actions.
     optimize_application: Arc<dyn a4n_orchestrator::optimize::OptimizeApplicationPort>,
     /// Scene-profile synchronization remains owned by the scene-profile
     /// application; Runtime supplies only the RAG host adapter.
@@ -1127,6 +1130,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort {
         self.optimize_session_read_application.as_ref()
+    }
+
+    pub(crate) fn optimize_session_mutation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort {
+        self.optimize_session_mutation_application.as_ref()
     }
 
     pub(crate) fn scene_profile_sync_application(
@@ -2395,6 +2404,7 @@ impl AppState {
             chapter_scene_mutation_application: Arc::new(orchestrator.clone()),
             chapter_scene_generation_application: Arc::new(orchestrator.clone()),
             optimize_session_read_application: Arc::new(orchestrator.clone()),
+            optimize_session_mutation_application: Arc::new(orchestrator.clone()),
             optimize_application: Arc::new(orchestrator.clone()),
             scene_profile_sync_application: Arc::new(orchestrator.clone()),
             service_health_application: Arc::new(crate::service_health::ServiceHealthApplication::new(

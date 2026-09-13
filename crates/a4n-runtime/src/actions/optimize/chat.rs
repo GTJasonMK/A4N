@@ -58,7 +58,7 @@ pub async fn create_optimization_chat_session(
     input: CreateOptimizationChatSessionInput,
 ) -> Result<OptimizationSessionSummary, String> {
     let session = state
-        .optimize_application()
+        .optimize_session_mutation_application()
         .create_chat_session(user_id, input)
         .await
         .map_err(|err| err.to_string())?;

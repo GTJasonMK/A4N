@@ -25,7 +25,9 @@ mod workflow_rules;
 pub(in crate::optimize) use agent_loop_executor::{
     AgentLoopExecutionError, AgentLoopGenerationContext,
 };
-pub use application::{OptimizeApplicationPort, OptimizePatchApplyHostPort};
+pub use application::{
+    OptimizeApplicationPort, OptimizePatchApplyHostPort, OptimizeSessionMutationApplicationPort,
+};
 pub(crate) use chat::OptimizeChatGenerationApplicationContext;
 pub(in crate::optimize) use contracts::{
     OptimizeChatTurnExecution, OptimizeProposePatchesInput, OptimizeSendUserMessageInput,
