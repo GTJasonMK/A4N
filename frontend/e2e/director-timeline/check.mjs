@@ -94,6 +94,12 @@ try {
   await assertWorkspaceFits("initial");
   await browser.$(".director-inspector").waitForDisplayed();
   await browser.saveScreenshot(path.join(artifacts, "initial.png"));
+  await browser.$('[aria-label="原文"]').click();
+  await browser.$('[role="dialog"]').waitForDisplayed();
+  assert.equal(await browser.$(".director-inspector").isDisplayed(), true, "opening a dialog must not replace the desktop inspector");
+  await browser.keys("Escape");
+  await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
+  await browser.$(".director-inspector").waitForDisplayed();
   const setInput = (selector, value) => browser.execute((selector, value) => {
     const input = document.querySelector(selector);
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
@@ -171,10 +177,12 @@ try {
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
   await browser.$('[aria-label="原文"]').click();
   await browser.$('[role="dialog"]').waitForDisplayed();
-  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-pressed"), "true", "the open tool must stay selected");
+  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-haspopup"), "dialog");
+  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-expanded"), "true", "the open action must expose its dialog state");
+  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-pressed"), null, "dialog actions must not look like tabs");
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
-  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-pressed"), "false", "closing a mobile tool must clear its selection");
+  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-expanded"), "false", "closing a dialog must clear its expanded state");
   await browser.$('[aria-label="放大视图"]').click();
   assert.ok((await browser.$(".director-timeline-track").getSize()).width >= 640);
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
@@ -182,10 +190,12 @@ try {
   await setViewport(1440, 900);
   for (const [label, ratio] of [["9:16 竖屏", 9 / 16], ["1:1 方形", 1], ["4:3", 4 / 3], ["16:9 横屏", 16 / 9]]) {
     await browser.$('[aria-label="画幅"]').click();
-    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-pressed"), "true", "the open aspect-ratio tool must stay selected");
+    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-haspopup"), "dialog");
+    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-expanded"), "true", "the open aspect-ratio action must expose its dialog state");
+    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-pressed"), null, "dialog actions must not look like tabs");
     await browser.$(`button=${label}`).click();
     await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
-    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-pressed"), "false", "closing the aspect-ratio tool must clear its selection");
+    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-expanded"), "false", "closing the aspect-ratio dialog must clear its expanded state");
     await browser.waitUntil(async () => {
       const frame = await browser.$(".director-viewer").getSize();
       return Math.abs(frame.width / frame.height - ratio) < 0.02;

@@ -43,10 +43,12 @@
 .director-timecode span:first-child { min-width: 68px; }
 .director-timecode span + span, .director-preview-label { color: rgb(var(--color-text-tertiary)); }
 .director-preview-label { margin-left: auto; font-size: 11px; }
-.director-tool-rail { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 4px; padding: 4px; border: 1px solid rgb(var(--color-border) / .6); border-radius: 10px; background: rgb(var(--color-bg-secondary) / .7); }
-.director-tool-rail button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; min-width: 0; padding: 6px 12px; border-radius: 6px; color: rgb(var(--color-text-secondary)); font-size: 12px; }
+.director-tool-rail { display: flex; flex-wrap: wrap; align-items: center; flex-shrink: 0; gap: 4px; padding: 0 0 6px; border-bottom: 1px solid rgb(var(--color-border) / .55); }
+.director-tool-rail button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; min-width: 0; padding: 6px 12px; border: 1px solid transparent; border-radius: 6px; color: rgb(var(--color-text-secondary)); font-size: 12px; }
 .director-tool-rail button:last-child { margin-left: auto; }
 .director-tool-rail button:hover, .director-tool-rail button.is-active { color: rgb(var(--color-primary)); background: rgb(var(--color-primary) / .1); }
+.director-tool-rail button.is-active { border-color: rgb(var(--color-primary) / .28); }
+.director-tool-divider { width: 1px; height: 24px; margin: 0 4px; background: rgb(var(--color-border) / .7); }
 .director-inspector { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; border-left: 1px solid rgb(var(--color-border) / .6); padding-left: 16px; padding-right: 4px; }
 .director-inspector-heading { position: sticky; top: 0; z-index: 1; justify-content: space-between; margin-bottom: 8px; background: rgb(var(--color-bg-primary)); }
 .director-inspector-heading .director-object-time { flex: 1; font-size: 11px; }
@@ -134,6 +136,7 @@
 
 @container director (max-width: 600px) {
   .director-tool-rail { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; padding: 2px; }
+  .director-tool-divider { display: none; }
   .director-tool-rail button { flex-direction: column; gap: 3px; min-height: 48px; padding: 4px 0; font-size: 10px; }
   .director-tool-rail button:last-child { margin-left: 0; }
   .director-header > div:first-child { display: flex; align-items: center; gap: 8px; }
