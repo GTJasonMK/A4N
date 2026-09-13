@@ -310,7 +310,25 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
       {inspectorOpen && !narrow && <aside className="director-inspector" aria-label="所选对象属性">{inspector}</aside>}
     </div>
 
-    <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setInspectorOpen(false)} className="director-mobile-inspector">{inspector}</Modal>
+    <Modal
+      isOpen={inspectorOpen && narrow}
+      title={generation ? (generation.kind === "point" ? "生成分镜图片" : "生成镜头变化描述") : point ? "图片点属性" : "镜头段属性"}
+      onClose={() => { if (generation) setGeneration(null); else setInspectorOpen(false); }}
+      className="director-mobile-inspector"
+    >
+      {generation ? <DirectorGeneration
+        key={`${generation.kind}:${generation.id}`}
+        inline
+        projectId={projectId}
+        chapterId={chapter.id}
+        plan={plan}
+        target={generation}
+        save={model.save}
+        onAdoptImage={adoptImage}
+        onAdoptPrompt={adoptPrompt}
+        onClose={() => setGeneration(null)}
+      /> : inspector}
+    </Modal>
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
     <Modal isOpen={modalPanel === "scenes"} title="场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={chapter.project_id} canEditProfiles={canEdit} /></Suspense></Modal>
     <Modal isOpen={modalPanel === "agent"} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl" keepMounted>
@@ -335,7 +353,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     {merge && <Modal isOpen title="合并镜头" onClose={() => setMerge(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then(() => setMerge(null)).catch(model.report); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
       <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value })} /></label><SceneBindingEditor binding={merge.scene} scenes={scenes} onChange={(scene) => setMerge({ ...merge, scene })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
     </Modal>}
-    {generation && <DirectorGeneration key={`${generation.kind}:${generation.id}`} projectId={projectId} chapterId={chapter.id} plan={plan} target={generation} save={model.save} onAdoptImage={adoptImage} onAdoptPrompt={adoptPrompt} onClose={() => setGeneration(null)} />}
+    {generation && !narrow && <DirectorGeneration key={`${generation.kind}:${generation.id}`} projectId={projectId} chapterId={chapter.id} plan={plan} target={generation} save={model.save} onAdoptImage={adoptImage} onAdoptPrompt={adoptPrompt} onClose={() => setGeneration(null)} />}
   </section>;
 }
 

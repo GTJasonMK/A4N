@@ -23,14 +23,17 @@ interface Props {
   onAdoptImage: (pointId: string, image: GeneratedImage) => Promise<void>;
   onAdoptPrompt: (candidate: VisualPlanPromptCandidate) => Promise<void>;
   onClose: () => void;
+  inline?: boolean;
 }
 
-export function DirectorGeneration({ projectId, chapterId, plan, target, save, onAdoptImage, onAdoptPrompt, onClose }: Props) {
+export function DirectorGeneration({ projectId, chapterId, plan, target, save, onAdoptImage, onAdoptPrompt, onClose, inline = false }: Props) {
   const key = `a4n:director-task:${location.origin}:${projectId}:${chapterId}:${target.kind}:${target.id}`;
   const [handle, setHandle] = useState<GenerationTaskHandle | null>(null);
   const [configs, setConfigs] = useState<ImageGenConfig[]>([]);
   const [configId, setConfigId] = useState<number | null>(null);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(() => target.kind === "point"
+    ? plan.points.find((item) => item.id === target.id)?.description ?? ""
+    : plan.segments.find((item) => item.id === target.id)?.prompt ?? "");
   const [preview, setPreview] = useState<VisualPlanPointGenerationPreview | null>(null);
   const [previewRecord, setPreviewRecord] = useState<ChapterVisualPlanView | null>(null);
   const [image, setImage] = useState<GeneratedImage | null>(null);
@@ -139,8 +142,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, o
     finally { setBusy(false); }
   };
 
-  return <Modal isOpen title={target.kind === "point" ? "生成分镜图片" : "生成镜头变化描述"} onClose={onClose} maxWidthClassName="max-w-3xl">
-    <div className="director-generation">
+  const content = <div className="director-generation">
       <p className="director-context-line">{point ? `${point.label || "图片点"} · ${formatTime(point.at_ms)}` : segment ? `${segment.title} · ${formatTime(segmentTimes(plan, segment)[1] - segmentTimes(plan, segment)[0])}` : "目标已删除"}</p>
       {error && <p role="alert" className="director-error">{error}</p>}
       {task.error && <p role="alert" className="director-error">{task.error.message}</p>}
@@ -163,6 +165,6 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, o
       {image && <div className="director-candidate"><img src={toMediaSrc(image.file_path)} alt="新生成的分镜候选" /><span>{image.model}</span></div>}
       {candidate && <div className="director-candidate"><label>候选描述<textarea rows={8} value={candidate.prompt} onChange={(event) => setCandidate({ ...candidate, prompt: event.target.value })} /></label><span>{candidate.model} · 生成依据为方案 revision {candidate.plan_revision}</span></div>}
       {(image || candidate) && <BookButton disabled={busy || active || (candidate != null && !candidate.prompt.trim())} onClick={() => void adopt()}><Check size={15} />采用候选</BookButton>}
-    </div>
-  </Modal>;
+    </div>;
+  return inline ? content : <Modal isOpen title={target.kind === "point" ? "生成分镜图片" : "生成镜头变化描述"} onClose={onClose} maxWidthClassName="max-w-3xl">{content}</Modal>;
 }

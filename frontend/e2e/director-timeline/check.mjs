@@ -158,6 +158,13 @@ try {
   await browser.waitUntil(async () => browser.execute(() => getComputedStyle(document.querySelector('[role="dialog"]')).opacity === "1"));
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
   await browser.saveScreenshot(path.join(artifacts, "mobile-properties.png"));
+  await browser.$("button=生成分镜图片").click();
+  await browser.$("h3=生成分镜图片").waitForDisplayed();
+  assert.equal((await browser.$$('[role="dialog"]')).length, 1, "image generation must reuse the mobile properties dialog");
+  assert.equal(await browser.$(".director-generation textarea").getValue(), "旅人在雨夜走近旧书店。", "generation should reuse the point description");
+  await browser.saveScreenshot(path.join(artifacts, "mobile-generation.png"));
+  await browser.keys("Escape");
+  await browser.$("h3=图片点属性").waitForDisplayed();
   const timeBeforeDialogKeys = await browser.$(".director-timecode").getText();
   await browser.keys("Home");
   assert.equal(await browser.$(".director-timecode").getText(), timeBeforeDialogKeys);
