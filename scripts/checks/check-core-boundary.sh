@@ -1787,12 +1787,29 @@ fi
 
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/chapter_scene/records.rs; then
-    printf 'Runtime chapter scene record actions must consume ChapterSceneApplicationPort\n' >&2
+    printf 'Runtime chapter scene record actions must consume split chapter-scene ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait ChapterSceneApplicationPort' crates/a4n-api-contract/src/chapter.rs; then
-    printf 'ChapterSceneApplicationPort contract is missing\n' >&2
+if rg -n '(^|[^A-Za-z])ChapterSceneApplicationPort($|[^A-Za-z])|(^|[^A-Za-z_])chapter_scene_application\(\)' \
+    crates/a4n-api-contract/src/chapter.rs \
+    crates/a4n-orchestrator/src \
+    crates/a4n-runtime/src; then
+    printf 'The mixed ChapterSceneApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'chapter_scene_read_application\(\)' \
+    crates/a4n-runtime/src/actions/chapter_scene/records.rs || \
+   ! rg -n 'chapter_scene_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/chapter_scene/records.rs; then
+    printf 'Runtime chapter scene records must route through split read and mutation ports\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait ChapterScene(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/chapter.rs; then
+    printf 'Chapter-scene split contracts are missing\n' >&2
     exit 1
 fi
 

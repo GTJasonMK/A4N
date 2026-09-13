@@ -100,7 +100,10 @@ pub struct AppState {
     video_studio_transfer_application:
         Arc<dyn a4n_api_contract::project_transfer::VideoStudioProjectTransferApplicationPort>,
     /// Host-facing chapter scene boundary.
-    chapter_scene_application: Arc<dyn a4n_api_contract::chapter::ChapterSceneApplicationPort>,
+    chapter_scene_read_application:
+        Arc<dyn a4n_api_contract::chapter::ChapterSceneReadApplicationPort>,
+    chapter_scene_mutation_application:
+        Arc<dyn a4n_api_contract::chapter::ChapterSceneMutationApplicationPort>,
     /// Chapter-scene generation and request construction remain in the scene
     /// owner; Runtime only supplies prompt and progress adapters.
     chapter_scene_generation_application:
@@ -1075,10 +1078,16 @@ impl AppState {
         self.video_studio_transfer_application.as_ref()
     }
 
-    pub(crate) fn chapter_scene_application(
+    pub(crate) fn chapter_scene_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::chapter::ChapterSceneApplicationPort {
-        self.chapter_scene_application.as_ref()
+    ) -> &dyn a4n_api_contract::chapter::ChapterSceneReadApplicationPort {
+        self.chapter_scene_read_application.as_ref()
+    }
+
+    pub(crate) fn chapter_scene_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::chapter::ChapterSceneMutationApplicationPort {
+        self.chapter_scene_mutation_application.as_ref()
     }
 
     pub(crate) fn chapter_scene_generation_application(
@@ -2322,7 +2331,8 @@ impl AppState {
             project_duplication_application: Arc::new(orchestrator.clone()),
             project_family_transfer_application: Arc::new(orchestrator.clone()),
             video_studio_transfer_application: Arc::new(orchestrator.clone()),
-            chapter_scene_application: Arc::new(orchestrator.clone()),
+            chapter_scene_read_application: Arc::new(orchestrator.clone()),
+            chapter_scene_mutation_application: Arc::new(orchestrator.clone()),
             chapter_scene_generation_application: Arc::new(orchestrator.clone()),
             optimize_application: Arc::new(orchestrator.clone()),
             scene_profile_sync_application: Arc::new(orchestrator.clone()),

@@ -176,18 +176,22 @@ pub struct ReorderChapterScenesInput {
     pub order: Vec<(i64, i32)>,
 }
 
-/// Host-facing chapter scene boundary.
+/// Host-facing chapter scene read boundary.
 ///
 /// Authorization, scene persistence and ordering remain owned by the chapter
 /// scene application; Runtime receives only API DTOs.
 #[async_trait::async_trait]
-pub trait ChapterSceneApplicationPort: Send + Sync {
+pub trait ChapterSceneReadApplicationPort: Send + Sync {
     async fn list(
         &self,
         user_id: i64,
         chapter_id: i64,
     ) -> Result<Vec<ChapterSceneSummary>, a4n_error::AppError>;
+}
 
+/// Host-facing chapter scene mutation boundary.
+#[async_trait::async_trait]
+pub trait ChapterSceneMutationApplicationPort: Send + Sync {
     async fn update(
         &self,
         user_id: i64,
