@@ -26,7 +26,8 @@ use a4n_worker_contract::{
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use axum::Json;
@@ -224,6 +225,21 @@ pub(super) async fn fail_agent_worker_run(
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::fail_agent_worker_run(state.runtime(), &input).await?;
     Ok(Json(Value::Null))
+}
+
+pub(super) async fn result_refs_for_agent_worker_run(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerResultRefsRequest>,
+) -> Result<Json<AgentWorkerResultRefsSnapshotWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::result_refs_for_agent_worker_run(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn command(

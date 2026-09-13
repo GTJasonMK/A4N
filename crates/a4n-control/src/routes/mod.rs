@@ -234,6 +234,10 @@ pub fn internal_router(state: ServerState) -> Router {
         .route("/agent/message", post(agent_runtime::apply_message_request))
         .route("/agent/budget", post(agent_runtime::worker_budget_snapshot))
         .route("/agent/failure", post(agent_runtime::fail_agent_worker_run))
+        .route(
+            "/agent/result-refs",
+            post(agent_runtime::result_refs_for_agent_worker_run),
+        )
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

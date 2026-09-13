@@ -330,6 +330,29 @@ impl AgentWorkerFailureRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerResultRefsRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+}
+
+impl AgentWorkerResultRefsRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerResultRefsSnapshotWire {
+    pub result_refs_json: serde_json::Value,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -975,6 +998,24 @@ mod tests {
                 field: "error_message"
             })
         ));
+    }
+
+    #[test]
+    fn result_refs_request_validates_its_lease_and_snapshot_round_trips() {
+        let request = AgentWorkerResultRefsRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+        };
+        request
+            .validate()
+            .expect("result refs request should be valid");
+        let snapshot = AgentWorkerResultRefsSnapshotWire {
+            result_refs_json: serde_json::json!([{"kind": "project", "id": "7"}]),
+        };
+        let encoded = serde_json::to_string(&snapshot).expect("snapshot should serialize");
+        let decoded: AgentWorkerResultRefsSnapshotWire =
+            serde_json::from_str(&encoded).expect("snapshot should deserialize");
+        assert_eq!(decoded.result_refs_json, snapshot.result_refs_json);
     }
 
     #[test]

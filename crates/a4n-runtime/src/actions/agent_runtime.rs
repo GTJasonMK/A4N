@@ -35,7 +35,8 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease,
     WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
@@ -1154,6 +1155,19 @@ pub async fn fail_agent_worker_run(
     state
         .agent_worker_failure_application()
         .fail_worker_run(request)
+        .await
+}
+
+pub async fn result_refs_for_agent_worker_run(
+    state: &AppState,
+    request: &AgentWorkerResultRefsRequest,
+) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent result refs 无效: {error}")))?;
+    state
+        .agent_worker_completion_application()
+        .result_refs_for_run_request(request)
         .await
 }
 

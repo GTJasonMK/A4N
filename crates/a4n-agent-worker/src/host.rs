@@ -14,7 +14,8 @@ use a4n_worker_contract::{
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
@@ -197,6 +198,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .request_json(Method::POST, "/internal/agent/failure", request)
             .await?;
         Ok(())
+    }
+
+    async fn result_refs_for_run(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/result-refs", request)
+            .await
     }
 
     async fn execute_command(

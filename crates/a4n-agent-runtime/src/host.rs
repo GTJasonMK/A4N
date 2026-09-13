@@ -12,7 +12,8 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
     AgentWorkerUsageRequest, WorkerRequest,
 };
 use async_trait::async_trait;
@@ -75,6 +76,11 @@ pub trait AgentRuntimeHost: Send + Sync {
     ) -> Result<AgentWorkerBudgetSnapshotWire, AppError>;
 
     async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError>;
+
+    async fn result_refs_for_run(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError>;
 
     async fn execute_command(
         &self,

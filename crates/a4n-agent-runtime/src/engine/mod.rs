@@ -3,9 +3,9 @@ use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentWorkerBudgetApplicationPort, AgentWorkerExecutionApplicationPort,
     AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRun,
-    WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
-    enforce_delegation_limits, validate_agent_budget,
+    AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
+    WorkerExecutionUpdate, child_budget_within_parent, enforce_delegation_limits,
+    validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -984,6 +984,7 @@ async fn process_claimed_run_inner(
         )
         .await?;
         complete_run(
+            state,
             state.worker_completion_application(),
             claimed,
             content,
@@ -1319,6 +1320,7 @@ async fn process_claimed_run_inner(
             )
             .await?;
             complete_run(
+                state,
                 state.worker_completion_application(),
                 claimed,
                 assistant_content,
@@ -1734,12 +1736,13 @@ fn execution_input_message_id(execution: &AgentExecutionSnapshot) -> Result<i64,
 }
 
 async fn complete_run(
+    state: &AgentRuntimeState,
     completion_application: &dyn a4n_agent_application::agent::AgentWorkerCompletionApplicationPort,
     claimed: &AgentWorkerRun,
     content: String,
     observed_input_message_id: i64,
 ) -> Result<(), AppError> {
-    let refs = completion_application.result_refs_for_run(claimed).await?;
+    let refs = state.result_refs_for_run(claimed).await?;
     if claimed.run.parent_run_id.is_some() {
         completion_application
             .complete_child_run(

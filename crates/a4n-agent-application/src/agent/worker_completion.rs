@@ -1,5 +1,6 @@
 use super::{AgentApplication, AgentWorkerRun};
 use a4n_error::AppError;
+use a4n_worker_contract::{AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire};
 use serde_json::Value;
 
 /// Runtime-facing boundary for terminal completion of a claimed Agent Run.
@@ -8,6 +9,11 @@ pub trait AgentWorkerCompletionApplicationPort: Send + Sync {
     async fn run_is_terminal(&self, claimed: &AgentWorkerRun) -> Result<bool, AppError>;
 
     async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError>;
+
+    async fn result_refs_for_run_request(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError>;
 
     async fn complete_child_run(
         &self,
@@ -41,6 +47,13 @@ impl AgentWorkerCompletionApplicationPort for AgentApplication {
 
     async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
         AgentApplication::result_refs_for_run(self, claimed).await
+    }
+
+    async fn result_refs_for_run_request(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
+        AgentApplication::result_refs_for_run_request(self, request).await
     }
 
     async fn complete_child_run(

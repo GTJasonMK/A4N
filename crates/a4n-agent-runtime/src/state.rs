@@ -21,8 +21,8 @@ use a4n_worker_contract::{
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
     AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease,
-    WorkerRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -182,6 +182,21 @@ impl AgentRuntimeState {
             operation: "更新 Agent worker usage".into(),
         })?;
         self.host.update_run_usage(&request).await
+    }
+
+    pub async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
+        let request = AgentWorkerResultRefsRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent result refs request 无效: {error}"),
+            operation: "读取 Agent result refs".into(),
+        })?;
+        self.host
+            .result_refs_for_run(&request)
+            .await
+            .map(|snapshot: AgentWorkerResultRefsSnapshotWire| snapshot.result_refs_json)
     }
 
     pub async fn wait_agent_worker_run(

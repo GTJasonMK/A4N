@@ -167,6 +167,7 @@ pub(super) async fn process(
         .await?
         .ok_or_else(|| AppError::InvalidArgument("内容优化缺少已处理的用户消息边界".into()))?;
     super::complete_run(
+        state,
         state.worker_completion_application(),
         claimed,
         reply,

@@ -38,10 +38,11 @@ use a4n_worker_contract::{
     AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
+    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3339,7 +3340,11 @@ impl AgentApplication {
         &self,
         claimed: &AgentWorkerRun,
     ) -> Result<Value, AppError> {
-        let executions = agent::executions_by_runs(self.connection(), vec![claimed.run.id])
+        self.result_refs_for_run_id(claimed.run.id).await
+    }
+
+    async fn result_refs_for_run_id(&self, run_id: i64) -> Result<Value, AppError> {
+        let executions = agent::executions_by_runs(self.connection(), vec![run_id])
             .await
             .map_err(agent_db_error_to_app)?;
         let mut refs = Vec::<AgentResourceRef>::new();
@@ -3360,6 +3365,23 @@ impl AgentApplication {
             }
         }
         serde_json::to_value(refs).map_err(AppError::from)
+    }
+
+    pub(crate) async fn result_refs_for_run_request(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.result_refs_for_run_id(request.run_id)
+            .await
+            .map(|result_refs_json| AgentWorkerResultRefsSnapshotWire { result_refs_json })
     }
 
     pub async fn run_budget_snapshot(
