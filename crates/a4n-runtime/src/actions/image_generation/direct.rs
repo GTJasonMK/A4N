@@ -47,7 +47,7 @@ pub(crate) async fn preview_canvas_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .image_generation_application()
+        .image_canvas_request_preview_application()
         .prepare_canvas_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;

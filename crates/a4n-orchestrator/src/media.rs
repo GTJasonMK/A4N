@@ -13,15 +13,16 @@ pub(crate) use batch_image_application::{
 };
 pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
-    ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
-    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-    ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationTaskApplicationPort, ImageGenerationWorkflowBinding,
-    ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
-    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
-    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
-    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
-    generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
+    ImageCanvasRequestPreviewApplicationPort, ImageGenerationApplicationPort,
+    ImageGenerationExecutionInput, ImageGenerationExecutionOutcome, ImageGenerationHostPort,
+    ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationProviderInput,
+    ImageGenerationProviderOutput, ImageGenerationTaskApplicationPort,
+    ImageGenerationWorkflowBinding, ImageProfilePromptApplicationPort,
+    ImageSceneRequestPreviewApplicationPort, ObjectProfileImageInput,
+    ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile, PreparedImageGenerationRequest,
+    SceneProfileImageInput, SceneProfileImagePromptOutput, generated_image_summary,
+    image_generation_request_trace_json, normalize_image_metadata,
 };
 pub use image_record_lifecycle::{
     ImageImportApplicationPort, ImagePublicationRecoveryPort, PreparedImportedImageUpload,

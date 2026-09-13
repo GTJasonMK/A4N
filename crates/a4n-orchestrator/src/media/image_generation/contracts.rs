@@ -172,13 +172,6 @@ pub struct PersistedGeneratedImageFile {
 /// generation.
 #[async_trait]
 pub trait ImageGenerationApplicationPort: Send + Sync {
-    async fn prepare_canvas_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateCanvasImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError>;
-
     async fn prepare_page_request(
         &self,
         host_port: &dyn ImageGenerationHostPort,
@@ -207,6 +200,17 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         input: GenerateGalgameImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError>;
+}
+
+/// Host-facing boundary for canvas image request previews.
+#[async_trait]
+pub trait ImageCanvasRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_canvas_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateCanvasImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
 }
 
 /// Host-facing boundary for scene image request previews.
