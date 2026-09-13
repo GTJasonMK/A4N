@@ -67,6 +67,14 @@ pub trait AgentRunLeaseRecoveryApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait AgentWorkerHostCommandApplicationPort: Send + Sync {
+    async fn authorize_worker_host_command(
+        &self,
+        request: &WorkerRequest<AgentHostCommandPayload>,
+    ) -> Result<i64, AppError>;
+}
+
+#[async_trait::async_trait]
 pub trait AgentWorkerActivationApplicationPort: Send + Sync {
     async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError>;
 
@@ -482,4 +490,70 @@ pub trait AgentWorkflowCancelApplicationPort: Send + Sync {
         &self,
         after_id: i64,
     ) -> Result<Vec<AgentWorkflowCancelSnapshot>, AppError>;
+}
+
+pub trait AgentWorkerApplicationPort:
+    AgentApprovalExpiryApplicationPort
+    + AgentEditorClaimApplicationPort
+    + AgentEditorResponseApplicationPort
+    + AgentEditorWaitApplicationPort
+    + AgentExternalTaskWaitApplicationPort
+    + AgentGenerationCancelApplicationPort
+    + AgentRunLeaseRecoveryApplicationPort
+    + AgentWorkerActivationApplicationPort
+    + AgentWorkerApprovalApplicationPort
+    + AgentWorkerBudgetApplicationPort
+    + AgentWorkerClaimApplicationPort
+    + AgentWorkerCompletionApplicationPort
+    + AgentWorkerContextApplicationPort
+    + AgentWorkerDelegationApplicationPort
+    + AgentWorkerExecutionApplicationPort
+    + AgentWorkerFailureApplicationPort
+    + AgentWorkerHistoryApplicationPort
+    + AgentWorkerHostCommandApplicationPort
+    + AgentWorkerInboxApplicationPort
+    + AgentWorkerLeaseApplicationPort
+    + AgentWorkerMessageApplicationPort
+    + AgentWorkerReadApplicationPort
+    + AgentWorkerRecoveryApplicationPort
+    + AgentWorkerUsageApplicationPort
+    + AgentWorkerWaitApplicationPort
+    + AgentWorkflowBindingApplicationPort
+    + AgentWorkflowCancelApplicationPort
+    + Send
+    + Sync
+{
+}
+
+impl<T> AgentWorkerApplicationPort for T where
+    T: AgentApprovalExpiryApplicationPort
+        + AgentEditorClaimApplicationPort
+        + AgentEditorResponseApplicationPort
+        + AgentEditorWaitApplicationPort
+        + AgentExternalTaskWaitApplicationPort
+        + AgentGenerationCancelApplicationPort
+        + AgentRunLeaseRecoveryApplicationPort
+        + AgentWorkerActivationApplicationPort
+        + AgentWorkerApprovalApplicationPort
+        + AgentWorkerBudgetApplicationPort
+        + AgentWorkerClaimApplicationPort
+        + AgentWorkerCompletionApplicationPort
+        + AgentWorkerContextApplicationPort
+        + AgentWorkerDelegationApplicationPort
+        + AgentWorkerExecutionApplicationPort
+        + AgentWorkerFailureApplicationPort
+        + AgentWorkerHistoryApplicationPort
+        + AgentWorkerHostCommandApplicationPort
+        + AgentWorkerInboxApplicationPort
+        + AgentWorkerLeaseApplicationPort
+        + AgentWorkerMessageApplicationPort
+        + AgentWorkerReadApplicationPort
+        + AgentWorkerRecoveryApplicationPort
+        + AgentWorkerUsageApplicationPort
+        + AgentWorkerWaitApplicationPort
+        + AgentWorkflowBindingApplicationPort
+        + AgentWorkflowCancelApplicationPort
+        + Send
+        + Sync
+{
 }

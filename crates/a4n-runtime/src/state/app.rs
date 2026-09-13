@@ -234,9 +234,9 @@ pub struct AppState {
     /// on the orchestrator implementation and are intentionally not exposed
     /// through this port.
     agent_application: Arc<dyn a4n_api_contract::agent::AgentApplicationPort>,
-    /// Concrete Agent owner used only by the durable Runtime worker. Keeping
-    /// it here avoids making worker code depend on the full OrchestratorContext.
-    agent_worker_application: Arc<a4n_agent_application::agent::AgentApplication>,
+    /// Agent worker ports used only by the durable Runtime worker. Keeping the
+    /// aggregate behind its contract avoids coupling Runtime to the owner.
+    agent_worker_application: Arc<dyn a4n_agent_runtime_contract::AgentWorkerApplicationPort>,
     /// Host-facing Canvas application port. Graph permissions, versioning and
     /// persistence stay with the Canvas owner; Runtime only routes actions.
     canvas_application: Arc<dyn a4n_api_contract::canvas::CanvasApplicationPort>,

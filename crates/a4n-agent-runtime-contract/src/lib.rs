@@ -15,7 +15,7 @@ use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_worker_contract::{
-    AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
+    AgentHostCommandPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
@@ -32,7 +32,7 @@ use a4n_worker_contract::{
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
     AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerRequest,
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};

@@ -16,15 +16,15 @@ pub use a4n_agent_runtime_contract::{
     AgentWorkerCompletionApplicationPort, AgentWorkerContextApplicationPort,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
     AgentWorkerFailureApplicationPort, AgentWorkerHistoryApplicationPort,
-    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort,
-    AgentWorkerRecoveryApplicationPort, AgentWorkerRun, AgentWorkerUsageApplicationPort,
-    AgentWorkerWaitApplicationPort, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort, AgentWorkflowCancelSnapshot,
-    EnsureCanonicalSubagentThreadInput, WorkerDelegationInput, WorkerDelegationResult,
-    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
-    enforce_delegation_limits, model_request_snapshot, parse_agent_context_summary,
-    restore_model_request_snapshot, validate_agent_budget,
+    AgentWorkerHostCommandApplicationPort, AgentWorkerInboxApplicationPort,
+    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
+    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
+    AgentWorkerUsageApplicationPort, AgentWorkerWaitApplicationPort,
+    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
+    AgentWorkflowCancelSnapshot, EnsureCanonicalSubagentThreadInput, WorkerDelegationInput,
+    WorkerDelegationResult, WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage,
+    child_budget_within_parent, enforce_delegation_limits, model_request_snapshot,
+    parse_agent_context_summary, restore_model_request_snapshot, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AGENT_API_PROTOCOL_VERSION, AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT,
@@ -1800,6 +1800,16 @@ impl AgentApplication {
         .await
         .map_err(agent_db_error_to_app)?;
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerHostCommandApplicationPort for AgentApplication {
+    async fn authorize_worker_host_command(
+        &self,
+        request: &WorkerRequest<AgentHostCommandPayload>,
+    ) -> Result<i64, AppError> {
+        self.authorize_worker_host_command(request).await
     }
 }
 
