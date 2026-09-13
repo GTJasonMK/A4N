@@ -58,10 +58,10 @@ pub struct AppState {
     /// models remain owned by the authentication application.
     auth_read_application: Arc<dyn a4n_api_contract::auth::AuthReadApplicationPort>,
     auth_mutation_application: Arc<dyn a4n_api_contract::auth::AuthMutationApplicationPort>,
-    /// Host-facing administrative boundary. Admin queries and user-management
-    /// projections stay in the orchestrator owner; Runtime only applies the
-    /// command routing and lifecycle-specific checks around them.
-    admin_application: Arc<dyn a4n_api_contract::admin::AdminApplicationPort>,
+    /// Host-facing administrative read and authorization boundary. Admin
+    /// projections stay in the orchestrator owner.
+    admin_read_application: Arc<dyn a4n_api_contract::admin::AdminReadApplicationPort>,
+    admin_mutation_application: Arc<dyn a4n_api_contract::admin::AdminMutationApplicationPort>,
     /// Host-facing project status boundary. Status transitions and family
     /// projections stay in the project owner and return API DTOs only.
     project_status_application: Arc<dyn a4n_api_contract::project::ProjectStatusApplicationPort>,
@@ -997,8 +997,16 @@ impl AppState {
         self.auth_mutation_application.as_ref()
     }
 
-    pub(crate) fn admin_application(&self) -> &dyn a4n_api_contract::admin::AdminApplicationPort {
-        self.admin_application.as_ref()
+    pub(crate) fn admin_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::admin::AdminReadApplicationPort {
+        self.admin_read_application.as_ref()
+    }
+
+    pub(crate) fn admin_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::admin::AdminMutationApplicationPort {
+        self.admin_mutation_application.as_ref()
     }
 
     pub(crate) fn project_status_application(
@@ -2242,7 +2250,8 @@ impl AppState {
             shooting_script_generation_application: Arc::new(orchestrator.clone()),
             auth_read_application: Arc::new(orchestrator.clone()),
             auth_mutation_application: Arc::new(orchestrator.clone()),
-            admin_application: Arc::new(orchestrator.clone()),
+            admin_read_application: Arc::new(orchestrator.clone()),
+            admin_mutation_application: Arc::new(orchestrator.clone()),
             project_status_application: Arc::new(orchestrator.clone()),
             project_collaboration_application: Arc::new(orchestrator.clone()),
             project_access_application: Arc::new(orchestrator.clone()),

@@ -5,7 +5,7 @@ use crate::AppState;
 
 pub(super) async fn list_all_users(state: &AppState) -> Result<Vec<UserSummary>, String> {
     let users = state
-        .admin_application()
+        .admin_read_application()
         .list_users()
         .await
         .map_err(|error| error.to_string())?;
@@ -17,7 +17,7 @@ pub(super) async fn create_user(
     input: CreateUserInput,
 ) -> Result<UserSummary, String> {
     state
-        .admin_application()
+        .admin_mutation_application()
         .create_user(input)
         .await
         .map_err(|error| error.to_string())
@@ -25,7 +25,7 @@ pub(super) async fn create_user(
 
 pub(super) async fn list_invite_codes(state: &AppState) -> Result<Vec<InviteCodeSummary>, String> {
     state
-        .admin_application()
+        .admin_read_application()
         .list_invite_codes()
         .await
         .map_err(|error| error.to_string())
@@ -37,7 +37,7 @@ pub(super) async fn create_invite_code(
     input: CreateInviteCodeInput,
 ) -> Result<InviteCodeSummary, String> {
     state
-        .admin_application()
+        .admin_mutation_application()
         .create_invite_code(caller_user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -49,7 +49,7 @@ pub(super) async fn update_user_role(
     input: UpdateUserRoleInput,
 ) -> Result<UserSummary, String> {
     state
-        .admin_application()
+        .admin_mutation_application()
         .update_user_role(user_id, input)
         .await
         .map_err(|error| error.to_string())

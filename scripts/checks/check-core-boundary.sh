@@ -1653,12 +1653,31 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/admin_records/usage.rs \
     crates/a4n-runtime/src/actions/admin_records/users.rs \
     crates/a4n-runtime/src/actions/generation_analytics.rs; then
-    printf 'Runtime administrative data actions must consume AdminApplicationPort instead of the concrete orchestrator facade\n' >&2
+    printf 'Runtime administrative data actions must consume admin read/mutation ports instead of the concrete orchestrator facade\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait AdminApplicationPort' crates/a4n-api-contract/src/admin.rs; then
-    printf 'AdminApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait Admin(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/admin.rs; then
+    printf 'Admin read/mutation contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'AdminApplicationPort|admin_application\(\)' \
+    crates/a4n-api-contract/src/admin.rs crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed AdminApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'admin_read_application\(\)' \
+    crates/a4n-runtime/src/actions/admin_records \
+    crates/a4n-runtime/src/actions/generation_analytics.rs; then
+    printf 'Runtime admin reads must route through AdminReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'admin_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/admin_records/users.rs; then
+    printf 'Runtime admin mutations must route through AdminMutationApplicationPort\n' >&2
     exit 1
 fi
 
