@@ -12,7 +12,7 @@ use a4n_worker_contract::{
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
@@ -31,7 +31,7 @@ use a4n_worker_contract::{
 };
 use async_trait::async_trait;
 use futures::stream;
-use reqwest::{Client, Method};
+use reqwest::{Client, Method, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -113,6 +113,41 @@ impl HttpAgentRuntimeHost {
 
 #[async_trait]
 impl AgentRuntimeHost for HttpAgentRuntimeHost {
+    async fn claim_worker(
+        &self,
+        request: &AgentWorkerClaimRequest,
+    ) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError> {
+        let response = self
+            .client
+            .post(self.url("/internal/agent/claim"))
+            .header(AGENT_WORKER_AUTH_HEADER, &self.worker_token)
+            .json(request)
+            .send()
+            .await
+            .map_err(|error| {
+                AppError::ConfigError(format!("Control Agent claim 请求失败: {error}"))
+            })?;
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(None);
+        }
+        let status = response.status();
+        let body = response.text().await.map_err(|error| {
+            AppError::ConfigError(format!("读取 Control Agent claim 响应失败: {error}"))
+        })?;
+        if !status.is_success() {
+            return Err(AppError::InvalidState {
+                current: format!("Control Agent claim 返回 {status}: {body}"),
+                operation: "领取 Agent worker run".into(),
+            });
+        }
+        serde_json::from_str(&body).map(Some).map_err(|error| {
+            AppError::Serialization(serde_json::Error::io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Agent claim 响应不是有效 JSON: {error}"),
+            )))
+        })
+    }
+
     async fn load_run_context(
         &self,
         request: &WorkerRequest<AgentRunPayload>,

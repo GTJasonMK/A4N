@@ -6,7 +6,7 @@ use a4n_agent_application::agent::{
     AgentGenerationCancelApplicationPort, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
     AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
-    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot, AgentWorkerClaimApplicationPort,
+    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
     AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
     AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
@@ -870,9 +870,6 @@ impl AgentRuntimeState {
             state: self,
             claimed,
         }
-    }
-    pub fn worker_claim_application(&self) -> &dyn AgentWorkerClaimApplicationPort {
-        self.application.as_ref()
     }
     pub fn worker_delegation_application(&self) -> &dyn AgentWorkerDelegationApplicationPort {
         self.application.as_ref()

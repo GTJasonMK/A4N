@@ -11,7 +11,7 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AgentRunPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
-    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
@@ -40,6 +40,11 @@ pub type AgentChatStream = Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>
 /// workflow, package and provider-specific behavior stays behind this port.
 #[async_trait]
 pub trait AgentRuntimeHost: Send + Sync {
+    async fn claim_worker(
+        &self,
+        request: &AgentWorkerClaimRequest,
+    ) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError>;
+
     async fn load_run_context(
         &self,
         request: &WorkerRequest<AgentRunPayload>,

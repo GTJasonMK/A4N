@@ -2,11 +2,8 @@ mod host;
 
 use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime::{AgentRuntimeState, engine};
-use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentRunPayload, AgentWorkerClaimRequest, WorkerRequest,
-};
 use host::HttpAgentRuntimeHost;
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use sea_orm::Database;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -34,7 +31,7 @@ async fn async_main() -> anyhow::Result<()> {
         .connect_timeout(Duration::from_secs(5))
         .build()?;
     let host = Arc::new(HttpAgentRuntimeHost::new(
-        client.clone(),
+        client,
         control_base_url.clone(),
         worker_token.clone(),
     ));
@@ -53,10 +50,7 @@ async fn async_main() -> anyhow::Result<()> {
             _ = poll.tick() => {
                 if let Err(error) = poll_and_execute(
                     &runtime,
-                    &client,
-                    &control_base_url,
                     &worker_id,
-                    &worker_token,
                 ).await {
                     tracing::warn!(error = %error, "A4N Agent worker poll failed");
                 }
@@ -69,35 +63,11 @@ async fn async_main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn poll_and_execute(
-    runtime: &Arc<AgentRuntimeState>,
-    client: &Client,
-    control_base_url: &str,
-    worker_id: &str,
-    worker_token: &str,
-) -> anyhow::Result<()> {
-    let response = client
-        .post(format!("{control_base_url}/internal/agent/claim"))
-        .header(AGENT_WORKER_AUTH_HEADER, worker_token)
-        .json(&AgentWorkerClaimRequest {
-            worker_id: worker_id.to_string(),
-        })
-        .send()
-        .await?;
-    if response.status() == StatusCode::NO_CONTENT {
+async fn poll_and_execute(runtime: &Arc<AgentRuntimeState>, worker_id: &str) -> anyhow::Result<()> {
+    let Some(request) = engine::claim_agent_worker_request(runtime.as_ref(), worker_id).await?
+    else {
         return Ok(());
-    }
-    let status = response.status();
-    if !status.is_success() {
-        anyhow::bail!(
-            "Control Agent claim 返回 {status}: {}",
-            response.text().await.unwrap_or_default()
-        );
-    }
-    let request: WorkerRequest<AgentRunPayload> = response.json().await?;
-    request
-        .validate_agent_run()
-        .map_err(|error| anyhow::anyhow!("Control Agent claim contract 无效: {error}"))?;
+    };
     let claimed = engine::agent_worker_run_from_wire(request.payload.worker_run.clone())?;
     engine::execute_claimed_worker_run(runtime.as_ref(), claimed, request).await?;
     Ok(())

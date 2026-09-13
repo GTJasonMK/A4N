@@ -17,8 +17,8 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerRunWire, WORKER_SCHEMA_VERSION, WorkerLease,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerClaimRequest, AgentWorkerRunWire,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -551,43 +551,27 @@ pub async fn run_worker(state: AgentRuntimeState, cancel: CancellationToken, not
 }
 
 async fn drain_runnable_runs(state: &AgentRuntimeState) {
-    let claim_application = state.worker_claim_application();
     let worker_id = format!("a4n-agent:{}", std::process::id());
     maintain_agent_worker(state).await;
 
     for _ in 0..WORKER_MAX_CLAIMS_PER_WAKEUP {
-        // The package lifecycle worker uses this same admission lock while it
-        // closes the package and cancels the already-visible run set.  Check
-        // the durable state after taking the lock; checking before it would
-        // allow a disable that wins the race to be followed by one last claim.
-        let admission = state.lock_agent_admission().await;
-        match state.host().package_execution_enabled().await {
-            Ok(true) => {}
-            Ok(false) => {
-                drop(admission);
-                break;
-            }
+        let request = match claim_agent_worker_request(state, &worker_id).await {
+            Ok(Some(request)) => request,
+            Ok(None) => break,
             Err(error) => {
-                drop(admission);
-                tracing::warn!(error = %error, "Agent package admission check failed");
-                break;
-            }
-        }
-        let claimed = match claim_application.claim_worker_run(&worker_id).await {
-            Ok(Some(run)) => run,
-            Ok(None) => {
-                drop(admission);
-                break;
-            }
-            Err(error) => {
-                drop(admission);
                 tracing::error!(error = %error, "Agent worker failed to claim run");
                 break;
             }
         };
-        drop(admission);
+        let claimed = match agent_worker_run_from_wire(request.payload.worker_run.clone()) {
+            Ok(claimed) => claimed,
+            Err(error) => {
+                tracing::error!(error = %error, "Agent worker claim returned an invalid run");
+                break;
+            }
+        };
         let run_id = claimed.run.id;
-        if let Err(error) = process_claimed_run(state, claimed, &worker_id).await {
+        if let Err(error) = execute_claimed_worker_run(state, claimed, request).await {
             tracing::error!(run_id, error = %error, "Agent worker run failed");
         }
     }
@@ -630,24 +614,14 @@ pub async fn claim_agent_worker_request(
     if !state.host().package_execution_enabled().await? {
         return Ok(None);
     }
-    let Some(claimed) = state
-        .worker_claim_application()
-        .claim_worker_run(worker_id)
-        .await?
-    else {
-        return Ok(None);
+    let request = AgentWorkerClaimRequest {
+        worker_id: worker_id.to_string(),
     };
-    let runtime_snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
-    match worker_request_for_claimed_run(&claimed, worker_id, runtime_snapshot) {
-        Ok(request) => Ok(Some(request)),
-        Err(error) => {
-            let _ = state
-                .worker_failure_application(&claimed)
-                .fail_child_run(&claimed, error.to_string())
-                .await;
-            Err(error)
-        }
-    }
+    request.validate().map_err(|error| AppError::InvalidState {
+        current: format!("Agent worker claim request 无效: {error}"),
+        operation: "领取 Agent worker run".into(),
+    })?;
+    state.host().claim_worker(&request).await
 }
 
 pub async fn authorize_agent_host_command(
@@ -655,25 +629,6 @@ pub async fn authorize_agent_host_command(
     request: &WorkerRequest<a4n_worker_contract::AgentHostCommandPayload>,
 ) -> Result<i64, AppError> {
     state.authorize_agent_host_command(request).await
-}
-
-async fn process_claimed_run(
-    state: &AgentRuntimeState,
-    claimed: AgentWorkerRun,
-    worker_id: &str,
-) -> Result<(), AppError> {
-    let runtime_snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
-    let request = match worker_request_for_claimed_run(&claimed, worker_id, runtime_snapshot) {
-        Ok(request) => request,
-        Err(error) => {
-            let _ = state
-                .worker_failure_application(&claimed)
-                .fail_child_run(&claimed, error.to_string())
-                .await;
-            return Err(error);
-        }
-    };
-    process_claimed_run_request(state, claimed, request).await
 }
 
 pub async fn execute_claimed_worker_run(
