@@ -1,6 +1,45 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// Host-provided progress and cancellation state for long-running exports.
+pub struct ExportProgress<'a> {
+    reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
+    cancel_checker: Option<&'a (dyn Fn() -> bool + Send + Sync)>,
+}
+
+impl<'a> ExportProgress<'a> {
+    pub fn new(
+        reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
+        cancel_checker: Option<&'a (dyn Fn() -> bool + Send + Sync)>,
+    ) -> Self {
+        Self {
+            reporter,
+            cancel_checker,
+        }
+    }
+
+    pub fn progress(&self, current: u32, total: u32, message: &str) {
+        if let Some(reporter) = self.reporter {
+            reporter(current, total, message);
+        }
+    }
+
+    pub fn check_cancelled(&self) -> Result<(), a4n_error::AppError> {
+        if self.cancel_checker.is_some_and(|check| check()) {
+            Err(a4n_error::AppError::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn without_reporting(&self) -> Self {
+        Self {
+            reporter: None,
+            cancel_checker: self.cancel_checker,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ExportProjectInput {

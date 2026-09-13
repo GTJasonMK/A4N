@@ -1,4 +1,6 @@
-use a4n_api_contract::export::{BatchExportFormat, BatchExportInput, ExportFileData};
+use a4n_api_contract::export::{
+    BatchExportFormat, BatchExportInput, ExportFileData, ExportProgress,
+};
 use a4n_db::export::{
     ExportChapter, ExportDocument, chapter_heading, render_markdown_document, render_txt_document,
 };
@@ -9,53 +11,11 @@ use a4n_document_export_core::{
 use a4n_domain::project::required_text;
 use a4n_error::AppError;
 use base64::Engine as _;
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext, collaboration::ProjectAccessRole, export::ExportApplicationPort,
     project::ensure_positive_project_id,
 };
-
-pub struct ExportProgress<'a> {
-    reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
-    cancel_token: Option<&'a CancellationToken>,
-}
-
-impl<'a> ExportProgress<'a> {
-    pub fn new(
-        reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
-        cancel_token: Option<&'a CancellationToken>,
-    ) -> Self {
-        Self {
-            reporter,
-            cancel_token,
-        }
-    }
-
-    fn progress(&self, current: u32, total: u32, message: &str) {
-        if let Some(reporter) = self.reporter {
-            reporter(current, total, message);
-        }
-    }
-
-    fn check_cancelled(&self) -> Result<(), AppError> {
-        if self
-            .cancel_token
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            Err(AppError::Cancelled)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn without_reporting(&self) -> Self {
-        Self {
-            reporter: None,
-            cancel_token: self.cancel_token,
-        }
-    }
-}
 
 impl OrchestratorContext {
     pub async fn run_export_txt_validated(

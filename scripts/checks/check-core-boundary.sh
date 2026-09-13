@@ -906,6 +906,16 @@ if ! rg -n 'export_application\(\)' crates/a4n-runtime/src/actions/export_files.
     exit 1
 fi
 
+if ! rg -n 'pub struct ExportProgress' crates/a4n-api-contract/src/export.rs; then
+    printf 'ExportProgress contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub struct ExportProgress|a4n_orchestrator::export::ExportProgress' \
+    crates/a4n-orchestrator/src/export crates/a4n-runtime/src; then
+    printf 'Runtime export progress must consume the API contract directly\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub trait ExportApplicationPort' crates/a4n-orchestrator/src/export.rs; then
     printf 'ExportApplicationPort contract is missing\n' >&2
     exit 1

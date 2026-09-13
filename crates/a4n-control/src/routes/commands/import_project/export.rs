@@ -87,8 +87,9 @@ macro_rules! export_web_progress_command {
             .expect("required export task ID must register a task");
             let cancel_token = task.cancel_token.clone();
             let reporter = web_fire_and_forget_progress_reporter(Some(task.clone()));
+            let is_cancelled = || cancel_token.is_cancelled();
             let $progress =
-                export_files_actions::ExportProgress::new(Some(&reporter), Some(&cancel_token));
+                export_files_actions::ExportProgress::new(Some(&reporter), Some(&is_cancelled));
             let result = $run.await;
             let value = finish_web_task($state, Some(&task), result)?;
             Ok(json!(value))

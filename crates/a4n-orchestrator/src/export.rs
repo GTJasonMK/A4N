@@ -5,7 +5,7 @@ mod application;
 use a4n_api_contract::export::{BatchExportInput, ExportFileData};
 use a4n_error::AppError;
 
-pub use application::ExportProgress;
+pub use a4n_api_contract::export::ExportProgress;
 
 /// Host-facing export boundary. Authorization, source reads and format
 /// rendering remain owned by the export application; Runtime only adapts
