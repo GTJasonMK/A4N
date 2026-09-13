@@ -14,7 +14,6 @@ use a4n_agent_application::agent::{
     AgentWorkerUsageApplicationPort, AgentWorkerWaitApplicationPort,
     AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
 };
-use a4n_api_contract::agent::{AgentApplicationPort, AgentRunView};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{AgentHostCommandPayload, AgentRunPayload, WorkerRequest};
@@ -58,14 +57,6 @@ impl AgentRuntimeState {
             agent_run_cancellations: Arc::new(Mutex::new(HashMap::new())),
             agent_runtime_snapshots: Arc::new(RwLock::new(HashMap::new())),
         }
-    }
-
-    pub fn application(&self) -> &dyn AgentApplicationPort {
-        self.application.as_ref()
-    }
-
-    pub fn application_arc(&self) -> Arc<AgentApplication> {
-        self.application.clone()
     }
 
     pub fn host(&self) -> &dyn AgentRuntimeHost {
@@ -230,12 +221,6 @@ impl AgentRuntimeState {
 
     pub async fn unregister_agent_run_cancellation(&self, run_id: i64) {
         self.agent_run_cancellations.lock().await.remove(&run_id);
-    }
-
-    pub async fn show_run(&self, user_id: i64, run_id: i64) -> Result<AgentRunView, AppError> {
-        self.application
-            .show_run(user_id, &run_id.to_string())
-            .await
     }
 
     pub async fn shutdown(&self) {
