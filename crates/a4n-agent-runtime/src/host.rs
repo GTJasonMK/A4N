@@ -1,6 +1,4 @@
-use a4n_agent_application::agent::{
-    AgentExternalTaskWaitSnapshot, AgentRunContext, AgentWorkflowCancelSnapshot,
-};
+use a4n_agent_application::agent::{AgentRunContext, AgentWorkflowCancelSnapshot};
 use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
@@ -20,12 +18,13 @@ use a4n_worker_contract::{
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
-    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
-    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
-    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
-    AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
+    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WorkerRequest,
 };
@@ -121,6 +120,16 @@ pub trait AgentRuntimeHost: Send + Sync {
         request: &AgentWorkerExpiredRunRecoveryRequest,
     ) -> Result<usize, AppError>;
 
+    async fn external_task_waits(
+        &self,
+        request: &AgentWorkerExternalTaskWaitScanRequest,
+    ) -> Result<Vec<AgentWorkerExternalTaskWaitSnapshotWire>, AppError>;
+
+    async fn wake_external_task_wait(
+        &self,
+        request: &AgentWorkerExternalTaskWaitWakeRequest,
+    ) -> Result<(), AppError>;
+
     async fn claim_inbox(
         &self,
         request: &AgentWorkerInboxClaimRequest,
@@ -214,7 +223,7 @@ pub trait AgentRuntimeHost: Send + Sync {
 
     async fn read_external_task_wait(
         &self,
-        wait: &AgentExternalTaskWaitSnapshot,
+        wait: &AgentWorkerExternalTaskWaitSnapshotWire,
         snapshot: Option<&RuntimeConfigSnapshot>,
     ) -> Result<Value, AppError>;
 

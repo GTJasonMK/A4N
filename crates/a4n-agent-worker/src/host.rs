@@ -1,4 +1,4 @@
-use a4n_agent_application::agent::{AgentExternalTaskWaitSnapshot, AgentRunContext};
+use a4n_agent_application::agent::AgentRunContext;
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
 use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
@@ -22,11 +22,13 @@ use a4n_worker_contract::{
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
-    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
-    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
-    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
-    AgentWorkerInboxSnapshotWire, AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
+    AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
+    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
     AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
@@ -293,6 +295,24 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .await
     }
 
+    async fn external_task_waits(
+        &self,
+        request: &AgentWorkerExternalTaskWaitScanRequest,
+    ) -> Result<Vec<AgentWorkerExternalTaskWaitSnapshotWire>, AppError> {
+        self.request_json(Method::POST, "/internal/agent/wait/scan", request)
+            .await
+    }
+
+    async fn wake_external_task_wait(
+        &self,
+        request: &AgentWorkerExternalTaskWaitWakeRequest,
+    ) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/wait/wake", request)
+            .await?;
+        Ok(())
+    }
+
     async fn claim_inbox(
         &self,
         request: &AgentWorkerInboxClaimRequest,
@@ -474,7 +494,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
 
     async fn read_external_task_wait(
         &self,
-        wait: &AgentExternalTaskWaitSnapshot,
+        wait: &AgentWorkerExternalTaskWaitSnapshotWire,
         snapshot: Option<&RuntimeConfigSnapshot>,
     ) -> Result<Value, AppError> {
         let request = AgentWorkerWaitRequest {

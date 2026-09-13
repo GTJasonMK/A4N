@@ -257,6 +257,14 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/recovery/expired",
             post(agent_runtime::recover_expired_agent_runs),
         )
+        .route(
+            "/agent/wait/scan",
+            post(agent_runtime::list_agent_external_task_waits),
+        )
+        .route(
+            "/agent/wait/wake",
+            post(agent_runtime::wake_agent_external_task_wait),
+        )
         .route("/agent/inbox/claim", post(agent_runtime::claim_agent_inbox))
         .route(
             "/agent/inbox/consume",

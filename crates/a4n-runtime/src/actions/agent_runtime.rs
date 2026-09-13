@@ -42,15 +42,16 @@ use a4n_worker_contract::{
     AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionResultRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
-    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerExternalTaskWaitScanRequest,
+    AgentWorkerExternalTaskWaitSnapshotWire, AgentWorkerExternalTaskWaitWakeRequest,
+    AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
+    AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
+    AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire,
+    AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1452,6 +1453,46 @@ pub async fn authorize_agent_host_command(
 
 pub async fn agent_package_execution_enabled(state: &AppState) -> Result<bool, AppError> {
     crate::actions::package::package_execution_enabled(state, PackageId::Agent).await
+}
+
+pub async fn list_agent_external_task_waits(
+    state: &AppState,
+    request: &AgentWorkerExternalTaskWaitScanRequest,
+) -> Result<Vec<AgentWorkerExternalTaskWaitSnapshotWire>, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent external task wait scan 无效: {error}"))
+    })?;
+    state
+        .agent_external_task_wait_application()
+        .external_task_waits(request.after_run_id)
+        .await
+        .map(|waits| {
+            waits
+                .into_iter()
+                .map(|wait| AgentWorkerExternalTaskWaitSnapshotWire {
+                    run_id: wait.run_id,
+                    owner_user_id: wait.owner_user_id,
+                    scope: wait.scope,
+                    execution_id: wait.execution_id,
+                    tool_name: wait.tool_name,
+                    arguments_json: wait.arguments_json,
+                    duration_exhausted: wait.duration_exhausted,
+                })
+                .collect()
+        })
+}
+
+pub async fn wake_agent_external_task_wait(
+    state: &AppState,
+    request: &AgentWorkerExternalTaskWaitWakeRequest,
+) -> Result<(), AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent external task wait wake 无效: {error}"))
+    })?;
+    state
+        .agent_external_task_wait_application()
+        .wake_external_task_wait(request.run_id, request.execution_id)
+        .await
 }
 
 pub async fn read_external_task_wait(

@@ -1,6 +1,8 @@
 use super::*;
-use a4n_agent_application::agent::{
-    AgentExternalTaskWaitSnapshot, AgentGenerationCancelSnapshot, AgentWorkflowCancelSnapshot,
+use a4n_agent_application::agent::{AgentGenerationCancelSnapshot, AgentWorkflowCancelSnapshot};
+use a4n_worker_contract::{
+    AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
+    AgentWorkerExternalTaskWaitWakeRequest,
 };
 
 pub(super) fn is_wait(name: &str) -> bool {
@@ -28,7 +30,7 @@ pub(super) async fn read(
     state: &AgentRuntimeState,
     _user_id: i64,
     _scope: &AgentScope,
-    execution: &AgentExternalTaskWaitSnapshot,
+    execution: &AgentWorkerExternalTaskWaitSnapshotWire,
 ) -> Result<Value, AppError> {
     let snapshot = state.agent_runtime_snapshot(execution.run_id).await;
     state
@@ -43,10 +45,14 @@ pub(super) async fn reconcile(state: &AgentRuntimeState) -> Result<(), AppError>
     if let Err(error) = cancel_stopped_owned_tasks(state).await {
         tracing::error!(error = %error, "Agent 生成任务取消尚未完成，持久扫描将重试");
     }
-    let wait_application = state.external_task_wait_application();
     let mut cursor = 0;
     loop {
-        let waits = wait_application.external_task_waits(cursor).await?;
+        let waits = state
+            .host()
+            .external_task_waits(&AgentWorkerExternalTaskWaitScanRequest {
+                after_run_id: cursor,
+            })
+            .await?;
         if waits.is_empty() {
             return Ok(());
         }
@@ -70,8 +76,12 @@ pub(super) async fn reconcile(state: &AgentRuntimeState) -> Result<(), AppError>
             if !matches!(result, Ok(false)) || wait.duration_exhausted {
                 // The worker rechecks the authoritative result and records any
                 // access/deletion error against the original call ID.
-                wait_application
-                    .wake_external_task_wait(wait.run_id, wait.execution_id)
+                state
+                    .host()
+                    .wake_external_task_wait(&AgentWorkerExternalTaskWaitWakeRequest {
+                        run_id: wait.run_id,
+                        execution_id: wait.execution_id,
+                    })
                     .await?;
             }
         }

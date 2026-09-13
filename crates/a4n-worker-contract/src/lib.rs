@@ -363,6 +363,50 @@ impl AgentWorkerExpiredRunRecoveryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerExternalTaskWaitScanRequest {
+    pub after_run_id: i64,
+}
+
+impl AgentWorkerExternalTaskWaitScanRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.after_run_id < 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "after_run_id",
+                reason: "must not be negative",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExternalTaskWaitWakeRequest {
+    pub run_id: i64,
+    pub execution_id: i64,
+}
+
+impl AgentWorkerExternalTaskWaitWakeRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        validate_positive_id("run_id", self.run_id)?;
+        validate_positive_id("execution_id", self.execution_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExternalTaskWaitSnapshotWire {
+    pub run_id: i64,
+    pub owner_user_id: i64,
+    pub scope: AgentScope,
+    pub execution_id: i64,
+    pub tool_name: Option<String>,
+    pub arguments_json: Option<serde_json::Value>,
+    pub duration_exhausted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerInboxClaimRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
@@ -1950,6 +1994,37 @@ mod tests {
             .validate(),
             Err(WorkerContractError::BlankField {
                 field: "error_message"
+            })
+        ));
+    }
+
+    #[test]
+    fn external_task_wait_requests_validate_cursor_and_ids() {
+        AgentWorkerExternalTaskWaitScanRequest { after_run_id: 0 }
+            .validate()
+            .expect("wait scan cursor should be valid");
+        assert!(matches!(
+            AgentWorkerExternalTaskWaitScanRequest { after_run_id: -1 }.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "after_run_id",
+                ..
+            })
+        ));
+        AgentWorkerExternalTaskWaitWakeRequest {
+            run_id: 7,
+            execution_id: 8,
+        }
+        .validate()
+        .expect("wait wake ids should be valid");
+        assert!(matches!(
+            AgentWorkerExternalTaskWaitWakeRequest {
+                run_id: 0,
+                execution_id: 8,
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "run_id",
+                ..
             })
         ));
     }
