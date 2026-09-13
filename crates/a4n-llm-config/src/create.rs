@@ -43,7 +43,7 @@ pub fn normalize_create_llm_config_input(
     let max_output_tokens = positive_i32(max_output_tokens, "LLM配置 max_output_tokens")
         .map_err(AppError::InvalidArgument)?;
     ensure_output_tokens_below_context(max_output_tokens, max_context_tokens)?;
-    let extra_body_json = normalize_llm_extra_body_json(extra_body_json)?;
+    let extra_body_json = normalize_llm_extra_body_json(&provider, &model, extra_body_json)?;
     Ok(NormalizedLlmConfig {
         name,
         provider,
@@ -120,6 +120,19 @@ mod tests {
                 .expect_err("reserved request option")
                 .to_string()
                 .contains("LLM配置 extra_body_json 无效")
+        );
+    }
+
+    #[test]
+    fn rejects_cache_options_for_another_protocol_before_saving() {
+        let mut input = input();
+        input.provider = "gemini";
+        input.extra_body_json = Some(json!({"prompt_cache_options": {"mode": "explicit"}}));
+        assert!(
+            normalize_create_llm_config_input(input)
+                .unwrap_err()
+                .to_string()
+                .contains("仅适用于 OpenAI")
         );
     }
 }

@@ -15,7 +15,9 @@ use anthropic::AnthropicLlmProvider;
 use provider::HttpLlmProvider;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{LlmProtocolKind, LlmProvider, ModelCapabilities};
+use a4n_llm::provider::{
+    LlmProtocolKind, LlmProvider, ModelCapabilities, validate_prompt_cache_options,
+};
 use serde_json::Value;
 
 pub fn pick_llm_provider(
@@ -27,6 +29,7 @@ pub fn pick_llm_provider(
     extra_body_json: Option<Value>,
     capabilities: ModelCapabilities,
 ) -> Result<Box<dyn LlmProvider>, AppError> {
+    validate_prompt_cache_options(provider, &model, extra_body_json.as_ref())?;
     match LlmProtocolKind::for_provider(provider) {
         Some(
             protocol @ (LlmProtocolKind::OpenAiChatCompletions
