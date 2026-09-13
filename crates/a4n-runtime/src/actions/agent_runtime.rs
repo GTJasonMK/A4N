@@ -34,7 +34,8 @@ use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalCheckRequest,
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerBudgetSnapshotWire, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
-    AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
     AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
@@ -1209,6 +1210,19 @@ pub async fn request_agent_worker_approval(
     state
         .agent_worker_approval_application()
         .request_worker_approval_request(request)
+        .await
+}
+
+pub async fn review_agent_delegation(
+    state: &AppState,
+    request: &AgentWorkerDelegationReviewRequest,
+) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent delegation review 无效: {error}"))
+    })?;
+    state
+        .agent_worker_delegation_application()
+        .review_delegation_request(request)
         .await
 }
 

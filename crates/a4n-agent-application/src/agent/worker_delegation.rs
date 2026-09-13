@@ -4,6 +4,9 @@ use super::{
 };
 use a4n_api_contract::agent::{AgentDelegationView, AgentScope, ReviewAgentDelegationInput};
 use a4n_error::AppError;
+use a4n_worker_contract::{
+    AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
+};
 use serde_json::Value;
 
 /// Runtime-facing boundary for starting a child Agent delegation.
@@ -15,6 +18,11 @@ pub trait AgentWorkerDelegationApplicationPort: Send + Sync {
         input: ReviewAgentDelegationInput,
         parent_run_id: Option<i64>,
     ) -> Result<AgentDelegationView, AppError>;
+
+    async fn review_delegation_request(
+        &self,
+        request: &AgentWorkerDelegationReviewRequest,
+    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError>;
 
     fn inherit_subagent_allowlists(
         &self,
@@ -53,6 +61,13 @@ impl AgentWorkerDelegationApplicationPort for AgentApplication {
         parent_run_id: Option<i64>,
     ) -> Result<AgentDelegationView, AppError> {
         AgentApplication::review_delegation(self, user_id, input, parent_run_id).await
+    }
+
+    async fn review_delegation_request(
+        &self,
+        request: &AgentWorkerDelegationReviewRequest,
+    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
+        AgentApplication::review_delegation_request(self, request).await
     }
 
     fn inherit_subagent_allowlists(

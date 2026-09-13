@@ -20,7 +20,8 @@ use a4n_worker_contract::{
     AgentHostCommandPayload, AgentRunPayload, AgentWorkerApprovalCheckRequest,
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
-    AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
     AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
@@ -274,6 +275,32 @@ impl AgentRuntimeState {
             operation: "请求 Agent approval".into(),
         })?;
         self.host.request_approval(&request).await
+    }
+
+    pub async fn review_agent_delegation(
+        &self,
+        worker_request: &WorkerRequest<AgentRunPayload>,
+        user_id: i64,
+        parent_run_id: Option<i64>,
+        input: a4n_api_contract::agent::ReviewAgentDelegationInput,
+    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
+        if worker_request.payload.worker_run.thread.owner_user_id != user_id {
+            return Err(AppError::Forbidden(
+                "Agent delegation review user 与 worker run 不一致".into(),
+            ));
+        }
+        let request = AgentWorkerDelegationReviewRequest {
+            run_id: worker_request.payload.run_id,
+            lease: worker_request.lease.clone(),
+            user_id,
+            parent_run_id,
+            input,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent delegation review request 无效: {error}"),
+            operation: "审阅 Agent delegation".into(),
+        })?;
+        self.host.review_delegation(&request).await
     }
 
     pub async fn wait_agent_worker_run(

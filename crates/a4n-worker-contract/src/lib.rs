@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 pub use a4n_api_contract::agent::AgentScope;
+use a4n_api_contract::agent::{AgentDelegationView, ReviewAgentDelegationInput};
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV2, VisualPlanReadView};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use chrono::NaiveDateTime;
@@ -442,6 +443,33 @@ impl AgentWorkerApprovalRequest {
         Ok(())
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationReviewRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub user_id: i64,
+    pub parent_run_id: Option<i64>,
+    pub input: ReviewAgentDelegationInput,
+}
+
+impl AgentWorkerDelegationReviewRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("user_id", self.user_id)?;
+        if let Some(parent_run_id) = self.parent_run_id {
+            validate_positive_id("parent_run_id", parent_run_id)?;
+        }
+        Ok(())
+    }
+}
+
+pub type AgentWorkerDelegationReviewSnapshotWire = AgentDelegationView;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -1172,6 +1200,37 @@ mod tests {
             invalid.validate(),
             Err(WorkerContractError::InvalidValue {
                 field: "operation_json",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn delegation_review_request_requires_a_positive_user_and_parent_run() {
+        let request = AgentWorkerDelegationReviewRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            user_id: 11,
+            parent_run_id: Some(7),
+            input: ReviewAgentDelegationInput {
+                delegation_id: "3".into(),
+                expected_child_run_id: "4".into(),
+                decision: a4n_api_contract::agent::AgentDelegationReviewDecision::Accept,
+                reason: "verified".into(),
+                reviewed_refs: Vec::new(),
+            },
+        };
+        request
+            .validate()
+            .expect("delegation review request should be valid");
+        let invalid = AgentWorkerDelegationReviewRequest {
+            user_id: 0,
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "user_id",
                 ..
             })
         ));

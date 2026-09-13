@@ -24,7 +24,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
-    AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
@@ -285,6 +286,21 @@ pub(super) async fn request_agent_worker_approval(
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::request_agent_worker_approval(state.runtime(), &input).await?;
     Ok(Json(Value::Null))
+}
+
+pub(super) async fn review_agent_delegation(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerDelegationReviewRequest>,
+) -> Result<Json<AgentWorkerDelegationReviewSnapshotWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::review_agent_delegation(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn command(

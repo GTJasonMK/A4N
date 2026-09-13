@@ -12,7 +12,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
-    AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
@@ -231,6 +232,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .request_json(Method::POST, "/internal/agent/approval/request", request)
             .await?;
         Ok(())
+    }
+
+    async fn review_delegation(
+        &self,
+        request: &AgentWorkerDelegationReviewRequest,
+    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/delegation/review", request)
+            .await
     }
 
     async fn execute_command(

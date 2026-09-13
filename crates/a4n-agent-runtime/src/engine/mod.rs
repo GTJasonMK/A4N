@@ -3,10 +3,9 @@ use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
-    WorkerExecutionUpdate, child_budget_within_parent, enforce_delegation_limits,
-    validate_agent_budget,
+    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
+    WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
+    enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -280,8 +279,12 @@ impl RuntimeAgentToolExecutor {
                 .input;
                 serde_json::to_value(
                     self.state
-                        .worker_delegation_application()
-                        .review_delegation(context.owner_user_id, input, Some(context.run.id))
+                        .review_agent_delegation(
+                            &self.worker_request,
+                            context.owner_user_id,
+                            Some(context.run.id),
+                            input,
+                        )
                         .await?,
                 )
                 .map_err(AppError::from)

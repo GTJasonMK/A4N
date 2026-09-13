@@ -37,6 +37,7 @@ use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerCompletionRequest,
     AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
+    AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
     AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
@@ -1598,6 +1599,26 @@ impl AgentApplication {
         .await
         .map_err(agent_db_error_to_app)?;
         delegation_view(row)
+    }
+
+    pub(crate) async fn review_delegation_request(
+        &self,
+        request: &AgentWorkerDelegationReviewRequest,
+    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.review_delegation(
+            request.user_id,
+            request.input.clone(),
+            request.parent_run_id,
+        )
+        .await
     }
 
     pub(crate) async fn resolve_approval(
