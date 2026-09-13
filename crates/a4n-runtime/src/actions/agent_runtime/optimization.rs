@@ -1,10 +1,10 @@
 use super::*;
 use crate::actions::agent_domains::content_optimization as domain;
+use a4n_agent_application::agent::AgentExecutionSnapshot;
 use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskSummary},
     optimize::OptimizeSessionInput,
 };
-use a4n_orchestrator::agent::AgentExecutionSnapshot;
 use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
 
 pub(super) async fn start(

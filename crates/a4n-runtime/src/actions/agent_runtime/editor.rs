@@ -1,9 +1,9 @@
 use super::*;
+use a4n_agent_application::agent::AgentExecutionSnapshot;
 use a4n_api_contract::agent::*;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanView, EditChapterVisualPlanDraftInput,
 };
-use a4n_orchestrator::agent::AgentExecutionSnapshot;
 use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
 
 pub(super) fn is_editor_tool(name: &str) -> bool {

@@ -1,5 +1,5 @@
 use super::*;
-use a4n_orchestrator::agent::{
+use a4n_agent_application::agent::{
     AgentExternalTaskWaitSnapshot, AgentGenerationCancelSnapshot, AgentWorkflowCancelSnapshot,
 };
 

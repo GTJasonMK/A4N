@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-use crate::collaboration::ProjectAccessRole;
+use a4n_db::collaboration::ProjectAccessRole;
 
 const SNAPSHOT_LIMIT: u64 = 1_000;
 mod approval_expiry;
@@ -109,10 +109,7 @@ pub struct AgentApplication {
 impl AgentApplication {
     /// Lifecycle shutdown uses the same durable run-tree cancellation owner as
     /// the user-facing control path, but does not impersonate a user.
-    pub(crate) async fn cancel_run_for_package_shutdown(
-        &self,
-        run_id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn cancel_run_for_package_shutdown(&self, run_id: i64) -> Result<(), AppError> {
         agent::cancel_run_tree(
             self.connection(),
             run_id,
@@ -123,7 +120,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub(crate) fn new(database: DbHandle) -> Self {
+    pub fn new(database: DbHandle) -> Self {
         Self { database }
     }
 
@@ -3014,7 +3011,7 @@ impl AgentApplication {
         serde_json::to_value(refs).map_err(AppError::from)
     }
 
-    pub(crate) async fn run_budget_snapshot(
+    pub async fn run_budget_snapshot(
         &self,
         run_id: i64,
     ) -> Result<agent::AgentBudgetSnapshot, AppError> {

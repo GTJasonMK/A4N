@@ -1,4 +1,10 @@
 use crate::AppState;
+use a4n_agent_application::agent::{
+    AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
+    AgentRunContext, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
+    WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent, enforce_delegation_limits,
+    validate_agent_budget,
+};
 use a4n_api_contract::agent::{
     AgentApprovalView, AgentBudget, AgentEvent, AgentEventsInput, AgentMemoryInput,
     AgentMemoryScopeKind, AgentMemoryView, AgentMessageAccepted, AgentRunView, AgentScope,
@@ -23,12 +29,6 @@ use a4n_error::AppError;
 use a4n_llm::provider::{
     ChatMessage, ChatRequest, ChatResponse, ChatStreamAccumulator, LlmTraceContext, MessageRole,
     ToolCall,
-};
-use a4n_orchestrator::agent::{
-    AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
-    WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent, enforce_delegation_limits,
-    validate_agent_budget,
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
@@ -1809,7 +1809,7 @@ async fn compact_context(
     state: &AppState,
     claimed: &AgentWorkerRun,
     context: &mut AgentRunContext,
-    execution_application: &dyn a4n_orchestrator::agent::AgentWorkerExecutionApplicationPort,
+    execution_application: &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort,
     config_id: Option<i64>,
     capabilities: &a4n_llm::provider::ModelCapabilities,
     covered_through_sequence: i64,
@@ -1884,7 +1884,9 @@ async fn compact_context(
             tool_name: None,
             effect: Some("read".into()),
             replay_policy: Some("safe".into()),
-            arguments_json: Some(a4n_orchestrator::agent::model_request_snapshot(&request)?),
+            arguments_json: Some(a4n_agent_application::agent::model_request_snapshot(
+                &request,
+            )?),
             resource_preconditions_json: Some(json!({
                 "covered_through_sequence": covered_through_sequence,
             })),
@@ -2054,7 +2056,7 @@ fn execution_total_tokens(execution: &AgentExecutionSnapshot) -> Result<u64, App
 }
 
 async fn recover_model_messages(
-    message_application: &dyn a4n_orchestrator::agent::AgentWorkerMessageApplicationPort,
+    message_application: &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     context: &mut AgentRunContext,
 ) -> Result<Option<(String, i64)>, AppError> {
@@ -2145,7 +2147,7 @@ fn execution_input_message_id(execution: &AgentExecutionSnapshot) -> Result<i64,
 }
 
 async fn complete_run(
-    completion_application: &dyn a4n_orchestrator::agent::AgentWorkerCompletionApplicationPort,
+    completion_application: &dyn a4n_agent_application::agent::AgentWorkerCompletionApplicationPort,
     claimed: &AgentWorkerRun,
     content: String,
     observed_input_message_id: i64,
@@ -2173,7 +2175,7 @@ async fn consume_model_stream(
     stream: std::pin::Pin<
         Box<dyn futures::Stream<Item = Result<a4n_llm::provider::ChatChunk, AppError>> + Send>,
     >,
-    message_application: &dyn a4n_orchestrator::agent::AgentWorkerMessageApplicationPort,
+    message_application: &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     stream_client_message_id: &str,
     cancel: &CancellationToken,
@@ -2375,7 +2377,7 @@ async fn execute_tool_calls(
 }
 
 async fn prepare_tool_call(
-    execution_application: &dyn a4n_orchestrator::agent::AgentWorkerExecutionApplicationPort,
+    execution_application: &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort,
     claimed: &AgentWorkerRun,
     call: &ToolCall,
 ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
@@ -2433,7 +2435,7 @@ struct DelegateToolInput {
 }
 
 async fn append_inbox_messages(
-    inbox_application: &dyn a4n_orchestrator::agent::AgentWorkerInboxApplicationPort,
+    inbox_application: &dyn a4n_agent_application::agent::AgentWorkerInboxApplicationPort,
     claimed: &AgentWorkerRun,
     messages: &mut Vec<ChatMessage>,
     loaded_message_ids: &mut HashSet<i64>,
@@ -2496,7 +2498,7 @@ fn inbox_message_id(row: &AgentInboxSnapshot) -> Result<Option<i64>, AppError> {
 
 async fn execute_tool_call(
     state: &AppState,
-    execution_application: &dyn a4n_orchestrator::agent::AgentWorkerExecutionApplicationPort,
+    execution_application: &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort,
     claimed: &AgentWorkerRun,
     context: &AgentRunContext,
     executor: &RuntimeAgentToolExecutor,
@@ -2692,7 +2694,7 @@ async fn execute_tool_call(
         let child_thread = delegation_application
             .ensure_canonical_subagent_thread(
                 context.owner_user_id,
-                a4n_orchestrator::agent::EnsureCanonicalSubagentThreadInput {
+                a4n_agent_application::agent::EnsureCanonicalSubagentThreadInput {
                     canonical_binding_key: binding.key,
                     capability: capability.clone(),
                     title: input.title,
@@ -2892,7 +2894,7 @@ async fn execute_tool_call(
 }
 
 async fn request_approval_if_needed(
-    approval_application: &dyn a4n_orchestrator::agent::AgentWorkerApprovalApplicationPort,
+    approval_application: &dyn a4n_agent_application::agent::AgentWorkerApprovalApplicationPort,
     claimed: &AgentWorkerRun,
     context: &AgentRunContext,
     call: &ToolCall,
@@ -2927,7 +2929,7 @@ async fn request_approval_if_needed(
 }
 
 async fn append_tool_observation(
-    message_application: &dyn a4n_orchestrator::agent::AgentWorkerMessageApplicationPort,
+    message_application: &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     execution: &AgentExecutionSnapshot,
     call: &ToolCall,
@@ -3118,7 +3120,7 @@ fn should_request_approval(
 }
 
 async fn persist_usage(
-    usage_application: &dyn a4n_orchestrator::agent::AgentWorkerUsageApplicationPort,
+    usage_application: &dyn a4n_agent_application::agent::AgentWorkerUsageApplicationPort,
     claimed: &AgentWorkerRun,
     usage: &Value,
     steps: u32,
@@ -3796,7 +3798,7 @@ pub async fn resolve_approval(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_orchestrator::agent::AgentRunSnapshot;
+    use a4n_agent_application::agent::AgentRunSnapshot;
 
     fn claimed_worker_run() -> AgentWorkerRun {
         let now = chrono::Utc::now().naive_utc();
@@ -3816,7 +3818,7 @@ mod tests {
                 created_at: now,
                 started_at: Some(now),
             },
-            thread: a4n_orchestrator::agent::AgentThreadSnapshot {
+            thread: a4n_agent_application::agent::AgentThreadSnapshot {
                 id: 11,
                 owner_user_id: 19,
                 thread_kind: "main".into(),

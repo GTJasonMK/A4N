@@ -24,7 +24,7 @@ pub fn restore_model_request_snapshot(
 }
 
 impl AgentApplication {
-    pub(crate) async fn bound_model_request(
+    pub async fn bound_model_request(
         &self,
         run_id: i64,
         request: &mut a4n_llm::provider::ChatRequest,
@@ -51,7 +51,7 @@ impl AgentApplication {
         Ok(())
     }
 
-    pub(crate) async fn record_workflow_node_execution(
+    pub async fn record_workflow_node_execution(
         &self,
         workflow_id: i64,
         step: &str,
@@ -109,7 +109,7 @@ impl AgentApplication {
         Ok(())
     }
 
-    pub(crate) async fn publish_generation_progress(
+    pub async fn publish_generation_progress(
         &self,
         task_id: &str,
         attempt: u32,
@@ -223,7 +223,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
     }
 
-    pub(crate) async fn prepare_task_execution(
+    pub async fn prepare_task_execution(
         &self,
         input: AgentTaskExecutionInput,
     ) -> Result<Option<execution::Model>, AppError> {
@@ -232,7 +232,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
     }
 
-    pub(crate) async fn record_task_execution(
+    pub async fn record_task_execution(
         &self,
         task: &AgentOwnedTask,
         execution_id: i64,
