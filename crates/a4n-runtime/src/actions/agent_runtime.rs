@@ -4498,7 +4498,7 @@ pub async fn create_memory(
     input: AgentMemoryInput,
 ) -> Result<AgentMemoryView, AppError> {
     state
-        .agent_application()
+        .agent_memory_mutation_application()
         .create_memory(user_id, input)
         .await
 }
@@ -4509,7 +4509,7 @@ pub async fn retract_memory(
     input: RetractAgentMemoryInput,
 ) -> Result<AgentMemoryView, AppError> {
     state
-        .agent_application()
+        .agent_memory_mutation_application()
         .retract_memory(user_id, input)
         .await
 }
