@@ -455,6 +455,8 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::video::ReferenceMediaVideoImportApplicationPort>,
     video_assembly_import_application:
         Arc<dyn a4n_api_contract::video::AssemblyVideoImportApplicationPort>,
+    video_canvas_import_application:
+        Arc<dyn a4n_api_contract::video::CanvasVideoImportApplicationPort>,
     video_import_application: Arc<dyn a4n_api_contract::video::VideoImportApplicationPort>,
     /// Host-facing Assembly planning and push boundary.
     video_assembly_application: Arc<dyn a4n_api_contract::video::VideoAssemblyApplicationPort>,
@@ -2184,6 +2186,12 @@ impl AppState {
         self.video_assembly_import_application.as_ref()
     }
 
+    pub(crate) fn video_canvas_import_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::CanvasVideoImportApplicationPort {
+        self.video_canvas_import_application.as_ref()
+    }
+
     pub(crate) fn video_assembly_application(
         &self,
     ) -> &dyn a4n_api_contract::video::VideoAssemblyApplicationPort {
@@ -2943,6 +2951,7 @@ impl AppState {
             video_chapter_import_application: Arc::new(orchestrator.clone()),
             video_reference_media_import_application: Arc::new(orchestrator.clone()),
             video_assembly_import_application: Arc::new(orchestrator.clone()),
+            video_canvas_import_application: Arc::new(orchestrator.clone()),
             video_import_application: Arc::new(orchestrator.clone()),
             video_assembly_application: Arc::new(orchestrator.clone()),
             video_record_lifecycle_application: Arc::new(orchestrator.clone()),
