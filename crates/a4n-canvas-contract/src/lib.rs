@@ -111,45 +111,53 @@ pub struct CanvasGraphNodeExecutionInput {
 }
 
 #[async_trait]
-pub trait CanvasGraphExecutionHostPort: Send + Sync {
+pub trait CanvasGraphPreparationHostPort: Send + Sync {
     async fn verify_project_editor(&self, user_id: i64, project_id: i64) -> Result<(), String>;
+}
 
+#[async_trait]
+pub trait CanvasGraphExecutionHostPort: Send + Sync {
     async fn execute_node(
         &self,
         input: CanvasGraphNodeExecutionInput,
     ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, String>;
 }
 
-/// Runtime-facing Canvas graph workflow boundary.
-///
-/// Canvas owns graph documents, workflow state and node orchestration; Runtime
-/// supplies only the HostPort implementation and process-level scheduling.
+/// Runtime-facing Canvas graph preparation boundary.
 #[async_trait]
-pub trait CanvasGraphExecutionApplicationPort: Send + Sync {
+pub trait CanvasGraphPreparationApplicationPort: Send + Sync {
     async fn prepare_graph(
         &self,
         input: CanvasGraphRunPreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String>;
 
     async fn prepare_single_node(
         &self,
         input: CanvasSingleNodeRunPreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String>;
 
     async fn prepare_resume(
         &self,
         input: CanvasGraphResumePreparationInput,
-        host_port: &dyn CanvasGraphExecutionHostPort,
+        host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String>;
+}
 
+/// Runtime-facing Canvas graph execution boundary.
+#[async_trait]
+pub trait CanvasGraphExecutionApplicationPort: Send + Sync {
     async fn run_prepared(
         &self,
         prepared: PreparedCanvasGraphRun,
         host_port: &dyn CanvasGraphExecutionHostPort,
     ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, String>;
+}
 
+/// Runtime-facing Canvas graph failure-compensation boundary.
+#[async_trait]
+pub trait CanvasGraphFailureApplicationPort: Send + Sync {
     async fn fail_unsubmitted(&self, workflow_run_id: i64, error: &str) -> Result<(), String>;
 }
 

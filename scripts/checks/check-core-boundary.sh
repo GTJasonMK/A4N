@@ -738,15 +738,19 @@ if rg -n 'state\.orchestrator\(\)' \
     exit 1
 fi
 
-if ! rg -n 'canvas_graph_execution_application\(\)' \
+if ! rg -n 'canvas_graph_preparation_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/execution/api.rs || \
+   ! rg -n 'canvas_graph_execution_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/execution/api.rs || \
+   ! rg -n 'canvas_graph_failure_application\(\)' \
     crates/a4n-runtime/src/actions/canvas_workflow/execution/api.rs; then
-    printf 'Canvas graph execution actions must route through CanvasGraphExecutionApplicationPort\n' >&2
+    printf 'Canvas graph actions must route through preparation, execution and failure contracts\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait CanvasGraphExecutionApplicationPort' \
+if ! rg -n 'pub trait CanvasGraph(Preparation|Execution|Failure)ApplicationPort' \
     crates/a4n-canvas-contract/src/lib.rs; then
-    printf 'CanvasGraphExecutionApplicationPort contract is missing\n' >&2
+    printf 'Canvas graph preparation/execution/failure contracts are missing\n' >&2
     exit 1
 fi
 
@@ -786,9 +790,13 @@ if rg -n 'a4n_orchestrator::canvas' \
     exit 1
 fi
 
-if ! rg -n 'pub (enum CanvasGraphNodeExecutionKind|struct CanvasGraphNodeExecutionInput|struct PreparedCanvasGraphRun|trait CanvasGraphExecutionHostPort)' \
+if ! rg -n 'pub (enum CanvasGraphNodeExecutionKind|struct CanvasGraphNodeExecutionInput|struct PreparedCanvasGraphRun)' \
+    crates/a4n-canvas-contract/src/lib.rs || \
+   ! rg -n 'pub trait CanvasGraphPreparationHostPort' \
+    crates/a4n-canvas-contract/src/lib.rs || \
+   ! rg -n 'pub trait CanvasGraphExecutionHostPort' \
     crates/a4n-canvas-contract/src/lib.rs; then
-    printf 'Canvas graph execution Host contracts are missing from a4n-canvas-contract\n' >&2
+    printf 'Canvas graph execution and preparation Host contracts are missing from a4n-canvas-contract\n' >&2
     exit 1
 fi
 

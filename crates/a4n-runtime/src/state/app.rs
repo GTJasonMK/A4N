@@ -371,9 +371,14 @@ pub struct AppState {
     canvas_image_import_application: Arc<dyn a4n_canvas_contract::CanvasImageImportApplicationPort>,
     canvas_video_import_application: Arc<dyn a4n_canvas_contract::CanvasVideoImportApplicationPort>,
     canvas_audio_import_application: Arc<dyn a4n_canvas_contract::CanvasAudioImportApplicationPort>,
-    /// Canvas graph workflow preparation and terminal transition owner.
+    /// Canvas graph preparation, execution and failure compensation use
+    /// separate worker boundaries.
+    canvas_graph_preparation_application:
+        Arc<dyn a4n_canvas_contract::CanvasGraphPreparationApplicationPort>,
     canvas_graph_execution_application:
         Arc<dyn a4n_canvas_contract::CanvasGraphExecutionApplicationPort>,
+    canvas_graph_failure_application:
+        Arc<dyn a4n_canvas_contract::CanvasGraphFailureApplicationPort>,
     /// Host-facing package state read port. Lifecycle workers keep package
     /// ownership behind the narrow read/mutation contracts.
     package_read_application: Arc<dyn a4n_api_contract::package::PackageReadApplicationPort>,
@@ -1981,10 +1986,22 @@ impl AppState {
         self.canvas_audio_import_application.as_ref()
     }
 
+    pub(crate) fn canvas_graph_preparation_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasGraphPreparationApplicationPort {
+        self.canvas_graph_preparation_application.as_ref()
+    }
+
     pub(crate) fn canvas_graph_execution_application(
         &self,
     ) -> &dyn a4n_canvas_contract::CanvasGraphExecutionApplicationPort {
         self.canvas_graph_execution_application.as_ref()
+    }
+
+    pub(crate) fn canvas_graph_failure_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasGraphFailureApplicationPort {
+        self.canvas_graph_failure_application.as_ref()
     }
 
     pub(crate) fn package_read_application(
@@ -2858,7 +2875,9 @@ impl AppState {
             canvas_image_import_application: Arc::new(orchestrator.clone()),
             canvas_video_import_application: Arc::new(orchestrator.clone()),
             canvas_audio_import_application: Arc::new(orchestrator.clone()),
+            canvas_graph_preparation_application: Arc::new(orchestrator.clone()),
             canvas_graph_execution_application: Arc::new(orchestrator.clone()),
+            canvas_graph_failure_application: Arc::new(orchestrator.clone()),
             package_read_application,
             package_mutation_application,
             import_analysis_progress_application: Arc::new(orchestrator.clone()),
