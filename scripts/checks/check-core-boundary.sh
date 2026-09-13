@@ -3320,15 +3320,19 @@ if ! rg -n 'pub trait ProjectMutationApplicationPort' crates/a4n-api-contract/sr
     exit 1
 fi
 
-if ! rg -n 'chapter_generation_preview_application\(\)' \
+if ! rg -n 'chapter_generation_request_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/chapter_generation.rs || \
+   ! rg -n 'chapter_generation_rag_preparation_application\(\)' \
     crates/a4n-runtime/src/actions/chapter_generation.rs; then
-    printf 'Runtime chapter previews must route through ChapterGenerationPreviewApplicationPort\n' >&2
+    printf 'Runtime chapter previews must route through worker-specific ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait ChapterGenerationPreviewApplicationPort' \
+if ! rg -n 'pub trait ChapterGenerationRequestPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_generation.rs || \
+   ! rg -n 'pub trait ChapterGenerationRagPreparationApplicationPort' \
     crates/a4n-orchestrator/src/chapter_generation.rs; then
-    printf 'ChapterGenerationPreviewApplicationPort contract is missing\n' >&2
+    printf 'Chapter-generation worker-specific preview contracts are missing\n' >&2
     exit 1
 fi
 

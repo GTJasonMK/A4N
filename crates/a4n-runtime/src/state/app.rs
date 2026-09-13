@@ -253,10 +253,15 @@ pub struct AppState {
     /// boundary.
     chapter_content_sync_application:
         Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
-    /// Chapter request preview and RAG preparation remain in the chapter
-    /// owner; Runtime only supplies prompt and embedding inputs.
-    chapter_generation_preview_application:
-        Arc<dyn a4n_orchestrator::chapter_generation::ChapterGenerationPreviewApplicationPort>,
+    /// Chapter request preview owner. Runtime supplies prompt and embedding
+    /// inputs.
+    chapter_generation_request_preview_application: Arc<
+        dyn a4n_orchestrator::chapter_generation::ChapterGenerationRequestPreviewApplicationPort,
+    >,
+    /// Chapter-generation RAG preparation owner.
+    chapter_generation_rag_preparation_application: Arc<
+        dyn a4n_orchestrator::chapter_generation::ChapterGenerationRagPreparationApplicationPort,
+    >,
     /// Chapter generation task owner. Runtime supplies prompt, embedding and
     /// cleanup adapters when a worker is started.
     chapter_generation_application:
@@ -1537,10 +1542,18 @@ impl AppState {
         self.chapter_generation_application.as_ref()
     }
 
-    pub(crate) fn chapter_generation_preview_application(
+    pub(crate) fn chapter_generation_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationPreviewApplicationPort {
-        self.chapter_generation_preview_application.as_ref()
+    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationRequestPreviewApplicationPort
+    {
+        self.chapter_generation_request_preview_application.as_ref()
+    }
+
+    pub(crate) fn chapter_generation_rag_preparation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationRagPreparationApplicationPort
+    {
+        self.chapter_generation_rag_preparation_application.as_ref()
     }
 
     pub(crate) fn outline_read_application(
@@ -2746,7 +2759,8 @@ impl AppState {
             chapter_content_read_application: Arc::new(orchestrator.clone()),
             chapter_content_mutation_application: Arc::new(orchestrator.clone()),
             chapter_content_sync_application: Arc::new(orchestrator.clone()),
-            chapter_generation_preview_application: Arc::new(orchestrator.clone()),
+            chapter_generation_request_preview_application: Arc::new(orchestrator.clone()),
+            chapter_generation_rag_preparation_application: Arc::new(orchestrator.clone()),
             chapter_generation_application: Arc::new(orchestrator.clone()),
             outline_read_application: Arc::new(orchestrator.clone()),
             outline_mutation_application: Arc::new(orchestrator.clone()),

@@ -50,10 +50,11 @@ use super::service::{
 };
 
 use super::{
-    ChapterGenerationApplicationPort, ChapterGenerationPreviewApplicationPort,
-    ChapterGenerationWordCountRange, generation_chapter_title, generation_rag_query_fingerprint,
-    merge_generation_outline_text, non_empty_trimmed, resolve_generation_word_count_range,
-    upsert_chapter_generation_variables, validate_generation_rag_query_fingerprint,
+    ChapterGenerationApplicationPort, ChapterGenerationRagPreparationApplicationPort,
+    ChapterGenerationRequestPreviewApplicationPort, ChapterGenerationWordCountRange,
+    generation_chapter_title, generation_rag_query_fingerprint, merge_generation_outline_text,
+    non_empty_trimmed, resolve_generation_word_count_range, upsert_chapter_generation_variables,
+    validate_generation_rag_query_fingerprint,
 };
 use a4n_rag_core::validation::validate_query_vectors;
 
@@ -1166,7 +1167,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl ChapterGenerationPreviewApplicationPort for OrchestratorContext {
+impl ChapterGenerationRequestPreviewApplicationPort for OrchestratorContext {
     async fn preview_request(
         &self,
         user_id: i64,
@@ -1178,7 +1179,10 @@ impl ChapterGenerationPreviewApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl ChapterGenerationRagPreparationApplicationPort for OrchestratorContext {
     async fn prepare_rag_embedding(
         &self,
         user_id: i64,
