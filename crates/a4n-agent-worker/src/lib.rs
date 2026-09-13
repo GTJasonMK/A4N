@@ -1,12 +1,13 @@
-use a4n_runtime::host_api::agent_runtime::{
-    execute_claimed_worker_run, load_agent_worker_run, maintain_agent_worker,
-};
-use a4n_runtime::{AppState, RuntimeProfile};
-use a4n_storage::paths::AppPaths;
+mod host;
+
+use a4n_agent_application::agent::AgentApplication;
+use a4n_agent_runtime::{AgentRuntimeState, engine};
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentRunPayload, AgentWorkerClaimRequest, WorkerRequest,
 };
+use host::HttpAgentRuntimeHost;
 use reqwest::{Client, StatusCode};
+use sea_orm::Database;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -27,25 +28,17 @@ async fn async_main() -> anyhow::Result<()> {
     let worker_id = worker_id()?;
     let config = a4n_config::app_config_from_env()?;
     let worker_token = a4n_config::required_non_empty_env_string("A4N_AGENT_WORKER_TOKEN")?;
-    let runtime_profile =
-        RuntimeProfile::configured_from_env()?.unwrap_or_else(RuntimeProfile::default_for_build);
-    AppPaths::new(
-        config.data_dir.clone(),
-        config.cache_dir.clone(),
-        config.temp_dir.clone(),
-        config.log_dir.clone(),
-    )
-    .ensure_dirs()?;
-    let runtime = Arc::new(AppState::new_agent_worker_with_profile(config, runtime_profile).await?);
+    let database = Arc::new(Database::connect(&config.database_url).await?);
+    let application = Arc::new(AgentApplication::new(a4n_db::DbHandle::new(database)));
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .build()?;
-    install_host_dispatcher(
-        &runtime,
+    let host = Arc::new(HttpAgentRuntimeHost::new(
         client.clone(),
         control_base_url.clone(),
         worker_token.clone(),
-    )?;
+    ));
+    let runtime = Arc::new(AgentRuntimeState::new(application, host));
 
     tracing::info!(worker_id = %worker_id, control = %control_base_url, "A4N Agent worker started");
     let mut poll = tokio::time::interval(POLL_INTERVAL);
@@ -68,52 +61,16 @@ async fn async_main() -> anyhow::Result<()> {
                     tracing::warn!(error = %error, "A4N Agent worker poll failed");
                 }
             }
-            _ = maintenance.tick() => maintain_agent_worker(runtime.as_ref()).await,
+            _ = maintenance.tick() => engine::maintain_agent_worker(runtime.as_ref()).await,
         }
     }
 
-    runtime
-        .shutdown_managed_sidecars()
-        .await
-        .map_err(anyhow::Error::msg)
-}
-
-fn install_host_dispatcher(
-    runtime: &Arc<AppState>,
-    client: Client,
-    control_base_url: String,
-    worker_token: String,
-) -> anyhow::Result<()> {
-    runtime
-        .set_agent_host_dispatcher(Arc::new(move |_user_id, _command, _payload, request| {
-            let client = client.clone();
-            let url = format!("{control_base_url}/internal/agent/command");
-            let worker_token = worker_token.clone();
-            Box::pin(async move {
-                let response = client
-                    .post(url)
-                    .header(AGENT_WORKER_AUTH_HEADER, worker_token)
-                    .json(&request)
-                    .send()
-                    .await
-                    .map_err(|error| format!("Control Agent command 请求失败: {error}"))?;
-                let status = response.status();
-                let body = response
-                    .text()
-                    .await
-                    .map_err(|error| format!("读取 Control Agent command 回执失败: {error}"))?;
-                if !status.is_success() {
-                    return Err(format!("Control Agent command 返回 {status}: {body}"));
-                }
-                serde_json::from_str(&body)
-                    .map_err(|error| format!("Control Agent command 回执不是 JSON: {error}"))
-            })
-        }))
-        .map_err(|error| anyhow::anyhow!(error.to_string()))
+    runtime.shutdown().await;
+    Ok(())
 }
 
 async fn poll_and_execute(
-    runtime: &Arc<AppState>,
+    runtime: &Arc<AgentRuntimeState>,
     client: &Client,
     control_base_url: &str,
     worker_id: &str,
@@ -145,10 +102,13 @@ async fn poll_and_execute(
         .payload
         .validate()
         .map_err(|error| anyhow::anyhow!("Control Agent claim payload 无效: {error}"))?;
-    let run_id = request.payload.run_id;
-    let claimed =
-        load_agent_worker_run(runtime.as_ref(), run_id, &request.lease.fence_token).await?;
-    execute_claimed_worker_run(runtime.as_ref(), claimed, request).await?;
+    let claimed = engine::load_agent_worker_run(
+        runtime.as_ref(),
+        request.payload.run_id,
+        &request.lease.fence_token,
+    )
+    .await?;
+    engine::execute_claimed_worker_run(runtime.as_ref(), claimed, request).await?;
     Ok(())
 }
 
@@ -171,10 +131,7 @@ fn control_addr() -> anyhow::Result<SocketAddr> {
         .checked_add(1)
         .filter(|port| *port != 0)
         .unwrap_or(18080);
-    let address = format!("127.0.0.1:{port}")
-        .parse()
-        .map_err(|error| anyhow::anyhow!("默认 Control 地址无效: {error}"))?;
-    ensure_nonzero_port(address)
+    ensure_nonzero_port(format!("127.0.0.1:{port}").parse()?)
 }
 
 fn ensure_nonzero_port(address: SocketAddr) -> anyhow::Result<SocketAddr> {

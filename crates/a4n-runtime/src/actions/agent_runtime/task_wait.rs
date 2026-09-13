@@ -30,37 +30,51 @@ pub(super) async fn read(
     scope: &AgentScope,
     execution: &AgentExternalTaskWaitSnapshot,
 ) -> Result<Value, AppError> {
+    let snapshot = state.agent_runtime_snapshot(execution.run_id).await;
+    read_with_snapshot(state, user_id, scope, execution, snapshot.as_ref()).await
+}
+
+pub(crate) async fn read_with_snapshot(
+    state: &AppState,
+    user_id: i64,
+    scope: &AgentScope,
+    execution: &AgentExternalTaskWaitSnapshot,
+    runtime_snapshot: Option<&a4n_api_contract::runtime_config::RuntimeConfigSnapshot>,
+) -> Result<Value, AppError> {
     let args = execution
         .arguments_json
         .clone()
         .ok_or_else(|| AppError::InvalidArgument("任务等待缺少原参数".into()))?;
-    match execution.tool_name.as_deref() {
-        Some("wait_generation_task") => serde_json::to_value(
-            crate::actions::agent_domains::content_optimization::generation_task_summary(
-                state,
-                user_id,
-                scope,
-                parse_arguments(args, "wait_generation_task")?,
+    crate::runtime_config::request_scope(user_id, runtime_snapshot.cloned(), async move {
+        match execution.tool_name.as_deref() {
+            Some("wait_generation_task") => serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::generation_task_summary(
+                    state,
+                    user_id,
+                    scope,
+                    parse_arguments(args, "wait_generation_task")?,
+                )
+                .await?,
             )
-            .await?,
-        )
-        .map_err(AppError::from),
-        Some("wait_workflow_run") => serde_json::to_value(
-            crate::actions::agent_domains::canvas::get_workflow_run(
-                state,
-                user_id,
-                scope,
-                parse_arguments::<HostInput<a4n_api_contract::workflow::GetWorkflowRunInput>>(
-                    args,
-                    "wait_workflow_run",
-                )?
-                .input,
+            .map_err(AppError::from),
+            Some("wait_workflow_run") => serde_json::to_value(
+                crate::actions::agent_domains::canvas::get_workflow_run(
+                    state,
+                    user_id,
+                    scope,
+                    parse_arguments::<HostInput<a4n_api_contract::workflow::GetWorkflowRunInput>>(
+                        args,
+                        "wait_workflow_run",
+                    )?
+                    .input,
+                )
+                .await?,
             )
-            .await?,
-        )
-        .map_err(AppError::from),
-        _ => Err(AppError::InvalidArgument("任务等待工具不可用".into())),
-    }
+            .map_err(AppError::from),
+            _ => Err(AppError::InvalidArgument("任务等待工具不可用".into())),
+        }
+    })
+    .await
 }
 
 /// Events reduce latency; the durable scan is also used after restart and

@@ -1,9 +1,9 @@
 use crate::AppState;
 use a4n_agent_application::agent::{
-    AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
-    WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent, enforce_delegation_limits,
-    validate_agent_budget,
+    AgentContextSummary, AgentExecutionSnapshot, AgentExternalTaskWaitSnapshot, AgentInboxSnapshot,
+    AgentMessageSnapshot, AgentRunContext, AgentWorkerRun, WorkerDelegationInput,
+    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
+    enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentApprovalView, AgentBudget, AgentEvent, AgentEventsInput, AgentMemoryInput,
@@ -34,11 +34,12 @@ use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
     WorkerPrincipalKind, WorkerRequest,
 };
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::collections::HashSet;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Notify;
@@ -1005,6 +1006,142 @@ pub async fn authorize_agent_host_command(
     request: &WorkerRequest<a4n_worker_contract::AgentHostCommandPayload>,
 ) -> Result<i64, AppError> {
     state.authorize_agent_host_command(request).await
+}
+
+pub async fn agent_package_execution_enabled(state: &AppState) -> Result<bool, AppError> {
+    crate::actions::package::package_execution_enabled(state, PackageId::Agent).await
+}
+
+pub async fn read_external_task_wait(
+    state: &AppState,
+    requested: AgentExternalTaskWaitSnapshot,
+    runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
+) -> Result<Value, AppError> {
+    let authoritative = state
+        .agent_external_task_wait_application()
+        .external_task_waits(0)
+        .await?
+        .into_iter()
+        .find(|wait| wait.run_id == requested.run_id && wait.execution_id == requested.execution_id)
+        .ok_or_else(|| AppError::Forbidden("Agent wait 不再属于可访问的 durable Run".into()))?;
+    if authoritative.owner_user_id != requested.owner_user_id
+        || authoritative.scope != requested.scope
+        || authoritative.tool_name != requested.tool_name
+        || authoritative.arguments_json != requested.arguments_json
+    {
+        return Err(AppError::Forbidden(
+            "Agent wait 请求与 durable Run/thread scope 不匹配".into(),
+        ));
+    }
+    task_wait::read_with_snapshot(
+        state,
+        authoritative.owner_user_id,
+        &authoritative.scope,
+        &authoritative,
+        runtime_snapshot.as_ref(),
+    )
+    .await
+}
+
+pub async fn cancel_agent_owned_generation_task(
+    state: &AppState,
+    user_id: i64,
+    task_id: &str,
+    attempt: u32,
+) -> Result<(), AppError> {
+    let candidate = state
+        .agent_generation_cancel_application()
+        .generation_cancel_candidates("")
+        .await?
+        .into_iter()
+        .find(|task| task.task_id == task_id && task.attempt == attempt)
+        .ok_or_else(|| AppError::Forbidden("生成任务不属于已停止的 Agent Run".into()))?;
+    if candidate.requested_by_user_id != user_id
+        || !candidate.owner_stopped
+        || candidate.status == "cancelling"
+    {
+        return Err(AppError::Forbidden(
+            "生成任务取消请求未通过 durable Agent owner 校验".into(),
+        ));
+    }
+    crate::actions::generation_tasks::cancel_generation_task(
+        state,
+        candidate.requested_by_user_id,
+        a4n_api_contract::generation_tasks::CancelGenerationTaskInput {
+            task_id: candidate.task_id,
+            attempt: candidate.attempt,
+        },
+    )
+    .await
+    .map(|_| ())
+    .map_err(|error| AppError::InvalidArgument(error.to_string()))
+}
+
+pub async fn cancel_agent_owned_workflow(
+    state: &AppState,
+    workflow_run_id: i64,
+    reason: &str,
+) -> Result<(), AppError> {
+    let candidate = state
+        .agent_workflow_cancel_application()
+        .workflow_cancel_candidates(workflow_run_id.saturating_sub(1))
+        .await?
+        .into_iter()
+        .find(|workflow| workflow.workflow_run_id == workflow_run_id)
+        .ok_or_else(|| AppError::Forbidden("Workflow 不属于 Agent durable owner".into()))?;
+    if !candidate.owner_stopped {
+        return Err(AppError::Forbidden(
+            "只能取消已停止 Agent 所拥有的 Workflow".into(),
+        ));
+    }
+    state
+        .workflow_cancellation_application()
+        .cancel(workflow_run_id, reason)
+        .await
+}
+
+pub async fn agent_llm_capabilities(
+    state: &AppState,
+    user_id: i64,
+    runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
+    config_id: Option<i64>,
+) -> Result<a4n_llm::provider::ModelCapabilities, AppError> {
+    crate::runtime_config::request_scope(user_id, runtime_snapshot, async {
+        state
+            .dynamic_llm_provider_for_profile()?
+            .capabilities_for_config_id(config_id)
+            .await
+    })
+    .await
+}
+
+pub async fn agent_chat_stream(
+    state: &AppState,
+    user_id: i64,
+    runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
+    config_id: Option<i64>,
+    request: ChatRequest,
+) -> Result<
+    Pin<Box<dyn Stream<Item = Result<a4n_llm::provider::ChatChunk, AppError>> + Send>>,
+    AppError,
+> {
+    crate::runtime_config::request_scope(user_id, runtime_snapshot, async {
+        state
+            .dynamic_llm_provider_for_profile()?
+            .chat_stream_with_config_id(config_id, request)
+            .await
+    })
+    .await
+}
+
+pub fn project_agent_editor_draft(
+    state: &AppState,
+    plan: &a4n_api_contract::chapter_visual_plan::ChapterVisualPlanV2,
+    view: &a4n_api_contract::chapter_visual_plan::VisualPlanReadView,
+) -> Result<a4n_api_contract::chapter_visual_plan::VisualPlanProjection, AppError> {
+    state
+        .chapter_visual_plan_read_application()
+        .project_editor(plan, view)
 }
 
 async fn process_claimed_run(

@@ -25,15 +25,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-agent-runtime"
+version = "0.1.0"
+dependencies = [
+ "a4n-agent-application",
+ "a4n-api-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm",
+ "a4n-service-protocol",
+ "a4n-worker-contract",
+ "async-trait",
+ "chrono",
+ "futures",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "a4n-agent-worker"
 version = "0.1.0"
 dependencies = [
+ "a4n-agent-application",
+ "a4n-agent-runtime",
+ "a4n-api-contract",
  "a4n-config",
- "a4n-runtime",
- "a4n-storage",
+ "a4n-db",
+ "a4n-error",
+ "a4n-llm",
  "a4n-worker-contract",
  "anyhow",
+ "async-trait",
+ "futures",
  "reqwest 0.12.28",
+ "sea-orm",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -133,10 +163,12 @@ dependencies = [
 name = "a4n-control"
 version = "0.1.0"
 dependencies = [
+ "a4n-agent-application",
  "a4n-api-contract",
  "a4n-config",
  "a4n-domain",
  "a4n-error",
+ "a4n-llm",
  "a4n-media",
  "a4n-runtime",
  "a4n-service-protocol",
