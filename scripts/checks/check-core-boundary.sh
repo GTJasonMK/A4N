@@ -1393,17 +1393,22 @@ fi
 
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     crates/a4n-runtime/src/actions/prompt_records.rs; then
-    printf 'Runtime prompt actions must consume PromptApplicationPort instead of the concrete orchestrator facade\n' >&2
+    printf 'Runtime prompt actions must consume prompt read/mutation ports instead of the concrete orchestrator facade\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait PromptApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs; then
-    printf 'PromptApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait Prompt(Read|Mutation)ApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs; then
+    printf 'Prompt read/mutation contracts are missing\n' >&2
     exit 1
 fi
 
-if ! rg -n 'prompt_application\(\)' crates/a4n-runtime/src/actions/prompt_records.rs; then
-    printf 'Runtime prompt actions must route through PromptApplicationPort\n' >&2
+if ! rg -n 'prompt_read_application\(\)' crates/a4n-runtime/src/actions/prompt_records.rs; then
+    printf 'Runtime prompt reads must route through PromptReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'prompt_mutation_application\(\)' crates/a4n-runtime/src/actions/prompt_records.rs; then
+    printf 'Runtime prompt mutations must route through PromptMutationApplicationPort\n' >&2
     exit 1
 fi
 

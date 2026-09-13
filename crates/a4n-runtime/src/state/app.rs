@@ -234,9 +234,11 @@ pub struct AppState {
     /// Host-facing settings export/import boundary. Authorization and
     /// rollback semantics stay in the settings owner.
     settings_all_application: Arc<dyn a4n_api_contract::config::SettingsAllApplicationPort>,
-    /// Host-facing prompt record boundary. Prompt service selection and
-    /// project override persistence stay with the prompt owner.
-    prompt_application: Arc<dyn a4n_orchestrator::prompt_records::PromptApplicationPort>,
+    /// Host-facing prompt record read boundary. Prompt service selection stays
+    /// with the prompt owner.
+    prompt_read_application: Arc<dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort>,
+    prompt_mutation_application:
+        Arc<dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort>,
     /// Host-facing Agent application port. Worker-only lease operations stay
     /// on the orchestrator implementation and are intentionally not exposed
     /// through this port.
@@ -1359,10 +1361,16 @@ impl AppState {
         self.settings_all_application.as_ref()
     }
 
-    pub(crate) fn prompt_application(
+    pub(crate) fn prompt_read_application(
         &self,
-    ) -> &dyn a4n_orchestrator::prompt_records::PromptApplicationPort {
-        self.prompt_application.as_ref()
+    ) -> &dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort {
+        self.prompt_read_application.as_ref()
+    }
+
+    pub(crate) fn prompt_mutation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort {
+        self.prompt_mutation_application.as_ref()
     }
 
     pub(crate) fn agent_application(&self) -> &dyn a4n_api_contract::agent::AgentApplicationPort {
@@ -2177,9 +2185,13 @@ impl AppState {
                 Ok((llm, embedding))
             },
         )?;
-        let prompt_application: Arc<dyn a4n_orchestrator::prompt_records::PromptApplicationPort> =
-            Arc::new(orchestrator.clone());
-        prompt_application.hydrate_overrides().await?;
+        let prompt_read_application: Arc<
+            dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort,
+        > = Arc::new(orchestrator.clone());
+        let prompt_mutation_application: Arc<
+            dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort,
+        > = Arc::new(orchestrator.clone());
+        prompt_mutation_application.hydrate_overrides().await?;
         let provider_runtime =
             provider_runtime.ok_or_else(|| a4n_error::AppError::InvalidState {
                 current: "provider runtime port 未初始化".to_string(),
@@ -2276,7 +2288,8 @@ impl AppState {
             theme_mutation_application: Arc::new(orchestrator.clone()),
             config_application,
             settings_all_application,
-            prompt_application,
+            prompt_read_application,
+            prompt_mutation_application,
             agent_application: Arc::new(orchestrator.agent().clone()),
             agent_worker_application: Arc::new(orchestrator.agent().clone()),
             canvas_read_application: Arc::new(orchestrator.clone()),
