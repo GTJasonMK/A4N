@@ -169,6 +169,12 @@ try {
   await browser.$("h3=拆分镜头").waitForDisplayed({ reverse: true });
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
+  await browser.$('[aria-label="原文"]').click();
+  await browser.$('[role="dialog"]').waitForDisplayed();
+  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-pressed"), "true", "the open tool must stay selected");
+  await browser.keys("Escape");
+  await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
+  assert.equal(await browser.$('[aria-label="原文"]').getAttribute("aria-pressed"), "false", "closing a mobile tool must clear its selection");
   await browser.$('[aria-label="放大视图"]').click();
   assert.ok((await browser.$(".director-timeline-track").getSize()).width >= 640);
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
@@ -176,8 +182,10 @@ try {
   await setViewport(1440, 900);
   for (const [label, ratio] of [["9:16 竖屏", 9 / 16], ["1:1 方形", 1], ["4:3", 4 / 3], ["16:9 横屏", 16 / 9]]) {
     await browser.$('[aria-label="画幅"]').click();
+    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-pressed"), "true", "the open aspect-ratio tool must stay selected");
     await browser.$(`button=${label}`).click();
     await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
+    assert.equal(await browser.$('[aria-label="画幅"]').getAttribute("aria-pressed"), "false", "closing the aspect-ratio tool must clear its selection");
     await browser.waitUntil(async () => {
       const frame = await browser.$(".director-viewer").getSize();
       return Math.abs(frame.width / frame.height - ratio) < 0.02;

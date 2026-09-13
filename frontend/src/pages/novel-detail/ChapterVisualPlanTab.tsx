@@ -67,6 +67,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const segment = selection?.kind === "segment" ? plan?.segments.find((segment) => segment.id === selection.id) : undefined;
   const disabled = !model.editable || model.busy;
   const hasModal = Boolean(generation || split || merge || (panel && (panel !== "properties" || narrow)));
+  const closePanel = () => setPanel(narrow ? null : "properties");
 
   const loadAssets = useCallback(async () => {
     const scope = ++assetScope.current;
@@ -279,11 +280,11 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
 
     <nav className="director-tool-rail" aria-label="导演工具">
         <Tool icon={Settings2} label="属性" active={panel === "properties"} onClick={() => setPanel(panel === "properties" ? null : "properties")} />
-        <Tool icon={Images} label="素材库" onClick={() => setPanel("media")} />
-        <Tool icon={Mountain} label="场景库" onClick={() => setPanel("scenes")} />
-        <Tool icon={BookOpen} label="原文" onClick={() => setPanel("source")} />
-        <Tool icon={Film} label="画幅" onClick={() => setPanel("settings")} />
-        <Tool icon={Sparkles} label="导演 Agent" onClick={() => setPanel("agent")} />
+        <Tool icon={Images} label="素材库" active={panel === "media"} onClick={() => setPanel("media")} />
+        <Tool icon={Mountain} label="场景库" active={panel === "scenes"} onClick={() => setPanel("scenes")} />
+        <Tool icon={BookOpen} label="原文" active={panel === "source"} onClick={() => setPanel("source")} />
+        <Tool icon={Film} label="画幅" active={panel === "settings"} onClick={() => setPanel("settings")} />
+        <Tool icon={Sparkles} label="导演 Agent" active={panel === "agent"} onClick={() => setPanel("agent")} />
     </nav>
     <div className={`director-stage ${panel === "properties" && !narrow ? "has-inspector" : ""}`}>
       <div className="director-editing-column">
@@ -302,16 +303,16 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     </div>
 
     <Modal isOpen={panel === "properties" && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setPanel(null)} className="director-mobile-inspector">{inspector}</Modal>
-    <Modal isOpen={panel === "source"} title="章节原文" onClose={() => setPanel("properties")} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
-    <Modal isOpen={panel === "scenes"} title="场景库" onClose={() => { setPanel("properties"); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={chapter.project_id} canEditProfiles={canEdit} /></Suspense></Modal>
-    <Modal isOpen={panel === "agent"} title="导演 Agent" onClose={() => setPanel("properties")} maxWidthClassName="max-w-4xl" keepMounted>
+    <Modal isOpen={panel === "source"} title="章节原文" onClose={closePanel} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
+    <Modal isOpen={panel === "scenes"} title="场景库" onClose={() => { closePanel(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={chapter.project_id} canEditProfiles={canEdit} /></Suspense></Modal>
+    <Modal isOpen={panel === "agent"} title="导演 Agent" onClose={closePanel} maxWidthClassName="max-w-4xl" keepMounted>
       <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
     </Modal>
-    <Modal isOpen={panel === "settings"} title="画幅" onClose={() => setPanel("properties")}>
-      <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => <BookButton key={label} variant="secondary" disabled={disabled} onClick={() => { void edit({ kind: "set_frame", frame: { width: Number(width), height: Number(height) } }); setPanel("properties"); }}>{label}</BookButton>)}</div>
+    <Modal isOpen={panel === "settings"} title="画幅" onClose={closePanel}>
+      <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => <BookButton key={label} variant="secondary" disabled={disabled} onClick={() => { void edit({ kind: "set_frame", frame: { width: Number(width), height: Number(height) } }); closePanel(); }}>{label}</BookButton>)}</div>
       <p className="director-context-line">图片完整显示在画框中；总时长在时间条上等比调整。</p>
     </Modal>
-    <Modal isOpen={panel === "media"} title={point ? `${point.label || "图片点"} · 选择分镜与参考图` : "图片素材库"} onClose={() => setPanel("properties")} maxWidthClassName="max-w-5xl">
+    <Modal isOpen={panel === "media"} title={point ? `${point.label || "图片点"} · 选择分镜与参考图` : "图片素材库"} onClose={closePanel} maxWidthClassName="max-w-5xl">
       {!point && <p className="director-context-line">在时间线上选中图片点后，可以绑定分镜与参考图。</p>}
       <div className="director-media-grid">{images.map((image) => <article key={image.id}><img src={toMediaSrc(image.file_path)} alt={image.prompt || "图片素材"} loading="lazy" /><div className="director-inline-actions">
         <BookButton variant="secondary" size="sm" disabled={!point || disabled} onClick={() => { if (point) void adoptImage(point.id, image).then(() => setPanel("properties")).catch(model.report); }}>{point?.image_id === image.id ? "已绑定" : "选作分镜"}</BookButton>
