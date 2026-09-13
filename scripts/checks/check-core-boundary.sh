@@ -2763,6 +2763,17 @@ if ! rg -n 'verify_chapters_in_project_for_worker' \
     printf 'Agent worker resource scope read port is missing\n' >&2
     exit 1
 fi
+if rg -U -n 'state\.application\(\)\s*\.\s*show_run' \
+    crates/a4n-agent-runtime/src/engine; then
+    printf 'Agent worker terminal status must consume AgentWorkerCompletionApplicationPort\n' >&2
+    exit 1
+fi
+if ! rg -n 'run_is_terminal' \
+    crates/a4n-agent-application/src/agent/worker_completion.rs \
+    crates/a4n-agent-runtime/src/engine/mod.rs; then
+    printf 'Agent worker terminal status completion port is missing\n' >&2
+    exit 1
+fi
 if rg -n 'state\.application\(\)\.review_delegation' \
     crates/a4n-agent-runtime/src/engine; then
     printf 'Agent worker delegation review must consume AgentWorkerDelegationApplicationPort\n' >&2

@@ -784,12 +784,12 @@ async fn process_claimed_run_request(
         }
     }
     if result.is_ok()
-        && let Ok(run) = state
-            .application()
-            .show_run(claimed.thread.owner_user_id, &claimed.run.id.to_string())
+        && let Ok(is_terminal) = state
+            .worker_completion_application()
+            .run_is_terminal(&claimed)
             .await
     {
-        terminal = run.status.is_terminal();
+        terminal = is_terminal;
     }
     if terminal {
         let _ = state.take_agent_runtime_snapshot(claimed.run.id).await;
