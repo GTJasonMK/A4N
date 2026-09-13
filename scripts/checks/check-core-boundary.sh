@@ -880,6 +880,15 @@ if ! rg -n 'image_import_application\(\)' \
     printf 'Canvas image import and image upload must route through ImageImportApplicationPort\n' >&2
     exit 1
 fi
+if ! rg -n 'image_record_read_application\(\)' \
+    crates/a4n-runtime/src/actions/image_records/upload/record.rs; then
+    printf 'Published image lookup must route through ImageRecordReadApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n 'imported_image_summary' crates/a4n-runtime/src; then
+    printf 'Runtime image import must not keep a read method on ImageImportApplicationPort\n' >&2
+    exit 1
+fi
 
 if ! rg -n 'pub trait ImageImportApplicationPort|pub trait ImagePublicationRecoveryPort' \
     crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then

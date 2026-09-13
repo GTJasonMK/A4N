@@ -77,11 +77,6 @@ pub trait ImageImportApplicationPort: Send + Sync {
         expected_sha256: String,
     ) -> Result<(ImagePublicationRecoveryRecord, OwnedMutexGuard<()>), AppError>;
 
-    async fn imported_image_summary(
-        &self,
-        image_id: i64,
-    ) -> Result<Option<GeneratedImageSummary>, AppError>;
-
     async fn publish_imported_image(
         &self,
         user_id: i64,
@@ -517,6 +512,21 @@ impl OrchestratorContext {
 
 #[async_trait]
 impl ImageRecordReadApplicationPort for OrchestratorContext {
+    async fn by_id(
+        &self,
+        user_id: i64,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageSummary>, AppError> {
+        let Some(image) = self.generated_image_by_id(image_id).await? else {
+            return Ok(None);
+        };
+        self.verify_project_permission(image.project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        Ok(Some(super::image_generation::generated_image_summary(
+            &image,
+        )))
+    }
+
     async fn reference_by_ids(
         &self,
         user_id: i64,
@@ -664,16 +674,6 @@ impl ImageImportApplicationPort for OrchestratorContext {
             )
             .await?;
         Ok((image_publication_recovery_record(publication), guard))
-    }
-
-    async fn imported_image_summary(
-        &self,
-        image_id: i64,
-    ) -> Result<Option<GeneratedImageSummary>, AppError> {
-        Ok(self
-            .generated_image_by_id(image_id)
-            .await?
-            .map(|image| super::image_generation::generated_image_summary(&image)))
     }
 
     async fn publish_imported_image(

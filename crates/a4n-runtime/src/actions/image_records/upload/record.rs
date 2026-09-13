@@ -51,8 +51,8 @@ pub(super) async fn persist_imported_image(
             .image_id
             .ok_or_else(|| "已发布图片意图缺少 image_id".to_string())?;
         return state
-            .image_import_application()
-            .imported_image_summary(image_id)
+            .image_record_read_application()
+            .by_id(user_id, image_id)
             .await
             .map_err(|error| error.to_string())?
             .ok_or_else(|| format!("已发布图片不存在: {image_id}"));

@@ -342,8 +342,8 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     assert_eq!(recovered.image_id, Some(image.id));
     assert_eq!(
         state
-            .image_import_application()
-            .imported_image_summary(image.id)
+            .image_record_read_application()
+            .by_id(user_id, image.id)
             .await
             .unwrap()
             .unwrap()

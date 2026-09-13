@@ -23,6 +23,12 @@ pub trait ImageProviderConfigPort: Send + Sync {
 /// depend on the query surface they use.
 #[async_trait::async_trait]
 pub trait ImageRecordReadApplicationPort: Send + Sync {
+    async fn by_id(
+        &self,
+        user_id: i64,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageSummary>, a4n_error::AppError>;
+
     async fn reference_by_ids(
         &self,
         user_id: i64,
