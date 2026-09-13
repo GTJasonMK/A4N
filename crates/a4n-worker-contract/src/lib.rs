@@ -286,6 +286,31 @@ impl AgentWorkerMessageRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerBudgetRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+}
+
+impl AgentWorkerBudgetRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerBudgetSnapshotWire {
+    pub usage: serde_json::Value,
+    pub max_tokens: Option<u64>,
+    pub max_duration_seconds: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -984,6 +1009,26 @@ mod tests {
             invalid.validate(),
             Err(WorkerContractError::InvalidValue {
                 field: "operation.execution_id",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn budget_request_requires_a_valid_lease() {
+        let request = AgentWorkerBudgetRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+        };
+        request.validate().expect("budget request should be valid");
+        let invalid = AgentWorkerBudgetRequest {
+            run_id: 0,
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "run_id",
                 ..
             })
         ));

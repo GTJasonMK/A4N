@@ -34,13 +34,14 @@ use a4n_domain::agent::{
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentWorkerContextSummaryRequest, AgentWorkerDelegationSnapshotWire,
-    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentHostCommandPayload, AgentWorkerBudgetRequest, AgentWorkerContextSummaryRequest,
+    AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
+    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
+    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3368,6 +3369,21 @@ impl AgentApplication {
         agent::run_budget_snapshot(self.connection(), run_id)
             .await
             .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn worker_budget_snapshot_request(
+        &self,
+        request: &AgentWorkerBudgetRequest,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.worker_budget_snapshot(request.run_id).await
     }
 
     pub(crate) async fn create_prepared_execution(

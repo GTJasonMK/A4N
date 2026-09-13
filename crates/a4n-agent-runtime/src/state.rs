@@ -5,7 +5,7 @@ use a4n_agent_application::agent::{
     AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort,
     AgentMessageSnapshot, AgentRunContext, AgentRunLeaseRecoveryApplicationPort,
     AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
-    AgentWorkerBudgetApplicationPort, AgentWorkerClaimApplicationPort,
+    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot, AgentWorkerClaimApplicationPort,
     AgentWorkerCompletionApplicationPort, AgentWorkerDelegationApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
     AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
@@ -17,11 +17,11 @@ use a4n_agent_application::agent::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentRunPayload, AgentWorkerContextSummaryRequest,
-    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease,
-    WorkerRequest,
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
+    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
+    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -48,6 +48,12 @@ pub struct AgentWorkerExecutionHostPort<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct AgentWorkerMessageHostPort<'a> {
+    state: &'a AgentRuntimeState,
+    claimed: &'a AgentWorkerRun,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct AgentWorkerBudgetHostPort<'a> {
     state: &'a AgentRuntimeState,
     claimed: &'a AgentWorkerRun,
 }
@@ -306,6 +312,24 @@ impl AgentRuntimeState {
             .map(|snapshot| snapshot.map(Into::into))
     }
 
+    pub(crate) async fn worker_budget_snapshot(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        let request = AgentWorkerBudgetRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent budget request 无效: {error}"),
+            operation: "读取 Agent budget".into(),
+        })?;
+        self.host
+            .worker_budget_snapshot(&request)
+            .await
+            .map(Into::into)
+    }
+
     pub async fn authorize_agent_host_command(
         &self,
         request: &WorkerRequest<AgentHostCommandPayload>,
@@ -451,8 +475,14 @@ impl AgentRuntimeState {
     pub fn worker_approval_application(&self) -> &dyn AgentWorkerApprovalApplicationPort {
         self.application.as_ref()
     }
-    pub fn worker_budget_application(&self) -> &dyn AgentWorkerBudgetApplicationPort {
-        self.application.as_ref()
+    pub(crate) fn worker_budget_application<'a>(
+        &'a self,
+        claimed: &'a AgentWorkerRun,
+    ) -> AgentWorkerBudgetHostPort<'a> {
+        AgentWorkerBudgetHostPort {
+            state: self,
+            claimed,
+        }
     }
     pub fn worker_claim_application(&self) -> &dyn AgentWorkerClaimApplicationPort {
         self.application.as_ref()
@@ -594,6 +624,36 @@ impl AgentWorkerExecutionApplicationPort for AgentWorkerExecutionHostPort<'_> {
         self.state
             .host
             .update_worker_execution(request)
+            .await
+            .map(Into::into)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerBudgetApplicationPort for AgentWorkerBudgetHostPort<'_> {
+    async fn worker_budget_snapshot(
+        &self,
+        run_id: i64,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        if run_id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent budget run_id 与 claimed run {} 不一致",
+                    self.claimed.run.id
+                ),
+                operation: "读取 Agent budget".into(),
+            });
+        }
+        self.state.worker_budget_snapshot(self.claimed).await
+    }
+
+    async fn worker_budget_snapshot_request(
+        &self,
+        request: &AgentWorkerBudgetRequest,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        self.state
+            .host
+            .worker_budget_snapshot(request)
             .await
             .map(Into::into)
     }

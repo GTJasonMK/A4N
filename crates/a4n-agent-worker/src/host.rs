@@ -7,14 +7,15 @@ use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
-    AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
-    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
+    AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerContextSummaryRequest,
+    AgentWorkerEditorProjectionRequest, AgentWorkerExecutionCreateRequest,
+    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
+    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -180,6 +181,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerMessageRequest,
     ) -> Result<Option<AgentWorkerMessageSnapshotWire>, AppError> {
         self.request_json(Method::POST, "/internal/agent/message", request)
+            .await
+    }
+
+    async fn worker_budget_snapshot(
+        &self,
+        request: &AgentWorkerBudgetRequest,
+    ) -> Result<AgentWorkerBudgetSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/budget", request)
             .await
     }
 

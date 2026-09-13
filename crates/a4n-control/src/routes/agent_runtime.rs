@@ -19,9 +19,10 @@ use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
-    AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerClaimRequest, AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
+    AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
@@ -192,6 +193,21 @@ pub(super) async fn apply_message_request(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::apply_message_request(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn worker_budget_snapshot(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerBudgetRequest>,
+) -> Result<Json<AgentWorkerBudgetSnapshotWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::worker_budget_snapshot(state.runtime(), &input)
         .await
         .map(Json)
         .map_err(Into::into)

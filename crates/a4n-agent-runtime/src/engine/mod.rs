@@ -1,10 +1,10 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerExecutionApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
-    WorkerExecutionUpdate, child_budget_within_parent, enforce_delegation_limits,
-    validate_agent_budget,
+    AgentRunContext, AgentWorkerBudgetApplicationPort, AgentWorkerExecutionApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
+    WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
+    enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -1174,7 +1174,7 @@ async fn process_claimed_run_inner(
             stop_sequences: None,
         };
         if let Some(remaining) = state
-            .worker_budget_application()
+            .worker_budget_application(claimed)
             .worker_budget_snapshot(claimed.run.id)
             .await?
             .max_tokens
@@ -1466,7 +1466,7 @@ async fn compact_context(
         stop_sequences: None,
     };
     if let Some(remaining) = state
-        .worker_budget_application()
+        .worker_budget_application(claimed)
         .worker_budget_snapshot(claimed.run.id)
         .await?
         .max_tokens
@@ -2143,7 +2143,7 @@ async fn execute_tool_call(
     }
 
     if state
-        .worker_budget_application()
+        .worker_budget_application(claimed)
         .worker_budget_snapshot(claimed.run.id)
         .await?
         .max_duration_seconds
@@ -2223,7 +2223,7 @@ async fn execute_tool_call(
             &parent_budget,
         )?;
         let worker_budget = state
-            .worker_budget_application()
+            .worker_budget_application(claimed)
             .worker_budget_snapshot(claimed.run.id)
             .await?;
         let child_budget = child_budget_within_parent(
