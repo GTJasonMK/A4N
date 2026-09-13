@@ -126,20 +126,6 @@ pub trait OptimizePatchApplicationPort: Send + Sync {
 /// boundary.
 #[async_trait]
 pub trait OptimizePreviewApplicationPort: Send + Sync {
-    async fn preview_create_analysis(
-        &self,
-        user_id: i64,
-        input: AnalyzeChapterInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
-
-    async fn preview_prepare_analysis(
-        &self,
-        user_id: i64,
-        input: PrepareOptimizationAnalysisSessionInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
-
     async fn preview_send_message(
         &self,
         user_id: i64,
@@ -151,6 +137,24 @@ pub trait OptimizePreviewApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+}
+
+/// Runtime-facing optimization analysis request-preview boundary.
+#[async_trait]
+pub trait OptimizeAnalysisPreviewApplicationPort: Send + Sync {
+    async fn preview_create_analysis(
+        &self,
+        user_id: i64,
+        input: AnalyzeChapterInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+
+    async fn preview_prepare_analysis(
+        &self,
+        user_id: i64,
+        input: PrepareOptimizationAnalysisSessionInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
 }
@@ -733,7 +737,7 @@ impl OptimizePatchApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizePreviewApplicationPort for OrchestratorContext {
+impl OptimizeAnalysisPreviewApplicationPort for OrchestratorContext {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
@@ -778,7 +782,10 @@ impl OptimizePreviewApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizePreviewApplicationPort for OrchestratorContext {
     async fn preview_send_message(
         &self,
         user_id: i64,

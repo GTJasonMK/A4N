@@ -3016,10 +3016,21 @@ fi
 if ! rg -n 'pub trait OptimizePreviewApplicationPort' \
     crates/a4n-orchestrator/src/optimize/application.rs || \
    ! rg -n 'optimize_preview_application\(\)' \
-    crates/a4n-runtime/src/actions/optimize/analysis/request_preview.rs \
     crates/a4n-runtime/src/actions/optimize/chat/request_preview.rs \
     crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
     printf 'Optimize request previews must route through the preview port\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait OptimizeAnalysisPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/optimize/application.rs || \
+   ! rg -n 'optimize_analysis_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/analysis/request_preview.rs; then
+    printf 'Optimize analysis previews must route through OptimizeAnalysisPreviewApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n 'optimize_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/analysis/request_preview.rs; then
+    printf 'Optimize analysis previews must not use the mixed preview port\n' >&2
     exit 1
 fi
 for contract in \

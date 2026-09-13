@@ -26,10 +26,10 @@ pub(in crate::optimize) use agent_loop_executor::{
     AgentLoopExecutionError, AgentLoopGenerationContext,
 };
 pub use application::{
-    OptimizeAnalysisGenerationApplicationPort, OptimizeChatGenerationApplicationPort,
-    OptimizePatchApplicationPort, OptimizePatchApplyHostPort,
-    OptimizePatchGenerationApplicationPort, OptimizePreviewApplicationPort,
-    OptimizeSessionMutationApplicationPort,
+    OptimizeAnalysisGenerationApplicationPort, OptimizeAnalysisPreviewApplicationPort,
+    OptimizeChatGenerationApplicationPort, OptimizePatchApplicationPort,
+    OptimizePatchApplyHostPort, OptimizePatchGenerationApplicationPort,
+    OptimizePreviewApplicationPort, OptimizeSessionMutationApplicationPort,
 };
 pub(crate) use chat::OptimizeChatGenerationApplicationContext;
 pub(in crate::optimize) use contracts::{
