@@ -12,7 +12,7 @@ pub async fn preview_generate_chapter_outlines_by_count_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let steps = state
-        .outline_preview_application()
+        .outline_chapter_count_generation_preview_application()
         .preview_generate_chapter_outlines_by_count(input)
         .await?;
     outline_preview(

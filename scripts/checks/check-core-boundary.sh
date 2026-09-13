@@ -2847,6 +2847,18 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_batch_generate_part_
     printf 'Batch part generation previews must not use the mixed outline preview port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait OutlineChapterCountGenerationPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/outline/mod.rs || \
+   ! rg -n 'outline_chapter_count_generation_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/outline_records/batch/by_count.rs; then
+    printf 'Chapter-count generation previews must route through OutlineChapterCountGenerationPreviewApplicationPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_generate_chapter_outlines_by_count' \
+    crates/a4n-runtime/src/actions/outline_records/batch/by_count.rs; then
+    printf 'Chapter-count generation previews must not use the mixed outline preview port\n' >&2
+    exit 1
+fi
 
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then

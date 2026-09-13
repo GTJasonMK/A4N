@@ -65,6 +65,7 @@ pub use context::generation::{
 };
 pub use outline::{
     OutlineBatchPartGenerationPreviewApplicationPort,
+    OutlineChapterCountGenerationPreviewApplicationPort,
     OutlinePartChapterGenerationPreviewApplicationPort,
     OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
     OutlinePreviewApplicationPort,
