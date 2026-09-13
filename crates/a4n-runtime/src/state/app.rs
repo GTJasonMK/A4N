@@ -639,17 +639,6 @@ impl AppState {
             })
     }
 
-    /// Reloads the durable Run after an external worker has claimed it.
-    pub async fn load_agent_worker_run(
-        &self,
-        run_id: i64,
-        lease_token: &str,
-    ) -> Result<a4n_agent_application::agent::AgentWorkerRun, a4n_error::AppError> {
-        self.agent_worker_application
-            .load_claimed_worker_run(run_id, lease_token)
-            .await
-    }
-
     /// Authorizes a Host command at the durable lease boundary.
     pub async fn authorize_agent_host_command(
         &self,

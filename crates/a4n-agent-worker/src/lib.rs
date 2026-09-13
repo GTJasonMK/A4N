@@ -96,18 +96,9 @@ async fn poll_and_execute(
     }
     let request: WorkerRequest<AgentRunPayload> = response.json().await?;
     request
-        .validate()
+        .validate_agent_run()
         .map_err(|error| anyhow::anyhow!("Control Agent claim contract 无效: {error}"))?;
-    request
-        .payload
-        .validate()
-        .map_err(|error| anyhow::anyhow!("Control Agent claim payload 无效: {error}"))?;
-    let claimed = engine::load_agent_worker_run(
-        runtime.as_ref(),
-        request.payload.run_id,
-        &request.lease.fence_token,
-    )
-    .await?;
+    let claimed = engine::agent_worker_run_from_wire(request.payload.worker_run.clone())?;
     engine::execute_claimed_worker_run(runtime.as_ref(), claimed, request).await?;
     Ok(())
 }

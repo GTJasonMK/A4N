@@ -79,16 +79,6 @@ impl AgentRuntimeState {
         self.agent_admission.lock().await
     }
 
-    pub async fn load_agent_worker_run(
-        &self,
-        run_id: i64,
-        lease_token: &str,
-    ) -> Result<a4n_agent_application::agent::AgentWorkerRun, AppError> {
-        self.application
-            .load_claimed_worker_run(run_id, lease_token)
-            .await
-    }
-
     pub async fn authorize_agent_host_command(
         &self,
         request: &WorkerRequest<AgentHostCommandPayload>,

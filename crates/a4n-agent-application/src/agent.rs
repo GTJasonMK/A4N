@@ -33,7 +33,10 @@ use a4n_domain::agent::{
     AgentThreadCreateInput, AgentTurnInput,
 };
 use a4n_error::AppError;
-use a4n_worker_contract::{AgentHostCommandPayload, WorkerRequest};
+use a4n_worker_contract::{
+    AgentHostCommandPayload, AgentWorkerRunSnapshotWire, AgentWorkerRunWire,
+    AgentWorkerThreadSnapshotWire, WorkerRequest,
+};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
@@ -2278,6 +2281,44 @@ pub struct AgentWorkerRun {
     pub lease_token: String,
 }
 
+impl AgentWorkerRun {
+    pub fn to_wire(&self) -> AgentWorkerRunWire {
+        AgentWorkerRunWire {
+            run: AgentWorkerRunSnapshotWire {
+                id: self.run.id,
+                thread_id: self.run.thread_id,
+                turn_id: self.run.turn_id,
+                parent_run_id: self.run.parent_run_id,
+                attempt: self.run.attempt,
+                status: self.run.status.clone(),
+                budget_json: self.run.budget_json.clone(),
+                usage_json: self.run.usage_json.clone(),
+                worker_id: self.run.worker_id.clone(),
+                lease_token: self.run.lease_token.clone(),
+                lease_expires_at: self.run.lease_expires_at,
+                created_at: self.run.created_at,
+                started_at: self.run.started_at,
+            },
+            thread: AgentWorkerThreadSnapshotWire {
+                id: self.thread.id,
+                owner_user_id: self.thread.owner_user_id,
+                thread_kind: self.thread.thread_kind.clone(),
+                profile_id: self.thread.profile_id.clone(),
+                title: self.thread.title.clone(),
+                project_id: self.thread.project_id,
+                resource_type: self.thread.resource_type.clone(),
+                resource_id: self.thread.resource_id.clone(),
+                scope_json: self.thread.scope_json.clone(),
+                default_model_config_id: self.thread.default_model_config_id,
+                status: self.thread.status.clone(),
+                revision: self.thread.revision,
+                context_summary: self.thread.context_summary.clone(),
+            },
+            lease_token: self.lease_token.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentRunContext {
     pub run: AgentRunSnapshot,
@@ -2580,45 +2621,6 @@ impl AgentApplication {
             thread: thread_snapshot(thread_row)?,
             lease_token,
         }))
-    }
-
-    /// Reloads a Run claimed by an external worker without claiming it again.
-    /// The lease check is repeated after the process boundary so a stale
-    /// worker cannot resume a Run that has already been fenced or recovered.
-    pub async fn load_claimed_worker_run(
-        &self,
-        run_id: i64,
-        lease_token: &str,
-    ) -> Result<AgentWorkerRun, AppError> {
-        if run_id <= 0 || lease_token.trim().is_empty() {
-            return Err(AppError::InvalidArgument(
-                "Agent worker run_id 或 lease_token 无效".into(),
-            ));
-        }
-        let run_row = agent::run_by_id(self.connection(), run_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {run_id}")))?;
-        agent::validate_live_run_lease(&run_row, lease_token, chrono::Utc::now().naive_utc())
-            .map_err(|error| match error {
-                AgentDbError::Conflict(message) => AppError::InvalidState {
-                    current: message,
-                    operation: "恢复外部 Agent worker run".into(),
-                },
-                other => agent_db_error_to_app(other),
-            })?;
-        let thread_row = agent::thread_by_id(self.connection(), run_row.thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!("run {} 缺少 thread {}", run_row.id, run_row.thread_id),
-                operation: "恢复外部 Agent worker run".into(),
-            })?;
-        Ok(AgentWorkerRun {
-            run: run_row.into(),
-            thread: thread_snapshot(thread_row)?,
-            lease_token: lease_token.to_string(),
-        })
     }
 
     /// Authorizes a dynamic Host command returned by an external Agent worker.

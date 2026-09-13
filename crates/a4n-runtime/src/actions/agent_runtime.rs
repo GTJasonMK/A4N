@@ -135,19 +135,15 @@ fn worker_request_for_claimed_run(
             thread_id: run.thread_id,
             turn_id: run.turn_id,
             profile_id: claimed.thread.profile_id.clone(),
+            worker_run: claimed.to_wire(),
             runtime_config_snapshot,
         },
     };
-    request.validate().map_err(|error| AppError::InvalidState {
-        current: format!("Agent worker request contract 无效: {error}"),
-        operation: "校验 Agent worker request".into(),
-    })?;
     request
-        .payload
-        .validate()
+        .validate_agent_run()
         .map_err(|error| AppError::InvalidState {
-            current: format!("Agent worker payload contract 无效: {error}"),
-            operation: "校验 Agent worker payload".into(),
+            current: format!("Agent worker request contract 无效: {error}"),
+            operation: "校验 Agent worker request".into(),
         })?;
     Ok(request)
 }
@@ -991,14 +987,6 @@ pub async fn claim_agent_worker_request(
             Err(error)
         }
     }
-}
-
-pub async fn load_agent_worker_run(
-    state: &AppState,
-    run_id: i64,
-    lease_token: &str,
-) -> Result<AgentWorkerRun, AppError> {
-    state.load_agent_worker_run(run_id, lease_token).await
 }
 
 pub async fn authorize_agent_host_command(

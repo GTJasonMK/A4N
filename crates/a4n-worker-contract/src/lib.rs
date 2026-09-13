@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub use a4n_api_contract::agent::AgentScope;
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV2, VisualPlanReadView};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
+use chrono::NaiveDateTime;
 
 pub const WORKER_SCHEMA_VERSION: u32 = 1;
 pub const AGENT_RUN_OPERATION: &str = "agent.run";
@@ -55,6 +56,7 @@ pub struct AgentRunPayload {
     pub thread_id: i64,
     pub turn_id: i64,
     pub profile_id: String,
+    pub worker_run: AgentWorkerRunWire,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_config_snapshot: Option<serde_json::Value>,
 }
@@ -74,7 +76,106 @@ impl AgentRunPayload {
             }
         }
         validate_non_blank("profile_id", &self.profile_id)
+            .and_then(|_| self.worker_run.validate(self))
     }
+}
+
+impl WorkerRequest<AgentRunPayload> {
+    pub fn validate_agent_run(&self) -> Result<(), WorkerContractError> {
+        self.validate()?;
+        self.payload.validate()?;
+        let snapshot = &self.payload.worker_run;
+        if self.operation_id != AGENT_RUN_OPERATION {
+            return Err(WorkerContractError::InvalidRelation(
+                "Agent run operation_id 无效",
+            ));
+        }
+        if self.lease.worker_id != snapshot.run.worker_id.as_deref().unwrap_or_default()
+            || self.lease.fence_token != snapshot.lease_token
+            || self.lease.epoch != u64::try_from(snapshot.run.attempt).unwrap_or_default()
+        {
+            return Err(WorkerContractError::InvalidRelation(
+                "Agent run lease 与 worker 快照不一致",
+            ));
+        }
+        if self.principal.subject != snapshot.thread.owner_user_id.to_string() {
+            return Err(WorkerContractError::InvalidRelation(
+                "Agent run principal 与 worker 快照不一致",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerRunWire {
+    pub run: AgentWorkerRunSnapshotWire,
+    pub thread: AgentWorkerThreadSnapshotWire,
+    pub lease_token: String,
+}
+
+impl AgentWorkerRunWire {
+    fn validate(&self, payload: &AgentRunPayload) -> Result<(), WorkerContractError> {
+        if self.run.id != payload.run_id
+            || self.run.thread_id != payload.thread_id
+            || self.run.turn_id != payload.turn_id
+            || self.thread.id != payload.thread_id
+            || self.thread.profile_id != payload.profile_id
+        {
+            return Err(WorkerContractError::InvalidRelation(
+                "worker_run 与 payload 标识不一致",
+            ));
+        }
+        if self.run.lease_token.as_deref() != Some(self.lease_token.as_str()) {
+            return Err(WorkerContractError::InvalidRelation(
+                "worker_run lease_token 不一致",
+            ));
+        }
+        if self.run.attempt <= 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "worker_run.run.attempt",
+                reason: "must be positive",
+            });
+        }
+        validate_non_blank("worker_run.lease_token", &self.lease_token)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerRunSnapshotWire {
+    pub id: i64,
+    pub thread_id: i64,
+    pub turn_id: i64,
+    pub parent_run_id: Option<i64>,
+    pub attempt: i32,
+    pub status: String,
+    pub budget_json: serde_json::Value,
+    pub usage_json: serde_json::Value,
+    pub worker_id: Option<String>,
+    pub lease_token: Option<String>,
+    pub lease_expires_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub started_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerThreadSnapshotWire {
+    pub id: i64,
+    pub owner_user_id: i64,
+    pub thread_kind: String,
+    pub profile_id: String,
+    pub title: Option<String>,
+    pub project_id: Option<i64>,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    pub scope_json: serde_json::Value,
+    pub default_model_config_id: Option<i64>,
+    pub status: String,
+    pub revision: i64,
+    pub context_summary: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -413,5 +514,68 @@ mod tests {
         let mut value = serde_json::to_value(request).expect("DTO should serialize");
         value["unexpected"] = true.into();
         assert!(serde_json::from_value::<AgentWorkerCancelGenerationRequest>(value).is_err());
+    }
+
+    #[test]
+    fn run_payload_requires_a_consistent_worker_snapshot() {
+        let timestamp = chrono::NaiveDate::from_ymd_opt(2030, 1, 1)
+            .expect("date")
+            .and_hms_opt(0, 0, 0)
+            .expect("time");
+        let payload = AgentRunPayload {
+            run_id: 7,
+            thread_id: 8,
+            turn_id: 9,
+            profile_id: "general".into(),
+            worker_run: AgentWorkerRunWire {
+                run: AgentWorkerRunSnapshotWire {
+                    id: 7,
+                    thread_id: 8,
+                    turn_id: 9,
+                    parent_run_id: None,
+                    attempt: 1,
+                    status: "running".into(),
+                    budget_json: serde_json::json!({}),
+                    usage_json: serde_json::json!({}),
+                    worker_id: Some("worker-1".into()),
+                    lease_token: Some("fence-1".into()),
+                    lease_expires_at: Some(timestamp),
+                    created_at: timestamp,
+                    started_at: Some(timestamp),
+                },
+                thread: AgentWorkerThreadSnapshotWire {
+                    id: 8,
+                    owner_user_id: 11,
+                    thread_kind: "main".into(),
+                    profile_id: "general".into(),
+                    title: None,
+                    project_id: Some(12),
+                    resource_type: None,
+                    resource_id: None,
+                    scope_json: serde_json::json!({}),
+                    default_model_config_id: None,
+                    status: "active".into(),
+                    revision: 1,
+                    context_summary: None,
+                },
+                lease_token: "fence-1".into(),
+            },
+            runtime_config_snapshot: None,
+        };
+        payload
+            .validate()
+            .expect("worker snapshot should match payload");
+
+        let encoded = serde_json::to_string(&payload).expect("payload should serialize");
+        let decoded: AgentRunPayload =
+            serde_json::from_str(&encoded).expect("payload should deserialize");
+        assert_eq!(decoded, payload);
+
+        let mut inconsistent = payload;
+        inconsistent.worker_run.thread.profile_id = "other".into();
+        assert!(matches!(
+            inconsistent.validate(),
+            Err(WorkerContractError::InvalidRelation(_))
+        ));
     }
 }

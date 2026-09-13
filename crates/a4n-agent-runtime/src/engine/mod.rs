@@ -1,9 +1,9 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput,
-    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
-    enforce_delegation_limits, validate_agent_budget,
+    AgentRunContext, AgentRunSnapshot, AgentThreadSnapshot, AgentWorkerReadApplicationPort,
+    AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate,
+    WorkerUsage, child_budget_within_parent, enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -15,8 +15,8 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerRunWire, WORKER_SCHEMA_VERSION, WorkerLease,
+    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -49,6 +49,50 @@ const MAX_BASE_AGENT_TOOLS: usize = 6;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
 const MAX_AGENT_TOOL_SCHEMAS: usize = 12;
 const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
+
+pub fn agent_worker_run_from_wire(wire: AgentWorkerRunWire) -> Result<AgentWorkerRun, AppError> {
+    if wire.lease_token.trim().is_empty()
+        || wire.run.lease_token.as_deref() != Some(wire.lease_token.as_str())
+    {
+        return Err(AppError::InvalidState {
+            current: "Agent worker run wire 的 lease token 无效".into(),
+            operation: "恢复 Agent worker run 快照".into(),
+        });
+    }
+    Ok(AgentWorkerRun {
+        run: AgentRunSnapshot {
+            id: wire.run.id,
+            thread_id: wire.run.thread_id,
+            turn_id: wire.run.turn_id,
+            parent_run_id: wire.run.parent_run_id,
+            attempt: wire.run.attempt,
+            status: wire.run.status,
+            budget_json: wire.run.budget_json,
+            usage_json: wire.run.usage_json,
+            worker_id: wire.run.worker_id,
+            lease_token: wire.run.lease_token,
+            lease_expires_at: wire.run.lease_expires_at,
+            created_at: wire.run.created_at,
+            started_at: wire.run.started_at,
+        },
+        thread: AgentThreadSnapshot {
+            id: wire.thread.id,
+            owner_user_id: wire.thread.owner_user_id,
+            thread_kind: wire.thread.thread_kind,
+            profile_id: wire.thread.profile_id,
+            title: wire.thread.title,
+            project_id: wire.thread.project_id,
+            resource_type: wire.thread.resource_type,
+            resource_id: wire.thread.resource_id,
+            scope_json: wire.thread.scope_json,
+            default_model_config_id: wire.thread.default_model_config_id,
+            status: wire.thread.status,
+            revision: wire.thread.revision,
+            context_summary: wire.thread.context_summary,
+        },
+        lease_token: wire.lease_token,
+    })
+}
 
 fn worker_request_for_claimed_run(
     claimed: &AgentWorkerRun,
@@ -117,19 +161,15 @@ fn worker_request_for_claimed_run(
             thread_id: run.thread_id,
             turn_id: run.turn_id,
             profile_id: claimed.thread.profile_id.clone(),
+            worker_run: claimed.to_wire(),
             runtime_config_snapshot,
         },
     };
-    request.validate().map_err(|error| AppError::InvalidState {
-        current: format!("Agent worker request contract 无效: {error}"),
-        operation: "校验 Agent worker request".into(),
-    })?;
     request
-        .payload
-        .validate()
+        .validate_agent_run()
         .map_err(|error| AppError::InvalidState {
-            current: format!("Agent worker payload contract 无效: {error}"),
-            operation: "校验 Agent worker payload".into(),
+            current: format!("Agent worker request contract 无效: {error}"),
+            operation: "校验 Agent worker request".into(),
         })?;
     Ok(request)
 }
@@ -138,7 +178,7 @@ fn validate_claimed_worker_request(
     claimed: &AgentWorkerRun,
     request: &WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
-    request.payload.validate().map_err(|error| {
+    request.validate_agent_run().map_err(|error| {
         AppError::InvalidArgument(format!("Agent worker payload 无效: {error}"))
     })?;
     let runtime_snapshot = request
@@ -647,14 +687,6 @@ pub async fn claim_agent_worker_request(
             Err(error)
         }
     }
-}
-
-pub async fn load_agent_worker_run(
-    state: &AgentRuntimeState,
-    run_id: i64,
-    lease_token: &str,
-) -> Result<AgentWorkerRun, AppError> {
-    state.load_agent_worker_run(run_id, lease_token).await
 }
 
 pub async fn authorize_agent_host_command(
