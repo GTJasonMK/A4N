@@ -13,7 +13,8 @@ use a4n_worker_contract::{
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerEditorProjectionRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
@@ -240,6 +241,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerDelegationReviewRequest,
     ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/delegation/review", request)
+            .await
+    }
+
+    async fn ensure_canonical_subagent_thread(
+        &self,
+        request: &AgentWorkerDelegationThreadRequest,
+    ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/delegation/thread", request)
             .await
     }
 

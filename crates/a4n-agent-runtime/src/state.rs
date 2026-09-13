@@ -20,7 +20,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerExecutionCreateRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
     AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
@@ -301,6 +302,35 @@ impl AgentRuntimeState {
             operation: "审阅 Agent delegation".into(),
         })?;
         self.host.review_delegation(&request).await
+    }
+
+    pub async fn ensure_agent_canonical_subagent_thread(
+        &self,
+        worker_request: &WorkerRequest<AgentRunPayload>,
+        user_id: i64,
+        input: a4n_agent_application::agent::EnsureCanonicalSubagentThreadInput,
+    ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
+        if worker_request.payload.worker_run.thread.owner_user_id != user_id {
+            return Err(AppError::Forbidden(
+                "Agent delegation thread user 与 worker run 不一致".into(),
+            ));
+        }
+        let request = AgentWorkerDelegationThreadRequest {
+            run_id: worker_request.payload.run_id,
+            lease: worker_request.lease.clone(),
+            user_id,
+            canonical_binding_key: input.canonical_binding_key,
+            capability: input.capability,
+            title: input.title,
+            scope: input.scope,
+            bound_resource: input.bound_resource,
+            default_model_config_id: input.default_model_config_id,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent delegation thread request 无效: {error}"),
+            operation: "获取 Agent delegation thread".into(),
+        })?;
+        self.host.ensure_canonical_subagent_thread(&request).await
     }
 
     pub async fn agent_worker_run_is_terminal(

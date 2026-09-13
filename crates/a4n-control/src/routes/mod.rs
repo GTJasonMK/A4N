@@ -255,6 +255,10 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::review_agent_delegation),
         )
         .route(
+            "/agent/delegation/thread",
+            post(agent_runtime::ensure_agent_canonical_subagent_thread),
+        )
+        .route(
             "/agent/run-status",
             post(agent_runtime::agent_worker_run_is_terminal),
         )

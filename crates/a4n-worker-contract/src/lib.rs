@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 pub use a4n_api_contract::agent::AgentScope;
-use a4n_api_contract::agent::{AgentDelegationView, ReviewAgentDelegationInput};
+use a4n_api_contract::agent::{AgentDelegationView, AgentResourceRef, ReviewAgentDelegationInput};
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV2, VisualPlanReadView};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use chrono::NaiveDateTime;
@@ -470,6 +470,36 @@ impl AgentWorkerDelegationReviewRequest {
 }
 
 pub type AgentWorkerDelegationReviewSnapshotWire = AgentDelegationView;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationThreadRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub user_id: i64,
+    pub canonical_binding_key: String,
+    pub capability: String,
+    pub title: Option<String>,
+    pub scope: AgentScope,
+    pub bound_resource: Option<AgentResourceRef>,
+    pub default_model_config_id: Option<i64>,
+}
+
+impl AgentWorkerDelegationThreadRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("user_id", self.user_id)?;
+        validate_non_blank("canonical_binding_key", &self.canonical_binding_key)?;
+        validate_non_blank("capability", &self.capability)?;
+        validate_positive_optional_id("default_model_config_id", self.default_model_config_id)
+    }
+}
+
+pub type AgentWorkerDelegationThreadSnapshotWire = AgentWorkerThreadSnapshotWire;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1249,6 +1279,41 @@ mod tests {
         let decoded: AgentWorkerRunStatusSnapshotWire =
             serde_json::from_str(&encoded).expect("run status should deserialize");
         assert!(decoded.terminal);
+    }
+
+    #[test]
+    fn delegation_thread_request_validates_identity_fields() {
+        let request = AgentWorkerDelegationThreadRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            user_id: 11,
+            canonical_binding_key: "subagent:director:chapter:7".into(),
+            capability: "director".into(),
+            title: Some("Director".into()),
+            scope: AgentScope {
+                resource_kind: Some("chapter".into()),
+                resource_id: Some("7".into()),
+                project_id: Some(3),
+                chapter_id: Some(7),
+                allowed_capabilities: vec!["director".into()],
+                allowed_tools: Vec::new(),
+            },
+            bound_resource: None,
+            default_model_config_id: Some(4),
+        };
+        request
+            .validate()
+            .expect("delegation thread request should be valid");
+        let invalid = AgentWorkerDelegationThreadRequest {
+            capability: "  ".into(),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::BlankField {
+                field: "capability"
+            })
+        ));
     }
 
     #[test]

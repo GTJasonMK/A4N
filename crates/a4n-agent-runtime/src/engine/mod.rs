@@ -2250,8 +2250,9 @@ async fn execute_tool_call(
         let binding = binding::canonical_subagent_binding(&capability, project_id, chapter_id)?;
         let mut child_scope = binding.scope(&capability);
         delegation_application.inherit_subagent_allowlists(&context.scope, &mut child_scope)?;
-        let child_thread = delegation_application
-            .ensure_canonical_subagent_thread(
+        let child_thread = state
+            .ensure_agent_canonical_subagent_thread(
+                &executor.worker_request,
                 context.owner_user_id,
                 a4n_agent_application::agent::EnsureCanonicalSubagentThreadInput {
                     canonical_binding_key: binding.key,
