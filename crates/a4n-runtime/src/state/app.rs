@@ -280,9 +280,11 @@ pub struct AppState {
     /// Canvas graph workflow preparation and terminal transition owner.
     canvas_graph_execution_application:
         Arc<dyn a4n_canvas_contract::CanvasGraphExecutionApplicationPort>,
-    /// Host-facing package state/preferences port. Lifecycle workers keep the
-    /// concrete owner because they coordinate service startup and draining.
-    package_application: Arc<dyn a4n_api_contract::package::PackageApplicationPort>,
+    /// Host-facing package state read port. Lifecycle workers keep package
+    /// ownership behind the narrow read/mutation contracts.
+    package_read_application: Arc<dyn a4n_api_contract::package::PackageReadApplicationPort>,
+    package_mutation_application:
+        Arc<dyn a4n_api_contract::package::PackageMutationApplicationPort>,
     /// Host-facing import-analysis progress boundary.
     import_analysis_progress_application:
         Arc<dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort>,
@@ -1595,10 +1597,16 @@ impl AppState {
         self.canvas_graph_execution_application.as_ref()
     }
 
-    pub(crate) fn package_application(
+    pub(crate) fn package_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::package::PackageApplicationPort {
-        self.package_application.as_ref()
+    ) -> &dyn a4n_api_contract::package::PackageReadApplicationPort {
+        self.package_read_application.as_ref()
+    }
+
+    pub(crate) fn package_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::package::PackageMutationApplicationPort {
+        self.package_mutation_application.as_ref()
     }
 
     pub(crate) fn import_analysis_application(
@@ -2184,13 +2192,17 @@ impl AppState {
         let rag_ingest: Arc<dyn a4n_rag_contract::RagIngestPort> = Arc::new(orchestrator.clone());
         let config_application: Arc<dyn a4n_api_contract::config::ConfigApplicationPort> =
             Arc::new(orchestrator.clone());
-        let package_application: Arc<dyn a4n_api_contract::package::PackageApplicationPort> =
-            Arc::new(orchestrator.clone());
+        let package_read_application: Arc<
+            dyn a4n_api_contract::package::PackageReadApplicationPort,
+        > = Arc::new(orchestrator.clone());
+        let package_mutation_application: Arc<
+            dyn a4n_api_contract::package::PackageMutationApplicationPort,
+        > = Arc::new(orchestrator.clone());
         let settings_all_application: Arc<
             dyn a4n_api_contract::config::SettingsAllApplicationPort,
         > = Arc::new(orchestrator.clone());
         if runtime_role == RuntimeRole::Host {
-            package_application.initialize_states().await?;
+            package_mutation_application.initialize_states().await?;
             crate::baseline_configs::ensure_baseline_model_configs(
                 config_application.as_ref(),
                 &config,
@@ -2279,7 +2291,8 @@ impl AppState {
             canvas_output_application: Arc::new(orchestrator.clone()),
             canvas_media_import_application: Arc::new(orchestrator.clone()),
             canvas_graph_execution_application: Arc::new(orchestrator.clone()),
-            package_application,
+            package_read_application,
+            package_mutation_application,
             import_analysis_progress_application: Arc::new(orchestrator.clone()),
             import_analysis_preview_application: Arc::new(orchestrator.clone()),
             import_analysis_application: Arc::new(orchestrator.clone()),
@@ -2364,7 +2377,7 @@ impl AppState {
             agent_host_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
         };
         if runtime_role == RuntimeRole::Host {
-            let enabled_services = state.package_application().enabled_services().await?;
+            let enabled_services = state.package_read_application().enabled_services().await?;
             state
                 .start_managed_sidecars_for_services(&enabled_services)
                 .await

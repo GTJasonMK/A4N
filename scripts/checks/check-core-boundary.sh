@@ -1462,25 +1462,31 @@ if ! rg -n 'export_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait PackageApplicationPort' crates/a4n-api-contract/src/package.rs; then
-    printf 'PackageApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait Package(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/package.rs; then
+    printf 'Package read/mutation contracts are missing\n' >&2
     exit 1
 fi
 
-if ! rg -n '\.execution_enabled\(package_id\)' \
+if rg -n 'PackageApplicationPort|package_application\(\)' \
+    crates/a4n-api-contract/src/package.rs crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed PackageApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -U -n 'package_read_application\(\)\s*\.\s*execution_enabled\(package_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package execution admission must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package execution admission must consume PackageReadApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n '\.ensure_execution_enabled\(package_id\)' \
+if ! rg -U -n 'package_mutation_application\(\)\s*\.\s*ensure_execution_enabled\(package_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package execution guard must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package execution guard must consume PackageMutationApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n '\.start_lifecycle\(' crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package lifecycle start must consume PackageApplicationPort\n' >&2
+if ! rg -U -n 'package_mutation_application\(\)\s*\.\s*start_lifecycle\(' crates/a4n-runtime/src/actions/package.rs; then
+    printf 'Runtime package lifecycle start must consume PackageMutationApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1490,9 +1496,9 @@ if rg -n 'state\.orchestrator\(\)\.start_package_lifecycle' \
     exit 1
 fi
 
-if ! rg -n 'package_application\(\)\.owned_services\(package_id\)' \
+if ! rg -n 'package_read_application\(\)\.owned_services\(package_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package service startup must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package service startup must consume PackageReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1502,15 +1508,15 @@ if rg -n 'state\.orchestrator\(\)\.package_service_names' \
     exit 1
 fi
 
-if ! rg -n 'package_application\(\)\.has_workload\(package_id\)' \
+if ! rg -U -n 'package_read_application\(\)\s*\.\s*has_workload\(package_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package lifecycle workload checks must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package lifecycle workload checks must consume PackageReadApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -U -n 'package_application\(\)\s*\.\s*services_safe_to_stop\(package_id\)' \
+if ! rg -U -n 'package_read_application\(\)\s*\.\s*services_safe_to_stop\(package_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package service shutdown checks must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package service shutdown checks must consume PackageReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1520,9 +1526,9 @@ if rg -U -n 'state\s*\.\s*orchestrator\(\)\s*\.\s*package_services_safe_to_stop'
     exit 1
 fi
 
-if ! rg -U -n 'package_application\(\)\s*\.\s*finalize_disable\(operation_id\)' \
+if ! rg -U -n 'package_mutation_application\(\)\s*\.\s*finalize_disable\(operation_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package disable finalization must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package disable finalization must consume PackageMutationApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1532,9 +1538,9 @@ if rg -U -n 'state\s*\.\s*orchestrator\(\)\s*\.\s*finalize_package_disable' \
     exit 1
 fi
 
-if ! rg -U -n 'package_application\(\)\s*\.\s*pending_lifecycle_operations\(\)' \
+if ! rg -U -n 'package_read_application\(\)\s*\.\s*pending_lifecycle_operations\(\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package lifecycle recovery must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package lifecycle recovery must consume PackageReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1544,9 +1550,9 @@ if rg -U -n 'state\s*\.\s*orchestrator\(\)\s*\.\s*pending_package_lifecycle_oper
     exit 1
 fi
 
-if ! rg -n 'package_application\(\)\.enabled_services\(\)' \
+if ! rg -n 'package_read_application\(\)\.enabled_services\(\)' \
     crates/a4n-runtime/src/state/app.rs; then
-    printf 'Runtime package startup service discovery must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package startup service discovery must consume PackageReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -1556,9 +1562,9 @@ if rg -U -n 'state\s*\.\s*orchestrator\(\)\s*\.\s*enabled_package_service_names'
     exit 1
 fi
 
-if ! rg -U -n 'package_application\(\)\s*\.\s*advance_lifecycle\(operation_id\)' \
+if ! rg -U -n 'package_mutation_application\(\)\s*\.\s*advance_lifecycle\(operation_id\)' \
     crates/a4n-runtime/src/actions/package.rs; then
-    printf 'Runtime package lifecycle advancement must consume PackageApplicationPort\n' >&2
+    printf 'Runtime package lifecycle advancement must consume PackageMutationApplicationPort\n' >&2
     exit 1
 fi
 
