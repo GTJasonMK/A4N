@@ -263,6 +263,10 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::append_agent_worker_update),
         )
         .route(
+            "/agent/delegation/start",
+            post(agent_runtime::create_agent_child_run),
+        )
+        .route(
             "/agent/run-status",
             post(agent_runtime::agent_worker_run_is_terminal),
         )

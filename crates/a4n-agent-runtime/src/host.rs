@@ -12,7 +12,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
@@ -111,6 +112,11 @@ pub trait AgentRuntimeHost: Send + Sync {
 
     async fn append_worker_update(&self, request: &AgentWorkerEventRequest)
     -> Result<(), AppError>;
+
+    async fn create_child_run(
+        &self,
+        request: &AgentWorkerDelegationStartRequest,
+    ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError>;
 
     async fn run_is_terminal(
         &self,

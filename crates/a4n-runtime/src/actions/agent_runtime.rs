@@ -35,7 +35,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerBudgetSnapshotWire, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
@@ -1250,6 +1251,19 @@ pub async fn append_agent_worker_update(
     state
         .agent_worker_delegation_application()
         .append_worker_update_request(request)
+        .await
+}
+
+pub async fn create_agent_child_run(
+    state: &AppState,
+    request: &AgentWorkerDelegationStartRequest,
+) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent delegation start 无效: {error}"))
+    })?;
+    state
+        .agent_worker_delegation_application()
+        .create_child_run_request(request)
         .await
 }
 

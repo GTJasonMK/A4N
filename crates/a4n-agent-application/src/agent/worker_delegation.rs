@@ -6,6 +6,7 @@ use a4n_api_contract::agent::{AgentDelegationView, AgentScope, ReviewAgentDelega
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
+    AgentWorkerDelegationStartRequest, AgentWorkerDelegationStartSnapshotWire,
     AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
     AgentWorkerEventRequest,
 };
@@ -35,6 +36,11 @@ pub trait AgentWorkerDelegationApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerEventRequest,
     ) -> Result<(), AppError>;
+
+    async fn create_child_run_request(
+        &self,
+        request: &AgentWorkerDelegationStartRequest,
+    ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError>;
 
     fn inherit_subagent_allowlists(
         &self,
@@ -94,6 +100,13 @@ impl AgentWorkerDelegationApplicationPort for AgentApplication {
         request: &AgentWorkerEventRequest,
     ) -> Result<(), AppError> {
         AgentApplication::append_worker_update_request(self, request).await
+    }
+
+    async fn create_child_run_request(
+        &self,
+        request: &AgentWorkerDelegationStartRequest,
+    ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError> {
+        AgentApplication::create_child_run_request(self, request).await
     }
 
     fn inherit_subagent_allowlists(

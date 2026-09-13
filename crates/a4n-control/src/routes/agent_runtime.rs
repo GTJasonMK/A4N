@@ -25,7 +25,8 @@ use a4n_worker_contract::{
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
@@ -331,6 +332,21 @@ pub(super) async fn append_agent_worker_update(
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::append_agent_worker_update(state.runtime(), &input).await?;
     Ok(Json(Value::Null))
+}
+
+pub(super) async fn create_agent_child_run(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerDelegationStartRequest>,
+) -> Result<Json<AgentWorkerDelegationStartSnapshotWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::create_agent_child_run(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn agent_worker_run_is_terminal(

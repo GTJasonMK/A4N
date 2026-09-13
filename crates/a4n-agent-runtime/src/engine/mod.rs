@@ -2275,8 +2275,8 @@ async fn execute_tool_call(
             .await?;
         let _admission = state.lock_agent_admission().await;
         ensure_agent_package_enabled(state).await?;
-        let result = delegation_application
-            .create_child_run(
+        let result = state
+            .create_agent_child_run(
                 claimed,
                 WorkerDelegationInput {
                     capability,

@@ -503,6 +503,51 @@ pub type AgentWorkerDelegationThreadSnapshotWire = AgentWorkerThreadSnapshotWire
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationStartRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub capability: String,
+    pub objective: String,
+    pub delegation_key: String,
+    pub child_thread_id: i64,
+    pub scope: AgentScope,
+    pub success_criteria: Vec<String>,
+    pub budget_json: serde_json::Value,
+    pub parent_execution_id: Option<i64>,
+}
+
+impl AgentWorkerDelegationStartRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("capability", &self.capability)?;
+        validate_non_blank("objective", &self.objective)?;
+        validate_non_blank("delegation_key", &self.delegation_key)?;
+        validate_positive_id("child_thread_id", self.child_thread_id)?;
+        if !self.budget_json.is_object() {
+            return Err(WorkerContractError::InvalidValue {
+                field: "budget_json",
+                reason: "must be an object",
+            });
+        }
+        validate_positive_optional_id("parent_execution_id", self.parent_execution_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationStartSnapshotWire {
+    pub delegation: AgentWorkerDelegationSnapshotWire,
+    pub child_turn: AgentWorkerTurnSnapshotWire,
+    pub child_run: AgentWorkerRunSnapshotWire,
+    pub child_message: AgentWorkerMessageSnapshotWire,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerEventRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
@@ -1359,6 +1404,43 @@ mod tests {
             invalid.validate(),
             Err(WorkerContractError::BlankField {
                 field: "public_text"
+            })
+        ));
+    }
+
+    #[test]
+    fn delegation_start_request_validates_transaction_input() {
+        let request = AgentWorkerDelegationStartRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            capability: "director".into(),
+            objective: "整理镜头计划".into(),
+            delegation_key: "tool-call-1".into(),
+            child_thread_id: 9,
+            scope: AgentScope {
+                resource_kind: Some("chapter".into()),
+                resource_id: Some("7".into()),
+                project_id: Some(3),
+                chapter_id: Some(7),
+                allowed_capabilities: vec!["director".into()],
+                allowed_tools: Vec::new(),
+            },
+            success_criteria: vec!["返回可执行方案".into()],
+            budget_json: serde_json::json!({"max_steps": 4}),
+            parent_execution_id: Some(11),
+        };
+        request
+            .validate()
+            .expect("delegation start request should be valid");
+        let invalid = AgentWorkerDelegationStartRequest {
+            child_thread_id: 0,
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "child_thread_id",
+                ..
             })
         ));
     }

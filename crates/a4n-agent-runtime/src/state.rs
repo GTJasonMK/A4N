@@ -1,9 +1,10 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
-    AgentApplication, AgentApprovalExpiryApplicationPort, AgentEditorClaimApplicationPort,
-    AgentEditorResponseApplicationPort, AgentEditorWaitApplicationPort, AgentExecutionSnapshot,
-    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort,
-    AgentMessageSnapshot, AgentRunContext, AgentRunLeaseRecoveryApplicationPort,
+    AgentApplication, AgentApprovalExpiryApplicationPort, AgentDelegationSnapshot,
+    AgentEditorClaimApplicationPort, AgentEditorResponseApplicationPort,
+    AgentEditorWaitApplicationPort, AgentExecutionSnapshot, AgentExternalTaskWaitApplicationPort,
+    AgentGenerationCancelApplicationPort, AgentMessageSnapshot, AgentRunContext,
+    AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
     AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
     AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot, AgentWorkerClaimApplicationPort,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
@@ -20,7 +21,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
@@ -354,6 +356,33 @@ impl AgentRuntimeState {
             operation: "写入 Agent worker event".into(),
         })?;
         self.host.append_worker_update(&request).await
+    }
+
+    pub async fn create_agent_child_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: a4n_agent_application::agent::WorkerDelegationInput,
+    ) -> Result<a4n_agent_application::agent::WorkerDelegationResult, AppError> {
+        let request = AgentWorkerDelegationStartRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            capability: input.capability,
+            objective: input.objective,
+            delegation_key: input.delegation_key,
+            child_thread_id: input.child_thread_id,
+            scope: input.scope,
+            success_criteria: input.success_criteria,
+            budget_json: input.budget_json,
+            parent_execution_id: input.parent_execution_id,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent delegation start request 无效: {error}"),
+            operation: "创建 Agent child run".into(),
+        })?;
+        self.host
+            .create_child_run(&request)
+            .await
+            .map(worker_delegation_result_from_wire)
     }
 
     pub async fn agent_worker_run_is_terminal(
@@ -771,6 +800,63 @@ impl AgentRuntimeState {
     }
     pub fn workflow_cancel_application(&self) -> &dyn AgentWorkflowCancelApplicationPort {
         self.application.as_ref()
+    }
+}
+
+fn worker_delegation_result_from_wire(
+    snapshot: AgentWorkerDelegationStartSnapshotWire,
+) -> a4n_agent_application::agent::WorkerDelegationResult {
+    a4n_agent_application::agent::WorkerDelegationResult {
+        delegation: AgentDelegationSnapshot {
+            id: snapshot.delegation.id,
+            parent_run_id: snapshot.delegation.parent_run_id,
+            parent_execution_id: snapshot.delegation.parent_execution_id,
+            child_thread_id: snapshot.delegation.child_thread_id,
+            child_turn_id: snapshot.delegation.child_turn_id,
+            child_run_id: snapshot.delegation.child_run_id,
+            delegation_key: snapshot.delegation.delegation_key,
+            capability: snapshot.delegation.capability,
+            objective: snapshot.delegation.objective,
+            success_criteria_json: snapshot.delegation.success_criteria_json,
+            scope_json: snapshot.delegation.scope_json,
+            budget_json: snapshot.delegation.budget_json,
+            status: snapshot.delegation.status,
+            result_refs_json: snapshot.delegation.result_refs_json,
+            result_summary: snapshot.delegation.result_summary,
+            error_message: snapshot.delegation.error_message,
+        },
+        child_turn: AgentTurnSnapshot {
+            id: snapshot.child_turn.id,
+            thread_id: snapshot.child_turn.thread_id,
+            input_message_id: snapshot.child_turn.input_message_id,
+            execution_mode: snapshot.child_turn.execution_mode,
+            goal: snapshot.child_turn.goal,
+            model_override_json: snapshot.child_turn.model_override_json,
+        },
+        child_run: AgentRunSnapshot {
+            id: snapshot.child_run.id,
+            thread_id: snapshot.child_run.thread_id,
+            turn_id: snapshot.child_run.turn_id,
+            parent_run_id: snapshot.child_run.parent_run_id,
+            attempt: snapshot.child_run.attempt,
+            status: snapshot.child_run.status,
+            budget_json: snapshot.child_run.budget_json,
+            usage_json: snapshot.child_run.usage_json,
+            worker_id: snapshot.child_run.worker_id,
+            lease_token: snapshot.child_run.lease_token,
+            lease_expires_at: snapshot.child_run.lease_expires_at,
+            created_at: snapshot.child_run.created_at,
+            started_at: snapshot.child_run.started_at,
+        },
+        child_message: AgentMessageSnapshot {
+            id: snapshot.child_message.id,
+            thread_id: snapshot.child_message.thread_id,
+            turn_id: snapshot.child_message.turn_id,
+            run_id: snapshot.child_message.run_id,
+            role: snapshot.child_message.role,
+            content: snapshot.child_message.content,
+            payload_json: snapshot.child_message.payload_json,
+        },
     }
 }
 

@@ -38,7 +38,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerCompletionRequest,
     AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
     AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
-    AgentWorkerDelegationSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
@@ -2429,6 +2430,40 @@ fn run_snapshot_to_wire(snapshot: &AgentRunSnapshot) -> AgentWorkerRunSnapshotWi
     }
 }
 
+fn turn_snapshot_to_wire(snapshot: &AgentTurnSnapshot) -> AgentWorkerTurnSnapshotWire {
+    AgentWorkerTurnSnapshotWire {
+        id: snapshot.id,
+        thread_id: snapshot.thread_id,
+        input_message_id: snapshot.input_message_id,
+        execution_mode: snapshot.execution_mode.clone(),
+        goal: snapshot.goal.clone(),
+        model_override_json: snapshot.model_override_json.clone(),
+    }
+}
+
+fn delegation_snapshot_to_wire(
+    snapshot: &AgentDelegationSnapshot,
+) -> AgentWorkerDelegationSnapshotWire {
+    AgentWorkerDelegationSnapshotWire {
+        id: snapshot.id,
+        parent_run_id: snapshot.parent_run_id,
+        parent_execution_id: snapshot.parent_execution_id,
+        child_thread_id: snapshot.child_thread_id,
+        child_turn_id: snapshot.child_turn_id,
+        child_run_id: snapshot.child_run_id,
+        delegation_key: snapshot.delegation_key.clone(),
+        capability: snapshot.capability.clone(),
+        objective: snapshot.objective.clone(),
+        success_criteria_json: snapshot.success_criteria_json.clone(),
+        scope_json: snapshot.scope_json.clone(),
+        budget_json: snapshot.budget_json.clone(),
+        status: snapshot.status.clone(),
+        result_refs_json: snapshot.result_refs_json.clone(),
+        result_summary: snapshot.result_summary.clone(),
+        error_message: snapshot.error_message.clone(),
+    }
+}
+
 fn run_snapshot_from_wire(snapshot: AgentWorkerRunSnapshotWire) -> AgentRunSnapshot {
     AgentRunSnapshot {
         id: snapshot.id,
@@ -3308,7 +3343,7 @@ impl AgentApplication {
     async fn validate_worker_lease_request(
         &self,
         request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<(), AppError> {
+    ) -> Result<run::Model, AppError> {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
@@ -3327,7 +3362,7 @@ impl AgentApplication {
                 operation: "校验 Agent worker lease".into(),
             });
         }
-        Ok(())
+        Ok(run)
     }
 
     pub(crate) async fn read_execution_result_for_run(
@@ -3713,6 +3748,50 @@ impl AgentApplication {
             child_turn: child_turn.into(),
             child_run: child_run.into(),
             child_message: child_message.into(),
+        })
+    }
+
+    pub(crate) async fn create_child_run_request(
+        &self,
+        request: &AgentWorkerDelegationStartRequest,
+    ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let run = self
+            .validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
+        let claimed = AgentWorkerRun {
+            run: run.into(),
+            thread: thread_snapshot(thread)?,
+            lease_token: request.lease.fence_token.clone(),
+        };
+        self.create_child_run(
+            &claimed,
+            WorkerDelegationInput {
+                capability: request.capability.clone(),
+                objective: request.objective.clone(),
+                delegation_key: request.delegation_key.clone(),
+                child_thread_id: request.child_thread_id,
+                scope: request.scope.clone(),
+                success_criteria: request.success_criteria.clone(),
+                budget_json: request.budget_json.clone(),
+                parent_execution_id: request.parent_execution_id,
+            },
+        )
+        .await
+        .map(|result| AgentWorkerDelegationStartSnapshotWire {
+            delegation: delegation_snapshot_to_wire(&result.delegation),
+            child_turn: turn_snapshot_to_wire(&result.child_turn),
+            child_run: run_snapshot_to_wire(&result.child_run),
+            child_message: result.child_message.into(),
         })
     }
 

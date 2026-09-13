@@ -13,7 +13,8 @@ use a4n_worker_contract::{
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorProjectionRequest,
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
@@ -260,6 +261,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .request_json(Method::POST, "/internal/agent/event", request)
             .await?;
         Ok(())
+    }
+
+    async fn create_child_run(
+        &self,
+        request: &AgentWorkerDelegationStartRequest,
+    ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/delegation/start", request)
+            .await
     }
 
     async fn run_is_terminal(
