@@ -1591,12 +1591,35 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/auth_records/tokens.rs \
     crates/a4n-runtime/src/actions/oauth/flow.rs \
     crates/a4n-runtime/src/actions/theme; then
-    printf 'Runtime auth/theme actions must consume AuthApplicationPort and Theme read/mutation ports\n' >&2
+    printf 'Runtime auth/theme actions must consume auth read/mutation ports and Theme read/mutation ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait AuthApplicationPort' crates/a4n-api-contract/src/auth.rs; then
-    printf 'AuthApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait Auth(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/auth.rs; then
+    printf 'Auth read/mutation contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'AuthApplicationPort|auth_application\(\)' \
+    crates/a4n-api-contract/src/auth.rs crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed AuthApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'auth_read_application\(\)' \
+    crates/a4n-runtime/src/actions/auth_records/users.rs \
+    crates/a4n-runtime/src/actions/auth_records/sessions.rs \
+    crates/a4n-runtime/src/actions/auth_records/tokens.rs; then
+    printf 'Runtime auth reads must route through AuthReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'auth_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/auth_records/users.rs \
+    crates/a4n-runtime/src/actions/auth_records/sessions.rs \
+    crates/a4n-runtime/src/actions/auth_records/tokens.rs \
+    crates/a4n-runtime/src/actions/oauth/flow.rs; then
+    printf 'Runtime auth mutations must route through AuthMutationApplicationPort\n' >&2
     exit 1
 fi
 

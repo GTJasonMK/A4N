@@ -257,7 +257,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::auth::AuthApplicationPort for OrchestratorContext {
+impl a4n_api_contract::auth::AuthReadApplicationPort for OrchestratorContext {
     async fn current_user(
         &self,
         user_id: i64,
@@ -265,6 +265,36 @@ impl a4n_api_contract::auth::AuthApplicationPort for OrchestratorContext {
         self.auth.current_user_summary(user_id).await
     }
 
+    async fn list_sessions(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<a4n_api_contract::auth::SessionSummary>, AppError> {
+        let sessions = self.auth.list_sessions(user_id).await?;
+        Ok(sessions.iter().map(auth_session_summary).collect())
+    }
+
+    async fn verify_session_refresh_token(
+        &self,
+        user_id: i64,
+        session_id: &str,
+        refresh_token: &str,
+    ) -> Result<(), AppError> {
+        self.auth
+            .verify_session_refresh_token(user_id, session_id, refresh_token)
+            .await
+            .map(|_| ())
+    }
+
+    async fn verify_active_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
+        self.auth
+            .verify_active_session(user_id, session_id)
+            .await
+            .map(|_| ())
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::auth::AuthMutationApplicationPort for OrchestratorContext {
     async fn require_existing_user_or_bootstrap_admin(
         &self,
         bootstrap: Option<(&str, &str, &str)>,
@@ -319,14 +349,6 @@ impl a4n_api_contract::auth::AuthApplicationPort for OrchestratorContext {
         Ok(auth_session_summary(&session))
     }
 
-    async fn list_sessions(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<a4n_api_contract::auth::SessionSummary>, AppError> {
-        let sessions = self.auth.list_sessions(user_id).await?;
-        Ok(sessions.iter().map(auth_session_summary).collect())
-    }
-
     async fn revoke_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
         self.auth.revoke_session(user_id, session_id).await
     }
@@ -357,25 +379,6 @@ impl a4n_api_contract::auth::AuthApplicationPort for OrchestratorContext {
         self.auth
             .change_user_password(user_id, &input.old_password, &input.new_password)
             .await
-    }
-
-    async fn verify_session_refresh_token(
-        &self,
-        user_id: i64,
-        session_id: &str,
-        refresh_token: &str,
-    ) -> Result<(), AppError> {
-        self.auth
-            .verify_session_refresh_token(user_id, session_id, refresh_token)
-            .await
-            .map(|_| ())
-    }
-
-    async fn verify_active_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
-        self.auth
-            .verify_active_session(user_id, session_id)
-            .await
-            .map(|_| ())
     }
 
     async fn rotate_session_refresh_token(
