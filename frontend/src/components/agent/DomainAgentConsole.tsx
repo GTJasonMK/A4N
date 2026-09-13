@@ -10,6 +10,7 @@ import React, {
 import {
   Bot,
   Check,
+  CircleAlert,
   CircleDot,
   Clock3,
   Film,
@@ -61,6 +62,7 @@ export interface DomainAgentConsoleProps {
   compact?: boolean;
   fill?: boolean;
   className?: string;
+  onClose?: () => void;
   onResourceChanged?: () => void | Promise<void>;
   getEditorSource?: () => import("../../api/agent").AgentEditorSource | null;
   onEditorRequest?: (request: import("../../api/agent").AgentEditorRequest, runId: string) => Promise<void>;
@@ -258,6 +260,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   compact = false,
   fill = false,
   className = "",
+  onClose,
   onResourceChanged,
   getEditorSource,
   onEditorRequest,
@@ -682,21 +685,21 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       aria-label={t("agent.domain.consoleLabel")}
       className={`a4n-flat-surface flex min-w-0 flex-col overflow-hidden ${shellClass} ${className}`}
     >
-      <header className="flex min-w-0 shrink-0 items-start gap-2.5 border-b border-book-border/50 bg-book-bg-paper/65 px-3 py-2.5">
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary">
+      <header className="agent-console-header flex min-w-0 shrink-0 items-start gap-2.5 border-b border-book-border/50 bg-book-bg-paper/65 px-3 py-2.5">
+        <span className="agent-console-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary">
           {icon}
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <h2 className="min-w-0 truncate text-xs font-semibold text-book-text-main">
+        <div className="agent-console-heading min-w-0 flex-1">
+          <div className="agent-console-title-row flex min-w-0 flex-wrap items-center gap-1.5">
+            <h2 className="agent-console-title min-w-0 truncate text-xs font-semibold text-book-text-main">
               {title}
             </h2>
-            <span className="rounded-full bg-book-primary/10 px-1.5 py-0.5 text-[10px] text-book-primary">
+            <span className="agent-console-subagent rounded-full bg-book-primary/10 px-1.5 py-0.5 text-[10px] text-book-primary">
               {t("agent.domain.subagent")}
             </span>
             {thread ? (
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                className={`agent-console-thread-status rounded-full px-1.5 py-0.5 text-[10px] ${
                   thread.status === "active"
                     ? "bg-success-bg text-success"
                     : "bg-book-bg-tertiary text-book-text-muted"
@@ -706,16 +709,16 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               </span>
             ) : null}
           </div>
-          <p className="mt-0.5 min-w-0 truncate text-caption text-book-text-muted">
+          <p className="agent-console-subtitle mt-0.5 min-w-0 truncate text-caption text-book-text-muted">
             {subtitle}
           </p>
-          <p className="mt-0.5 min-w-0 truncate text-[10px] text-book-text-muted">
+          <p className="agent-console-shared-control mt-0.5 min-w-0 truncate text-[10px] text-book-text-muted">
             {t("agent.domain.sharedControl")}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="agent-console-actions flex shrink-0 items-center gap-1">
           <span
-            className={`hidden items-center gap-1 text-[10px] sm:inline-flex ${
+            className={`agent-console-connection hidden items-center gap-1 text-[10px] sm:inline-flex ${
               connected ? "text-success" : "text-book-text-muted"
             }`}
             role="status"
@@ -741,6 +744,15 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               className={loading || refreshing ? "animate-spin" : undefined}
             />
           </BookIconButton>
+          {onClose ? (
+            <BookIconButton
+              label={t("common.close")}
+              size="sm"
+              onClick={onClose}
+            >
+              <X size={13} />
+            </BookIconButton>
+          ) : null}
         </div>
       </header>
 
@@ -752,7 +764,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       {!error && connectionError ? (
         <div
           role="status"
-          className="flex min-w-0 shrink-0 items-center gap-2 border-b border-warning/25 bg-warning-bg/50 px-3 py-1.5 text-[10px] text-warning"
+          className="agent-console-connection-notice flex min-w-0 shrink-0 items-center gap-2 border-b border-warning/25 bg-warning-bg/50 px-3 py-1.5 text-[10px] text-warning"
         >
           <Clock3 size={12} className="shrink-0" />
           <span className="min-w-0 flex-1 break-words">{connectionError}</span>
@@ -767,10 +779,15 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       ) : snapshot ? (
         <>
           <div
-            className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2.5"
+            className="agent-console-message-scroll custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2.5"
             aria-live="polite"
           >
-            {snapshot.messages.length === 0 ? (
+            {snapshot.messages.length === 0 ? error ? (
+              <div className="agent-console-error-state" role="status">
+                <CircleAlert size={16} aria-hidden="true" />
+                <span>{t("agent.domain.loadFailed")}</span>
+              </div>
+            ) : (
               <div className="a4n-empty-state a4n-empty-state--compact min-h-0 py-8 text-xs">
                 <Bot size={20} />
                 <p>{t("agent.domain.empty")}</p>
@@ -977,6 +994,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             ) : null}
           </div>
         </>
+      ) : error ? (
+        <div className="agent-console-error-state" role="status">
+          <CircleAlert size={16} aria-hidden="true" />
+          <span>{t("agent.domain.loadFailed")}</span>
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-book-text-muted">
           {t("agent.domain.empty")}

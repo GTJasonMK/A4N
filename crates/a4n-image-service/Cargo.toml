@@ -22,3 +22,4 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 a4n-test-support = { path = "../a4n-test-support" }
+a4n-image-client = { path = "../a4n-image-client", features = ["test-support"] }

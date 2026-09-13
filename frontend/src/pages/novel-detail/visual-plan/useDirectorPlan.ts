@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
+import { useToast } from "../../../components/feedback/Toast";
 import {
   confirmChapterVisualPlan, editChapterVisualPlanDraft, getChapterVisualPlan,
   saveChapterVisualPlanDraft, validateChapterVisualPlan,
@@ -8,6 +9,7 @@ import {
 } from "../../../api/chapterVisualPlan";
 
 export function useDirectorPlan(projectId: number, chapterId: number | null, canEdit: boolean) {
+  const addToast = useToast((state) => state.addToast);
   const [set, setSet] = useState<ChapterVisualPlanSetView | null>(null);
   const [plan, setPlan] = useState<ChapterVisualPlanV3 | null>(null);
   const [record, setRecord] = useState<ChapterVisualPlanView | null>(null);
@@ -47,13 +49,15 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   }, []);
 
   const report = useCallback((failure: unknown) => {
-    setError(extractErrorMessage(failure, "导演编排操作失败"));
-  }, []);
+    const message = extractErrorMessage(failure, "导演编排操作失败");
+    setError(message);
+    addToast(message, "error");
+  }, [addToast]);
 
   const reload = useCallback(async (force = false) => {
     if (chapterId == null) { setLoading(false); return; }
     if (!force && (mutationLock.current || pending.current || (planRef.current && JSON.stringify(planRef.current) !== baseline.current))) {
-      setError("当前编辑或保存尚未完成，已保留本地内容。完成后可重新加载方案。");
+      report(new Error("当前编辑或保存尚未完成，已保留本地内容。完成后可重新加载方案。"));
       return;
     }
     const currentScope = ++scope.current;
@@ -125,14 +129,11 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
         setError(null);
       }
       return saved;
-    } catch (failure) {
-      if (currentScope === scope.current) report(failure);
-      throw failure;
     } finally {
       if (pending.current === request) pending.current = null;
       if (currentScope === scope.current) setSaving(false);
     }
-  }, [acceptRecord, canEdit, chapterId, projectId, replace, report, storageKey]);
+  }, [acceptRecord, canEdit, chapterId, projectId, replace, storageKey]);
 
   useEffect(() => {
     if (!dirty || !editable || !plan) return;
@@ -165,15 +166,19 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     replace(next);
   }, [editable, replace, report, storageKey, projectId, chapterId]);
 
-  const mutate = useCallback(async (operation: VisualPlanEditOperation) => {
-    if (mutationLock.current || !editable || chapterId == null) throw new Error("请等待当前操作完成，并在可编辑草稿中修改");
+  const mutate = useCallback(async (operation: VisualPlanEditOperation): Promise<boolean> => {
+    if (mutationLock.current || !editable || chapterId == null) {
+      const failure = new Error("请等待当前操作完成，并在可编辑草稿中修改");
+      report(failure);
+      return false;
+    }
     mutationLock.current = true;
     setBusy(true);
     const currentScope = scope.current;
     try {
       const saved = await save();
       const result = await editChapterVisualPlanDraft(projectId, chapterId, saved, operation);
-      if (currentScope !== scope.current) return;
+      if (currentScope !== scope.current) return false;
       if (result.changed) {
         setUndo((items) => [...items.slice(-39), saved.plan]);
         setRedo([]);
@@ -181,7 +186,11 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       acceptRecord(result.visual_plan);
       replace(result.visual_plan.plan);
       setError(null);
-    } catch (failure) { if (currentScope === scope.current) report(failure); throw failure; }
+      return true;
+    } catch (failure) {
+      if (currentScope === scope.current) report(failure);
+      return false;
+    }
     finally { if (currentScope === scope.current) { mutationLock.current = false; setBusy(false); } }
   }, [acceptRecord, chapterId, editable, projectId, replace, report, save]);
 

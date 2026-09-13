@@ -597,8 +597,13 @@ export interface VisualPlanPointGenerationOptions {
   expected_revision: number;
   point_id: string;
   record_id: number;
+  size?: ImageSize | null;
   source_chapter_id: number;
   user_description: string;
+}
+export interface ImageSize {
+  height: number;
+  width: number;
 }
 /**
  * Start one inspiration conversation turn through the canonical generation path.

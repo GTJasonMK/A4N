@@ -38,6 +38,8 @@ import type {
   UpdateAgentThreadInput,
 } from "./generated/host";
 
+const AGENT_EVENT_POLL_INTERVAL_MS = 100;
+
 export type {
   AgentEditorSource,
   AgentEditorState,
@@ -433,7 +435,7 @@ function waitForAgentPoll(signal: AbortSignal): Promise<void> {
     timer = setTimeout(() => {
       signal.removeEventListener("abort", onAbort);
       resolve();
-    }, 500);
+    }, AGENT_EVENT_POLL_INTERVAL_MS);
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }

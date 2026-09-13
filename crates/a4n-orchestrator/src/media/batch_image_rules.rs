@@ -1,6 +1,6 @@
 //! 批量图片生成项 JSON 形状纯规则。
 
-use a4n_domain::{ImageSize, VideoAspectRatio};
+use a4n_domain::{ImageSize, VideoAspectRatio, image::ensure_image_size_supported};
 use serde_json::{Value, json};
 
 /// 批量图片项允许的字段白名单。
@@ -12,6 +12,8 @@ pub const BATCH_IMAGE_ITEM_FIELDS: &[&str] = &[
     "metadata_json",
     "config_id",
     "aspect_ratio",
+    "width",
+    "height",
     "reference_image_ids",
 ];
 
@@ -84,6 +86,36 @@ pub fn image_size_for_aspect_ratio(
                 aspect_ratio
             )
         })
+}
+
+/// Resolve an image size, honoring an explicit request when present.
+pub fn image_size_for_batch_item(
+    supported_sizes: &[ImageSize],
+    item: &Value,
+) -> Result<ImageSize, String> {
+    let aspect_ratio = batch_image_aspect_ratio(item)?;
+    let width = optional_json_i64_field(item, "width")?;
+    let height = optional_json_i64_field(item, "height")?;
+    let (Some(width), Some(height)) = (width, height) else {
+        if width.is_some() || height.is_some() {
+            return Err("width 和 height 必须同时提供".to_string());
+        }
+        return image_size_for_aspect_ratio(supported_sizes, aspect_ratio);
+    };
+    let width = i32::try_from(width).map_err(|_| "width 必须是正整数".to_string())?;
+    let height = i32::try_from(height).map_err(|_| "height 必须是正整数".to_string())?;
+    if width <= 0 || height <= 0 {
+        return Err("width 和 height 必须是正整数".to_string());
+    }
+    ensure_image_size_supported(supported_sizes, width, height)?;
+    let (ratio_width, ratio_height) = aspect_ratio.components();
+    if i64::from(width) * i64::from(ratio_height) != i64::from(height) * i64::from(ratio_width) {
+        return Err(format!(
+            "图片尺寸 {}x{} 与 aspect_ratio {} 不匹配",
+            width, height, aspect_ratio
+        ));
+    }
+    Ok(ImageSize::new(width, height))
 }
 
 /// 批量生成使用参考图时，后端必须支持真实参考图输入。
@@ -172,6 +204,8 @@ mod tests {
                 "metadata_json": { "generation_context": { "source": IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, "prompt_id": 9 } },
                 "config_id": 3,
                 "aspect_ratio": "16:9",
+                "width": 1920,
+                "height": 1080,
                 "reference_image_ids": [1, 2]
             }),
         )
@@ -222,6 +256,26 @@ mod tests {
             ImageSize::new(1024, 1024)
         );
         assert!(image_size_for_aspect_ratio(&sizes, VideoAspectRatio::Ratio21x9).is_err());
+
+        assert_eq!(
+            image_size_for_batch_item(
+                &sizes,
+                &json!({"aspect_ratio": "16:9", "width": 1920, "height": 1080})
+            )
+            .unwrap(),
+            ImageSize::new(1920, 1080)
+        );
+        assert!(
+            image_size_for_batch_item(
+                &sizes,
+                &json!({"aspect_ratio": "16:9", "width": 1024, "height": 768})
+            )
+            .is_err()
+        );
+        assert!(
+            image_size_for_batch_item(&sizes, &json!({"aspect_ratio": "16:9", "width": 1920}))
+                .is_err()
+        );
 
         assert_eq!(
             batch_image_aspect_ratio(&json!({"aspect_ratio": "16:9"})).unwrap(),

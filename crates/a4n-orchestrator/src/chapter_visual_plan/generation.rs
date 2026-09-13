@@ -15,7 +15,7 @@ use a4n_llm::{
         COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
         LlmContextLedgerPackInput, context_aware_system_user_request,
     },
-    provider::ChatRequest,
+    provider::{ChatRequest, LlmTraceContext},
 };
 use a4n_service_protocol::GenerationResultRef;
 use serde_json::{Value, json};
@@ -139,6 +139,19 @@ impl OrchestratorContext {
             .frame
             .aspect_ratio()
             .map_err(AppError::InvalidArgument)?;
+        if let Some(size) = options.size {
+            if size.width <= 0 || size.height <= 0 {
+                return Err(AppError::InvalidArgument("图片生成尺寸必须是正整数".into()));
+            }
+            if i64::from(size.width) * i64::from(current.plan.frame.height)
+                != i64::from(size.height) * i64::from(current.plan.frame.width)
+            {
+                return Err(AppError::InvalidArgument(format!(
+                    "图片生成尺寸 {}x{} 与方案画幅 {} 不匹配",
+                    size.width, size.height, aspect_ratio
+                )));
+            }
+        }
         Ok(VisualPlanPointGenerationPreview {
             prompt: format!(
                 "为指定图片点生成一张完整分镜图片。遵循画幅、当前点的静态画面描述、所属镜头与场景资料，以及用户描述。参考图用于保持明确指定的主体与画面特征。不要画时间条、字幕或编辑器界面。\n{}",
@@ -163,6 +176,7 @@ impl OrchestratorContext {
             "prompt":preview.prompt,"image_type":a4n_domain::image::IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME,
             "chapter_id":options.source_chapter_id,"config_id":options.config_id,
             "aspect_ratio":preview.aspect_ratio,"reference_image_ids":preview.reference_image_ids,
+            "width":options.size.map(|size| size.width),"height":options.size.map(|size| size.height),
             "metadata_json":{"director_candidate":{
                 "record_id":options.record_id,"plan_revision":options.expected_revision,
                 "plan_sha256":preview.plan_sha256,"point_id":options.point_id,
@@ -235,7 +249,19 @@ impl OrchestratorContext {
             ledger.into_manifest("生成当前镜头段的变化描述", None),
             Some(0.4),
             None,
-        )?;
+        )?
+        .with_trace_context(LlmTraceContext {
+            project_id: Some(input.project_id),
+            root_project_id: None,
+            workflow: DIRECTOR_SEGMENT_PROMPT.to_string(),
+            step_key: format!("segment:{}", input.segment_id),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: Some(format!("segment:{}", input.segment_id)),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        });
         let candidate = VisualPlanPromptCandidate {
             record_id: input.record_id,
             source_chapter_id: input.source_chapter_id,

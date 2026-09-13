@@ -25,7 +25,7 @@ use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::time::Duration;
 
-const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
+const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
