@@ -277,7 +277,7 @@ impl RuntimeAgentToolExecutor {
                 .input;
                 serde_json::to_value(
                     self.state
-                        .application()
+                        .worker_delegation_application()
                         .review_delegation(context.owner_user_id, input, Some(context.run.id))
                         .await?,
                 )
