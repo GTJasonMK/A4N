@@ -1135,8 +1135,13 @@ if ! rg -n 'video_chapter_import_application\(\)' \
 fi
 
 if ! rg -n 'video_assembly_application\(\)' \
-    crates/a4n-runtime/src/actions/video_records/assembly; then
-    printf 'Assembly actions must route through VideoAssemblyApplicationPort\n' >&2
+    crates/a4n-runtime/src/actions/video_records/assembly/push \
+    crates/a4n-runtime/src/actions/video_records/assembly/actions/push.rs \
+    crates/a4n-runtime/src/actions/video_records/assembly/actions/status.rs || \
+   ! rg -n 'video_assembly_postprocess_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records/assembly/postprocess/source.rs \
+    crates/a4n-runtime/src/actions/video_records/assembly/actions/edit.rs; then
+    printf 'Assembly actions must route through focused planning and postprocess contracts\n' >&2
     exit 1
 fi
 
@@ -1153,7 +1158,7 @@ if ! rg -n 'video_canvas_media_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait VideoRecordReadApplicationPort|pub trait VideoRecordMutationApplicationPort|pub trait (ChapterVideoImportApplicationPort|ReferenceMediaVideoImportApplicationPort|AssemblyVideoImportApplicationPort|CanvasVideoImportApplicationPort|VideoTrimApplicationPort)|pub trait VideoAssemblyApplicationPort|pub trait VideoRecordLifecycleApplicationPort|pub trait VideoCanvasMediaApplicationPort' \
+if ! rg -n 'pub trait VideoRecordReadApplicationPort|pub trait VideoRecordMutationApplicationPort|pub trait (ChapterVideoImportApplicationPort|ReferenceMediaVideoImportApplicationPort|AssemblyVideoImportApplicationPort|CanvasVideoImportApplicationPort|VideoTrimApplicationPort)|pub trait VideoAssemblyApplicationPort|pub trait VideoAssemblyPostprocessApplicationPort|pub trait VideoRecordLifecycleApplicationPort|pub trait VideoCanvasMediaApplicationPort' \
     crates/a4n-api-contract/src/video.rs; then
     printf 'split video record contracts are missing from the API contract\n' >&2
     exit 1

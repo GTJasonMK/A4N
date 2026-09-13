@@ -45,7 +45,8 @@ use a4n_api_contract::{
         CanvasVideoImportApplicationPort, ChapterVideoImportApplicationPort,
         CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
         PreparedAssemblyPushRecord, ReferenceMediaVideoImportApplicationPort,
-        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportRecordSummary,
+        VideoAssemblyApplicationPort, VideoAssemblyPostprocessApplicationPort,
+        VideoCanvasMediaApplicationPort, VideoImportRecordSummary,
         VideoProviderExecutionApplicationPort, VideoRecordCompletion, VideoRecordCompletionError,
         VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
         VideoRecordReadApplicationPort, VideoTailFrameInput, VideoTailFrameSummary,
@@ -1755,18 +1756,7 @@ impl VideoTrimApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
-    async fn assembly_records(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        operation: &str,
-    ) -> Result<AssemblyVideoRecords, AppError> {
-        self.assembly_video_records_validated(project_id, chapter_id, workflow_mode, operation)
-            .await
-    }
-
+impl VideoAssemblyPostprocessApplicationPort for crate::OrchestratorContext {
     async fn prepare_assembly_postprocess_edit(
         &self,
         push_video_id: i64,
@@ -1796,6 +1786,20 @@ impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
         input: AssemblyPostprocessEditRecordInput,
     ) -> Result<PreparedAssemblyPostprocessEditRecord, AppError> {
         self.create_assembly_postprocess_edit_record_validated(plan, input)
+            .await
+    }
+}
+
+#[async_trait]
+impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
+    async fn assembly_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        operation: &str,
+    ) -> Result<AssemblyVideoRecords, AppError> {
+        self.assembly_video_records_validated(project_id, chapter_id, workflow_mode, operation)
             .await
     }
 

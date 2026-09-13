@@ -726,17 +726,9 @@ pub trait VideoTrimApplicationPort: Send + Sync {
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
 }
 
-/// Host-facing Assembly planning and push boundary.
+/// Host-facing Assembly postprocess boundary.
 #[async_trait::async_trait]
-pub trait VideoAssemblyApplicationPort: Send + Sync {
-    async fn assembly_records(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        operation: &str,
-    ) -> Result<AssemblyVideoRecords, a4n_error::AppError>;
-
+pub trait VideoAssemblyPostprocessApplicationPort: Send + Sync {
     async fn prepare_assembly_postprocess_edit(
         &self,
         push_video_id: i64,
@@ -755,6 +747,18 @@ pub trait VideoAssemblyApplicationPort: Send + Sync {
         plan: AssemblyPostprocessPlan,
         input: AssemblyPostprocessEditRecordInput,
     ) -> Result<PreparedAssemblyPostprocessEditRecord, a4n_error::AppError>;
+}
+
+/// Host-facing Assembly planning and push boundary.
+#[async_trait::async_trait]
+pub trait VideoAssemblyApplicationPort: Send + Sync {
+    async fn assembly_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        operation: &str,
+    ) -> Result<AssemblyVideoRecords, a4n_error::AppError>;
 
     async fn create_assembly_push_record(
         &self,
