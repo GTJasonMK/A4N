@@ -302,6 +302,29 @@ fn import_review_summary(
 }
 
 #[async_trait]
+impl a4n_api_contract::import_review::ImportReviewReadApplicationPort for OrchestratorContext {
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ImportProjectReviewsInput,
+    ) -> Result<Vec<ImportReviewSummary>, AppError> {
+        let reviews = self
+            .import_reviews_for_user_validated(user_id, input.project_id)
+            .await?;
+        reviews.iter().map(import_review_summary).collect()
+    }
+
+    async fn dedup(
+        &self,
+        user_id: i64,
+        input: CheckImportDedupInput,
+    ) -> Result<DedupResult, AppError> {
+        self.check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
+            .await
+    }
+}
+
+#[async_trait]
 impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
     async fn create_from_parsed(
         &self,
@@ -314,17 +337,6 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
             self, user_id, project_id, filename, chapters,
         )
         .await?;
-        reviews.iter().map(import_review_summary).collect()
-    }
-
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ImportProjectReviewsInput,
-    ) -> Result<Vec<ImportReviewSummary>, AppError> {
-        let reviews = self
-            .import_reviews_for_user_validated(user_id, input.project_id)
-            .await?;
         reviews.iter().map(import_review_summary).collect()
     }
 
@@ -374,14 +386,5 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
             .reject_import_review_for_user_validated(user_id, input.review_id)
             .await?;
         import_review_summary(&updated)
-    }
-
-    async fn dedup(
-        &self,
-        user_id: i64,
-        input: CheckImportDedupInput,
-    ) -> Result<DedupResult, AppError> {
-        self.check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
-            .await
     }
 }

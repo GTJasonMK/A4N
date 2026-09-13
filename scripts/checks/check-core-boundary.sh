@@ -2792,8 +2792,12 @@ fi
 
 if ! rg -n 'import_review_application\(\)' \
     crates/a4n-runtime/src/actions/import_file.rs \
-    crates/a4n-runtime/src/actions/import_review; then
-    printf 'Runtime import-review actions must route through ImportReviewApplicationPort\n' >&2
+    crates/a4n-runtime/src/actions/import_review/acceptance.rs \
+    crates/a4n-runtime/src/actions/import_review/mutations.rs || \
+   ! rg -n 'import_review_read_application\(\)' \
+    crates/a4n-runtime/src/actions/import_review/queries.rs \
+    crates/a4n-runtime/src/actions/import_review/dedup.rs; then
+    printf 'Runtime import-review actions must route through the split application ports\n' >&2
     exit 1
 fi
 
@@ -2810,6 +2814,21 @@ fi
 if ! rg -n 'pub trait ImportReviewApplicationPort' \
     crates/a4n-orchestrator/src/import_review/mod.rs; then
     printf 'ImportReviewApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait ImportReviewReadApplicationPort' \
+    crates/a4n-api-contract/src/import_review.rs; then
+    printf 'ImportReviewReadApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ImportReviewReadApplicationPort' \
+    crates/a4n-orchestrator/src/import_review; then
+    printf 'ImportReviewReadApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::import_review::ImportReviewReadApplicationPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime import-review reads must consume the API contract directly\n' >&2
     exit 1
 fi
 

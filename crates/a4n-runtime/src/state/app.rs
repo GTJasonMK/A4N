@@ -307,6 +307,10 @@ pub struct AppState {
     /// and API projection stay in the import-review owner.
     import_review_application:
         Arc<dyn a4n_orchestrator::import_review::ImportReviewApplicationPort>,
+    /// Host-facing import-review read boundary. Review reads and deduplication
+    /// stay in the API contract rather than the mixed mutation boundary.
+    import_review_read_application:
+        Arc<dyn a4n_api_contract::import_review::ImportReviewReadApplicationPort>,
     /// Host-facing export boundary. Export authorization and format rendering
     /// remain in the export owner; Runtime only adapts progress callbacks.
     export_application: Arc<dyn a4n_api_contract::export::ExportApplicationPort>,
@@ -1620,6 +1624,12 @@ impl AppState {
         self.import_review_application.as_ref()
     }
 
+    pub(crate) fn import_review_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_review::ImportReviewReadApplicationPort {
+        self.import_review_read_application.as_ref()
+    }
+
     pub(crate) fn export_application(
         &self,
     ) -> &dyn a4n_api_contract::export::ExportApplicationPort {
@@ -2232,6 +2242,7 @@ impl AppState {
             chapter_analysis_resume_application: Arc::new(orchestrator.clone()),
             chapter_analysis_preview_application: Arc::new(orchestrator.clone()),
             import_review_application: Arc::new(orchestrator.clone()),
+            import_review_read_application: Arc::new(orchestrator.clone()),
             export_application: Arc::new(orchestrator.clone()),
             video_record_read_application: Arc::new(orchestrator.clone()),
             video_record_mutation_application: Arc::new(orchestrator.clone()),

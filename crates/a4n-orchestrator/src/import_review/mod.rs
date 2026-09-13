@@ -4,8 +4,8 @@
 
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::import_review::{
-    AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
-    ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
+    AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewIdInput,
+    ImportReviewSummary,
 };
 use a4n_domain::import_review::ImportChapterDraft;
 use a4n_error::AppError;
@@ -30,12 +30,6 @@ pub trait ImportReviewApplicationPort: Send + Sync {
         chapters: &[ImportChapterDraft],
     ) -> Result<Vec<ImportReviewSummary>, AppError>;
 
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ImportProjectReviewsInput,
-    ) -> Result<Vec<ImportReviewSummary>, AppError>;
-
     async fn accept(
         &self,
         user_id: i64,
@@ -57,10 +51,4 @@ pub trait ImportReviewApplicationPort: Send + Sync {
         user_id: i64,
         input: ImportReviewIdInput,
     ) -> Result<ImportReviewSummary, AppError>;
-
-    async fn dedup(
-        &self,
-        user_id: i64,
-        input: CheckImportDedupInput,
-    ) -> Result<DedupResult, AppError>;
 }

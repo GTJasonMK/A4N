@@ -53,3 +53,21 @@ pub struct CheckImportDedupInput {
     pub content: String,
     pub project_id: i64,
 }
+
+/// Host-facing read boundary for import reviews.
+///
+/// Review creation and state transitions remain with the import-review owner.
+#[async_trait::async_trait]
+pub trait ImportReviewReadApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ImportProjectReviewsInput,
+    ) -> Result<Vec<ImportReviewSummary>, a4n_error::AppError>;
+
+    async fn dedup(
+        &self,
+        user_id: i64,
+        input: CheckImportDedupInput,
+    ) -> Result<DedupResult, a4n_error::AppError>;
+}

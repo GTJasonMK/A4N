@@ -7,5 +7,8 @@ pub async fn list_import_queue(
     user_id: i64,
     input: ImportProjectReviewsInput,
 ) -> Result<Vec<ImportReviewSummary>, AppError> {
-    state.import_review_application().list(user_id, input).await
+    state
+        .import_review_read_application()
+        .list(user_id, input)
+        .await
 }
