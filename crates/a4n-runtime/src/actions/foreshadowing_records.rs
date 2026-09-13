@@ -11,7 +11,7 @@ pub async fn list_foreshadowing(
     project_id: i64,
 ) -> Result<Vec<ForeshadowingSummary>, String> {
     state
-        .foreshadowing_application()
+        .foreshadowing_read_application()
         .list(user_id, project_id)
         .await
         .map_err(|error| error.to_string())
@@ -23,7 +23,7 @@ pub async fn create_foreshadowing(
     input: CreateForeshadowingInput,
 ) -> Result<ForeshadowingWriteResult, String> {
     state
-        .foreshadowing_application()
+        .foreshadowing_mutation_application()
         .create(user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -35,7 +35,7 @@ pub async fn update_foreshadowing(
     input: UpdateForeshadowingInput,
 ) -> Result<ForeshadowingWriteResult, String> {
     state
-        .foreshadowing_application()
+        .foreshadowing_mutation_application()
         .update(user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -47,7 +47,7 @@ pub async fn delete_foreshadowing(
     input: DeleteForeshadowingInput,
 ) -> Result<ForeshadowingWriteResult, String> {
     state
-        .foreshadowing_application()
+        .foreshadowing_mutation_application()
         .delete(user_id, input)
         .await
         .map_err(|error| error.to_string())

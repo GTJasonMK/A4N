@@ -2265,6 +2265,28 @@ if ! rg -n 'pub trait ProfileMaterial(Read|Mutation)ApplicationPort' \
     exit 1
 fi
 
+if rg -n 'ForeshadowingApplicationPort|foreshadowing_application\(\)' \
+    crates/a4n-api-contract/src/profile.rs \
+    crates/a4n-orchestrator/src \
+    crates/a4n-runtime/src; then
+    printf 'The mixed ForeshadowingApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'foreshadowing_read_application\(\)' \
+    crates/a4n-runtime/src/actions/foreshadowing_records.rs || \
+   ! rg -n 'foreshadowing_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/foreshadowing_records.rs; then
+    printf 'Runtime foreshadowing actions must route through split read and mutation ports\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait Foreshadowing(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/profile.rs; then
+    printf 'Foreshadowing split contracts are missing\n' >&2
+    exit 1
+fi
+
 if rg -n 'shooting_script_application\(\)|ShootingScriptApplicationPort' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src crates/a4n-orchestrator/src/lib.rs; then
     printf 'Shooting-script records and generation must use split application ports\n' >&2

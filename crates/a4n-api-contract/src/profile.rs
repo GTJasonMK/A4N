@@ -466,18 +466,22 @@ pub struct ForeshadowingWriteResult {
     pub warnings: Vec<String>,
 }
 
-/// Host-facing foreshadowing record boundary.
+/// Host-facing foreshadowing read boundary.
 ///
 /// Authorization, persistence, RAG synchronization and API projection stay
 /// with the foreshadowing owner; Runtime only routes the typed operations.
 #[async_trait::async_trait]
-pub trait ForeshadowingApplicationPort: Send + Sync {
+pub trait ForeshadowingReadApplicationPort: Send + Sync {
     async fn list(
         &self,
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ForeshadowingSummary>, a4n_error::AppError>;
+}
 
+/// Host-facing foreshadowing mutation boundary.
+#[async_trait::async_trait]
+pub trait ForeshadowingMutationApplicationPort: Send + Sync {
     async fn create(
         &self,
         user_id: i64,

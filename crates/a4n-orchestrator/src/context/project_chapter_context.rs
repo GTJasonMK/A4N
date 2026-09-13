@@ -346,7 +346,7 @@ async fn foreshadowing_rag_warning(
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::profile::ForeshadowingApplicationPort for OrchestratorContext {
+impl a4n_api_contract::profile::ForeshadowingReadApplicationPort for OrchestratorContext {
     async fn list(
         &self,
         user_id: i64,
@@ -360,7 +360,10 @@ impl a4n_api_contract::profile::ForeshadowingApplicationPort for OrchestratorCon
             .map(foreshadowing_summary)
             .collect()
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::profile::ForeshadowingMutationApplicationPort for OrchestratorContext {
     async fn create(
         &self,
         user_id: i64,

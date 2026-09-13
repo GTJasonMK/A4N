@@ -183,9 +183,12 @@ pub struct AppState {
     /// Host-facing scene profile mutation boundary.
     scene_profile_mutation_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort>,
-    /// Host-facing foreshadowing record boundary. Authorization, persistence,
-    /// RAG synchronization and DTO projection stay in the owner.
-    foreshadowing_application: Arc<dyn a4n_api_contract::profile::ForeshadowingApplicationPort>,
+    /// Host-facing foreshadowing read boundary. Authorization and DTO
+    /// projection stay in the owner.
+    foreshadowing_read_application:
+        Arc<dyn a4n_api_contract::profile::ForeshadowingReadApplicationPort>,
+    foreshadowing_mutation_application:
+        Arc<dyn a4n_api_contract::profile::ForeshadowingMutationApplicationPort>,
     /// Host-facing blueprint read boundary.
     blueprint_read_application: Arc<dyn a4n_api_contract::blueprint::BlueprintReadApplicationPort>,
     /// Blueprint request construction boundary. Runtime supplies only prompt
@@ -1230,10 +1233,16 @@ impl AppState {
         self.scene_profile_mutation_application.as_ref()
     }
 
-    pub(crate) fn foreshadowing_application(
+    pub(crate) fn foreshadowing_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::profile::ForeshadowingApplicationPort {
-        self.foreshadowing_application.as_ref()
+    ) -> &dyn a4n_api_contract::profile::ForeshadowingReadApplicationPort {
+        self.foreshadowing_read_application.as_ref()
+    }
+
+    pub(crate) fn foreshadowing_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::profile::ForeshadowingMutationApplicationPort {
+        self.foreshadowing_mutation_application.as_ref()
     }
 
     pub(crate) fn blueprint_read_application(
@@ -2334,7 +2343,8 @@ impl AppState {
             character_profile_deletion_application: Arc::new(orchestrator.clone()),
             character_conflict_application: Arc::new(orchestrator.clone()),
             scene_profile_mutation_application: Arc::new(orchestrator.clone()),
-            foreshadowing_application: Arc::new(orchestrator.clone()),
+            foreshadowing_read_application: Arc::new(orchestrator.clone()),
+            foreshadowing_mutation_application: Arc::new(orchestrator.clone()),
             blueprint_read_application: Arc::new(orchestrator.clone()),
             blueprint_request_preview_application: Arc::new(orchestrator.clone()),
             blueprint_generation_application: Arc::new(orchestrator.clone()),
