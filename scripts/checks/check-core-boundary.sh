@@ -3531,7 +3531,9 @@ if ! rg -n 'chapter_analysis_generation_application\(\)' \
     crates/a4n-runtime/src/workflow/chapter_analysis/execution.rs || \
    ! rg -n 'chapter_analysis_resume_application\(\)' \
     crates/a4n-runtime/src/workflow/chapter_analysis/api/resume.rs || \
-   ! rg -n 'chapter_analysis_preview_application\(\)' \
+   ! rg -n 'chapter_analysis_generation_preview_application\(\)' \
+    crates/a4n-runtime/src/workflow/chapter_analysis/api/preview.rs || \
+   ! rg -n 'chapter_analysis_resume_preview_application\(\)' \
     crates/a4n-runtime/src/workflow/chapter_analysis/api/preview.rs; then
     printf 'Runtime chapter analysis must route through split application ports\n' >&2
     exit 1
@@ -3547,7 +3549,9 @@ if ! rg -n 'pub trait ChapterAnalysisGenerationApplicationPort' \
     crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
    ! rg -n 'pub trait ChapterAnalysisResumeApplicationPort' \
     crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
-   ! rg -n 'pub trait ChapterAnalysisPreviewApplicationPort' \
+   ! rg -n 'pub trait ChapterAnalysisGenerationPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+   ! rg -n 'pub trait ChapterAnalysisResumePreviewApplicationPort' \
     crates/a4n-orchestrator/src/chapter_analysis/application.rs; then
     printf 'ChapterAnalysis split application ports are missing\n' >&2
     exit 1

@@ -409,9 +409,13 @@ pub struct AppState {
     /// boundary.
     chapter_analysis_resume_application:
         Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumeApplicationPort>,
-    /// Host-facing chapter-analysis request-preview boundary.
-    chapter_analysis_preview_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisPreviewApplicationPort>,
+    /// Host-facing new chapter-analysis request-preview boundary.
+    chapter_analysis_generation_preview_application: Arc<
+        dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationPreviewApplicationPort,
+    >,
+    /// Host-facing chapter-analysis resume request-preview boundary.
+    chapter_analysis_resume_preview_application:
+        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumePreviewApplicationPort>,
     /// Host-facing import-review ingestion boundary. Parsing stays in Runtime;
     /// queue persistence and projection stay in the import-review owner.
     import_review_ingestion_application:
@@ -2036,10 +2040,18 @@ impl AppState {
         self.chapter_analysis_resume_application.as_ref()
     }
 
-    pub(crate) fn chapter_analysis_preview_application(
+    pub(crate) fn chapter_analysis_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisPreviewApplicationPort {
-        self.chapter_analysis_preview_application.as_ref()
+    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationPreviewApplicationPort
+    {
+        self.chapter_analysis_generation_preview_application
+            .as_ref()
+    }
+
+    pub(crate) fn chapter_analysis_resume_preview_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumePreviewApplicationPort {
+        self.chapter_analysis_resume_preview_application.as_ref()
     }
 
     pub(crate) fn import_review_ingestion_application(
@@ -2824,7 +2836,8 @@ impl AppState {
             import_reverse_read_application: Arc::new(orchestrator.clone()),
             chapter_analysis_generation_application: Arc::new(orchestrator.clone()),
             chapter_analysis_resume_application: Arc::new(orchestrator.clone()),
-            chapter_analysis_preview_application: Arc::new(orchestrator.clone()),
+            chapter_analysis_generation_preview_application: Arc::new(orchestrator.clone()),
+            chapter_analysis_resume_preview_application: Arc::new(orchestrator.clone()),
             import_review_ingestion_application: Arc::new(orchestrator.clone()),
             import_review_acceptance_application: Arc::new(orchestrator.clone()),
             import_review_mutation_application: Arc::new(orchestrator.clone()),
