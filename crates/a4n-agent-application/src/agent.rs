@@ -34,8 +34,9 @@ use a4n_domain::agent::{
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentWorkerRunSnapshotWire, AgentWorkerRunWire,
-    AgentWorkerThreadSnapshotWire, WorkerRequest,
+    AgentHostCommandPayload, AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunSnapshotWire,
+    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -2281,41 +2282,101 @@ pub struct AgentWorkerRun {
     pub lease_token: String,
 }
 
+fn run_snapshot_to_wire(snapshot: &AgentRunSnapshot) -> AgentWorkerRunSnapshotWire {
+    AgentWorkerRunSnapshotWire {
+        id: snapshot.id,
+        thread_id: snapshot.thread_id,
+        turn_id: snapshot.turn_id,
+        parent_run_id: snapshot.parent_run_id,
+        attempt: snapshot.attempt,
+        status: snapshot.status.clone(),
+        budget_json: snapshot.budget_json.clone(),
+        usage_json: snapshot.usage_json.clone(),
+        worker_id: snapshot.worker_id.clone(),
+        lease_token: snapshot.lease_token.clone(),
+        lease_expires_at: snapshot.lease_expires_at,
+        created_at: snapshot.created_at,
+        started_at: snapshot.started_at,
+    }
+}
+
+fn run_snapshot_from_wire(snapshot: AgentWorkerRunSnapshotWire) -> AgentRunSnapshot {
+    AgentRunSnapshot {
+        id: snapshot.id,
+        thread_id: snapshot.thread_id,
+        turn_id: snapshot.turn_id,
+        parent_run_id: snapshot.parent_run_id,
+        attempt: snapshot.attempt,
+        status: snapshot.status,
+        budget_json: snapshot.budget_json,
+        usage_json: snapshot.usage_json,
+        worker_id: snapshot.worker_id,
+        lease_token: snapshot.lease_token,
+        lease_expires_at: snapshot.lease_expires_at,
+        created_at: snapshot.created_at,
+        started_at: snapshot.started_at,
+    }
+}
+
+fn thread_snapshot_to_wire(snapshot: &AgentThreadSnapshot) -> AgentWorkerThreadSnapshotWire {
+    AgentWorkerThreadSnapshotWire {
+        id: snapshot.id,
+        owner_user_id: snapshot.owner_user_id,
+        thread_kind: snapshot.thread_kind.clone(),
+        profile_id: snapshot.profile_id.clone(),
+        title: snapshot.title.clone(),
+        project_id: snapshot.project_id,
+        resource_type: snapshot.resource_type.clone(),
+        resource_id: snapshot.resource_id.clone(),
+        scope_json: snapshot.scope_json.clone(),
+        default_model_config_id: snapshot.default_model_config_id,
+        status: snapshot.status.clone(),
+        revision: snapshot.revision,
+        context_summary: snapshot.context_summary.clone(),
+    }
+}
+
+fn thread_snapshot_from_wire(snapshot: AgentWorkerThreadSnapshotWire) -> AgentThreadSnapshot {
+    AgentThreadSnapshot {
+        id: snapshot.id,
+        owner_user_id: snapshot.owner_user_id,
+        thread_kind: snapshot.thread_kind,
+        profile_id: snapshot.profile_id,
+        title: snapshot.title,
+        project_id: snapshot.project_id,
+        resource_type: snapshot.resource_type,
+        resource_id: snapshot.resource_id,
+        scope_json: snapshot.scope_json,
+        default_model_config_id: snapshot.default_model_config_id,
+        status: snapshot.status,
+        revision: snapshot.revision,
+        context_summary: snapshot.context_summary,
+    }
+}
+
 impl AgentWorkerRun {
     pub fn to_wire(&self) -> AgentWorkerRunWire {
         AgentWorkerRunWire {
-            run: AgentWorkerRunSnapshotWire {
-                id: self.run.id,
-                thread_id: self.run.thread_id,
-                turn_id: self.run.turn_id,
-                parent_run_id: self.run.parent_run_id,
-                attempt: self.run.attempt,
-                status: self.run.status.clone(),
-                budget_json: self.run.budget_json.clone(),
-                usage_json: self.run.usage_json.clone(),
-                worker_id: self.run.worker_id.clone(),
-                lease_token: self.run.lease_token.clone(),
-                lease_expires_at: self.run.lease_expires_at,
-                created_at: self.run.created_at,
-                started_at: self.run.started_at,
-            },
-            thread: AgentWorkerThreadSnapshotWire {
-                id: self.thread.id,
-                owner_user_id: self.thread.owner_user_id,
-                thread_kind: self.thread.thread_kind.clone(),
-                profile_id: self.thread.profile_id.clone(),
-                title: self.thread.title.clone(),
-                project_id: self.thread.project_id,
-                resource_type: self.thread.resource_type.clone(),
-                resource_id: self.thread.resource_id.clone(),
-                scope_json: self.thread.scope_json.clone(),
-                default_model_config_id: self.thread.default_model_config_id,
-                status: self.thread.status.clone(),
-                revision: self.thread.revision,
-                context_summary: self.thread.context_summary.clone(),
-            },
+            run: run_snapshot_to_wire(&self.run),
+            thread: thread_snapshot_to_wire(&self.thread),
             lease_token: self.lease_token.clone(),
         }
+    }
+
+    pub fn from_wire(wire: AgentWorkerRunWire) -> Result<Self, AppError> {
+        if wire.lease_token.trim().is_empty()
+            || wire.run.lease_token.as_deref() != Some(wire.lease_token.as_str())
+        {
+            return Err(AppError::InvalidState {
+                current: "Agent worker run wire 的 lease token 无效".into(),
+                operation: "恢复 Agent worker run 快照".into(),
+            });
+        }
+        Ok(Self {
+            run: run_snapshot_from_wire(wire.run),
+            thread: thread_snapshot_from_wire(wire.thread),
+            lease_token: wire.lease_token,
+        })
     }
 }
 
@@ -2338,6 +2399,170 @@ pub struct AgentRunContext {
     pub usage: Value,
     pub runtime_snapshot_required: bool,
     pub delegation_depth: u8,
+}
+
+impl AgentRunContext {
+    pub fn to_wire(&self) -> AgentWorkerRunContextWire {
+        AgentWorkerRunContextWire {
+            run: run_snapshot_to_wire(&self.run),
+            thread: thread_snapshot_to_wire(&self.thread),
+            turn: AgentWorkerTurnSnapshotWire {
+                id: self.turn.id,
+                thread_id: self.turn.thread_id,
+                input_message_id: self.turn.input_message_id,
+                execution_mode: self.turn.execution_mode.clone(),
+                goal: self.turn.goal.clone(),
+                model_override_json: self.turn.model_override_json.clone(),
+            },
+            messages: self
+                .messages
+                .iter()
+                .map(|message| AgentWorkerMessageSnapshotWire {
+                    id: message.id,
+                    thread_id: message.thread_id,
+                    turn_id: message.turn_id,
+                    run_id: message.run_id,
+                    role: message.role.clone(),
+                    content: message.content.clone(),
+                    payload_json: message.payload_json.clone(),
+                })
+                .collect(),
+            delegations: self
+                .delegations
+                .iter()
+                .map(|delegation| AgentWorkerDelegationSnapshotWire {
+                    id: delegation.id,
+                    parent_run_id: delegation.parent_run_id,
+                    parent_execution_id: delegation.parent_execution_id,
+                    child_thread_id: delegation.child_thread_id,
+                    child_turn_id: delegation.child_turn_id,
+                    child_run_id: delegation.child_run_id,
+                    delegation_key: delegation.delegation_key.clone(),
+                    capability: delegation.capability.clone(),
+                    objective: delegation.objective.clone(),
+                    success_criteria_json: delegation.success_criteria_json.clone(),
+                    scope_json: delegation.scope_json.clone(),
+                    budget_json: delegation.budget_json.clone(),
+                    status: delegation.status.clone(),
+                    result_refs_json: delegation.result_refs_json.clone(),
+                    result_summary: delegation.result_summary.clone(),
+                    error_message: delegation.error_message.clone(),
+                })
+                .collect(),
+            executions: self
+                .executions
+                .iter()
+                .map(|execution| AgentWorkerExecutionSnapshotWire {
+                    id: execution.id,
+                    run_id: execution.run_id,
+                    execution_key: execution.execution_key.clone(),
+                    execution_kind: execution.execution_kind.clone(),
+                    status: execution.status.clone(),
+                    tool_name: execution.tool_name.clone(),
+                    effect: execution.effect.clone(),
+                    replay_policy: execution.replay_policy.clone(),
+                    arguments_json: execution.arguments_json.clone(),
+                    resource_preconditions_json: execution.resource_preconditions_json.clone(),
+                    result_json: execution.result_json.clone(),
+                    result_summary: execution.result_summary.clone(),
+                    result_refs_json: execution.result_refs_json.clone(),
+                    error_message: execution.error_message.clone(),
+                })
+                .collect(),
+            editor_source: self.editor_source.clone(),
+            owner_user_id: self.owner_user_id,
+            scope: self.scope.clone(),
+            profile_id: self.profile_id.clone(),
+            default_model_config_id: self.default_model_config_id,
+            execution_mode: self.execution_mode.clone(),
+            goal: self.goal.clone(),
+            budget: self.budget.clone(),
+            usage: self.usage.clone(),
+            runtime_snapshot_required: self.runtime_snapshot_required,
+            delegation_depth: self.delegation_depth,
+        }
+    }
+
+    pub fn from_wire(wire: AgentWorkerRunContextWire) -> Self {
+        Self {
+            run: run_snapshot_from_wire(wire.run),
+            thread: thread_snapshot_from_wire(wire.thread),
+            turn: AgentTurnSnapshot {
+                id: wire.turn.id,
+                thread_id: wire.turn.thread_id,
+                input_message_id: wire.turn.input_message_id,
+                execution_mode: wire.turn.execution_mode,
+                goal: wire.turn.goal,
+                model_override_json: wire.turn.model_override_json,
+            },
+            messages: wire
+                .messages
+                .into_iter()
+                .map(|message| AgentMessageSnapshot {
+                    id: message.id,
+                    thread_id: message.thread_id,
+                    turn_id: message.turn_id,
+                    run_id: message.run_id,
+                    role: message.role,
+                    content: message.content,
+                    payload_json: message.payload_json,
+                })
+                .collect(),
+            delegations: wire
+                .delegations
+                .into_iter()
+                .map(|delegation| AgentDelegationSnapshot {
+                    id: delegation.id,
+                    parent_run_id: delegation.parent_run_id,
+                    parent_execution_id: delegation.parent_execution_id,
+                    child_thread_id: delegation.child_thread_id,
+                    child_turn_id: delegation.child_turn_id,
+                    child_run_id: delegation.child_run_id,
+                    delegation_key: delegation.delegation_key,
+                    capability: delegation.capability,
+                    objective: delegation.objective,
+                    success_criteria_json: delegation.success_criteria_json,
+                    scope_json: delegation.scope_json,
+                    budget_json: delegation.budget_json,
+                    status: delegation.status,
+                    result_refs_json: delegation.result_refs_json,
+                    result_summary: delegation.result_summary,
+                    error_message: delegation.error_message,
+                })
+                .collect(),
+            executions: wire
+                .executions
+                .into_iter()
+                .map(|execution| AgentExecutionSnapshot {
+                    id: execution.id,
+                    run_id: execution.run_id,
+                    execution_key: execution.execution_key,
+                    execution_kind: execution.execution_kind,
+                    status: execution.status,
+                    tool_name: execution.tool_name,
+                    effect: execution.effect,
+                    replay_policy: execution.replay_policy,
+                    arguments_json: execution.arguments_json,
+                    resource_preconditions_json: execution.resource_preconditions_json,
+                    result_json: execution.result_json,
+                    result_summary: execution.result_summary,
+                    result_refs_json: execution.result_refs_json,
+                    error_message: execution.error_message,
+                })
+                .collect(),
+            editor_source: wire.editor_source,
+            owner_user_id: wire.owner_user_id,
+            scope: wire.scope,
+            profile_id: wire.profile_id,
+            default_model_config_id: wire.default_model_config_id,
+            execution_mode: wire.execution_mode,
+            goal: wire.goal,
+            budget: wire.budget,
+            usage: wire.usage,
+            runtime_snapshot_required: wire.runtime_snapshot_required,
+            delegation_depth: wire.delegation_depth,
+        }
+    }
 }
 
 /// Validates the durable Agent budget contract before a Run is admitted or
@@ -2760,6 +2985,16 @@ impl AgentApplication {
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", claimed.run.id)))?;
+        if run_row.thread_id != claimed.run.thread_id
+            || run_row.turn_id != claimed.run.turn_id
+            || run_row.attempt != claimed.run.attempt
+            || run_row.worker_id != claimed.run.worker_id
+        {
+            return Err(AppError::InvalidState {
+                current: format!("Agent run {} 的 worker 快照已过期", claimed.run.id),
+                operation: "加载 Agent worker context".into(),
+            });
+        }
         agent::validate_live_run_lease(
             &run_row,
             &claimed.lease_token,

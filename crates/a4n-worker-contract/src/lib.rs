@@ -178,6 +178,91 @@ pub struct AgentWorkerThreadSnapshotWire {
     pub context_summary: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerRunContextWire {
+    pub run: AgentWorkerRunSnapshotWire,
+    pub thread: AgentWorkerThreadSnapshotWire,
+    pub turn: AgentWorkerTurnSnapshotWire,
+    pub messages: Vec<AgentWorkerMessageSnapshotWire>,
+    pub delegations: Vec<AgentWorkerDelegationSnapshotWire>,
+    pub executions: Vec<AgentWorkerExecutionSnapshotWire>,
+    pub editor_source: Option<a4n_api_contract::agent::AgentEditorSource>,
+    pub owner_user_id: i64,
+    pub scope: AgentScope,
+    pub profile_id: String,
+    pub default_model_config_id: Option<i64>,
+    pub execution_mode: String,
+    pub goal: Option<String>,
+    pub budget: serde_json::Value,
+    pub usage: serde_json::Value,
+    pub runtime_snapshot_required: bool,
+    pub delegation_depth: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerTurnSnapshotWire {
+    pub id: i64,
+    pub thread_id: i64,
+    pub input_message_id: i64,
+    pub execution_mode: String,
+    pub goal: Option<String>,
+    pub model_override_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerMessageSnapshotWire {
+    pub id: i64,
+    pub thread_id: i64,
+    pub turn_id: Option<i64>,
+    pub run_id: Option<i64>,
+    pub role: String,
+    pub content: String,
+    pub payload_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExecutionSnapshotWire {
+    pub id: i64,
+    pub run_id: i64,
+    pub execution_key: String,
+    pub execution_kind: String,
+    pub status: String,
+    pub tool_name: Option<String>,
+    pub effect: Option<String>,
+    pub replay_policy: Option<String>,
+    pub arguments_json: Option<serde_json::Value>,
+    pub resource_preconditions_json: Option<serde_json::Value>,
+    pub result_json: Option<serde_json::Value>,
+    pub result_summary: Option<String>,
+    pub result_refs_json: Option<serde_json::Value>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerDelegationSnapshotWire {
+    pub id: i64,
+    pub parent_run_id: i64,
+    pub parent_execution_id: Option<i64>,
+    pub child_thread_id: i64,
+    pub child_turn_id: Option<i64>,
+    pub child_run_id: Option<i64>,
+    pub delegation_key: String,
+    pub capability: String,
+    pub objective: String,
+    pub success_criteria_json: serde_json::Value,
+    pub scope_json: serde_json::Value,
+    pub budget_json: serde_json::Value,
+    pub status: String,
+    pub result_refs_json: Option<serde_json::Value>,
+    pub result_summary: Option<String>,
+    pub error_message: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentHostCommandPayload {
