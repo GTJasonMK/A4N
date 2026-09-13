@@ -50,8 +50,8 @@ use a4n_api_contract::{
         VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
         VideoRecordCompletionApplicationPort, VideoRecordCompletionError,
         VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
-        VideoRecordReadApplicationPort, VideoTailFrameInput, VideoTailFrameSummary,
-        VideoTrimApplicationPort, VideoTrimPlan,
+        VideoRecordReadApplicationPort, VideoTailFrameApplicationPort, VideoTailFrameInput,
+        VideoTailFrameSummary, VideoTrimApplicationPort, VideoTrimPlan,
     },
 };
 
@@ -1921,21 +1921,7 @@ impl VideoRecordCompletionApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
-    async fn mark_error_status_and_prompt(
-        &self,
-        video_id: i64,
-        prompt_id: Option<i64>,
-        status: &str,
-        message: &str,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        Ok(generated_video_summary(
-            &self
-                .mark_generated_video_error_status_and_prompt(video_id, prompt_id, status, message)
-                .await?,
-        ))
-    }
-
+impl VideoTailFrameApplicationPort for crate::OrchestratorContext {
     async fn create_video_tail_frame(
         &self,
         input: VideoTailFrameInput,
@@ -1986,6 +1972,23 @@ impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
         } else {
             Err(AppError::Internal(anyhow::anyhow!(failures.join("；"))))
         }
+    }
+}
+
+#[async_trait]
+impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
+    async fn mark_error_status_and_prompt(
+        &self,
+        video_id: i64,
+        prompt_id: Option<i64>,
+        status: &str,
+        message: &str,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        Ok(generated_video_summary(
+            &self
+                .mark_generated_video_error_status_and_prompt(video_id, prompt_id, status, message)
+                .await?,
+        ))
     }
 
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError> {

@@ -790,6 +790,20 @@ pub trait VideoRecordCompletionApplicationPort: Send + Sync {
     ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
 }
 
+/// Host-facing video tail-frame boundary.
+#[async_trait::async_trait]
+pub trait VideoTailFrameApplicationPort: Send + Sync {
+    async fn create_video_tail_frame(
+        &self,
+        input: VideoTailFrameInput,
+    ) -> Result<VideoTailFrameSummary, a4n_error::AppError>;
+
+    async fn delete_video_tail_frame_assets(
+        &self,
+        video_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host-facing media-cleanup lifecycle boundary.
 #[async_trait::async_trait]
 pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
@@ -800,16 +814,6 @@ pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
         status: &str,
         message: &str,
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
-
-    async fn create_video_tail_frame(
-        &self,
-        input: VideoTailFrameInput,
-    ) -> Result<VideoTailFrameSummary, a4n_error::AppError>;
-
-    async fn delete_video_tail_frame_assets(
-        &self,
-        video_id: i64,
-    ) -> Result<(), a4n_error::AppError>;
 
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), a4n_error::AppError>;
 }
