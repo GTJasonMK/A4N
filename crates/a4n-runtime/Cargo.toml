@@ -24,6 +24,7 @@ embedded-media-providers = [
 ]
 
 [dependencies]
+a4n-agent-application = { path = "../a4n-agent-application" }
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-canvas-contract = { path = "../a4n-canvas-contract" }
@@ -71,6 +72,7 @@ a4n-video = { path = "../a4n-video" }
 a4n-video-client = { path = "../a4n-video-client" }
 a4n-video-contract = { path = "../a4n-video-contract" }
 a4n-video-providers = { path = "../a4n-video-providers", optional = true }
+a4n-worker-contract = { path = "../a4n-worker-contract" }
 a4n-migration = { path = "../a4n-migration", optional = true }
 
 anyhow = { workspace = true }

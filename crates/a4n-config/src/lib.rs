@@ -94,6 +94,34 @@ pub fn required_non_empty_env_string(key: &str) -> Result<String, AppError> {
         .ok_or_else(|| AppError::ConfigError(format!("{key} 未设置")))
 }
 
+/// Loads the process-shared Host configuration from environment variables.
+///
+/// Control and worker processes must apply the same storage and provider
+/// overrides; keeping this conversion here avoids two subtly different
+/// bootstrap paths.
+pub fn app_config_from_env() -> Result<app_config::AppConfig, AppError> {
+    let database_url = required_non_empty_env_string("A4N_DATABASE_URL")?;
+    validate_postgres_database_url("A4N_DATABASE_URL", &database_url)?;
+    let jwt_secret = required_non_empty_env_string("A4N_JWT_SECRET")?;
+    let mut config = app_config::AppConfig {
+        database_url,
+        security: app_config::SecurityConfig {
+            jwt_secret: Some(jwt_secret),
+        },
+        ..Default::default()
+    };
+    let portable_home = app_config::portable_home_dir();
+    app_config::apply_storage_env_overrides(&mut config, &portable_home)?;
+    if let Some(value) = optional_non_empty_env_string("A4N_OPENAI_API_KEY")? {
+        config.llm.api_key = Some(value.clone());
+        config.embedding.api_key = Some(value);
+    }
+    if let Some(value) = optional_non_empty_env_string("A4N_OPENAI_BASE_URL")? {
+        config.llm.base_url = value;
+    }
+    Ok(config)
+}
+
 pub fn env_flag_enabled(key: &str) -> Result<bool, AppError> {
     let Some(value) = optional_non_empty_env_string(key)? else {
         return Ok(false);

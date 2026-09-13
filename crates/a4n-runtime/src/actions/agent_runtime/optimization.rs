@@ -1,10 +1,11 @@
 use super::*;
 use crate::actions::agent_domains::content_optimization as domain;
+use a4n_agent_application::agent::AgentExecutionSnapshot;
 use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskSummary},
     optimize::OptimizeSessionInput,
 };
-use a4n_orchestrator::agent::AgentExecutionSnapshot;
+use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
 
 pub(super) async fn start(
     state: &AppState,
@@ -66,6 +67,7 @@ pub(super) async fn process(
     state: &AppState,
     claimed: &AgentWorkerRun,
     context: &AgentRunContext,
+    worker_request: &WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
     let history_application = state.agent_worker_history_application();
     let latest_start = context
@@ -147,6 +149,7 @@ pub(super) async fn process(
         state,
         claimed,
         context,
+        worker_request,
         ToolCall {
             id: start_id,
             name: "send_content_optimization_message".into(),
@@ -164,6 +167,7 @@ pub(super) async fn process(
         state,
         claimed,
         context,
+        worker_request,
         ToolCall {
             id: wait_id,
             name: "wait_generation_task".into(),
@@ -219,6 +223,7 @@ async fn call(
     state: &AppState,
     claimed: &AgentWorkerRun,
     context: &AgentRunContext,
+    worker_request: &WorkerRequest<AgentRunPayload>,
     call: ToolCall,
 ) -> Result<Option<Value>, AppError> {
     let execution_application = state.agent_worker_execution_application();
@@ -253,7 +258,7 @@ async fn call(
         execution_application,
         claimed,
         context,
-        &RuntimeAgentToolExecutor::new(state.clone()),
+        &RuntimeAgentToolExecutor::new(state.clone(), worker_request.clone()),
         call,
         execution.clone(),
         &mut Vec::new(),

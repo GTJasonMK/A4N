@@ -8,6 +8,12 @@ pub enum RuntimeProfile {
     Sidecar,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeRole {
+    Host,
+    AgentWorker,
+}
+
 impl RuntimeProfile {
     pub fn configured_from_env() -> Result<Option<Self>, AppError> {
         optional_non_empty_env_string("A4N_RUNTIME_PROFILE")?

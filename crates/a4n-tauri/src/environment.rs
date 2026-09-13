@@ -24,14 +24,21 @@ pub(crate) fn api_mode() -> Result<ApiMode, String> {
         return Ok(ApiMode::Http { remote_only: true });
     }
     match std::env::var("VITE_A4N_API_TRANSPORT") {
-        Ok(value) => Ok(if parse_api_transport(&value)? {
-            ApiMode::Http { remote_only: true }
-        } else {
-            ApiMode::Native
-        }),
-        Err(VarError::NotPresent) => Ok(ApiMode::Native),
+        Ok(value) => api_mode_from_transport(Some(&value)),
+        Err(VarError::NotPresent) => api_mode_from_transport(None),
         Err(error) => Err(format!("读取 VITE_A4N_API_TRANSPORT 失败：{error}")),
     }
+}
+
+fn api_mode_from_transport(value: Option<&str>) -> Result<ApiMode, String> {
+    let Some(value) = value else {
+        return Ok(ApiMode::Http { remote_only: false });
+    };
+    Ok(if parse_api_transport(value)? {
+        ApiMode::Http { remote_only: true }
+    } else {
+        ApiMode::Native
+    })
 }
 
 fn parse_api_transport(value: &str) -> Result<bool, String> {
@@ -55,5 +62,17 @@ mod tests {
         assert!(parse_api_transport("auto").is_err());
         assert!(parse_api_transport("web").unwrap());
         assert!(!parse_api_transport("tauri").unwrap());
+    }
+
+    #[test]
+    fn missing_transport_defaults_to_local_http_server() {
+        assert!(matches!(
+            api_mode_from_transport(None),
+            Ok(ApiMode::Http { remote_only: false })
+        ));
+        assert!(matches!(
+            api_mode_from_transport(Some("tauri")),
+            Ok(ApiMode::Native)
+        ));
     }
 }

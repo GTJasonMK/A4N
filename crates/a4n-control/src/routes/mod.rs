@@ -204,6 +204,35 @@ pub fn api_router(state: ServerState) -> Router {
         .with_state(state)
 }
 
+pub fn internal_router(state: ServerState) -> Router {
+    Router::new()
+        .route("/agent/claim", post(agent_runtime::claim_worker))
+        .route("/agent/command", post(agent_runtime::command))
+        .route(
+            "/agent/package",
+            get(agent_runtime::agent_package_execution_enabled),
+        )
+        .route(
+            "/agent/generation/cancel",
+            post(agent_runtime::cancel_agent_generation),
+        )
+        .route(
+            "/agent/workflow/cancel",
+            post(agent_runtime::cancel_agent_workflow),
+        )
+        .route("/agent/wait", post(agent_runtime::read_agent_wait))
+        .route(
+            "/agent/llm/capabilities",
+            post(agent_runtime::agent_llm_capabilities),
+        )
+        .route("/agent/llm/chat", post(agent_runtime::agent_chat))
+        .route(
+            "/agent/editor/project",
+            post(agent_runtime::project_agent_editor),
+        )
+        .with_state(state)
+}
+
 async fn health() -> &'static str {
     "ok"
 }

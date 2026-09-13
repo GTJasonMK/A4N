@@ -27,9 +27,9 @@ pub struct ChatRequest {
     pub cache_system_prefix: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_user_prefix_len: Option<usize>,
-    #[serde(skip)]
+    #[serde(skip_serializing, default)]
     pub trace_context: Option<LlmTraceContext>,
-    #[serde(skip)]
+    #[serde(skip_serializing, default)]
     pub context_manifest_json: Option<Value>,
     pub tools: Option<Vec<Value>>,
     pub tool_choice: Option<String>,

@@ -432,6 +432,13 @@ preflight_runtime_dependencies() {
 
 preflight_runtime_dependencies
 
+build_agent_host_binaries() {
+  local command=("$PROJECT_ROOT/scripts/cargo.sh" build -p a4n-control -p a4n-agent-worker)
+  $RELEASE && command+=(--release)
+  $FULL_HOST && command+=(--features embedded-capabilities)
+  "${command[@]}"
+}
+
 if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
   migration_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && migration_command+=(--release)
@@ -441,12 +448,13 @@ if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
   server_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && server_command+=(--release)
   server_command+=(-p a4n-server)
-  $FULL_HOST && server_command+=(--features embedded-capabilities)
   "${server_command[@]}"
+  build_agent_host_binaries
 fi
 
 if $SERVER && ! $REMOTE_API; then
   "$PROJECT_ROOT/scripts/cargo.sh" run -p a4n-cli -- local migrate
+  build_agent_host_binaries
 fi
 
 if $FULL_HOST; then
@@ -473,7 +481,6 @@ if $SERVER; then
   command=("$PROJECT_ROOT/scripts/cargo.sh" run)
   $RELEASE && command+=(--release)
   command+=(-p a4n-server)
-  $FULL_HOST && command+=(--features embedded-capabilities)
   exec "${command[@]}"
 fi
 

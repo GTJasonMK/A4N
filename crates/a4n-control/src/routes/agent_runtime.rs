@@ -1,31 +1,254 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
+use a4n_agent_application::agent::AgentExternalTaskWaitSnapshot;
 use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
     AgentEvent, AgentEventsInput, AgentMemoryInput, AgentMemoryScopeKind, AgentMemoryView,
-    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentThreadSnapshot, AgentThreadView,
-    AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput,
-    ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
+    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentThreadSnapshot,
+    AgentThreadView, AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput,
+    ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
     EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
     ListAgentThreadsInput, ResolveAgentApprovalInput, RetractAgentMemoryInput,
     SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
     UpdateAgentThreadInput,
 };
+use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
+use a4n_error::AppError;
+use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
+use a4n_worker_contract::{
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerCancelGenerationRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
+    AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerWaitRequest, WorkerRequest,
+};
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
-use futures::{Stream, stream};
-use serde::Deserialize;
+use futures::{Stream, StreamExt, stream};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::time::Duration;
 
 const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+pub(super) async fn claim_worker(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerClaimRequest>,
+) -> Result<Response, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    match agent_actions::claim_agent_worker_request(state.runtime(), &input.worker_id).await? {
+        Some(request) => Ok(Json(request).into_response()),
+        None => Ok(StatusCode::NO_CONTENT.into_response()),
+    }
+}
+
+pub(super) async fn command(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerRequest<AgentHostCommandPayload>>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    request
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    request
+        .payload
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let user_id = agent_actions::authorize_agent_host_command(state.runtime(), &request).await?;
+    let command = request.payload.command.clone();
+    let arguments = request.payload.arguments_with_runtime_snapshot();
+    super::commands::dispatch_runtime_command_value(state.runtime(), user_id, arguments, command)
+        .await
+        .map(Json)
+        .map_err(|error| {
+            let message = error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("Agent Host command 执行失败")
+                .to_string();
+            ApiError::internal("agent_host_command_failed", message, true)
+        })
+}
+
+pub(super) async fn agent_package_execution_enabled(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+) -> Result<Json<AgentWorkerPackageExecutionResponse>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    let enabled = agent_actions::agent_package_execution_enabled(state.runtime()).await?;
+    Ok(Json(AgentWorkerPackageExecutionResponse { enabled }))
+}
+
+pub(super) async fn cancel_agent_generation(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerCancelGenerationRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    agent_actions::cancel_agent_owned_generation_task(
+        state.runtime(),
+        input.user_id,
+        &input.task_id,
+        input.attempt,
+    )
+    .await?;
+    Ok(Json(Value::Null))
+}
+
+pub(super) async fn cancel_agent_workflow(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerCancelWorkflowRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    agent_actions::cancel_agent_owned_workflow(
+        state.runtime(),
+        input.workflow_run_id,
+        &input.reason,
+    )
+    .await?;
+    Ok(Json(Value::Null))
+}
+
+pub(super) async fn read_agent_wait(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerWaitRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    let value = agent_actions::read_external_task_wait(
+        state.runtime(),
+        AgentExternalTaskWaitSnapshot {
+            run_id: input.run_id,
+            owner_user_id: input.owner_user_id,
+            scope: input.scope,
+            execution_id: input.execution_id,
+            tool_name: input.tool_name,
+            arguments_json: input.arguments_json,
+            duration_exhausted: input.duration_exhausted,
+        },
+        input.runtime_config_snapshot,
+    )
+    .await?;
+    Ok(Json(value))
+}
+
+pub(super) async fn agent_llm_capabilities(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerLlmCapabilitiesRequest>,
+) -> Result<Json<ModelCapabilities>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    agent_actions::agent_llm_capabilities(
+        state.runtime(),
+        input.user_id,
+        input.snapshot,
+        input.config_id,
+    )
+    .await
+    .map(Json)
+    .map_err(Into::into)
+}
+
+pub(super) async fn agent_chat(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerChatRequest>,
+) -> Result<Response, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    let request = serde_json::from_value::<ChatRequest>(input.request)
+        .map_err(|error| ApiError::bad_request(format!("Agent LLM request 无效: {error}")))?;
+    let chunks = agent_actions::agent_chat_stream(
+        state.runtime(),
+        input.user_id,
+        input.snapshot,
+        input.config_id,
+        request,
+    )
+    .await?;
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-cache, no-transform"),
+    );
+    response_headers.insert("x-accel-buffering", HeaderValue::from_static("no"));
+    Ok((
+        response_headers,
+        Sse::new(agent_chat_sse_stream(chunks)).keep_alive(
+            KeepAlive::new()
+                .interval(Duration::from_secs(5))
+                .text("keep-alive"),
+        ),
+    )
+        .into_response())
+}
+
+pub(super) async fn project_agent_editor(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerEditorProjectionRequest>,
+) -> Result<Json<VisualPlanProjection>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    agent_actions::project_agent_editor_draft(state.runtime(), &input.plan, &input.view)
+        .map(Json)
+        .map_err(Into::into)
+}
+
+fn agent_chat_sse_stream<S>(
+    chunks: S,
+) -> impl Stream<Item = Result<Event, Infallible>> + Send + 'static
+where
+    S: Stream<Item = Result<ChatChunk, AppError>> + Send + 'static,
+{
+    stream::unfold(
+        (Box::pin(chunks), false),
+        |(mut chunks, finished)| async move {
+            if finished {
+                return None;
+            }
+            match chunks.as_mut().next().await {
+                Some(Ok(chunk)) => Some((Ok(chat_chunk_event(chunk)), (chunks, false))),
+                Some(Err(error)) => Some((Ok(chat_error_event(error)), (chunks, true))),
+                None => None,
+            }
+        },
+    )
+}
+
+fn chat_chunk_event(chunk: ChatChunk) -> Event {
+    Event::default()
+        .event("chunk")
+        .data(serde_json::to_string(&chunk).expect("ChatChunk must remain serializable"))
+}
+
+fn chat_error_event(error: AppError) -> Event {
+    Event::default()
+        .event("error")
+        .data(serde_json::json!({ "message": error.to_string() }).to_string())
+}
+
+fn authorize_worker_request(state: &ServerState, headers: &HeaderMap) -> Result<(), ApiError> {
+    let provided = headers
+        .get(AGENT_WORKER_AUTH_HEADER)
+        .and_then(|value| value.to_str().ok());
+    if state.agent_worker_token_matches(provided) {
+        Ok(())
+    } else {
+        Err(ApiError::unauthorized("Agent worker 身份验证失败"))
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -688,5 +911,20 @@ mod tests {
         assert_eq!(data["sequence"], 3);
         assert_eq!(data["thread_id"], "9");
         assert_eq!(data["kind"], "message.accepted");
+    }
+
+    #[test]
+    fn agent_chat_payload_accepts_worker_snapshot() {
+        let request = ChatRequest::system_user("system", "user", Some(0.2), Some(128))
+            .with_json_response_format()
+            .with_stream_usage();
+        let value = request.snapshot_value().unwrap();
+        let parsed: ChatRequest = serde_json::from_value(value).unwrap();
+
+        assert_eq!(parsed.messages.len(), 2);
+        assert_eq!(parsed.temperature, Some(0.2));
+        assert_eq!(parsed.max_tokens, Some(128));
+        assert!(parsed.stream_include_usage);
+        assert!(parsed.response_format.is_some());
     }
 }
