@@ -29,11 +29,11 @@ use crate::{
         generation_result_ref, publish_step_progress,
     },
     media::{
-        BatchImageGenerationOutcome, ImageCanvasRequestPreviewApplicationPort,
-        ImageGenerationApplicationPort, ImageGenerationHostPort, ImageGenerationProgress,
-        ImageGenerationTaskApplicationPort, ImagePageRequestPreviewApplicationPort,
-        ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
-        PreparedImageGenerationRequest,
+        BatchImageGenerationOutcome, ImageBatchRequestPreviewApplicationPort,
+        ImageCanvasRequestPreviewApplicationPort, ImageGenerationApplicationPort,
+        ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationTaskApplicationPort,
+        ImagePageRequestPreviewApplicationPort, ImageProfilePromptApplicationPort,
+        ImageSceneRequestPreviewApplicationPort, PreparedImageGenerationRequest,
     },
 };
 
@@ -405,16 +405,6 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl ImageGenerationApplicationPort for OrchestratorContext {
-    async fn prepare_batch_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateBatchImagesInput,
-    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError> {
-        self.prepare_batch_images_request_validated(host_port, user_id, input)
-            .await
-    }
-
     async fn prepare_object_profile_request(
         &self,
         host_port: &dyn ImageGenerationHostPort,
@@ -433,6 +423,19 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError> {
         self.generate_galgame_image_validated(host_port, user_id, input, progress)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ImageBatchRequestPreviewApplicationPort for OrchestratorContext {
+    async fn prepare_batch_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateBatchImagesInput,
+    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError> {
+        self.prepare_batch_images_request_validated(host_port, user_id, input)
             .await
     }
 }

@@ -457,6 +457,9 @@ pub struct AppState {
     /// Canvas image request preview owner.
     image_canvas_request_preview_application:
         Arc<dyn a4n_orchestrator::media::ImageCanvasRequestPreviewApplicationPort>,
+    /// Batch image request preview owner.
+    image_batch_request_preview_application:
+        Arc<dyn a4n_orchestrator::media::ImageBatchRequestPreviewApplicationPort>,
     /// Manga page image request preview owner.
     image_page_request_preview_application:
         Arc<dyn a4n_orchestrator::media::ImagePageRequestPreviewApplicationPort>,
@@ -2095,6 +2098,12 @@ impl AppState {
         self.image_canvas_request_preview_application.as_ref()
     }
 
+    pub(crate) fn image_batch_request_preview_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::media::ImageBatchRequestPreviewApplicationPort {
+        self.image_batch_request_preview_application.as_ref()
+    }
+
     pub(crate) fn image_page_request_preview_application(
         &self,
     ) -> &dyn a4n_orchestrator::media::ImagePageRequestPreviewApplicationPort {
@@ -2714,6 +2723,7 @@ impl AppState {
             image_provider_config: Arc::new(orchestrator.clone()),
             image_generation_application: Arc::new(orchestrator.clone()),
             image_canvas_request_preview_application: Arc::new(orchestrator.clone()),
+            image_batch_request_preview_application: Arc::new(orchestrator.clone()),
             image_page_request_preview_application: Arc::new(orchestrator.clone()),
             image_scene_request_preview_application: Arc::new(orchestrator.clone()),
             image_generation_task_application: Arc::new(orchestrator.clone()),

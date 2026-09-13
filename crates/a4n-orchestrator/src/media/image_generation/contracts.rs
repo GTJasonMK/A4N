@@ -172,13 +172,6 @@ pub struct PersistedGeneratedImageFile {
 /// generation.
 #[async_trait]
 pub trait ImageGenerationApplicationPort: Send + Sync {
-    async fn prepare_batch_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: GenerateBatchImagesInput,
-    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError>;
-
     async fn prepare_object_profile_request(
         &self,
         host_port: &dyn ImageGenerationHostPort,
@@ -193,6 +186,17 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         input: GenerateGalgameImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError>;
+}
+
+/// Host-facing boundary for batch image request previews.
+#[async_trait]
+pub trait ImageBatchRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_batch_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateBatchImagesInput,
+    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError>;
 }
 
 /// Host-facing boundary for manga page image request previews.
