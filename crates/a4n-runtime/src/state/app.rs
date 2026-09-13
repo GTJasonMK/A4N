@@ -124,6 +124,10 @@ pub struct AppState {
     /// analysis-specific boundary.
     optimize_analysis_preview_application:
         Arc<dyn a4n_orchestrator::optimize::OptimizeAnalysisPreviewApplicationPort>,
+    /// Content-optimization chat request previews stay behind the chat
+    /// boundary.
+    optimize_chat_preview_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizeChatPreviewApplicationPort>,
     /// Each content-optimization worker has its own runtime boundary so a
     /// worker-specific change does not widen the injected contract.
     optimize_chat_generation_application:
@@ -1243,6 +1247,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_orchestrator::optimize::OptimizeAnalysisPreviewApplicationPort {
         self.optimize_analysis_preview_application.as_ref()
+    }
+
+    pub(crate) fn optimize_chat_preview_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::optimize::OptimizeChatPreviewApplicationPort {
+        self.optimize_chat_preview_application.as_ref()
     }
 
     pub(crate) fn scene_profile_sync_application(
@@ -2684,6 +2694,7 @@ impl AppState {
             optimize_patch_application: Arc::new(orchestrator.clone()),
             optimize_preview_application: Arc::new(orchestrator.clone()),
             optimize_analysis_preview_application: Arc::new(orchestrator.clone()),
+            optimize_chat_preview_application: Arc::new(orchestrator.clone()),
             optimize_chat_generation_application: Arc::new(orchestrator.clone()),
             optimize_analysis_generation_application: Arc::new(orchestrator.clone()),
             optimize_patch_generation_application: Arc::new(orchestrator.clone()),
