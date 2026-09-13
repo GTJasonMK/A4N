@@ -1690,8 +1690,18 @@ if ! rg -n 'chapter_content_sync_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ChapterContentSyncApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_content/application.rs; then
-    printf 'ChapterContentSyncApplicationPort contract is missing\n' >&2
+    crates/a4n-api-contract/src/chapter.rs; then
+    printf 'ChapterContentSyncApplicationPort contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ChapterContentSyncApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_content; then
+    printf 'ChapterContentSyncApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::chapter_content::ChapterContentSyncApplicationPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime chapter content synchronization must consume the API contract directly\n' >&2
     exit 1
 fi
 

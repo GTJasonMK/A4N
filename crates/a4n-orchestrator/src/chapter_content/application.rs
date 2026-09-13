@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::chapter::{
-    ChapterContentMutationApplicationPort, ChapterDerivedCleanupHostPort,
+    ChapterContentMutationApplicationPort, ChapterContentSyncApplicationPort,
+    ChapterDerivedCleanupHostPort,
 };
 use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
@@ -14,30 +15,6 @@ use crate::{
 };
 
 use super::rules::ensure_text_project_kind;
-
-/// Runtime-facing boundary for derived-data synchronization and recovery.
-#[async_trait]
-pub trait ChapterContentSyncApplicationPort: Send + Sync {
-    async fn resume(
-        &self,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        workflow_run_id: i64,
-    ) -> Result<(), AppError>;
-
-    async fn postprocess(
-        &self,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        chapter_id: i64,
-    ) -> Result<(), AppError>;
-
-    async fn cleanup_derived_rag(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        chapter_number: i32,
-        artifacts: &ChapterDerivedCleanupArtifacts,
-    ) -> Result<(), AppError>;
-}
 
 impl OrchestratorContext {
     pub async fn preflight_chapter_content_change_validated(

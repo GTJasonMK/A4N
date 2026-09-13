@@ -198,7 +198,7 @@ pub struct AppState {
     /// Host-facing chapter-content derived-data synchronization and recovery
     /// boundary.
     chapter_content_sync_application:
-        Arc<dyn a4n_orchestrator::chapter_content::ChapterContentSyncApplicationPort>,
+        Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
     /// Chapter request preview and RAG preparation remain in the chapter
     /// owner; Runtime only supplies prompt and embedding inputs.
     chapter_generation_preview_application:
@@ -1264,7 +1264,7 @@ impl AppState {
 
     pub(crate) fn chapter_content_sync_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_content::ChapterContentSyncApplicationPort {
+    ) -> &dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort {
         self.chapter_content_sync_application.as_ref()
     }
 
