@@ -4,7 +4,7 @@ use a4n_domain::shooting_script::{
     ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDirectingStatementV1,
     ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
     ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
-    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
+    ShootingViewpointModeV1, ShootingViewpointV1,
     ShootingVisualPlanSourceV1,
 };
 

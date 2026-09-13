@@ -78,6 +78,9 @@ pub struct StartImageGenerationInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ImageGenerationOperation {
+    VisualPlanPoint {
+        options: crate::chapter_visual_plan::VisualPlanPointGenerationOptions,
+    },
     Scene {
         #[schemars(length(min = 1, max = 100_000))]
         prompt: String,

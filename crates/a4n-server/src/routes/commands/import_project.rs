@@ -21,7 +21,8 @@ pub(super) use chapter::{
     get_chapter_shooting_script_unit_progress, get_chapter_visual_plan, import_chapter,
     list_chapter_scenes, list_chapters, prepare_chapter_generation_rag_embedding,
     preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
-    preview_resume_chapter_analysis_sync_request, read_chapter_visual_plan, reorder_chapter_scenes,
+    preview_resume_chapter_analysis_sync_request, preview_visual_plan_point_generation,
+    read_chapter_visual_plan, read_visual_plan_prompt_candidate, reorder_chapter_scenes,
     resume_chapter_analysis_sync, save_chapter_visual_plan_draft, update_chapter_content,
     update_chapter_scene, validate_chapter_visual_plan,
 };

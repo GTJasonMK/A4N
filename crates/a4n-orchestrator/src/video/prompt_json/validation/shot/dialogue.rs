@@ -14,6 +14,7 @@ pub(super) fn validate_dialogue_beats(
     value: &Value,
     allowed_source_span_ids: &[String],
     policy: DialogueTracePolicy,
+    director_source: bool,
 ) -> Result<Value, AppError> {
     let beats = value.as_array().ok_or_else(|| {
         AppError::InvalidArgument("视频提示词 dialogue_cues 必须是数组".to_string())
@@ -22,7 +23,7 @@ pub(super) fn validate_dialogue_beats(
     if beats.is_empty() {
         return Ok(Value::Array(Vec::new()));
     }
-    if allowed_source_span_ids.is_empty() {
+    if allowed_source_span_ids.is_empty() && !director_source {
         return Err(AppError::InvalidArgument(
             "视频提示词 dialogue_cues 无法补齐 source_span_ids：当前片段 source_span_ids 为空"
                 .to_string(),

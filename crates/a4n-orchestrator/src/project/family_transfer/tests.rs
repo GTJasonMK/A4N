@@ -20,9 +20,7 @@ use a4n_db_models::models::{
     project::{novel_project, project_source_snapshot, source_snapshot_chapter},
     user::user,
 };
-use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, ShootingVisualConstraintsV1, ShootingVisualPlanSourceV1,
-};
+use a4n_domain::shooting_script::{ChapterShootingScriptV1, ShootingVisualPlanSourceV1};
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
@@ -588,8 +586,36 @@ async fn manga_family_application_round_trip_remaps_all_owned_identities_and_med
     let old_plan = &original.package.chapter_visual_plans[0];
     let new_plan = &remapped.package.chapter_visual_plans[0];
     assert_ne!(old_plan.id, new_plan.id);
-    assert_eq!(old_plan.plan_sha256, new_plan.plan_sha256);
-    assert_eq!(old_plan.plan_json, new_plan.plan_json);
+    assert_ne!(old_plan.plan_sha256, new_plan.plan_sha256);
+    let mut expected_plan: a4n_domain::chapter_visual_plan::ChapterVisualPlanV3 =
+        serde_json::from_value(old_plan.plan_json.clone()).unwrap();
+    expected_plan
+        .remap_resources(
+            |id| {
+                original
+                    .package
+                    .generated_images
+                    .iter()
+                    .position(|row| row.id == id)
+                    .map(|index| remapped.package.generated_images[index].id)
+                    .ok_or_else(|| "missing image".into())
+            },
+            |id| {
+                original
+                    .package
+                    .text_core
+                    .scene_profiles
+                    .iter()
+                    .position(|row| row.id == id)
+                    .map(|index| remapped.package.text_core.scene_profiles[index].id)
+                    .ok_or_else(|| "missing scene".into())
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(expected_plan).unwrap(),
+        new_plan.plan_json
+    );
     assert_eq!(new_plan.root_project_id, new_root.id);
     assert_eq!(new_plan.source_chapter_id, new_chapter.id);
     assert_eq!(new_plan.source_snapshot_id, Some(new_snapshot.id));
@@ -942,7 +968,16 @@ async fn seed_manga_family_round_trip(
         chapter.chapter_number,
         &chapter.content,
     );
-    let plan = crate::shooting_script::visual_plan_fixture(&source).plan;
+    let mut plan = crate::shooting_script::visual_plan_fixture(&source).plan;
+    let scene_id =
+        crate::shooting_script::seed_visual_plan_scene(database, source.root_project_id).await;
+    plan.points.remove(1);
+    plan.points[1].at_ms = 2000;
+    plan.segments.truncate(1);
+    plan.segments[0].end_point_id = "end".into();
+    plan.segments[0].scene_binding = Some(a4n_domain::chapter_visual_plan::SceneBindingV3::Scene {
+        scene_profile_id: scene_id,
+    });
     let draft = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
         database,
         a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
@@ -1263,25 +1298,19 @@ fn round_trip_shooting_script(
     let scene = &mut script.scenes[0];
     scene.source_span_ids = unit.source_span_ids.clone();
     scene.visual_narrative_unit_id = Some(unit.id.clone());
-    scene.user_addition_ids = unit.user_addition_ids.clone();
+    scene.user_addition_ids = vec![format!("director:{}", planned_shot.segment_id)];
     let shot = &mut scene.shots[0];
-    shot.shot_id = planned_shot.id.clone();
-    shot.source_span_ids = planned_shot.source_span_ids.clone();
-    shot.visual_shot_id = Some(planned_shot.id.clone());
+    shot.shot_id = planned_shot.segment_id.clone();
+    shot.source_span_ids = unit.source_span_ids.clone();
+    shot.visual_shot_id = Some(planned_shot.segment_id.clone());
     shot.planned_start_ms = Some(planned_shot.start_ms);
     shot.planned_end_ms = Some(planned_shot.end_ms);
-    shot.user_addition_ids = planned_shot.user_addition_ids.clone();
-    shot.visual_constraints = Some(ShootingVisualConstraintsV1 {
-        keyframes: planned_shot.keyframes.clone(),
-        entity_events: planned_shot.entity_events.clone(),
-        camera_events: planned_shot.camera_events.clone(),
-        sound_events: planned_shot.sound_events.clone(),
-        technique_events: planned_shot.technique_events.clone(),
-        continuity_notes: planned_shot.continuity_notes.clone(),
-    });
-    shot.coverage = planned_shot.coverage;
-    shot.performance_beats[0].source_span_ids = planned_shot.source_span_ids.clone();
-    shot.performance_beats[0].user_addition_ids = planned_shot.user_addition_ids.clone();
+    shot.user_addition_ids = vec![format!("director:{}", planned_shot.segment_id)];
+    shot.visual_constraints = Some(planned_shot.clone());
+
+    shot.performance_beats[0].source_span_ids = unit.source_span_ids.clone();
+    shot.performance_beats[0].user_addition_ids =
+        vec![format!("director:{}", planned_shot.segment_id)];
     script
 }
 

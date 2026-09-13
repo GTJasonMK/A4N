@@ -97,6 +97,23 @@ runner 输出一个 JSON 报告和 Provider 请求 JSONL。不要把小型 ledge
 `tested_complete` 会继续明确报告它是否覆盖当前 manifest。核心账本是部分业务 fixture 时，
 `success=true` 且 `complete=false` 是正常结果，不应把它误读为所有 descriptor 都已测试。
 
+## 导演时间线 V3
+
+`run_director_timeline_cli_e2e.py` 验证图片点与镜头段独立、revision 冲突、图文候选生成与显式采用、参考图字节、取消、拍摄剧本投影、不同镜头时长的视频生成，以及包含图片与场景引用的 ZIP 往返。它只新建隔离数据，删除检查仅针对本次生成且仍被引用的资源。
+
+沿用前面的隔离 Server 和账号；Provider 用 `--video-file` 指定 6 秒 MP4 fixture。执行：
+
+```bash
+python3 scripts/tests/run_director_timeline_cli_e2e.py \
+  --a4n "${CARGO_TARGET_DIR:-target}/debug/a4n" \
+  --server "$A4N_TEST_SERVER_URL" --username "$A4N_USERNAME" \
+  --provider-url http://127.0.0.1:18765/v1 \
+  --provider-log data/director-e2e/provider.jsonl \
+  --report data/director-e2e/report.json
+```
+
+`frontend/e2e/director-timeline/check.mjs` 使用真实生产组件与 HTTP fixture，覆盖播放、拖动图片点／镜头边界、自动保存、整体伸缩、弹窗、窄屏与切换章节时的未完成请求。它不能替代上面的真实后端链路。
+
 ## LLM 调用生命周期回归
 
 `run_llm_lifecycle_cli_e2e.py` 验证 Canvas 个人配置隔离、单模型并发为 1 时可完成、截断与缺失结束信号被拒绝、运行中取消，以及 Agent 的时长预算和时钟溢出失败状态。使用专用数据库与目录，并保持独立 mock Provider 运行：

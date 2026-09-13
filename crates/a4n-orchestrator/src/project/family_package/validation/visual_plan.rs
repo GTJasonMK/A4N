@@ -4,7 +4,7 @@ use a4n_db_models::models::{
     chapter::{chapter, chapter_visual_plan},
     project::source_snapshot_chapter,
 };
-use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanV2};
+use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanV3};
 
 use super::super::{ProjectFamilyPackage, hash_text};
 
@@ -79,7 +79,7 @@ fn validate_plan_record(
         )
     })?;
     if chapter.project_id != package.root_project_id
-        || plan.contract_version != CHAPTER_VISUAL_PLAN_V2
+        || plan.contract_version != CHAPTER_VISUAL_PLAN_V3
         || plan.plan_version <= 0
         || plan.revision <= 0
         || !matches!(
@@ -156,7 +156,7 @@ fn validate_plan_record(
         ));
     }
 
-    let typed: ChapterVisualPlanV2 = serde_json::from_value(plan.plan_json.clone())
+    let typed: ChapterVisualPlanV3 = serde_json::from_value(plan.plan_json.clone())
         .map_err(|error| format!("项目族导入包章节视觉编排 JSON 无效: {}: {error}", plan.id))?;
     let validation = if plan.status == "confirmed" {
         typed.validate_confirmed()
@@ -165,6 +165,28 @@ fn validate_plan_record(
     };
     validation
         .map_err(|error| format!("项目族导入包章节视觉编排内容无效: {}: {error}", plan.id))?;
+    let image_ids = package
+        .generated_images
+        .iter()
+        .map(|image| image.id)
+        .collect::<HashSet<_>>();
+    let scene_ids = package
+        .text_core
+        .scene_profiles
+        .iter()
+        .map(|scene| scene.id)
+        .collect::<HashSet<_>>();
+    if typed
+        .referenced_image_ids()
+        .iter()
+        .any(|id| !image_ids.contains(id))
+        || typed
+            .referenced_scene_ids()
+            .iter()
+            .any(|id| !scene_ids.contains(id))
+    {
+        return Err(format!("导演编排 {} 引用了导入包外的图片或场景", plan.id));
+    }
     let canonical = typed
         .canonical_json()
         .map_err(|error| format!("序列化项目族章节视觉编排失败: {error}"))?;

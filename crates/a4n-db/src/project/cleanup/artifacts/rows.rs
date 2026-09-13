@@ -23,6 +23,8 @@ where
 {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectCleanupDbError::InvalidArgument)?;
+    crate::chapter_visual_plan::ensure_visual_plan_images_unreferenced(db, generated_image_ids)
+        .await?;
     let generated_video_refs = if generated_video_ids.is_empty() {
         Vec::new()
     } else {

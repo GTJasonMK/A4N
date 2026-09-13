@@ -822,6 +822,30 @@ impl GenerationApplication {
         .await
     }
 
+    pub(crate) async fn start_visual_plan_prompt_generation_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({"version":1,"task_kind":"director_segment_prompt","project_id":input.project_id,"record_id":input.record_id,"segment_id":input.segment_id}),
+            input_fingerprint_json: serde_json::json!({"project_id":input.project_id,"source_chapter_id":input.source_chapter_id,"record_id":input.record_id,"expected_revision":input.expected_revision,"segment_id":input.segment_id,"user_description":input.user_description}),
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: input.project_id,
+            task_scope: "director_segment_prompt",
+            target: GenerationTargetRef {
+                kind: "visual_plan_segment".into(),
+                id: format!("{}:{}", input.record_id, input.segment_id),
+                revision: Some(input.expected_revision.to_string()),
+            },
+        }).await
+    }
+
     pub(crate) async fn start_outline_generation_task(
         &self,
         user_id: i64,
@@ -900,8 +924,12 @@ impl GenerationApplication {
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
         let operation_kind = image_generation_operation_kind(&input.operation);
         let fingerprint = image_generation_input_fingerprint(input);
-        let batch_policy = matches!(&input.operation, ImageGenerationOperation::Batch { .. })
-            .then_some(BatchCommitPolicy::BestEffort);
+        let batch_policy = matches!(
+            &input.operation,
+            ImageGenerationOperation::Batch { .. }
+                | ImageGenerationOperation::VisualPlanPoint { .. }
+        )
+        .then_some(BatchCommitPolicy::BestEffort);
         self.reserve_root_generation_task(RootGenerationTaskReservationInput {
             requested_by_user_id: user_id,
             meta: &input.meta,
@@ -1794,6 +1822,37 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn start_visual_plan_prompt_generation_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        let (plan, _) = self
+            .visual_plan_generation_source(
+                user_id,
+                input.project_id,
+                input.source_chapter_id,
+                input.record_id,
+                input.expected_revision,
+            )
+            .await
+            .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
+        if !plan
+            .plan
+            .segments
+            .iter()
+            .any(|segment| segment.id == input.segment_id)
+            || input.user_description.chars().count() > 100_000
+        {
+            return Err(GenerationTaskAccessError::InvalidArgument(
+                "镜头段不存在或生成描述超过长度限制".into(),
+            ));
+        }
+        self.generation
+            .start_visual_plan_prompt_generation_task(user_id, input)
+            .await
+    }
+
     pub(crate) async fn start_outline_generation_task(
         &self,
         user_id: i64,
@@ -2647,6 +2706,7 @@ fn image_generation_input_fingerprint(input: &StartImageGenerationInput) -> Valu
 
 fn image_generation_operation_kind(operation: &ImageGenerationOperation) -> &'static str {
     match operation {
+        ImageGenerationOperation::VisualPlanPoint { .. } => "visual_plan_point",
         ImageGenerationOperation::Scene { .. } => "scene",
         ImageGenerationOperation::Page { .. } => "page",
         ImageGenerationOperation::Batch { .. } => "batch",
@@ -2657,6 +2717,10 @@ fn image_generation_operation_kind(operation: &ImageGenerationOperation) -> &'st
 
 fn image_generation_target_id(project_id: i64, operation: &ImageGenerationOperation) -> String {
     match operation {
+        ImageGenerationOperation::VisualPlanPoint { options } => format!(
+            "{project_id}:visual_plan:{}:{}",
+            options.record_id, options.point_id
+        ),
         ImageGenerationOperation::ObjectProfile {
             object_profile_id, ..
         } => format!("{project_id}:object_profile:{object_profile_id}"),

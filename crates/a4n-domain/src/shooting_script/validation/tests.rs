@@ -131,6 +131,41 @@ fn valid_shooting_script_satisfies_full_contract() {
 }
 
 #[test]
+fn director_constraints_reject_changed_identity_timing_and_images() {
+    use crate::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
+    let mut plan = ChapterVisualPlanV3::starter();
+    plan.segments[0].prompt = "推近门口".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
+    plan.points[0].image_id = Some(7);
+    let director = plan.project().unwrap().remove(0);
+    let mut script = valid_script();
+    let shot = &mut script.scenes[0].shots[0];
+    shot.shot_id = director.segment_id.clone();
+    shot.visual_shot_id = Some(director.segment_id.clone());
+    shot.planned_start_ms = Some(director.start_ms);
+    shot.planned_end_ms = Some(director.end_ms);
+    shot.estimated_natural_seconds = 10.0;
+    shot.visual_constraints = Some(director);
+    assert!(script.validate_director_plan(&plan).is_ok());
+    let original = script.clone();
+    script.scenes[0].shots[0].shot_id = "other-shot".into();
+    assert!(script.validate_director_plan(&plan).is_err());
+    script = original.clone();
+    script.scenes[0].shots[0].estimated_natural_seconds = 9.0;
+    assert!(script.validate_director_plan(&plan).is_err());
+    script = original;
+    script.scenes[0].shots[0]
+        .visual_constraints
+        .as_mut()
+        .unwrap()
+        .keyframes[0]
+        .image_id = Some(8);
+    assert!(script.validate_director_plan(&plan).is_err());
+}
+
+#[test]
 fn schema_version_rejects_noncanonical_values_during_deserialization() {
     let mut value = serde_json::to_value(valid_script()).unwrap();
     value["schema_version"] = serde_json::json!("legacy_shooting_script");

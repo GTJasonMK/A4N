@@ -173,7 +173,7 @@ mod tests {
                 source_revision_key: Set(source_revision_key),
                 source_content_sha256: Set(content_sha256.clone()),
                 contract_version: Set(
-                    a4n_domain::chapter_visual_plan::CHAPTER_VISUAL_PLAN_V2.to_string()
+                    a4n_domain::chapter_visual_plan::CHAPTER_VISUAL_PLAN_V3.to_string()
                 ),
                 plan_version: Set(plan_version),
                 revision: Set(1),

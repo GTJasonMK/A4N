@@ -2,7 +2,9 @@ use a4n_db_models::models::{
     asset::profile_primary_material,
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
 };
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
+};
 
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
@@ -12,9 +14,11 @@ pub async fn delete_scene_profile_records(
 ) -> SceneProfileDbResult<()> {
     let txn = db.begin().await?;
     let profile = scene_profile::Entity::find_by_id(scene_profile_id)
+        .lock_exclusive()
         .one(&txn)
         .await?
         .ok_or_else(|| SceneProfileDbError::NotFound("场景档案不存在".to_string()))?;
+    crate::chapter_visual_plan::ensure_visual_plan_scenes_unreferenced(&txn, &[profile.id]).await?;
     scene_entity_state::Entity::delete_many()
         .filter(scene_entity_state::Column::SceneProfileId.eq(profile.id))
         .exec(&txn)

@@ -261,6 +261,19 @@ fn remap_video_execution_identity(
                 })?,
         ),
     );
+    identity.insert(
+        "script_sha256".into(),
+        Value::String(
+            maps.shooting_script_sha256s
+                .get(&old_id)
+                .cloned()
+                .ok_or_else(|| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "视频来源缺少拍摄剧本哈希: {old_id}"
+                    ))
+                })?,
+        ),
+    );
     Ok(())
 }
 
@@ -278,6 +291,29 @@ fn remap_reference_image_object(
     let object = value
         .as_object_mut()
         .ok_or_else(|| ProjectFamilyImportError::invalid_package(format!("{label} 必须是对象")))?;
+    if let Some(value) = object
+        .get_mut("director_constraints")
+        .filter(|value| !value.is_null())
+    {
+        let mut constraints: a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3 =
+            serde_json::from_value(value.clone()).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 导演约束无效: {error}"))
+            })?;
+        constraints
+            .remap_resources(
+                |id| {
+                    map_required(&maps.generated_image_ids, id, "视频导演图片引用")
+                        .map_err(|error| error.to_string())
+                },
+                |id| {
+                    map_required(&maps.scene_profile_ids, id, "视频导演场景引用")
+                        .map_err(|error| error.to_string())
+                },
+            )
+            .map_err(ProjectFamilyImportError::invalid_package)?;
+        *value = serde_json::to_value(constraints)
+            .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
+    }
     remap_optional_id_array_field(
         object,
         "reference_image_ids",

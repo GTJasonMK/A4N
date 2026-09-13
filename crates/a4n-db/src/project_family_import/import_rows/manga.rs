@@ -31,6 +31,7 @@ where
     insert_shooting_scripts(txn, package, maps).await?;
     insert_character_portraits(txn, package, maps, media_importer).await?;
     insert_generated_images(txn, package, maps, media_importer).await?;
+    super::visual_plan::remap_visual_plan_resources(txn, package, maps).await?;
     insert_manga_prompts(txn, package, maps).await?;
     update_generated_image_metadata(txn, package, maps).await
 }

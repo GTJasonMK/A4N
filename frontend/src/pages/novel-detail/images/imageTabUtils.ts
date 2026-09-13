@@ -6,6 +6,7 @@ import {
   IMAGE_TYPE_VIDEO_KEY_FRAME,
   IMAGE_TYPE_VIDEO_START_FRAME,
   IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+  IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME,
   IMAGE_TYPE_VIDEO_TAIL_FRAME,
   type GeneratedImage,
 } from "../../../api/image";
@@ -31,6 +32,7 @@ const IMAGE_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   [IMAGE_TYPE_VIDEO_KEY_FRAME]: "novel.imageLibrary.videoKeyFrame",
   [IMAGE_TYPE_VIDEO_START_FRAME]: "novel.imageLibrary.videoStartFrame",
   [IMAGE_TYPE_VIDEO_STORYBOARD_FRAME]: "novel.imageLibrary.videoStoryboardFrame",
+  [IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME]: "novel.imageLibrary.videoStoryboardFrame",
   [IMAGE_TYPE_VIDEO_TAIL_FRAME]: "novel.imageLibrary.videoTailFrame",
   [IMAGE_TYPE_CANVAS]: "novel.imageLibrary.canvasImage",
   [IMAGE_TYPE_CANVAS_FRAME]: "novel.imageLibrary.canvasFrame",

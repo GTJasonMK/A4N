@@ -8,7 +8,7 @@ pub use a4n_domain::shooting_script::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
     ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
     ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
-    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
+    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV3,
     ShootingVisualPlanSourceV1,
 };
 

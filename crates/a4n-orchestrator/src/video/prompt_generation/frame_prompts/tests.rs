@@ -52,6 +52,7 @@ fn frame(frame_number: i32, reference_image_ids: Vec<i64>) -> VideoFramePrompt {
 pub(super) fn segment(segment_number: i32) -> VideoSegmentPlan {
     use a4n_video_contract::*;
     VideoSegmentPlan {
+        director_constraints: None,
         schema_version: VIDEO_SEGMENT_PLAN_V2.to_string(),
         segment_number,
         source_shot_id: format!("shot-{segment_number}"),

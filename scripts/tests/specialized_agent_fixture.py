@@ -102,7 +102,7 @@ def director_fixture(body, messages):
         if "read_editor" not in observations:
             return call("read_editor", "read_editor_draft", {
                 "expected_editor_revision": state["editor_revision"],
-                "view": {"kind": "shot", "shot_id": source["shot_id"]},
+                "view": {"kind": "segment", "segment_id": source["shot_id"]},
             })
         if mode == "read_editor":
             return {"content": "已读取 editor_draft，未保存。"}
@@ -118,7 +118,7 @@ def director_fixture(body, messages):
 
     resource = {"project_id": project_id, "source_chapter_id": chapter_id}
     if "shot" not in observations:
-        first = host("shot", "read_chapter_visual_plan", {**resource, "view": {"kind": "shot", "shot_id": shot_id}})
+        first = host("shot", "read_chapter_visual_plan", {**resource, "view": {"kind": "segment", "segment_id": shot_id}})
         if mode == "batch":
             second = host("source", "read_chapter_visual_plan", {**resource, "view": {"kind": "source", "limit": 30}})
             return {"tool_calls": [first["tool_call"], second["tool_call"]]}
@@ -129,8 +129,8 @@ def director_fixture(body, messages):
             **resource, "record_id": int(saved["id"]), "expected_revision": int(saved["revision"]),
             "expected_source_hash": observations["shot"]["source_hash"],
             "editor_revision": state["editor_revision"] if state else None,
-            "operation": {"kind": "update_shot_fields", "shot_id": shot_id,
-                          "changes": {"composition": task.get("composition", "门框形成前景遮挡，保留右侧视线空间。")}},
+            "operation": {"kind": "update_segment", "segment": {**observations["shot"]["projection"]["segment"],
+                          "prompt": task.get("prompt", "门框形成前景遮挡，保留右侧视线空间。")}},
         })
     edited = observations["edit"]
     if "validate" not in observations:
@@ -140,7 +140,7 @@ def director_fixture(body, messages):
         })
     if not observations["validate"]["validation"]["valid"]:
         raise ValueError("saved draft failed validation")
-    return {"content": "已保存构图说明，草稿结构校验通过；等待用户确认。" if edited["changed"] else "字段已相同，未新增修订。"}
+    return {"content": "已保存镜头描述，草稿结构校验通过；等待用户确认。" if edited["changed"] else "字段已相同，未新增修订。"}
 
 
 def main_fixture(body, messages):

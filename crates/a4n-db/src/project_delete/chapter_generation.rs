@@ -102,6 +102,8 @@ where
     candidate_media_paths.sort();
     candidate_media_paths.dedup();
 
+    crate::chapter_visual_plan::ensure_visual_plan_images_unreferenced(db, &generated_image_ids)
+        .await?;
     crate::video::clear_generated_image_references_record(db, &generated_image_ids).await?;
     if !generated_image_ids.is_empty() {
         profile_primary_material::Entity::delete_many()

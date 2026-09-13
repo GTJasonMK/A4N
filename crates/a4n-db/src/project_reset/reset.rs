@@ -57,15 +57,15 @@ pub async fn reset_project_generated_data_record(
         .count(&tx)
         .await?;
 
-    let chapter_generation_cleanup =
-        delete_chapter_generation_outputs(&tx, project_id, GeneratedImageDeleteScope::Project)
-            .await?;
     project_db::delete_project_chapter_adaptation_records(
         &tx,
         project_id,
         project_db::ProjectChapterAdaptationDeleteScope::CurrentProjectContent,
     )
     .await?;
+    let chapter_generation_cleanup =
+        delete_chapter_generation_outputs(&tx, project_id, GeneratedImageDeleteScope::Project)
+            .await?;
     let generation_media_cleanup =
         project_db::delete_project_generation_media_graph(&tx, project_id).await?;
     let profile_scene_cleanup = delete_project_profile_scene_data(&tx, project_id).await?;

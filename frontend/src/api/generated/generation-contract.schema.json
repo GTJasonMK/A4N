@@ -1153,6 +1153,23 @@
         {
           "additionalProperties": false,
           "properties": {
+            "kind": {
+              "const": "visual_plan_point",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/VisualPlanPointGenerationOptions"
+            }
+          },
+          "required": [
+            "kind",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
             "chapter_id": {
               "format": "int64",
               "minimum": 1,
@@ -2569,6 +2586,46 @@
       ],
       "type": "object"
     },
+    "StartVisualPlanPromptGenerationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "project_id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "record_id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "segment_id": {
+          "type": "string"
+        },
+        "source_chapter_id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "user_description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "meta",
+        "project_id",
+        "source_chapter_id",
+        "record_id",
+        "expected_revision",
+        "segment_id",
+        "user_description"
+      ],
+      "type": "object"
+    },
     "StartedEvent": {
       "additionalProperties": false,
       "properties": {
@@ -3182,6 +3239,44 @@
         "segment_index_in_shot"
       ],
       "type": "object"
+    },
+    "VisualPlanPointGenerationOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "config_id": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "expected_revision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "point_id": {
+          "type": "string"
+        },
+        "record_id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "source_chapter_id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "user_description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_chapter_id",
+        "record_id",
+        "expected_revision",
+        "point_id",
+        "user_description"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3244,6 +3339,9 @@
     "start_video_generation": {
       "$ref": "#/$defs/StartVideoGenerationInput"
     },
+    "start_visual_plan_prompt_generation": {
+      "$ref": "#/$defs/StartVisualPlanPromptGenerationInput"
+    },
     "subscription_handle": {
       "$ref": "#/$defs/GenerationSubscriptionHandle"
     },
@@ -3276,6 +3374,7 @@
     "start_outline_generation",
     "start_portrait_generation",
     "start_image_generation",
+    "start_visual_plan_prompt_generation",
     "start_video_generation"
   ],
   "title": "GenerationContractBundle",

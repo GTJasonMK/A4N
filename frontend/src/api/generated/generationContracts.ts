@@ -88,6 +88,10 @@ export type InterruptionReason =
 export type GenerationSnapshotState = "available" | "expired" | "corrupt";
 export type ImageGenerationOperation =
   | {
+      kind: "visual_plan_point";
+      options: VisualPlanPointGenerationOptions;
+    }
+  | {
       chapter_id?: number | null;
       config_id?: number | null;
       height: number;
@@ -297,6 +301,7 @@ export interface GenerationContractBundle {
   start_portrait_generation: StartPortraitGenerationInput;
   start_request_meta: GenerationStartRequestMeta;
   start_video_generation: StartVideoGenerationInput;
+  start_visual_plan_prompt_generation: StartVisualPlanPromptGenerationInput;
   subscription_handle: GenerationSubscriptionHandle;
   task_handle: GenerationTaskHandle;
   task_summary: GenerationTaskSummary;
@@ -586,6 +591,14 @@ export interface StartImageGenerationInput {
   operation: ImageGenerationOperation;
   project_id: number;
 }
+export interface VisualPlanPointGenerationOptions {
+  config_id?: number | null;
+  expected_revision: number;
+  point_id: string;
+  record_id: number;
+  source_chapter_id: number;
+  user_description: string;
+}
 /**
  * Start one inspiration conversation turn through the canonical generation path.
  */
@@ -724,6 +737,15 @@ export interface VideoInsertedSegmentGenerationOptions {
   style: string;
   timeline_id: number;
   user_prompt: string;
+}
+export interface StartVisualPlanPromptGenerationInput {
+  expected_revision: number;
+  meta: GenerationStartRequestMeta;
+  project_id: number;
+  record_id: number;
+  segment_id: string;
+  source_chapter_id: number;
+  user_description: string;
 }
 export interface GenerationSubscriptionHandle {
   subscription_id: string;

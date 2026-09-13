@@ -2,7 +2,7 @@ use a4n_db_models::models::{
     chapter::{chapter, chapter_visual_plan},
     project::{novel_project, source_snapshot_chapter},
 };
-use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanStatus};
+use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanStatus};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -32,6 +32,7 @@ pub async fn save_chapter_visual_plan_draft(
     }
     let (plan_json, plan_sha256) = serialize_plan(&input.plan)?;
     let tx = db.begin().await?;
+    super::resources::validate_resources(&tx, input.source.root_project_id, &input.plan).await?;
     if let Some(expected_hash) = input.expected_source_hash.as_deref() {
         super::codec::validate_sha256(expected_hash, "expected_source_hash")?;
         // Keep the source and its project binding stable through the plan CAS.
@@ -203,7 +204,7 @@ pub async fn save_chapter_visual_plan_draft(
             source_snapshot_chapter_id: Set(input.source.source_snapshot_chapter_id),
             source_revision_key: Set(input.source.source_revision_key),
             source_content_sha256: Set(input.source.content_sha256),
-            contract_version: Set(CHAPTER_VISUAL_PLAN_V2.into()),
+            contract_version: Set(CHAPTER_VISUAL_PLAN_V3.into()),
             plan_version: Set(plan_version),
             revision: Set(1),
             status: Set(ChapterVisualPlanStatus::Draft.as_str().into()),
@@ -257,6 +258,8 @@ pub async fn confirm_chapter_visual_plan(
         .plan
         .validate_confirmed()
         .map_err(|error| ChapterVisualPlanDbError::InvalidArgument(error.to_string()))?;
+    super::resources::validate_resources(&tx, current.record.root_project_id, &current.plan)
+        .await?;
     chapter_visual_plan::Entity::update_many()
         .col_expr(
             chapter_visual_plan::Column::Status,

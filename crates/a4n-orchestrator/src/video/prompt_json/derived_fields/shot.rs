@@ -41,7 +41,7 @@ pub(in crate::video::prompt_json) fn video_prompt_shot_from_input(
 }
 
 fn derive_self_contained_context(segment: &VideoSegmentPlan) -> Value {
-    let repeat = if segment.segment_number == 1 {
+    let repeat = if segment.segment_number == 1 || segment.director_constraints.is_some() {
         json!([])
     } else {
         json!(["承接上一片段尾态的人物身份、服装、空间锚点、道具状态、光源方向和镜头轴线"])
@@ -96,7 +96,9 @@ fn derive_end_state(segment: &VideoSegmentPlan) -> Value {
 
 fn derive_transition_in(segment: &VideoSegmentPlan) -> Value {
     json!({
-        "from_previous_end": if segment.segment_number == 1 {
+        "from_previous_end": if segment.director_constraints.is_some() {
+            "由本段起点图片建立画面；没有显式关联时，不从上一镜头的尾帧推导当前画面".to_string()
+        } else if segment.segment_number == 1 {
             "第一片段从章节当前起点建立画面，不编造上一段尾态".to_string()
         } else {
             "承接上一片段尾态或已存在输入首帧的站位、道具和光影".to_string()

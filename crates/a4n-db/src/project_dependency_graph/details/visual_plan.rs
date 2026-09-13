@@ -26,6 +26,7 @@ struct VisualPlanDetailRow {
     status: String,
     authoring_mode: String,
     plan_sha256: String,
+    plan_json: serde_json::Value,
     confirmed_at: Option<NaiveDateTime>,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
@@ -52,6 +53,7 @@ where
         .column(chapter_visual_plan::Column::Status)
         .column(chapter_visual_plan::Column::AuthoringMode)
         .column(chapter_visual_plan::Column::PlanSha256)
+        .column(chapter_visual_plan::Column::PlanJson)
         .column(chapter_visual_plan::Column::ConfirmedAt)
         .column(chapter_visual_plan::Column::CreatedAt)
         .column(chapter_visual_plan::Column::UpdatedAt)
@@ -65,6 +67,39 @@ where
     rows.into_iter()
         .map(|plan| {
             let origin = authoring_mode_origin(&plan.authoring_mode)?;
+            let timeline: a4n_domain::chapter_visual_plan::ChapterVisualPlanV3 =
+                serde_json::from_value(plan.plan_json).map_err(|error| {
+                    AppError::InvalidArgument(format!("导演编排 {} 无效: {error}", plan.id))
+                })?;
+            let mut source_refs = vec![lineage_ref(
+                &format!("chapter:{}", plan.source_chapter_id),
+                "章节正文",
+                "text",
+                "chapter_content",
+                Some(plan.source_chapter_id),
+            )];
+            source_refs.extend(timeline.referenced_scene_ids().into_iter().map(|id| {
+                lineage_ref(
+                    &format!("scene_profile:{id}"),
+                    "绑定场景",
+                    "text",
+                    "scene_profile_record",
+                    Some(id),
+                )
+            }));
+            let media_sources = timeline
+                .referenced_image_ids()
+                .into_iter()
+                .map(|id| {
+                    lineage_ref(
+                        &a4n_domain::GeneratedMediaReference::Image(id).to_string(),
+                        "分镜图片或参考图",
+                        "image",
+                        "generated_image",
+                        Some(id),
+                    )
+                })
+                .collect();
             Ok(AssetLineageRecord {
                 id: format!("chapter_visual_plan:{}", plan.id),
                 label: format!(
@@ -75,15 +110,9 @@ where
                 asset_id: Some(plan.id),
                 status: Some(plan.status.clone()),
                 origin: origin.to_string(),
-                source_refs: vec![lineage_ref(
-                    &format!("chapter:{}", plan.source_chapter_id),
-                    "章节正文",
-                    "text",
-                    "chapter_content",
-                    Some(plan.source_chapter_id),
-                )],
+                source_refs,
                 prompt_sources: Vec::new(),
-                media_sources: Vec::new(),
+                media_sources,
                 request_snapshot: None,
                 input_status: "complete".to_string(),
                 generation_inputs: Vec::new(),

@@ -464,6 +464,8 @@ pub struct VideoExecutionSceneV2 {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoExecutionShotV2 {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub director_constraints: Option<a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3>,
     pub source_shot_id: String,
     pub shot_index: u32,
     pub scene_index: u32,
@@ -471,7 +473,7 @@ pub struct VideoExecutionShotV2 {
     pub timeline_position: u32,
     pub title: String,
     pub source_span_ids: Vec<String>,
-    pub source_span_range: VideoSourceSpanRangeV1,
+    pub source_span_range: Option<VideoSourceSpanRangeV1>,
     pub coverage: ShootingCoverageV1,
     pub narrative_purpose: String,
     pub subject: String,
@@ -594,6 +596,8 @@ pub enum VideoExecutionRiskLevelV1 {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoSegmentPlanV2 {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub director_constraints: Option<a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3>,
     pub schema_version: String,
     pub segment_number: i32,
     pub source_shot_id: String,

@@ -69,7 +69,16 @@ pub(super) async fn select_video_chain_frames(
     } else {
         all_video_units.clone()
     };
-    if skips_system_frame_prompt_inputs(spec.workflow_mode, target_shot_number) {
+    // Director keyframes already provide the images and timing; they do not need
+    // another system-frame prompt. Storyboards still require a real multi-panel board.
+    let director_uses_bound_images = !include_system_frame_images
+        && !spec.is_storyboard()
+        && prompt_video_units
+            .iter()
+            .all(|unit| unit.prompt_segment.director_constraints.is_some());
+    if director_uses_bound_images
+        || skips_system_frame_prompt_inputs(spec.workflow_mode, target_shot_number)
+    {
         return Ok(SelectedVideoChainFrames {
             frame_prompts: Vec::new(),
             prompt_video_units,

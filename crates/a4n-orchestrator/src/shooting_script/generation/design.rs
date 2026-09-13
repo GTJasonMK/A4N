@@ -73,7 +73,7 @@ fn design_unit_request(
     workflow_run_id: i64,
     unit: &ScreenplayPlanUnit,
 ) -> Result<ChatRequest, AppError> {
-    let planned_unit = planned_visual_unit(prepared, unit)?;
+    let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     shooting_context_request(
         prepared,
         workflow_run_id,
@@ -88,7 +88,7 @@ fn design_unit_request(
             }),
         )),
         format!(
-            "只设计 narrative_unit_index={} 的 ShootingSceneV1。shots 必须与 locked_visual_unit.shots 数量和顺序一致；不得改变视觉镜头 ID、时间范围、source_span_ids、user_addition_ids 或关键帧/事件约束。",
+            "只设计 narrative_unit_index={} 的 ShootingSceneV1。shots 必须与 locked_visual_unit.shots 数量和顺序一致；不得改变镜头段 ID、时间范围、图片关键帧或场景绑定。source_span_ids 只填写实际引用的正文片段；仅来源于用户导演描述的内容允许为空。",
             unit.narrative_unit_index,
         ),
     )
@@ -122,7 +122,7 @@ fn validate_design_unit(
             unit.narrative_unit_index
         )));
     }
-    let planned = planned_visual_unit(prepared, unit)?;
+    let planned = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     if scene.shots.len() != planned.shots.len() {
         return Err(AppError::InvalidArgument(format!(
             "拍摄设计 unit {} 必须生成 {} 个视觉方案镜头，实际 {} 个",
@@ -131,8 +131,18 @@ fn validate_design_unit(
             scene.shots.len()
         )));
     }
-    for (shot, planned_shot) in scene.shots.iter().zip(&planned.shots) {
-        if shot.source_span_ids != planned_shot.source_span_ids {
+    for (shot, expected) in scene.shots.iter().zip(&planned.shots) {
+        if shot.shot_id != expected.segment_id {
+            return Err(AppError::InvalidArgument(format!(
+                "拍摄设计镜头 ID 或顺序偏离导演编排：期望 {}，实际 {}",
+                expected.segment_id, shot.shot_id
+            )));
+        }
+        if shot
+            .source_span_ids
+            .iter()
+            .any(|id| !planned.source_span_ids.contains(id))
+        {
             return Err(AppError::InvalidArgument(format!(
                 "拍摄设计 unit {} 的镜头来源顺序偏离 confirmed 导演编排",
                 unit.narrative_unit_index
@@ -140,25 +150,6 @@ fn validate_design_unit(
         }
     }
     validate_design_scene_content_against_plan_unit(scene, unit)
-}
-
-fn planned_visual_unit<'a>(
-    prepared: &'a PreparedChapterShootingScriptRequest,
-    unit: &ScreenplayPlanUnit,
-) -> Result<&'a a4n_domain::chapter_visual_plan::VisualNarrativeUnitV1, AppError> {
-    prepared
-        .visual_plan_projection
-        .narrative_units
-        .get(usize::try_from(unit.narrative_unit_index - 1).map_err(|_| {
-            AppError::InvalidArgument("narrative_unit_index 超出 usize 范围".into())
-        })?)
-        .filter(|planned| planned.id == unit.scene_identity)
-        .ok_or_else(|| {
-            AppError::InvalidArgument(format!(
-                "拍摄设计 unit {} 找不到对应的 confirmed 视觉单元",
-                unit.narrative_unit_index
-            ))
-        })
 }
 
 fn validate_design_scene_content_against_plan_unit(
@@ -206,6 +197,11 @@ fn validate_design_scene_content_against_plan_unit(
             .iter()
             .map(|beat| beat.source_span_ids.as_slice()),
     );
+    let required_beat_additions = required_source_ids(
+        required_beats
+            .iter()
+            .map(|beat| beat.user_addition_ids.as_slice()),
+    );
     for fact in planned_unit
         .performance_facts
         .iter()
@@ -215,6 +211,10 @@ fn validate_design_scene_content_against_plan_unit(
             .source_span_ids
             .iter()
             .any(|id| required_beat_sources.contains(id.as_str()))
+            && !fact
+                .user_addition_ids
+                .iter()
+                .any(|id| required_beat_additions.contains(id.as_str()))
         {
             return Err(AppError::InvalidArgument(format!(
                 "镜头设计 unit {} 的 required performance fact {} 未被 required beat 覆盖",
@@ -247,6 +247,13 @@ fn validate_shot_sources(
         .map(String::as_str)
         .collect::<HashSet<_>>();
     for beat in &shot.performance_beats {
+        let addition_id = crate::chapter_visual_plan::segment_addition_id(&shot.shot_id);
+        if beat.user_addition_ids.iter().any(|id| id != &addition_id) {
+            return Err(AppError::InvalidArgument(format!(
+                "镜头 {} 的表演节拍引用了其他镜头的导演事实",
+                shot.shot_id
+            )));
+        }
         if !optional_actor_is_allowed(beat.actor.as_deref(), participants) {
             return Err(AppError::InvalidArgument(format!(
                 "镜头设计 unit {narrative_unit_index} 的 shot {} beat {} actor 不属于 participants",

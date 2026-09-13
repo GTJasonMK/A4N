@@ -494,25 +494,15 @@ class MockOpenAIProviderTest(unittest.TestCase):
         ]
         locked_shots = [
             {
-                "id": f"shot_{index}",
+                "segment_id": f"shot_{index}",
                 "title": f"画面 {index}",
                 "start_ms": (index - 1) * 1000,
                 "end_ms": index * 1000,
-                "source_span_ids": [span["id"]],
-                "user_addition_ids": [],
-                "narrative_purpose": span["text"],
-                "coverage": "must_show",
-                "shot_size": None,
-                "camera_angle": None,
-                "camera_height": None,
-                "lens_intent": None,
-                "composition": None,
+                "frame": {"width": 1920, "height": 1080},
+                "prompt": span["text"],
+                "scene_binding": {"kind": "scene", "scene_profile_id": 1},
                 "keyframes": [],
-                "entity_events": [],
-                "camera_events": [],
-                "sound_events": [],
-                "technique_events": [],
-                "continuity_notes": [],
+                "end_frame": None,
             }
             for index, span in enumerate(spans, 1)
         ]
@@ -550,6 +540,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                                 {
                                     "fact_index": 1,
                                     "source_span_ids": ["ch1:s2:f1"],
+                                    "user_addition_ids": ["director:shot_2"],
                                     "actor": "林岚",
                                     "objective": "进入机房",
                                     "obstacle": "通道昏暗",
@@ -575,14 +566,14 @@ class MockOpenAIProviderTest(unittest.TestCase):
         )
         self.assertEqual(
             [shot["source_span_ids"] for shot in response["shots"]],
-            [["ch1:s1:f1"], ["ch1:s2:f1"]],
+            [[], ["ch1:s2:f1"]],
         )
         self.assertEqual(response["shots"][0]["performance_beats"], [])
         self.assertEqual(
             response["shots"][1]["performance_beats"][0]["source_span_ids"],
             ["ch1:s2:f1"],
         )
-        self.assertIsNone(response["shots"][1]["performance_beats"][0]["actor"])
+        self.assertEqual(response["shots"][1]["performance_beats"][0]["actor"], "林岚")
 
     def test_shooting_span_ids_requires_structured_source_spans(self) -> None:
         with self.assertRaisesRegex(ValueError, "shooting script prompt contains no source spans"):

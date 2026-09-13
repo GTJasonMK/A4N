@@ -56,6 +56,10 @@ impl OrchestratorContext {
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         match &input.operation {
+            ImageGenerationOperation::VisualPlanPoint { options } => {
+                self.preview_visual_plan_point_generation(user_id, input.project_id, options)
+                    .await?;
+            }
             ImageGenerationOperation::Scene {
                 prompt,
                 width,
@@ -324,6 +328,23 @@ impl OrchestratorContext {
                         GenerateBatchImagesInput {
                             project_id,
                             requests,
+                        },
+                        progress,
+                    )
+                    .await?;
+                batch_image_result(host_port, project_id, outcome)
+            }
+            ImageGenerationOperation::VisualPlanPoint { options } => {
+                let item = self
+                    .visual_plan_point_batch_item(user_id, project_id, &options)
+                    .await?;
+                let outcome = self
+                    .generate_batch_images_validated(
+                        host_port,
+                        user_id,
+                        GenerateBatchImagesInput {
+                            project_id,
+                            requests: vec![item],
                         },
                         progress,
                     )
@@ -630,6 +651,7 @@ fn image_artifact_event(
 
 fn image_operation_key(operation: &ImageGenerationOperation) -> &'static str {
     match operation {
+        ImageGenerationOperation::VisualPlanPoint { .. } => "image_visual_plan_point",
         ImageGenerationOperation::Scene { .. } => "image_scene",
         ImageGenerationOperation::Page { .. } => "image_page",
         ImageGenerationOperation::Batch { .. } => "image_batch",
