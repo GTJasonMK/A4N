@@ -137,6 +137,66 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
         .expect("image idle provider body drop signal should be delivered");
     idle_provider.stop().await;
 
+    let (heartbeat_provider, heartbeat_request_started, heartbeat_body_dropped) =
+        HangingJsonProvider::start().await;
+    let heartbeat_client =
+        HttpImageClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN)
+            .with_test_timeouts(
+                Duration::from_secs(1),
+                Duration::from_secs(20),
+                Duration::from_secs(8),
+                Duration::from_secs(1),
+            );
+    let heartbeat_request = provider_request_context(
+        "image-process-heartbeat",
+        "image-process-heartbeat-trace",
+        IMAGE_PROVIDER_CAPABILITY_VERSION,
+        serde_json::json!({
+            "backend": "openai-compatible-image",
+            "base_url": heartbeat_provider.base_url(),
+            "api_key": "process-provider-secret",
+            "request": {"prompt": "heartbeat test", "width": 1, "height": 1, "model": "fake-image", "reference_images": []}
+        }),
+    );
+    let (heartbeat_tx, mut heartbeat_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    let heartbeat_task = tokio::spawn(async move {
+        heartbeat_client
+            .generate_events(heartbeat_request, heartbeat_tx)
+            .await
+    });
+    assert_eq!(
+        timeout(Duration::from_secs(5), heartbeat_rx.recv())
+            .await
+            .expect("image heartbeat request should emit initial progress")
+            .expect("image heartbeat request initial progress should be present")
+            .event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Progress
+    );
+    timeout(Duration::from_secs(5), heartbeat_request_started)
+        .await
+        .expect("image heartbeat provider request should start before timeout")
+        .expect("image heartbeat provider request start signal should be delivered");
+    assert_eq!(
+        timeout(Duration::from_secs(8), heartbeat_rx.recv())
+            .await
+            .expect("image sidecar should emit a heartbeat before stream idle timeout")
+            .expect("image heartbeat should be present")
+            .event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Progress
+    );
+    drop(heartbeat_rx);
+    let heartbeat_error = timeout(Duration::from_secs(5), heartbeat_task)
+        .await
+        .expect("cancelled image heartbeat request should finish before timeout")
+        .expect("cancelled image heartbeat request task should join")
+        .expect_err("closed image heartbeat receiver should cancel the request");
+    assert_eq!(heartbeat_error.code, ServiceErrorCode::Cancelled);
+    timeout(Duration::from_secs(5), heartbeat_body_dropped)
+        .await
+        .expect("cancelled heartbeat request should release provider response body")
+        .expect("image heartbeat provider body drop signal should be delivered");
+    heartbeat_provider.stop().await;
+
     let provider = FakeJsonProvider::start(serde_json::json!({
         "data": [{"b64_json": PNG_1X1_B64, "format": "png"}]
     }))
