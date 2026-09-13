@@ -1986,6 +1986,17 @@ impl a4n_api_contract::agent::AgentToolReadApplicationPort for AgentApplication 
 }
 
 #[async_trait::async_trait]
+impl a4n_api_contract::agent::AgentEventReadApplicationPort for AgentApplication {
+    async fn events(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::AgentEventsInput,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentEvent>, AppError> {
+        AgentApplication::events(self, user_id, input).await
+    }
+}
+
+#[async_trait::async_trait]
 impl a4n_api_contract::agent::AgentApplicationPort for AgentApplication {
     async fn ensure_main_thread(
         &self,

@@ -4460,7 +4460,10 @@ pub async fn events(
     user_id: i64,
     input: AgentEventsInput,
 ) -> Result<Vec<AgentEvent>, AppError> {
-    state.agent_application().events(user_id, input).await
+    state
+        .agent_event_read_application()
+        .events(user_id, input)
+        .await
 }
 
 pub fn search_tools(
