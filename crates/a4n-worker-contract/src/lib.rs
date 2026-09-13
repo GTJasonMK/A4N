@@ -256,6 +256,25 @@ impl AgentWorkerHistoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerRecoveryRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub reason: String,
+}
+
+impl AgentWorkerRecoveryRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("reason", &self.reason)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerInboxClaimRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
@@ -1736,6 +1755,26 @@ mod tests {
                 field: "run_id",
                 reason: "must be positive"
             })
+        ));
+    }
+
+    #[test]
+    fn recovery_request_validates_run_lease_and_reason() {
+        let request = AgentWorkerRecoveryRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            reason: "snapshot missing".into(),
+        };
+        request
+            .validate()
+            .expect("recovery request should be valid");
+        assert!(matches!(
+            AgentWorkerRecoveryRequest {
+                reason: "  ".into(),
+                ..request
+            }
+            .validate(),
+            Err(WorkerContractError::BlankField { field: "reason" })
         ));
     }
 

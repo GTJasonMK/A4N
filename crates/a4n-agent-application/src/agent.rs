@@ -48,10 +48,11 @@ use a4n_worker_contract::{
     AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
+    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
+    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -5047,6 +5048,29 @@ impl AgentApplication {
             Some(reason.into()),
         )
         .await
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn mark_recovery_required_request(
+        &self,
+        request: &AgentWorkerRecoveryRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        agent::recovery_required_for_lease(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+            Some(request.reason.clone()),
+        )
+        .await
+        .map(|_| ())
         .map_err(agent_db_error_to_app)
     }
 }

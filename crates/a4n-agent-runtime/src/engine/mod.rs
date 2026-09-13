@@ -802,8 +802,7 @@ async fn process_claimed_run_inner(
     let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
     if context.runtime_snapshot_required && snapshot.is_none() {
         state
-            .worker_recovery_application()
-            .mark_recovery_required(
+            .mark_agent_recovery_required(
                 claimed,
                 "Agent runtime config snapshot 已丢失，无法安全恢复模型或工具调用".into(),
             )

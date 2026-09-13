@@ -10,9 +10,8 @@ use a4n_agent_application::agent::{
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
     AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
     AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
-    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort, WorkerExecutionInput,
-    WorkerExecutionUpdate,
+    AgentWorkerReadApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
+    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -29,8 +28,8 @@ use a4n_worker_contract::{
     AgentWorkerFailureRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
     AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest,
     AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire, AgentWorkerMemoryRequest,
-    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerRecoveryRequest,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WorkerLease, WorkerRequest,
 };
@@ -146,6 +145,23 @@ impl AgentRuntimeState {
             operation: "读取 Agent worker history".into(),
         })?;
         self.host.read_worker_history(&request).await
+    }
+
+    pub async fn mark_agent_recovery_required(
+        &self,
+        claimed: &AgentWorkerRun,
+        reason: String,
+    ) -> Result<(), AppError> {
+        let request = AgentWorkerRecoveryRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            reason,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker recovery request 无效: {error}"),
+            operation: "标记 Agent worker recovery".into(),
+        })?;
+        self.host.mark_recovery_required(&request).await
     }
 
     fn agent_worker_lease_request(
@@ -908,9 +924,6 @@ impl AgentRuntimeState {
         }
     }
     pub fn worker_read_application(&self) -> &dyn AgentWorkerReadApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn worker_recovery_application(&self) -> &dyn AgentWorkerRecoveryApplicationPort {
         self.application.as_ref()
     }
     pub fn workflow_binding_application(&self) -> &dyn AgentWorkflowBindingApplicationPort {
