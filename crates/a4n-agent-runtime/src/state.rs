@@ -1,10 +1,10 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
     AgentApplication, AgentApprovalExpiryApplicationPort, AgentDelegationSnapshot,
-    AgentEditorClaimApplicationPort, AgentEditorWaitApplicationPort, AgentExecutionSnapshot,
-    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort, AgentInboxSnapshot,
-    AgentMessageSnapshot, AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot,
-    AgentTurnSnapshot, AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
+    AgentEditorClaimApplicationPort, AgentExecutionSnapshot, AgentExternalTaskWaitApplicationPort,
+    AgentGenerationCancelApplicationPort, AgentInboxSnapshot, AgentMessageSnapshot,
+    AgentRunContext, AgentRunLeaseRecoveryApplicationPort, AgentRunSnapshot, AgentTurnSnapshot,
+    AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
     AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
     AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
     AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
@@ -946,9 +946,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn editor_claim_application(&self) -> &dyn AgentEditorClaimApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn editor_wait_application(&self) -> &dyn AgentEditorWaitApplicationPort {
         self.application.as_ref()
     }
     pub fn approval_expiry_application(&self) -> &dyn AgentApprovalExpiryApplicationPort {

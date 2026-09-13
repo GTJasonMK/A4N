@@ -299,6 +299,24 @@ impl AgentWorkerEditorWaitRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerEditorWaitExpiryRequest {
+    pub limit: u64,
+}
+
+impl AgentWorkerEditorWaitExpiryRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.limit == 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "limit",
+                reason: "must be positive",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerInboxClaimRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
@@ -1837,6 +1855,17 @@ mod tests {
             Err(WorkerContractError::BlankField {
                 field: "editor_request.execution_id"
             })
+        ));
+    }
+
+    #[test]
+    fn editor_wait_expiry_request_requires_positive_limit() {
+        AgentWorkerEditorWaitExpiryRequest { limit: 1 }
+            .validate()
+            .expect("editor wait expiry limit should be valid");
+        assert!(matches!(
+            AgentWorkerEditorWaitExpiryRequest { limit: 0 }.validate(),
+            Err(WorkerContractError::InvalidValue { field: "limit", .. })
         ));
     }
 

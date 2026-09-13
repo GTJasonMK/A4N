@@ -245,6 +245,10 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/editor/wait",
             post(agent_runtime::wait_for_agent_editor),
         )
+        .route(
+            "/agent/editor/expire",
+            post(agent_runtime::expire_agent_editor_waits),
+        )
         .route("/agent/inbox/claim", post(agent_runtime::claim_agent_inbox))
         .route(
             "/agent/inbox/consume",
