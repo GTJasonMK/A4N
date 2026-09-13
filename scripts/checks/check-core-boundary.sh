@@ -2806,8 +2806,18 @@ if ! rg -n 'pub trait ImportAnalysisApplicationPort' \
    ! rg -n 'pub trait ImportAnalysisPreviewApplicationPort' \
     crates/a4n-orchestrator/src/import_analysis/application.rs || \
    ! rg -n 'pub trait ImportAnalysisProgressApplicationPort' \
-    crates/a4n-orchestrator/src/import_analysis/application.rs; then
+    crates/a4n-api-contract/src/import.rs; then
     printf 'Import-analysis application ports are missing\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ImportAnalysisProgressApplicationPort' \
+    crates/a4n-orchestrator/src/import_analysis; then
+    printf 'ImportAnalysisProgressApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::import_analysis::ImportAnalysisProgressApplicationPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime import-analysis progress must consume the API contract directly\n' >&2
     exit 1
 fi
 

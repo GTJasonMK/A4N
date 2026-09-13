@@ -23,16 +23,6 @@ use super::{
     },
 };
 
-/// Runtime-facing import-analysis progress boundary.
-#[async_trait]
-pub trait ImportAnalysisProgressApplicationPort: Send + Sync {
-    async fn progress(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Option<ProjectImportAnalysisProgress>, AppError>;
-}
-
 /// Runtime-facing import-analysis request-preview boundary.
 #[async_trait]
 pub trait ImportAnalysisPreviewApplicationPort: Send + Sync {
@@ -228,7 +218,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl ImportAnalysisProgressApplicationPort for OrchestratorContext {
+impl a4n_api_contract::import::ImportAnalysisProgressApplicationPort for OrchestratorContext {
     async fn progress(
         &self,
         user_id: i64,

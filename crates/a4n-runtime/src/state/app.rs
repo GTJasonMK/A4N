@@ -277,7 +277,7 @@ pub struct AppState {
     package_application: Arc<dyn a4n_api_contract::package::PackageApplicationPort>,
     /// Host-facing import-analysis progress boundary.
     import_analysis_progress_application:
-        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisProgressApplicationPort>,
+        Arc<dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort>,
     /// Host-facing import-analysis request-preview boundary.
     import_analysis_preview_application:
         Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisPreviewApplicationPort>,
@@ -1578,7 +1578,7 @@ impl AppState {
 
     pub(crate) fn import_analysis_progress_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisProgressApplicationPort {
+    ) -> &dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort {
         self.import_analysis_progress_application.as_ref()
     }
 
