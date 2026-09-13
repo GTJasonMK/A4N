@@ -1851,7 +1851,7 @@ async fn process_claimed_run_request(
     }
     if result.is_ok()
         && let Ok(run) = state
-            .agent_application()
+            .agent_run_read_application()
             .show_run(claimed.thread.owner_user_id, &claimed.run.id.to_string())
             .await
     {
@@ -4239,7 +4239,10 @@ pub async fn show_run(
     user_id: i64,
     run_id: &str,
 ) -> Result<AgentRunView, AppError> {
-    state.agent_application().show_run(user_id, run_id).await
+    state
+        .agent_run_read_application()
+        .show_run(user_id, run_id)
+        .await
 }
 
 pub async fn send_message(
@@ -4261,7 +4264,7 @@ pub async fn send_message_with_admission(
     let _admission = state.lock_agent_admission().await;
     crate::actions::package::ensure_package_execution_enabled(state, PackageId::Agent).await?;
     let accepted = state
-        .agent_application()
+        .agent_run_mutation_application()
         .send_message(
             user_id,
             input,
@@ -4294,7 +4297,7 @@ pub async fn control_run(
 ) -> Result<AgentRunView, AppError> {
     let action = input.action;
     let result = state
-        .agent_application()
+        .agent_run_mutation_application()
         .control_run(user_id, input)
         .await?;
     if action == a4n_api_contract::agent::AgentControlAction::Cancel {
@@ -4332,7 +4335,7 @@ pub async fn send_message_to_child_with_admission(
     let _admission = state.lock_agent_admission().await;
     crate::actions::package::ensure_package_execution_enabled(state, PackageId::Agent).await?;
     let accepted = state
-        .agent_application()
+        .agent_run_mutation_application()
         .send_message_to_child(
             user_id,
             input,
@@ -4365,7 +4368,7 @@ pub async fn control_child_agent(
 ) -> Result<AgentRunView, AppError> {
     let action = input.action;
     let result = state
-        .agent_application()
+        .agent_run_mutation_application()
         .control_child_agent(user_id, input)
         .await?;
     if action == a4n_api_contract::agent::AgentControlAction::Cancel {

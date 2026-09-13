@@ -274,6 +274,9 @@ pub struct AppState {
     agent_thread_mutation_application:
         Arc<dyn a4n_api_contract::agent::AgentThreadMutationApplicationPort>,
     agent_thread_read_application: Arc<dyn a4n_api_contract::agent::AgentThreadReadApplicationPort>,
+    agent_run_mutation_application:
+        Arc<dyn a4n_api_contract::agent::AgentRunMutationApplicationPort>,
+    agent_run_read_application: Arc<dyn a4n_api_contract::agent::AgentRunReadApplicationPort>,
     /// Agent worker ports used only by the durable Runtime worker. Keeping the
     /// aggregate behind its contract avoids coupling Runtime to the owner.
     agent_worker_application: Arc<dyn a4n_agent_runtime_contract::AgentWorkerApplicationPort>,
@@ -1503,6 +1506,18 @@ impl AppState {
         self.agent_thread_read_application.as_ref()
     }
 
+    pub(crate) fn agent_run_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::agent::AgentRunMutationApplicationPort {
+        self.agent_run_mutation_application.as_ref()
+    }
+
+    pub(crate) fn agent_run_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::agent::AgentRunReadApplicationPort {
+        self.agent_run_read_application.as_ref()
+    }
+
     pub(crate) fn agent_external_task_wait_application(
         &self,
     ) -> &dyn a4n_agent_runtime_contract::AgentExternalTaskWaitApplicationPort {
@@ -2493,6 +2508,8 @@ impl AppState {
             agent_application: Arc::new(orchestrator.agent().clone()),
             agent_thread_mutation_application: Arc::new(orchestrator.agent().clone()),
             agent_thread_read_application: Arc::new(orchestrator.agent().clone()),
+            agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
+            agent_run_read_application: Arc::new(orchestrator.agent().clone()),
             agent_worker_application: Arc::new(orchestrator.agent().clone()),
             canvas_read_application: Arc::new(orchestrator.clone()),
             canvas_mutation_application: Arc::new(orchestrator.clone()),
