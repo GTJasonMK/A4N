@@ -17,9 +17,9 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerClaimRequest,
-    AgentWorkerEditorWaitExpiryRequest, AgentWorkerRunWire, WORKER_SCHEMA_VERSION, WorkerLease,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalExpiryRequest,
+    AgentWorkerClaimRequest, AgentWorkerEditorWaitExpiryRequest, AgentWorkerRunWire,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -581,10 +581,11 @@ async fn drain_runnable_runs(state: &AgentRuntimeState) {
 /// Runs the durable maintenance scans that must continue when Agent execution
 /// lives in an external process rather than inside Control.
 pub async fn maintain_agent_worker(state: &AgentRuntimeState) {
-    let approval_expiry_application = state.approval_expiry_application();
     let run_lease_recovery_application = state.run_lease_recovery_application();
-    if let Err(error) = approval_expiry_application
-        .expire_pending_approvals(32)
+    let approval_expiry = AgentWorkerApprovalExpiryRequest { limit: 32 };
+    if let Err(error) = state
+        .host()
+        .expire_pending_approvals(&approval_expiry)
         .await
     {
         tracing::warn!(error = %error, "Agent approval expiry scan failed");

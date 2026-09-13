@@ -10,9 +10,10 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
-    AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
-    AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerApprovalExpiryRequest, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
+    AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
@@ -273,6 +274,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerEditorWaitExpiryRequest,
     ) -> Result<usize, AppError> {
         self.request_json(Method::POST, "/internal/agent/editor/expire", request)
+            .await
+    }
+
+    async fn expire_pending_approvals(
+        &self,
+        request: &AgentWorkerApprovalExpiryRequest,
+    ) -> Result<usize, AppError> {
+        self.request_json(Method::POST, "/internal/agent/approval/expire", request)
             .await
     }
 

@@ -32,8 +32,9 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalCheckRequest,
-    AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
-    AgentWorkerBudgetSnapshotWire, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalExpiryRequest,
+    AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
@@ -1202,6 +1203,19 @@ pub async fn expire_agent_editor_waits(
     state
         .agent_editor_wait_application()
         .expire_editor_requests(request.limit)
+        .await
+}
+
+pub async fn expire_agent_approvals(
+    state: &AppState,
+    request: &AgentWorkerApprovalExpiryRequest,
+) -> Result<usize, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent approval expiry 无效: {error}"))
+    })?;
+    state
+        .agent_approval_expiry_application()
+        .expire_pending_approvals(request.limit)
         .await
 }
 
