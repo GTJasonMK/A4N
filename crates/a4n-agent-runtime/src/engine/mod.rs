@@ -227,14 +227,22 @@ impl RuntimeAgentToolExecutor {
                     }
                     input.capability = Some(context.profile_id.clone());
                 }
-                serde_json::to_value(self.state.application().search_tools(input)?)
-                    .map_err(AppError::from)
+                serde_json::to_value(
+                    self.state
+                        .worker_read_application()
+                        .search_tools_for_worker(input)?,
+                )
+                .map_err(AppError::from)
             }
             "describe_agent_tool" => {
                 let input = parse_arguments::<DescribeAgentToolInput>(arguments, name)?;
                 ensure_scope_allows_tool(&context.scope, &input.name)?;
-                serde_json::to_value(self.state.application().describe_tool(input)?)
-                    .map_err(AppError::from)
+                serde_json::to_value(
+                    self.state
+                        .worker_read_application()
+                        .describe_tool_for_worker(input)?,
+                )
+                .map_err(AppError::from)
             }
             "read_agent_memory" => {
                 let input = parse_arguments::<a4n_api_contract::agent::ReadAgentMemoryInput>(

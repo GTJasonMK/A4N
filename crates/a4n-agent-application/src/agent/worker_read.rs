@@ -1,7 +1,8 @@
 use super::{AgentApplication, AgentRunContext};
 use a4n_api_contract::agent::{
-    AgentExecutionResultPage, AgentMemorySearchResult, ReadAgentExecutionResultInput,
-    ReadAgentMemoryInput,
+    AgentExecutionResultPage, AgentMemorySearchResult, AgentToolDescriptor, AgentToolSearchResult,
+    DescribeAgentToolInput, ReadAgentExecutionResultInput, ReadAgentMemoryInput,
+    SearchAgentToolsInput,
 };
 use a4n_error::AppError;
 
@@ -12,6 +13,16 @@ use a4n_error::AppError;
 /// Agent owner; Runtime only supplies the durable context and typed input.
 #[async_trait::async_trait]
 pub trait AgentWorkerReadApplicationPort: Send + Sync {
+    fn search_tools_for_worker(
+        &self,
+        input: SearchAgentToolsInput,
+    ) -> Result<AgentToolSearchResult, AppError>;
+
+    fn describe_tool_for_worker(
+        &self,
+        input: DescribeAgentToolInput,
+    ) -> Result<AgentToolDescriptor, AppError>;
+
     async fn read_memory_for_run(
         &self,
         context: &AgentRunContext,
@@ -27,6 +38,20 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
 
 #[async_trait::async_trait]
 impl AgentWorkerReadApplicationPort for AgentApplication {
+    fn search_tools_for_worker(
+        &self,
+        input: SearchAgentToolsInput,
+    ) -> Result<AgentToolSearchResult, AppError> {
+        AgentApplication::search_tools(self, input)
+    }
+
+    fn describe_tool_for_worker(
+        &self,
+        input: DescribeAgentToolInput,
+    ) -> Result<AgentToolDescriptor, AppError> {
+        AgentApplication::describe_tool(self, input)
+    }
+
     async fn read_memory_for_run(
         &self,
         context: &AgentRunContext,

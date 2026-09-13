@@ -2746,6 +2746,18 @@ if rg -n 'a4n_db_models::models::agent|a4n_db::models::agent' \
     exit 1
 fi
 
+if rg -n 'state\.application\(\)\.(search_tools|describe_tool)' \
+    crates/a4n-agent-runtime/src/engine; then
+    printf 'Agent worker tool discovery must consume AgentWorkerReadApplicationPort\n' >&2
+    exit 1
+fi
+if ! rg -n 'search_tools_for_worker|describe_tool_for_worker' \
+    crates/a4n-agent-application/src/agent/worker_read.rs \
+    crates/a4n-agent-runtime/src/engine/mod.rs; then
+    printf 'Agent worker tool discovery read port is missing\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub use budget::' crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'AgentWorkerBudgetApplicationPort' crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentWorkerBudgetApplicationPort' \
