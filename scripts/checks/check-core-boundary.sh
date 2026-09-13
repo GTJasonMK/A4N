@@ -2746,17 +2746,17 @@ if rg -n 'a4n_db_models::models::agent|a4n_db::models::agent' \
     exit 1
 fi
 
-if ! rg -n 'pub use budget::' crates/a4n-orchestrator/src/agent.rs || \
-   ! rg -n 'AgentWorkerBudgetApplicationPort' crates/a4n-orchestrator/src/agent.rs || \
+if ! rg -n 'pub use budget::' crates/a4n-agent-application/src/agent.rs || \
+   ! rg -n 'AgentWorkerBudgetApplicationPort' crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentWorkerBudgetApplicationPort' \
-    crates/a4n-orchestrator/src/agent/budget.rs; then
+    crates/a4n-agent-application/src/agent/budget.rs; then
     printf 'Agent worker budget application port is missing or not re-exported\n' >&2
     exit 1
 fi
 
 if ! rg -n 'AgentWorkerBudgetSnapshot' \
-    crates/a4n-orchestrator/src/agent.rs \
-    crates/a4n-orchestrator/src/agent/budget.rs || \
+    crates/a4n-agent-application/src/agent.rs \
+    crates/a4n-agent-application/src/agent/budget.rs || \
    ! rg -n 'agent_worker_budget_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
@@ -2772,9 +2772,9 @@ if rg -n 'run_budget_snapshot' crates/a4n-runtime/src/actions/agent_runtime.rs; 
 fi
 
 if ! rg -n 'pub use lease_recovery::AgentRunLeaseRecoveryApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs || \
+    crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentRunLeaseRecoveryApplicationPort' \
-    crates/a4n-orchestrator/src/agent/lease_recovery.rs; then
+    crates/a4n-agent-application/src/agent/lease_recovery.rs; then
     printf 'Agent run lease-recovery application port is missing or not re-exported\n' >&2
     exit 1
 fi
@@ -2796,9 +2796,9 @@ if rg -n 'agent\.recover_expired_runs' \
 fi
 
 if ! rg -n 'pub use worker_lease::AgentWorkerLeaseApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs || \
+    crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentWorkerLeaseApplicationPort' \
-    crates/a4n-orchestrator/src/agent/worker_lease.rs; then
+    crates/a4n-agent-application/src/agent/worker_lease.rs; then
     printf 'Agent worker-lease application port is missing or not re-exported\n' >&2
     exit 1
 fi
@@ -2820,9 +2820,9 @@ if rg -n '(^|[^[:alnum:]_])agent\.renew_worker_lease' \
 fi
 
 if ! rg -n 'pub use worker_claim::AgentWorkerClaimApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs || \
+    crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentWorkerClaimApplicationPort' \
-    crates/a4n-orchestrator/src/agent/worker_claim.rs; then
+    crates/a4n-agent-application/src/agent/worker_claim.rs; then
     printf 'Agent worker-claim application port is missing or not re-exported\n' >&2
     exit 1
 fi
@@ -2844,9 +2844,9 @@ if rg -n '(^|[^[:alnum:]_])agent\.claim_worker_run' \
 fi
 
 if ! rg -n 'pub use worker_failure::AgentWorkerFailureApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs || \
+    crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentWorkerFailureApplicationPort' \
-    crates/a4n-orchestrator/src/agent/worker_failure.rs; then
+    crates/a4n-agent-application/src/agent/worker_failure.rs; then
     printf 'Agent worker-failure application port is missing or not re-exported\n' >&2
     exit 1
 fi
@@ -2868,9 +2868,9 @@ if rg -n '(^|[^[:alnum:]_])agent\.fail_child_run' \
 fi
 
 if ! rg -n 'pub use approval_expiry::AgentApprovalExpiryApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs || \
+    crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentApprovalExpiryApplicationPort' \
-    crates/a4n-orchestrator/src/agent/approval_expiry.rs; then
+    crates/a4n-agent-application/src/agent/approval_expiry.rs; then
     printf 'Agent approval-expiry application port is missing or not re-exported\n' >&2
     exit 1
 fi
@@ -2891,16 +2891,16 @@ if rg -n 'agent\.expire_pending_approvals' \
 fi
 
 if ! rg -n 'Agent(Execution|Inbox|Message)Snapshot' \
-    crates/a4n-orchestrator/src/agent.rs \
+    crates/a4n-agent-application/src/agent.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent worker snapshot contracts are missing\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub use editor_wait::AgentEditorWaitApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs || \
+    crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentEditorWaitApplicationPort' \
-    crates/a4n-orchestrator/src/agent/editor_wait.rs; then
+    crates/a4n-agent-application/src/agent/editor_wait.rs; then
     printf 'Agent editor-wait application port is missing or not re-exported\n' >&2
     exit 1
 fi
@@ -2922,37 +2922,37 @@ if rg -n 'agent\.expire_editor_requests' \
 fi
 
 if rg -n 'pub async fn expire_editor_requests' \
-    crates/a4n-orchestrator/src/agent.rs; then
+    crates/a4n-agent-application/src/agent.rs; then
     printf 'Agent editor-wait owner wrapper must live in editor_wait.rs\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub trait AgentExternalTaskWaitApplicationPort' \
-    crates/a4n-orchestrator/src/agent.rs \
-    crates/a4n-orchestrator/src/agent/external_task_wait.rs; then
+    crates/a4n-agent-application/src/agent.rs \
+    crates/a4n-agent-application/src/agent/external_task_wait.rs; then
     printf 'Agent external-task wait port is missing\n' >&2
     exit 1
 fi
 
 if ! rg -n 'AgentExternalTaskWaitSnapshot' \
-    crates/a4n-orchestrator/src/agent.rs \
-    crates/a4n-orchestrator/src/agent/external_task_wait.rs \
+    crates/a4n-agent-application/src/agent.rs \
+    crates/a4n-agent-application/src/agent/external_task_wait.rs \
     crates/a4n-runtime/src/actions/agent_runtime/task_wait.rs; then
     printf 'Agent external-task wait snapshot contract is missing\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub use generation_cancel::' crates/a4n-orchestrator/src/agent.rs || \
-   ! rg -n 'AgentGenerationCancelApplicationPort' crates/a4n-orchestrator/src/agent.rs || \
+if ! rg -n 'pub use generation_cancel::' crates/a4n-agent-application/src/agent.rs || \
+   ! rg -n 'AgentGenerationCancelApplicationPort' crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentGenerationCancelApplicationPort' \
-    crates/a4n-orchestrator/src/agent/generation_cancel.rs; then
+    crates/a4n-agent-application/src/agent/generation_cancel.rs; then
     printf 'Agent generation-cancel application port is missing or not re-exported\n' >&2
     exit 1
 fi
 
 if ! rg -n 'AgentGenerationCancelSnapshot' \
-    crates/a4n-orchestrator/src/agent.rs \
-    crates/a4n-orchestrator/src/agent/generation_cancel.rs \
+    crates/a4n-agent-application/src/agent.rs \
+    crates/a4n-agent-application/src/agent/generation_cancel.rs \
     crates/a4n-runtime/src/actions/agent_runtime/task_wait.rs || \
    ! rg -n 'agent_generation_cancel_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
@@ -2971,17 +2971,17 @@ if rg -n 'agent\.(active_owned_generation_tasks|generation_owner)\(' \
     exit 1
 fi
 
-if ! rg -n 'pub use workflow_cancel::' crates/a4n-orchestrator/src/agent.rs || \
-   ! rg -n 'AgentWorkflowCancelApplicationPort' crates/a4n-orchestrator/src/agent.rs || \
+if ! rg -n 'pub use workflow_cancel::' crates/a4n-agent-application/src/agent.rs || \
+   ! rg -n 'AgentWorkflowCancelApplicationPort' crates/a4n-agent-application/src/agent.rs || \
    ! rg -n 'pub trait AgentWorkflowCancelApplicationPort' \
-    crates/a4n-orchestrator/src/agent/workflow_cancel.rs; then
+    crates/a4n-agent-application/src/agent/workflow_cancel.rs; then
     printf 'Agent Workflow-cancel application port is missing or not re-exported\n' >&2
     exit 1
 fi
 
 if ! rg -n 'AgentWorkflowCancelSnapshot' \
-    crates/a4n-orchestrator/src/agent.rs \
-    crates/a4n-orchestrator/src/agent/workflow_cancel.rs \
+    crates/a4n-agent-application/src/agent.rs \
+    crates/a4n-agent-application/src/agent/workflow_cancel.rs \
     crates/a4n-runtime/src/actions/agent_runtime/task_wait.rs || \
    ! rg -n 'agent_workflow_cancel_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
