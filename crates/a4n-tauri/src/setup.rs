@@ -78,10 +78,11 @@ fn runtime_profile_for_tauri_host() -> Result<RuntimeProfile, AppError> {
 
 pub(crate) fn install_agent_host_dispatcher(runtime: &Arc<AppState>) -> Result<(), AppError> {
     let weak_runtime = Arc::downgrade(runtime);
-    runtime.set_agent_host_dispatcher(Arc::new(move |user_id, command, args| {
+    runtime.set_agent_host_dispatcher(Arc::new(move |user_id, command, payload, _request| {
         let Some(runtime) = weak_runtime.upgrade() else {
             return Box::pin(async { Err("A4N Host 已退出".to_string()) });
         };
+        let args = payload.arguments_with_runtime_snapshot();
         Box::pin(async move {
             a4n_control::dispatch_runtime_command(&runtime, user_id, args, command).await
         })

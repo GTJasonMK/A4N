@@ -31,7 +31,8 @@ use a4n_orchestrator::agent::{
     validate_agent_budget,
 };
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AGENT_RUN_OPERATION, AgentRunPayload, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -69,7 +70,8 @@ const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
 fn worker_request_for_claimed_run(
     claimed: &AgentWorkerRun,
     expected_worker_id: &str,
-) -> Result<WorkerRequest<Value>, AppError> {
+    runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
+) -> Result<WorkerRequest<AgentRunPayload>, AppError> {
     let run = &claimed.run;
     let worker_id = run
         .worker_id
@@ -106,6 +108,7 @@ fn worker_request_for_claimed_run(
             current: format!("Agent thread {} 的 revision 无效", claimed.thread.id),
             operation: "构造 Agent worker request".into(),
         })?;
+    let runtime_config_snapshot = runtime_snapshot.map(serde_json::to_value).transpose()?;
     let request = WorkerRequest {
         schema_version: WORKER_SCHEMA_VERSION,
         request_id: format!("agent-run-{}-{}", run.id, attempt),
@@ -114,7 +117,7 @@ fn worker_request_for_claimed_run(
             kind: WorkerPrincipalKind::User,
             subject: claimed.thread.owner_user_id.to_string(),
         },
-        operation_id: "agent.run".into(),
+        operation_id: AGENT_RUN_OPERATION.into(),
         idempotency_key: format!("agent-run:{}:{}", run.id, attempt),
         project_id: claimed.thread.project_id,
         root_project_id: None,
@@ -126,18 +129,53 @@ fn worker_request_for_claimed_run(
             fence_token: claimed.lease_token.clone(),
             expires_at,
         },
-        payload: json!({
-            "run_id": run.id,
-            "thread_id": run.thread_id,
-            "turn_id": run.turn_id,
-            "profile_id": claimed.thread.profile_id,
-        }),
+        payload: AgentRunPayload {
+            run_id: run.id,
+            thread_id: run.thread_id,
+            turn_id: run.turn_id,
+            profile_id: claimed.thread.profile_id.clone(),
+            runtime_config_snapshot,
+        },
     };
     request.validate().map_err(|error| AppError::InvalidState {
         current: format!("Agent worker request contract 无效: {error}"),
         operation: "校验 Agent worker request".into(),
     })?;
+    request
+        .payload
+        .validate()
+        .map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker payload contract 无效: {error}"),
+            operation: "校验 Agent worker payload".into(),
+        })?;
     Ok(request)
+}
+
+fn validate_claimed_worker_request(
+    claimed: &AgentWorkerRun,
+    request: &WorkerRequest<AgentRunPayload>,
+) -> Result<(), AppError> {
+    request.payload.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent worker payload 无效: {error}"))
+    })?;
+    let runtime_snapshot = request
+        .payload
+        .runtime_config_snapshot
+        .clone()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker request runtime snapshot 无效: {error}"),
+            operation: "校验 Agent worker request".into(),
+        })?;
+    let expected =
+        worker_request_for_claimed_run(claimed, &request.lease.worker_id, runtime_snapshot)?;
+    if request != &expected {
+        return Err(AppError::Forbidden(
+            "Agent worker request 与当前 Run lease 或 payload 不匹配".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,11 +187,15 @@ enum RunProgress {
 #[derive(Clone)]
 pub(crate) struct RuntimeAgentToolExecutor {
     state: AppState,
+    worker_request: WorkerRequest<AgentRunPayload>,
 }
 
 impl RuntimeAgentToolExecutor {
-    pub(crate) fn new(state: AppState) -> Self {
-        Self { state }
+    pub(crate) fn new(state: AppState, worker_request: WorkerRequest<AgentRunPayload>) -> Self {
+        Self {
+            state,
+            worker_request,
+        }
     }
 
     /// 执行 Runtime 明确支持的 Agent 工具。
@@ -499,7 +541,12 @@ impl RuntimeAgentToolExecutor {
             }
             _ => self
                 .state
-                .dispatch_agent_host_command(user_id, name.to_string(), arguments)
+                .dispatch_agent_host_command(
+                    user_id,
+                    name.to_string(),
+                    arguments,
+                    &self.worker_request,
+                )
                 .await
                 .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string()))),
         };
@@ -847,28 +894,8 @@ pub(crate) async fn run_worker(state: AppState, cancel: CancellationToken, notif
 
 async fn drain_runnable_runs(state: &AppState) {
     let claim_application = state.agent_worker_claim_application();
-    let editor_wait_application = state.agent_editor_wait_application();
-    let approval_expiry_application = state.agent_approval_expiry_application();
-    let run_lease_recovery_application = state.agent_run_lease_recovery_application();
     let worker_id = format!("a4n-agent:{}", std::process::id());
-    if let Err(error) = approval_expiry_application
-        .expire_pending_approvals(32)
-        .await
-    {
-        tracing::warn!(error = %error, "Agent approval expiry scan failed");
-    }
-    if let Err(error) = editor_wait_application.expire_editor_requests(32).await {
-        tracing::warn!(error = %error, "Agent editor wait expiry scan failed");
-    }
-    if let Err(error) = task_wait::reconcile(state).await {
-        tracing::warn!(error = %error, "Agent task wait reconciliation failed");
-    }
-    if let Err(error) = run_lease_recovery_application
-        .recover_expired_runs(16, Some("Agent worker lease expired"))
-        .await
-    {
-        tracing::warn!(error = %error, "Agent expired-run recovery failed");
-    }
+    maintain_agent_worker(state).await;
 
     for _ in 0..WORKER_MAX_CLAIMS_PER_WAKEUP {
         // The package lifecycle worker uses this same admission lock while it
@@ -908,10 +935,119 @@ async fn drain_runnable_runs(state: &AppState) {
     }
 }
 
+/// Runs the durable maintenance scans that must continue when Agent execution
+/// lives in an external process rather than inside Control.
+pub async fn maintain_agent_worker(state: &AppState) {
+    let editor_wait_application = state.agent_editor_wait_application();
+    let approval_expiry_application = state.agent_approval_expiry_application();
+    let run_lease_recovery_application = state.agent_run_lease_recovery_application();
+    if let Err(error) = approval_expiry_application
+        .expire_pending_approvals(32)
+        .await
+    {
+        tracing::warn!(error = %error, "Agent approval expiry scan failed");
+    }
+    if let Err(error) = editor_wait_application.expire_editor_requests(32).await {
+        tracing::warn!(error = %error, "Agent editor wait expiry scan failed");
+    }
+    if let Err(error) = task_wait::reconcile(state).await {
+        tracing::warn!(error = %error, "Agent task wait reconciliation failed");
+    }
+    if let Err(error) = run_lease_recovery_application
+        .recover_expired_runs(16, Some("Agent worker lease expired"))
+        .await
+    {
+        tracing::warn!(error = %error, "Agent expired-run recovery failed");
+    }
+}
+
+pub async fn claim_agent_worker_request(
+    state: &AppState,
+    worker_id: &str,
+) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError> {
+    if worker_id.trim().is_empty() {
+        return Err(AppError::InvalidArgument("Agent worker_id 不能为空".into()));
+    }
+    let _admission = state.lock_agent_admission().await;
+    if !crate::actions::package::package_execution_enabled(state, PackageId::Agent).await? {
+        return Ok(None);
+    }
+    let Some(claimed) = state
+        .agent_worker_claim_application()
+        .claim_worker_run(worker_id)
+        .await?
+    else {
+        return Ok(None);
+    };
+    let runtime_snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
+    match worker_request_for_claimed_run(&claimed, worker_id, runtime_snapshot) {
+        Ok(request) => Ok(Some(request)),
+        Err(error) => {
+            let _ = state
+                .agent_worker_failure_application()
+                .fail_child_run(&claimed, error.to_string())
+                .await;
+            Err(error)
+        }
+    }
+}
+
+pub async fn load_agent_worker_run(
+    state: &AppState,
+    run_id: i64,
+    lease_token: &str,
+) -> Result<AgentWorkerRun, AppError> {
+    state.load_agent_worker_run(run_id, lease_token).await
+}
+
+pub async fn authorize_agent_host_command(
+    state: &AppState,
+    request: &WorkerRequest<a4n_worker_contract::AgentHostCommandPayload>,
+) -> Result<i64, AppError> {
+    state.authorize_agent_host_command(request).await
+}
+
 async fn process_claimed_run(
     state: &AppState,
     claimed: AgentWorkerRun,
     worker_id: &str,
+) -> Result<(), AppError> {
+    let runtime_snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
+    let request = match worker_request_for_claimed_run(&claimed, worker_id, runtime_snapshot) {
+        Ok(request) => request,
+        Err(error) => {
+            let _ = state
+                .agent_worker_failure_application()
+                .fail_child_run(&claimed, error.to_string())
+                .await;
+            return Err(error);
+        }
+    };
+    process_claimed_run_request(state, claimed, request).await
+}
+
+pub async fn execute_claimed_worker_run(
+    state: &AppState,
+    claimed: AgentWorkerRun,
+    request: WorkerRequest<AgentRunPayload>,
+) -> Result<(), AppError> {
+    validate_claimed_worker_request(&claimed, &request)?;
+    if let Some(value) = request.payload.runtime_config_snapshot.clone() {
+        let snapshot = serde_json::from_value(value).map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker request runtime snapshot 无效: {error}"),
+            operation: "加载 Agent worker runtime snapshot".into(),
+        })?;
+        state
+            .store_agent_runtime_snapshot(claimed.run.id, claimed.run.parent_run_id, snapshot)
+            .await;
+    }
+    process_claimed_run_request(state, claimed, request).await
+}
+
+async fn process_claimed_run_request(
+    state: &AppState,
+    claimed: AgentWorkerRun,
+    request: WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
     let failure_application = state.agent_worker_failure_application();
     let run_cancel = state
@@ -941,7 +1077,6 @@ async fn process_claimed_run(
 
     // Keep the loop state out of every outer worker future's debug poll stack.
     let outcome: Result<_, AppError> = async {
-        let request = worker_request_for_claimed_run(&claimed, worker_id)?;
         let budget: AgentBudget = serde_json::from_value(claimed.run.budget_json.clone())?;
         validate_agent_budget(&budget)?;
         let deadline = agent_duration_deadline(
@@ -1057,7 +1192,7 @@ async fn process_claimed_run_inner(
     state: &AppState,
     claimed: &AgentWorkerRun,
     cancel: &CancellationToken,
-    request: &WorkerRequest<Value>,
+    request: &WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
     tracing::debug!(
         run_id = claimed.run.id,
@@ -1087,7 +1222,7 @@ async fn process_claimed_run_inner(
         .mark_turn_active(claimed)
         .await?;
     if context.profile_id == a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_CAPABILITY {
-        return Box::pin(optimization::process(state, claimed, &context)).await;
+        return Box::pin(optimization::process(state, claimed, &context, request)).await;
     }
     // A model response can be durable before its assistant message. Materialize
     // that decision first, including when a token limit suspended the Run.
@@ -1196,7 +1331,7 @@ async fn process_claimed_run_inner(
             operation: "恢复 Agent 工具执行".into(),
         }
     })?);
-    let executor = RuntimeAgentToolExecutor::new(state.clone());
+    let executor = RuntimeAgentToolExecutor::new(state.clone(), request.clone());
 
     if let Some((content, input_message_id)) = recovered_final {
         persist_usage(
@@ -3703,13 +3838,13 @@ mod tests {
     #[test]
     fn claimed_agent_run_is_bound_to_worker_contract_and_fence() {
         let claimed = claimed_worker_run();
-        let request = worker_request_for_claimed_run(&claimed, "worker-1")
+        let request = worker_request_for_claimed_run(&claimed, "worker-1", None)
             .expect("claimed run should produce a valid worker request");
         assert_eq!(request.schema_version, WORKER_SCHEMA_VERSION);
         assert_eq!(request.lease.epoch, 2);
         assert_eq!(request.lease.fence_token, "lease-2");
-        assert_eq!(request.payload["run_id"], json!(7));
-        assert!(worker_request_for_claimed_run(&claimed, "worker-2").is_err());
+        assert_eq!(request.payload.run_id, 7);
+        assert!(worker_request_for_claimed_run(&claimed, "worker-2", None).is_err());
     }
 
     #[tokio::test]

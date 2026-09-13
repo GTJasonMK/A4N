@@ -204,6 +204,13 @@ pub fn api_router(state: ServerState) -> Router {
         .with_state(state)
 }
 
+pub fn internal_router(state: ServerState) -> Router {
+    Router::new()
+        .route("/agent/claim", post(agent_runtime::claim_worker))
+        .route("/agent/command", post(agent_runtime::command))
+        .with_state(state)
+}
+
 async fn health() -> &'static str {
     "ok"
 }

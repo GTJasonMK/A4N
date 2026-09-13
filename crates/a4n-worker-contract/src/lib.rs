@@ -7,6 +7,9 @@
 use serde::{Deserialize, Serialize};
 
 pub const WORKER_SCHEMA_VERSION: u32 = 1;
+pub const AGENT_RUN_OPERATION: &str = "agent.run";
+pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
+pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -27,6 +30,86 @@ pub struct WorkerRequest<T> {
     pub runtime_config_snapshot_ref: Option<String>,
     pub lease: WorkerLease,
     pub payload: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerClaimRequest {
+    pub worker_id: String,
+}
+
+impl AgentWorkerClaimRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        validate_non_blank("worker_id", &self.worker_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentRunPayload {
+    pub run_id: i64,
+    pub thread_id: i64,
+    pub turn_id: i64,
+    pub profile_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_config_snapshot: Option<serde_json::Value>,
+}
+
+impl AgentRunPayload {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        for (field, value) in [
+            ("run_id", self.run_id),
+            ("thread_id", self.thread_id),
+            ("turn_id", self.turn_id),
+        ] {
+            if value <= 0 {
+                return Err(WorkerContractError::InvalidValue {
+                    field,
+                    reason: "must be positive",
+                });
+            }
+        }
+        validate_non_blank("profile_id", &self.profile_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentHostCommandPayload {
+    pub run_id: i64,
+    pub command: String,
+    pub arguments: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_config_snapshot: Option<serde_json::Value>,
+}
+
+impl AgentHostCommandPayload {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.run_id <= 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "run_id",
+                reason: "must be positive",
+            });
+        }
+        validate_non_blank("command", &self.command)?;
+        if !self.arguments.is_object() {
+            return Err(WorkerContractError::InvalidValue {
+                field: "arguments",
+                reason: "must be an object",
+            });
+        }
+        Ok(())
+    }
+
+    pub fn arguments_with_runtime_snapshot(&self) -> serde_json::Value {
+        let mut arguments = self.arguments.clone();
+        if let Some(snapshot) = &self.runtime_config_snapshot
+            && let serde_json::Value::Object(fields) = &mut arguments
+        {
+            fields.insert("runtime_config_snapshot".into(), snapshot.clone());
+        }
+        arguments
+    }
 }
 
 impl<T> WorkerRequest<T> {
@@ -222,5 +305,32 @@ mod tests {
         let error = serde_json::from_value::<WorkerRequest<serde_json::Value>>(value)
             .expect_err("unknown fields must fail");
         assert!(error.to_string().contains("unknown field"));
+    }
+
+    #[test]
+    fn host_command_arguments_require_an_object_for_snapshot_injection() {
+        let payload = AgentHostCommandPayload {
+            run_id: 7,
+            command: "save_project".into(),
+            arguments: serde_json::json!([]),
+            runtime_config_snapshot: None,
+        };
+        assert!(matches!(
+            payload.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "arguments",
+                ..
+            })
+        ));
+
+        let payload = AgentHostCommandPayload {
+            arguments: serde_json::json!({"projectId": 7}),
+            runtime_config_snapshot: Some(serde_json::json!({"llm": {}})),
+            ..payload
+        };
+        assert_eq!(
+            payload.arguments_with_runtime_snapshot()["runtime_config_snapshot"],
+            serde_json::json!({"llm": {}})
+        );
     }
 }

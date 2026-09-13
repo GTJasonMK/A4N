@@ -175,13 +175,15 @@ pub(crate) async fn doctor(
             );
         }
         None if sibling_binary("a4n-server").is_some()
+            && sibling_binary("a4n-control").is_some()
+            && sibling_binary("a4n-agent-worker").is_some()
             && sibling_binary("a4n-migration").is_some() =>
         {
             push_check(
                 &mut checks,
                 "runtime-binaries",
                 "ok",
-                "a4n-server 与 a4n-migration 位于 CLI 同目录",
+                "a4n-server、a4n-control、a4n-agent-worker 与 a4n-migration 位于 CLI 同目录",
             );
         }
         None => {
@@ -190,7 +192,7 @@ pub(crate) async fn doctor(
                 &mut checks,
                 "runtime-binaries",
                 "error",
-                "未找到 workspace 或 CLI 同目录的 a4n-server/a4n-migration",
+                "未找到 workspace 或 CLI 同目录的 a4n-server/a4n-control/a4n-agent-worker/a4n-migration",
             );
         }
     }
@@ -326,14 +328,16 @@ pub(crate) async fn start(
     }
     run_migration(&database_url, source_root.as_deref())?;
 
-    let server_binary = resolve_or_build_binary(
-        "a4n-server",
+    let server_binary = resolve_or_build_binary("a4n-server", source_root.as_deref(), None)?;
+    let control_binary = resolve_or_build_binary(
+        "a4n-control",
         source_root.as_deref(),
-        if options.full {
-            Some("embedded-capabilities")
-        } else {
-            None
-        },
+        options.full.then_some("embedded-capabilities"),
+    )?;
+    let agent_worker_binary = resolve_or_build_binary(
+        "a4n-agent-worker",
+        source_root.as_deref(),
+        options.full.then_some("embedded-capabilities"),
     )?;
     let sidecar_bin_dir = if options.managed_sidecars {
         Some(resolve_or_build_sidecars(source_root.as_deref())?)
@@ -409,6 +413,8 @@ pub(crate) async fn start(
         source_root.as_deref(),
         &paths,
         options,
+        &control_binary,
+        &agent_worker_binary,
         sidecar_bin_dir.as_deref(),
         qdrant_url.as_deref(),
     ) {
@@ -617,6 +623,8 @@ fn spawn_server(
     source_root: Option<&Path>,
     paths: &LocalPaths,
     options: StartOptions,
+    control_binary: &Path,
+    agent_worker_binary: &Path,
     sidecar_bin_dir: Option<&Path>,
     qdrant_url: Option<&str>,
 ) -> Result<std::process::Child> {
@@ -632,6 +640,8 @@ fn spawn_server(
             MANAGED_SIDECARS_ENV,
             if options.managed_sidecars { "1" } else { "0" },
         )
+        .env("A4N_CONTROL_BINARY", control_binary)
+        .env("A4N_AGENT_WORKER_BINARY", agent_worker_binary)
         .stdout(stdout)
         .stderr(stderr)
         .stdin(Stdio::null());
@@ -1634,6 +1644,8 @@ mod tests {
                 None,
                 &paths,
                 options,
+                &script,
+                &script,
                 Some(&sidecars),
                 qdrant_url,
             )

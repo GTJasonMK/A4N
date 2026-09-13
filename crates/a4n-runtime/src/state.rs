@@ -10,7 +10,7 @@ mod prompt_engine;
 mod rag;
 
 pub use app::AppState;
-pub use profile::RuntimeProfile;
+pub use profile::{RuntimeProfile, RuntimeRole};
 
 #[cfg(test)]
 mod tests;

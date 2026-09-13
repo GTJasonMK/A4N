@@ -26,6 +26,7 @@ a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-storage = { path = "../a4n-storage" }
 a4n-task-runtime = { path = "../a4n-task-runtime" }
+a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

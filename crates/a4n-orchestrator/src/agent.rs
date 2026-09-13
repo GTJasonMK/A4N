@@ -33,6 +33,7 @@ use a4n_domain::agent::{
     AgentThreadCreateInput, AgentTurnInput,
 };
 use a4n_error::AppError;
+use a4n_worker_contract::{AgentHostCommandPayload, WorkerRequest};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
@@ -2582,6 +2583,118 @@ impl AgentApplication {
             thread: thread_snapshot(thread_row)?,
             lease_token,
         }))
+    }
+
+    /// Reloads a Run claimed by an external worker without claiming it again.
+    /// The lease check is repeated after the process boundary so a stale
+    /// worker cannot resume a Run that has already been fenced or recovered.
+    pub async fn load_claimed_worker_run(
+        &self,
+        run_id: i64,
+        lease_token: &str,
+    ) -> Result<AgentWorkerRun, AppError> {
+        if run_id <= 0 || lease_token.trim().is_empty() {
+            return Err(AppError::InvalidArgument(
+                "Agent worker run_id 或 lease_token 无效".into(),
+            ));
+        }
+        let run_row = agent::run_by_id(self.connection(), run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {run_id}")))?;
+        agent::validate_live_run_lease(&run_row, lease_token, chrono::Utc::now().naive_utc())
+            .map_err(|error| match error {
+                AgentDbError::Conflict(message) => AppError::InvalidState {
+                    current: message,
+                    operation: "恢复外部 Agent worker run".into(),
+                },
+                other => agent_db_error_to_app(other),
+            })?;
+        let thread_row = agent::thread_by_id(self.connection(), run_row.thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("run {} 缺少 thread {}", run_row.id, run_row.thread_id),
+                operation: "恢复外部 Agent worker run".into(),
+            })?;
+        Ok(AgentWorkerRun {
+            run: run_row.into(),
+            thread: thread_snapshot(thread_row)?,
+            lease_token: lease_token.to_string(),
+        })
+    }
+
+    /// Authorizes a dynamic Host command returned by an external Agent worker.
+    /// Every identity and fencing field is checked against the durable Run
+    /// before the control plane executes the command on the user's behalf.
+    pub async fn authorize_worker_host_command(
+        &self,
+        request: &WorkerRequest<AgentHostCommandPayload>,
+    ) -> Result<i64, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(format!("worker request 无效: {error}")))?;
+        request.payload.validate().map_err(|error| {
+            AppError::InvalidArgument(format!("Agent Host command payload 无效: {error}"))
+        })?;
+        if request.operation_id != a4n_worker_contract::AGENT_HOST_COMMAND_OPERATION {
+            return Err(AppError::InvalidArgument(format!(
+                "不支持的 Agent worker operation: {}",
+                request.operation_id
+            )));
+        }
+        let run = agent::run_by_id(self.connection(), request.payload.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("Agent run 不存在: {}", request.payload.run_id))
+            })?;
+        agent::validate_live_run_lease(
+            &run,
+            &request.lease.fence_token,
+            chrono::Utc::now().naive_utc(),
+        )
+        .map_err(|error| match error {
+            AgentDbError::Conflict(message) => AppError::Forbidden(message),
+            other => agent_db_error_to_app(other),
+        })?;
+        if run.worker_id.as_deref() != Some(request.lease.worker_id.as_str())
+            || u64::try_from(run.attempt).ok() != Some(request.lease.epoch)
+        {
+            return Err(AppError::Forbidden(
+                "Agent worker request 与当前 Run lease 不一致".into(),
+            ));
+        }
+        // `expires_at` is an observation captured when the request was built.
+        // Renewal legitimately changes it while the fence token and epoch stay
+        // stable; validate liveness above against the database as authority.
+        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
+        let user_id = request
+            .principal
+            .subject
+            .parse::<i64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .ok_or_else(|| AppError::Forbidden("Agent worker principal 无效".into()))?;
+        if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User
+            || thread.owner_user_id != user_id
+            || request.project_id != thread.project_id
+            || request.target_revision
+                != Some(
+                    u64::try_from(thread.revision).map_err(|_| AppError::InvalidState {
+                        current: format!("Agent thread {} 的 revision 无效", thread.id),
+                        operation: "校验 Agent worker request".into(),
+                    })?,
+                )
+        {
+            return Err(AppError::Forbidden(
+                "Agent worker request 的 principal 或资源版本不匹配".into(),
+            ));
+        }
+        Ok(user_id)
     }
 
     /// Converts expired leases into the explicit recovery terminal state.

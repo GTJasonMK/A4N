@@ -29,7 +29,8 @@ async fn async_main() -> anyhow::Result<()> {
     let shutdown_state = state.clone();
     let app = Router::new()
         .route("/healthz", get(healthz))
-        .nest("/api", api_router(state));
+        .nest("/api", api_router(state.clone()))
+        .nest("/internal", routes::internal_router(state));
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
 
     tracing::info!("A4N Control listening on http://{bind_addr}");

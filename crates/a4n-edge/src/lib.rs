@@ -8,7 +8,16 @@ use axum::{
 };
 use futures::StreamExt;
 use reqwest::Client;
-use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    env,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 use tower_http::{
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
@@ -30,14 +39,24 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 pub fn run_with_control_addr(control_addr: Option<SocketAddr>) -> anyhow::Result<()> {
+    run_with_control_addr_until(control_addr, Arc::new(AtomicBool::new(false)))
+}
+
+pub fn run_with_control_addr_until(
+    control_addr: Option<SocketAddr>,
+    stop_requested: Arc<AtomicBool>,
+) -> anyhow::Result<()> {
     tokio::runtime::Builder::new_multi_thread()
         .thread_stack_size(EDGE_THREAD_STACK_SIZE)
         .enable_all()
         .build()?
-        .block_on(async_main(control_addr))
+        .block_on(async_main(control_addr, stop_requested))
 }
 
-async fn async_main(control_addr: Option<SocketAddr>) -> anyhow::Result<()> {
+async fn async_main(
+    control_addr: Option<SocketAddr>,
+    stop_requested: Arc<AtomicBool>,
+) -> anyhow::Result<()> {
     init_tracing();
     let bind_addr = parse_addr("A4N_WEB_ADDR", DEFAULT_WEB_ADDR)?;
     let control_addr = match control_addr {
@@ -65,7 +84,7 @@ async fn async_main(control_addr: Option<SocketAddr>) -> anyhow::Result<()> {
         "A4N Edge listening on http://{bind_addr}, forwarding API to http://{control_addr}"
     );
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown_signal(stop_requested))
         .await?;
     Ok(())
 }
@@ -181,7 +200,8 @@ fn parse_addr_value(value: &str) -> anyhow::Result<SocketAddr> {
         .map_err(|error| anyhow::anyhow!("无效监听地址 {value}: {error}"))
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(stop_requested: Arc<AtomicBool>) {
+    let stop_flag = wait_for_stop_request(stop_requested);
     #[cfg(unix)]
     {
         let mut terminate =
@@ -190,13 +210,23 @@ async fn shutdown_signal() {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {},
             _ = terminate.recv() => {},
+            _ = stop_flag => {},
         }
     }
     #[cfg(not(unix))]
     {
-        let _ = tokio::signal::ctrl_c().await;
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = stop_flag => {},
+        }
     }
     tracing::info!("A4N Edge shutting down");
+}
+
+async fn wait_for_stop_request(stop_requested: Arc<AtomicBool>) {
+    while !stop_requested.load(Ordering::Acquire) {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 #[cfg(test)]

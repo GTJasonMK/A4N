@@ -7,6 +7,7 @@ members = [
     "crates/a4n-queue",
     "crates/a4n-service-protocol",
     "crates/a4n-worker-contract",
+    "crates/a4n-agent-worker",
     "crates/a4n-service-client",
     "crates/a4n-prompt-client",
     "crates/a4n-import-client",

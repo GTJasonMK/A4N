@@ -2,9 +2,10 @@
 
 A4N 是一个面向小说创作与多模态派生内容生产的本地应用。项目以文本项目为根，围绕灵感对话、故事蓝图、大纲、章节写作、结构化分析、人物/物体/场景档案、图片生成、漫画派生、视频派生和成片编辑等工作流组织功能。
 
-当前代码库采用双 Host 架构：Tauri 桌面端和 axum Web Server 都通过
-`a4n-runtime` 调用同一套 orchestrator 业务逻辑。内置 `a4n` CLI 连接
-`a4n-server`，因此无前端运行、桌面端和网页端不会各自复制权限、事务、校验或状态机。
+当前代码库采用分层 Host 架构：Tauri 桌面端和 axum Web Edge 都通过
+`a4n-runtime` 调用同一套 orchestrator 业务逻辑；Edge 将 API 请求转给独立的
+`a4n-control`，Agent 执行由独立的 `a4n-agent-worker` 进程承载。内置 `a4n` CLI
+连接 `a4n-server`，因此无前端运行、桌面端和网页端不会各自复制权限、事务、校验或状态机。
 
 ## 技术栈
 
@@ -32,7 +33,10 @@ crates/
   a4n-*-contract              能力专用 wire / 执行合同
   a4n-orchestrator            业务用例、工作流和能力编排
   a4n-runtime                 provider、文件、进程和 Host API 适配
-  a4n-tauri / a4n-server      桌面与 Web host 入口
+  a4n-edge                   Web Edge 监听、静态资源与 Control 代理
+  a4n-control                API/Control 进程与持久业务状态
+  a4n-agent-worker           Agent 执行进程
+  a4n-tauri / a4n-server      桌面壳与 Web 进程入口
   a4n-cli                     无前端 CLI、Agent 合同、Shell 和 local 生命周期
   a4n-migration               数据库迁移
 frontend/
@@ -174,7 +178,8 @@ a4n local stop
 不会携带 Provider 密钥。
 
 发布包默认 sidecar profile 已包含完整 AI 能力。`a4n local start --full` 专用于源码
-workspace，会重新构建带 `embedded-capabilities` feature 的 Server。
+workspace，会重新构建带 `embedded-capabilities` feature 的 Control 和 Agent worker；
+`a4n-server` 始终保持为轻量 Edge 入口。
 
 `a4n local` 会先运行独立 migration，再启动 Server；它不会自动启动 PostgreSQL
 或 Docker。默认 profile 使用 catalog 声明的 managed sidecar；源码 workspace 可用
@@ -196,6 +201,9 @@ Web 运行常用变量：
 - `A4N_WEB_ADDR`
 - `A4N_CONTROL_ADDR`（Server 入口启动的内部 Control 地址；通常无需手动设置）
 - `A4N_CONTROL_BINARY`（可选的独立 `a4n-control` 二进制路径）
+- `A4N_AGENT_WORKER_BINARY`（可选的独立 `a4n-agent-worker` 二进制路径）
+- `A4N_AGENT_WORKER_ID`（可选的稳定 worker 标识）
+- `A4N_AGENT_WORKER_TOKEN`（独立 Control/worker 启动时必需；Server 未设置时自动生成）
 - `A4N_FRONTEND_DIST`
 - `A4N_BOOTSTRAP_ADMIN_USERNAME`
 - `A4N_BOOTSTRAP_ADMIN_EMAIL`
@@ -219,8 +227,9 @@ Web 运行常用变量：
 ## Desktop / Web / CLI 一致性
 
 桌面默认 `local-server` 模式与浏览器都通过 HTTP 调用 `a4n-server`。入口进程只负责 Edge
-的监听、静态文件和 `/api` 代理，Control 在独立子进程中持有业务路由和 Runtime；设置
-`A4N_CONTROL_BINARY` 后可直接替换为独立编译的 Control 进程。桌面 `native`
+的监听、静态文件和 `/api` 代理，Control 在独立子进程中持有业务路由，Agent worker
+在另一个进程中持有 Agent 执行状态机；设置 `A4N_CONTROL_BINARY` 或
+`A4N_AGENT_WORKER_BINARY` 后可分别替换对应进程。桌面 `native`
 模式才使用 Tauri command。Server 提供显式 REST 路由和 `/api/commands/:cmd`。CLI 对 Web 专用 REST 路由使用相同映射，其余命令走
 统一 command endpoint。共享 Host API manifest 位于 `a4n-api-contract`，是 CLI
 能力发现和三端 parity 的单一命令目录。
@@ -230,6 +239,25 @@ Web 运行常用变量：
 ```bash
 npm --prefix frontend run check:web-api-parity
 ```
+
+Server 会监测 `A4N_CONTROL_BINARY` 和 `A4N_AGENT_WORKER_BINARY` 指向的文件。
+文件被原子替换后，只重启对应子进程，Edge、另一个子进程和 PostgreSQL
+状态保持不动；子进程异常退出也会自动重启。需要单独更新 Control 或 Agent
+worker 时，只构建对应二进制：
+
+```bash
+cargo build -p a4n-control
+cargo build -p a4n-agent-worker
+```
+
+部署环境应使用临时文件再原子改名，例如：
+
+```bash
+install -m 755 target/debug/a4n-agent-worker /path/to/bin/a4n-agent-worker.new
+mv /path/to/bin/a4n-agent-worker.new /path/to/bin/a4n-agent-worker
+```
+
+Server 入口本身仍需正常重启；Control 和 Agent worker 才支持运行中替换。
 
 该检查会对齐前端 `apiInvoke` 命令、桌面 Tauri 注册命令、Web 路由、CLI
 专用映射、manifest 已知命令的通用 command endpoint 和 Tauri-only runtime 等价入口。页面

@@ -10,14 +10,14 @@
 #     --ssh-key ~/.ssh/a4n-deploy \
 #     --public-origin https://app.example.com
 #   ./scripts/deploy/deploy-cloud.sh --online          # 容器内允许 cargo 联网拉取缺失依赖
-#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Server/Migration 二进制和 frontend/dist
+#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/Control/worker/Migration 二进制和 frontend/dist
 #   ./scripts/deploy/deploy-cloud.sh --rebuild-builder # 重建本地 Ubuntu 24 构建镜像
 #   ./scripts/deploy/deploy-cloud.sh --no-smoke        # 跳过公网 smoke test
 #   ./scripts/deploy/deploy-cloud.sh --help
 #
 # 约束:
 #   - 后端只在本地 Ubuntu 24 / glibc 2.39 Docker 容器中构建，不在 2G 云服务器上构建。
-#   - 只上传 bin/a4n-server、bin/a4n-migration、static 和 prompts，不覆盖远端 .env 与 data。
+#   - 只上传 bin 下的 Host/Control/worker/Migration、static 和 prompts，不覆盖远端 .env 与 data。
 #   - 部署 Host、SSH key 和公网 origin 必须显式提供，根路径默认期望 404。
 #
 # 常用环境变量覆盖:
@@ -53,6 +53,8 @@ BUILDER_IMAGE="${A4N_DEPLOY_BUILDER_IMAGE:-a4n-rust-noble:1.95}"
 RUST_BASE_IMAGE="${A4N_DEPLOY_RUST_BASE:-docker.m.daocloud.io/library/rust:1.95-bookworm}"
 UBUNTU_BASE_IMAGE="${A4N_DEPLOY_UBUNTU_BASE:-docker.m.daocloud.io/library/ubuntu:24.04}"
 BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-server"
+CONTROL_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-control"
+AGENT_WORKER_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-agent-worker"
 MIGRATION_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-migration"
 
 CARGO_OFFLINE="${A4N_DEPLOY_CARGO_OFFLINE:-true}"
@@ -311,18 +313,22 @@ build_backend() {
         -v "$PROJECT_ROOT:/work" \
         -w /work \
         "$BUILDER_IMAGE" \
-        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release -p a4n-server -p a4n-migration --target-dir /work/target --locked ${offline_flag[*]}"
+        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release -p a4n-server -p a4n-control -p a4n-agent-worker -p a4n-migration --target-dir /work/target --locked ${offline_flag[*]}"
 
     [[ -x "$BINARY_PATH" ]] || die "后端构建后未找到二进制: $BINARY_PATH"
+    [[ -x "$CONTROL_BINARY_PATH" ]] || die "后端构建后未找到 Control 二进制: $CONTROL_BINARY_PATH"
+    [[ -x "$AGENT_WORKER_BINARY_PATH" ]] || die "后端构建后未找到 Agent worker 二进制: $AGENT_WORKER_BINARY_PATH"
     [[ -x "$MIGRATION_BINARY_PATH" ]] || die "迁移构建后未找到二进制: $MIGRATION_BINARY_PATH"
     log_ok "后端二进制: $BINARY_PATH"
+    log_ok "Control 二进制: $CONTROL_BINARY_PATH"
+    log_ok "Agent worker 二进制: $AGENT_WORKER_BINARY_PATH"
     log_ok "迁移二进制: $MIGRATION_BINARY_PATH"
 }
 
 verify_backend_binaries() {
     log_section "校验后端二进制"
     local binary max_glibc
-    for binary in "$BINARY_PATH" "$MIGRATION_BINARY_PATH"; do
+    for binary in "$BINARY_PATH" "$CONTROL_BINARY_PATH" "$AGENT_WORKER_BINARY_PATH" "$MIGRATION_BINARY_PATH"; do
         [[ -x "$binary" ]] || die "后端二进制不存在: $binary"
         file "$binary"
         max_glibc=$(strings "$binary" | grep -E '^GLIBC_[0-9]' | sort -V | tail -1 || true)
@@ -338,6 +344,8 @@ build_all() {
     if $SKIP_BUILD; then
         log_warn "跳过构建，使用现有产物"
         [[ -x "$BINARY_PATH" ]] || die "未找到后端二进制: $BINARY_PATH"
+        [[ -x "$CONTROL_BINARY_PATH" ]] || die "未找到 Control 二进制: $CONTROL_BINARY_PATH"
+        [[ -x "$AGENT_WORKER_BINARY_PATH" ]] || die "未找到 Agent worker 二进制: $AGENT_WORKER_BINARY_PATH"
         [[ -x "$MIGRATION_BINARY_PATH" ]] || die "未找到迁移二进制: $MIGRATION_BINARY_PATH"
         [[ -f "$FRONTEND_DIST/index.html" ]] || die "未找到前端 dist: $FRONTEND_DIST"
         return
@@ -353,10 +361,16 @@ prepare_package() {
     mkdir -p "$PACKAGE_DIR/bin" "$PACKAGE_DIR/static" "$PACKAGE_DIR/prompts"
 
     cp "$BINARY_PATH" "$PACKAGE_DIR/bin/a4n-server"
+    cp "$CONTROL_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-control"
+    cp "$AGENT_WORKER_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-agent-worker"
     cp "$MIGRATION_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-migration"
     cp -a "$FRONTEND_DIST/." "$PACKAGE_DIR/static/"
     cp -a "$PROMPTS_DIR/." "$PACKAGE_DIR/prompts/"
-    chmod 755 "$PACKAGE_DIR/bin/a4n-server" "$PACKAGE_DIR/bin/a4n-migration"
+    chmod 755 \
+        "$PACKAGE_DIR/bin/a4n-server" \
+        "$PACKAGE_DIR/bin/a4n-control" \
+        "$PACKAGE_DIR/bin/a4n-agent-worker" \
+        "$PACKAGE_DIR/bin/a4n-migration"
 
     tar -C "$PACKAGE_DIR" -czf "$PACKAGE_PATH" .
     sha256sum "$PACKAGE_PATH" > "$PACKAGE_PATH.sha256"
@@ -414,9 +428,11 @@ esac
 
 rm -rf "$app/.deploy-new"
 mkdir -p "$app/.deploy-new"
-tar -xzf "$package_path" -C "$app/.deploy-new"
-test -x "$app/.deploy-new/bin/a4n-server"
-test -x "$app/.deploy-new/bin/a4n-migration"
+    tar -xzf "$package_path" -C "$app/.deploy-new"
+    test -x "$app/.deploy-new/bin/a4n-server"
+    test -x "$app/.deploy-new/bin/a4n-control"
+    test -x "$app/.deploy-new/bin/a4n-agent-worker"
+    test -x "$app/.deploy-new/bin/a4n-migration"
 test -f "$app/.deploy-new/static/index.html"
 test -d "$app/.deploy-new/prompts"
 
@@ -429,16 +445,22 @@ fi
 ts=$(date +%Y%m%d%H%M%S)
 backup="$app/backups/deploy-$ts"
 
-mkdir -p "$backup" "$app/bin"
-if [[ -f "$app/bin/a4n-server" ]]; then cp -a "$app/bin/a4n-server" "$backup/a4n-server"; fi
-if [[ -f "$app/bin/a4n-migration" ]]; then cp -a "$app/bin/a4n-migration" "$backup/a4n-migration"; fi
+    mkdir -p "$backup" "$app/bin"
+    if [[ -f "$app/bin/a4n-server" ]]; then cp -a "$app/bin/a4n-server" "$backup/a4n-server"; fi
+    if [[ -f "$app/bin/a4n-control" ]]; then cp -a "$app/bin/a4n-control" "$backup/a4n-control"; fi
+    if [[ -f "$app/bin/a4n-agent-worker" ]]; then cp -a "$app/bin/a4n-agent-worker" "$backup/a4n-agent-worker"; fi
+    if [[ -f "$app/bin/a4n-migration" ]]; then cp -a "$app/bin/a4n-migration" "$backup/a4n-migration"; fi
 if [[ -d "$app/static" ]]; then cp -a "$app/static" "$backup/static"; fi
 if [[ -d "$app/prompts" ]]; then cp -a "$app/prompts" "$backup/prompts"; fi
 
-install -m 755 "$app/.deploy-new/bin/a4n-server" "$app/bin/a4n-server.new"
-install -m 755 "$app/.deploy-new/bin/a4n-migration" "$app/bin/a4n-migration.new"
-mv "$app/bin/a4n-server.new" "$app/bin/a4n-server"
-mv "$app/bin/a4n-migration.new" "$app/bin/a4n-migration"
+    install -m 755 "$app/.deploy-new/bin/a4n-server" "$app/bin/a4n-server.new"
+    install -m 755 "$app/.deploy-new/bin/a4n-control" "$app/bin/a4n-control.new"
+    install -m 755 "$app/.deploy-new/bin/a4n-agent-worker" "$app/bin/a4n-agent-worker.new"
+    install -m 755 "$app/.deploy-new/bin/a4n-migration" "$app/bin/a4n-migration.new"
+    mv "$app/bin/a4n-server.new" "$app/bin/a4n-server"
+    mv "$app/bin/a4n-control.new" "$app/bin/a4n-control"
+    mv "$app/bin/a4n-agent-worker.new" "$app/bin/a4n-agent-worker"
+    mv "$app/bin/a4n-migration.new" "$app/bin/a4n-migration"
 
 rm -rf "$app/static.new" "$app/prompts.new"
 cp -a "$app/.deploy-new/static" "$app/static.new"
@@ -451,9 +473,11 @@ rm -rf "$app/.deploy-new"
 
 A4N_DATABASE_URL="$database_url" "$app/bin/a4n-migration"
 
-echo "backup=$backup"
-ls -lh "$app/bin/a4n-server"
-ls -lh "$app/bin/a4n-migration"
+    echo "backup=$backup"
+    ls -lh "$app/bin/a4n-server"
+    ls -lh "$app/bin/a4n-control"
+    ls -lh "$app/bin/a4n-agent-worker"
+    ls -lh "$app/bin/a4n-migration"
 find "$app/static" -maxdepth 2 -type f | wc -l
 du -sh "$app/static" "$app/prompts"
 REMOTE
@@ -570,7 +594,7 @@ main() {
     echo -e "${BOLD}${CYAN}A4N 云端一键部署${NC}"
     echo -e "  目标: ${CYAN}$REMOTE${NC}"
     echo -e "  入口: ${CYAN}$PUBLIC_APP_URL/${NC}"
-    echo -e "  后端: ${CYAN}本地 Docker 构建 a4n-server + a4n-migration${NC}"
+    echo -e "  后端: ${CYAN}本地 Docker 构建 a4n-server + a4n-control + a4n-agent-worker + a4n-migration${NC}"
 
     check_prerequisites
     remote_preflight

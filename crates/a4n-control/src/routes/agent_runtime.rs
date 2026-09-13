@@ -14,6 +14,9 @@ use a4n_api_contract::agent::{
     UpdateAgentThreadInput,
 };
 use a4n_runtime::host_api::agent_runtime as agent_actions;
+use a4n_worker_contract::{
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerClaimRequest, WorkerRequest,
+};
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
@@ -21,11 +24,67 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use futures::{Stream, stream};
 use serde::Deserialize;
+use serde_json::Value;
 use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::time::Duration;
 
 const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+pub(super) async fn claim_worker(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerClaimRequest>,
+) -> Result<Response, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    match agent_actions::claim_agent_worker_request(state.runtime(), &input.worker_id).await? {
+        Some(request) => Ok(Json(request).into_response()),
+        None => Ok(StatusCode::NO_CONTENT.into_response()),
+    }
+}
+
+pub(super) async fn command(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerRequest<AgentHostCommandPayload>>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    request
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    request
+        .payload
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let user_id = agent_actions::authorize_agent_host_command(state.runtime(), &request).await?;
+    let command = request.payload.command.clone();
+    let arguments = request.payload.arguments_with_runtime_snapshot();
+    super::commands::dispatch_runtime_command_value(state.runtime(), user_id, arguments, command)
+        .await
+        .map(Json)
+        .map_err(|error| {
+            let message = error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("Agent Host command 执行失败")
+                .to_string();
+            ApiError::internal("agent_host_command_failed", message, true)
+        })
+}
+
+fn authorize_worker_request(state: &ServerState, headers: &HeaderMap) -> Result<(), ApiError> {
+    let provided = headers
+        .get(AGENT_WORKER_AUTH_HEADER)
+        .and_then(|value| value.to_str().ok());
+    if state.agent_worker_token_matches(provided) {
+        Ok(())
+    } else {
+        Err(ApiError::unauthorized("Agent worker 身份验证失败"))
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

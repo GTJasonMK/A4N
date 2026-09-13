@@ -6,27 +6,46 @@ license.workspace = true
 
 [features]
 default = []
+test-embedded-processes = ["dep:a4n-agent-worker", "dep:a4n-control"]
 embedded-capabilities = [
+    "test-embedded-processes",
     "a4n-control/embedded-capabilities",
+    "a4n-agent-worker/embedded-capabilities",
 ]
 embedded-llm-provider = [
+    "test-embedded-processes",
     "a4n-control/embedded-llm-provider",
+    "a4n-agent-worker/embedded-llm-provider",
 ]
 embedded-media-providers = [
+    "test-embedded-processes",
     "a4n-control/embedded-media-providers",
+    "a4n-agent-worker/embedded-media-providers",
 ]
 
 [dependencies]
-a4n-control = { path = "../a4n-control" }
+a4n-agent-worker = { path = "../a4n-agent-worker", optional = true }
+a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge" }
 
 anyhow = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-db = { path = "../a4n-db" }
 a4n-db-models = { path = "../a4n-db-models" }
+a4n-domain = { path = "../a4n-domain" }
 a4n-migration = { path = "../a4n-migration" }
 a4n-queue = { path = "../a4n-queue" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+axum = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
 reqwest = { workspace = true }
+serde_json = { workspace = true }
 sea-orm = { workspace = true }
+sha2 = { workspace = true }
 tempfile = { workspace = true }
+tokio = { workspace = true }
