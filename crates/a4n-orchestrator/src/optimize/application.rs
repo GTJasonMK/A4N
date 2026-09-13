@@ -122,10 +122,9 @@ pub trait OptimizePatchApplicationPort: Send + Sync {
     ) -> Result<ApplyOptimizationPatchesResponse, AppError>;
 }
 
-/// Runtime-facing content-optimization request-preview and generation
-/// boundary.
+/// Runtime-facing optimization patch request-preview boundary.
 #[async_trait]
-pub trait OptimizePreviewApplicationPort: Send + Sync {
+pub trait OptimizePatchPreviewApplicationPort: Send + Sync {
     async fn preview_propose_patches(
         &self,
         user_id: i64,
@@ -809,7 +808,7 @@ impl OptimizeChatPreviewApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizePreviewApplicationPort for OrchestratorContext {
+impl OptimizePatchPreviewApplicationPort for OrchestratorContext {
     async fn preview_propose_patches(
         &self,
         user_id: i64,

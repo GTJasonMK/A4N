@@ -29,7 +29,7 @@ pub use application::{
     OptimizeAnalysisGenerationApplicationPort, OptimizeAnalysisPreviewApplicationPort,
     OptimizeChatGenerationApplicationPort, OptimizeChatPreviewApplicationPort,
     OptimizePatchApplicationPort, OptimizePatchApplyHostPort,
-    OptimizePatchGenerationApplicationPort, OptimizePreviewApplicationPort,
+    OptimizePatchGenerationApplicationPort, OptimizePatchPreviewApplicationPort,
     OptimizeSessionMutationApplicationPort,
 };
 pub(crate) use chat::OptimizeChatGenerationApplicationContext;

@@ -3013,11 +3013,16 @@ if ! rg -n 'pub trait OptimizePatchApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'pub trait OptimizePreviewApplicationPort' \
+if ! rg -n 'pub trait OptimizePatchPreviewApplicationPort' \
     crates/a4n-orchestrator/src/optimize/application.rs || \
-   ! rg -n 'optimize_preview_application\(\)' \
+   ! rg -n 'optimize_patch_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
-    printf 'Optimize request previews must route through the preview port\n' >&2
+    printf 'Optimize patch previews must route through OptimizePatchPreviewApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n 'optimize_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
+    printf 'Optimize patch previews must not use the removed mixed preview port\n' >&2
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeAnalysisPreviewApplicationPort' \

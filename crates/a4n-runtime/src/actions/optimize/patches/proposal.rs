@@ -42,7 +42,7 @@ pub async fn preview_propose_optimization_patches_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .optimize_preview_application()
+        .optimize_patch_preview_application()
         .preview_propose_patches(user_id, input, prompt_renderer)
         .await
         .map_err(|err| err.to_string())?;

@@ -117,9 +117,10 @@ pub struct AppState {
     /// Content-optimization patch application and chapter writeback stay in
     /// the optimize owner.
     optimize_patch_application: Arc<dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort>,
-    /// Content-optimization request previews stay in the optimize owner.
-    optimize_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizePreviewApplicationPort>,
+    /// Content-optimization patch request previews stay behind the patch
+    /// boundary.
+    optimize_patch_preview_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizePatchPreviewApplicationPort>,
     /// Content-optimization analysis request previews stay behind the
     /// analysis-specific boundary.
     optimize_analysis_preview_application:
@@ -1237,10 +1238,10 @@ impl AppState {
         self.optimize_patch_application.as_ref()
     }
 
-    pub(crate) fn optimize_preview_application(
+    pub(crate) fn optimize_patch_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePreviewApplicationPort {
-        self.optimize_preview_application.as_ref()
+    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchPreviewApplicationPort {
+        self.optimize_patch_preview_application.as_ref()
     }
 
     pub(crate) fn optimize_analysis_preview_application(
@@ -2692,7 +2693,7 @@ impl AppState {
             optimize_session_read_application: Arc::new(orchestrator.clone()),
             optimize_session_mutation_application: Arc::new(orchestrator.clone()),
             optimize_patch_application: Arc::new(orchestrator.clone()),
-            optimize_preview_application: Arc::new(orchestrator.clone()),
+            optimize_patch_preview_application: Arc::new(orchestrator.clone()),
             optimize_analysis_preview_application: Arc::new(orchestrator.clone()),
             optimize_chat_preview_application: Arc::new(orchestrator.clone()),
             optimize_chat_generation_application: Arc::new(orchestrator.clone()),
