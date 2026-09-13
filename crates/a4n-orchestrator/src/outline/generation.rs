@@ -29,7 +29,8 @@ use crate::{
     },
     outline::{
         OutlineBatchPartGenerationPreviewApplicationPort,
-        OutlineChapterCountGenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
+        OutlineChapterCountGenerationPreviewApplicationPort,
+        OutlineChapterRegenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
         OutlinePartChapterGenerationPreviewApplicationPort,
         OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
         OutlineRequestPreviewStep,
@@ -567,7 +568,7 @@ impl OutlineChapterCountGenerationPreviewApplicationPort for OrchestratorContext
 }
 
 #[async_trait::async_trait]
-impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+impl OutlineChapterRegenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_regenerate_chapter_outline(
         &self,
         input: RegenerateChapterOutlineInput,
@@ -575,7 +576,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
         self.preview_regenerate_chapter_outline_validated(input)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     async fn preview_apply_beat_mapping(
         &self,
         input: ApplyBeatMappingInput,

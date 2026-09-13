@@ -273,6 +273,9 @@ pub struct AppState {
     /// Chapter-count generation preview owner.
     outline_chapter_count_generation_preview_application:
         Arc<dyn a4n_orchestrator::OutlineChapterCountGenerationPreviewApplicationPort>,
+    /// Chapter outline regeneration preview owner.
+    outline_chapter_regeneration_preview_application:
+        Arc<dyn a4n_orchestrator::OutlineChapterRegenerationPreviewApplicationPort>,
     /// Outline request-preview owner. Runtime formats API preview responses
     /// but does not construct prompt requests.
     outline_preview_application: Arc<dyn a4n_orchestrator::OutlinePreviewApplicationPort>,
@@ -1562,6 +1565,13 @@ impl AppState {
             .as_ref()
     }
 
+    pub(crate) fn outline_chapter_regeneration_preview_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::OutlineChapterRegenerationPreviewApplicationPort {
+        self.outline_chapter_regeneration_preview_application
+            .as_ref()
+    }
+
     pub(crate) fn outline_preview_application(
         &self,
     ) -> &dyn a4n_orchestrator::OutlinePreviewApplicationPort {
@@ -2714,6 +2724,7 @@ impl AppState {
             outline_part_chapter_generation_preview_application: Arc::new(orchestrator.clone()),
             outline_batch_part_generation_preview_application: Arc::new(orchestrator.clone()),
             outline_chapter_count_generation_preview_application: Arc::new(orchestrator.clone()),
+            outline_chapter_regeneration_preview_application: Arc::new(orchestrator.clone()),
             outline_preview_application: Arc::new(orchestrator.clone()),
             theme_read_application: Arc::new(orchestrator.clone()),
             theme_mutation_application: Arc::new(orchestrator.clone()),

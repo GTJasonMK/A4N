@@ -79,14 +79,18 @@ pub trait OutlineGenerationApplicationPort: Send + Sync {
 /// request steps; outline validation and prompt construction stay here.
 #[async_trait::async_trait]
 pub trait OutlinePreviewApplicationPort: Send + Sync {
-    async fn preview_regenerate_chapter_outline(
-        &self,
-        input: RegenerateChapterOutlineInput,
-    ) -> Result<ChatRequest, AppError>;
-
     async fn preview_apply_beat_mapping(
         &self,
         input: ApplyBeatMappingInput,
+    ) -> Result<ChatRequest, AppError>;
+}
+
+/// Host-facing boundary for chapter outline regeneration previews.
+#[async_trait::async_trait]
+pub trait OutlineChapterRegenerationPreviewApplicationPort: Send + Sync {
+    async fn preview_regenerate_chapter_outline(
+        &self,
+        input: RegenerateChapterOutlineInput,
     ) -> Result<ChatRequest, AppError>;
 }
 
