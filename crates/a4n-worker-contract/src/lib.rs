@@ -70,6 +70,31 @@ impl AgentWorkerRunLeaseRequest {
 
 pub type AgentWorkerLeaseRenewRequest = AgentWorkerRunLeaseRequest;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerUsageRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub usage_json: serde_json::Value,
+}
+
+impl AgentWorkerUsageRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        if !self.usage_json.is_object() {
+            return Err(WorkerContractError::InvalidValue {
+                field: "usage_json",
+                reason: "must be an object",
+            });
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -620,6 +645,32 @@ mod tests {
         let mut value = serde_json::to_value(request).expect("DTO should serialize");
         value["unexpected"] = true.into();
         assert!(serde_json::from_value::<AgentWorkerCancelGenerationRequest>(value).is_err());
+    }
+
+    #[test]
+    fn usage_request_requires_an_object_and_round_trips() {
+        let request = AgentWorkerUsageRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            usage_json: serde_json::json!({"tokens_used": 3}),
+        };
+        request.validate().expect("usage request should be valid");
+        let encoded = serde_json::to_string(&request).expect("usage request should serialize");
+        let decoded: AgentWorkerUsageRequest =
+            serde_json::from_str(&encoded).expect("usage request should deserialize");
+        assert_eq!(decoded.run_id, request.run_id);
+
+        let invalid = AgentWorkerUsageRequest {
+            usage_json: serde_json::json!([]),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "usage_json",
+                ..
+            })
+        ));
     }
 
     #[test]

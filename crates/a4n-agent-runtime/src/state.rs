@@ -11,14 +11,14 @@ use a4n_agent_application::agent::{
     AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
     AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
     AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
-    AgentWorkerUsageApplicationPort, AgentWorkerWaitApplicationPort,
-    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
+    AgentWorkerWaitApplicationPort, AgentWorkflowBindingApplicationPort,
+    AgentWorkflowCancelApplicationPort,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentRunPayload, AgentWorkerRunLeaseRequest, WorkerLease,
-    WorkerRequest,
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerRunLeaseRequest, AgentWorkerUsageRequest,
+    WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -136,6 +136,24 @@ impl AgentRuntimeState {
     pub async fn mark_agent_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
         let request = self.agent_worker_lease_request(claimed)?;
         self.host.mark_turn_active(&request).await
+    }
+
+    pub async fn update_agent_worker_usage(
+        &self,
+        claimed: &AgentWorkerRun,
+        usage_json: Value,
+    ) -> Result<(), AppError> {
+        let lease = self.agent_worker_lease_request(claimed)?.lease;
+        let request = AgentWorkerUsageRequest {
+            run_id: claimed.run.id,
+            lease,
+            usage_json,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker usage request 无效: {error}"),
+            operation: "更新 Agent worker usage".into(),
+        })?;
+        self.host.update_run_usage(&request).await
     }
 
     pub async fn authorize_agent_host_command(
@@ -320,9 +338,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn worker_recovery_application(&self) -> &dyn AgentWorkerRecoveryApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn worker_usage_application(&self) -> &dyn AgentWorkerUsageApplicationPort {
         self.application.as_ref()
     }
     pub fn worker_wait_application(&self) -> &dyn AgentWorkerWaitApplicationPort {

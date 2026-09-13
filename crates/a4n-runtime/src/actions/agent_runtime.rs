@@ -32,7 +32,8 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1027,6 +1028,19 @@ pub async fn mark_agent_turn_active(
     state
         .agent_worker_activation_application()
         .mark_turn_active_request(request)
+        .await
+}
+
+pub async fn update_agent_worker_usage(
+    state: &AppState,
+    request: &AgentWorkerUsageRequest,
+) -> Result<(), AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent worker usage 无效: {error}")))?;
+    state
+        .agent_worker_usage_application()
+        .update_run_usage_request(request)
         .await
 }
 

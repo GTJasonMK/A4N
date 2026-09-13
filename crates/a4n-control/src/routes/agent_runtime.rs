@@ -23,7 +23,7 @@ use a4n_worker_contract::{
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerClaimRequest, AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
     AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -92,6 +92,19 @@ pub(super) async fn activate_agent_turn(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::mark_agent_turn_active(state.runtime(), &input).await?;
+    Ok(Json(Value::Null))
+}
+
+pub(super) async fn update_agent_usage(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerUsageRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::update_agent_worker_usage(state.runtime(), &input).await?;
     Ok(Json(Value::Null))
 }
 

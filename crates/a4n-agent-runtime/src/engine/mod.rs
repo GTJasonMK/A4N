@@ -2,7 +2,7 @@ use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput,
-    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
+    WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
     enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
@@ -848,7 +848,6 @@ async fn process_claimed_run_inner(
         "Agent worker request contract validated"
     );
     let execution_application = state.worker_execution_application();
-    let usage_application = state.worker_usage_application();
     let mut context = state.load_agent_run_context(request).await?;
     let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
     if context.runtime_snapshot_required && snapshot.is_none() {
@@ -972,7 +971,7 @@ async fn process_claimed_run_inner(
 
     if let Some((content, input_message_id)) = recovered_final {
         persist_usage(
-            usage_application,
+            state,
             claimed,
             &usage,
             steps,
@@ -1040,7 +1039,7 @@ async fn process_claimed_run_inner(
             || action_budget_exhausted(&budget, tokens, started_at)
         {
             persist_usage(
-                usage_application,
+                state,
                 claimed,
                 &usage,
                 steps,
@@ -1138,7 +1137,7 @@ async fn process_claimed_run_inner(
                         .collect::<Vec<_>>(),
                 )?;
                 persist_usage(
-                    usage_application,
+                    state,
                     claimed,
                     &usage,
                     steps,
@@ -1296,7 +1295,7 @@ async fn process_claimed_run_inner(
         }
         usage["tokens_used"] = json!(tokens);
         persist_usage(
-            usage_application,
+            state,
             claimed,
             &usage,
             steps,
@@ -1316,7 +1315,7 @@ async fn process_claimed_run_inner(
             usage["tokens_used"] = json!(tokens);
             usage["tool_calls_used"] = json!(tool_calls);
             persist_usage(
-                usage_application,
+                state,
                 claimed,
                 &usage,
                 steps,
@@ -1387,12 +1386,8 @@ async fn process_claimed_run_inner(
         }
         usage["tool_calls_used"] = json!(tool_calls);
         usage["tokens_used"] = json!(tokens);
-        usage_application
-            .update_run_usage(WorkerUsage {
-                run_id: claimed.run.id,
-                lease_token: claimed.lease_token.clone(),
-                usage_json: usage.clone(),
-            })
+        state
+            .update_agent_worker_usage(claimed, usage.clone())
             .await?;
     }
 }
@@ -1887,7 +1882,6 @@ async fn execute_tool_calls(
     tokens: u64,
 ) -> Result<RunProgress, AppError> {
     let execution_application = state.worker_execution_application();
-    let usage_application = state.worker_usage_application();
     let parallelism = usize::from(budget.max_parallel_tools.unwrap_or(1).max(1));
     let mut index = 0;
     while index < calls.len() {
@@ -1930,7 +1924,7 @@ async fn execute_tool_calls(
             index += 1;
         }
         persist_usage(
-            usage_application,
+            state,
             claimed,
             usage,
             steps,
@@ -2710,7 +2704,7 @@ fn should_request_approval(
 }
 
 async fn persist_usage(
-    usage_application: &dyn a4n_agent_application::agent::AgentWorkerUsageApplicationPort,
+    state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
     usage: &Value,
     steps: u32,
@@ -2723,13 +2717,7 @@ async fn persist_usage(
     usage["model_calls_used"] = json!(model_calls);
     usage["tool_calls_used"] = json!(tool_calls);
     usage["tokens_used"] = json!(tokens);
-    usage_application
-        .update_run_usage(WorkerUsage {
-            run_id: claimed.run.id,
-            lease_token: claimed.lease_token.clone(),
-            usage_json: usage,
-        })
-        .await?;
+    state.update_agent_worker_usage(claimed, usage).await?;
     Ok(())
 }
 

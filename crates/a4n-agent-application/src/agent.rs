@@ -37,7 +37,7 @@ use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionSnapshotWire,
     AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunSnapshotWire, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, WorkerRequest,
+    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3571,6 +3571,29 @@ impl AgentApplication {
             input.usage_json,
         )
         .await
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn update_run_usage_request(
+        &self,
+        request: &AgentWorkerUsageRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        agent::update_run_usage(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+            request.usage_json.clone(),
+        )
+        .await
+        .map(|_| ())
         .map_err(agent_db_error_to_app)
     }
 
