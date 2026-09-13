@@ -454,6 +454,9 @@ pub struct AppState {
     /// Image generation task owner. Runtime supplies only provider and file
     /// adapters when a worker is started.
     image_generation_application: Arc<dyn a4n_orchestrator::media::ImageGenerationApplicationPort>,
+    /// Queued image generation lifecycle owner.
+    image_generation_task_application:
+        Arc<dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort>,
     /// Profile image prompt generation has no provider/file task dependency.
     image_profile_prompt_application:
         Arc<dyn a4n_orchestrator::media::ImageProfilePromptApplicationPort>,
@@ -2077,6 +2080,12 @@ impl AppState {
         self.image_generation_application.as_ref()
     }
 
+    pub(crate) fn image_generation_task_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort {
+        self.image_generation_task_application.as_ref()
+    }
+
     pub(crate) fn image_profile_prompt_application(
         &self,
     ) -> &dyn a4n_orchestrator::media::ImageProfilePromptApplicationPort {
@@ -2677,6 +2686,7 @@ impl AppState {
             image_media_reference_application: Arc::new(orchestrator.clone()),
             image_provider_config: Arc::new(orchestrator.clone()),
             image_generation_application: Arc::new(orchestrator.clone()),
+            image_generation_task_application: Arc::new(orchestrator.clone()),
             image_profile_prompt_application: Arc::new(orchestrator.clone()),
             profile_material_read_application: Arc::new(orchestrator.clone()),
             profile_material_mutation_application: Arc::new(orchestrator.clone()),

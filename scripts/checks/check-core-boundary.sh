@@ -2715,6 +2715,18 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*(object_profile_prompt|scen
     printf 'Profile image prompt actions must not use the image generation task port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait ImageGenerationTaskApplicationPort' \
+    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+   ! rg -n 'image_generation_task_application\(\)' \
+    crates/a4n-runtime/src/actions/image_generation/generation_task.rs; then
+    printf 'Queued image generation must route through ImageGenerationTaskApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n 'image_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/image_generation/generation_task.rs; then
+    printf 'Queued image generation must not use the request-preparation port\n' >&2
+    exit 1
+fi
 
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then

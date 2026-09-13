@@ -168,10 +168,8 @@ pub struct PersistedGeneratedImageFile {
     pub file_size: i64,
 }
 
-/// Host-facing boundary for image generation task ownership.
-///
-/// Runtime supplies provider and file adapters; queue execution, validation,
-/// workflow state and image persistence remain in the media owner.
+/// Host-facing boundary for image generation request preparation and direct
+/// generation.
 #[async_trait]
 pub trait ImageGenerationApplicationPort: Send + Sync {
     async fn prepare_scene_request(
@@ -216,7 +214,11 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         input: GenerateGalgameImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError>;
+}
 
+/// Host-facing boundary for queued image generation task ownership.
+#[async_trait]
+pub trait ImageGenerationTaskApplicationPort: Send + Sync {
     async fn start_task(
         &self,
         user_id: i64,

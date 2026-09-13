@@ -15,7 +15,8 @@ pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
     ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
     ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-    ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
+    ImageGenerationProviderInput, ImageGenerationProviderOutput,
+    ImageGenerationTaskApplicationPort, ImageGenerationWorkflowBinding,
     ImageProfilePromptApplicationPort, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
     PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
     PreparedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,

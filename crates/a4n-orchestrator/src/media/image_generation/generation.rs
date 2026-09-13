@@ -30,7 +30,8 @@ use crate::{
     },
     media::{
         BatchImageGenerationOutcome, ImageGenerationApplicationPort, ImageGenerationHostPort,
-        ImageGenerationProgress, ImageProfilePromptApplicationPort, PreparedImageGenerationRequest,
+        ImageGenerationProgress, ImageGenerationTaskApplicationPort,
+        ImageProfilePromptApplicationPort, PreparedImageGenerationRequest,
     },
 };
 
@@ -462,7 +463,10 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         self.generate_galgame_image_validated(host_port, user_id, input, progress)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl ImageGenerationTaskApplicationPort for OrchestratorContext {
     async fn start_task(
         &self,
         user_id: i64,
