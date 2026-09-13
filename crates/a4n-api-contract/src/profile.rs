@@ -387,18 +387,22 @@ pub struct ProfileMaterialGroup {
     pub images: Vec<ProfileMaterialImageSummary>,
 }
 
-/// Host-facing boundary for profile-material reads and primary selection.
+/// Host-facing profile-material read boundary.
 ///
 /// Authorization, persistence and group projection stay with the media
 /// owner; Runtime only routes the stable API contract.
 #[async_trait::async_trait]
-pub trait ProfileMaterialApplicationPort: Send + Sync {
+pub trait ProfileMaterialReadApplicationPort: Send + Sync {
     async fn list(
         &self,
         user_id: i64,
         input: ListProfileMaterialsInput,
     ) -> Result<Vec<ProfileMaterialGroup>, a4n_error::AppError>;
+}
 
+/// Host-facing profile-material mutation boundary.
+#[async_trait::async_trait]
+pub trait ProfileMaterialMutationApplicationPort: Send + Sync {
     async fn set_primary(
         &self,
         user_id: i64,

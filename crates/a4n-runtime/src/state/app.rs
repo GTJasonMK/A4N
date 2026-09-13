@@ -390,10 +390,12 @@ pub struct AppState {
     /// Image generation task owner. Runtime supplies only provider and file
     /// adapters when a worker is started.
     image_generation_application: Arc<dyn a4n_orchestrator::media::ImageGenerationApplicationPort>,
-    /// Host-facing profile-material record boundary. Authorization, primary
-    /// selection and group projection stay in the media owner.
-    profile_material_application:
-        Arc<dyn a4n_api_contract::profile::ProfileMaterialApplicationPort>,
+    /// Host-facing profile-material read boundary. Authorization and group
+    /// projection stay in the media owner.
+    profile_material_read_application:
+        Arc<dyn a4n_api_contract::profile::ProfileMaterialReadApplicationPort>,
+    profile_material_mutation_application:
+        Arc<dyn a4n_api_contract::profile::ProfileMaterialMutationApplicationPort>,
     /// Upload publication uses a separate media/file adapter boundary.
     profile_material_upload_application:
         Arc<dyn a4n_orchestrator::ProfileMaterialUploadApplicationPort>,
@@ -1832,10 +1834,16 @@ impl AppState {
         self.image_generation_application.as_ref()
     }
 
-    pub(crate) fn profile_material_application(
+    pub(crate) fn profile_material_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::profile::ProfileMaterialApplicationPort {
-        self.profile_material_application.as_ref()
+    ) -> &dyn a4n_api_contract::profile::ProfileMaterialReadApplicationPort {
+        self.profile_material_read_application.as_ref()
+    }
+
+    pub(crate) fn profile_material_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::profile::ProfileMaterialMutationApplicationPort {
+        self.profile_material_mutation_application.as_ref()
     }
 
     pub(crate) fn profile_material_upload_application(
@@ -2394,7 +2402,8 @@ impl AppState {
             image_media_reference_application: Arc::new(orchestrator.clone()),
             image_provider_config: Arc::new(orchestrator.clone()),
             image_generation_application: Arc::new(orchestrator.clone()),
-            profile_material_application: Arc::new(orchestrator.clone()),
+            profile_material_read_application: Arc::new(orchestrator.clone()),
+            profile_material_mutation_application: Arc::new(orchestrator.clone()),
             profile_material_upload_application: Arc::new(orchestrator.clone()),
             portrait_record_read_application: Arc::new(orchestrator.clone()),
             portrait_record_mutation_application: Arc::new(orchestrator.clone()),

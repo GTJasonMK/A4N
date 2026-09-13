@@ -1,6 +1,7 @@
 use a4n_api_contract::profile::{
-    ListProfileMaterialsInput, ProfileMaterialApplicationPort, ProfileMaterialGroup,
-    ProfileMaterialImageSummary, ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput,
+    ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
+    ProfileMaterialMutationApplicationPort, ProfileMaterialProfileSummary,
+    ProfileMaterialReadApplicationPort, SetProfilePrimaryMaterialInput,
     UploadProfileMaterialImageInput,
 };
 use a4n_db::profile_material::{
@@ -720,7 +721,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl ProfileMaterialApplicationPort for OrchestratorContext {
+impl ProfileMaterialReadApplicationPort for OrchestratorContext {
     async fn list(
         &self,
         user_id: i64,
@@ -728,7 +729,10 @@ impl ProfileMaterialApplicationPort for OrchestratorContext {
     ) -> Result<Vec<ProfileMaterialGroup>, AppError> {
         OrchestratorContext::list_profile_materials_validated(self, user_id, input).await
     }
+}
 
+#[async_trait]
+impl ProfileMaterialMutationApplicationPort for OrchestratorContext {
     async fn set_primary(
         &self,
         user_id: i64,

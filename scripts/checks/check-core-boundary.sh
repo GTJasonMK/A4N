@@ -2238,14 +2238,16 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     crates/a4n-runtime/src/actions/profile_materials/list.rs \
     crates/a4n-runtime/src/actions/profile_materials/primary.rs \
     crates/a4n-runtime/src/actions/profile_materials/upload/api.rs; then
-    printf 'Runtime profile-material actions must consume ProfileMaterialApplicationPort\n' >&2
+    printf 'Runtime profile-material actions must consume split profile-material ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'profile_material_application\(\)' \
+if ! rg -n 'profile_material_read_application\(\)' \
     crates/a4n-runtime/src/actions/profile_materials/list.rs \
+    crates/a4n-runtime/src/actions/profile_materials/primary.rs || \
+   ! rg -n 'profile_material_mutation_application\(\)' \
     crates/a4n-runtime/src/actions/profile_materials/primary.rs; then
-    printf 'Runtime profile-material record actions must route through the API ProfileMaterialApplicationPort\n' >&2
+    printf 'Runtime profile-material record actions must route through split API profile-material ports\n' >&2
     exit 1
 fi
 
@@ -2255,7 +2257,7 @@ if ! rg -n 'profile_material_upload_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ProfileMaterialApplicationPort' \
+if ! rg -n 'pub trait ProfileMaterial(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/profile.rs || \
    ! rg -n 'pub trait ProfileMaterialUploadApplicationPort' \
     crates/a4n-orchestrator/src/profile_material.rs; then
