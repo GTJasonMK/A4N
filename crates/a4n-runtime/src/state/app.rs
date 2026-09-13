@@ -224,9 +224,10 @@ pub struct AppState {
     /// Outline request-preview owner. Runtime formats API preview responses
     /// but does not construct prompt requests.
     outline_preview_application: Arc<dyn a4n_orchestrator::OutlinePreviewApplicationPort>,
-    /// Host-facing theme/settings boundary. Theme ownership and metadata stay
-    /// in the settings application; Runtime handles only protected files.
-    theme_application: Arc<dyn a4n_api_contract::theme::ThemeApplicationPort>,
+    /// Host-facing theme/settings read boundary. Theme ownership and metadata
+    /// stay in the settings application; Runtime handles only protected files.
+    theme_read_application: Arc<dyn a4n_api_contract::theme::ThemeReadApplicationPort>,
+    theme_mutation_application: Arc<dyn a4n_api_contract::theme::ThemeMutationApplicationPort>,
     /// Host-facing AI configuration boundary. Validation, authorization and
     /// DTO projection stay in the configuration owner.
     config_application: Arc<dyn a4n_api_contract::config::ConfigApplicationPort>,
@@ -1331,8 +1332,16 @@ impl AppState {
         self.outline_preview_application.as_ref()
     }
 
-    pub(crate) fn theme_application(&self) -> &dyn a4n_api_contract::theme::ThemeApplicationPort {
-        self.theme_application.as_ref()
+    pub(crate) fn theme_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::theme::ThemeReadApplicationPort {
+        self.theme_read_application.as_ref()
+    }
+
+    pub(crate) fn theme_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::theme::ThemeMutationApplicationPort {
+        self.theme_mutation_application.as_ref()
     }
 
     pub(crate) fn config_application(
@@ -2244,7 +2253,8 @@ impl AppState {
             outline_mutation_application: Arc::new(orchestrator.clone()),
             outline_generation_application: Arc::new(orchestrator.clone()),
             outline_preview_application: Arc::new(orchestrator.clone()),
-            theme_application: Arc::new(orchestrator.clone()),
+            theme_read_application: Arc::new(orchestrator.clone()),
+            theme_mutation_application: Arc::new(orchestrator.clone()),
             config_application,
             settings_all_application,
             prompt_application,

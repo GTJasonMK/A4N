@@ -1562,7 +1562,7 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/auth_records/tokens.rs \
     crates/a4n-runtime/src/actions/oauth/flow.rs \
     crates/a4n-runtime/src/actions/theme; then
-    printf 'Runtime auth/theme actions must consume AuthApplicationPort and ThemeApplicationPort\n' >&2
+    printf 'Runtime auth/theme actions must consume AuthApplicationPort and Theme read/mutation ports\n' >&2
     exit 1
 fi
 
@@ -1571,8 +1571,27 @@ if ! rg -n 'pub trait AuthApplicationPort' crates/a4n-api-contract/src/auth.rs; 
     exit 1
 fi
 
-if ! rg -n 'pub trait ThemeApplicationPort' crates/a4n-api-contract/src/theme.rs; then
-    printf 'ThemeApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait Theme(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/theme.rs; then
+    printf 'Theme read/mutation contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'ThemeApplicationPort|theme_application\(\)' \
+    crates/a4n-api-contract/src/theme.rs crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed ThemeApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'theme_read_application\(\)' \
+    crates/a4n-runtime/src/actions/auth_records/tokens.rs \
+    crates/a4n-runtime/src/actions/theme; then
+    printf 'Runtime theme reads must route through ThemeReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'theme_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/theme; then
+    printf 'Runtime theme mutations must route through ThemeMutationApplicationPort\n' >&2
     exit 1
 fi
 

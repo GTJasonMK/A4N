@@ -101,7 +101,7 @@ pub async fn authorize_media_file_for_user(
         }
         Some("themes") => {
             state
-                .theme_application()
+                .theme_read_application()
                 .export_theme(user_id, owner_id)
                 .await?;
         }
