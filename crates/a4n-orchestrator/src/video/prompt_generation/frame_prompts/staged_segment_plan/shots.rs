@@ -102,7 +102,7 @@ pub(super) async fn render_segment_plan_shots(
             return Err(AppError::Cancelled);
         }
         let shot_source_spans = source_spans_for_shot(source_spans, shot);
-        if shot_source_spans.is_empty() {
+        if shot_source_spans.is_empty() && shot.director_constraints.is_none() {
             return Err(AppError::InvalidArgument(format!(
                 "视频片段规划镜头 #{} 缺少可用于提示词的 source_spans",
                 shot.source_shot_id

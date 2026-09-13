@@ -624,259 +624,55 @@ async function exerciseDirectorPlan(projectId) {
   await browser.url(`/write/${projectId}?chapter=1`);
   await waitForBodyText("正文");
   await tab("导演编排");
-  const plan = await $("section.a4n-visual-plan");
+  const plan = await $("section.director-workspace");
   await plan.waitForDisplayed({ timeout: 60_000 });
-  assert.equal(await plan.$("header.a4n-visual-plan__header").isExisting(), false, "导演编排仍渲染冗余顶部 header");
+  const frame = await $(".director-viewer").getSize();
+  assert.ok(Math.abs(frame.width / frame.height - 16 / 9) < 0.02);
+  assert.equal((await $$(".director-segment")).length, 1);
 
-  const measureLayout = () => browser.execute(() => {
-    const visualPlan = document.querySelector(".a4n-visual-plan");
-    let scrollHost = visualPlan?.parentElement ?? null;
-    while (scrollHost && scrollHost !== document.body) {
-      const style = getComputedStyle(scrollHost);
-      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
-      scrollHost = scrollHost.parentElement;
-    }
-    return {
-      widthOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      scrollHost: scrollHost ? {
-        scrollHeight: scrollHost.scrollHeight,
-        clientHeight: scrollHost.clientHeight,
-        scrollTop: scrollHost.scrollTop,
-      } : null,
-    };
-  });
-
-  // The empty starter plan is intentionally editable: create one minimum
-  // scene/shot so every editor surface has a real target to operate on.
-  await clickButton("添加场景");
-  const sceneDraftDialog = await currentDialog();
-  assert.match(await sceneDraftDialog.getText(), /场景标题/);
-  await clickButton("保存", sceneDraftDialog);
-  await waitForNoDialog();
-  await waitForBodyText("新场景");
-  const outsideWorkspaceButtons = await browser.execute(() => {
-    const workspace = document.querySelector(".a4n-visual-plan__workspace");
-    return Array.from(document.querySelectorAll(".a4n-visual-plan button"))
-      .filter((button) => !workspace?.contains(button))
-      .map((button) => button.getAttribute("aria-label") || button.textContent?.trim() || "(unnamed)");
-  });
-  assert.deepEqual(outsideWorkspaceButtons, [], "导演编排主页面存在卡片外按钮");
-  const initialLayout = await measureLayout();
-  assert.equal(initialLayout.widthOverflow, 0, "桌面导演编排出现横向溢出");
-  assert.ok(initialLayout.scrollHost && initialLayout.scrollHost.scrollHeight > initialLayout.scrollHost.clientHeight, "桌面导演编排没有可滚动内容");
-  const scrolled = await browser.execute(() => {
-    const visualPlan = document.querySelector(".a4n-visual-plan");
-    let scrollHost = visualPlan?.parentElement ?? null;
-    while (scrollHost && scrollHost !== document.body) {
-      const style = getComputedStyle(scrollHost);
-      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
-      scrollHost = scrollHost.parentElement;
-    }
-    if (!scrollHost) return 0;
-    scrollHost.scrollTop = scrollHost.scrollHeight;
-    return scrollHost.scrollTop;
-  });
-  assert.ok(scrolled > 0, "桌面导演编排滚动容器无法向下滚动");
-  const stickyContext = await browser.execute(() => {
-    const context = document.querySelector(".a4n-visual-plan__context");
-    let scrollHost = document.querySelector(".a4n-visual-plan")?.parentElement ?? null;
-    while (scrollHost && scrollHost !== document.body) {
-      const style = getComputedStyle(scrollHost);
-      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
-      scrollHost = scrollHost.parentElement;
-    }
-    if (!context || !scrollHost) return null;
-    const contextRect = context.getBoundingClientRect();
-    const hostRect = scrollHost.getBoundingClientRect();
-    return {
-      position: getComputedStyle(context).position,
-      contextTop: contextRect.top,
-      hostTop: hostRect.top,
-      text: context.textContent ?? "",
-    };
-  });
-  assert.ok(stickyContext, "桌面导演编排没有当前场景/镜头上下文");
-  assert.equal(stickyContext.position, "sticky", "导演编排上下文没有启用粘性定位");
-  assert.ok(stickyContext.contextTop >= stickyContext.hostTop - 1 && stickyContext.contextTop <= stickyContext.hostTop + 12, "导演编排滚动后上下文没有停留在滚动区顶部");
-  assert.match(stickyContext.text, /新场景/);
-  assert.match(stickyContext.text, /新镜头/);
   await browser.execute(() => {
-    const visualPlan = document.querySelector(".a4n-visual-plan");
-    let scrollHost = visualPlan?.parentElement ?? null;
-    while (scrollHost && scrollHost !== document.body) {
-      const style = getComputedStyle(scrollHost);
-      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
-      scrollHost = scrollHost.parentElement;
-    }
-    if (scrollHost) scrollHost.scrollTop = 0;
+    const input = document.querySelector('[aria-label="播放位置"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "5000");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
   });
-
-  const openDialog = async (buttonMatcher, expectedText) => {
-    await clickButton(buttonMatcher);
-    const dialog = await currentDialog();
-    assert.match(await dialog.getText(), new RegExp(exact(expectedText)));
-    return dialog;
-  };
-  const openContextDialog = async (buttonMatcher, expectedText) => {
-    const context = await $(".a4n-visual-plan__context");
-    await (await buttonMatching("更多", context)).click();
-    return openDialog(buttonMatcher, expectedText);
-  };
-
-  await openContextDialog("画幅设置", "画幅宽度");
-  await browser.keys("Escape");
+  await clickButton("添加图片点");
+  await browser.waitUntil(async () => (await $$(".director-point")).length === 3);
+  assert.equal((await $$(".director-segment")).length, 1, "添加图片点不能自动拆镜头");
+  await (await $$(".director-point"))[1].click();
+  await setField("名称", "门口中段", "input", await $(".director-inspector"));
+  await clickButton("从此处分镜");
+  const split = await currentDialog();
+  await setField("前段描述", "镜头缓缓推近门口。", "textarea", split);
+  await setField("后段描述", "人物推门进入房间。", "textarea", split);
+  await clickButton("拆分镜头", split);
   await waitForNoDialog();
+  await browser.waitUntil(async () => (await $$(".director-segment")).length === 2);
 
-  const sceneLibrary = await openContextDialog("场景列表", "场景列表");
-  assert.match(await sceneLibrary.getText(), /新场景/);
-  assert.match(await sceneLibrary.getText(), /新镜头/);
-  await clickButton("新镜头", sceneLibrary);
-  await waitForNoDialog();
-
-  let shotDraftDialog = await openContextDialog("添加镜头", "镜头标题");
-  assert.match(await shotDraftDialog.getText(), /镜头标题/);
-  await setField("镜头标题", "附加镜头", "input", shotDraftDialog);
-  await clickButton("保存", shotDraftDialog);
-  await waitForNoDialog();
-  await waitForBodyText("附加镜头");
-
-  shotDraftDialog = await openContextDialog("添加镜头", "镜头标题");
-  await setField("镜头标题", "临时镜头", "input", shotDraftDialog);
-  await clickButton("取消", shotDraftDialog);
-  await browser.waitUntil(
-    async () => (await visibleElements('[role="dialog"]')).length >= 2,
-    { timeout: 30_000, interval: 100, timeoutMsg: "未保存镜头确认弹窗未出现" },
-  );
-  const discardDialog = await currentDialog();
-  const discardButtons = await visibleElements("button", discardDialog);
-  await discardButtons.at(-1).click();
-  await waitForNoDialog();
-  assert.doesNotMatch(await $("body").getText(), /临时镜头/);
-
-  const planSummary = await openContextDialog("方案摘要", "方案摘要");
-  assert.match(await planSummary.getText(), /总时长/);
+  await $('[aria-label="整体时长（秒）"]').setValue("20");
+  await browser.keys("Tab");
+  await browser.waitUntil(async () => (await $(".director-ruler").getText()).includes("20s"));
+  await clickButton("保存草稿");
+  await browser.waitUntil(async () => (await $(".director-save-status").getText()).includes("草稿已保存"));
+  await clickButton("原文", await $(".director-tool-rail"));
+  assert.match(await (await currentDialog()).getText(), /章节原文/);
   await closeDialog();
+  await clickButton("收起属性");
 
-  await openContextDialog("编辑场景", "场景标题");
-  await closeDialog();
-
-  await openContextDialog("编辑镜头", "镜头标题");
-  await clickModalBackdrop();
-  await waitForNoDialog();
-
-  const keyframeLibrary = await openContextDialog("关键帧", "关键帧");
-  await clickButton("添加关键帧", keyframeLibrary);
-  let keyframeDialog = await currentDialogContainingField("关键帧");
-  assert.match(await keyframeDialog.getText(), /关键帧/);
-  await setField("关键帧", "中段动作", "input", keyframeDialog);
-  await clickButton("保存", keyframeDialog);
-  await waitForNoDialog();
-
-  const keyframeLibraryAfterCreate = await openContextDialog("关键帧", "关键帧");
-  assert.match(await keyframeLibraryAfterCreate.getText(), /中段动作/);
-  await clickButton("编辑关键帧", keyframeLibraryAfterCreate);
-  keyframeDialog = await currentDialogContainingField("关键帧");
-  await setField("关键帧", "中段动作-已编辑", "input", keyframeDialog);
-  await clickButton("保存", keyframeDialog);
-  await waitForNoDialog();
-
-  const keyframeLibraryAfterEdit = await openContextDialog("关键帧", "关键帧");
-  assert.match(await keyframeLibraryAfterEdit.getText(), /中段动作-已编辑/);
-  await clickButton("删除关键帧", keyframeLibraryAfterEdit);
-  await browser.waitUntil(
-    async () => (await visibleElements('[role="dialog"]')).length >= 2,
-    { timeout: 30_000, interval: 100, timeoutMsg: "删除关键帧确认弹窗未出现" },
-  );
-  const deleteKeyframeDialog = await currentDialog();
-  const deleteButtons = await visibleElements("button", deleteKeyframeDialog);
-  await deleteButtons.at(-1).click();
-  await browser.waitUntil(
-    async () => (await visibleElements('[role="dialog"]')).length === 1,
-    { timeout: 30_000, interval: 250, timeoutMsg: "删除关键帧确认弹窗未关闭" },
-  );
-  const keyframeLibraryAfterDelete = await currentDialog();
-  assert.match(await keyframeLibraryAfterDelete.getText(), /关键帧/);
-  assert.doesNotMatch(await keyframeLibraryAfterDelete.getText(), /中段动作-已编辑/);
-  await closeDialog();
-
-  await openContextDialog("查看原文", "原文只读参考");
-  await closeDialog();
-
-  let dialog = await openContextDialog("实体库", "实体库");
-  assert.match(await dialog.getText(), /实体库/);
-  await clickButton("添加", dialog);
-  await browser.waitUntil(async () => {
-    try {
-      const candidate = await currentDialog(0);
-      await fieldByLabel("名称", "input", candidate);
-      return true;
-    } catch {
-      return false;
-    }
-  }, { timeout: 30_000, interval: 100, timeoutMsg: "添加实体弹窗未稳定出现" });
-  dialog = await currentDialog();
-  await setField("名称", "林岚", "input", dialog);
-  await setField("实体配置", "章节主角，追查时间异常。", "textarea", dialog);
-  await clickButton("保存", dialog);
-  await waitForNoDialog();
-  await waitForBodyText("林岚");
-
-  const frame = await $("div[aria-label='视觉编排画面']");
-  await (await frame.$("button[aria-label='林岚']")).click();
-  dialog = await currentDialog();
-  assert.match(await dialog.getText(), /实体状态/);
-  await browser.keys("Escape");
-  await waitForNoDialog();
-
-  const eventLibrary = await openContextDialog("事件配置", "事件配置");
-  await clickButton("实体事件", eventLibrary);
-  await browser.waitUntil(async () => {
-    try {
-      const dialog = await currentDialog(0);
-      await fieldByLabel("事件说明", "textarea", dialog);
-      return true;
-    } catch {
-      return false;
-    }
-  }, { timeout: 30_000, interval: 100, timeoutMsg: "添加事件弹窗未稳定出现" });
-  const eventDialog = await currentDialog();
-  await setField("事件说明", "林岚抬头确认钟声。", "textarea", eventDialog);
-  await clickButton("保存", eventDialog);
-  await waitForNoDialog();
-
-  await browser.saveScreenshot(`${process.env.A4N_BROWSER_E2E_ARTIFACT_DIR}/director-plan-desktop.png`);
-
-  await browser.setWindowSize(390, 900);
-  await browser.pause(250);
-  const mobileLayout = await measureLayout();
-  assert.equal(mobileLayout.widthOverflow, 0, "390px 导演编排出现横向溢出");
-  const mobileContext = await $(".a4n-visual-plan__context");
-  await mobileContext.waitForDisplayed({ timeout: 30_000 });
-  await openContextDialog("编辑镜头", "镜头标题");
-  await closeDialog();
-  await openContextDialog("实体库", "实体库");
-  await closeDialog();
-  const mobileSceneLibrary = await openContextDialog("场景列表", "场景列表");
-  await clickButton("新场景", mobileSceneLibrary);
-  await waitForNoDialog();
-  await openContextDialog("方案摘要", "方案摘要");
-  await closeDialog();
-
-  const timeline = await $("section[aria-label='章节时间条']");
-  const playhead = await timeline.$("input[aria-label='播放头']");
-  const before = await playhead.getValue();
-  await (await buttonMatching("播放", mobileContext)).click();
-  await browser.pause(250);
-  assert.notEqual(await playhead.getValue(), before, "播放头没有推进");
-  await (await buttonMatching("暂停", mobileContext)).click();
-
-  await browser.saveScreenshot(`${process.env.A4N_BROWSER_E2E_ARTIFACT_DIR}/director-plan-mobile.png`);
-  for (const width of [1024, 1440]) {
-    await browser.setWindowSize(width, 900);
-    await browser.pause(150);
-    const layout = await measureLayout();
-    assert.equal(layout.widthOverflow, 0, `${width}px 导演编排出现横向溢出`);
+  for (const width of [1440, 1024, 390]) {
+    await browser.setWindowSize(width, 1000);
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.scrollWidth === document.documentElement.clientWidth));
+    await browser.saveScreenshot(`${process.env.A4N_BROWSER_E2E_ARTIFACT_DIR}/director-plan-${width}.png`);
   }
+  await (await $$(".director-point"))[1].click();
+  assert.match(await (await currentDialog()).getText(), /图片点属性/);
+  await browser.keys("Escape");
+  await waitForNoDialog();
+  const playhead = await $('[aria-label="播放位置"]');
+  const before = await playhead.getValue();
+  await clickButton("播放分镜");
+  await browser.waitUntil(async () => (await playhead.getValue()) !== before);
+  await clickButton("暂停");
   await browser.setWindowSize(1440, 1000);
 }
 

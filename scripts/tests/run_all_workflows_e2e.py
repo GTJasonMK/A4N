@@ -1807,7 +1807,18 @@ def seed_fixtures(
         },
     )
 
-    visual_plan = chapter_visual_plan_fixture()
+    director_scene = call("create_scene_profile", {"input": {"project_id": project_id, "profile": {
+        "name": f"Director station {run_id}", "scene_type": "room", "importance": "primary",
+        "base_description": "旧车站通道", "visual_description": "门口与墙上挂钟",
+        "spatial_layout": "通道通向门口", "atmosphere": "安静", "first_seen_chapter": 1,
+        "last_seen_chapter": 1, "image_prompt_seed": "夜间车站通道",
+    }}})
+    director_scene_id = _first_value(director_scene.get("data"), ("scene_profile_id", "id"))
+    if not isinstance(director_scene_id, int) or director_scene_id <= 0:
+        raise RunnerError("director fixture requires a real scene profile")
+    visual_plan = chapter_visual_plan_fixture(director_scene_id)
+    visual_plan["frame"] = {"width": 1920, "height": 1080}
+    visual_plan["points"][-1]["at_ms"] = 6000
     visual_draft = call(
         "save_chapter_visual_plan_draft",
         {
@@ -2259,7 +2270,7 @@ def seed_fixtures(
     state["segment_plan_prompt_id"] = segment_plan_prompt_id
     segment_target = _first_video_segment_target(shared_prompt)
     recipe = dict(segment_target["recipe"])
-    recipe["workflow_mode"] = "boundary_frames"
+    recipe["workflow_mode"] = "first_frame_chain"
     recipe["guidance_mode"] = "none"
     state["video_segment_recipe"] = recipe
     call(
@@ -2280,20 +2291,6 @@ def seed_fixtures(
         "segment_plan_prompt_id": segment_plan_prompt_id,
         "target_segment": target_segment,
     }
-    task(
-        "start_video_generation",
-        {
-            "input": {
-                "meta": {"start_request_id": str(uuid.uuid4())},
-                "project_id": project_id,
-                "operation": {
-                    "kind": "prompt_frames",
-                    "chapter_id": chapter_id,
-                    "options": video_options,
-                },
-            }
-        },
-    )
     task(
         "start_video_generation",
         {

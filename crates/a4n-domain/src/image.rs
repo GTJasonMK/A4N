@@ -280,6 +280,7 @@ pub const IMAGE_TYPE_SCENE_MATERIAL: &str = "scene_material";
 pub const IMAGE_TYPE_VIDEO_KEY_FRAME: &str = "video_key_frame";
 pub const IMAGE_TYPE_VIDEO_START_FRAME: &str = "video_start_frame";
 pub const IMAGE_TYPE_VIDEO_STORYBOARD_FRAME: &str = "video_storyboard_frame";
+pub const IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME: &str = "director_storyboard_frame";
 pub const IMAGE_TYPE_VIDEO_TAIL_FRAME: &str = "video_tail_frame";
 
 pub const IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT: &str = "video_boundary_frame_prompt";
@@ -377,6 +378,7 @@ pub fn is_system_managed_image_type(image_type: &str) -> bool {
             | IMAGE_TYPE_VIDEO_START_FRAME
             | IMAGE_TYPE_VIDEO_STORYBOARD_FRAME
             | IMAGE_TYPE_VIDEO_TAIL_FRAME
+            | IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME
             | IMAGE_TYPE_CANVAS
             | IMAGE_TYPE_CANVAS_FRAME
             | "portrait"

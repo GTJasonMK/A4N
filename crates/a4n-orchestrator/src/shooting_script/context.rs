@@ -77,14 +77,14 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
             "visual_plan_sha256": prepared.visual_plan.record.plan_sha256,
         })),
         config_identity_json: json!({
-            "contract":"chapter_visual_plan_v2",
+            "contract":"chapter_visual_plan_v3",
             "kind":"confirmed_visual_plan"
         }),
         required: true,
         stable_prefix: true,
         variants: vec![LlmContextLedgerPackDraft::new(
             COMPRESSION_FULL_RAW,
-            serde_json::to_value(&prepared.visual_plan.plan)?,
+            json!({"plan": prepared.visual_plan.plan, "scene_profiles": prepared.scene_profiles}),
         )],
     })?;
     ledger.add_pack(LlmContextLedgerPackInput {
@@ -159,6 +159,7 @@ mod tests {
             existing: None,
             visual_plan,
             visual_plan_projection,
+            scene_profiles: Vec::new(),
             layout_unit_system_prompt: "layout".into(),
             unit_adaptation_system_prompt: "adaptation".into(),
             design_unit_system_prompt: "design".into(),

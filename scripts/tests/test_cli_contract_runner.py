@@ -614,7 +614,7 @@ class CliContractRunnerTest(unittest.TestCase):
                             ],
                         },
                     },
-                    {"id": 27, "workflow_mode": "boundary_frames", "prompt_type": "video_prompt"},
+                    {"id": 27, "workflow_mode": "first_frame_chain", "prompt_type": "video_prompt"},
                 ]
             elif command == "list_all_users":
                 data = [{"username": "admin"}, {"username": "collaborator"}]
@@ -651,11 +651,10 @@ class CliContractRunnerTest(unittest.TestCase):
         coverage = fixture_path_coverage(records)
         self.assertTrue(coverage["complete"], coverage)
         video_prompt_calls = [payload for command, payload in payloads if command == "start_video_generation"]
-        self.assertEqual(video_prompt_calls[1]["input"]["operation"]["kind"], "prompt_frames")
-        self.assertEqual(video_prompt_calls[1]["input"]["operation"]["options"]["workflow_mode"], "boundary_frames")
-        self.assertEqual(video_prompt_calls[2]["input"]["operation"]["kind"], "prompt_videos")
-        self.assertEqual(video_prompt_calls[2]["input"]["operation"]["options"]["workflow_mode"], "boundary_frames")
-        self.assertEqual(video_prompt_calls[2]["input"]["operation"]["options"]["prompt_output_language"], "zh_cn")
+        self.assertEqual(video_prompt_calls[1]["input"]["operation"]["kind"], "prompt_videos")
+        self.assertEqual(video_prompt_calls[1]["input"]["operation"]["options"]["workflow_mode"], "first_frame_chain")
+        self.assertEqual(video_prompt_calls[1]["input"]["operation"]["options"]["prompt_output_language"], "zh_cn")
+        self.assertEqual(video_prompt_calls[2]["input"]["operation"]["kind"], "chapter")
         self.assertEqual(
             [record["label"] for record in records if record["command"] == "task watch"],
             [
@@ -664,7 +663,6 @@ class CliContractRunnerTest(unittest.TestCase):
                 "start_outline_generation",
                 "start_outline_generation",
                 "start_chapter_generation",
-                "start_video_generation",
                 "start_video_generation",
                 "start_video_generation",
                 "start_video_generation",

@@ -106,6 +106,9 @@ pub(super) async fn prepare_video_chain_inputs(
         .iter()
         .find(|segment| segment.segment_number == segment_recipe.segment_number)
         .ok_or_else(|| AppError::InvalidArgument("片段执行方案不属于当前规划".to_string()))?;
+    segment_recipe
+        .validate_director_generation(target_segment)
+        .map_err(AppError::InvalidArgument)?;
     let target = (
         target_segment.source_shot_id.as_str(),
         target_segment.segment_index_in_shot,

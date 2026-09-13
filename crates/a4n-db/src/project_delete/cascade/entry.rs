@@ -49,6 +49,12 @@ pub async fn delete_project_cascade_record(
     )
     .await?;
 
+    project_db::delete_project_chapter_adaptation_records(
+        &txn,
+        project_id,
+        project_db::ProjectChapterAdaptationDeleteScope::Project,
+    )
+    .await?;
     delete_project_character_data(&txn, project_id).await?;
     delete_project_story_data(&txn, project_id).await?;
     delete_project_media_and_source_data(&txn, project_id).await?;

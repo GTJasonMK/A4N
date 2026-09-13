@@ -139,7 +139,13 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
         chapter.chapter_number,
         &chapter.content,
     );
-    let plan = crate::shooting_script::visual_plan_fixture(&source).plan;
+    let mut plan = crate::shooting_script::visual_plan_fixture(&source).plan;
+    let scene_id = crate::shooting_script::seed_visual_plan_scene(db, source.root_project_id).await;
+    for segment in &mut plan.segments {
+        segment.scene_binding = Some(a4n_domain::chapter_visual_plan::SceneBindingV3::Scene {
+            scene_profile_id: scene_id,
+        });
+    }
     let draft = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
         db,
         a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
@@ -171,28 +177,34 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
     let source_span = source_spans
         .first()
         .expect("video test chapter should have a source span");
-    let visual_unit = projected_plan.narrative_units.first().expect("visual unit");
-    let visual_shot = visual_unit.shots.first().expect("visual shot");
     let mut script = test_chapter_shooting_script(&source_span.id);
     script.visual_plan_source = Some(ShootingVisualPlanSourceV1 {
         plan_id: plan.record.id,
         plan_version: plan.record.plan_version,
         plan_sha256: plan.record.plan_sha256.clone(),
     });
-    for scene in &mut script.scenes {
+    script.user_additions = projected_plan.user_additions.clone();
+    for (scene, visual_unit) in script
+        .scenes
+        .iter_mut()
+        .zip(&projected_plan.narrative_units)
+    {
         scene.visual_narrative_unit_id = Some(visual_unit.id.clone());
-        for shot in &mut scene.shots {
-            shot.visual_shot_id = Some(visual_shot.id.clone());
+        scene.user_addition_ids = visual_unit
+            .shots
+            .iter()
+            .map(|shot| format!("director:{}", shot.segment_id))
+            .collect();
+        for (shot, visual_shot) in scene.shots.iter_mut().zip(&visual_unit.shots) {
+            shot.shot_id = visual_shot.segment_id.clone();
+            shot.visual_shot_id = Some(visual_shot.segment_id.clone());
             shot.planned_start_ms = Some(visual_shot.start_ms);
             shot.planned_end_ms = Some(visual_shot.end_ms);
-            shot.visual_constraints = Some(ShootingVisualConstraintsV1 {
-                keyframes: visual_shot.keyframes.clone(),
-                entity_events: visual_shot.entity_events.clone(),
-                camera_events: visual_shot.camera_events.clone(),
-                sound_events: visual_shot.sound_events.clone(),
-                technique_events: visual_shot.technique_events.clone(),
-                continuity_notes: visual_shot.continuity_notes.clone(),
-            });
+            shot.visual_constraints = Some(visual_shot.clone());
+            shot.user_addition_ids = vec![format!("director:{}", visual_shot.segment_id)];
+            for beat in &mut shot.performance_beats {
+                beat.user_addition_ids = shot.user_addition_ids.clone();
+            }
         }
     }
     let script = a4n_db::shooting_script::insert_chapter_shooting_script(

@@ -85,7 +85,7 @@ pub(in crate::video) fn validate_chat_video_prompt_shot_against_segment(
         &shot.reference_image_ids,
         "Chat 视频提示词 reference_image_ids",
     )?;
-    validate_chat_video_source_span_ids(&shot.chat_video, &segment.source_span_ids)?;
+    validate_chat_video_source_span_ids(&shot.chat_video, segment)?;
     validate_chat_video_input_images(&shot.chat_video, &shot.reference_image_ids)?;
     Ok(shot)
 }

@@ -11,6 +11,7 @@ async fn delete_locked_generated_image_record_in<C>(
 where
     C: ConnectionTrait,
 {
+    crate::chapter_visual_plan::ensure_visual_plan_images_unreferenced(db, &[image.id]).await?;
     clear_generated_image_references_record(db, &[image.id]).await?;
     profile_primary_material::Entity::delete_many()
         .filter(profile_primary_material::Column::PrimaryImageId.eq(image.id))

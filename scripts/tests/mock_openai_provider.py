@@ -944,10 +944,13 @@ def shooting_span_ids(combined: str) -> list[str]:
     return ids
 
 
-def shooting_layout_response() -> dict[str, Any]:
+def shooting_layout_response(combined: str) -> dict[str, Any]:
+    indexes = re.findall(r"只细化 narrative_unit_index=(\d+)", combined)
+    if not indexes:
+        raise UnhandledPromptError("layout prompt contains no target unit index")
     return {
         "schema_version": "screenplay_layout_unit_detail_v1",
-        "narrative_unit_index": 1,
+        "narrative_unit_index": int(indexes[-1]),
         "transition_contracts": [],
         "title": "封闭通道的七分钟",
         "slugline": "内景 旧车站封闭通道 夜",
@@ -961,24 +964,29 @@ def shooting_layout_response() -> dict[str, Any]:
 
 
 def shooting_adaptation_response(combined: str) -> dict[str, Any]:
-    evidence = source_span_id(combined, "进入地下机房", len(shooting_span_ids(combined)) - 1)
+    context = next((value for value in embedded_json_objects(combined)
+                    if isinstance(value.get("unit"), dict) and isinstance(value.get("locked_visual_unit"), dict)), None)
+    if context is None:
+        raise UnhandledPromptError("adaptation requires a locked director unit")
+    unit, locked = context["unit"], context["locked_visual_unit"]
     return {
         "schema_version": "screenplay_unit_adaptation_v1",
-        "narrative_unit_index": 1,
+        "narrative_unit_index": unit["narrative_unit_index"],
         "performance_facts": [
             {
-                "fact_index": 1,
-                "source_span_ids": [evidence],
-                "actor": "林岚",
+                "fact_index": index,
+                "source_span_ids": [],
+                "user_addition_ids": ["director:" + shot["segment_id"]],
+                "actor": next(iter(unit["participants"]), None),
                 "objective": "用行动验证周衡是否可信。",
                 "obstacle": "时间异常与周衡的反常影子都缺少解释。",
-                "visible_action": "在墙上划下齿轮暗记后走入地下机房。",
+                "visible_action": shot["prompt"],
                 "reaction": "短暂停顿后收紧怀表。",
                 "dialogue_intent": None,
                 "entry_state": "警觉地观察周衡。",
                 "exit_state": "坚定进入地下机房继续调查。",
                 "required": True,
-            }
+            } for index, shot in enumerate(locked["shots"], 1)
         ],
     }
 
@@ -1115,17 +1123,10 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
         if not isinstance(fact, dict) or not isinstance(fact.get("source_span_ids"), list):
             raise UnhandledPromptError("shooting performance fact is invalid")
         for shot_index, planned in enumerate(planned_shots):
-            if not isinstance(planned, dict) or not isinstance(
-                planned.get("source_span_ids"), list
-            ):
+            if not isinstance(planned, dict) or not isinstance(planned.get("segment_id"), str):
                 raise UnhandledPromptError("locked visual shot is invalid")
-            overlap = [
-                span_id
-                for span_id in fact["source_span_ids"]
-                if span_id in planned["source_span_ids"]
-            ]
-            if overlap:
-                facts_by_shot[shot_index].append((fact, overlap))
+            if "director:" + planned["segment_id"] in fact.get("user_addition_ids", []):
+                facts_by_shot[shot_index].append((fact, fact["source_span_ids"]))
                 break
         else:
             raise UnhandledPromptError(
@@ -1138,7 +1139,6 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
     participants = screenplay.get("participants")
     if not isinstance(participants, list):
         raise UnhandledPromptError("screenplay plan unit participants are invalid")
-    has_bound_participants = bool(locked.get("participant_entity_ids"))
 
     shots = []
     for shot_index, (planned, assigned_facts) in enumerate(
@@ -1153,23 +1153,16 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
         shot.update(
             {
                 "shot_index": shot_index,
-                "shot_id": planned["id"],
+                "shot_id": planned["segment_id"],
                 "title": planned["title"],
-                "source_span_ids": list(planned["source_span_ids"]),
-                "visual_shot_id": planned["id"],
+                "source_span_ids": list(dict.fromkeys(span for _, sources in assigned_facts for span in sources)),
+                "visual_shot_id": planned["segment_id"],
                 "planned_start_ms": start_ms,
                 "planned_end_ms": end_ms,
-                "user_addition_ids": list(planned.get("user_addition_ids", [])),
-                "visual_constraints": {
-                    "keyframes": list(planned.get("keyframes", [])),
-                    "entity_events": list(planned.get("entity_events", [])),
-                    "camera_events": list(planned.get("camera_events", [])),
-                    "sound_events": list(planned.get("sound_events", [])),
-                    "technique_events": list(planned.get("technique_events", [])),
-                    "continuity_notes": list(planned.get("continuity_notes", [])),
-                },
-                "coverage": planned["coverage"],
-                "narrative_purpose": planned["narrative_purpose"],
+                "user_addition_ids": ["director:" + planned["segment_id"]],
+                "visual_constraints": planned,
+                "coverage": "must_show",
+                "narrative_purpose": planned["prompt"],
                 "subject": next(
                     (
                         fact.get("actor")
@@ -1188,7 +1181,7 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
                 "spatial_anchors": [],
                 "blocking": {
                     "start": f"{planned['title']} 的起始状态。",
-                    "movement": planned["narrative_purpose"],
+                    "movement": planned["prompt"],
                     "end": f"{planned['title']} 的结束状态。",
                 },
                 "continuity_requirements": list(planned.get("continuity_notes", [])),
@@ -1201,10 +1194,10 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
             beat.update(
                 {
                     "beat_index": beat_index,
-                    "beat_id": f"{planned['id']}_fact_{fact['fact_index']}",
+                    "beat_id": f"{planned['segment_id']}_fact_{fact['fact_index']}",
                     "source_span_ids": overlap,
-                    "user_addition_ids": list(planned.get("user_addition_ids", [])),
-                    "actor": fact.get("actor") if has_bound_participants else None,
+                    "user_addition_ids": list(fact.get("user_addition_ids", [])),
+                    "actor": fact.get("actor"),
                     "objective": fact["objective"],
                     "obstacle": fact["obstacle"],
                     "visible_action": fact["visible_action"],
@@ -2095,66 +2088,18 @@ def manga_prompt_optimization_response(combined: str) -> dict[str, str]:
     }
 
 
-def chapter_visual_plan_fixture() -> dict[str, Any]:
-    def keyframe(keyframe_id: str, at_ms: int) -> dict[str, Any]:
-        return {
-            "id": keyframe_id,
-            "at_ms": at_ms,
-            "label": keyframe_id,
-            "interpolation_to_next": "hold",
-            "camera": {
-                "center_x": 0.5,
-                "center_y": 0.5,
-                "zoom": 1.0,
-                "rotation_degrees": 0.0,
-                "focus_entity_id": None,
-                "framing_note": None,
-            },
-            "entity_states": [],
-            "relations": [],
-        }
-
+def chapter_visual_plan_fixture(scene_profile_id: int) -> dict[str, Any]:
     return {
-        "schema_version": "chapter_visual_plan_v2",
-        "frame": {"width": 16, "height": 16, "background": None},
-        "entities": [],
-        "scenes": [
-            {
-                "id": "scene_fixture",
-                "title": "Fixture scene",
-                "narrative_purpose": "Fixture scene purpose",
-                "editing_mode": "continuity",
-                "intercut_group_id": None,
-                "location": None,
-                "time_of_day": None,
-                "participant_entity_ids": [],
-                "focal_entity_id": None,
-                "shots": [
-                    {
-                        "id": "shot_fixture",
-                        "title": "Fixture shot",
-                        "duration_ms": 1000,
-                        "narrative_purpose": "Fixture shot purpose",
-                        "coverage": "must_show",
-                        "shot_size": None,
-                        "camera_angle": None,
-                        "camera_height": None,
-                        "lens_intent": None,
-                        "composition": None,
-                        "keyframes": [
-                            keyframe("keyframe_fixture_start", 0),
-                            keyframe("keyframe_fixture_end", 1000),
-                        ],
-                        "entity_events": [],
-                        "camera_events": [],
-                        "sound_events": [],
-                        "technique_events": [],
-                        "continuity_notes": [],
-                        "transition_to_next": None,
-                    }
-                ],
-            }
+        "schema_version": "chapter_visual_plan_v3",
+        "frame": {"width": 1024, "height": 1024},
+        "points": [
+            {"id": point_id, "at_ms": at_ms, "label": point_id,
+             "image_id": None, "description": "车站中的分镜画面", "reference_image_ids": []}
+            for point_id, at_ms in [("start", 0), ("end", 1000)]
         ],
+        "segments": [{"id": "shot_fixture", "title": "Fixture shot", "start_point_id": "start", "end_point_id": "end",
+                      "prompt": "林岚停在通道入口，抬头观察墙上的钟。", "scene_binding": {"kind": "scene", "scene_profile_id": scene_profile_id},
+                      "use_end_point_image": False}],
     }
 
 
@@ -2399,6 +2344,9 @@ def response_for(body: dict[str, Any]) -> str:
     if "你是影视分段导演" in combined and "constraints.selected_duration_secs" in combined:
         return json.dumps(video_segment_plan_response(combined), ensure_ascii=False)
 
+    if "你是导演分镜助手" in combined:
+        return "从起点画面开始，镜头缓缓推进；人物沿通道走向门口并停步，光线随开门动作逐渐改变。遵循已给定的内部关键帧和场景，不推断下一镜头的图片。"
+
     if "chapter_shooting_design_unit" in combined or "ShootingSceneV1" in combined:
         return json.dumps(shooting_design_response(combined), ensure_ascii=False)
 
@@ -2412,7 +2360,7 @@ def response_for(body: dict[str, Any]) -> str:
         "chapter_screenplay_layout_unit" in combined
         or "screenplay_layout_unit_detail_v1" in combined
     ):
-        return json.dumps(shooting_layout_response(), ensure_ascii=False)
+        return json.dumps(shooting_layout_response(combined), ensure_ascii=False)
 
     if "chapter_foreshadowing_events" in combined:
         return json.dumps(chapter_analysis_foreshadowing_response(combined), ensure_ascii=False)

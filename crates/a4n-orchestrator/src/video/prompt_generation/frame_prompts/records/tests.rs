@@ -330,3 +330,49 @@ fn first_frame_video_prompt_drafts_allow_later_target_without_initial_first_fram
         2,
     ));
 }
+
+#[test]
+fn director_bound_frames_generate_without_system_frame_prompts() {
+    use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
+    let source_metadata = test_metadata();
+    let available_assets = json!({});
+    let fingerprint = json!({"schema_version": 1});
+    for explicit_end in [false, true] {
+        let mut plan = ChapterVisualPlanV3::starter();
+        plan.points[1].at_ms = 6000;
+        plan.points[0].image_id = Some(7);
+        plan.points[1].image_id = Some(8);
+        plan.segments[0].prompt = "推近门口".into();
+        plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+            scene_profile_id: 1,
+        });
+        plan.segments[0].use_end_point_image = explicit_end;
+        let mut segment = segment(1);
+        segment.director_constraints = Some(plan.project().unwrap().remove(0));
+        let segments = HashMap::from([(1, &segment)]);
+        let units = HashMap::from([(1, video_unit_for_segment(&segment))]);
+        let frames = HashMap::new();
+        let prompts = [shot(1)];
+        let common = test_common_input(&source_metadata, &available_assets, &fingerprint);
+        let drafts = if explicit_end {
+            video_prompt_drafts(VideoPromptDraftsInput {
+                common,
+                segment_by_number: &segments,
+                video_unit_by_number: &units,
+                frame_by_number: &frames,
+                video_prompts: &prompts,
+            })
+        } else {
+            first_frame_video_prompt_drafts(FirstFrameVideoPromptDraftsInput {
+                common,
+                source_prompt_type: "frame_segment_plan",
+                segment_by_number: &segments,
+                video_unit_by_number: &units,
+                first_frame_by_number: &frames,
+                video_prompts: &prompts,
+            })
+        }
+        .unwrap();
+        assert_eq!(drafts.len(), 1);
+    }
+}

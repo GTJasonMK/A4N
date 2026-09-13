@@ -4,8 +4,9 @@ use std::collections::HashSet;
 
 pub(super) fn validate_chat_video_source_span_ids(
     chat_video: &Value,
-    allowed_source_span_ids: &[String],
+    segment: &crate::video::prompt_json::contracts::VideoSegmentPlan,
 ) -> Result<(), AppError> {
+    let allowed_source_span_ids = &segment.source_span_ids;
     let source_span_ids = chat_video
         .get("source_span_ids")
         .ok_or_else(|| {
@@ -15,7 +16,7 @@ pub(super) fn validate_chat_video_source_span_ids(
         .ok_or_else(|| {
             AppError::InvalidArgument("chat_video.source_span_ids 必须是数组".to_string())
         })?;
-    if source_span_ids.is_empty() {
+    if source_span_ids.is_empty() && segment.director_constraints.is_none() {
         return Err(AppError::InvalidArgument(
             "chat_video.source_span_ids 不能为空".to_string(),
         ));

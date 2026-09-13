@@ -26,6 +26,8 @@ where
         .into_tuple::<i64>()
         .all(db)
         .await?;
+    crate::chapter_visual_plan::ensure_visual_plan_scenes_unreferenced(db, &scene_profile_ids)
+        .await?;
     generation::delete_generation_run_targets_for(db, "scene_profile", &scene_profile_ids).await?;
     generation::delete_generation_run_targets_for(db, "object_profile", &object_profile_ids)
         .await?;

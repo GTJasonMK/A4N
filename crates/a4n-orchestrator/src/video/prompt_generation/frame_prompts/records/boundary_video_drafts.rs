@@ -62,19 +62,20 @@ pub(in crate::video) fn video_prompt_drafts(
                     prompt.shot_number
                 ))
             })?;
-            let start_boundary_frame =
-                frame_by_number.get(&start_frame_number).ok_or_else(|| {
-                    AppError::InvalidArgument(format!(
-                        "视频提示词 #{} 缺少起始边界帧 #{}",
-                        prompt.shot_number, start_frame_number
-                    ))
-                })?;
-            let end_boundary_frame = frame_by_number.get(&end_frame_number).ok_or_else(|| {
-                AppError::InvalidArgument(format!(
+            let start_boundary_frame = frame_by_number.get(&start_frame_number);
+            if start_boundary_frame.is_none() && segment.director_constraints.is_none() {
+                return Err(AppError::InvalidArgument(format!(
+                    "视频提示词 #{} 缺少起始边界帧 #{}",
+                    prompt.shot_number, start_frame_number
+                )));
+            }
+            let end_boundary_frame = frame_by_number.get(&end_frame_number);
+            if end_boundary_frame.is_none() && segment.director_constraints.is_none() {
+                return Err(AppError::InvalidArgument(format!(
                     "视频提示词 #{} 缺少结束边界帧 #{}",
                     prompt.shot_number, end_frame_number
-                ))
-            })?;
+                )));
+            }
             Ok(video_prompt_shot_draft(
                 common,
                 PromptWorkflowMode::BoundaryFrames,

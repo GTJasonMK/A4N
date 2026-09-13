@@ -118,10 +118,10 @@ pub(super) fn validate_layout_unit_detail(
 pub(super) fn validate_unit_adaptation(
     output: &ScreenplayUnitAdaptationV1,
     unit: &ScreenplayLayoutUnitV1,
+    visual_unit: &crate::chapter_visual_plan::DirectorScriptUnit,
 ) -> Result<(), AppError> {
     if output.schema_version != "screenplay_unit_adaptation_v1"
         || output.narrative_unit_index != unit.narrative_unit_index
-        || output.performance_facts.is_empty()
     {
         return Err(AppError::InvalidArgument(format!(
             "叙事单元 {} 的独立改编合同无效",
@@ -133,6 +133,11 @@ pub(super) fn validate_unit_adaptation(
         .iter()
         .map(String::as_str)
         .collect::<HashSet<_>>();
+    let allowed_additions = visual_unit
+        .shots
+        .iter()
+        .map(|shot| crate::chapter_visual_plan::segment_addition_id(&shot.segment_id))
+        .collect::<HashSet<_>>();
     for (offset, fact) in output.performance_facts.iter().enumerate() {
         let expected_fact_index = u32::try_from(offset + 1)
             .map_err(|_| AppError::InvalidArgument("表演事实数量超出 u32 范围".into()))?;
@@ -142,11 +147,21 @@ pub(super) fn validate_unit_adaptation(
                 unit.narrative_unit_index, fact.fact_index
             )));
         }
-        if fact.source_span_ids.is_empty()
+        if (fact.source_span_ids.is_empty() && fact.user_addition_ids.is_empty())
             || fact
-                .source_span_ids
+                .user_addition_ids
                 .iter()
-                .any(|id| !allowed_sources.contains(id.as_str()))
+                .any(|id| !allowed_additions.contains(id))
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事单元 {} fact {} 缺少有效正文或导演事实来源",
+                unit.narrative_unit_index, fact.fact_index
+            )));
+        }
+        if fact
+            .source_span_ids
+            .iter()
+            .any(|id| !allowed_sources.contains(id.as_str()))
         {
             return Err(AppError::InvalidArgument(format!(
                 "叙事单元 {} fact {} 引用了当前单元范围外的 source span",

@@ -698,6 +698,17 @@ prompts:
     description: "检查角色档案、状态时间线、属性事件与章节上下文是否存在事实或状态矛盾"
 
   # ============= 08 视频 =============
+  director_segment_prompt:
+    path: "novel/08_video/director_segment_prompt.md"
+    title: "导演镜头段变化描述"
+    category: "video"
+    tags: ["video", "director", "timeline"]
+    version: "1.0"
+    used_by:
+      - "chapter_visual_plan::generation"
+    dependencies: []
+    description: "根据分镜图片点、场景、镜头时长和用户描述生成待采用的变化 prompt"
+
   chapter_video_user_request:
     path: "novel/08_video/chapter_video_user_request.md"
     title: "章节视频 Builder User 请求外壳"

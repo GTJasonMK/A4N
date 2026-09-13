@@ -47,6 +47,15 @@ pub(in crate::video) fn video_projection_from_shooting_script(
         let mut shots = Vec::with_capacity(scene.shots.len());
         let mut previous_shot_index = None;
         for shot in &scene.shots {
+            let segment_duration_secs = shot
+                .visual_constraints
+                .as_ref()
+                .map(|plan| {
+                    plan.video_duration_secs()
+                        .map_err(AppError::InvalidArgument)
+                })
+                .transpose()?
+                .unwrap_or(segment_duration_secs);
             if previous_shot_index.is_some_and(|index| shot.shot_index <= index)
                 || !seen_shot_ids.insert(shot.shot_id.clone())
             {
@@ -91,18 +100,24 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                 })
                 .collect::<Result<Vec<_>, AppError>>()?;
 
-            let recommended_segment_count = segment_count_for_seconds(
-                shot.estimated_natural_seconds,
-                segment_duration_secs,
-                &shot.shot_id,
-                "estimated_natural_seconds",
-            )?;
+            let recommended_segment_count = if shot.visual_constraints.is_some() {
+                1
+            } else {
+                segment_count_for_seconds(
+                    shot.estimated_natural_seconds,
+                    segment_duration_secs,
+                    &shot.shot_id,
+                    "estimated_natural_seconds",
+                )?
+            };
             let required_seconds = action_beats
                 .iter()
                 .filter(|beat| beat.required)
                 .map(|beat| beat.natural_seconds)
                 .sum::<f64>();
-            let minimum_readable_segment_count = if required_seconds > 0.0 {
+            let minimum_readable_segment_count = if shot.visual_constraints.is_some() {
+                1
+            } else if required_seconds > 0.0 {
                 segment_count_for_seconds(
                     required_seconds,
                     segment_duration_secs,
@@ -124,12 +139,20 @@ pub(in crate::video) fn video_projection_from_shooting_script(
             )?;
             total_seconds += shot.estimated_natural_seconds;
 
-            let source_start = shot.source_span_ids.first().ok_or_else(|| {
-                AppError::InvalidArgument(format!("拍摄镜头 {} 缺少 source_span_ids", shot.shot_id))
-            })?;
-            let source_end = shot.source_span_ids.last().ok_or_else(|| {
-                AppError::InvalidArgument(format!("拍摄镜头 {} 缺少 source_span_ids", shot.shot_id))
-            })?;
+            if shot.source_span_ids.is_empty() && shot.visual_constraints.is_none() {
+                return Err(AppError::InvalidArgument(format!(
+                    "拍摄镜头 {} 缺少正文或导演编排来源",
+                    shot.shot_id
+                )));
+            }
+            let source_span_range = shot
+                .source_span_ids
+                .first()
+                .zip(shot.source_span_ids.last())
+                .map(|(start, end)| VideoSourceSpanRangeV1 {
+                    start: start.clone(),
+                    end: end.clone(),
+                });
             let mut shot_risks = Vec::new();
             if minimum_readable_segment_count > recommended_segment_count {
                 shot_risks.push(VideoExecutionRiskV1 {
@@ -141,6 +164,7 @@ pub(in crate::video) fn video_projection_from_shooting_script(
             }
             risk_flags.extend(shot_risks.iter().cloned());
             shots.push(VideoExecutionShotV2 {
+                director_constraints: shot.visual_constraints.clone(),
                 source_shot_id: shot.shot_id.clone(),
                 shot_index: shot.shot_index,
                 scene_index: scene.scene_index,
@@ -148,10 +172,7 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                 timeline_position: scene.timeline_position,
                 title: shot.title.clone(),
                 source_span_ids: shot.source_span_ids.clone(),
-                source_span_range: VideoSourceSpanRangeV1 {
-                    start: source_start.clone(),
-                    end: source_end.clone(),
-                },
+                source_span_range,
                 coverage: shot.coverage,
                 narrative_purpose: shot.narrative_purpose.clone(),
                 subject: shot.subject.clone(),

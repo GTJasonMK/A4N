@@ -79,6 +79,7 @@ pub(in crate::project_family_import) struct ImportIdMaps {
     pub(in crate::project_family_import) source_snapshot_chapter_ids: HashMap<i64, i64>,
     pub(in crate::project_family_import) text_anchor_ids: HashMap<i64, i64>,
     pub(in crate::project_family_import) visual_plan_ids: HashMap<i64, i64>,
+    pub(in crate::project_family_import) visual_plan_sha256s: HashMap<i64, String>,
     pub(in crate::project_family_import) shooting_script_ids: HashMap<i64, i64>,
     pub(in crate::project_family_import) shooting_script_revision_keys: HashMap<i64, String>,
     pub(in crate::project_family_import) shooting_script_sha256s: HashMap<i64, String>,

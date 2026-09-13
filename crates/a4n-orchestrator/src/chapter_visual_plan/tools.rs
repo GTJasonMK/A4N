@@ -151,6 +151,7 @@ impl OrchestratorContext {
             changed: !changes.is_empty(),
             changes,
             validation,
+            visual_plan: super::chapter_visual_plan_view(current),
         })
     }
 
@@ -235,113 +236,78 @@ fn next_offset(end: usize, total: usize) -> Result<Option<u32>, AppError> {
         .map_err(|_| AppError::InvalidArgument("分页长度超出 u32".into()))
 }
 
-fn find_shot<'a>(
-    plan: &'a ChapterVisualPlanV2,
-    shot_id: &str,
-) -> Result<(&'a VisualSceneV2, &'a VisualShotV2), AppError> {
-    plan.scenes
-        .iter()
-        .find_map(|scene| {
-            scene
-                .shots
-                .iter()
-                .find(|shot| shot.id == shot_id)
-                .map(|shot| (scene, shot))
-        })
-        .ok_or_else(|| AppError::NotFound(format!("镜头不存在: {shot_id}")))
-}
-
 fn project_plan(
-    plan: &ChapterVisualPlanV2,
+    plan: &ChapterVisualPlanV3,
     view: &VisualPlanReadView,
 ) -> Result<VisualPlanProjection, AppError> {
+    plan.validate_draft()
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
     match view {
         VisualPlanReadView::Outline { offset, limit } => {
-            let items = plan
-                .scenes
+            let total = plan.segments.len();
+            let (start, end) = page_range(*offset, *limit, total, 20, 100)?;
+            let items = plan.segments[start..end]
                 .iter()
-                .flat_map(|scene| {
-                    let row = |shot: Option<&VisualShotV2>| VisualPlanOutlineItem {
-                        scene_id: scene.id.clone(),
-                        scene_title: scene.title.clone(),
-                        shot_id: shot.map(|shot| shot.id.clone()),
-                        title: shot.map(|shot| shot.title.clone()),
-                        duration_ms: shot.map_or(0, |shot| shot.duration_ms),
-                        keyframe_count: shot.map_or(0, |shot| shot.keyframes.len()),
-                    };
-                    if scene.shots.is_empty() {
-                        vec![row(None)]
-                    } else {
-                        scene.shots.iter().map(|shot| row(Some(shot))).collect()
+                .map(|segment| {
+                    let start_ms = plan
+                        .point(&segment.start_point_id)
+                        .expect("validated start")
+                        .at_ms;
+                    let end_ms = plan
+                        .point(&segment.end_point_id)
+                        .expect("validated end")
+                        .at_ms;
+                    VisualPlanOutlineItem {
+                        segment_id: segment.id.clone(),
+                        title: segment.title.clone(),
+                        start_ms,
+                        end_ms,
+                        scene_binding: segment.scene_binding.clone(),
+                        point_count: plan
+                            .points
+                            .iter()
+                            .filter(|point| point.at_ms >= start_ms && point.at_ms < end_ms)
+                            .count(),
                     }
                 })
-                .collect::<Vec<_>>();
-            let total = items.len();
-            let (start, end) = page_range(*offset, *limit, total, 20, 100)?;
+                .collect();
             Ok(VisualPlanProjection::Outline {
-                items: items.into_iter().skip(start).take(end - start).collect(),
+                items,
                 total,
                 next_offset: next_offset(end, total)?,
             })
         }
-        VisualPlanReadView::Shot {
-            shot_id,
-            offset,
-            limit,
-        } => {
-            let (scene, shot) = find_shot(plan, shot_id)?;
-            let total = shot.keyframes.len();
-            let (start, end) = page_range(*offset, *limit, total, 20, 100)?;
-            Ok(VisualPlanProjection::Shot {
-                scene_id: scene.id.clone(),
-                shot: VisualPlanShotDetails {
-                    id: shot.id.clone(),
-                    title: shot.title.clone(),
-                    duration_ms: shot.duration_ms,
-                    narrative_purpose: shot.narrative_purpose.clone(),
-                    composition: shot.composition.clone(),
-                    lens_intent: shot.lens_intent.clone(),
-                    keyframes: shot
-                        .keyframes
-                        .iter()
-                        .skip(start)
-                        .take(end - start)
-                        .map(|frame| VisualPlanKeyframeIndex {
-                            id: frame.id.clone(),
-                            at_ms: frame.at_ms,
-                            label: frame.label.clone(),
-                        })
-                        .collect(),
-                    total_keyframes: total,
-                    next_offset: next_offset(end, total)?,
-                },
+        VisualPlanReadView::Point { point_id } => {
+            let point = plan
+                .point(point_id)
+                .ok_or_else(|| AppError::NotFound(format!("图片点不存在: {point_id}")))?;
+            Ok(VisualPlanProjection::Point {
+                point: point.clone(),
             })
         }
-        VisualPlanReadView::Keyframe {
-            shot_id,
-            keyframe_id,
-        } => {
-            let (_, shot) = find_shot(plan, shot_id)?;
-            let keyframe = shot
-                .keyframes
+        VisualPlanReadView::Segment { segment_id } => {
+            let segment = plan
+                .segments
                 .iter()
-                .find(|frame| frame.id == *keyframe_id)
-                .ok_or_else(|| {
-                    AppError::NotFound(format!("镜头 {shot_id} 中没有关键帧 {keyframe_id}"))
-                })?;
-            Ok(VisualPlanProjection::Keyframe {
-                shot_id: shot_id.clone(),
-                keyframe: keyframe.clone(),
-            })
-        }
-        VisualPlanReadView::Entity { entity_id } => {
-            let entity = plan
-                .entities
+                .find(|segment| segment.id == *segment_id)
+                .ok_or_else(|| AppError::NotFound(format!("镜头段不存在: {segment_id}")))?;
+            let start = plan
+                .point(&segment.start_point_id)
+                .expect("validated start")
+                .at_ms;
+            let end = plan
+                .point(&segment.end_point_id)
+                .expect("validated end")
+                .at_ms;
+            let points = plan
+                .points
                 .iter()
-                .find(|entity| entity.id == *entity_id)
-                .ok_or_else(|| AppError::NotFound(format!("实体不存在: {entity_id}")))?;
-            Ok(VisualPlanProjection::Entity {
-                entity: entity.clone(),
+                .filter(|point| point.at_ms >= start && point.at_ms <= end)
+                .cloned()
+                .collect();
+            Ok(VisualPlanProjection::Segment {
+                segment: segment.clone(),
+                points,
             })
         }
         VisualPlanReadView::Source { .. } => Err(AppError::InvalidArgument(
@@ -351,88 +317,38 @@ fn project_plan(
 }
 
 pub(crate) fn project_editor_visual_plan(
-    plan: &ChapterVisualPlanV2,
+    plan: &ChapterVisualPlanV3,
     view: &VisualPlanReadView,
 ) -> Result<VisualPlanProjection, AppError> {
     project_plan(plan, view)
 }
 
 fn apply_operation(
-    plan: &mut ChapterVisualPlanV2,
+    plan: &mut ChapterVisualPlanV3,
     operation: &VisualPlanEditOperation,
 ) -> Result<Vec<VisualPlanFieldChange>, AppError> {
-    let VisualPlanEditOperation::UpdateShotFields { shot_id, changes } = operation;
-    if changes == &VisualShotFieldChanges::default() {
-        return Err(AppError::InvalidArgument("changes 不能为空".into()));
-    }
-    let shot = plan
-        .scenes
-        .iter_mut()
-        .flat_map(|scene| &mut scene.shots)
-        .find(|shot| shot.id == *shot_id)
-        .ok_or_else(|| AppError::NotFound(format!("镜头不存在: {shot_id}")))?;
-    let mut diff = Vec::new();
-    for (field, before, after) in [
-        (
-            "title",
-            Some(shot.title.clone()),
-            changes.title.as_ref().map(|value| Some(value.clone())),
-        ),
-        (
-            "narrative_purpose",
-            Some(shot.narrative_purpose.clone()),
-            changes
-                .narrative_purpose
-                .as_ref()
-                .map(|value| Some(value.clone())),
-        ),
-        (
-            "composition",
-            shot.composition.clone(),
-            changes.composition.clone(),
-        ),
-        (
-            "lens_intent",
-            shot.lens_intent.clone(),
-            changes.lens_intent.clone(),
-        ),
-    ] {
-        if let Some(after) = after {
-            if after
-                .as_ref()
-                .is_some_and(|text| text.trim().is_empty() || text.chars().count() > 4_000)
-            {
-                return Err(AppError::InvalidArgument(format!(
-                    "{field} 必须为 1..=4000 字符；可选文本使用 null 清空"
-                )));
-            }
-            if before != after {
-                diff.push(VisualPlanFieldChange {
-                    object_id: shot_id.clone(),
-                    field: field.into(),
-                    before,
-                    after,
-                });
-            }
+    let next = plan
+        .edited(operation)
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+    let before = serde_json::to_value(&*plan)?;
+    let after = serde_json::to_value(&next)?;
+    let mut changes = Vec::new();
+    for field in ["frame", "points", "segments"] {
+        if before[field] != after[field] {
+            changes.push(VisualPlanFieldChange {
+                object_id: "timeline".into(),
+                field: field.into(),
+                before: Some(before[field].to_string()),
+                after: Some(after[field].to_string()),
+            });
         }
     }
-    if let Some(value) = &changes.title {
-        shot.title.clone_from(value);
-    }
-    if let Some(value) = &changes.narrative_purpose {
-        shot.narrative_purpose.clone_from(value);
-    }
-    if let Some(value) = &changes.composition {
-        shot.composition.clone_from(value);
-    }
-    if let Some(value) = &changes.lens_intent {
-        shot.lens_intent.clone_from(value);
-    }
-    Ok(diff)
+    *plan = next;
+    Ok(changes)
 }
 
 fn validate_plan(
-    plan: &ChapterVisualPlanV2,
+    plan: &ChapterVisualPlanV3,
     mode: VisualPlanValidationMode,
 ) -> VisualPlanValidationResult {
     let result = match mode {
@@ -456,81 +372,69 @@ fn validate_plan(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    fn plan() -> ChapterVisualPlanV2 {
-        serde_json::from_value(json!({
-            "schema_version":"chapter_visual_plan_v2", "frame":{"width":1920,"height":1080,"background":null}, "entities":[],
-            "scenes":[{"id":"scene-1","title":"场景","narrative_purpose":"叙事","editing_mode":"continuity","intercut_group_id":null,"location":null,"time_of_day":null,"participant_entity_ids":[],"focal_entity_id":null,
-                "shots":[{"id":"shot-1","title":"镜头","duration_ms":1000,"narrative_purpose":"推进","coverage":"must_show","shot_size":null,"camera_angle":null,"camera_height":null,"lens_intent":null,"composition":"原构图","keyframes":[],"entity_events":[],"camera_events":[],"sound_events":[],"technique_events":[],"continuity_notes":["保持连续"],"transition_to_next":null}]}]
-        })).unwrap()
-    }
 
     #[test]
-    fn local_edit_preserves_every_unrequested_field_and_reports_noop() {
-        let mut value = plan();
-        let original = value.clone();
-        let operation = serde_json::from_value(json!({"kind":"update_shot_fields","shot_id":"shot-1","changes":{"composition":"门框遮挡"}})).unwrap();
-        let diff = apply_operation(&mut value, &operation).unwrap();
-        assert_eq!(diff.len(), 1);
-        assert_eq!(diff[0].before.as_deref(), Some("原构图"));
-        assert!(apply_operation(&mut value, &operation).unwrap().is_empty());
-        value.scenes[0].shots[0].composition = original.scenes[0].shots[0].composition.clone();
-        assert_eq!(value, original);
-        assert!(validate_plan(&value, VisualPlanValidationMode::Draft).valid);
-        let strict = validate_plan(&value, VisualPlanValidationMode::Confirmed);
-        assert!(!strict.valid);
-        assert!(strict.diagnostics[0].path.contains("keyframes"));
-    }
-
-    #[test]
-    fn contract_rejects_identity_timing_unknown_fields_and_empty_changes() {
-        for changes in [
-            json!({"id":"other"}),
-            json!({"duration_ms":2000}),
-            json!({"title":null}),
-        ] {
-            assert!(serde_json::from_value::<VisualShotFieldChanges>(changes).is_err());
-        }
-        let empty = VisualPlanEditOperation::UpdateShotFields {
-            shot_id: "shot-1".into(),
-            changes: Default::default(),
+    fn editor_operations_share_domain_rules_and_report_noop() {
+        let mut plan = ChapterVisualPlanV3::starter();
+        let operation = VisualPlanEditOperation::ScaleTimeline {
+            duration_ms: 20_000,
         };
-        assert!(apply_operation(&mut plan(), &empty).is_err());
-        let clear = serde_json::from_value(
-            json!({"kind":"update_shot_fields","shot_id":"shot-1","changes":{"composition":null}}),
-        )
-        .unwrap();
-        let mut value = plan();
-        apply_operation(&mut value, &clear).unwrap();
-        assert!(value.scenes[0].shots[0].composition.is_none());
-    }
-
-    #[test]
-    fn outline_is_bounded_and_missing_target_is_not_redirected() {
-        let value = plan();
-        let result = project_plan(
-            &value,
-            &VisualPlanReadView::Outline {
-                offset: 0,
-                limit: Some(1),
-            },
-        )
-        .unwrap();
-        let text = serde_json::to_string(&result).unwrap();
-        assert!(!text.contains("原构图"));
-        assert!(text.contains("shot-1"));
+        assert_eq!(apply_operation(&mut plan, &operation).unwrap().len(), 1);
+        assert!(apply_operation(&mut plan, &operation).unwrap().is_empty());
+        let original = plan.clone();
         assert!(
-            project_plan(
-                &value,
-                &VisualPlanReadView::Shot {
-                    shot_id: "deleted".into(),
-                    offset: 0,
-                    limit: None
+            apply_operation(
+                &mut plan,
+                &VisualPlanEditOperation::MovePoint {
+                    point_id: "start".into(),
+                    at_ms: 1
                 }
             )
             .is_err()
         );
-        assert!(page_range(0, Some(101), 500, 20, 100).is_err());
+        assert_eq!(plan, original);
+        assert!(validate_plan(&plan, VisualPlanValidationMode::Draft).valid);
+        assert!(!validate_plan(&plan, VisualPlanValidationMode::Confirmed).valid);
+    }
+
+    #[test]
+    fn reads_are_bounded_and_missing_points_are_not_redirected() {
+        let plan = ChapterVisualPlanV3::starter();
+        assert!(
+            project_plan(
+                &plan,
+                &VisualPlanReadView::Outline {
+                    offset: 0,
+                    limit: Some(101)
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            project_plan(
+                &plan,
+                &VisualPlanReadView::Point {
+                    point_id: "missing".into()
+                }
+            )
+            .is_err()
+        );
+        let result = project_plan(
+            &plan,
+            &VisualPlanReadView::Segment {
+                segment_id: "shot-1".into(),
+            },
+        )
+        .unwrap();
+        let VisualPlanProjection::Segment { points, .. } = result else {
+            panic!("segment projection expected")
+        };
+        assert_eq!(points.len(), 2);
+        assert!(
+            serde_json::from_str::<VisualPlanEditOperation>(
+                r#"{"kind":"move_point","point_id":"start","at_ms":1,"unknown":true}"#
+            )
+            .is_err()
+        );
     }
 }

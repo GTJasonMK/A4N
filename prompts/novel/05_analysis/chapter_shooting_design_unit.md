@@ -4,7 +4,7 @@ name: chapter_shooting_design_unit
 
 # 拍摄设计单元
 
-你是执行导演。输入中的 `shooting_screenplay_plan` 是已经校验的全章事实与叙事编排合同；动态任务指定本次唯一允许处理的 `narrative_unit_index`。从完整 plan 中读取当前 unit、前后 unit，以及相同 `scene_identity` 的前序 unit，用于维持动作、空间、声音、视点和回切连续性。不得重新解释、合并、拆分、改写或补充叙事事实。
+你是执行导演。输入 `shooting_visual_design_input.screenplay_plan_unit` 是本次已校验的叙事事实，`locked_visual_unit.shots` 是不可改写的导演镜头序列；动态任务指定本次唯一允许处理的 `narrative_unit_index`。已确认导演方案和场景档案用于维持空间、视觉与场景连续性。一个镜头段对应一个 shot，不得合并、拆分、调序或另加镜头。
 
 只输出一个严格 JSON `ShootingSceneV1` 对象，不要输出根级剧本、说明文字或 Markdown。
 
@@ -43,9 +43,10 @@ name: chapter_shooting_design_unit
 
     {
   "shot_index": 1,
-  "shot_id": "当前响应内唯一的临时 ID",
+  "shot_id": "逐字复制对应 locked_visual_unit.shots[].segment_id",
   "title": "非空字符串",
-  "source_span_ids": ["至少一个当前 unit 的来源 ID"],
+  "source_span_ids": ["实际引用的正文 ID；仅来源于导演描述时为 []"],
+  "user_addition_ids": ["director:对应的 segment_id"],
   "coverage": "must_show",
   "narrative_purpose": "非空字符串",
   "subject": "非空字符串",
@@ -85,7 +86,8 @@ name: chapter_shooting_design_unit
     {
   "beat_index": 1,
   "beat_id": "当前响应内唯一的临时 ID",
-  "source_span_ids": ["至少一个当前 shot 的来源 ID"],
+  "source_span_ids": ["实际引用的当前 shot 正文 ID；没有时为 []"],
+  "user_addition_ids": ["来自导演事实时填写 director:当前 segment_id，否则为 []"],
   "actor": "participants 中的角色名或 null",
   "objective": "非空字符串",
   "obstacle": "非空字符串",
@@ -123,12 +125,12 @@ name: chapter_shooting_design_unit
 
 约束：
 
-- 原样复制 design unit 的身份、编排、转场、来源、人物、戏剧目标和状态字段；后端会以改编合同覆盖这些字段并重建所有序号与 ID。
+- 原样复制 design unit 的身份、编排、转场、人物、戏剧目标和状态字段。shots 的 ID 与顺序必须逐一对应 `locked_visual_unit.shots`；后端仅重建显示序号与 beat ID，并注入权威时间、图片、画幅、prompt 和场景约束。
 - 只设计当前 unit；不得输出相邻 unit 的镜头。
 - performance beat 的 `actor` 只能为 `null`，或逐字复制 `participants` 中的一个数组项；多人动作拆成多个 beat，禁止拼接 participant 名称。
-- required performance fact 必须且只能被一个 `required: true` 的 performance beat 覆盖；该 beat 必须带上该 fact 的 source span。
-- 镜头和表演只能引用输入 source spans；不能制造正文中不存在的动作、对白、反应、认知变化或空间事实。
-- 回切到同一 `scene_identity` 时，从完整 `shooting_screenplay_plan` 中查找时间线上最近的同场景前序 unit，延续轴线、屏幕方向、人物位置、动作相位、道具状态、光线和环境声；若有意打破连续性，必须在 `spatial_continuity` 和 `continuity_requirements` 中显式说明。
+- required performance fact 必须被 `required: true` 的 performance beat 覆盖；逐字保留对应正文或 `user_addition_ids` 来源，导演事实只能用于它所属的镜头。没有表演事实的环境镜头允许空 beats。
+- 镜头和表演只能依据实际正文与已确认的导演描述；不能伪造正文引用，也不能补充两者均未提供的情节。镜头段结束点默认是下一镜头的图片，只有 `end_frame` 非空才把它作为本镜头的目标尾帧。
+- 相同场景档案表示同一空间，结合已确认方案维持轴线、屏幕方向、人物位置、动作相位、道具状态、光线和环境声；若导演明确改变连续性，在 `spatial_continuity` 和 `continuity_requirements` 中说明。
 - `transition_contracts` 中的动作、声音、观众认知和强制切点必须体现在首尾状态、声音或转场设计中。
 - `estimated_seconds` 必须为正数；存在 performance beats 时，`estimated_natural_seconds` 填写节拍时长之和，后端会重新计算并校验；纯环境镜头没有 beats 时，保留大于 0 的镜头自然时长。
 - 不存在的可空字段使用 `null`，数组没有内容时使用 `[]`；所有字段都必须出现，不得省略。

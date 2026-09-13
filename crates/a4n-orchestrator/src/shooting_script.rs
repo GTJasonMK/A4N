@@ -13,14 +13,14 @@ pub(crate) use a4n_api_contract::shooting_script::{
     EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
 };
 pub use contracts::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
-#[cfg(test)]
-pub(crate) use contracts::visual_plan_fixture;
 pub(crate) use contracts::{
     ChapterShootingScriptUnitProgress, EditedChapterShootingScript, ResolvedChapterShootingScript,
 };
 pub(in crate::shooting_script) use contracts::{
     ShootingScriptProgressReporter, ShootingScriptStreamReporter,
 };
+#[cfg(test)]
+pub(crate) use contracts::{seed_visual_plan_scene, visual_plan_fixture};
 pub(in crate::shooting_script) use workflow_rules::chapter_shooting_script_workflow_run_input;
 
 use a4n_api_contract::shooting_script::{

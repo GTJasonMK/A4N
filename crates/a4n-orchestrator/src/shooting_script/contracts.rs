@@ -1,8 +1,8 @@
+use crate::chapter_visual_plan::DirectorScriptPlan;
 use a4n_db::{
     chapter_visual_plan::ParsedChapterVisualPlan, project::ResolvedChapterSource,
     shooting_script::ParsedChapterShootingScript,
 };
-use a4n_domain::chapter_visual_plan::ChapterVisualPlanV1;
 use a4n_domain::shooting_script::{
     ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
     ShootingTransitionContractV1,
@@ -119,6 +119,8 @@ pub(super) struct ScreenplayPlanUnit {
 pub(super) struct ScreenplayPerformanceFactV1 {
     pub(super) fact_index: u32,
     pub(super) source_span_ids: Vec<String>,
+    #[serde(default)]
+    pub(super) user_addition_ids: Vec<String>,
     pub(super) actor: Option<String>,
     pub(super) objective: String,
     pub(super) obstacle: String,
@@ -160,80 +162,70 @@ pub(super) struct PreparedChapterShootingScriptRequest {
     pub(super) input_fingerprint_sha256: String,
     pub(super) existing: Option<ParsedChapterShootingScript>,
     pub(super) visual_plan: ParsedChapterVisualPlan,
-    pub(super) visual_plan_projection: ChapterVisualPlanV1,
+    pub(super) visual_plan_projection: DirectorScriptPlan,
+    pub(super) scene_profiles: Vec<serde_json::Value>,
     pub(super) layout_unit_system_prompt: String,
     pub(super) unit_adaptation_system_prompt: String,
     pub(super) design_unit_system_prompt: String,
 }
 
+impl PreparedChapterShootingScriptRequest {
+    pub(super) fn visual_unit(
+        &self,
+        narrative_unit_index: u32,
+        scene_identity: &str,
+    ) -> Result<&crate::chapter_visual_plan::DirectorScriptUnit, AppError> {
+        narrative_unit_index
+            .checked_sub(1)
+            .and_then(|index| {
+                self.visual_plan_projection
+                    .narrative_units
+                    .get(index as usize)
+            })
+            .filter(|unit| unit.id == scene_identity)
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "拍摄单元 {narrative_unit_index} 找不到对应的已确认导演编排"
+                ))
+            })
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapterVisualPlan {
     use a4n_domain::chapter_visual_plan::{
-        CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanAuthoringMode, ChapterVisualPlanSchemaVersion,
-        ChapterVisualPlanStatus, VisualCameraStateV1, VisualFrameV2, VisualKeyframeV2,
-        VisualSceneV2, VisualShotV2,
+        CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus,
+        ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV3,
     };
-    use a4n_domain::shooting_script::{ShootingCoverageV1, ShootingEditingModeV1};
-
-    let keyframe = |id: &str, at_ms: u64| VisualKeyframeV2 {
-        id: id.into(),
-        at_ms,
-        label: id.into(),
-        interpolation_to_next: a4n_domain::chapter_visual_plan::VisualInterpolationV1::Hold,
-        camera: VisualCameraStateV1 {
-            center_x: 0.5,
-            center_y: 0.5,
-            zoom: 1.0,
-            rotation_degrees: 0.0,
-            focus_entity_id: None,
-            framing_note: None,
+    let mut plan = ChapterVisualPlanV3::starter();
+    plan.points[1].at_ms = 8_000;
+    plan.points.insert(
+        1,
+        VisualPointV3 {
+            id: "middle".into(),
+            at_ms: 4_000,
+            label: "镜头边界".into(),
+            image_id: None,
+            description: "下一镜头的起始画面".into(),
+            reference_image_ids: vec![],
         },
-        entity_states: Vec::new(),
-        relations: Vec::new(),
-    };
-    let shot = |id: &str| VisualShotV2 {
-        id: id.into(),
-        title: id.into(),
-        duration_ms: 1_000,
-        narrative_purpose: "推进".into(),
-        coverage: ShootingCoverageV1::MustShow,
-        shot_size: None,
-        camera_angle: None,
-        camera_height: None,
-        lens_intent: None,
-        composition: None,
-        keyframes: vec![
-            keyframe(&format!("{id}-start"), 0),
-            keyframe(&format!("{id}-end"), 1_000),
-        ],
-        entity_events: Vec::new(),
-        camera_events: Vec::new(),
-        sound_events: Vec::new(),
-        technique_events: Vec::new(),
-        continuity_notes: Vec::new(),
-        transition_to_next: None,
-    };
-    let plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV2 {
-        schema_version: ChapterVisualPlanSchemaVersion::V2,
-        frame: VisualFrameV2 {
-            width: 1920,
-            height: 1080,
-            background: None,
-        },
-        entities: Vec::new(),
-        scenes: vec![VisualSceneV2 {
-            id: "scene-1".into(),
-            title: "场景".into(),
-            narrative_purpose: "推进".into(),
-            editing_mode: ShootingEditingModeV1::Continuity,
-            intercut_group_id: None,
-            location: None,
-            time_of_day: None,
-            participant_entity_ids: Vec::new(),
-            focal_entity_id: None,
-            shots: vec![shot("shot-1"), shot("shot-2")],
-        }],
-    };
+    );
+    plan.segments[0].end_point_id = "middle".into();
+    plan.segments[0].prompt = "推进当前行动".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
+    plan.segments.push(VisualSegmentV3 {
+        id: "shot-2".into(),
+        title: "镜头 2".into(),
+        start_point_id: "middle".into(),
+        end_point_id: "end".into(),
+        prompt: "继续推进人物行动".into(),
+        scene_binding: Some(SceneBindingV3::Scene {
+            scene_profile_id: 1,
+        }),
+        use_end_point_image: false,
+    });
     let plan_sha256 =
         a4n_db::generation::canonical_json_sha256(&plan).expect("visual plan fixture sha256");
     let now = chrono::Utc::now().naive_utc();
@@ -246,7 +238,7 @@ pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapt
             source_snapshot_chapter_id: source.source_snapshot_chapter_id,
             source_revision_key: source.source_revision_key.clone(),
             source_content_sha256: source.content_sha256.clone(),
-            contract_version: CHAPTER_VISUAL_PLAN_V2.into(),
+            contract_version: CHAPTER_VISUAL_PLAN_V3.into(),
             plan_version: 1,
             revision: 1,
             status: ChapterVisualPlanStatus::Confirmed.as_str().into(),
@@ -262,6 +254,49 @@ pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapt
         authoring_mode: ChapterVisualPlanAuthoringMode::Manual,
         plan,
     }
+}
+
+#[cfg(test)]
+pub(crate) async fn seed_visual_plan_scene(
+    db: &sea_orm::DatabaseConnection,
+    project_id: i64,
+) -> i64 {
+    if let Some(scene) = a4n_db::scene_profile::maybe_scene_profile_by_normalized_name(
+        db,
+        project_id,
+        "director_fixture",
+    )
+    .await
+    .unwrap()
+    {
+        return scene.id;
+    }
+    a4n_db::scene_profile::create_scene_profile_record(
+        db,
+        project_id,
+        a4n_domain::scene_profile::SceneProfileRecordInput {
+            name: "导演场景".into(),
+            normalized_name: "director_fixture".into(),
+            aliases_json: serde_json::json!([]),
+            scene_type: "building".into(),
+            importance: "primary".into(),
+            parent_scene_id: None,
+            base_description: "夜间的宫殿".into(),
+            visual_description: "门与走廊形成清晰空间关系".into(),
+            spatial_layout: "门口通向走廊".into(),
+            atmosphere: "安静".into(),
+            entry_points_json: serde_json::json!([]),
+            rules_json: serde_json::json!([]),
+            first_seen_chapter: 1,
+            last_seen_chapter: 1,
+            evidence_json: serde_json::json!([]),
+            image_prompt_seed: "夜间建筑".into(),
+        },
+        a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER,
+    )
+    .await
+    .unwrap()
+    .id
 }
 
 #[derive(Debug, Clone)]

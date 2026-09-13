@@ -42,6 +42,16 @@ pub(in crate::video) fn validate_segment_plan_against_shooting_script_projection
                 segment.segment_number
             )));
         }
+        if shot.director_constraints.is_some()
+            && (segment.director_constraints != shot.director_constraints
+                || segment.duration_secs != shot.segment_duration_secs
+                || segment.shot_segment_count != 1)
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "镜头 {} 的视频规划改变了导演编排约束",
+                shot.source_shot_id
+            )));
+        }
         *segment_count_by_shot
             .entry(segment.source_shot_id.clone())
             .or_default() += 1;
@@ -277,7 +287,7 @@ pub(in crate::video) fn validate_video_prompt_shot_against_segment(
     segment: &VideoSegmentPlan,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<VideoPromptShot, AppError> {
-    validate_shot(shot, &segment.source_span_ids, prompt_output_language)
+    validate_shot(shot, segment, prompt_output_language)
 }
 
 pub(in crate::video) fn validate_model_video_prompt_shot_against_segment(
@@ -285,5 +295,5 @@ pub(in crate::video) fn validate_model_video_prompt_shot_against_segment(
     segment: &VideoSegmentPlan,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<VideoPromptShot, AppError> {
-    validate_model_shot(shot, &segment.source_span_ids, prompt_output_language)
+    validate_model_shot(shot, segment, prompt_output_language)
 }

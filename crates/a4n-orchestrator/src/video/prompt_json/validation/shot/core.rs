@@ -3,7 +3,7 @@ use a4n_error::AppError;
 use a4n_domain::VideoAspectRatio;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 
-use super::super::super::VideoPromptShot;
+use super::super::super::{VideoPromptShot, VideoSegmentPlan};
 use super::super::prompt_text::{
     required_min_prompt_text, validate_motion_prompt_has_no_temporal_storyboard,
     validate_optional_prompt_text, validate_prompt_has_no_upload_status,
@@ -17,12 +17,12 @@ use super::temporal::validate_temporal_beats;
 
 pub(in crate::video::prompt_json) fn validate_shot(
     shot: VideoPromptShot,
-    allowed_source_span_ids: &[String],
+    segment: &VideoSegmentPlan,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<VideoPromptShot, AppError> {
     validate_shot_with_dialogue_policy(
         shot,
-        allowed_source_span_ids,
+        segment,
         prompt_output_language,
         DialogueTracePolicy::InternalNormalized,
     )
@@ -30,12 +30,12 @@ pub(in crate::video::prompt_json) fn validate_shot(
 
 pub(in crate::video::prompt_json) fn validate_model_shot(
     shot: VideoPromptShot,
-    allowed_source_span_ids: &[String],
+    segment: &VideoSegmentPlan,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<VideoPromptShot, AppError> {
     validate_shot_with_dialogue_policy(
         shot,
-        allowed_source_span_ids,
+        segment,
         prompt_output_language,
         DialogueTracePolicy::ModelOutput,
     )
@@ -43,10 +43,11 @@ pub(in crate::video::prompt_json) fn validate_model_shot(
 
 fn validate_shot_with_dialogue_policy(
     shot: VideoPromptShot,
-    allowed_source_span_ids: &[String],
+    segment: &VideoSegmentPlan,
     prompt_output_language: PromptOutputLanguage,
     dialogue_trace_policy: DialogueTracePolicy,
 ) -> Result<VideoPromptShot, AppError> {
+    let allowed_source_span_ids = &segment.source_span_ids;
     if shot.shot_number < 1 {
         return Err(AppError::InvalidArgument(
             "视频提示词 shot_number 必须大于 0".to_string(),
@@ -104,6 +105,7 @@ fn validate_shot_with_dialogue_policy(
         &shot.dialogue_beats,
         allowed_source_span_ids,
         dialogue_trace_policy,
+        segment.director_constraints.is_some(),
     )?;
     validate_structured_value(&shot.cinematography_plan, "视频提示词 cinematography_plan")?;
     validate_temporal_beats(&shot.temporal_beats, shot.duration_secs)?;

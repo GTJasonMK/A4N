@@ -2,6 +2,7 @@ mod codec;
 mod contracts;
 mod mutations;
 mod queries;
+mod resources;
 
 pub use contracts::*;
 pub use mutations::{
@@ -11,4 +12,8 @@ pub use mutations::{
 pub use queries::{
     chapter_visual_plan_by_id, chapter_visual_plans_for_source, chapter_visual_plans_for_sources,
     confirmed_chapter_visual_plan_for_source,
+};
+pub use resources::{
+    ensure_visual_plan_images_unreferenced, ensure_visual_plan_scenes_unreferenced,
+    visual_plan_prompt_candidate_record, visual_plan_resource_ids,
 };

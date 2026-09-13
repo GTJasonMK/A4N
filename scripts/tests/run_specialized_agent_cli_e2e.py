@@ -21,23 +21,12 @@ from specialized_agent_fixture import MARKER
 
 
 def visual_plan():
-    shots = []
-    for number in (1, 2):
-        shots.append({
-            "id": f"shot-{number}", "title": f"镜头 {number}", "duration_ms": 1000,
-            "narrative_purpose": "保持人物行动连续", "coverage": "must_show", "shot_size": None,
-            "camera_angle": None, "camera_height": None, "lens_intent": None,
-            "composition": f"原构图 {number}", "entity_events": [], "camera_events": [], "sound_events": [],
-            "technique_events": [], "continuity_notes": ["不得改动这一字段"], "transition_to_next": None,
-            "keyframes": [{"id": f"shot-{number}-{at}", "at_ms": at, "label": "关键帧",
-                "interpolation_to_next": "linear", "entity_states": [], "relations": [],
-                "camera": {"center_x": 0.5, "center_y": 0.5, "zoom": 1, "rotation_degrees": 0,
-                           "focus_entity_id": None, "framing_note": None}} for at in (0, 1000)],
-        })
-    return {"schema_version": "chapter_visual_plan_v2", "frame": {"width": 1920, "height": 1080, "background": None},
-            "entities": [], "scenes": [{"id": "scene-1", "title": "雨夜车站", "narrative_purpose": "建立场景",
-                "editing_mode": "continuity", "intercut_group_id": None, "location": None, "time_of_day": None,
-                "participant_entity_ids": [], "focal_entity_id": None, "shots": shots}]}
+    return {"schema_version": "chapter_visual_plan_v3", "frame": {"width": 1920, "height": 1080},
+            "points": [{"id": f"point-{i}", "at_ms": i * 1000, "label": "关键帧", "image_id": None,
+                        "description": "不得改动这一字段", "reference_image_ids": []} for i in range(3)],
+            "segments": [{"id": f"shot-{i}", "title": f"镜头 {i}", "start_point_id": f"point-{i-1}",
+                          "end_point_id": f"point-{i}", "prompt": f"原描述 {i}", "scene_binding": None,
+                          "use_end_point_image": False} for i in (1, 2)]}
 
 
 def main():
@@ -109,7 +98,7 @@ def main():
             report.update(project_id=project["id"], chapter_id=chapter["id"], thread_id=thread_id)
             report["checks"].append("canonical reuse preserves restrictions; catalog upgrade is explicit")
             checked(cli, ["agent", "memory", "create", "thread", thread_id, "fixture", "MEMORY_NOT_REQUESTED_不得自动注入"], "memory")
-            task = {"mode": "edit", "project_id": project["id"], "chapter_id": chapter["id"], "shot_id": "shot-1", "composition": "门框遮挡，保留右侧视线空间。"}
+            task = {"mode": "edit", "project_id": project["id"], "chapter_id": chapter["id"], "shot_id": "shot-1", "prompt": "门框遮挡，保留右侧视线空间。"}
 
             def send(value, budget=None, source=None):
                 parts = ["agent", "chat", thread_id, MARKER + json.dumps(value, ensure_ascii=False)]
@@ -147,10 +136,10 @@ def main():
             assert len([row for row in completed["executions"] if row["run_id"] == run_id and row["tool_name"] == "edit_chapter_visual_plan_draft"]) == 1
             current = call("get_chapter_visual_plan", resource)["draft"]
             expected = copy.deepcopy(draft["plan"])
-            expected["scenes"][0]["shots"][0]["composition"] = task["composition"]
+            expected["segments"][0]["prompt"] = task["prompt"]
             assert current["plan"] == expected
             assert current["record"]["revision"] == draft["record"]["revision"] + 1
-            report["checks"].append("approval resumes the original execution once; only requested composition changes")
+            report["checks"].append("approval resumes the original execution once; only requested segment prompt changes")
 
             run_id = send(task)
             approve(wait_state(run_id, "approval"))
@@ -158,23 +147,23 @@ def main():
             assert call("get_chapter_visual_plan", resource)["draft"]["record"]["revision"] == current["record"]["revision"]
             report["checks"].append("no-op edit preserves revision")
 
-            run_id = send({**task, "composition": "应被拒绝"})
+            run_id = send({**task, "prompt": "应被拒绝"})
             approve(wait_state(run_id, "approval"), "reject")
             rejected = finish(run_id)
             assert any(row["run_id"] == run_id and row["status"] == "rejected" for row in rejected["executions"])
             assert call("get_chapter_visual_plan", resource)["draft"] == current
             report["checks"].append("rejection returns an observation without writing")
 
-            run_id = send({**task, "composition": "不得覆盖并发修改"})
+            run_id = send({**task, "prompt": "不得覆盖并发修改"})
             pending = wait_state(run_id, "approval")
             change = {**resource, "record_id": current["record"]["id"], "expected_revision": current["record"]["revision"],
-                      "operation": {"kind": "update_shot_fields", "shot_id": "shot-2", "changes": {"title": "用户并发改名"}}}
+                      "operation": {"kind": "update_segment", "segment": {**current["plan"]["segments"][1], "title": "用户并发改名"}}}
             call("edit_chapter_visual_plan_draft", change)
             approve(pending)
             conflict = finish(run_id)
             assert any(row["run_id"] == run_id and row["status"] == "failed" and "revision" in (row["error"] or "") for row in conflict["executions"])
             current = call("get_chapter_visual_plan", resource)["draft"]
-            assert current["plan"]["scenes"][0]["shots"][0]["composition"] == task["composition"]
+            assert current["plan"]["segments"][0]["prompt"] == task["prompt"]
             report["checks"].append("approval never overwrites a newer draft revision")
 
             discovery_run = send({**task, "mode": "discover"})
@@ -249,7 +238,7 @@ def main():
                     return result.stdout.strip()
 
                 before_fault = call("get_chapter_visual_plan", resource)["draft"]
-                recovery_run = send({**task, "composition": "恢复验证：仅提交一次"}, {"max_model_calls": 2})
+                recovery_run = send({**task, "prompt": "恢复验证：仅提交一次"}, {"max_model_calls": 2})
                 approve(wait_state(recovery_run, "approval"))
                 saved = wait_state(recovery_run, "budget")
                 execution = next(row for row in saved["executions"] if row["run_id"] == recovery_run and row["tool_name"] == "edit_chapter_visual_plan_draft")
@@ -303,7 +292,7 @@ def main():
                 first = next(body for body in requests if any(message.get("content") == initial_task for message in body["messages"]))
                 serialized = json.dumps(first, ensure_ascii=False)
                 assert "SOURCE_NOT_REQUESTED" not in serialized and "MEMORY_NOT_REQUESTED" not in serialized
-                assert "不得改动这一字段" not in serialized and "原构图 2" not in serialized
+                assert "不得改动这一字段" not in serialized and "原描述 2" not in serialized
                 report["checks"].append("initial model request contains no unrequested source, plan or memory")
             else:
                 raise RunnerError("provider request log is required to verify on-demand context")

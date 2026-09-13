@@ -3,10 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::chapter_visual_plan::{
-    VisualCameraEventV1, VisualEntityEventV1, VisualKeyframeV1, VisualSoundEventV1,
-    VisualTechniqueEventV1, VisualUserAdditionV1,
-};
+use crate::chapter_visual_plan::{VisualSegmentProjectionV3, VisualUserAdditionV1};
 
 pub const CHAPTER_SHOOTING_SCRIPT_V1: &str = "chapter_shooting_script_v1";
 
@@ -211,7 +208,7 @@ pub struct ShootingShotV1 {
     #[serde(default)]
     pub user_addition_ids: Vec<String>,
     #[serde(default)]
-    pub visual_constraints: Option<ShootingVisualConstraintsV1>,
+    pub visual_constraints: Option<ShootingVisualConstraintsV3>,
     pub coverage: ShootingCoverageV1,
     pub narrative_purpose: String,
     pub subject: String,
@@ -236,16 +233,7 @@ pub struct ShootingShotV1 {
     pub estimated_natural_seconds: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ShootingVisualConstraintsV1 {
-    pub keyframes: Vec<VisualKeyframeV1>,
-    pub entity_events: Vec<VisualEntityEventV1>,
-    pub camera_events: Vec<VisualCameraEventV1>,
-    pub sound_events: Vec<VisualSoundEventV1>,
-    pub technique_events: Vec<VisualTechniqueEventV1>,
-    pub continuity_notes: Vec<String>,
-}
+pub type ShootingVisualConstraintsV3 = VisualSegmentProjectionV3;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
