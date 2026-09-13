@@ -20,11 +20,11 @@ use a4n_worker_contract::{
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -190,6 +190,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerExecutionResultRequest,
     ) -> Result<AgentExecutionResultPage, AppError> {
         self.request_json(Method::POST, "/internal/agent/execution/result", request)
+            .await
+    }
+
+    async fn read_memory(
+        &self,
+        request: &AgentWorkerMemoryRequest,
+    ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
+        self.request_json(Method::POST, "/internal/agent/memory", request)
             .await
     }
 

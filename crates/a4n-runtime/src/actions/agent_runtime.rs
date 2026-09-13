@@ -40,8 +40,8 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
@@ -1133,6 +1133,19 @@ pub async fn read_execution_result(
     state
         .agent_worker_read_application()
         .read_execution_result_request(request)
+        .await
+}
+
+pub async fn read_memory(
+    state: &AppState,
+    request: &AgentWorkerMemoryRequest,
+) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent memory 无效: {error}")))?;
+    state
+        .agent_worker_read_application()
+        .read_memory_request(request)
         .await
 }
 

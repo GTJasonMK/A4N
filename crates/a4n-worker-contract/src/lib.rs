@@ -211,6 +211,32 @@ pub struct AgentWorkerExecutionResultRequest {
     pub limit: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerMemoryRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub query: Option<String>,
+    pub limit: Option<u32>,
+}
+
+impl AgentWorkerMemoryRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        if self.limit == Some(0) {
+            return Err(WorkerContractError::InvalidValue {
+                field: "limit",
+                reason: "must be positive",
+            });
+        }
+        Ok(())
+    }
+}
+
 impl AgentWorkerExecutionResultRequest {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         AgentWorkerRunLeaseRequest {
@@ -1537,6 +1563,25 @@ mod tests {
             AgentWorkerExecutionResultRequest {
                 limit: Some(0),
                 ..result
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue { field: "limit", .. })
+        ));
+    }
+
+    #[test]
+    fn memory_request_rejects_zero_limit() {
+        let request = AgentWorkerMemoryRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            query: Some("scope".into()),
+            limit: Some(10),
+        };
+        request.validate().expect("memory request should be valid");
+        assert!(matches!(
+            AgentWorkerMemoryRequest {
+                limit: Some(0),
+                ..request
             }
             .validate(),
             Err(WorkerContractError::InvalidValue { field: "limit", .. })

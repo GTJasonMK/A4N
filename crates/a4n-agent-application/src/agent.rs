@@ -43,12 +43,12 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
-    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMemoryRequest,
+    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
+    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
+    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3301,6 +3301,30 @@ impl AgentApplication {
                 .collect::<Result<_, _>>()?,
             total,
         })
+    }
+
+    pub(crate) async fn read_memory_request(
+        &self,
+        request: &AgentWorkerMemoryRequest,
+    ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        let context = self.load_run_context(&claimed).await?;
+        self.read_memory_for_run(
+            &context,
+            a4n_api_contract::agent::ReadAgentMemoryInput {
+                query: request.query.clone(),
+                limit: request.limit,
+            },
+        )
+        .await
     }
 
     pub(crate) async fn renew_worker_lease(

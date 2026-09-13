@@ -18,8 +18,8 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
-    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMemoryRequest,
+    AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
     WorkerRequest,
@@ -77,6 +77,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerExecutionResultRequest,
     ) -> Result<AgentExecutionResultPage, AppError>;
+
+    async fn read_memory(
+        &self,
+        request: &AgentWorkerMemoryRequest,
+    ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError>;
 
     async fn apply_message_request(
         &self,

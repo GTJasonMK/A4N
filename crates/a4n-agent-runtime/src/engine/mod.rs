@@ -251,13 +251,8 @@ impl RuntimeAgentToolExecutor {
                 let input = parse_arguments::<a4n_api_contract::agent::ReadAgentMemoryInput>(
                     arguments, name,
                 )?;
-                serde_json::to_value(
-                    self.state
-                        .worker_read_application()
-                        .read_memory_for_run(context, input)
-                        .await?,
-                )
-                .map_err(AppError::from)
+                serde_json::to_value(self.state.read_agent_memory(claimed, input).await?)
+                    .map_err(AppError::from)
             }
             "read_agent_execution_result" => {
                 let input = parse_arguments::<

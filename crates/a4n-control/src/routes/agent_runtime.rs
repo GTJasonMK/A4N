@@ -31,11 +31,11 @@ use a4n_worker_contract::{
     AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
-    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerMemoryRequest, AgentWorkerMessageRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
+    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -201,6 +201,21 @@ pub(super) async fn read_execution_result(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::read_execution_result(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn read_memory(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerMemoryRequest>,
+) -> Result<Json<a4n_api_contract::agent::AgentMemorySearchResult>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::read_memory(state.runtime(), &input)
         .await
         .map(Json)
         .map_err(Into::into)

@@ -26,10 +26,10 @@ use a4n_worker_contract::{
     AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
     AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
     AgentWorkerExecutionResultRequest, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
-    AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    WorkerLease, WorkerRequest,
+    AgentWorkerFailureRequest, AgentWorkerMemoryRequest, AgentWorkerMessageOperation,
+    AgentWorkerMessageRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -404,6 +404,24 @@ impl AgentRuntimeState {
             operation: "读取 Agent execution result".into(),
         })?;
         self.host.read_execution_result(&request).await
+    }
+
+    pub async fn read_agent_memory(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: a4n_api_contract::agent::ReadAgentMemoryInput,
+    ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
+        let request = AgentWorkerMemoryRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            query: input.query,
+            limit: input.limit,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent memory request 无效: {error}"),
+            operation: "读取 Agent memory".into(),
+        })?;
+        self.host.read_memory(&request).await
     }
 
     pub async fn agent_worker_run_is_terminal(

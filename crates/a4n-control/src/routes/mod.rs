@@ -235,6 +235,7 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/execution/result",
             post(agent_runtime::read_execution_result),
         )
+        .route("/agent/memory", post(agent_runtime::read_memory))
         .route("/agent/message", post(agent_runtime::apply_message_request))
         .route("/agent/budget", post(agent_runtime::worker_budget_snapshot))
         .route("/agent/failure", post(agent_runtime::fail_agent_worker_run))
