@@ -477,9 +477,10 @@ pub struct AppState {
     /// Host-facing Galgame read boundary. Script authorization and projection
     /// stay in the Galgame owner.
     galgame_read_application: Arc<dyn a4n_api_contract::galgame::GalgameReadApplicationPort>,
-    /// Host-facing inspiration conversation boundary. History authorization
-    /// and message projection stay in the inspiration owner.
-    inspiration_application: Arc<dyn a4n_api_contract::inspiration::InspirationApplicationPort>,
+    /// Host-facing inspiration history read boundary. Authorization and
+    /// message projection stay in the inspiration owner.
+    inspiration_history_read_application:
+        Arc<dyn a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort>,
     /// Inspiration generation owner. Runtime only schedules the worker and
     /// supplies the prompt-rendering adapter.
     inspiration_generation_application:
@@ -1263,10 +1264,10 @@ impl AppState {
         self.galgame_read_application.as_ref()
     }
 
-    pub(crate) fn inspiration_application(
+    pub(crate) fn inspiration_history_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::inspiration::InspirationApplicationPort {
-        self.inspiration_application.as_ref()
+    ) -> &dyn a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort {
+        self.inspiration_history_read_application.as_ref()
     }
 
     pub(crate) fn inspiration_generation_application(
@@ -2420,7 +2421,7 @@ impl AppState {
             manga_record_read_application: Arc::new(orchestrator.clone()),
             manga_record_mutation_application: Arc::new(orchestrator.clone()),
             galgame_read_application: Arc::new(orchestrator.clone()),
-            inspiration_application: Arc::new(orchestrator.clone()),
+            inspiration_history_read_application: Arc::new(orchestrator.clone()),
             inspiration_generation_application: Arc::new(orchestrator.clone()),
             inspiration_request_application: Arc::new(orchestrator.clone()),
             capabilities,

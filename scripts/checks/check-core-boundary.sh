@@ -2349,18 +2349,18 @@ fi
 
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/inspiration_records/history.rs; then
-    printf 'Runtime inspiration history action must consume InspirationApplicationPort\n' >&2
+    printf 'Runtime inspiration history action must consume InspirationHistoryReadApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'inspiration_application\(\)' \
+if ! rg -n 'inspiration_history_read_application\(\)' \
     crates/a4n-runtime/src/actions/inspiration_records/history.rs; then
-    printf 'Runtime inspiration history action must route through InspirationApplicationPort\n' >&2
+    printf 'Runtime inspiration history action must route through InspirationHistoryReadApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait InspirationApplicationPort' crates/a4n-api-contract/src/inspiration.rs; then
-    printf 'InspirationApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait InspirationHistoryReadApplicationPort' crates/a4n-api-contract/src/inspiration.rs; then
+    printf 'InspirationHistoryReadApplicationPort contract is missing\n' >&2
     exit 1
 fi
 

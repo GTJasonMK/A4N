@@ -43,7 +43,7 @@ pub struct InspirationMessageSummary {
 /// Authorization, history limits, persistence reads, and DTO projection stay
 /// with the inspiration owner; Runtime only routes the typed query.
 #[async_trait::async_trait]
-pub trait InspirationApplicationPort: Send + Sync {
+pub trait InspirationHistoryReadApplicationPort: Send + Sync {
     async fn history(
         &self,
         user_id: i64,

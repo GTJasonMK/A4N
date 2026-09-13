@@ -70,7 +70,7 @@ pub trait InspirationGenerationApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::inspiration::InspirationApplicationPort for OrchestratorContext {
+impl a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort for OrchestratorContext {
     async fn history(
         &self,
         user_id: i64,
