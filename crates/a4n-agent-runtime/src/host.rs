@@ -7,7 +7,7 @@ use a4n_api_contract::chapter_visual_plan::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
-use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
+use a4n_worker_contract::{AgentRunPayload, AgentWorkerLeaseRenewRequest, WorkerRequest};
 use async_trait::async_trait;
 use futures::Stream;
 use serde_json::Value;
@@ -25,6 +25,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &WorkerRequest<AgentRunPayload>,
     ) -> Result<AgentRunContext, AppError>;
+
+    async fn renew_worker_lease(
+        &self,
+        request: &AgentWorkerLeaseRenewRequest,
+    ) -> Result<(), AppError>;
 
     async fn execute_command(
         &self,

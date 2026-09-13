@@ -21,9 +21,9 @@ use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerClaimRequest, AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
-    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerWaitRequest,
-    WorkerRequest,
+    AgentWorkerClaimRequest, AgentWorkerEditorProjectionRequest, AgentWorkerLeaseRenewRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
+    AgentWorkerRunContextWire, AgentWorkerWaitRequest, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -67,6 +67,19 @@ pub(super) async fn load_agent_context(
         .await
         .map(Json)
         .map_err(Into::into)
+}
+
+pub(super) async fn renew_agent_lease(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerLeaseRenewRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::renew_agent_worker_lease(state.runtime(), &input).await?;
+    Ok(Json(Value::Null))
 }
 
 pub(super) async fn command(

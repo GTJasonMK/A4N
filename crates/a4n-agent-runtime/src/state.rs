@@ -10,13 +10,16 @@ use a4n_agent_application::agent::{
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
     AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
     AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort,
+    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
     AgentWorkerUsageApplicationPort, AgentWorkerWaitApplicationPort,
     AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
-use a4n_worker_contract::{AgentHostCommandPayload, AgentRunPayload, WorkerRequest};
+use a4n_worker_contract::{
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerLeaseRenewRequest, WorkerLease,
+    WorkerRequest,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -84,6 +87,42 @@ impl AgentRuntimeState {
         request: &WorkerRequest<AgentRunPayload>,
     ) -> Result<AgentRunContext, AppError> {
         self.host.load_run_context(request).await
+    }
+
+    pub async fn renew_agent_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+        let worker_id = claimed
+            .run
+            .worker_id
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("Agent run {} 缺少 worker_id", claimed.run.id),
+                operation: "续期 Agent worker lease".into(),
+            })?;
+        let epoch = u64::try_from(claimed.run.attempt).map_err(|_| AppError::InvalidState {
+            current: format!("Agent run {} 的 attempt 无效", claimed.run.id),
+            operation: "续期 Agent worker lease".into(),
+        })?;
+        let expires_at = claimed
+            .run
+            .lease_expires_at
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("Agent run {} 缺少 lease_expires_at", claimed.run.id),
+                operation: "续期 Agent worker lease".into(),
+            })?;
+        let request = AgentWorkerLeaseRenewRequest {
+            run_id: claimed.run.id,
+            lease: WorkerLease {
+                worker_id,
+                epoch,
+                fence_token: claimed.lease_token.clone(),
+                expires_at: expires_at.to_string(),
+            },
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker lease request 无效: {error}"),
+            operation: "续期 Agent worker lease".into(),
+        })?;
+        self.host.renew_worker_lease(&request).await
     }
 
     pub async fn authorize_agent_host_command(

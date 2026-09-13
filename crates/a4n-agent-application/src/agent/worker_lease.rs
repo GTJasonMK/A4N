@@ -1,5 +1,6 @@
 use super::{AgentApplication, AgentWorkerRun};
 use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerLeaseRenewRequest;
 
 /// Runtime-facing boundary for renewing the lease held by one Agent worker.
 ///
@@ -8,11 +9,23 @@ use a4n_error::AppError;
 #[async_trait::async_trait]
 pub trait AgentWorkerLeaseApplicationPort: Send + Sync {
     async fn renew_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError>;
+
+    async fn renew_worker_lease_request(
+        &self,
+        request: &AgentWorkerLeaseRenewRequest,
+    ) -> Result<(), AppError>;
 }
 
 #[async_trait::async_trait]
 impl AgentWorkerLeaseApplicationPort for AgentApplication {
     async fn renew_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
         AgentApplication::renew_worker_lease(self, claimed).await
+    }
+
+    async fn renew_worker_lease_request(
+        &self,
+        request: &AgentWorkerLeaseRenewRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::renew_worker_lease_request(self, request).await
     }
 }

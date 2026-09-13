@@ -706,7 +706,7 @@ async fn process_claimed_run_request(
     let renew_token = renew_cancel.clone();
     let lost_lease = run_cancel.clone();
     let renew_claim = claimed.clone();
-    let renew_agent = state.worker_lease_application();
+    let renew_state = state.clone();
     let renew_handle = tokio::spawn(async move {
         let mut interval = tokio::time::interval(WORKER_RENEW_INTERVAL);
         interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -714,7 +714,7 @@ async fn process_claimed_run_request(
             tokio::select! {
                 _ = renew_token.cancelled() => break,
                 _ = interval.tick() => {
-                    if let Err(error) = renew_agent.renew_worker_lease(&renew_claim).await {
+                    if let Err(error) = renew_state.renew_agent_worker_lease(&renew_claim).await {
                         tracing::warn!(run_id = renew_claim.run.id, error = %error, "Agent worker lease renewal failed");
                         lost_lease.cancel();
                         break;

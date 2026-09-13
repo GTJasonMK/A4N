@@ -35,8 +35,9 @@ use a4n_domain::agent::{
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunSnapshotWire,
-    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, WorkerRequest,
+    AgentWorkerLeaseRenewRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
+    AgentWorkerTurnSnapshotWire, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3160,6 +3161,37 @@ impl AgentApplication {
         agent::renew_run_lease(self.connection(), claimed.run.id, &claimed.lease_token)
             .await
             .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn renew_worker_lease_request(
+        &self,
+        request: &AgentWorkerLeaseRenewRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        let attempt = i32::try_from(request.lease.epoch)
+            .map_err(|_| AppError::InvalidArgument("Agent worker epoch 无效".into()))?;
+        if run.worker_id.as_deref() != Some(request.lease.worker_id.as_str())
+            || run.attempt != attempt
+            || run.lease_token.as_deref() != Some(request.lease.fence_token.as_str())
+        {
+            return Err(AppError::InvalidState {
+                current: format!("Agent run {} 的 worker lease 不匹配", request.run_id),
+                operation: "续期 Agent worker lease".into(),
+            });
+        }
+        agent::renew_run_lease(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+        )
+        .await
+        .map_err(agent_db_error_to_app)
     }
 
     pub(crate) async fn read_execution_result_for_run(

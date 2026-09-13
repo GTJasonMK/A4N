@@ -49,6 +49,25 @@ impl AgentWorkerClaimRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerLeaseRenewRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+}
+
+impl AgentWorkerLeaseRenewRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.run_id <= 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "run_id",
+                reason: "must be positive",
+            });
+        }
+        self.lease.validate()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -424,7 +443,7 @@ pub struct WorkerLease {
 }
 
 impl WorkerLease {
-    fn validate(&self) -> Result<(), WorkerContractError> {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("lease.worker_id", &self.worker_id)?;
         if self.epoch == 0 {
             return Err(WorkerContractError::InvalidValue {

@@ -31,8 +31,8 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerRunContextWire, WORKER_SCHEMA_VERSION,
-    WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerLeaseRenewRequest, AgentWorkerRunContextWire,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1002,6 +1002,19 @@ pub async fn load_agent_run_context(
         .load_run_context(&claimed)
         .await
         .map(|context| context.to_wire())
+}
+
+pub async fn renew_agent_worker_lease(
+    state: &AppState,
+    request: &AgentWorkerLeaseRenewRequest,
+) -> Result<(), AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent worker lease 无效: {error}")))?;
+    state
+        .agent_worker_lease_application()
+        .renew_worker_lease_request(request)
+        .await
 }
 
 pub async fn authorize_agent_host_command(
