@@ -7,7 +7,7 @@ pub async fn edit_chapter_shooting_script(
     input: EditChapterShootingScriptInput,
 ) -> Result<EditedChapterShootingScriptView, String> {
     state
-        .shooting_script_record_application()
+        .shooting_script_record_mutation_application()
         .edit(user_id, input)
         .await
         .map_err(|error| error.to_string())

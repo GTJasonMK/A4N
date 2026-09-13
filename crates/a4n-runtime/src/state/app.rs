@@ -46,10 +46,12 @@ pub struct AppState {
     /// source-sync owner.
     source_sync_mutation_application:
         Arc<dyn a4n_api_contract::source_sync::SourceSyncMutationApplicationPort>,
-    /// Persisted shooting-script reads and edits stay behind the API
-    /// contract; generation workers use a separate execution boundary.
-    shooting_script_record_application:
-        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordApplicationPort>,
+    /// Persisted shooting-script reads stay behind the API contract;
+    /// generation workers use a separate execution boundary.
+    shooting_script_record_read_application:
+        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort>,
+    shooting_script_record_mutation_application:
+        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
     shooting_script_generation_application:
         Arc<dyn a4n_orchestrator::ShootingScriptGenerationApplicationPort>,
     /// Host-facing authentication boundary. Passwords, sessions and ORM
@@ -1923,10 +1925,16 @@ impl AppState {
         self.source_sync_mutation_application.as_ref()
     }
 
-    pub(crate) fn shooting_script_record_application(
+    pub(crate) fn shooting_script_record_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptRecordApplicationPort {
-        self.shooting_script_record_application.as_ref()
+    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort {
+        self.shooting_script_record_read_application.as_ref()
+    }
+
+    pub(crate) fn shooting_script_record_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort {
+        self.shooting_script_record_mutation_application.as_ref()
     }
 
     pub(crate) fn shooting_script_generation_application(
@@ -2180,7 +2188,8 @@ impl AppState {
             generation_application: Arc::new(orchestrator.clone()),
             source_sync_read_application: Arc::new(orchestrator.clone()),
             source_sync_mutation_application: Arc::new(orchestrator.clone()),
-            shooting_script_record_application: Arc::new(orchestrator.clone()),
+            shooting_script_record_read_application: Arc::new(orchestrator.clone()),
+            shooting_script_record_mutation_application: Arc::new(orchestrator.clone()),
             shooting_script_generation_application: Arc::new(orchestrator.clone()),
             auth_application: Arc::new(orchestrator.clone()),
             admin_application: Arc::new(orchestrator.clone()),

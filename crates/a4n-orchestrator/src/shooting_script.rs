@@ -25,7 +25,7 @@ pub(in crate::shooting_script) use workflow_rules::chapter_shooting_script_workf
 
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-    ShootingScriptRecordApplicationPort,
+    ShootingScriptRecordMutationApplicationPort, ShootingScriptRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
@@ -59,7 +59,7 @@ pub trait ShootingScriptGenerationApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-impl ShootingScriptRecordApplicationPort for crate::OrchestratorContext {
+impl ShootingScriptRecordReadApplicationPort for crate::OrchestratorContext {
     async fn current(
         &self,
         user_id: i64,
@@ -79,7 +79,10 @@ impl ShootingScriptRecordApplicationPort for crate::OrchestratorContext {
             .await
             .map(|progress| progress.map(chapter_shooting_script_unit_progress_view))
     }
+}
 
+#[async_trait::async_trait]
+impl ShootingScriptRecordMutationApplicationPort for crate::OrchestratorContext {
     async fn edit(
         &self,
         user_id: i64,

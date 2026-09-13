@@ -2125,10 +2125,15 @@ if rg -n 'shooting_script_application\(\)|ShootingScriptApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'shooting_script_record_application\(\)' \
-    crates/a4n-runtime/src/actions/shooting_script_records/read.rs \
+if ! rg -n 'shooting_script_record_read_application\(\)' \
+    crates/a4n-runtime/src/actions/shooting_script_records/read.rs; then
+    printf 'Runtime shooting-script record reads must route through the read port\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'shooting_script_record_mutation_application\(\)' \
     crates/a4n-runtime/src/actions/shooting_script_records/edit.rs; then
-    printf 'Runtime shooting-script record actions must route through the API record port\n' >&2
+    printf 'Runtime shooting-script record edits must route through the mutation port\n' >&2
     exit 1
 fi
 
@@ -2138,9 +2143,16 @@ if ! rg -n 'shooting_script_generation_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ShootingScriptRecordApplicationPort' \
+if ! rg -n 'pub trait ShootingScriptRecord(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/shooting_script.rs; then
-    printf 'ShootingScriptRecordApplicationPort contract is missing\n' >&2
+    printf 'ShootingScriptRecord read/mutation contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'ShootingScriptRecordApplicationPort' \
+    crates/a4n-api-contract/src/shooting_script.rs \
+    crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed ShootingScriptRecordApplicationPort must remain removed\n' >&2
     exit 1
 fi
 
