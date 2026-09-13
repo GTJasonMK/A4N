@@ -1,15 +1,14 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
     AgentApplication, AgentDelegationSnapshot, AgentEditorClaimApplicationPort,
-    AgentExecutionSnapshot, AgentGenerationCancelApplicationPort, AgentInboxSnapshot,
-    AgentMessageSnapshot, AgentRunContext, AgentRunSnapshot, AgentTurnSnapshot,
-    AgentWorkerActivationApplicationPort, AgentWorkerApprovalApplicationPort,
-    AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot,
-    AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerInboxApplicationPort,
-    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot, AgentRunContext,
+    AgentRunSnapshot, AgentTurnSnapshot, AgentWorkerActivationApplicationPort,
+    AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
+    AgentWorkerBudgetSnapshot, AgentWorkerDelegationApplicationPort,
+    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
+    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
+    AgentWorkflowBindingApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -945,12 +944,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn editor_claim_application(&self) -> &dyn AgentEditorClaimApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn generation_cancel_application(&self) -> &dyn AgentGenerationCancelApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn workflow_cancel_application(&self) -> &dyn AgentWorkflowCancelApplicationPort {
         self.application.as_ref()
     }
 }
