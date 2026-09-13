@@ -2357,13 +2357,17 @@ if ! rg -n 'shooting_script_record_mutation_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'shooting_script_generation_application\(\)' \
+if ! rg -n 'shooting_script_full_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/shooting_script_records/generation.rs || \
+   ! rg -n 'shooting_script_next_unit_generation_application\(\)' \
     crates/a4n-runtime/src/actions/shooting_script_records/generation.rs; then
-    printf 'Runtime shooting-script generation actions must route through the generation port\n' >&2
+    printf 'Runtime shooting-script generation actions must route through worker-specific ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait ShootingScriptRecord(Read|Mutation)ApplicationPort' \
+if ! rg -n 'pub trait ShootingScript(FullGeneration|NextUnitGeneration)ApplicationPort' \
+    crates/a4n-orchestrator/src/shooting_script.rs || \
+   ! rg -n 'pub trait ShootingScriptRecord(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/shooting_script.rs; then
     printf 'ShootingScriptRecord read/mutation contracts are missing\n' >&2
     exit 1

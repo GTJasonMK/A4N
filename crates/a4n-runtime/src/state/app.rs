@@ -56,8 +56,10 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort>,
     shooting_script_record_mutation_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
-    shooting_script_generation_application:
-        Arc<dyn a4n_orchestrator::ShootingScriptGenerationApplicationPort>,
+    shooting_script_full_generation_application:
+        Arc<dyn a4n_orchestrator::ShootingScriptFullGenerationApplicationPort>,
+    shooting_script_next_unit_generation_application:
+        Arc<dyn a4n_orchestrator::ShootingScriptNextUnitGenerationApplicationPort>,
     /// Host-facing authentication read boundary. Passwords, sessions and ORM
     /// models remain owned by the authentication application.
     auth_read_application: Arc<dyn a4n_api_contract::auth::AuthReadApplicationPort>,
@@ -2449,10 +2451,17 @@ impl AppState {
         self.shooting_script_record_mutation_application.as_ref()
     }
 
-    pub(crate) fn shooting_script_generation_application(
+    pub(crate) fn shooting_script_full_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ShootingScriptGenerationApplicationPort {
-        self.shooting_script_generation_application.as_ref()
+    ) -> &dyn a4n_orchestrator::ShootingScriptFullGenerationApplicationPort {
+        self.shooting_script_full_generation_application.as_ref()
+    }
+
+    pub(crate) fn shooting_script_next_unit_generation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::ShootingScriptNextUnitGenerationApplicationPort {
+        self.shooting_script_next_unit_generation_application
+            .as_ref()
     }
 
     pub(crate) fn rag_search(&self) -> &dyn a4n_rag_contract::RagSearchPort {
@@ -2714,7 +2723,8 @@ impl AppState {
             source_sync_mutation_application: Arc::new(orchestrator.clone()),
             shooting_script_record_read_application: Arc::new(orchestrator.clone()),
             shooting_script_record_mutation_application: Arc::new(orchestrator.clone()),
-            shooting_script_generation_application: Arc::new(orchestrator.clone()),
+            shooting_script_full_generation_application: Arc::new(orchestrator.clone()),
+            shooting_script_next_unit_generation_application: Arc::new(orchestrator.clone()),
             auth_read_application: Arc::new(orchestrator.clone()),
             auth_mutation_application: Arc::new(orchestrator.clone()),
             admin_read_application: Arc::new(orchestrator.clone()),

@@ -72,7 +72,9 @@ pub use outline::{
     OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
 };
 pub use profile_material::ProfileMaterialUploadApplicationPort;
-pub use shooting_script::ShootingScriptGenerationApplicationPort;
+pub use shooting_script::{
+    ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
+};
 
 pub(crate) use errors::{
     chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,
