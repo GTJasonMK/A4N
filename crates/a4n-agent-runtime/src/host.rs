@@ -1,5 +1,7 @@
 use a4n_agent_application::agent::AgentRunContext;
-use a4n_api_contract::agent::AgentExecutionResultPage;
+use a4n_api_contract::agent::{
+    AgentExecutionResultPage, AgentToolDescriptor, AgentToolSearchResult,
+};
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
 };
@@ -9,25 +11,27 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AgentRunPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalExpiryRequest, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
-    AgentWorkerBudgetSnapshotWire, AgentWorkerClaimRequest, AgentWorkerCompletionRequest,
-    AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
-    AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
-    AgentWorkerDelegationStartRequest, AgentWorkerDelegationStartSnapshotWire,
-    AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
-    AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
-    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
-    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
-    AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
-    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest,
-    AgentWorkerGenerationCancelScanRequest, AgentWorkerGenerationCancelSnapshotWire,
-    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
-    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerBudgetSnapshotWire, AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitExpiryRequest,
+    AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
+    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionResultRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
+    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerExternalTaskWaitScanRequest,
+    AgentWorkerExternalTaskWaitSnapshotWire, AgentWorkerExternalTaskWaitWakeRequest,
+    AgentWorkerFailureRequest, AgentWorkerGenerationCancelScanRequest,
+    AgentWorkerGenerationCancelSnapshotWire, AgentWorkerHistoryRequest,
+    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
+    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest,
+    AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -92,6 +96,21 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerMemoryRequest,
     ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError>;
+
+    async fn search_agent_tools(
+        &self,
+        request: &AgentWorkerToolSearchRequest,
+    ) -> Result<AgentToolSearchResult, AppError>;
+
+    async fn describe_agent_tool(
+        &self,
+        request: &AgentWorkerToolDescribeRequest,
+    ) -> Result<AgentToolDescriptor, AppError>;
+
+    async fn verify_agent_chapters(
+        &self,
+        request: &AgentWorkerChapterScopeRequest,
+    ) -> Result<(), AppError>;
 
     async fn read_worker_history(
         &self,

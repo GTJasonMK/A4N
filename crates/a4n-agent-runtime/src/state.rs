@@ -5,8 +5,7 @@ use a4n_agent_application::agent::{
     AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerBudgetSnapshot, AgentWorkerDelegationApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
-    WorkerExecutionInput, WorkerExecutionUpdate,
+    AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
@@ -925,9 +924,6 @@ impl AgentRuntimeState {
             state: self,
             claimed,
         }
-    }
-    pub fn worker_read_application(&self) -> &dyn AgentWorkerReadApplicationPort {
-        self.application.as_ref()
     }
 }
 

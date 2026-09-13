@@ -1,11 +1,12 @@
+use crate::host::AgentRuntimeHost;
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
     AgentRunContext, AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort, AgentWorkerRun,
-    WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
-    enforce_delegation_limits, validate_agent_budget,
+    AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
+    WorkerExecutionUpdate, child_budget_within_parent, enforce_delegation_limits,
+    validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -18,9 +19,10 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalExpiryRequest,
-    AgentWorkerClaimRequest, AgentWorkerEditorWaitExpiryRequest,
-    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerRunWire, WORKER_SCHEMA_VERSION, WorkerLease,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest, AgentWorkerEditorWaitExpiryRequest,
+    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerRunWire, AgentWorkerToolDescribeRequest,
+    AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -203,7 +205,7 @@ impl RuntimeAgentToolExecutor {
         ensure_scope_allows_tool(&context.scope, name)?;
         ensure_argument_scope(&context.scope, &descriptor, &arguments)?;
         ensure_argument_resource_scope(
-            self.state.worker_read_application(),
+            self.state.host(),
             context.owner_user_id,
             &context.scope,
             &arguments,
@@ -234,8 +236,9 @@ impl RuntimeAgentToolExecutor {
                 }
                 serde_json::to_value(
                     self.state
-                        .worker_read_application()
-                        .search_tools_for_worker(input)?,
+                        .host()
+                        .search_agent_tools(&AgentWorkerToolSearchRequest { input })
+                        .await?,
                 )
                 .map_err(AppError::from)
             }
@@ -244,8 +247,9 @@ impl RuntimeAgentToolExecutor {
                 ensure_scope_allows_tool(&context.scope, &input.name)?;
                 serde_json::to_value(
                     self.state
-                        .worker_read_application()
-                        .describe_tool_for_worker(input)?,
+                        .host()
+                        .describe_agent_tool(&AgentWorkerToolDescribeRequest { input })
+                        .await?,
                 )
                 .map_err(AppError::from)
             }
@@ -377,7 +381,7 @@ fn ensure_argument_scope(
 }
 
 async fn ensure_argument_resource_scope(
-    application: &dyn AgentWorkerReadApplicationPort,
+    host: &dyn AgentRuntimeHost,
     user_id: i64,
     scope: &AgentScope,
     arguments: &Value,
@@ -397,9 +401,12 @@ async fn ensure_argument_resource_scope(
     for requested_project in project_ids {
         ensure_project_scope(scope, requested_project)?;
     }
-    application
-        .verify_chapters_in_project_for_worker(user_id, project_id, &chapter_ids)
-        .await
+    host.verify_agent_chapters(&AgentWorkerChapterScopeRequest {
+        user_id,
+        project_id,
+        chapter_ids,
+    })
+    .await
 }
 
 async fn ensure_agent_package_enabled(state: &AgentRuntimeState) -> Result<(), AppError> {

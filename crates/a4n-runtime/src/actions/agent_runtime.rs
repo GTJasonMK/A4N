@@ -34,27 +34,27 @@ use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalCheckRequest,
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalExpiryRequest,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
-    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
-    AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
-    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
-    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
-    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEditorWaitExpiryRequest,
-    AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
-    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionResultRequest,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
-    AgentWorkerExpiredRunRecoveryRequest, AgentWorkerExternalTaskWaitScanRequest,
-    AgentWorkerExternalTaskWaitSnapshotWire, AgentWorkerExternalTaskWaitWakeRequest,
-    AgentWorkerFailureRequest, AgentWorkerGenerationCancelScanRequest,
-    AgentWorkerGenerationCancelSnapshotWire, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
+    AgentWorkerChapterScopeRequest, AgentWorkerCompletionRequest,
+    AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
+    AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
+    AgentWorkerDelegationStartRequest, AgentWorkerDelegationStartSnapshotWire,
+    AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
+    AgentWorkerEditorWaitExpiryRequest, AgentWorkerEditorWaitRequest, AgentWorkerEventRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerExecutionSnapshotWire,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerExpiredRunRecoveryRequest,
+    AgentWorkerExternalTaskWaitScanRequest, AgentWorkerExternalTaskWaitSnapshotWire,
+    AgentWorkerExternalTaskWaitWakeRequest, AgentWorkerFailureRequest,
+    AgentWorkerGenerationCancelScanRequest, AgentWorkerGenerationCancelSnapshotWire,
+    AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest,
+    AgentWorkerInboxConsumeRequest, AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
+    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1156,6 +1156,47 @@ pub async fn read_memory(
     state
         .agent_worker_read_application()
         .read_memory_request(request)
+        .await
+}
+
+pub fn search_agent_tools_for_worker(
+    state: &AppState,
+    request: &AgentWorkerToolSearchRequest,
+) -> Result<AgentToolSearchResult, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent tool search 无效: {error}")))?;
+    state
+        .agent_worker_read_application()
+        .search_tools_for_worker(request.input.clone())
+}
+
+pub fn describe_agent_tool_for_worker(
+    state: &AppState,
+    request: &AgentWorkerToolDescribeRequest,
+) -> Result<AgentToolDescriptor, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent tool describe 无效: {error}")))?;
+    state
+        .agent_worker_read_application()
+        .describe_tool_for_worker(request.input.clone())
+}
+
+pub async fn verify_agent_chapters_for_worker(
+    state: &AppState,
+    request: &AgentWorkerChapterScopeRequest,
+) -> Result<(), AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent chapter scope 无效: {error}")))?;
+    state
+        .agent_worker_read_application()
+        .verify_chapters_in_project_for_worker(
+            request.user_id,
+            request.project_id,
+            &request.chapter_ids,
+        )
         .await
 }
 

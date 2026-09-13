@@ -12,8 +12,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalExpiryRequest, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
-    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
-    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChapterScopeRequest, AgentWorkerChatRequest,
+    AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
@@ -32,8 +32,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest,
-    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -243,6 +244,32 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
         self.request_json(Method::POST, "/internal/agent/memory", request)
             .await
+    }
+
+    async fn search_agent_tools(
+        &self,
+        request: &AgentWorkerToolSearchRequest,
+    ) -> Result<a4n_api_contract::agent::AgentToolSearchResult, AppError> {
+        self.request_json(Method::POST, "/internal/agent/tools/search", request)
+            .await
+    }
+
+    async fn describe_agent_tool(
+        &self,
+        request: &AgentWorkerToolDescribeRequest,
+    ) -> Result<a4n_api_contract::agent::AgentToolDescriptor, AppError> {
+        self.request_json(Method::POST, "/internal/agent/tools/describe", request)
+            .await
+    }
+
+    async fn verify_agent_chapters(
+        &self,
+        request: &AgentWorkerChapterScopeRequest,
+    ) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/scope/chapters", request)
+            .await?;
+        Ok(())
     }
 
     async fn read_worker_history(

@@ -236,6 +236,18 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::read_execution_result),
         )
         .route("/agent/memory", post(agent_runtime::read_memory))
+        .route(
+            "/agent/tools/search",
+            post(agent_runtime::search_agent_tools),
+        )
+        .route(
+            "/agent/tools/describe",
+            post(agent_runtime::describe_agent_tool),
+        )
+        .route(
+            "/agent/scope/chapters",
+            post(agent_runtime::verify_agent_chapters),
+        )
         .route("/agent/history", post(agent_runtime::read_worker_history))
         .route(
             "/agent/recovery",

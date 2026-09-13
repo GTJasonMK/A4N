@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 pub use a4n_api_contract::agent::AgentScope;
 use a4n_api_contract::agent::{
-    AgentDelegationView, AgentEditorRequest, AgentResourceRef, ReviewAgentDelegationInput,
+    AgentDelegationView, AgentEditorRequest, AgentResourceRef, DescribeAgentToolInput,
+    ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV2, VisualPlanReadView};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
@@ -234,6 +235,55 @@ impl AgentWorkerMemoryRequest {
                 field: "limit",
                 reason: "must be positive",
             });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerToolSearchRequest {
+    pub input: SearchAgentToolsInput,
+}
+
+impl AgentWorkerToolSearchRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.input.limit == Some(0) {
+            return Err(WorkerContractError::InvalidValue {
+                field: "input.limit",
+                reason: "must be positive",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerToolDescribeRequest {
+    pub input: DescribeAgentToolInput,
+}
+
+impl AgentWorkerToolDescribeRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        validate_non_blank("input.name", &self.input.name)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerChapterScopeRequest {
+    pub user_id: i64,
+    pub project_id: i64,
+    pub chapter_ids: Vec<i64>,
+}
+
+impl AgentWorkerChapterScopeRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        validate_positive_id("user_id", self.user_id)?;
+        validate_positive_id("project_id", self.project_id)?;
+        for chapter_id in &self.chapter_ids {
+            validate_positive_id("chapter_ids[]", *chapter_id)?;
         }
         Ok(())
     }
@@ -1931,6 +1981,53 @@ mod tests {
             .validate(),
             Err(WorkerContractError::InvalidValue { field: "limit", .. })
         ));
+    }
+
+    #[test]
+    fn worker_read_requests_validate_boundary_values() {
+        let search = AgentWorkerToolSearchRequest {
+            input: SearchAgentToolsInput {
+                query: None,
+                domain: None,
+                effect: None,
+                capability: None,
+                limit: Some(1),
+            },
+        };
+        search.validate().expect("tool search should be valid");
+        assert!(matches!(
+            AgentWorkerToolSearchRequest {
+                input: SearchAgentToolsInput {
+                    query: None,
+                    domain: None,
+                    effect: None,
+                    capability: None,
+                    limit: Some(0),
+                }
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "input.limit",
+                ..
+            })
+        ));
+
+        assert!(matches!(
+            AgentWorkerToolDescribeRequest {
+                input: DescribeAgentToolInput { name: " ".into() }
+            }
+            .validate(),
+            Err(WorkerContractError::BlankField {
+                field: "input.name"
+            })
+        ));
+        AgentWorkerChapterScopeRequest {
+            user_id: 1,
+            project_id: 2,
+            chapter_ids: vec![3],
+        }
+        .validate()
+        .expect("chapter scope should be valid");
     }
 
     #[test]

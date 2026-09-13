@@ -23,8 +23,8 @@ use a4n_worker_contract::{
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalExpiryRequest, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
-    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
-    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChapterScopeRequest, AgentWorkerChatRequest,
+    AgentWorkerClaimRequest, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerDelegationReviewRequest,
     AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
     AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
@@ -43,8 +43,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest,
-    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -228,6 +229,47 @@ pub(super) async fn read_memory(
         .await
         .map(Json)
         .map_err(Into::into)
+}
+
+pub(super) async fn search_agent_tools(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerToolSearchRequest>,
+) -> Result<Json<AgentToolSearchResult>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::search_agent_tools_for_worker(state.runtime(), &input)
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn describe_agent_tool(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerToolDescribeRequest>,
+) -> Result<Json<AgentToolDescriptor>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::describe_agent_tool_for_worker(state.runtime(), &input)
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn verify_agent_chapters(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerChapterScopeRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::verify_agent_chapters_for_worker(state.runtime(), &input).await?;
+    Ok(Json(Value::Null))
 }
 
 pub(super) async fn read_worker_history(
