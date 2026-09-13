@@ -1,7 +1,5 @@
 [
   {"package":"a4n-cli","binary":"a4n"},
   {"package":"a4n-server","binary":"a4n-server"},
-  {"package":"a4n-control","binary":"a4n-control"},
-  {"package":"a4n-agent-worker","binary":"a4n-agent-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}
 ]

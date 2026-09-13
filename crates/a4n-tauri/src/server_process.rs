@@ -44,8 +44,6 @@ impl LocalServerProcess {
 
         let server = resolve_binary(app, "a4n-server", "A4N_SERVER_BINARY")?;
         let migration = resolve_binary(app, "a4n-migration", "A4N_MIGRATION_BINARY")?;
-        let control = resolve_binary(app, "a4n-control", "A4N_CONTROL_BINARY")?;
-        let agent_worker = resolve_binary(app, "a4n-agent-worker", "A4N_AGENT_WORKER_BINARY")?;
         run_migration(&migration)?;
 
         let mut command = Command::new(&server);
@@ -53,8 +51,6 @@ impl LocalServerProcess {
             .env("A4N_WEB_ADDR", "127.0.0.1:8080")
             .env("A4N_RUNTIME_PROFILE", "sidecar")
             .env("A4N_MANAGED_SIDECARS", "1")
-            .env("A4N_CONTROL_BINARY", &control)
-            .env("A4N_AGENT_WORKER_BINARY", &agent_worker)
             .env("A4N_PORTABLE_HOME", server_portable_home())
             .env("A4N_DATA_DIR", &config.data_dir)
             .env("A4N_CACHE_DIR", &config.cache_dir)

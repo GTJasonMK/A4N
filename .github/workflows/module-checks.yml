@@ -766,15 +766,10 @@ jobs:
           source scripts/lib/common.sh
           require_onnxruntime
 
-      - name: Build external Control and Agent worker
-        run: >-
-          timeout 900 cargo build -p a4n-control -p a4n-agent-worker
-          --features embedded-capabilities
-
       - name: Run 1 MiB generation reconnect recovery
         run: >-
           timeout 900 cargo test -p a4n-server
-          --features embedded-capabilities
+          --features embedded-llm-provider,embedded-media-providers
           --test cleanup_recovery
           server_process_reconnects_inspiration_sse_ten_times_without_losing_one_mib
           -- --nocapture --test-threads=1

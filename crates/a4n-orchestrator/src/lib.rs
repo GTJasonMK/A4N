@@ -4,7 +4,7 @@
 //! call this crate instead of owning business transactions directly.
 
 pub mod admin;
-pub use a4n_agent_application::agent;
+pub mod agent;
 mod asset;
 pub mod auth;
 mod blueprint;

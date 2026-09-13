@@ -24,7 +24,7 @@ pub(crate) mod state;
 mod task_queue;
 pub(crate) mod workflow;
 
-pub use state::{AppState, RuntimeProfile, RuntimeRole};
+pub use state::{AppState, RuntimeProfile};
 
 #[cfg(test)]
 mod media_lifecycle_tests;

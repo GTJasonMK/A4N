@@ -185,16 +185,6 @@ impl ApiError {
         }
     }
 
-    pub fn internal(code: &'static str, message: impl Into<String>, retryable: bool) -> Self {
-        Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            code,
-            message: message.into(),
-            retryable,
-            details: Map::new(),
-        }
-    }
-
     pub fn package_unavailable(availability: PackageCommandAvailability) -> Self {
         let (message, retryable, details) = package_unavailable_parts(&availability);
         Self {

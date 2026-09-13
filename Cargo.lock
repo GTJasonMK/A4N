@@ -3,74 +3,6 @@
 version = 4
 
 [[package]]
-name = "a4n-agent-application"
-version = "0.1.0"
-dependencies = [
- "a4n-api-contract",
- "a4n-db",
- "a4n-db-models",
- "a4n-domain",
- "a4n-error",
- "a4n-llm",
- "a4n-migration",
- "a4n-worker-contract",
- "anyhow",
- "async-trait",
- "chrono",
- "sea-orm",
- "serde",
- "serde_json",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "a4n-agent-runtime"
-version = "0.1.0"
-dependencies = [
- "a4n-agent-application",
- "a4n-api-contract",
- "a4n-domain",
- "a4n-error",
- "a4n-llm",
- "a4n-service-protocol",
- "a4n-worker-contract",
- "async-trait",
- "chrono",
- "futures",
- "serde",
- "serde_json",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "a4n-agent-worker"
-version = "0.1.0"
-dependencies = [
- "a4n-agent-application",
- "a4n-agent-runtime",
- "a4n-api-contract",
- "a4n-config",
- "a4n-db",
- "a4n-error",
- "a4n-llm",
- "a4n-worker-contract",
- "anyhow",
- "async-trait",
- "futures",
- "reqwest 0.12.28",
- "sea-orm",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "a4n-api-contract"
 version = "0.1.0"
 dependencies = [
@@ -160,40 +92,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-control"
-version = "0.1.0"
-dependencies = [
- "a4n-agent-application",
- "a4n-api-contract",
- "a4n-config",
- "a4n-domain",
- "a4n-error",
- "a4n-llm",
- "a4n-media",
- "a4n-runtime",
- "a4n-service-protocol",
- "a4n-storage",
- "a4n-task-runtime",
- "a4n-worker-contract",
- "anyhow",
- "axum 0.8.9",
- "base64 0.22.1",
- "chrono",
- "futures",
- "parking_lot",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "tokio",
- "tokio-util",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "a4n-db"
 version = "0.1.0"
 dependencies = [
@@ -266,20 +164,6 @@ dependencies = [
  "serde_json_canonicalizer",
  "sha2",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "a4n-edge"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum 0.8.9",
- "futures",
- "reqwest 0.12.28",
- "tokio",
- "tower-http",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -637,7 +521,6 @@ dependencies = [
 name = "a4n-orchestrator"
 version = "0.1.0"
 dependencies = [
- "a4n-agent-application",
  "a4n-api-contract",
  "a4n-archive-core",
  "a4n-canvas-contract",
@@ -674,7 +557,6 @@ dependencies = [
  "a4n-test-support",
  "a4n-video",
  "a4n-video-contract",
- "a4n-worker-contract",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -877,7 +759,6 @@ dependencies = [
 name = "a4n-runtime"
 version = "0.1.0"
 dependencies = [
- "a4n-agent-application",
  "a4n-api-contract",
  "a4n-archive-core",
  "a4n-canvas-contract",
@@ -927,7 +808,6 @@ dependencies = [
  "a4n-video-client",
  "a4n-video-contract",
  "a4n-video-providers",
- "a4n-worker-contract",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -953,27 +833,36 @@ dependencies = [
 name = "a4n-server"
 version = "0.1.0"
 dependencies = [
- "a4n-agent-worker",
  "a4n-api-contract",
- "a4n-control",
+ "a4n-config",
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
- "a4n-edge",
+ "a4n-error",
+ "a4n-media",
  "a4n-migration",
  "a4n-queue",
+ "a4n-runtime",
  "a4n-service-protocol",
+ "a4n-storage",
+ "a4n-task-runtime",
  "anyhow",
  "axum 0.8.9",
  "base64 0.22.1",
  "chrono",
  "futures",
+ "parking_lot",
  "reqwest 0.12.28",
  "sea-orm",
+ "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 
@@ -1062,12 +951,12 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-config",
- "a4n-control",
  "a4n-db",
  "a4n-error",
  "a4n-media",
  "a4n-migration",
  "a4n-runtime",
+ "a4n-server",
  "a4n-service-protocol",
  "a4n-storage",
  "a4n-task-runtime",
@@ -1198,16 +1087,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "a4n-worker-contract"
-version = "0.1.0"
-dependencies = [
- "a4n-api-contract",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
 ]
 
 [[package]]

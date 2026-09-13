@@ -1,10 +1,9 @@
 use super::*;
-use a4n_agent_application::agent::AgentExecutionSnapshot;
 use a4n_api_contract::agent::*;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanView, EditChapterVisualPlanDraftInput,
 };
-use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
+use a4n_orchestrator::agent::AgentExecutionSnapshot;
 
 pub(super) fn is_editor_tool(name: &str) -> bool {
     matches!(
@@ -193,21 +192,7 @@ async fn resolve_claimed_editor(
             error_message: None,
         })
         .await?;
-    let worker_id = claimed
-        .run
-        .worker_id
-        .as_deref()
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!("Agent run {} 缺少 worker_id", claimed.run.id),
-            operation: "恢复编辑器 Agent worker request".into(),
-        })?;
-    let worker_request = super::worker_request_for_claimed_run(
-        claimed,
-        worker_id,
-        state.agent_runtime_snapshot(claimed.run.id).await,
-    )?;
-    let outcome =
-        resolve_response(state, &context, &request, &call, response, &worker_request).await;
+    let outcome = resolve_response(state, &context, &request, &call, response).await;
     let (status, value, saved_draft, error_message) = match outcome {
         Ok((value, saved)) => (AgentExecutionStatus::Succeeded, value, saved, None),
         Err(error) => {
@@ -262,7 +247,6 @@ async fn resolve_response(
     request: &AgentEditorRequest,
     call: &ToolCall,
     response: AgentEditorResponse,
-    worker_request: &WorkerRequest<AgentRunPayload>,
 ) -> Result<(Value, Option<ChapterVisualPlanView>), AppError> {
     let budget: AgentBudget = serde_json::from_value(context.budget.clone())?;
     validate_agent_budget(&budget)?;
@@ -383,7 +367,7 @@ async fn resolve_response(
                     "原编辑器已保存版本发生变化，请重新读取后提交".into(),
                 ));
             }
-            let value = RuntimeAgentToolExecutor::new(state.clone(), worker_request.clone())
+            let value = RuntimeAgentToolExecutor::new(state.clone())
                 .execute(context, &call.name, call.arguments.clone(), true, None)
                 .await?;
             Ok((value, None))

@@ -13,15 +13,12 @@ use a4n_db::character::Sha256SnapshotStore;
 use a4n_event::{BroadcastEventBus, InternalEvent};
 use a4n_orchestrator::chapter_generation::ChapterGenerationService;
 use a4n_orchestrator::task_queue::PersistentTaskQueue;
-use a4n_worker_contract::{
-    AGENT_HOST_COMMAND_OPERATION, AgentHostCommandPayload, AgentRunPayload, WorkerRequest,
-};
 use serde_json::Value;
 
 use super::database::{
     acquire_generation_owner_lock, run_startup_migrations, validate_runtime_config,
 };
-use super::profile::{RuntimeProfile, RuntimeRole};
+use super::profile::RuntimeProfile;
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;
 use crate::sidecar_clients::RuntimeCapabilities;
@@ -236,7 +233,7 @@ pub struct AppState {
     agent_application: Arc<dyn a4n_api_contract::agent::AgentApplicationPort>,
     /// Concrete Agent owner used only by the durable Runtime worker. Keeping
     /// it here avoids making worker code depend on the full OrchestratorContext.
-    agent_worker_application: Arc<a4n_agent_application::agent::AgentApplication>,
+    agent_worker_application: Arc<a4n_orchestrator::agent::AgentApplication>,
     /// Host-facing Canvas application port. Graph permissions, versioning and
     /// persistence stay with the Canvas owner; Runtime only routes actions.
     canvas_application: Arc<dyn a4n_api_contract::canvas::CanvasApplicationPort>,
@@ -474,9 +471,9 @@ pub struct AppState {
     destructive_lifecycle: Arc<
         crate::actions::generation_tasks::destructive_lifecycle::DestructiveLifecycleCoordinator,
     >,
-    _generation_owner_lock: Option<Arc<sea_orm::DatabaseConnection>>,
+    _generation_owner_lock: Arc<sea_orm::DatabaseConnection>,
     /// ponytail: 本地 data directory 只允许一个写入 Host；明确支持共享写存储时再升级为 artifact 级数据库 lease。
-    _data_dir_lock: Option<Arc<File>>,
+    _data_dir_lock: Arc<File>,
     managed_sidecars: Arc<tokio::sync::Mutex<Vec<a4n_service_manager::ManagedSidecarProcess>>>,
     /// Serialize package/startup/Host-shutdown transitions so a temporarily
     /// detached process handle is never mistaken for an unowned service.
@@ -500,16 +497,8 @@ pub struct AppState {
 }
 
 pub type AgentHostCommandFuture = Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>;
-pub type AgentHostCommandDispatcher = Arc<
-    dyn Fn(
-            i64,
-            String,
-            AgentHostCommandPayload,
-            WorkerRequest<AgentHostCommandPayload>,
-        ) -> AgentHostCommandFuture
-        + Send
-        + Sync,
->;
+pub type AgentHostCommandDispatcher =
+    Arc<dyn Fn(i64, String, Value) -> AgentHostCommandFuture + Send + Sync>;
 
 #[derive(Clone)]
 struct AgentRunCancellation {
@@ -579,51 +568,7 @@ impl AppState {
         user_id: i64,
         command: String,
         args: Value,
-        worker_request: &WorkerRequest<AgentRunPayload>,
     ) -> Result<Value, a4n_error::AppError> {
-        let run_id = worker_request.payload.run_id;
-        let runtime_config_snapshot = self
-            .agent_runtime_snapshot(run_id)
-            .await
-            .map(serde_json::to_value)
-            .transpose()?;
-        let payload = AgentHostCommandPayload {
-            run_id,
-            command: command.clone(),
-            arguments: args,
-            runtime_config_snapshot,
-        };
-        payload
-            .validate()
-            .map_err(|error| a4n_error::AppError::InvalidState {
-                current: format!("Agent Host command payload 无效: {error}"),
-                operation: "构造 Agent Host command request".into(),
-            })?;
-        let request_id = format!(
-            "{}:host:{}",
-            worker_request.request_id,
-            uuid::Uuid::new_v4()
-        );
-        let request = WorkerRequest {
-            schema_version: worker_request.schema_version,
-            request_id: request_id.clone(),
-            trace_id: worker_request.trace_id.clone(),
-            principal: worker_request.principal.clone(),
-            operation_id: AGENT_HOST_COMMAND_OPERATION.into(),
-            idempotency_key: format!("{}:host:{request_id}", worker_request.idempotency_key),
-            project_id: worker_request.project_id,
-            root_project_id: worker_request.root_project_id,
-            target_revision: worker_request.target_revision,
-            runtime_config_snapshot_ref: worker_request.runtime_config_snapshot_ref.clone(),
-            lease: worker_request.lease.clone(),
-            payload: payload.clone(),
-        };
-        request
-            .validate()
-            .map_err(|error| a4n_error::AppError::InvalidState {
-                current: format!("Agent Host command request 无效: {error}"),
-                operation: "构造 Agent Host command request".into(),
-            })?;
         let dispatcher = self.agent_host_dispatcher.read().await.clone();
         let Some(dispatcher) = dispatcher else {
             return Err(a4n_error::AppError::InvalidState {
@@ -631,33 +576,12 @@ impl AppState {
                 operation: format!("执行 Agent Host command {command}"),
             });
         };
-        dispatcher(user_id, command, payload, request)
-            .await
-            .map_err(|error| a4n_error::AppError::InvalidState {
+        dispatcher(user_id, command, args).await.map_err(|error| {
+            a4n_error::AppError::InvalidState {
                 current: error,
                 operation: "执行 Agent 动态 Host command".into(),
-            })
-    }
-
-    /// Reloads the durable Run after an external worker has claimed it.
-    pub async fn load_agent_worker_run(
-        &self,
-        run_id: i64,
-        lease_token: &str,
-    ) -> Result<a4n_agent_application::agent::AgentWorkerRun, a4n_error::AppError> {
-        self.agent_worker_application
-            .load_claimed_worker_run(run_id, lease_token)
-            .await
-    }
-
-    /// Authorizes a Host command at the durable lease boundary.
-    pub async fn authorize_agent_host_command(
-        &self,
-        request: &WorkerRequest<AgentHostCommandPayload>,
-    ) -> Result<i64, a4n_error::AppError> {
-        self.agent_worker_application
-            .authorize_worker_host_command(request)
-            .await
+            }
+        })
     }
 
     pub(crate) async fn register_agent_run_cancellation(
@@ -1343,157 +1267,157 @@ impl AppState {
 
     pub(crate) fn agent_external_task_wait_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentExternalTaskWaitApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentExternalTaskWaitApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_editor_wait_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentEditorWaitApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentEditorWaitApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_editor_claim_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentEditorClaimApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentEditorClaimApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_generation_cancel_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentGenerationCancelApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentGenerationCancelApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_workflow_cancel_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkflowCancelApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkflowCancelApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_budget_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerBudgetApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerBudgetApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_approval_expiry_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentApprovalExpiryApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentApprovalExpiryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_run_lease_recovery_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentRunLeaseRecoveryApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentRunLeaseRecoveryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_lease_application(
         &self,
-    ) -> Arc<dyn a4n_agent_application::agent::AgentWorkerLeaseApplicationPort> {
+    ) -> Arc<dyn a4n_orchestrator::agent::AgentWorkerLeaseApplicationPort> {
         self.agent_worker_application.clone()
     }
 
     pub(crate) fn agent_worker_claim_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerClaimApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerClaimApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_failure_application(
         &self,
-    ) -> Arc<dyn a4n_agent_application::agent::AgentWorkerFailureApplicationPort> {
+    ) -> Arc<dyn a4n_orchestrator::agent::AgentWorkerFailureApplicationPort> {
         self.agent_worker_application.clone()
     }
 
     pub(crate) fn agent_worker_wait_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerWaitApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerWaitApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_read_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerReadApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerReadApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_context_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerContextApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerContextApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_execution_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerExecutionApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerExecutionApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_approval_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerApprovalApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerApprovalApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_completion_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerCompletionApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerCompletionApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_delegation_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerDelegationApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerDelegationApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_history_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerHistoryApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerHistoryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_inbox_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerInboxApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerInboxApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_message_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerMessageApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerMessageApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_usage_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerUsageApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerUsageApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_editor_response_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentEditorResponseApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentEditorResponseApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_recovery_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerRecoveryApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerRecoveryApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_worker_activation_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkerActivationApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkerActivationApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
     pub(crate) fn agent_workflow_binding_application(
         &self,
-    ) -> &dyn a4n_agent_application::agent::AgentWorkflowBindingApplicationPort {
+    ) -> &dyn a4n_orchestrator::agent::AgentWorkflowBindingApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
@@ -2017,46 +1941,18 @@ impl AppState {
         config: AppConfig,
         runtime_profile: RuntimeProfile,
     ) -> Result<Self, a4n_error::AppError> {
-        Self::new_with_profile_and_role(config, runtime_profile, RuntimeRole::Host).await
-    }
-
-    /// Builds the reduced Runtime instance used by the external Agent worker.
-    /// It shares the database and configured capability endpoints with the
-    /// Control host but does not claim Host-wide file/generation ownership or
-    /// start background workers owned by Control.
-    pub async fn new_agent_worker_with_profile(
-        config: AppConfig,
-        runtime_profile: RuntimeProfile,
-    ) -> Result<Self, a4n_error::AppError> {
-        Self::new_with_profile_and_role(config, runtime_profile, RuntimeRole::AgentWorker).await
-    }
-
-    async fn new_with_profile_and_role(
-        config: AppConfig,
-        runtime_profile: RuntimeProfile,
-        runtime_role: RuntimeRole,
-    ) -> Result<Self, a4n_error::AppError> {
         runtime_profile.validate_build_capabilities()?;
         validate_runtime_config(&config)?;
-        let data_dir_lock = match runtime_role {
-            RuntimeRole::Host => Some(Arc::new(acquire_data_dir_lock(&config.data_dir)?)),
-            RuntimeRole::AgentWorker => None,
-        };
+        let data_dir_lock = Arc::new(acquire_data_dir_lock(&config.data_dir)?);
 
         let db = sea_orm::Database::connect(&config.database_url)
             .await
             .map_err(a4n_error::AppError::Database)?;
         let db = Arc::new(db);
-        let generation_owner_lock = match runtime_role {
-            RuntimeRole::Host => Some(Arc::new(
-                acquire_generation_owner_lock(&config.database_url).await?,
-            )),
-            RuntimeRole::AgentWorker => None,
-        };
+        let generation_owner_lock =
+            Arc::new(acquire_generation_owner_lock(&config.database_url).await?);
 
-        if runtime_role == RuntimeRole::Host {
-            run_startup_migrations(db.as_ref()).await?;
-        }
+        run_startup_migrations(db.as_ref()).await?;
         let service_manager = Arc::new(
             crate::sidecar_clients::runtime_service_manager(runtime_profile, &config)
                 .map_err(a4n_error::AppError::ConfigError)?,
@@ -2127,14 +2023,12 @@ impl AppState {
         let settings_all_application: Arc<
             dyn a4n_orchestrator::config::SettingsAllApplicationPort,
         > = Arc::new(orchestrator.clone());
-        if runtime_role == RuntimeRole::Host {
-            package_application.initialize_states().await?;
-            crate::baseline_configs::ensure_baseline_model_configs(
-                config_application.as_ref(),
-                &config,
-            )
-            .await?;
-        }
+        package_application.initialize_states().await?;
+        crate::baseline_configs::ensure_baseline_model_configs(
+            config_application.as_ref(),
+            &config,
+        )
+        .await?;
 
         let state = Self {
             config: config.clone(),
@@ -2293,26 +2187,24 @@ impl AppState {
             agent_runtime_snapshots: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             agent_host_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
         };
-        if runtime_role == RuntimeRole::Host {
-            let enabled_services = state.package_application().enabled_services().await?;
-            state
-                .start_managed_sidecars_for_services(&enabled_services)
-                .await
-                .map_err(a4n_error::AppError::ConfigError)?;
-            state
-                .destructive_lifecycle()
-                .continue_pending(&state)
-                .await
-                .map_err(|current| a4n_error::AppError::InvalidState {
-                    current,
-                    operation: "恢复未完成 generation lifecycle operation".to_string(),
-                })?;
-            crate::actions::video_records::recover_expired_uploaded_video_sources(state.temp_dir());
-            crate::actions::video_records::recover_expired_assembly_caches(&state).await;
-            crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
-            crate::cleanup_outbox::spawn_cleanup_worker(state.clone());
-            crate::actions::package::spawn_package_lifecycle_worker(state.clone());
-        }
+        let enabled_services = state.package_application().enabled_services().await?;
+        state
+            .start_managed_sidecars_for_services(&enabled_services)
+            .await
+            .map_err(a4n_error::AppError::ConfigError)?;
+        state
+            .destructive_lifecycle()
+            .continue_pending(&state)
+            .await
+            .map_err(|current| a4n_error::AppError::InvalidState {
+                current,
+                operation: "恢复未完成 generation lifecycle operation".to_string(),
+            })?;
+        crate::actions::video_records::recover_expired_uploaded_video_sources(state.temp_dir());
+        crate::actions::video_records::recover_expired_assembly_caches(&state).await;
+        crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
+        crate::cleanup_outbox::spawn_cleanup_worker(state.clone());
+        crate::actions::package::spawn_package_lifecycle_worker(state.clone());
         Ok(state)
     }
 }

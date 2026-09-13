@@ -7,12 +7,9 @@
 #   ./scripts/build.sh --release    # Release 构建（LTO + strip）
 #   ./scripts/build.sh --frontend   # 仅构建前端
 #   ./scripts/build.sh --backend    # 仅构建后端（Debug）
-#   ./scripts/build.sh --package a4n-server # 仅构建轻量 Web Edge 及其依赖
-#   ./scripts/build.sh --package a4n-control # 仅构建 Control 进程及其依赖
-#   ./scripts/build.sh --package a4n-agent-worker # 仅构建 Agent worker 及其依赖
-#   ./scripts/build.sh --package a4n-server --no-default-features # 检查/构建 Edge
-#   ./scripts/build.sh --package a4n-control --features embedded-capabilities # 构建完整 Control
-#   ./scripts/build.sh --package a4n-agent-worker --features embedded-capabilities # 构建完整 Agent worker
+#   ./scripts/build.sh --package a4n-server # 仅构建指定 Rust package 及其依赖
+#   ./scripts/build.sh --package a4n-server --no-default-features # 使用 minimal host feature 集检查/构建
+#   ./scripts/build.sh --package a4n-server --features embedded-capabilities # 检查/构建 full host
 #   ./scripts/build.sh --all         # 构建整个 Rust workspace
 #   ./scripts/build.sh --check      # 仅检查编译（不输出二进制）
 #   ./scripts/build.sh --help       # 显示帮助

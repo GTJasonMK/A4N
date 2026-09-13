@@ -5,8 +5,6 @@ use serde_json::Value;
 /// Runtime-facing boundary for terminal completion of a claimed Agent Run.
 #[async_trait::async_trait]
 pub trait AgentWorkerCompletionApplicationPort: Send + Sync {
-    async fn run_is_terminal(&self, claimed: &AgentWorkerRun) -> Result<bool, AppError>;
-
     async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError>;
 
     async fn complete_child_run(
@@ -29,16 +27,6 @@ pub trait AgentWorkerCompletionApplicationPort: Send + Sync {
 
 #[async_trait::async_trait]
 impl AgentWorkerCompletionApplicationPort for AgentApplication {
-    async fn run_is_terminal(&self, claimed: &AgentWorkerRun) -> Result<bool, AppError> {
-        AgentApplication::show_run(
-            self,
-            claimed.thread.owner_user_id,
-            &claimed.run.id.to_string(),
-        )
-        .await
-        .map(|run| run.status.is_terminal())
-    }
-
     async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
         AgentApplication::result_refs_for_run(self, claimed).await
     }

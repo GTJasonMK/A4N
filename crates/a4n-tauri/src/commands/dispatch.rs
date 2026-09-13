@@ -9,7 +9,7 @@ pub async fn invoke_host_command(
     user_id: i64,
 ) -> Result<Value, Value> {
     if let Some(result) =
-        a4n_control::dispatch_generation_start(&state, user_id, &args, &command).await
+        a4n_server::dispatch_generation_start(&state, user_id, &args, &command).await
     {
         return match result {
             Ok(handle) => Ok(serde_json::to_value(handle)
@@ -21,5 +21,5 @@ pub async fn invoke_host_command(
         };
     }
 
-    a4n_control::dispatch_runtime_command_value(&state, user_id, args, command).await
+    a4n_server::dispatch_runtime_command_value(&state, user_id, args, command).await
 }

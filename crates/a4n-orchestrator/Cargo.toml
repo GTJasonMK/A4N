@@ -5,7 +5,6 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-agent-application = { path = "../a4n-agent-application" }
 a4n-archive-core = { path = "../a4n-archive-core" }
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-config = { path = "../a4n-config" }
@@ -40,7 +39,6 @@ a4n-image = { path = "../a4n-image" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-contract = { path = "../a4n-video-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
-a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 anyhow = { workspace = true }
 base64 = { workspace = true }
