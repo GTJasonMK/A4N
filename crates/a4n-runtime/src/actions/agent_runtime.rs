@@ -695,7 +695,7 @@ async fn ensure_argument_resource_scope(
         ensure_project_scope(scope, requested_project)?;
     }
     state
-        .agent_application()
+        .agent_resource_access_application()
         .verify_chapters_in_project(user_id, project_id, &chapter_ids)
         .await
 }
