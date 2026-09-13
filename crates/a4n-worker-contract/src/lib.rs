@@ -353,6 +353,42 @@ pub struct AgentWorkerResultRefsSnapshotWire {
     pub result_refs_json: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerCompletionRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub content: String,
+    pub result_summary: String,
+    pub result_refs_json: Option<serde_json::Value>,
+    pub observed_input_message_id: i64,
+}
+
+impl AgentWorkerCompletionRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("content", &self.content)?;
+        validate_non_blank("result_summary", &self.result_summary)?;
+        if self.observed_input_message_id <= 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "observed_input_message_id",
+                reason: "must be positive",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerCompletionSnapshotWire {
+    pub completed: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -1016,6 +1052,32 @@ mod tests {
         let decoded: AgentWorkerResultRefsSnapshotWire =
             serde_json::from_str(&encoded).expect("snapshot should deserialize");
         assert_eq!(decoded.result_refs_json, snapshot.result_refs_json);
+    }
+
+    #[test]
+    fn completion_request_requires_content_and_observed_message_boundary() {
+        let request = AgentWorkerCompletionRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            content: "done".into(),
+            result_summary: "done".into(),
+            result_refs_json: Some(serde_json::json!([])),
+            observed_input_message_id: 9,
+        };
+        request
+            .validate()
+            .expect("completion request should be valid");
+        let invalid = AgentWorkerCompletionRequest {
+            observed_input_message_id: 0,
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "observed_input_message_id",
+                ..
+            })
+        ));
     }
 
     #[test]

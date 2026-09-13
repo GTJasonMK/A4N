@@ -166,14 +166,7 @@ pub(super) async fn process(
         .latest_model_input_message_id(context.run.id)
         .await?
         .ok_or_else(|| AppError::InvalidArgument("内容优化缺少已处理的用户消息边界".into()))?;
-    super::complete_run(
-        state,
-        state.worker_completion_application(),
-        claimed,
-        reply,
-        observed,
-    )
-    .await
+    super::complete_run(state, claimed, reply, observed).await
 }
 
 async fn call(

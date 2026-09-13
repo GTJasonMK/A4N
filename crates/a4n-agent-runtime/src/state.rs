@@ -18,6 +18,7 @@ use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
     AgentWorkerFailureRequest, AgentWorkerMessageOperation, AgentWorkerMessageRequest,
@@ -197,6 +198,32 @@ impl AgentRuntimeState {
             .result_refs_for_run(&request)
             .await
             .map(|snapshot: AgentWorkerResultRefsSnapshotWire| snapshot.result_refs_json)
+    }
+
+    pub async fn complete_agent_worker_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        content: String,
+        result_summary: String,
+        result_refs_json: Option<Value>,
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
+        let request = AgentWorkerCompletionRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            content,
+            result_summary,
+            result_refs_json,
+            observed_input_message_id,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent completion request 无效: {error}"),
+            operation: "完成 Agent worker run".into(),
+        })?;
+        self.host
+            .complete_worker_run(&request)
+            .await
+            .map(|snapshot: AgentWorkerCompletionSnapshotWire| snapshot.completed)
     }
 
     pub async fn wait_agent_worker_run(

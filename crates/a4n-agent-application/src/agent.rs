@@ -34,7 +34,8 @@ use a4n_domain::agent::{
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentWorkerBudgetRequest, AgentWorkerContextSummaryRequest,
+    AgentHostCommandPayload, AgentWorkerBudgetRequest, AgentWorkerCompletionRequest,
+    AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
     AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageOperation,
@@ -3676,25 +3677,49 @@ impl AgentApplication {
                 "只有 child Agent run 可以回传 delegation result".into(),
             ));
         }
+        self.complete_child_run_fields(
+            claimed.run.id,
+            claimed.run.thread_id,
+            claimed.run.turn_id,
+            &claimed.lease_token,
+            content.into(),
+            result_summary.into(),
+            result_refs_json,
+            observed_input_message_id,
+        )
+        .await
+    }
+
+    async fn complete_child_run_fields(
+        &self,
+        child_run_id: i64,
+        child_thread_id: i64,
+        child_turn_id: i64,
+        child_lease_token: &str,
+        content: String,
+        result_summary: String,
+        result_refs_json: Option<Value>,
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
         agent::complete_child_delegation(
             self.connection(),
             a4n_db::agent::AgentChildCompletionInput {
-                child_run_id: claimed.run.id,
-                child_lease_token: claimed.lease_token.clone(),
+                child_run_id,
+                child_lease_token: child_lease_token.to_string(),
                 final_message: AgentMessageInput {
-                    thread_id: claimed.run.thread_id,
-                    turn_id: Some(claimed.run.turn_id),
-                    run_id: Some(claimed.run.id),
+                    thread_id: child_thread_id,
+                    turn_id: Some(child_turn_id),
+                    run_id: Some(child_run_id),
                     role: "assistant".into(),
                     sender_kind: "agent".into(),
                     sender_thread_id: None,
-                    client_message_id: Some(format!("agent-final:{}", claimed.run.id)),
-                    content: content.into(),
+                    client_message_id: Some(format!("agent-final:{child_run_id}")),
+                    content,
                     status: "complete".into(),
                     payload_json: None,
                 },
                 result_refs_json,
-                result_summary: result_summary.into(),
+                result_summary,
                 observed_input_message_id,
             },
         )
@@ -4217,19 +4242,41 @@ impl AgentApplication {
         result_refs_json: Option<Value>,
         observed_input_message_id: i64,
     ) -> Result<bool, AppError> {
+        self.complete_claimed_run_fields(
+            claimed.run.id,
+            claimed.run.thread_id,
+            claimed.run.turn_id,
+            &claimed.lease_token,
+            content.into(),
+            result_refs_json,
+            observed_input_message_id,
+        )
+        .await
+    }
+
+    async fn complete_claimed_run_fields(
+        &self,
+        run_id: i64,
+        thread_id: i64,
+        turn_id: i64,
+        lease_token: &str,
+        content: String,
+        result_refs_json: Option<Value>,
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
         let completed = agent::finish_run_with_message(
             self.connection(),
-            claimed.run.id,
-            &claimed.lease_token,
+            run_id,
+            lease_token,
             AgentMessageInput {
-                thread_id: claimed.run.thread_id,
-                turn_id: Some(claimed.run.turn_id),
-                run_id: Some(claimed.run.id),
+                thread_id,
+                turn_id: Some(turn_id),
+                run_id: Some(run_id),
                 role: "assistant".into(),
                 sender_kind: "agent".into(),
                 sender_thread_id: None,
-                client_message_id: Some(format!("agent-final:{}", claimed.run.id)),
-                content: content.into(),
+                client_message_id: Some(format!("agent-final:{run_id}")),
+                content,
                 status: "complete".into(),
                 payload_json: None,
             },
@@ -4239,6 +4286,49 @@ impl AgentApplication {
         .await
         .map_err(agent_db_error_to_app)?;
         Ok(completed.is_some())
+    }
+
+    pub(crate) async fn complete_worker_run_request(
+        &self,
+        request: &AgentWorkerCompletionRequest,
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        let completed = if run.parent_run_id.is_some() {
+            self.complete_child_run_fields(
+                run.id,
+                run.thread_id,
+                run.turn_id,
+                &request.lease.fence_token,
+                request.content.clone(),
+                request.result_summary.clone(),
+                request.result_refs_json.clone(),
+                request.observed_input_message_id,
+            )
+            .await?
+        } else {
+            self.complete_claimed_run_fields(
+                run.id,
+                run.thread_id,
+                run.turn_id,
+                &request.lease.fence_token,
+                request.content.clone(),
+                request.result_refs_json.clone(),
+                request.observed_input_message_id,
+            )
+            .await?
+        };
+        Ok(AgentWorkerCompletionSnapshotWire { completed })
     }
 
     async fn fail_claimed_run(

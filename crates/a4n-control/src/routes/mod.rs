@@ -238,6 +238,10 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/result-refs",
             post(agent_runtime::result_refs_for_agent_worker_run),
         )
+        .route(
+            "/agent/completion",
+            post(agent_runtime::complete_agent_worker_run),
+        )
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

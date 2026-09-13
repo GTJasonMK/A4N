@@ -9,6 +9,7 @@ use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AgentRunPayload, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
@@ -81,6 +82,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerResultRefsRequest,
     ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError>;
+
+    async fn complete_worker_run(
+        &self,
+        request: &AgentWorkerCompletionRequest,
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError>;
 
     async fn execute_command(
         &self,

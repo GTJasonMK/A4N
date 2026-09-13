@@ -983,14 +983,7 @@ async fn process_claimed_run_inner(
             tokens,
         )
         .await?;
-        complete_run(
-            state,
-            state.worker_completion_application(),
-            claimed,
-            content,
-            input_message_id,
-        )
-        .await?;
+        complete_run(state, claimed, content, input_message_id).await?;
         return Ok(());
     }
 
@@ -1321,7 +1314,6 @@ async fn process_claimed_run_inner(
             .await?;
             complete_run(
                 state,
-                state.worker_completion_application(),
                 claimed,
                 assistant_content,
                 execution_input_message_id(&model_execution)?,
@@ -1737,27 +1729,20 @@ fn execution_input_message_id(execution: &AgentExecutionSnapshot) -> Result<i64,
 
 async fn complete_run(
     state: &AgentRuntimeState,
-    completion_application: &dyn a4n_agent_application::agent::AgentWorkerCompletionApplicationPort,
     claimed: &AgentWorkerRun,
     content: String,
     observed_input_message_id: i64,
 ) -> Result<(), AppError> {
     let refs = state.result_refs_for_run(claimed).await?;
-    if claimed.run.parent_run_id.is_some() {
-        completion_application
-            .complete_child_run(
-                claimed,
-                content.clone(),
-                content,
-                Some(refs),
-                observed_input_message_id,
-            )
-            .await?;
-    } else {
-        completion_application
-            .complete_claimed_run(claimed, content, Some(refs), observed_input_message_id)
-            .await?;
-    }
+    state
+        .complete_agent_worker_run(
+            claimed,
+            content.clone(),
+            content,
+            Some(refs),
+            observed_input_message_id,
+        )
+        .await?;
     Ok(())
 }
 

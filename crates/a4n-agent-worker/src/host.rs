@@ -9,7 +9,8 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
     AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
-    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerContextSummaryRequest,
+    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerCompletionRequest,
+    AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
     AgentWorkerEditorProjectionRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
@@ -205,6 +206,14 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerResultRefsRequest,
     ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/result-refs", request)
+            .await
+    }
+
+    async fn complete_worker_run(
+        &self,
+        request: &AgentWorkerCompletionRequest,
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/completion", request)
             .await
     }
 

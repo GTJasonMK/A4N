@@ -32,6 +32,7 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
@@ -1168,6 +1169,19 @@ pub async fn result_refs_for_agent_worker_run(
     state
         .agent_worker_completion_application()
         .result_refs_for_run_request(request)
+        .await
+}
+
+pub async fn complete_agent_worker_run(
+    state: &AppState,
+    request: &AgentWorkerCompletionRequest,
+) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent completion 无效: {error}")))?;
+    state
+        .agent_worker_completion_application()
+        .complete_worker_run_request(request)
         .await
 }
 
