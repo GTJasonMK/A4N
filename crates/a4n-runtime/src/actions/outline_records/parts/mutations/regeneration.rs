@@ -24,7 +24,7 @@ pub async fn preview_regenerate_part_outline_request(
     .await?;
     let part_id = input.part_id;
     let request = state
-        .outline_preview_application()
+        .outline_part_mutation_preview_application()
         .preview_regenerate_part_outline(input)
         .await?;
     single_request_preview(

@@ -63,7 +63,10 @@ pub use context::generation::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries,
     GenerationTaskMutationApplicationPort, GenerationTaskReadApplicationPort,
 };
-pub use outline::{OutlinePartGenerationPreviewApplicationPort, OutlinePreviewApplicationPort};
+pub use outline::{
+    OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
+    OutlinePreviewApplicationPort,
+};
 pub use profile_material::ProfileMaterialUploadApplicationPort;
 pub use shooting_script::ShootingScriptGenerationApplicationPort;
 

@@ -52,7 +52,7 @@ pub async fn preview_regenerate_last_part_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let request = state
-        .outline_preview_application()
+        .outline_part_mutation_preview_application()
         .preview_regenerate_last_part(input)
         .await?;
     single_request_preview(

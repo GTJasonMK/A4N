@@ -29,7 +29,7 @@ use crate::{
     },
     outline::{
         OutlineGenerationApplicationPort, OutlinePartGenerationPreviewApplicationPort,
-        OutlineRequestPreviewStep,
+        OutlinePartMutationPreviewApplicationPort, OutlineRequestPreviewStep,
     },
 };
 
@@ -507,7 +507,7 @@ impl OutlinePartGenerationPreviewApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+impl OutlinePartMutationPreviewApplicationPort for OrchestratorContext {
     async fn preview_regenerate_last_part(
         &self,
         input: RegenerateLastPartInput,
@@ -528,7 +528,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     ) -> Result<ChatRequest, AppError> {
         self.preview_regenerate_part_outline_validated(input).await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     async fn preview_generate_part_chapter_outlines(
         &self,
         input: GeneratePartChapterOutlinesInput,
