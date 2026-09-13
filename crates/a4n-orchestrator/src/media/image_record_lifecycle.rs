@@ -57,16 +57,20 @@ fn image_publication_recovery_record(
     }
 }
 
-/// Host-facing image import boundary. File decoding, publication intent
-/// creation and final publication stay in the media owner.
+/// Host-facing boundary for validating and decoding imported image uploads.
 #[async_trait]
-pub trait ImageImportApplicationPort: Send + Sync {
+pub trait ImageImportPreparationApplicationPort: Send + Sync {
     async fn prepare_imported_upload(
         &self,
         user_id: i64,
         input: UploadImageInput,
     ) -> Result<PreparedImportedImageUpload, AppError>;
+}
 
+/// Host-facing boundary for creating and finalizing imported image
+/// publications.
+#[async_trait]
+pub trait ImageImportPublicationApplicationPort: Send + Sync {
     async fn create_imported_publication_intent(
         &self,
         user_id: i64,
@@ -644,7 +648,7 @@ impl ImageRecordMutationApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl ImageImportApplicationPort for OrchestratorContext {
+impl ImageImportPreparationApplicationPort for OrchestratorContext {
     async fn prepare_imported_upload(
         &self,
         user_id: i64,
@@ -653,7 +657,10 @@ impl ImageImportApplicationPort for OrchestratorContext {
         self.prepare_imported_image_upload_for_user_validated(user_id, input)
             .await
     }
+}
 
+#[async_trait]
+impl ImageImportPublicationApplicationPort for OrchestratorContext {
     async fn create_imported_publication_intent(
         &self,
         user_id: i64,

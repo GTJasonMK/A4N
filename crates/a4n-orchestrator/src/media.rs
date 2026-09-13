@@ -26,7 +26,8 @@ pub use image_generation::{
     generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
 };
 pub use image_record_lifecycle::{
-    ImageImportApplicationPort, ImagePublicationRecoveryPort, PreparedImportedImageUpload,
+    ImageImportPreparationApplicationPort, ImageImportPublicationApplicationPort,
+    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
 };
 
 pub(crate) use image_workflow_rules::{

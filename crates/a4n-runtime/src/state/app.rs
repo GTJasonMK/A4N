@@ -479,7 +479,10 @@ pub struct AppState {
     image_record_mutation_application:
         Arc<dyn a4n_api_contract::image::ImageRecordMutationApplicationPort>,
     /// Imported-image file and publication transaction owner.
-    image_import_application: Arc<dyn a4n_orchestrator::media::ImageImportApplicationPort>,
+    image_import_preparation_application:
+        Arc<dyn a4n_orchestrator::media::ImageImportPreparationApplicationPort>,
+    image_import_publication_application:
+        Arc<dyn a4n_orchestrator::media::ImageImportPublicationApplicationPort>,
     /// Image publication recovery and state-transition owner.
     image_publication_recovery_application:
         Arc<dyn a4n_orchestrator::media::ImagePublicationRecoveryPort>,
@@ -2176,10 +2179,16 @@ impl AppState {
         self.image_record_mutation_application.as_ref()
     }
 
-    pub(crate) fn image_import_application(
+    pub(crate) fn image_import_preparation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageImportApplicationPort {
-        self.image_import_application.as_ref()
+    ) -> &dyn a4n_orchestrator::media::ImageImportPreparationApplicationPort {
+        self.image_import_preparation_application.as_ref()
+    }
+
+    pub(crate) fn image_import_publication_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::media::ImageImportPublicationApplicationPort {
+        self.image_import_publication_application.as_ref()
     }
 
     pub(crate) fn image_publication_recovery_application(
@@ -2868,7 +2877,8 @@ impl AppState {
             video_prompt_draft_application: Arc::new(orchestrator.clone()),
             image_record_read_application: Arc::new(orchestrator.clone()),
             image_record_mutation_application: Arc::new(orchestrator.clone()),
-            image_import_application: Arc::new(orchestrator.clone()),
+            image_import_preparation_application: Arc::new(orchestrator.clone()),
+            image_import_publication_application: Arc::new(orchestrator.clone()),
             image_publication_recovery_application: Arc::new(orchestrator.clone()),
             image_publication_recovery_read_application: Arc::new(orchestrator.clone()),
             image_media_reference_application: Arc::new(orchestrator.clone()),

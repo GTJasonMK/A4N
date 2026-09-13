@@ -200,7 +200,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
     let final_path = format!("projects/{project_id}/images/live.png");
     let (publication, guard) = state
-        .image_import_application()
+        .image_import_publication_application()
         .create_imported_publication_intent(
             user_id,
             &prepared,
@@ -227,7 +227,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, &bytes).unwrap();
     state
-        .image_import_application()
+        .image_import_publication_application()
         .publish_imported_image(
             user_id,
             project_id,
@@ -259,7 +259,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     let (started, writing) = tokio::sync::oneshot::channel();
     let writer = tokio::spawn(async move {
         let (_publication, _guard) = writer_state
-            .image_import_application()
+            .image_import_publication_application()
             .create_imported_publication_intent(
                 user_id,
                 &abandoned,
@@ -302,7 +302,7 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
     let final_path = format!("projects/{project_id}/images/drifted.png");
     let (publication, guard) = state
-        .image_import_application()
+        .image_import_publication_application()
         .create_imported_publication_intent(
             user_id,
             &prepared,
@@ -317,7 +317,7 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, &bytes).unwrap();
     let image = state
-        .image_import_application()
+        .image_import_publication_application()
         .publish_imported_image(
             user_id,
             project_id,

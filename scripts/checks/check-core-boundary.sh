@@ -972,10 +972,18 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext|a4n_db_models::models::ai:
     exit 1
 fi
 
-if ! rg -n 'image_import_application\(\)' \
-    crates/a4n-runtime/src/actions/image_records/upload.rs \
+if ! rg -n 'image_import_preparation_application\(\)' \
+    crates/a4n-runtime/src/actions/image_records/upload.rs; then
+    printf 'Image upload preparation must route through ImageImportPreparationApplicationPort\n' >&2
+    exit 1
+fi
+if ! rg -n 'image_import_publication_application\(\)' \
     crates/a4n-runtime/src/actions/image_records/upload/record.rs; then
-    printf 'Canvas image import and image upload must route through ImageImportApplicationPort\n' >&2
+    printf 'Image publication must route through ImageImportPublicationApplicationPort\n' >&2
+    exit 1
+fi
+if rg -n 'image_import_application\(\)' crates/a4n-runtime/src; then
+    printf 'Runtime image import must not use the mixed ImageImportApplicationPort\n' >&2
     exit 1
 fi
 if ! rg -n 'image_record_read_application\(\)' \
@@ -988,9 +996,9 @@ if rg -n 'imported_image_summary' crates/a4n-runtime/src; then
     exit 1
 fi
 
-if ! rg -n 'pub trait ImageImportApplicationPort|pub trait ImagePublicationRecoveryPort' \
+if ! rg -n 'pub trait ImageImport(Preparation|Publication)ApplicationPort|pub trait ImagePublicationRecoveryPort' \
     crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then
-    printf 'image import/recovery contracts are missing\n' >&2
+    printf 'image import preparation/publication and recovery contracts are missing\n' >&2
     exit 1
 fi
 if ! rg -n 'pub trait ImagePublicationRecoveryReadPort' crates/a4n-api-contract/src/image.rs; then
