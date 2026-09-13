@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
+import { Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
 import type { ChapterVisualPlanV3, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
+import { BookButton } from "../../../components/ui/BookButton";
+import { Modal } from "../../../components/ui/Modal";
 import { durationMs, formatTime, segmentBackground, sceneLabel, segmentTimes, type DirectorSelection } from "./timeline";
 import type { DirectorPlayback } from "./playback";
 
@@ -10,6 +12,7 @@ interface Props {
   selection: DirectorSelection | null;
   clock: DirectorPlayback;
   editable: boolean;
+  error: string | null;
   sceneNames: ReadonlyMap<number, string>;
   onSelect: (selection: DirectorSelection, atMs: number) => void;
   onEdit: (operation: VisualPlanEditOperation) => Promise<void>;
@@ -18,12 +21,13 @@ interface Props {
 
 type Drag = { kind: "point" | "boundary"; id: string; startX: number; startTime: number; width: number; value: number };
 
-export function DirectorTimeline({ plan, selection, clock, editable, sceneNames, onSelect, onEdit, onSplit }: Props) {
+export function DirectorTimeline({ plan, selection, clock, editable, error, sceneNames, onSelect, onEdit, onSplit }: Props) {
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [duration, setDuration] = useState(String(durationMs(plan) / 1000));
   const [scale, setScale] = useState(100);
+  const [timingOpen, setTimingOpen] = useState(false);
   const rail = useRef<HTMLDivElement>(null);
   const scaleStart = useRef(durationMs(plan));
   const total = durationMs(plan);
@@ -78,10 +82,17 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
     setScale(100);
     scaleTimeline(target);
   };
+  const closeTiming = () => {
+    setTimingOpen(false);
+    setDuration(String(total / 1000));
+    setScale(100);
+  };
 
   return <section className="director-timeline" aria-label="导演时间线">
     <div className="director-timeline-heading">
-      <div><h3>时间线</h3><span>{plan.segments.length} 个镜头 · {plan.points.length} 个图片点</span></div>
+      <div className="director-timeline-summary"><h3>时间线</h3><span>{plan.segments.length} 个镜头 · {plan.points.length} 个图片点</span>
+        <BookButton variant="ghost" size="sm" aria-label="调整整体时长" aria-haspopup="dialog" aria-expanded={timingOpen} title="调整整体时长" onClick={() => setTimingOpen(true)}><Clock3 size={14} />时长 {formatTime(total)}</BookButton>
+      </div>
       <div className="director-inline-actions">
         <AddPointButton clock={clock} plan={plan} editable={editable} onClick={insertPoint} />
         <button type="button" onClick={onSplit} disabled={!editable}><Scissors size={15} />拆分镜头</button>
@@ -120,8 +131,9 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
             return <React.Fragment key={segment.id}>
               <button type="button" className={`director-segment ${selected ? "is-selected" : ""}`} style={{ left: percent(start), width: percent(end - start), background: segmentBackground(segment.scene_binding) }}
                 aria-label={`${segment.title} · ${sceneLabel(segment.scene_binding, sceneNames)} · ${formatTime(end - start)}`} aria-pressed={selected}
+                title={`${segment.title || `镜头 ${index + 1}`} · ${sceneLabel(segment.scene_binding, sceneNames)} · ${formatTime(end - start)}`}
                 onClick={() => onSelect({ kind: "segment", id: segment.id }, start)}>
-                <strong>{segment.title || `镜头 ${index + 1}`}</strong><span>{sceneLabel(segment.scene_binding, sceneNames)}</span>
+                <strong>{segment.title || `镜头 ${index + 1}`}</strong>
               </button>
               {index < plan.segments.length - 1 && <button type="button" className="director-segment-boundary" style={{ left: percent(drag?.kind === "boundary" && drag.id === segment.id ? drag.value : end) }}
                 aria-label={`调整 ${segment.title} 的结束边界`} disabled={!editable}
@@ -143,16 +155,18 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
         <Playhead clock={clock} total={total} />
       </div>
     </div>
-    <Scrubber clock={clock} total={total} />
-    <div className="director-timeline-footer">
-      <label>整体时长 <input aria-label="整体时长（秒）" type="number" min="0.001" step="0.001" value={duration} disabled={!editable}
-        onChange={(event) => setDuration(event.target.value)} onBlur={() => scaleTimeline(Math.round(Number(duration) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> 秒</label>
-      <label className="director-scale-label">等比伸缩 <input type="range" aria-label="等比伸缩全部时间点" min={25} max={200} step={1} value={scale} disabled={!editable}
-        onPointerDown={() => { scaleStart.current = total; }} onChange={(event) => { if (scale === 100) scaleStart.current = total; setScale(Number(event.target.value)); }}
-        onPointerUp={scaleCommit} onKeyUp={(event) => { if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") scaleCommit(); }}
-        onPointerCancel={() => setScale(100)} /><output>{formatTime(Math.round(total * scale / 100))}</output></label>
-      <span className="director-timeline-hint">图片点控制画面 · 色块控制镜头</span>
-    </div>
+    <Modal isOpen={timingOpen} title="调整时长" onClose={closeTiming} footer={<BookButton onClick={closeTiming}>完成</BookButton>}>
+      {error && <p className="director-error" role="alert">{error}</p>}
+      <div className="director-timing-fields">
+        <label>整体时长 <input className="book-control w-24 px-2 py-1" aria-label="整体时长（秒）" type="number" min="0.001" step="0.001" value={duration} disabled={!editable}
+          onChange={(event) => setDuration(event.target.value)} onBlur={() => scaleTimeline(Math.round(Number(duration) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> 秒</label>
+        <label className="director-scale-label">等比伸缩 <input type="range" aria-label="等比伸缩全部时间点" min={25} max={200} step={1} value={scale} disabled={!editable}
+          onPointerDown={() => { scaleStart.current = total; }} onChange={(event) => { if (scale === 100) scaleStart.current = total; setScale(Number(event.target.value)); }}
+          onPointerUp={scaleCommit} onKeyUp={(event) => { if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") scaleCommit(); }}
+          onPointerCancel={() => setScale(100)} /><output>{formatTime(Math.round(total * scale / 100))}</output></label>
+        <p className="director-context-line">调整时长会等比移动全部图片点，镜头顺序保持不变。</p>
+      </div>
+    </Modal>
   </section>;
 }
 
@@ -161,7 +175,7 @@ function Playhead({ clock, total }: { clock: DirectorPlayback; total: number }) 
   return <div className="director-playhead" aria-hidden="true" style={{ left: `${time / total * 100}%` }}><span /></div>;
 }
 
-function Scrubber({ clock, total }: { clock: DirectorPlayback; total: number }) {
+export function DirectorScrubber({ clock, total }: { clock: DirectorPlayback; total: number }) {
   const time = useStore(clock, (state) => state.time);
   return <input className="director-scrubber" type="range" aria-label="播放位置" min={0} max={total} step={1} value={Math.min(time, total)} onChange={(event) => clock.getState().seek(Number(event.target.value))} />;
 }

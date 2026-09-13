@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useStore } from "zustand";
 import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Play, Redo2, Save, Settings2, SkipBack, SkipForward, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
@@ -14,7 +14,7 @@ import { Modal } from "../../components/ui/Modal";
 import { readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { DirectorGeneration } from "./visual-plan/DirectorGeneration";
-import { DirectorTimeline } from "./visual-plan/DirectorTimeline";
+import { DirectorScrubber, DirectorTimeline } from "./visual-plan/DirectorTimeline";
 import { useDirectorPlan } from "./visual-plan/useDirectorPlan";
 import { useDirectorPlayback, type DirectorPlayback } from "./visual-plan/playback";
 import { durationMs, formatTime, pointAt, segmentAt, segmentTimes, type DirectorSelection } from "./visual-plan/timeline";
@@ -33,13 +33,25 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const clock = useDirectorPlayback(total, `${projectId}:${chapterId}`);
   const [selection, setSelection] = useState<DirectorSelection | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
-  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 1100px)").matches);
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1100px)");
-    const update = () => setNarrow(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
+  const [narrow, setNarrow] = useState(true);
+  const workspaceRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    // The chapter sidebar changes the space available without resizing the window.
+    let wasNarrow: boolean | undefined;
+    const update = () => {
+      const next = workspace.clientWidth < 760;
+      if (next === wasNarrow) return;
+      wasNarrow = next;
+      setNarrow(next);
+      setPanel((current) => current == null || current === "properties" ? (next ? null : "properties") : current);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [model.loading, plan != null]);
   const [generation, setGeneration] = useState<DirectorSelection | null>(null);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [scenes, setScenes] = useState<SceneProfile[]>([]);
@@ -220,10 +232,13 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   if (model.loading) return <LoadingSpinner inline={false} text="正在加载导演编排…" />;
   if (!plan) return <div className="director-error" role="alert">{model.error}<BookButton onClick={() => void model.reload(true)}>重新加载</BookButton></div>;
 
+  const selectionSummary = point
+    ? `${formatTime(point.at_ms)} · ${point.id === plan.points[0].id || point.id === plan.points.at(-1)?.id ? "固定端点" : "分镜关键帧"}`
+    : segment ? segmentTimes(plan, segment).map(formatTime).join(" → ") : "";
   const inspector = <>
-        {!narrow && <div className="director-inspector-heading"><h3>{point ? "图片点" : "镜头段"}</h3><BookIconButton label="收起属性" onClick={() => setPanel(null)}><X size={15} /></BookIconButton></div>}
+        {!narrow && <div className="director-inspector-heading"><h3>{point ? "图片点" : "镜头段"}</h3><p className="director-object-time">{selectionSummary}</p><BookIconButton label="收起属性" onClick={() => setPanel(null)}><X size={15} /></BookIconButton></div>}
         {point && <fieldset disabled={disabled} className="director-fields">
-          <p className="director-object-time">{formatTime(point.at_ms)}{point.id === plan.points[0].id || point.id === plan.points.at(-1)?.id ? " · 固定端点" : " · 分镜关键帧"}</p>
+          {narrow && <p className="director-object-time">{selectionSummary}</p>}
           <label>名称<input value={point.label} onChange={(event) => updatePoint(point.id, { label: event.target.value })} /></label>
           <label>画面描述<textarea rows={4} value={point.description} placeholder="这个时刻的主体、构图和画面状态…" onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
           <div className="director-inline-actions"><BookButton variant="secondary" size="sm" onClick={() => setPanel("media")}><ImagePlus size={15} />选择图片</BookButton><label className="director-upload-button"><Upload size={15} />上传<input type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label></div>
@@ -233,20 +248,18 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
           <div className="director-inline-actions"><BookButton variant="ghost" size="sm" onClick={openSplit}>从此处分镜</BookButton><BookIconButton label="删除图片点" disabled={disabled || point.id === plan.points[0].id || point.id === plan.points.at(-1)?.id} onClick={() => void edit({ kind: "remove_point", point_id: point.id })}><Trash2 size={15} /></BookIconButton></div>
         </fieldset>}
         {segment && <fieldset disabled={disabled} className="director-fields">
-          <p className="director-object-time">{segmentTimes(plan, segment).map(formatTime).join(" → ")}</p>
+          {narrow && <p className="director-object-time">{selectionSummary}</p>}
           <label>镜头名称<input value={segment.title} onChange={(event) => updateSegment(segment.id, { title: event.target.value })} /></label>
-          <label>变化描述<textarea rows={7} value={segment.prompt} placeholder="从起点画面开始，动作、镜头语言、风格和剧情如何变化…" onChange={(event) => updateSegment(segment.id, { prompt: event.target.value })} /></label>
+          <label>变化描述<textarea rows={4} value={segment.prompt} placeholder="从起点画面开始，动作、镜头语言、风格和剧情如何变化…" onChange={(event) => updateSegment(segment.id, { prompt: event.target.value })} /></label>
           <BookButton variant="secondary" onClick={() => setGeneration({ kind: "segment", id: segment.id })}><Sparkles size={15} />生成描述候选</BookButton>
           <SceneBindingEditor binding={segment.scene_binding} scenes={scenes} onChange={(binding) => updateSegment(segment.id, { scene_binding: binding })} />
-          <BookButton variant="ghost" size="sm" onClick={() => setPanel("scenes")}>管理场景库</BookButton>
-          <label className="director-checkbox"><input type="checkbox" checked={segment.use_end_point_image} onChange={(event) => updateSegment(segment.id, { use_end_point_image: event.target.checked })} />将结束点图片作为本镜头目标尾帧</label>
-          <p className="director-context-line">默认只使用起点和段内关键帧，结束点可以是下一镜头。</p>
+          <label className="director-checkbox" title="默认只使用起点和段内关键帧，结束点可以是下一镜头。"><input type="checkbox" checked={segment.use_end_point_image} onChange={(event) => updateSegment(segment.id, { use_end_point_image: event.target.checked })} />使用结束点图片作为目标尾帧</label>
           <div className="director-inline-actions"><BookButton variant="ghost" size="sm" onClick={openSplit}>拆分镜头</BookButton><BookButton variant="ghost" size="sm" onClick={openMerge} disabled={disabled || segment.id === plan.segments.at(-1)?.id}>与后一段合并</BookButton></div>
         </fieldset>}
   </>;
 
-  return <section className="director-workspace" aria-label="导演编排" style={{ "--director-ratio": plan.frame.width / plan.frame.height } as CSSProperties}>
-    <header className="director-header"><div><p className="director-eyebrow">导演编排 · 第 {chapter.chapter_number} 章</p><h2>{chapter.title || "分镜时间线"}</h2></div>
+  return <section ref={workspaceRef} className="director-workspace" aria-label="导演编排" style={{ "--director-ratio": plan.frame.width / plan.frame.height } as CSSProperties}>
+    <header className="director-header"><div><p className="director-eyebrow">导演编排 · 第 {chapter.chapter_number} 章</p><h2 title={chapter.title || "分镜时间线"}>{chapter.title || "分镜时间线"}</h2></div>
       <div className="director-inline-actions"><span className="director-save-status" role="status">{model.saving ? "保存中…" : model.dirty ? "未保存" : model.record?.record.status === "confirmed" ? "方案已确认" : model.record ? "草稿已保存" : "新编排"}</span>
         <BookIconButton label="撤销" onClick={model.undo} disabled={!model.canUndo || model.busy}><Undo2 size={17} /></BookIconButton>
         <BookIconButton label="重做" onClick={model.redo} disabled={!model.canRedo || model.busy}><Redo2 size={17} /></BookIconButton>
@@ -254,6 +267,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
           : canEdit && <BookButton size="sm" onClick={() => void model.startEditing()} disabled={model.busy}>编辑新版本</BookButton>}
       </div>
     </header>
+    <div className="director-alerts">
     {model.error && <div className="director-error" role="alert">{model.error}<BookButton variant="ghost" size="sm" onClick={() => void model.save().catch(model.report)} disabled={!model.editable || model.busy}>重试保存</BookButton></div>}
     {assetError && <div className="director-error" role="alert">{assetError}<BookButton variant="ghost" size="sm" onClick={() => void loadAssets()}>重试加载素材</BookButton></div>}
     {model.recovery && <div className="director-notice">此页面有未同步的本地编辑。<BookButton variant="secondary" size="sm" onClick={() => { void confirmDialog({ title: "恢复未同步编辑", message: "将用本地保留的内容更新当前草稿，已确认版本不受影响。", confirmText: "恢复草稿" }).then((accepted) => { if (accepted) void model.restore(); }); }}>恢复草稿</BookButton></div>}
@@ -261,25 +275,31 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
       const match = /^(points|segments)\[(\d+)\]/.exec(issue.path);
       if (match) { const index = Number(match[2]); const item = match[1] === "points" ? plan.points[index] : plan.segments[index]; if (item) select({ kind: match[1] === "points" ? "point" : "segment", id: item.id }, match[1] === "points" ? plan.points[index].at_ms : segmentTimes(plan, plan.segments[index])[0]); }
     }}>{issue.message}</button>)}</div>}
+    </div>
 
-    <div className={`director-stage ${panel === "properties" && !narrow ? "has-inspector" : ""}`}>
-      <div className="director-player-column"><div className="director-viewer" ref={frameRef} style={{ aspectRatio: `${plan.frame.width} / ${plan.frame.height}` }}>
-        <DirectorFrame plan={plan} clock={clock} imageById={imageById} />
-        <button className="director-fullscreen" type="button" aria-label="全屏查看分镜" onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : frameRef.current?.requestFullscreen())?.catch(model.report)}><Maximize size={17} /></button>
-      </div><Transport clock={clock} plan={plan} /></div>
-      <nav className="director-tool-rail" aria-label="导演工具">
+    <nav className="director-tool-rail" aria-label="导演工具">
         <Tool icon={Settings2} label="属性" active={panel === "properties"} onClick={() => setPanel(panel === "properties" ? null : "properties")} />
         <Tool icon={Images} label="素材库" onClick={() => setPanel("media")} />
         <Tool icon={Mountain} label="场景库" onClick={() => setPanel("scenes")} />
         <Tool icon={BookOpen} label="原文" onClick={() => setPanel("source")} />
         <Tool icon={Film} label="画幅" onClick={() => setPanel("settings")} />
         <Tool icon={Sparkles} label="导演 Agent" onClick={() => setPanel("agent")} />
-      </nav>
+    </nav>
+    <div className={`director-stage ${panel === "properties" && !narrow ? "has-inspector" : ""}`}>
+      <div className="director-editing-column">
+        <div className="director-player-column">
+          <div className="director-preview-surface">
+            <div className="director-viewer" ref={frameRef} style={{ aspectRatio: `${plan.frame.width} / ${plan.frame.height}` }}>
+              <DirectorFrame plan={plan} clock={clock} imageById={imageById} />
+              <button className="director-fullscreen" type="button" aria-label="全屏查看分镜" onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : frameRef.current?.requestFullscreen())?.catch(model.report)}><Maximize size={17} /></button>
+            </div>
+          </div>
+          <Transport clock={clock} plan={plan} />
+        </div>
+        <DirectorTimeline plan={plan} selection={selection} clock={clock} editable={!disabled} error={model.error} sceneNames={names} onSelect={select} onEdit={edit} onSplit={openSplit} />
+      </div>
       {panel === "properties" && !narrow && <aside className="director-inspector" aria-label="所选对象属性">{inspector}</aside>}
-
     </div>
-
-    <DirectorTimeline plan={plan} selection={selection} clock={clock} editable={!disabled} sceneNames={names} onSelect={select} onEdit={edit} onSplit={openSplit} />
 
     <Modal isOpen={panel === "properties" && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setPanel(null)} className="director-mobile-inspector">{inspector}</Modal>
     <Modal isOpen={panel === "source"} title="章节原文" onClose={() => setPanel("properties")} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
@@ -353,5 +373,5 @@ function Transport({ clock, plan }: { clock: DirectorPlayback; plan: ChapterVisu
   const playing = useStore(clock, (state) => state.playing);
   const previous = [...plan.points].reverse().find((point) => point.at_ms < time);
   const next = plan.points.find((point) => point.at_ms > time);
-  return <div className="director-transport"><div className="director-inline-actions"><BookIconButton label="上一个图片点" disabled={!previous} onClick={() => { if (previous) clock.getState().seek(previous.at_ms); }}><SkipBack size={16} /></BookIconButton><BookIconButton label={playing ? "暂停" : "播放分镜"} onClick={() => clock.getState().toggle()}>{playing ? <Pause size={19} /> : <Play size={19} />}</BookIconButton><BookIconButton label="下一个图片点" disabled={!next} onClick={() => { if (next) clock.getState().seek(next.at_ms); }}><SkipForward size={16} /></BookIconButton></div><div className="director-timecode"><span>{formatTime(time)}</span><span>/ {formatTime(durationMs(plan))}</span></div><span className="director-preview-label">分镜预演</span></div>;
+  return <div className="director-transport"><div className="director-inline-actions"><BookIconButton label="上一个图片点" disabled={!previous} onClick={() => { if (previous) clock.getState().seek(previous.at_ms); }}><SkipBack size={16} /></BookIconButton><BookIconButton label={playing ? "暂停" : "播放分镜"} onClick={() => clock.getState().toggle()}>{playing ? <Pause size={19} /> : <Play size={19} />}</BookIconButton><BookIconButton label="下一个图片点" disabled={!next} onClick={() => { if (next) clock.getState().seek(next.at_ms); }}><SkipForward size={16} /></BookIconButton></div><DirectorScrubber clock={clock} total={durationMs(plan)} /><div className="director-timecode"><span>{formatTime(time)}</span><span>/ {formatTime(durationMs(plan))}</span></div><span className="director-preview-label">分镜预演</span></div>;
 }

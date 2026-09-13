@@ -649,9 +649,11 @@ async function exerciseDirectorPlan(projectId) {
   await waitForNoDialog();
   await browser.waitUntil(async () => (await $$(".director-segment")).length === 2);
 
+  await clickButton("调整整体时长");
   await $('[aria-label="整体时长（秒）"]').setValue("20");
   await browser.keys("Tab");
   await browser.waitUntil(async () => (await $(".director-ruler").getText()).includes("20s"));
+  await closeDialog();
   await clickButton("保存草稿");
   await browser.waitUntil(async () => (await $(".director-save-status").getText()).includes("草稿已保存"));
   await clickButton("原文", await $(".director-tool-rail"));
