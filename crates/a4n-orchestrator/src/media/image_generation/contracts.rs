@@ -217,18 +217,6 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError>;
 
-    async fn object_profile_prompt(
-        &self,
-        user_id: i64,
-        input: &ObjectProfileImageInput,
-    ) -> Result<ObjectProfileImagePromptOutput, AppError>;
-
-    async fn scene_profile_prompt(
-        &self,
-        user_id: i64,
-        input: &SceneProfileImageInput,
-    ) -> Result<SceneProfileImagePromptOutput, AppError>;
-
     async fn start_task(
         &self,
         user_id: i64,
@@ -242,6 +230,22 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
         host_port: &dyn ImageGenerationHostPort,
     ) -> Result<(), String>;
+}
+
+/// Host-facing boundary for profile image prompt generation.
+#[async_trait]
+pub trait ImageProfilePromptApplicationPort: Send + Sync {
+    async fn object_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &ObjectProfileImageInput,
+    ) -> Result<ObjectProfileImagePromptOutput, AppError>;
+
+    async fn scene_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &SceneProfileImageInput,
+    ) -> Result<SceneProfileImagePromptOutput, AppError>;
 }
 
 #[async_trait]

@@ -14,7 +14,7 @@ pub async fn generate_object_profile_image_prompt(
     input: ObjectProfileImageInput,
 ) -> Result<ObjectProfileImagePromptOutput, String> {
     state
-        .image_generation_application()
+        .image_profile_prompt_application()
         .object_profile_prompt(user_id, &input)
         .await
         .map_err(|error| error.to_string())
@@ -60,7 +60,7 @@ pub async fn generate_scene_profile_image_prompt(
     input: SceneProfileImageInput,
 ) -> Result<SceneProfileImagePromptOutput, String> {
     state
-        .image_generation_application()
+        .image_profile_prompt_application()
         .scene_profile_prompt(user_id, &input)
         .await
         .map_err(|error| error.to_string())

@@ -9,9 +9,10 @@ pub use contracts::{
     ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
     ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
     ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
-    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
-    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
-    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
+    ImageProfilePromptApplicationPort, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
+    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
+    PreparedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,
+    SceneProfileImagePromptOutput,
 };
 pub use execution::generated_image_summary;
 pub use trace::image_generation_request_trace_json;

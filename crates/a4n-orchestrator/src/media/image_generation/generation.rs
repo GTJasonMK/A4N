@@ -30,7 +30,7 @@ use crate::{
     },
     media::{
         BatchImageGenerationOutcome, ImageGenerationApplicationPort, ImageGenerationHostPort,
-        ImageGenerationProgress, PreparedImageGenerationRequest,
+        ImageGenerationProgress, ImageProfilePromptApplicationPort, PreparedImageGenerationRequest,
     },
 };
 
@@ -463,24 +463,6 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
             .await
     }
 
-    async fn object_profile_prompt(
-        &self,
-        user_id: i64,
-        input: &ObjectProfileImageInput,
-    ) -> Result<ObjectProfileImagePromptOutput, AppError> {
-        self.generate_object_profile_image_prompt_validated(user_id, input)
-            .await
-    }
-
-    async fn scene_profile_prompt(
-        &self,
-        user_id: i64,
-        input: &SceneProfileImageInput,
-    ) -> Result<SceneProfileImagePromptOutput, AppError> {
-        self.generate_scene_profile_image_prompt_validated(user_id, input)
-            .await
-    }
-
     async fn start_task(
         &self,
         user_id: i64,
@@ -497,6 +479,27 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         host_port: &dyn ImageGenerationHostPort,
     ) -> Result<(), String> {
         OrchestratorContext::run_image_generation_task(self, user_id, input, handle, host_port)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ImageProfilePromptApplicationPort for OrchestratorContext {
+    async fn object_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &ObjectProfileImageInput,
+    ) -> Result<ObjectProfileImagePromptOutput, AppError> {
+        self.generate_object_profile_image_prompt_validated(user_id, input)
+            .await
+    }
+
+    async fn scene_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &SceneProfileImageInput,
+    ) -> Result<SceneProfileImagePromptOutput, AppError> {
+        self.generate_scene_profile_image_prompt_validated(user_id, input)
             .await
     }
 }

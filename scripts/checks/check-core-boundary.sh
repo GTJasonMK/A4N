@@ -2700,6 +2700,22 @@ if rg -n 'GenerateGalgameImageInput' crates/a4n-orchestrator/src/media.rs \
     exit 1
 fi
 
+if ! rg -n 'pub trait ImageProfilePromptApplicationPort' \
+    crates/a4n-orchestrator/src/media/image_generation/contracts.rs; then
+    printf 'ImageProfilePromptApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'image_profile_prompt_application\(\)' \
+    crates/a4n-runtime/src/actions/image_generation/profiles.rs; then
+    printf 'Profile image prompt actions must route through ImageProfilePromptApplicationPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'image_generation_application\(\)\s*\.\s*(object_profile_prompt|scene_profile_prompt)' \
+    crates/a4n-runtime/src/actions/image_generation/profiles.rs; then
+    printf 'Profile image prompt actions must not use the image generation task port\n' >&2
+    exit 1
+fi
+
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then
     printf 'Video prompt DTOs must be consumed from the API contract without an orchestrator facade\n' >&2
