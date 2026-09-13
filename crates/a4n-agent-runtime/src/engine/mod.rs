@@ -1602,8 +1602,7 @@ async fn compact_context(
     summary.validate()?;
     let summary_value = serde_json::to_value(summary)?;
     state
-        .worker_context_application()
-        .update_context_summary(claimed, summary_value.clone())
+        .update_agent_context_summary(claimed, summary_value.clone())
         .await?;
     context.thread.context_summary = Some(summary_value);
     if let Some(existing) = context

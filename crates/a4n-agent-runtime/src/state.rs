@@ -6,18 +6,19 @@ use a4n_agent_application::agent::{
     AgentRunLeaseRecoveryApplicationPort, AgentWorkerActivationApplicationPort,
     AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerClaimApplicationPort, AgentWorkerCompletionApplicationPort,
-    AgentWorkerContextApplicationPort, AgentWorkerDelegationApplicationPort,
-    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
-    AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
-    AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
-    AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
-    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
+    AgentWorkerDelegationApplicationPort, AgentWorkerExecutionApplicationPort,
+    AgentWorkerFailureApplicationPort, AgentWorkerHistoryApplicationPort,
+    AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort,
+    AgentWorkerRecoveryApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
+    AgentWorkflowCancelApplicationPort,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentRunPayload, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerContextSummaryRequest,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease,
+    WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -173,6 +174,24 @@ impl AgentRuntimeState {
         self.host.wait_run(&request).await
     }
 
+    pub async fn update_agent_context_summary(
+        &self,
+        claimed: &AgentWorkerRun,
+        context_summary: Value,
+    ) -> Result<(), AppError> {
+        let lease = self.agent_worker_lease_request(claimed)?.lease;
+        let request = AgentWorkerContextSummaryRequest {
+            run_id: claimed.run.id,
+            lease,
+            context_summary,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent context summary request 无效: {error}"),
+            operation: "更新 Agent context summary".into(),
+        })?;
+        self.host.update_context_summary(&request).await
+    }
+
     pub async fn authorize_agent_host_command(
         &self,
         request: &WorkerRequest<AgentHostCommandPayload>,
@@ -325,9 +344,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn worker_completion_application(&self) -> &dyn AgentWorkerCompletionApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn worker_context_application(&self) -> &dyn AgentWorkerContextApplicationPort {
         self.application.as_ref()
     }
     pub fn worker_delegation_application(&self) -> &dyn AgentWorkerDelegationApplicationPort {

@@ -1,5 +1,6 @@
 use super::{AgentApplication, AgentRunContext, AgentWorkerRun};
 use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerContextSummaryRequest;
 use serde_json::Value;
 
 /// Runtime-facing boundary for loading one lease-validated Agent Run context.
@@ -15,6 +16,11 @@ pub trait AgentWorkerContextApplicationPort: Send + Sync {
         &self,
         claimed: &AgentWorkerRun,
         context_summary: Value,
+    ) -> Result<(), AppError>;
+
+    async fn update_context_summary_request(
+        &self,
+        request: &AgentWorkerContextSummaryRequest,
     ) -> Result<(), AppError>;
 }
 
@@ -33,5 +39,12 @@ impl AgentWorkerContextApplicationPort for AgentApplication {
         context_summary: Value,
     ) -> Result<(), AppError> {
         AgentApplication::update_context_summary(self, claimed, context_summary).await
+    }
+
+    async fn update_context_summary_request(
+        &self,
+        request: &AgentWorkerContextSummaryRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::update_context_summary_request(self, request).await
     }
 }

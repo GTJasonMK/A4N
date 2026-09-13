@@ -31,9 +31,10 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerContextSummaryRequest,
+    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1054,6 +1055,19 @@ pub async fn wait_agent_worker_run(
     state
         .agent_worker_wait_application()
         .wait_run_request(request)
+        .await
+}
+
+pub async fn update_agent_context_summary(
+    state: &AppState,
+    request: &AgentWorkerContextSummaryRequest,
+) -> Result<(), AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent context summary 无效: {error}"))
+    })?;
+    state
+        .agent_worker_context_application()
+        .update_context_summary_request(request)
         .await
 }
 

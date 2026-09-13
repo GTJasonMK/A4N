@@ -34,11 +34,11 @@ use a4n_domain::agent::{
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
-    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
-    WorkerRequest,
+    AgentHostCommandPayload, AgentWorkerContextSummaryRequest, AgentWorkerDelegationSnapshotWire,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
+    AgentWorkerUsageRequest, WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3096,6 +3096,29 @@ impl AgentApplication {
             claimed.run.id,
             &claimed.lease_token,
             context_summary,
+        )
+        .await
+        .map(|_| ())
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn update_context_summary_request(
+        &self,
+        request: &AgentWorkerContextSummaryRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        agent::update_context_summary_for_run_lease(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+            request.context_summary.clone(),
         )
         .await
         .map(|_| ())

@@ -9,9 +9,10 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
-    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
+    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -134,6 +135,16 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     async fn wait_run(&self, request: &AgentWorkerRunWaitRequest) -> Result<(), AppError> {
         let _: Value = self
             .request_json(Method::POST, "/internal/agent/wait-run", request)
+            .await?;
+        Ok(())
+    }
+
+    async fn update_context_summary(
+        &self,
+        request: &AgentWorkerContextSummaryRequest,
+    ) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/context-summary", request)
             .await?;
         Ok(())
     }

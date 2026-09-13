@@ -114,6 +114,31 @@ impl AgentWorkerRunWaitRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerContextSummaryRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub context_summary: serde_json::Value,
+}
+
+impl AgentWorkerContextSummaryRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        if !self.context_summary.is_object() {
+            return Err(WorkerContractError::InvalidValue {
+                field: "context_summary",
+                reason: "must be an object",
+            });
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -708,6 +733,30 @@ mod tests {
         assert!(matches!(
             invalid.validate(),
             Err(WorkerContractError::BlankField { field: "reason" })
+        ));
+    }
+
+    #[test]
+    fn context_summary_request_requires_an_object() {
+        let request = AgentWorkerContextSummaryRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            context_summary: serde_json::json!({"goal": "draft"}),
+        };
+        request
+            .validate()
+            .expect("context summary request should be valid");
+
+        let invalid = AgentWorkerContextSummaryRequest {
+            context_summary: serde_json::json!("not-an-object"),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "context_summary",
+                ..
+            })
         ));
     }
 
