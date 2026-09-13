@@ -17,7 +17,8 @@ use a4n_agent_application::agent::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerApprovalCheckRequest,
+    AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionUpdateRequest,
@@ -56,6 +57,12 @@ pub(crate) struct AgentWorkerMessageHostPort<'a> {
 
 #[derive(Clone, Copy)]
 pub(crate) struct AgentWorkerBudgetHostPort<'a> {
+    state: &'a AgentRuntimeState,
+    claimed: &'a AgentWorkerRun,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct AgentWorkerApprovalHostPort<'a> {
     state: &'a AgentRuntimeState,
     claimed: &'a AgentWorkerRun,
 }
@@ -224,6 +231,49 @@ impl AgentRuntimeState {
             .complete_worker_run(&request)
             .await
             .map(|snapshot: AgentWorkerCompletionSnapshotWire| snapshot.completed)
+    }
+
+    async fn approved_agent_execution(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_id: i64,
+    ) -> Result<bool, AppError> {
+        let request = AgentWorkerApprovalCheckRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            execution_id,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent approval check request 无效: {error}"),
+            operation: "读取 Agent approval".into(),
+        })?;
+        self.host
+            .approved_execution(&request)
+            .await
+            .map(|snapshot: AgentWorkerApprovalCheckSnapshotWire| snapshot.approved)
+    }
+
+    async fn request_agent_worker_approval(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_id: i64,
+        operation_json: Value,
+        resource_preconditions_json: Option<Value>,
+        expires_at: Option<chrono::NaiveDateTime>,
+    ) -> Result<(), AppError> {
+        let request = AgentWorkerApprovalRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            execution_id,
+            operation_json,
+            resource_preconditions_json,
+            expires_at,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent approval request 无效: {error}"),
+            operation: "请求 Agent approval".into(),
+        })?;
+        self.host.request_approval(&request).await
     }
 
     pub async fn wait_agent_worker_run(
@@ -538,8 +588,14 @@ impl AgentRuntimeState {
     pub fn worker_activation_application(&self) -> &dyn AgentWorkerActivationApplicationPort {
         self.application.as_ref()
     }
-    pub fn worker_approval_application(&self) -> &dyn AgentWorkerApprovalApplicationPort {
-        self.application.as_ref()
+    pub(crate) fn worker_approval_application<'a>(
+        &'a self,
+        claimed: &'a AgentWorkerRun,
+    ) -> AgentWorkerApprovalHostPort<'a> {
+        AgentWorkerApprovalHostPort {
+            state: self,
+            claimed,
+        }
     }
     pub(crate) fn worker_budget_application<'a>(
         &'a self,
@@ -728,6 +784,76 @@ impl AgentWorkerBudgetApplicationPort for AgentWorkerBudgetHostPort<'_> {
             .worker_budget_snapshot(request)
             .await
             .map(Into::into)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerApprovalApplicationPort for AgentWorkerApprovalHostPort<'_> {
+    async fn approved_execution(
+        &self,
+        thread_id: i64,
+        execution_id: i64,
+    ) -> Result<bool, AppError> {
+        if thread_id != self.claimed.run.thread_id {
+            return Err(AppError::InvalidState {
+                current: "Agent approval thread_id 与 claimed run 不一致".into(),
+                operation: "读取 Agent approval".into(),
+            });
+        }
+        self.state
+            .approved_agent_execution(self.claimed, execution_id)
+            .await
+    }
+
+    async fn approved_execution_request(
+        &self,
+        request: &AgentWorkerApprovalCheckRequest,
+    ) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError> {
+        if request.run_id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent approval run_id 与 claimed run 不一致".into(),
+                operation: "读取 Agent approval request".into(),
+            });
+        }
+        self.state.host.approved_execution(request).await
+    }
+
+    async fn request_worker_approval(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_id: i64,
+        operation_json: Value,
+        resource_preconditions_json: Option<Value>,
+        expires_at: Option<chrono::NaiveDateTime>,
+    ) -> Result<(), AppError> {
+        if claimed.run.id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent approval claimed run 不一致".into(),
+                operation: "请求 Agent approval".into(),
+            });
+        }
+        self.state
+            .request_agent_worker_approval(
+                self.claimed,
+                execution_id,
+                operation_json,
+                resource_preconditions_json,
+                expires_at,
+            )
+            .await
+    }
+
+    async fn request_worker_approval_request(
+        &self,
+        request: &AgentWorkerApprovalRequest,
+    ) -> Result<(), AppError> {
+        if request.run_id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: "Agent approval run_id 与 claimed run 不一致".into(),
+                operation: "请求 Agent approval request".into(),
+            });
+        }
+        self.state.host.request_approval(request).await
     }
 }
 

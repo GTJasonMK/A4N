@@ -7,13 +7,14 @@ use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload, AgentWorkerBudgetRequest,
-    AgentWorkerBudgetSnapshotWire, AgentWorkerCancelGenerationRequest,
-    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerCompletionRequest,
-    AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
-    AgentWorkerEditorProjectionRequest, AgentWorkerExecutionCreateRequest,
-    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
+    AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
+    AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
+    AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerPackageExecutionResponse, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
@@ -215,6 +216,21 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         self.request_json(Method::POST, "/internal/agent/completion", request)
             .await
+    }
+
+    async fn approved_execution(
+        &self,
+        request: &AgentWorkerApprovalCheckRequest,
+    ) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/approval/check", request)
+            .await
+    }
+
+    async fn request_approval(&self, request: &AgentWorkerApprovalRequest) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/approval/request", request)
+            .await?;
+        Ok(())
     }
 
     async fn execute_command(

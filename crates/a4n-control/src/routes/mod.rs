@@ -242,6 +242,14 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/completion",
             post(agent_runtime::complete_agent_worker_run),
         )
+        .route(
+            "/agent/approval/check",
+            post(agent_runtime::check_agent_worker_approval),
+        )
+        .route(
+            "/agent/approval/request",
+            post(agent_runtime::request_agent_worker_approval),
+        )
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

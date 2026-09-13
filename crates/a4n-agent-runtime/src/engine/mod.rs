@@ -1,8 +1,9 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerBudgetApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort,
+    AgentRunContext, AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
+    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
+    AgentWorkerMessageApplicationPort,
     AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
     WorkerExecutionUpdate, child_budget_within_parent, enforce_delegation_limits,
     validate_agent_budget,
@@ -2079,7 +2080,7 @@ async fn execute_tool_call(
 ) -> Result<(RunProgress, Vec<String>), AppError> {
     let descriptor = tool_descriptor(&call.name)?;
     let message_application = state.worker_message_application(claimed);
-    let approval_application = state.worker_approval_application();
+    let approval_application = state.worker_approval_application(claimed);
     let delegation_application = state.worker_delegation_application();
     let editor_response_application = state.editor_response_application();
 
@@ -2168,7 +2169,7 @@ async fn execute_tool_call(
     }
 
     if request_approval_if_needed(
-        approval_application,
+        &approval_application,
         claimed,
         context,
         &call,

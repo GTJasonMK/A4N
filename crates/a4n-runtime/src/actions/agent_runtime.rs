@@ -31,8 +31,9 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
-    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalCheckRequest,
+    AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
+    AgentWorkerBudgetSnapshotWire, AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire,
     AgentWorkerContextSummaryRequest, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
     AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerMessageRequest,
@@ -1182,6 +1183,32 @@ pub async fn complete_agent_worker_run(
     state
         .agent_worker_completion_application()
         .complete_worker_run_request(request)
+        .await
+}
+
+pub async fn check_agent_worker_approval(
+    state: &AppState,
+    request: &AgentWorkerApprovalCheckRequest,
+) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent approval check 无效: {error}"))
+    })?;
+    state
+        .agent_worker_approval_application()
+        .approved_execution_request(request)
+        .await
+}
+
+pub async fn request_agent_worker_approval(
+    state: &AppState,
+    request: &AgentWorkerApprovalRequest,
+) -> Result<(), AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent approval request 无效: {error}"))
+    })?;
+    state
+        .agent_worker_approval_application()
+        .request_worker_approval_request(request)
         .await
 }
 

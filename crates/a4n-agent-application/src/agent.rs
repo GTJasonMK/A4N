@@ -34,7 +34,8 @@ use a4n_domain::agent::{
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentWorkerBudgetRequest, AgentWorkerCompletionRequest,
+    AgentHostCommandPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
+    AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerCompletionRequest,
     AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
     AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionCreateRequest,
     AgentWorkerExecutionLookupRequest, AgentWorkerExecutionSnapshotWire,
@@ -4500,6 +4501,29 @@ impl AgentApplication {
             .find(|row| row.execution_id == execution_id && row.status == "approved"))
     }
 
+    pub(crate) async fn approved_execution_request(
+        &self,
+        request: &AgentWorkerApprovalCheckRequest,
+    ) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        let approved = self
+            .approved_execution(run.thread_id, request.execution_id)
+            .await?
+            .is_some();
+        Ok(AgentWorkerApprovalCheckSnapshotWire { approved })
+    }
+
     /// Atomically records a write approval request and releases the claimed
     /// Run into `waiting(approval)`. Runtime workers must use this façade
     /// instead of composing the two database operations themselves.
@@ -4511,15 +4535,37 @@ impl AgentApplication {
         resource_preconditions_json: Option<Value>,
         expires_at: Option<chrono::NaiveDateTime>,
     ) -> Result<approval::Model, AppError> {
+        self.request_worker_approval_fields(
+            claimed.run.id,
+            claimed.run.thread_id,
+            &claimed.lease_token,
+            execution_id,
+            operation_json,
+            resource_preconditions_json,
+            expires_at,
+        )
+        .await
+    }
+
+    async fn request_worker_approval_fields(
+        &self,
+        run_id: i64,
+        thread_id: i64,
+        lease_token: &str,
+        execution_id: i64,
+        operation_json: Value,
+        resource_preconditions_json: Option<Value>,
+        expires_at: Option<chrono::NaiveDateTime>,
+    ) -> Result<approval::Model, AppError> {
         let operation_digest = a4n_db::agent::sha256_hex(
             &serde_json::to_string(&operation_json).map_err(AppError::Serialization)?,
         );
         let (approval, _, _) = agent::request_approval_for_run_lease(
             self.connection(),
-            &claimed.lease_token,
+            lease_token,
             a4n_domain::agent::AgentApprovalInput {
-                thread_id: claimed.run.thread_id,
-                run_id: claimed.run.id,
+                thread_id,
+                run_id,
                 execution_id,
                 operation_digest,
                 operation_json,
@@ -4530,6 +4576,35 @@ impl AgentApplication {
         .await
         .map_err(agent_db_error_to_app)?;
         Ok(approval)
+    }
+
+    pub(crate) async fn request_worker_approval_request(
+        &self,
+        request: &AgentWorkerApprovalRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        self.request_worker_approval_fields(
+            run.id,
+            run.thread_id,
+            &request.lease.fence_token,
+            request.execution_id,
+            request.operation_json.clone(),
+            request.resource_preconditions_json.clone(),
+            request.expires_at,
+        )
+        .await
+        .map(|_| ())
     }
 
     pub(crate) async fn mark_recovery_required(

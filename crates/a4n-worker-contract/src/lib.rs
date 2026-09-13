@@ -389,6 +389,60 @@ pub struct AgentWorkerCompletionSnapshotWire {
     pub completed: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerApprovalCheckRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub execution_id: i64,
+}
+
+impl AgentWorkerApprovalCheckRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("execution_id", self.execution_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerApprovalCheckSnapshotWire {
+    pub approved: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerApprovalRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub execution_id: i64,
+    pub operation_json: serde_json::Value,
+    pub resource_preconditions_json: Option<serde_json::Value>,
+    pub expires_at: Option<chrono::NaiveDateTime>,
+}
+
+impl AgentWorkerApprovalRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_positive_id("execution_id", self.execution_id)?;
+        if !self.operation_json.is_object() {
+            return Err(WorkerContractError::InvalidValue {
+                field: "operation_json",
+                reason: "must be an object",
+            });
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -812,6 +866,16 @@ fn validate_positive_optional_id(
     Ok(())
 }
 
+fn validate_positive_id(field: &'static str, value: i64) -> Result<(), WorkerContractError> {
+    if value <= 0 {
+        return Err(WorkerContractError::InvalidValue {
+            field,
+            reason: "must be positive",
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1075,6 +1139,39 @@ mod tests {
             invalid.validate(),
             Err(WorkerContractError::InvalidValue {
                 field: "observed_input_message_id",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn approval_requests_validate_execution_and_operation_boundaries() {
+        let check = AgentWorkerApprovalCheckRequest {
+            run_id: 7,
+            lease: valid_request().lease.clone(),
+            execution_id: 9,
+        };
+        check.validate().expect("approval check should be valid");
+
+        let request = AgentWorkerApprovalRequest {
+            run_id: check.run_id,
+            lease: check.lease,
+            execution_id: check.execution_id,
+            operation_json: serde_json::json!({"command": "write"}),
+            resource_preconditions_json: None,
+            expires_at: None,
+        };
+        request
+            .validate()
+            .expect("approval request should be valid");
+        let invalid = AgentWorkerApprovalRequest {
+            operation_json: serde_json::json!("write"),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "operation_json",
                 ..
             })
         ));
