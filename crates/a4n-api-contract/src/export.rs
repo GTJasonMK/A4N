@@ -40,6 +40,65 @@ impl<'a> ExportProgress<'a> {
     }
 }
 
+/// Host-facing export application boundary.
+#[async_trait::async_trait]
+pub trait ExportApplicationPort: Send + Sync {
+    async fn export_txt(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_markdown(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        title: &str,
+        author: &str,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_outline_json(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_characters_json(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_epub(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        title: &str,
+        author: &str,
+        progress: &ExportProgress<'_>,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_pdf(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        progress: &ExportProgress<'_>,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+
+    async fn export_batch(
+        &self,
+        user_id: i64,
+        input: BatchExportInput,
+        progress: &ExportProgress<'_>,
+    ) -> Result<Vec<ExportFileData>, a4n_error::AppError>;
+
+    async fn export_galgame_webgal(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ExportProjectInput {

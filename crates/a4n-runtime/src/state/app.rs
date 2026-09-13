@@ -305,7 +305,7 @@ pub struct AppState {
         Arc<dyn a4n_orchestrator::import_review::ImportReviewApplicationPort>,
     /// Host-facing export boundary. Export authorization and format rendering
     /// remain in the export owner; Runtime only adapts progress callbacks.
-    export_application: Arc<dyn a4n_orchestrator::export::ExportApplicationPort>,
+    export_application: Arc<dyn a4n_api_contract::export::ExportApplicationPort>,
     /// Host-facing video-record read boundary.
     video_record_read_application: Arc<dyn a4n_api_contract::video::VideoRecordReadApplicationPort>,
     /// Host-facing ordinary video-record mutation boundary.
@@ -1608,7 +1608,7 @@ impl AppState {
 
     pub(crate) fn export_application(
         &self,
-    ) -> &dyn a4n_orchestrator::export::ExportApplicationPort {
+    ) -> &dyn a4n_api_contract::export::ExportApplicationPort {
         self.export_application.as_ref()
     }
 

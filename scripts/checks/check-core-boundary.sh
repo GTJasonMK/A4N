@@ -916,8 +916,16 @@ if rg -n 'pub struct ExportProgress|a4n_orchestrator::export::ExportProgress' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ExportApplicationPort' crates/a4n-orchestrator/src/export.rs; then
-    printf 'ExportApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait ExportApplicationPort' crates/a4n-api-contract/src/export.rs; then
+    printf 'ExportApplicationPort contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ExportApplicationPort' crates/a4n-orchestrator/src/export; then
+    printf 'ExportApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::export::ExportApplicationPort' crates/a4n-runtime/src; then
+    printf 'Runtime export adapters must consume the API contract directly\n' >&2
     exit 1
 fi
 
