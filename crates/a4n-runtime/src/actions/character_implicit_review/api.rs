@@ -29,7 +29,7 @@ pub async fn check_implicit_update(
 ) -> Result<ImplicitUpdateDecisionSummary, String> {
     let prompt_renderer = state;
     state
-        .character_implicit_review_application()
+        .character_implicit_review_check_application()
         .check(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())
@@ -42,7 +42,7 @@ pub async fn preview_check_implicit_update_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let preview = state
-        .character_implicit_review_application()
+        .character_implicit_review_preview_application()
         .preview(user_id, input.clone(), prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

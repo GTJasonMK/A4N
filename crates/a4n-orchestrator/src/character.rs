@@ -308,26 +308,31 @@ pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub use implicit_review::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 
-/// Host-facing boundary for implicit character review.
-///
-/// Review preparation, workflow execution and deletion-mark projection remain
-/// owned by the character application; Runtime only supplies prompt rendering.
+/// Host-facing boundary for implicit character review checks.
 #[async_trait::async_trait]
-pub trait CharacterImplicitReviewApplicationPort: Send + Sync {
+pub trait CharacterImplicitReviewCheckApplicationPort: Send + Sync {
     async fn check(
         &self,
         user_id: i64,
         input: CheckImplicitUpdateInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ImplicitUpdateDecisionSummary, AppError>;
+}
 
+/// Host-facing boundary for implicit character review request previews.
+#[async_trait::async_trait]
+pub trait CharacterImplicitReviewPreviewApplicationPort: Send + Sync {
     async fn preview(
         &self,
         user_id: i64,
         input: CheckImplicitUpdateInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError>;
+}
 
+/// Host-facing boundary for applying implicit character review decisions.
+#[async_trait::async_trait]
+pub trait CharacterImplicitReviewApplyApplicationPort: Send + Sync {
     async fn apply(
         &self,
         user_id: i64,

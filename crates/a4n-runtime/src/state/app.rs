@@ -188,10 +188,14 @@ pub struct AppState {
     /// Host-facing attribute deletion-mark mutation boundary.
     character_profile_attribute_deletion_application:
         Arc<dyn a4n_api_contract::character::CharacterProfileAttributeDeletionApplicationPort>,
-    /// Character implicit-review owner. Runtime supplies prompt rendering and
-    /// receives already-projected API results.
-    character_implicit_review_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewApplicationPort>,
+    /// Character implicit-review checks, previews, and applies use separate
+    /// worker boundaries; Runtime only supplies prompt rendering.
+    character_implicit_review_check_application:
+        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewCheckApplicationPort>,
+    character_implicit_review_preview_application:
+        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewPreviewApplicationPort>,
+    character_implicit_review_apply_application:
+        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewApplyApplicationPort>,
     /// Host-facing implicit-review read boundary. Summary queries stay in the
     /// API contract rather than the LLM decision workflow boundary.
     character_implicit_review_read_application:
@@ -1309,10 +1313,22 @@ impl AppState {
             .as_ref()
     }
 
-    pub(crate) fn character_implicit_review_application(
+    pub(crate) fn character_implicit_review_check_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewApplicationPort {
-        self.character_implicit_review_application.as_ref()
+    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewCheckApplicationPort {
+        self.character_implicit_review_check_application.as_ref()
+    }
+
+    pub(crate) fn character_implicit_review_preview_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewPreviewApplicationPort {
+        self.character_implicit_review_preview_application.as_ref()
+    }
+
+    pub(crate) fn character_implicit_review_apply_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewApplyApplicationPort {
+        self.character_implicit_review_apply_application.as_ref()
     }
 
     pub(crate) fn character_implicit_review_read_application(
@@ -2559,7 +2575,9 @@ impl AppState {
             character_profile_timeline_mutation_application: Arc::new(orchestrator.clone()),
             character_profile_attribute_mutation_application: Arc::new(orchestrator.clone()),
             character_profile_attribute_deletion_application: Arc::new(orchestrator.clone()),
-            character_implicit_review_application: Arc::new(orchestrator.clone()),
+            character_implicit_review_check_application: Arc::new(orchestrator.clone()),
+            character_implicit_review_preview_application: Arc::new(orchestrator.clone()),
+            character_implicit_review_apply_application: Arc::new(orchestrator.clone()),
             character_implicit_review_read_application: Arc::new(orchestrator.clone()),
             character_profile_deletion_application: Arc::new(orchestrator.clone()),
             character_conflict_application: Arc::new(orchestrator.clone()),

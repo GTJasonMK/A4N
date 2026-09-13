@@ -1089,7 +1089,7 @@ impl a4n_api_contract::character::CharacterImplicitReviewReadApplicationPort
 }
 
 #[async_trait::async_trait]
-impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorContext {
+impl crate::character::CharacterImplicitReviewCheckApplicationPort for OrchestratorContext {
     async fn check(
         &self,
         user_id: i64,
@@ -1099,7 +1099,10 @@ impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorCo
         self.check_implicit_update_validated(user_id, input, prompt_renderer)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::character::CharacterImplicitReviewPreviewApplicationPort for OrchestratorContext {
     async fn preview(
         &self,
         user_id: i64,
@@ -1113,7 +1116,10 @@ impl crate::character::CharacterImplicitReviewApplicationPort for OrchestratorCo
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl crate::character::CharacterImplicitReviewApplyApplicationPort for OrchestratorContext {
     async fn apply(
         &self,
         user_id: i64,

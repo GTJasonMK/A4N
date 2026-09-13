@@ -2743,6 +2743,32 @@ if rg -n 'a4n_orchestrator::character::CharacterImplicitReviewReadApplicationPor
     printf 'Runtime implicit-review reads must consume the API contract directly\n' >&2
     exit 1
 fi
+for contract in \
+    CharacterImplicitReviewCheckApplicationPort \
+    CharacterImplicitReviewPreviewApplicationPort \
+    CharacterImplicitReviewApplyApplicationPort; do
+    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/character.rs; then
+        printf '%s contract is missing\n' "$contract" >&2
+        exit 1
+    fi
+done
+if ! rg -n 'character_implicit_review_check_application\(\)' \
+    crates/a4n-runtime/src/actions/character_implicit_review/api.rs || \
+   ! rg -n 'character_implicit_review_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/character_implicit_review/api.rs || \
+   ! rg -n 'character_implicit_review_apply_application\(\)' \
+    crates/a4n-runtime/src/actions/character_implicit_review/application.rs; then
+    printf 'Implicit character-review actions must route through worker-specific ports\n' >&2
+    exit 1
+fi
+if rg -n 'CharacterImplicitReviewApplicationPort|character_implicit_review_application\(\)' \
+    crates/a4n-orchestrator/src/character.rs \
+    crates/a4n-orchestrator/src/context/character.rs \
+    crates/a4n-runtime/src/actions/character_implicit_review \
+    crates/a4n-runtime/src/state/app.rs; then
+    printf 'The mixed CharacterImplicitReviewApplicationPort must remain removed\n' >&2
+    exit 1
+fi
 
 if rg -n 'pub use a4n_api_contract::source_sync::SourceSyncDecisionInput' \
     crates/a4n-orchestrator/src/source_sync.rs \
