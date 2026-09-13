@@ -244,9 +244,10 @@ pub struct AppState {
     /// Agent worker ports used only by the durable Runtime worker. Keeping the
     /// aggregate behind its contract avoids coupling Runtime to the owner.
     agent_worker_application: Arc<dyn a4n_agent_runtime_contract::AgentWorkerApplicationPort>,
-    /// Host-facing Canvas application port. Graph permissions, versioning and
+    /// Host-facing Canvas read port. Graph permissions, versioning and
     /// persistence stay with the Canvas owner; Runtime only routes actions.
-    canvas_application: Arc<dyn a4n_api_contract::canvas::CanvasApplicationPort>,
+    canvas_read_application: Arc<dyn a4n_api_contract::canvas::CanvasReadApplicationPort>,
+    canvas_mutation_application: Arc<dyn a4n_api_contract::canvas::CanvasMutationApplicationPort>,
     /// Canvas RenderText owner. Runtime supplies only node identity and the
     /// shared workflow snapshot.
     canvas_render_text_application:
@@ -1522,10 +1523,16 @@ impl AppState {
         self.agent_worker_application.as_ref()
     }
 
-    pub(crate) fn canvas_application(
+    pub(crate) fn canvas_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::canvas::CanvasApplicationPort {
-        self.canvas_application.as_ref()
+    ) -> &dyn a4n_api_contract::canvas::CanvasReadApplicationPort {
+        self.canvas_read_application.as_ref()
+    }
+
+    pub(crate) fn canvas_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::canvas::CanvasMutationApplicationPort {
+        self.canvas_mutation_application.as_ref()
     }
 
     pub(crate) fn canvas_render_text_application(
@@ -2260,7 +2267,8 @@ impl AppState {
             prompt_application,
             agent_application: Arc::new(orchestrator.agent().clone()),
             agent_worker_application: Arc::new(orchestrator.agent().clone()),
-            canvas_application: Arc::new(orchestrator.clone()),
+            canvas_read_application: Arc::new(orchestrator.clone()),
+            canvas_mutation_application: Arc::new(orchestrator.clone()),
             canvas_render_text_application: Arc::new(orchestrator.clone()),
             canvas_llm_text_application: Arc::new(orchestrator.clone()),
             canvas_image_application: Arc::new(orchestrator.clone()),

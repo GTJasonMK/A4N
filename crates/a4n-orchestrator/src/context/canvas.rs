@@ -459,7 +459,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::canvas::CanvasApplicationPort for OrchestratorContext {
+impl a4n_api_contract::canvas::CanvasReadApplicationPort for OrchestratorContext {
     async fn get_graph(
         &self,
         user_id: i64,
@@ -480,7 +480,10 @@ impl a4n_api_contract::canvas::CanvasApplicationPort for OrchestratorContext {
             .await?;
         self.read_canvas_graph(input).await
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::canvas::CanvasMutationApplicationPort for OrchestratorContext {
     async fn save_graph(
         &self,
         user_id: i64,

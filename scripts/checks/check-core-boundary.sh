@@ -560,8 +560,26 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)|actions::
     exit 1
 fi
 
-if ! rg -n 'pub trait CanvasApplicationPort' crates/a4n-api-contract/src/canvas.rs; then
-    printf 'CanvasApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait Canvas(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/canvas.rs; then
+    printf 'Canvas read/mutation contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'CanvasApplicationPort|canvas_application\(\)' \
+    crates/a4n-api-contract/src/canvas.rs crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed CanvasApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'canvas_read_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/records_api.rs; then
+    printf 'Canvas record reads must route through CanvasReadApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'canvas_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/canvas_workflow/records_api.rs; then
+    printf 'Canvas record mutations must route through CanvasMutationApplicationPort\n' >&2
     exit 1
 fi
 
