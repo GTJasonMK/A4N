@@ -9,6 +9,48 @@ use crate::web_search::{WebSearchConfigSummary, WebSearchRuntimeConfig};
 
 pub use a4n_domain::{DiscoveredModel, ImageSize, ModelDiscoveryResult, VideoDurationMode};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptRow {
+    pub name: String,
+    pub content: String,
+}
+
+/// Host adapter for settings import/export prompt side effects.
+#[async_trait::async_trait]
+pub trait SettingsAllHostPort: Send + Sync {
+    async fn modified_prompts(&self) -> Result<Vec<PromptRow>, a4n_error::AppError>;
+
+    async fn prepare_prompt_import(
+        &self,
+        rows: &[PromptRow],
+    ) -> Result<Vec<(String, String)>, a4n_error::AppError>;
+
+    async fn import_prompts(&self, rows: Vec<PromptRow>) -> Result<usize, a4n_error::AppError>;
+
+    async fn rollback_prompts(
+        &self,
+        snapshots: Vec<(String, String)>,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing settings import/export boundary.
+#[async_trait::async_trait]
+pub trait SettingsAllApplicationPort: Send + Sync {
+    async fn export_all_configs_to_json(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+    ) -> Result<String, a4n_error::AppError>;
+
+    async fn import_all_configs(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+        input: ImportAllConfigsInput,
+    ) -> Result<Vec<String>, a4n_error::AppError>;
+}
+
 /// AI provider configuration application boundary.
 ///
 /// Persistence, validation, admin authorization and API projection stay in

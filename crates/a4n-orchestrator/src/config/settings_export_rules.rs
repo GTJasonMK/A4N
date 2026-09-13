@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use a4n_api_contract::config::PromptRow;
 use a4n_config::app_error_plain_message;
 use a4n_config::{validate_embedding_config_params, validate_image_config_params};
 use a4n_db::config::{
@@ -31,13 +32,6 @@ pub struct AllConfigsExport {
     pub prompts_modified: Vec<PromptRow>,
     pub themes: Vec<SettingsAllThemeRow>,
     pub system_settings: Vec<SettingsAllSystemSettingRow>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PromptRow {
-    pub name: String,
-    pub content: String,
 }
 
 pub fn validate_all_configs_export_version(version: &str) -> Result<(), String> {

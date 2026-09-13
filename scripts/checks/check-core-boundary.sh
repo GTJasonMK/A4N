@@ -820,6 +820,17 @@ if rg -n 'pub trait ProjectDuplicationApplicationPort' \
     exit 1
 fi
 
+if ! rg -n 'pub trait SettingsAll(Application|Host)Port|pub struct PromptRow' \
+    crates/a4n-api-contract/src/config.rs; then
+    printf 'settings import/export contracts must live in the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait SettingsAll(Application|Host)Port|pub struct PromptRow' \
+    crates/a4n-orchestrator/src/config; then
+    printf 'settings import/export contracts must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+
 if rg -U -n 'state\s*\.\s*orchestrator\(\)|OrchestratorContext|a4n_db_models::models::project::novel_project|novel_project::Model' \
     crates/a4n-runtime/src/actions/project_records/reset \
     crates/a4n-runtime/src/actions/generation_tasks/destructive_lifecycle.rs; then

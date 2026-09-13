@@ -226,7 +226,7 @@ pub struct AppState {
     config_application: Arc<dyn a4n_api_contract::config::ConfigApplicationPort>,
     /// Host-facing settings export/import boundary. Authorization and
     /// rollback semantics stay in the settings owner.
-    settings_all_application: Arc<dyn a4n_orchestrator::config::SettingsAllApplicationPort>,
+    settings_all_application: Arc<dyn a4n_api_contract::config::SettingsAllApplicationPort>,
     /// Host-facing prompt record boundary. Prompt service selection and
     /// project override persistence stay with the prompt owner.
     prompt_application: Arc<dyn a4n_orchestrator::prompt_records::PromptApplicationPort>,
@@ -1316,7 +1316,7 @@ impl AppState {
 
     pub(crate) fn settings_all_application(
         &self,
-    ) -> &dyn a4n_orchestrator::config::SettingsAllApplicationPort {
+    ) -> &dyn a4n_api_contract::config::SettingsAllApplicationPort {
         self.settings_all_application.as_ref()
     }
 
@@ -2114,7 +2114,7 @@ impl AppState {
         let package_application: Arc<dyn a4n_api_contract::package::PackageApplicationPort> =
             Arc::new(orchestrator.clone());
         let settings_all_application: Arc<
-            dyn a4n_orchestrator::config::SettingsAllApplicationPort,
+            dyn a4n_api_contract::config::SettingsAllApplicationPort,
         > = Arc::new(orchestrator.clone());
         if runtime_role == RuntimeRole::Host {
             package_application.initialize_states().await?;
