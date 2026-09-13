@@ -207,6 +207,7 @@ pub fn api_router(state: ServerState) -> Router {
 pub fn internal_router(state: ServerState) -> Router {
     Router::new()
         .route("/agent/claim", post(agent_runtime::claim_worker))
+        .route("/agent/context", post(agent_runtime::load_agent_context))
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

@@ -1,9 +1,9 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentRunSnapshot, AgentThreadSnapshot, AgentWorkerReadApplicationPort,
-    AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate,
-    WorkerUsage, child_budget_within_parent, enforce_delegation_limits, validate_agent_budget,
+    AgentRunContext, AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput,
+    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
+    enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -51,47 +51,7 @@ const MAX_AGENT_TOOL_SCHEMAS: usize = 12;
 const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
 
 pub fn agent_worker_run_from_wire(wire: AgentWorkerRunWire) -> Result<AgentWorkerRun, AppError> {
-    if wire.lease_token.trim().is_empty()
-        || wire.run.lease_token.as_deref() != Some(wire.lease_token.as_str())
-    {
-        return Err(AppError::InvalidState {
-            current: "Agent worker run wire 的 lease token 无效".into(),
-            operation: "恢复 Agent worker run 快照".into(),
-        });
-    }
-    Ok(AgentWorkerRun {
-        run: AgentRunSnapshot {
-            id: wire.run.id,
-            thread_id: wire.run.thread_id,
-            turn_id: wire.run.turn_id,
-            parent_run_id: wire.run.parent_run_id,
-            attempt: wire.run.attempt,
-            status: wire.run.status,
-            budget_json: wire.run.budget_json,
-            usage_json: wire.run.usage_json,
-            worker_id: wire.run.worker_id,
-            lease_token: wire.run.lease_token,
-            lease_expires_at: wire.run.lease_expires_at,
-            created_at: wire.run.created_at,
-            started_at: wire.run.started_at,
-        },
-        thread: AgentThreadSnapshot {
-            id: wire.thread.id,
-            owner_user_id: wire.thread.owner_user_id,
-            thread_kind: wire.thread.thread_kind,
-            profile_id: wire.thread.profile_id,
-            title: wire.thread.title,
-            project_id: wire.thread.project_id,
-            resource_type: wire.thread.resource_type,
-            resource_id: wire.thread.resource_id,
-            scope_json: wire.thread.scope_json,
-            default_model_config_id: wire.thread.default_model_config_id,
-            status: wire.thread.status,
-            revision: wire.thread.revision,
-            context_summary: wire.thread.context_summary,
-        },
-        lease_token: wire.lease_token,
-    })
+    AgentWorkerRun::from_wire(wire)
 }
 
 fn worker_request_for_claimed_run(
@@ -793,7 +753,7 @@ async fn process_claimed_run_request(
     // stream must not extend the run's duration budget or keep its HTTP body alive.
     let result = match outcome {
         Ok(Some(result)) => result,
-        Ok(None) => suspend_agent_at_duration_limit(state, &claimed).await,
+        Ok(None) => suspend_agent_at_duration_limit(state, &claimed, &request).await,
         Err(error) => Err(error),
     };
     renew_cancel.cancel();
@@ -850,11 +810,9 @@ fn agent_duration_deadline(
 async fn suspend_agent_at_duration_limit(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
+    request: &WorkerRequest<AgentRunPayload>,
 ) -> Result<(), AppError> {
-    let context = state
-        .worker_context_application()
-        .load_run_context(claimed)
-        .await?;
+    let context = state.load_agent_run_context(request).await?;
     for execution in context
         .executions
         .iter()
@@ -891,10 +849,7 @@ async fn process_claimed_run_inner(
     );
     let execution_application = state.worker_execution_application();
     let usage_application = state.worker_usage_application();
-    let mut context = state
-        .worker_context_application()
-        .load_run_context(claimed)
-        .await?;
+    let mut context = state.load_agent_run_context(request).await?;
     let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
     if context.runtime_snapshot_required && snapshot.is_none() {
         state

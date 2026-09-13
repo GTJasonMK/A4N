@@ -7,7 +7,7 @@ use a4n_api_contract::chapter_visual_plan::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
-use a4n_worker_contract::WorkerRequest;
+use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
 use async_trait::async_trait;
 use futures::Stream;
 use serde_json::Value;
@@ -21,6 +21,11 @@ pub type AgentChatStream = Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>
 /// workflow, package and provider-specific behavior stays behind this port.
 #[async_trait]
 pub trait AgentRuntimeHost: Send + Sync {
+    async fn load_run_context(
+        &self,
+        request: &WorkerRequest<AgentRunPayload>,
+    ) -> Result<AgentRunContext, AppError>;
+
     async fn execute_command(
         &self,
         user_id: i64,

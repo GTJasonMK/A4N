@@ -2,7 +2,7 @@ use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
     AgentApplication, AgentApprovalExpiryApplicationPort, AgentEditorClaimApplicationPort,
     AgentEditorResponseApplicationPort, AgentEditorWaitApplicationPort,
-    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort,
+    AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort, AgentRunContext,
     AgentRunLeaseRecoveryApplicationPort, AgentWorkerActivationApplicationPort,
     AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerClaimApplicationPort, AgentWorkerCompletionApplicationPort,
@@ -77,6 +77,13 @@ impl AgentRuntimeState {
 
     pub async fn lock_agent_admission(&self) -> tokio::sync::MutexGuard<'_, ()> {
         self.agent_admission.lock().await
+    }
+
+    pub async fn load_agent_run_context(
+        &self,
+        request: &WorkerRequest<AgentRunPayload>,
+    ) -> Result<AgentRunContext, AppError> {
+        self.host.load_run_context(request).await
     }
 
     pub async fn authorize_agent_host_command(

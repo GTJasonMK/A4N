@@ -224,8 +224,7 @@ async fn call(
         return Ok(None);
     }
     let updated = state
-        .worker_context_application()
-        .load_run_context(claimed)
+        .load_agent_run_context(worker_request)
         .await?
         .executions
         .into_iter()

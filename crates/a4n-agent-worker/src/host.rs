@@ -1,4 +1,4 @@
-use a4n_agent_application::agent::AgentExternalTaskWaitSnapshot;
+use a4n_agent_application::agent::{AgentExternalTaskWaitSnapshot, AgentRunContext};
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV2, VisualPlanProjection, VisualPlanReadView,
@@ -7,9 +7,10 @@ use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerCancelGenerationRequest,
-    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerEditorProjectionRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse, AgentWorkerWaitRequest,
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
+    AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
+    AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerWaitRequest,
     WorkerRequest,
 };
 use async_trait::async_trait;
@@ -96,6 +97,16 @@ impl HttpAgentRuntimeHost {
 
 #[async_trait]
 impl AgentRuntimeHost for HttpAgentRuntimeHost {
+    async fn load_run_context(
+        &self,
+        request: &WorkerRequest<AgentRunPayload>,
+    ) -> Result<AgentRunContext, AppError> {
+        let context: AgentWorkerRunContextWire = self
+            .request_json(Method::POST, "/internal/agent/context", request)
+            .await?;
+        Ok(AgentRunContext::from_wire(context))
+    }
+
     async fn execute_command(
         &self,
         _user_id: i64,

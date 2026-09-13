@@ -19,10 +19,11 @@ use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentWorkerCancelGenerationRequest,
-    AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest, AgentWorkerClaimRequest,
-    AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
-    AgentWorkerPackageExecutionResponse, AgentWorkerWaitRequest, WorkerRequest,
+    AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
+    AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
+    AgentWorkerClaimRequest, AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerWaitRequest,
+    WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -51,6 +52,21 @@ pub(super) async fn claim_worker(
         Some(request) => Ok(Json(request).into_response()),
         None => Ok(StatusCode::NO_CONTENT.into_response()),
     }
+}
+
+pub(super) async fn load_agent_context(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerRequest<AgentRunPayload>>,
+) -> Result<Json<AgentWorkerRunContextWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    request
+        .validate_agent_run()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::load_agent_run_context(state.runtime(), &request)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn command(
