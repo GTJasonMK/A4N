@@ -2782,6 +2782,16 @@ if ! rg -n 'pub trait OptimizePatchApplicationPort' \
     exit 1
 fi
 
+if ! rg -n 'pub trait OptimizePreviewApplicationPort' \
+    crates/a4n-orchestrator/src/optimize/application.rs || \
+   ! rg -n 'optimize_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/analysis/request_preview.rs \
+    crates/a4n-runtime/src/actions/optimize/chat/request_preview.rs \
+    crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
+    printf 'Optimize request previews must route through the preview port\n' >&2
+    exit 1
+fi
+
 if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
     crates/a4n-orchestrator/src/context/generation.rs \
     || rg -U -n '^pub use context::generation::\{[^}]*\bGenerationTaskStart\b' \

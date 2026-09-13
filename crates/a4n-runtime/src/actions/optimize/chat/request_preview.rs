@@ -12,7 +12,7 @@ pub async fn preview_send_optimization_message_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .optimize_application()
+        .optimize_preview_application()
         .preview_send_message(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

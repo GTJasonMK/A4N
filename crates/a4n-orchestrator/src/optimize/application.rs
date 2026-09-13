@@ -125,7 +125,7 @@ pub trait OptimizePatchApplicationPort: Send + Sync {
 /// Runtime-facing content-optimization request-preview and generation
 /// boundary.
 #[async_trait]
-pub trait OptimizeApplicationPort: Send + Sync {
+pub trait OptimizePreviewApplicationPort: Send + Sync {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
@@ -153,7 +153,11 @@ pub trait OptimizeApplicationPort: Send + Sync {
         input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+}
 
+/// Runtime-facing content-optimization generation boundary.
+#[async_trait]
+pub trait OptimizeApplicationPort: Send + Sync {
     async fn start_chat_generation(
         &self,
         user_id: i64,
@@ -721,7 +725,7 @@ impl OptimizePatchApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizeApplicationPort for OrchestratorContext {
+impl OptimizePreviewApplicationPort for OrchestratorContext {
     async fn preview_create_analysis(
         &self,
         user_id: i64,
@@ -800,7 +804,10 @@ impl OptimizeApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl OptimizeApplicationPort for OrchestratorContext {
     async fn start_chat_generation(
         &self,
         user_id: i64,

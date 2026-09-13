@@ -27,7 +27,7 @@ pub(in crate::optimize) use agent_loop_executor::{
 };
 pub use application::{
     OptimizeApplicationPort, OptimizePatchApplicationPort, OptimizePatchApplyHostPort,
-    OptimizeSessionMutationApplicationPort,
+    OptimizePreviewApplicationPort, OptimizeSessionMutationApplicationPort,
 };
 pub(crate) use chat::OptimizeChatGenerationApplicationContext;
 pub(in crate::optimize) use contracts::{
