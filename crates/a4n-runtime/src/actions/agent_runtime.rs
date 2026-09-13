@@ -4531,7 +4531,7 @@ pub async fn resolve_approval(
     input: ResolveAgentApprovalInput,
 ) -> Result<AgentApprovalView, AppError> {
     let result = state
-        .agent_application()
+        .agent_approval_application()
         .resolve_approval(user_id, input)
         .await?;
     state.trigger_agent_worker();
