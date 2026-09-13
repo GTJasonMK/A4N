@@ -40,15 +40,15 @@ use a4n_api_contract::{
     image::GeneratedImageSummary,
     video::{
         AssemblyClipRecord, AssemblyPostprocessEditRecordInput, AssemblyPostprocessPlan,
-        AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoRecords,
-        CanvasAssemblyPlan, CanvasFramePlan, ChapterVideoImportApplicationPort,
-        CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
-        PreparedAssemblyPushRecord, ReferenceMediaVideoImportApplicationPort,
-        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportApplicationPort,
-        VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
-        VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
-        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
-        VideoTailFrameSummary, VideoTrimPlan,
+        AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoImportApplicationPort,
+        AssemblyVideoRecords, CanvasAssemblyPlan, CanvasFramePlan,
+        ChapterVideoImportApplicationPort, CompleteVideoRecordInput, GeneratedVideoSummary,
+        PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
+        ReferenceMediaVideoImportApplicationPort, VideoAssemblyApplicationPort,
+        VideoCanvasMediaApplicationPort, VideoImportApplicationPort, VideoImportRecordSummary,
+        VideoProviderExecutionApplicationPort, VideoRecordCompletion, VideoRecordCompletionError,
+        VideoRecordLifecycleApplicationPort, VideoRecordMutationApplicationPort,
+        VideoRecordReadApplicationPort, VideoTailFrameInput, VideoTailFrameSummary, VideoTrimPlan,
     },
 };
 
@@ -1675,7 +1675,7 @@ impl ReferenceMediaVideoImportApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoImportApplicationPort for crate::OrchestratorContext {
+impl AssemblyVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_assembly_insert_video_record(
         &self,
         project_id: i64,
@@ -1701,7 +1701,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             .await?;
         Ok(video_import_record_summary(&video, None))
     }
+}
 
+#[async_trait]
+impl VideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_canvas_video_record(
         &self,
         project_id: i64,
