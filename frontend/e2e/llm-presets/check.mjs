@@ -39,6 +39,11 @@ try {
   const preset = await browser.$('[role="combobox"][aria-label="厂商预设"]');
   await preset.waitForDisplayed({ timeout: 20000 });
   await preset.click();
+  await browser.$('[role="option"]*=OpenAI · Responses').click();
+  const advanced = await browser.$("textarea");
+  await advanced.setValue('{"prompt_cache_options":{"mode":"explicit"}}');
+  assert.ok((await browser.execute(() => window.__LLM_PRESET_E2E__.form.extra_body_text)).includes("prompt_cache_options"));
+  await preset.click();
   const option = await browser.$('[role="option"]*=Google Gemini');
   await option.click();
   const form = await browser.execute(() => window.__LLM_PRESET_E2E__.form);
@@ -46,6 +51,8 @@ try {
   assert.equal(form.api_base_url, "https://generativelanguage.googleapis.com/v1beta");
   assert.equal(form.model, "");
   assert.equal(form.clear_api_key, true);
+  assert.equal(form.extra_body_text, "");
+  assert.equal(await advanced.getValue(), "");
   const key = await browser.$('input[type="password"]');
   assert.ok(await key.isEnabled());
   await key.setValue("fixture-key");
@@ -80,7 +87,7 @@ try {
     }
     return false;
   });
-  console.log("LLM preset browser checks passed: switching, credentials, model discovery, empty/error states, keyboard, 1440/1024/390px.");
+  console.log("LLM preset browser checks passed: switching, native option reset, credentials, model discovery, empty/error states, keyboard, 1440/1024/390px.");
 } catch (error) {
   if (browser) {
     await mkdir(output, { recursive: true });

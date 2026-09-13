@@ -42,6 +42,7 @@ export function selectLlmProvider(
     ...form,
     provider,
     model: "",
+    extra_body_text: previous?.protocol === next.protocol ? form.extra_body_text : "",
     name: !form.name.trim() || form.name === previous?.display_name
       ? next.display_name
       : form.name,

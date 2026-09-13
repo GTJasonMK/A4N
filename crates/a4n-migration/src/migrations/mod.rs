@@ -31,6 +31,7 @@ pub mod chapter_visual_plan_source_revision_identity;
 pub mod chapter_visual_plan_workflow_identity_cleanup;
 pub mod character_deletion_mark_provenance;
 pub mod character_timeline_provenance;
+pub mod claude_cache_usage_repair;
 pub mod cleanup_outbox;
 pub mod cleanup_outbox_generation_scope;
 pub mod directing_workflow_v2;

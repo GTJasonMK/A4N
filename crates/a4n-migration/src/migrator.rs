@@ -115,6 +115,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::package_lifecycle::Migration),
             Box::new(crate::migrations::llm_max_tokens_setting_cleanup::Migration),
             Box::new(crate::migrations::llm_cache_usage::Migration),
+            Box::new(crate::migrations::claude_cache_usage_repair::Migration),
         ]
     }
 }
@@ -164,7 +165,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(51)
+                .take(52)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -220,6 +221,7 @@ mod tests {
                 "package_lifecycle",
                 "llm_max_tokens_setting_cleanup",
                 "llm_cache_usage",
+                "claude_cache_usage_repair",
             ],
             "deployed migration history must remain registered in execution order"
         );

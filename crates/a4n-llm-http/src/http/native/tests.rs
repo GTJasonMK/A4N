@@ -193,6 +193,17 @@ fn responses_preserves_all_stable_boundaries_and_skips_dynamic_cache_writes() {
 }
 
 #[test]
+fn responses_caches_native_dialogue_from_its_first_user_message() {
+    let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
+    request
+        .configure_prompt_cache("openai-responses", "gpt-5.6-luna", None, Some(7))
+        .unwrap();
+    let body = responses::request_body(&request, "gpt-5.6-luna", Default::default()).unwrap();
+    assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
+    assert_eq!(body["input"][1]["content"], "initial task");
+}
+
+#[test]
 fn native_usage_normalizes_cache_misses_and_preserves_write_tokens() {
     let response = collect(
         LlmProtocolKind::OpenAiResponses,

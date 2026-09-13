@@ -28,6 +28,41 @@ fn request_body_json(request: Result<reqwest::RequestBuilder, AppError>) -> Valu
 }
 
 #[test]
+fn native_agent_initial_request_keeps_implicit_cache_on_the_wire() {
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test/v1", "gpt-5.6-luna", None, 30);
+    let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
+    request.cache_system_prefix = true;
+    request
+        .configure_prompt_cache("openai", "gpt-5.6-luna", None, Some(7))
+        .unwrap();
+    let body = request_body_json(provider.build_request(&request, true));
+    assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
+    assert_eq!(body["messages"][1]["content"], "initial task");
+}
+
+#[test]
+fn provider_factory_rejects_foreign_cache_options_before_http_dispatch() {
+    for provider in ["gemini", "anthropic", "deepseek"] {
+        let error = super::pick_llm_provider(
+            provider,
+            "https://example.test".into(),
+            "alias".into(),
+            None,
+            30,
+            Some(json!({"prompt_cache_options": {"mode": "explicit"}})),
+            ModelCapabilities {
+                max_context_tokens: 4096,
+                max_output_tokens: 1024,
+            },
+        )
+        .err()
+        .expect("foreign cache options must be rejected");
+        assert!(error.to_string().contains("仅适用于 OpenAI"));
+    }
+}
+
+#[test]
 fn completion_budget_uses_the_model_protocol_without_duplicate_limits() {
     let request = ChatRequest::system_user("system", "user", Some(0.2), Some(4096));
     for model in [

@@ -8,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from run_agent_cli_e2e import data, wait_for_run
 from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json
 
 
@@ -41,6 +42,17 @@ def main():
             for package in ["ai-workflow", "video", "canvas"]:
                 operation = call("start_package_lifecycle", {"package_id": package, "action": "enable", "operation_id": f"cache-e2e-{package}-{time.time_ns()}"}, True)
                 assert operation["state"] == "completed", operation
+            invalid = runtime_snapshot(args.provider_url, "gemini")["llm"]
+            invalid = {key: value for key, value in invalid.items() if key not in {"id", "is_default"}}
+            invalid["name"] = "incompatible cache options"
+            invalid["extra_body_json"] = {"prompt_cache_options": {"mode": "explicit"}}
+            try:
+                call("create_llm_config", invalid)
+            except RunnerError as error:
+                assert "prompt_cache_options" in str(error) and "仅适用于 OpenAI" in str(error), str(error)
+            else:
+                raise AssertionError("Gemini configuration accepted OpenAI cache options")
+            report["checks"].append({"check": "foreign_cache_options_rejected_before_save"})
             for protocol in ["openai", "openai-responses", "anthropic", "gemini"]:
                 snapshot = runtime_snapshot(args.provider_url, protocol)
                 snapshot["llm"]["extra_body_json"] = {"a4n_test_cache_usage": True}
@@ -91,6 +103,20 @@ def main():
                 assert row["prompt_cache_hit_ratio"] == 0.9, row
                 assert row["prompt_cache_write_tokens"] == (None if protocol == "gemini" else 400), row
                 report["checks"].append({"protocol": protocol, "workflow_run_id": started["workflow_run_id"], "trace_id": row["id"], "cache_hit_ratio": row["prompt_cache_hit_ratio"]})
+                if protocol in {"openai", "openai-responses", "anthropic"}:
+                    thread = data(checked(cli, ["agent", "thread", "create", "--kind", "subagent", "--capability", "canvas",
+                        "--project-id", str(project["id"]), "--resource-kind", "project", "--resource-id", str(project["id"])], "cache thread")[0], "thread")
+                    before = len(provider_log_entries(args.provider_log))
+                    started = data(checked(cli, ["agent", "chat", thread["id"], "仅回复缓存回归完成，不需要调用工具。"], "initial cache request")[0], "send")
+                    run = wait_for_run(cli, started["run_id"], 60, 0.1)
+                    assert run["status"] == "completed", run
+                    request = next(row["body"] for row in provider_log_entries(args.provider_log)[before:]
+                                   if row.get("body", {}).get("a4n_test_cache_usage") is True)
+                    if protocol == "anthropic":
+                        assert any(block.get("cache_control") for item in request["messages"] if item["role"] == "user" for block in item["content"])
+                    else:
+                        assert request["prompt_cache_options"]["mode"] == "implicit", request
+                    report["checks"].append({"protocol": protocol, "check": "initial_agent_task_cache", "run_id": started["run_id"]})
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration) as error:
         report["error"] = f"{type(error).__name__}: {error}"

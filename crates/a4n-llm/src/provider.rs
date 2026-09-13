@@ -11,7 +11,7 @@ mod stream_control;
 #[cfg(test)]
 mod tests;
 
-pub use cache::{PromptCacheBreakpoint, PromptCacheMode};
+pub use cache::{PromptCacheBreakpoint, PromptCacheMode, validate_prompt_cache_options};
 pub use contracts::{
     ChatChunk, ChatMessage, ChatResponse, LLM_PROVIDER_CAPABILITIES, LlmFinishReason,
     LlmProtocolKind, LlmProviderCapabilities, LlmTraceContext, MessageRole, ModelCapabilities,
