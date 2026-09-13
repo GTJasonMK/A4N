@@ -64,12 +64,11 @@ pub use context::generation::{
     GenerationTaskMutationApplicationPort, GenerationTaskReadApplicationPort,
 };
 pub use outline::{
-    OutlineBatchPartGenerationPreviewApplicationPort,
+    OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
     OutlineChapterCountGenerationPreviewApplicationPort,
     OutlineChapterRegenerationPreviewApplicationPort,
     OutlinePartChapterGenerationPreviewApplicationPort,
     OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
-    OutlinePreviewApplicationPort,
 };
 pub use profile_material::ProfileMaterialUploadApplicationPort;
 pub use shooting_script::ShootingScriptGenerationApplicationPort;

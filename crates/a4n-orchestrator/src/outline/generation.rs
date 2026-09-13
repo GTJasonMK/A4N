@@ -28,7 +28,7 @@ use crate::{
         terminal::CompletionDescriptor,
     },
     outline::{
-        OutlineBatchPartGenerationPreviewApplicationPort,
+        OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
         OutlineChapterCountGenerationPreviewApplicationPort,
         OutlineChapterRegenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
         OutlinePartChapterGenerationPreviewApplicationPort,
@@ -579,7 +579,7 @@ impl OutlineChapterRegenerationPreviewApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+impl OutlineBeatMappingPreviewApplicationPort for OrchestratorContext {
     async fn preview_apply_beat_mapping(
         &self,
         input: ApplyBeatMappingInput,

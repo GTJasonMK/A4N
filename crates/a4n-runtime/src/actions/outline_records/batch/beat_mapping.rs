@@ -16,7 +16,7 @@ pub async fn preview_apply_beat_mapping_request(
     .await?;
     let part_id = input.part_id;
     let request = state
-        .outline_preview_application()
+        .outline_beat_mapping_preview_application()
         .preview_apply_beat_mapping(input)
         .await?;
     single_request_preview(

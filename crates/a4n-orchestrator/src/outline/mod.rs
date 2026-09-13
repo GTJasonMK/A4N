@@ -73,12 +73,9 @@ pub trait OutlineGenerationApplicationPort: Send + Sync {
     ) -> Result<(), String>;
 }
 
-/// Host-facing boundary for outline request previews.
-///
-/// Runtime performs command-level authorization and formats the returned
-/// request steps; outline validation and prompt construction stay here.
+/// Host-facing boundary for outline beat-mapping previews.
 #[async_trait::async_trait]
-pub trait OutlinePreviewApplicationPort: Send + Sync {
+pub trait OutlineBeatMappingPreviewApplicationPort: Send + Sync {
     async fn preview_apply_beat_mapping(
         &self,
         input: ApplyBeatMappingInput,

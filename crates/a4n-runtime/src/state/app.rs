@@ -276,9 +276,9 @@ pub struct AppState {
     /// Chapter outline regeneration preview owner.
     outline_chapter_regeneration_preview_application:
         Arc<dyn a4n_orchestrator::OutlineChapterRegenerationPreviewApplicationPort>,
-    /// Outline request-preview owner. Runtime formats API preview responses
-    /// but does not construct prompt requests.
-    outline_preview_application: Arc<dyn a4n_orchestrator::OutlinePreviewApplicationPort>,
+    /// Outline beat-mapping preview owner.
+    outline_beat_mapping_preview_application:
+        Arc<dyn a4n_orchestrator::OutlineBeatMappingPreviewApplicationPort>,
     /// Host-facing theme/settings read boundary. Theme ownership and metadata
     /// stay in the settings application; Runtime handles only protected files.
     theme_read_application: Arc<dyn a4n_api_contract::theme::ThemeReadApplicationPort>,
@@ -1572,10 +1572,10 @@ impl AppState {
             .as_ref()
     }
 
-    pub(crate) fn outline_preview_application(
+    pub(crate) fn outline_beat_mapping_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlinePreviewApplicationPort {
-        self.outline_preview_application.as_ref()
+    ) -> &dyn a4n_orchestrator::OutlineBeatMappingPreviewApplicationPort {
+        self.outline_beat_mapping_preview_application.as_ref()
     }
 
     pub(crate) fn theme_read_application(
@@ -2725,7 +2725,7 @@ impl AppState {
             outline_batch_part_generation_preview_application: Arc::new(orchestrator.clone()),
             outline_chapter_count_generation_preview_application: Arc::new(orchestrator.clone()),
             outline_chapter_regeneration_preview_application: Arc::new(orchestrator.clone()),
-            outline_preview_application: Arc::new(orchestrator.clone()),
+            outline_beat_mapping_preview_application: Arc::new(orchestrator.clone()),
             theme_read_application: Arc::new(orchestrator.clone()),
             theme_mutation_application: Arc::new(orchestrator.clone()),
             config_read_application,

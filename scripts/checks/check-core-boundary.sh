@@ -2872,6 +2872,19 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_regenerate_chapter_o
     exit 1
 fi
 
+if ! rg -n 'pub trait OutlineBeatMappingPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/outline/mod.rs || \
+   ! rg -n 'outline_beat_mapping_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/outline_records/batch/beat_mapping.rs; then
+    printf 'Beat mapping previews must route through OutlineBeatMappingPreviewApplicationPort\n' >&2
+    exit 1
+fi
+if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_apply_beat_mapping' \
+    crates/a4n-runtime/src/actions/outline_records/batch/beat_mapping.rs; then
+    printf 'Beat mapping previews must not use the removed mixed outline preview port\n' >&2
+    exit 1
+fi
+
 if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
     crates/a4n-runtime/src; then
     printf 'Video prompt DTOs must be consumed from the API contract without an orchestrator facade\n' >&2
