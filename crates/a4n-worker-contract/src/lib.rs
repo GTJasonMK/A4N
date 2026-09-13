@@ -95,6 +95,25 @@ impl AgentWorkerUsageRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerRunWaitRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub reason: String,
+}
+
+impl AgentWorkerRunWaitRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("reason", &self.reason)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -670,6 +689,25 @@ mod tests {
                 field: "usage_json",
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn run_wait_request_requires_a_reason() {
+        let request = AgentWorkerRunWaitRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            reason: "external".into(),
+        };
+        request.validate().expect("wait request should be valid");
+
+        let invalid = AgentWorkerRunWaitRequest {
+            reason: "  ".into(),
+            ..request
+        };
+        assert!(matches!(
+            invalid.validate(),
+            Err(WorkerContractError::BlankField { field: "reason" })
         ));
     }
 

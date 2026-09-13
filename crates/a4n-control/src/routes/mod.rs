@@ -214,6 +214,7 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::activate_agent_turn),
         )
         .route("/agent/usage", post(agent_runtime::update_agent_usage))
+        .route("/agent/wait-run", post(agent_runtime::wait_agent_run))
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

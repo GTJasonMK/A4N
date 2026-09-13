@@ -184,10 +184,7 @@ async fn call(
 ) -> Result<Option<Value>, AppError> {
     let execution_application = state.worker_execution_application();
     let Some(execution) = prepare_tool_call(execution_application, claimed, &call).await? else {
-        state
-            .worker_wait_application()
-            .wait_run(claimed, "budget")
-            .await?;
+        state.wait_agent_worker_run(claimed, "budget").await?;
         return Ok(None);
     };
     let declared = context.messages.iter().any(|message| {

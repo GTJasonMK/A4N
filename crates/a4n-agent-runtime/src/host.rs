@@ -8,7 +8,8 @@ use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
-    AgentRunPayload, AgentWorkerRunLeaseRequest, AgentWorkerUsageRequest, WorkerRequest,
+    AgentRunPayload, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -36,6 +37,8 @@ pub trait AgentRuntimeHost: Send + Sync {
     async fn mark_turn_active(&self, request: &AgentWorkerRunLeaseRequest) -> Result<(), AppError>;
 
     async fn update_run_usage(&self, request: &AgentWorkerUsageRequest) -> Result<(), AppError>;
+
+    async fn wait_run(&self, request: &AgentWorkerRunWaitRequest) -> Result<(), AppError>;
 
     async fn execute_command(
         &self,

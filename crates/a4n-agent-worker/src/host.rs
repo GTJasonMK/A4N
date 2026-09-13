@@ -11,7 +11,7 @@ use a4n_worker_contract::{
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
     AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -127,6 +127,13 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     async fn update_run_usage(&self, request: &AgentWorkerUsageRequest) -> Result<(), AppError> {
         let _: Value = self
             .request_json(Method::POST, "/internal/agent/usage", request)
+            .await?;
+        Ok(())
+    }
+
+    async fn wait_run(&self, request: &AgentWorkerRunWaitRequest) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/wait-run", request)
             .await?;
         Ok(())
     }

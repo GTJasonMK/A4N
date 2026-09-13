@@ -36,8 +36,9 @@ use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionSnapshotWire,
     AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunSnapshotWire, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerRequest,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
+    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -3619,6 +3620,30 @@ impl AgentApplication {
             claimed.run.id,
             &claimed.lease_token,
             reason,
+        )
+        .await
+        .map(|_| ())
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn wait_run_request(
+        &self,
+        request: &AgentWorkerRunWaitRequest,
+    ) -> Result<(), AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        validate_waiting_reason(&request.reason)?;
+        agent::wait_run_for_lease(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+            &request.reason,
         )
         .await
         .map(|_| ())

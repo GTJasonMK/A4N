@@ -154,9 +154,6 @@ pub(super) async fn release_wait(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
 ) -> Result<(), AppError> {
-    state
-        .worker_wait_application()
-        .wait_run(claimed, "external")
-        .await?;
+    state.wait_agent_worker_run(claimed, "external").await?;
     Ok(())
 }

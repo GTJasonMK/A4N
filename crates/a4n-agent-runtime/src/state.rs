@@ -11,14 +11,13 @@ use a4n_agent_application::agent::{
     AgentWorkerHistoryApplicationPort, AgentWorkerInboxApplicationPort,
     AgentWorkerLeaseApplicationPort, AgentWorkerMessageApplicationPort,
     AgentWorkerReadApplicationPort, AgentWorkerRecoveryApplicationPort, AgentWorkerRun,
-    AgentWorkerWaitApplicationPort, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort,
+    AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentRunPayload, AgentWorkerRunLeaseRequest, AgentWorkerUsageRequest,
-    WorkerLease, WorkerRequest,
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -154,6 +153,24 @@ impl AgentRuntimeState {
             operation: "更新 Agent worker usage".into(),
         })?;
         self.host.update_run_usage(&request).await
+    }
+
+    pub async fn wait_agent_worker_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        reason: &str,
+    ) -> Result<(), AppError> {
+        let lease = self.agent_worker_lease_request(claimed)?.lease;
+        let request = AgentWorkerRunWaitRequest {
+            run_id: claimed.run.id,
+            lease,
+            reason: reason.to_string(),
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent worker wait request 无效: {error}"),
+            operation: "等待 Agent worker run".into(),
+        })?;
+        self.host.wait_run(&request).await
     }
 
     pub async fn authorize_agent_host_command(
@@ -338,9 +355,6 @@ impl AgentRuntimeState {
         self.application.as_ref()
     }
     pub fn worker_recovery_application(&self) -> &dyn AgentWorkerRecoveryApplicationPort {
-        self.application.as_ref()
-    }
-    pub fn worker_wait_application(&self) -> &dyn AgentWorkerWaitApplicationPort {
         self.application.as_ref()
     }
     pub fn workflow_binding_application(&self) -> &dyn AgentWorkflowBindingApplicationPort {

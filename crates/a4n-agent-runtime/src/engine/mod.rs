@@ -829,10 +829,7 @@ async fn suspend_agent_at_duration_limit(
                 .await?;
         }
     }
-    state
-        .worker_wait_application()
-        .wait_run(claimed, "budget")
-        .await
+    state.wait_agent_worker_run(claimed, "budget").await
 }
 
 async fn process_claimed_run_inner(
@@ -1048,10 +1045,7 @@ async fn process_claimed_run_inner(
                 tokens,
             )
             .await?;
-            state
-                .worker_wait_application()
-                .wait_run(claimed, "budget")
-                .await?;
+            state.wait_agent_worker_run(claimed, "budget").await?;
             return Ok(());
         }
         steps = steps.saturating_add(1);
@@ -1184,10 +1178,7 @@ async fn process_claimed_run_inner(
                 a4n_domain::agent::agent_model_token_reservation(&serde_json::to_value(&request)?);
             let input_tokens = reserved.saturating_sub(output_tokens as u64);
             if remaining <= input_tokens {
-                state
-                    .worker_wait_application()
-                    .wait_run(claimed, "budget")
-                    .await?;
+                state.wait_agent_worker_run(claimed, "budget").await?;
                 return Ok(());
             }
             request.max_tokens = Some(output_tokens.min((remaining - input_tokens) as usize));
@@ -1211,10 +1202,7 @@ async fn process_claimed_run_inner(
             })
             .await?
         else {
-            state
-                .worker_wait_application()
-                .wait_run(claimed, "budget")
-                .await?;
+            state.wait_agent_worker_run(claimed, "budget").await?;
             return Ok(());
         };
         let replayed_model_execution = model_execution.status == "succeeded";
@@ -1934,10 +1922,7 @@ async fn execute_tool_calls(
         )
         .await?;
         if batch.is_empty() {
-            state
-                .worker_wait_application()
-                .wait_run(claimed, "budget")
-                .await?;
+            state.wait_agent_worker_run(claimed, "budget").await?;
             return Ok(RunProgress::Released);
         }
         let futures = batch.into_iter().map(|(call, execution)| {
@@ -2149,10 +2134,7 @@ async fn execute_tool_call(
         return Ok((RunProgress::Continue, Vec::new()));
     }
     if execution.status == "outcome_unknown" {
-        state
-            .worker_wait_application()
-            .wait_run(claimed, "reconcile")
-            .await?;
+        state.wait_agent_worker_run(claimed, "reconcile").await?;
         return Ok((RunProgress::Released, Vec::new()));
     }
 
@@ -2163,10 +2145,7 @@ async fn execute_tool_call(
         .max_duration_seconds
         == Some(0)
     {
-        state
-            .worker_wait_application()
-            .wait_run(claimed, "budget")
-            .await?;
+        state.wait_agent_worker_run(claimed, "budget").await?;
         return Ok((RunProgress::Released, Vec::new()));
     }
 
@@ -2191,10 +2170,7 @@ async fn execute_tool_call(
                 error_message: Some("工具已派发但缺少提交回执，需要对账，不能重复写入".into()),
             })
             .await?;
-        state
-            .worker_wait_application()
-            .wait_run(claimed, "reconcile")
-            .await?;
+        state.wait_agent_worker_run(claimed, "reconcile").await?;
         return Ok((RunProgress::Released, Vec::new()));
     }
 
