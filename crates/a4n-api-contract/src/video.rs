@@ -83,25 +83,30 @@ pub struct GenerateReferenceMediaVideoInput {
     pub input: ReferenceMediaVideoInput,
 }
 
-/// Host-facing request preview boundary for all video entry points.
-///
-/// Video validation and request construction stay in the video owner. Runtime
-/// supplies only the provider and media preview adapters.
+/// Host-facing request preview boundary for canvas video nodes.
 #[async_trait::async_trait]
-pub trait VideoRequestPreviewApplicationPort: Send + Sync {
+pub trait CanvasVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_canvas(
         &self,
         input: crate::canvas::GenerateCanvasVideoInput,
         host_port: &dyn a4n_video_contract::CanvasVideoPreviewHostPort,
     ) -> Result<a4n_video_contract::CanvasVideoRequestPreview, a4n_error::AppError>;
+}
 
+/// Host-facing request preview boundary for chapter videos.
+#[async_trait::async_trait]
+pub trait ChapterVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_chapter(
         &self,
         host_port: &dyn a4n_video_contract::ChapterVideoPreviewHostPort,
         input: GenerateChapterVideoInput,
         prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
     ) -> Result<a4n_video_contract::ChapterVideoRequestPreview, a4n_error::AppError>;
+}
 
+/// Host-facing request preview boundary for reference-media videos.
+#[async_trait::async_trait]
+pub trait ReferenceMediaVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_reference_media(
         &self,
         host_port: &dyn a4n_video_contract::ReferenceMediaVideoPreviewHostPort,

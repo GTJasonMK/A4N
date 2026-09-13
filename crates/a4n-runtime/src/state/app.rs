@@ -564,10 +564,13 @@ pub struct AppState {
     /// Video generation task owner. Runtime supplies only provider adapters
     /// when a worker is started.
     video_generation_application: Arc<dyn a4n_api_contract::video::VideoGenerationApplicationPort>,
-    /// Video request-preview owner. Runtime supplies provider adapters while
-    /// the video owner prepares and validates the request.
-    video_request_preview_application:
-        Arc<dyn a4n_api_contract::video::VideoRequestPreviewApplicationPort>,
+    /// Video request-preview workers are separated by request source.
+    canvas_video_request_preview_application:
+        Arc<dyn a4n_api_contract::video::CanvasVideoRequestPreviewApplicationPort>,
+    chapter_video_request_preview_application:
+        Arc<dyn a4n_api_contract::video::ChapterVideoRequestPreviewApplicationPort>,
+    reference_media_video_request_preview_application:
+        Arc<dyn a4n_api_contract::video::ReferenceMediaVideoRequestPreviewApplicationPort>,
     /// Host-facing Galgame pipeline execution boundary. Workflow
     /// authorization and persistence stay in the Galgame owner.
     galgame_pipeline_execution_application:
@@ -1530,10 +1533,23 @@ impl AppState {
         self.video_generation_application.as_ref()
     }
 
-    pub(crate) fn video_request_preview_application(
+    pub(crate) fn canvas_video_request_preview_application(
         &self,
-    ) -> &dyn a4n_api_contract::video::VideoRequestPreviewApplicationPort {
-        self.video_request_preview_application.as_ref()
+    ) -> &dyn a4n_api_contract::video::CanvasVideoRequestPreviewApplicationPort {
+        self.canvas_video_request_preview_application.as_ref()
+    }
+
+    pub(crate) fn chapter_video_request_preview_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::ChapterVideoRequestPreviewApplicationPort {
+        self.chapter_video_request_preview_application.as_ref()
+    }
+
+    pub(crate) fn reference_media_video_request_preview_application(
+        &self,
+    ) -> &dyn a4n_api_contract::video::ReferenceMediaVideoRequestPreviewApplicationPort {
+        self.reference_media_video_request_preview_application
+            .as_ref()
     }
 
     pub(crate) fn chapter_content_read_application(
@@ -2939,7 +2955,9 @@ impl AppState {
             video_provider_config: Arc::new(orchestrator.clone()),
             video_provider_execution: Arc::new(orchestrator.clone()),
             video_generation_application: Arc::new(orchestrator.clone()),
-            video_request_preview_application: Arc::new(orchestrator.clone()),
+            canvas_video_request_preview_application: Arc::new(orchestrator.clone()),
+            chapter_video_request_preview_application: Arc::new(orchestrator.clone()),
+            reference_media_video_request_preview_application: Arc::new(orchestrator.clone()),
             galgame_pipeline_execution_application: Arc::new(orchestrator.clone()),
             galgame_pipeline_preview_application: Arc::new(orchestrator.clone()),
             galgame_pipeline_read_application: Arc::new(orchestrator.clone()),

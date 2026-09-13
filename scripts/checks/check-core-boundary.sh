@@ -421,13 +421,15 @@ for video_contract_consumer in \
     fi
 done
 
-if rg -n 'a4n_orchestrator::video::VideoRequestPreviewApplicationPort|pub trait VideoRequestPreviewApplicationPort|a4n_orchestrator::video::(CanvasVideoRequestPreview|ChapterVideoRequestPreview|ReferenceMediaVideoRequestPreview)' \
+if rg -n 'a4n_orchestrator::video::(VideoRequestPreviewApplicationPort|CanvasVideoRequestPreviewApplicationPort|ChapterVideoRequestPreviewApplicationPort|ReferenceMediaVideoRequestPreviewApplicationPort)|pub trait VideoRequestPreviewApplicationPort' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src; then
-    printf 'Video request previews must use the API application port and stable video preview contracts\n' >&2
+    printf 'Video request previews must use source-specific API application ports and stable video preview contracts\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait VideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
+if ! rg -n 'pub trait CanvasVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
+   ! rg -n 'pub trait ChapterVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
+   ! rg -n 'pub trait ReferenceMediaVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
    ! rg -n 'pub (struct|trait) (CanvasVideoRequestPreview|ChapterVideoRequestPreview|ReferenceMediaVideoRequestPreview|CanvasVideoPreviewHostPort|ChapterVideoPreviewHostPort|ReferenceMediaVideoPreviewHostPort)' \
     crates/a4n-video-contract/src/contracts.rs; then
     printf 'Video request preview contracts are missing from their stable owners\n' >&2
