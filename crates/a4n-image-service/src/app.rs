@@ -1,3 +1,4 @@
+use a4n_image_contract::IMAGE_SERVICE_NAME;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
@@ -12,11 +13,9 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         "a4n_image_service=info,tower_http=warn",
     )?;
 
-    let addr =
-        a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::IMAGE_SERVICE_NAME)?;
-    let policy =
-        a4n_service_protocol::sidecar_resource_policy(a4n_service_protocol::IMAGE_SERVICE_NAME)
-            .expect("image sidecar must have a resource policy");
+    let addr = a4n_sidecar_bootstrap::service_socket_addr(IMAGE_SERVICE_NAME)?;
+    let policy = a4n_service_protocol::sidecar_resource_policy(IMAGE_SERVICE_NAME)
+        .expect("image sidecar must have a resource policy");
     let app = Router::new()
         .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route(
@@ -35,5 +34,5 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         ));
 
     tracing::info!(%addr, "starting image sidecar");
-    a4n_sidecar_bootstrap::serve_sidecar(app, addr, a4n_service_protocol::IMAGE_SERVICE_NAME).await
+    a4n_sidecar_bootstrap::serve_sidecar(app, addr, IMAGE_SERVICE_NAME).await
 }
