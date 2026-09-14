@@ -273,6 +273,7 @@ dependencies = [
 name = "a4n-domain"
 version = "0.1.0"
 dependencies = [
+ "a4n-model-discovery-contract",
  "chrono",
  "schemars 1.2.1",
  "serde",
@@ -654,7 +655,17 @@ name = "a4n-model-discovery"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-model-discovery-contract",
  "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-model-discovery-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
  "serde",
  "serde_json",
 ]

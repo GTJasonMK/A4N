@@ -25,6 +25,7 @@ members = [
     "crates/a4n-service-manager",
     "crates/a4n-demo-sidecar",
     "crates/a4n-model-discovery",
+    "crates/a4n-model-discovery-contract",
     "crates/a4n-prompt",
     "crates/a4n-prompt-contract",
     "crates/a4n-prompt-git",
