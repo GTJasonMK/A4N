@@ -17,7 +17,11 @@ use a4n_service_protocol::{
     ServiceRequestContext, ServiceResponse, ServiceStatus, TraceContext,
     VIDEO_PROVIDER_CAPABILITY_VERSION,
 };
-use a4n_video_client::VideoClient;
+use a4n_video_client::{VideoClient, VideoPollRequest, VideoProviderRequest};
+use a4n_video_sidecar_contract::{
+    VideoGenerationRequest, VideoJobOutput, VideoMediaInput, VideoPollPayload,
+    VideoProviderPayload, VideoStatusOutput,
+};
 use std::sync::Arc;
 
 use super::{
@@ -204,7 +208,7 @@ async fn recording_image_unconfigured_operations_fail_explicitly() {
 async fn recording_video_generate_events_capture_request_and_bind_task_id() {
     let client = RecordingVideoClient::new()
         .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
-    let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let request = video_provider_request("video-generate");
     let (events_tx, mut events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -222,16 +226,16 @@ async fn recording_video_generate_events_capture_request_and_bind_task_id() {
 
 #[tokio::test]
 async fn recording_video_responses_and_request_ledgers_are_operation_specific() {
-    let poll_response = response(serde_json::json!({"operation": "poll"}));
-    let status_response = response(serde_json::json!({"operation": "status"}));
+    let poll_response = response(VideoJobOutput::Pending);
+    let status_response = response(VideoStatusOutput::Completed);
     let preview_response = response(serde_json::json!({"operation": "preview"}));
     let client = RecordingVideoClient::new()
         .with_poll_response(poll_response.clone())
         .with_status_response(status_response.clone())
         .with_preview_response(preview_response.clone());
-    let poll_request = request("video-poll", VIDEO_PROVIDER_CAPABILITY_VERSION);
-    let status_request = request("video-status", VIDEO_PROVIDER_CAPABILITY_VERSION);
-    let preview_request = request("video-preview", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let poll_request = video_poll_request("video-poll");
+    let status_request = video_poll_request("video-status");
+    let preview_request = video_provider_request("video-preview");
 
     assert_eq!(
         client
@@ -266,7 +270,7 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
 #[tokio::test]
 async fn recording_video_unconfigured_operations_fail_explicitly() {
     let client = RecordingVideoClient::new();
-    let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let request = video_provider_request("video-generate");
     let (events_tx, _events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let error = client
@@ -422,6 +426,58 @@ fn request(
         serde_json::json!({"request_id": request_id}),
     )
     .expect("valid test capability request")
+}
+
+fn video_provider_request(request_id: &str) -> VideoProviderRequest {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        VideoProviderPayload {
+            backend: "test-video".to_string(),
+            base_url: "https://video.example".to_string(),
+            api_key: String::new(),
+            provider_idempotency_key_sha256: None,
+            project_id: None,
+            request: VideoGenerationRequest {
+                prompt: "test video".to_string(),
+                negative_prompt: None,
+                width: 1,
+                height: 1,
+                duration_secs: 1,
+                fps: 1,
+                model: "test-model".to_string(),
+                media: VideoMediaInput::None,
+            },
+        },
+    )
+    .expect("valid typed video provider request")
+}
+
+fn video_poll_request(request_id: &str) -> VideoPollRequest {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        VideoPollPayload {
+            backend: "test-video".to_string(),
+            base_url: "https://video.example".to_string(),
+            api_key: String::new(),
+            project_id: None,
+            job_id: "job-1".to_string(),
+        },
+    )
+    .expect("valid typed video poll request")
 }
 
 fn image_request(request_id: &str) -> ImageProviderRequest {

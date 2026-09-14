@@ -10,7 +10,7 @@ use serde_json::Value;
 pub const VIDEO_SERVICE_NAME: &str = "video";
 pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v7";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VideoMediaInput {
     None,
@@ -71,7 +71,7 @@ impl VideoMediaInput {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoGenerationRequest {
     pub prompt: String,
@@ -93,7 +93,7 @@ impl VideoGenerationRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoProviderPayload {
     pub backend: String,
@@ -107,7 +107,7 @@ pub struct VideoProviderPayload {
     pub request: VideoGenerationRequest,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoPollPayload {
     pub backend: String,
@@ -119,7 +119,7 @@ pub struct VideoPollPayload {
     pub job_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoGenerationOutput {
     pub bytes_base64: String,
@@ -128,7 +128,7 @@ pub struct VideoGenerationOutput {
     pub metadata: Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum VideoJobOutput {
     Pending,
@@ -137,7 +137,7 @@ pub enum VideoJobOutput {
     Failed { message: String },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum VideoStatusOutput {
     Pending,
@@ -239,7 +239,7 @@ fn reject_unknown_fields<E>(
     })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "outcome", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VideoDeleteOutput {
     Deleted,
