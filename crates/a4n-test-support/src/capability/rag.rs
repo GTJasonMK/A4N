@@ -4,7 +4,7 @@ use a4n_rag_client::{
     CompletenessByIdsRequest, CompletenessByIdsResponse, DeleteRequest, DeleteResponse,
     DropCollectionRequest, DropCollectionResponse, JsonRequest, JsonResponse,
     MetadataByFilterRequest, MetadataByFilterResponse, MetadataByIdsRequest, MetadataByIdsResponse,
-    QueryRequest, QueryResponse, RagClient,
+    QueryRequest, QueryResponse, RagClient, SearchTextRequest, SearchTextResponse,
 };
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
@@ -58,7 +58,10 @@ impl RagClient for RecordingRagClient {
         Err(unexpected_call("RecordingRagClient", "query"))
     }
 
-    async fn search_text(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn search_text(
+        &self,
+        _request: SearchTextRequest,
+    ) -> CapabilityResult<SearchTextResponse> {
         Err(unexpected_call("RecordingRagClient", "search_text"))
     }
 

@@ -18,15 +18,6 @@ pub(crate) struct SearchPayload {
     pub(crate) filters: Option<SearchFilter>,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct SearchTextPayload {
-    pub(crate) collection: String,
-    pub(crate) query_text: String,
-    pub(crate) top_k: usize,
-    pub(crate) filters: Option<SearchFilter>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

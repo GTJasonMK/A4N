@@ -6,7 +6,7 @@ use a4n_test_support::process::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
     HttpRagClient, JsonRequest, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
-    ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
+    SearchTextPayload, ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
     assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
     assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
     assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
@@ -114,9 +114,16 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
 
 async fn search_ids(client: &HttpRagClient, query: &str) -> Vec<String> {
     let response = client
-        .search_text(rag_request(
+        .search_text(request_context(
             "rag-process-search",
-            json!({"collection": COLLECTION, "query_text": query, "top_k": 10}),
+            "rag-process-search-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            SearchTextPayload {
+                collection: COLLECTION.to_string(),
+                query_text: query.to_string(),
+                top_k: 10,
+                filters: None,
+            },
         ))
         .await
         .expect("RAG text search should cross the independent process");
@@ -124,10 +131,8 @@ async fn search_ids(client: &HttpRagClient, query: &str) -> Vec<String> {
     response
         .payload
         .expect("RAG search payload")
-        .as_array()
-        .expect("RAG search payload should be an array")
         .iter()
-        .map(|row| row["id"].as_str().expect("RAG result id").to_string())
+        .map(|row| row.id.clone())
         .collect()
 }
 

@@ -1,7 +1,7 @@
 use a4n_error::AppError;
 use a4n_rag_client::{
     CompletenessByIdsResponse, DeleteResponse, DropCollectionResponse, MetadataByFilterResponse,
-    MetadataByIdsResponse, QueryResponse,
+    MetadataByIdsResponse, QueryResponse, SearchTextResponse,
 };
 use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult,
@@ -9,7 +9,7 @@ use a4n_rag_core::vector_store::{
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
     MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchFilterPayload,
-    SearchResultPayload,
+    SearchResultPayload, SearchTextPayload,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
@@ -42,6 +42,32 @@ impl SidecarVectorStore {
         let response: QueryResponse = self
             .client
             .query(request)
+            .await
+            .map_err(service_error_app_error)?;
+        let results = typed_response_payload(response, "rag").map_err(service_app_error)?;
+        Ok(results.into_iter().map(core_search_result).collect())
+    }
+
+    pub(super) async fn search_text_typed(
+        &self,
+        collection: &str,
+        query_text: &str,
+        top_k: usize,
+        filters: Option<SearchFilter>,
+    ) -> Result<Vec<SearchResult>, AppError> {
+        let request = rag_service_request_typed(
+            "rag.search_text",
+            SearchTextPayload {
+                collection: collection.to_string(),
+                query_text: query_text.to_string(),
+                top_k,
+                filters: filters.map(search_filter_payload),
+            },
+        )
+        .map_err(service_app_error)?;
+        let response: SearchTextResponse = self
+            .client
+            .search_text(request)
             .await
             .map_err(service_error_app_error)?;
         let results = typed_response_payload(response, "rag").map_err(service_app_error)?;
@@ -201,7 +227,6 @@ impl SidecarVectorStore {
         let request =
             rag_service_request(operation.trace_span(), payload).map_err(service_app_error)?;
         let response = match operation {
-            RagOperation::SearchText => self.client.search_text(request).await,
             RagOperation::Search => self.client.search(request).await,
         }
         .map_err(service_error_app_error)?;
@@ -210,14 +235,12 @@ impl SidecarVectorStore {
 }
 
 pub(super) enum RagOperation {
-    SearchText,
     Search,
 }
 
 impl RagOperation {
     fn trace_span(&self) -> &'static str {
         match self {
-            Self::SearchText => "rag.search_text",
             Self::Search => "rag.search",
         }
     }
