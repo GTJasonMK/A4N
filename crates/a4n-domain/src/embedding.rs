@@ -1,6 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use a4n_embedding_contract::EmbeddingModelIdentity;
+
 use super::config::{
     normalize_config_name, normalize_optional_config_value, positive_i32, required_config_value,
 };
@@ -111,15 +113,6 @@ fn required_embedding_provider_capabilities(
     embedding_provider_capabilities(value).ok_or_else(|| format!("不支持的嵌入后端: {value}"))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct EmbeddingModelIdentity {
-    pub backend: String,
-    pub model: String,
-    #[schemars(with = "u32")]
-    pub dimension: usize,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LocalEmbeddingModelSummary {
@@ -139,21 +132,4 @@ pub struct EmbeddingModelDownloadInfoSummary {
     pub total_size_bytes: u64,
     pub downloaded_size_bytes: u64,
     pub missing_size_bytes: u64,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn embedding_identity_rejects_unknown_fields() {
-        let error = serde_json::from_value::<EmbeddingModelIdentity>(serde_json::json!({
-            "backend": "FastEmbed",
-            "model": "model",
-            "dimension": 384,
-            "legacy_backend": "local"
-        }))
-        .expect_err("embedding identity must reject unknown fields");
-        assert!(error.to_string().contains("legacy_backend"));
-    }
 }

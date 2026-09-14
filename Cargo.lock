@@ -273,6 +273,7 @@ dependencies = [
 name = "a4n-domain"
 version = "0.1.0"
 dependencies = [
+ "a4n-embedding-contract",
  "a4n-model-discovery-contract",
  "chrono",
  "schemars 1.2.1",
@@ -319,6 +320,15 @@ dependencies = [
  "async-trait",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "a4n-embedding-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1063,6 +1073,7 @@ name = "a4n-service-protocol"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-embedding-contract",
  "schemars 1.2.1",
  "serde",
  "serde_json",
