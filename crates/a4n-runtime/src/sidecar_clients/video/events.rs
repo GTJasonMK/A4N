@@ -7,8 +7,8 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use super::super::{
     GenerationEvent, parse_generation_event, service_error_string,
-    service_request_with_context_provider_secret_policy,
     sidecar_context_for_workflow_operation_with_root,
+    typed_service_request_with_context_provider_secret_policy,
 };
 use super::contracts::{VideoGenerationOutput, video_generation_result, video_provider_payload};
 
@@ -24,7 +24,7 @@ pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
 ) -> Result<VideoGenerationResult, String> {
     let payload =
         video_provider_payload(config, request, provider_idempotency_key_sha256, project_id)?;
-    let request = service_request_with_context_provider_secret_policy(
+    let request = typed_service_request_with_context_provider_secret_policy(
         sidecar_context_for_workflow_operation_with_root(
             project_id,
             root_project_id,
