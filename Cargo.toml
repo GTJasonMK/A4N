@@ -19,6 +19,7 @@ members = [
     "crates/a4n-llm-client",
     "crates/a4n-embedding-client",
     "crates/a4n-rag-client",
+    "crates/a4n-rag-sidecar-contract",
     "crates/a4n-image-client",
     "crates/a4n-video-client",
     "crates/a4n-sidecar-bootstrap",

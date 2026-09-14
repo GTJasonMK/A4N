@@ -108,12 +108,9 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         ids: &[String],
     ) -> Result<HashMap<String, Value>, ProviderError> {
-        self.call(
-            RagOperation::MetadataByIds,
-            json!({ "collection": collection, "ids": ids }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::metadata_by_ids_typed(self, collection, ids)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn metadata_by_filter(

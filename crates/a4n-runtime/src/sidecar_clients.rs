@@ -27,14 +27,12 @@ pub(crate) use rag::{
     scene_rag_sync_operation_trace_id, scope_rag_operation_trace,
     validate_rag_client_ingest_operation_trace_id, workflow_rag_operation_trace_id,
 };
+use request_context::sidecar_context_for_workflow_operation_with_root;
 pub(crate) use request_context::{
     SidecarRequestContext, global_provider_service_request, global_typed_provider_service_request,
     global_typed_service_request_without_secrets, pure_transform_typed_service_request,
-    service_request_with_context_provider_secret_policy, sidecar_context_for_llm_trace,
-    typed_service_request_with_context_provider_secret_policy,
-};
-use request_context::{
-    service_request_with_value_context, sidecar_context_for_workflow_operation_with_root,
+    service_request_with_context_provider_secret_policy, service_request_with_typed_context,
+    sidecar_context_for_llm_trace, typed_service_request_with_context_provider_secret_policy,
 };
 use response::{
     GenerationEvent, parse_generation_event, service_app_error, service_error_app_error,

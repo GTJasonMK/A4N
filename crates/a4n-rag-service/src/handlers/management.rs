@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use crate::app::RagServiceState;
 use crate::contracts::{
     CollectionPayload, CompletenessByIdsPayload, DeletePayload, MetadataByFilterPayload,
-    MetadataByIdsPayload,
 };
 use crate::protocol::service_error;
 use a4n_rag_core::vector_store::CompletenessReport;
+use a4n_rag_sidecar_contract::MetadataByIdsPayload;
 use a4n_service_protocol::{RAG_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
 use serde_json::Value;

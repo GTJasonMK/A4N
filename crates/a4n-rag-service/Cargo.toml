@@ -8,6 +8,7 @@ license.workspace = true
 a4n-domain = { path = "../a4n-domain" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-rag-index = { path = "../a4n-rag-index" }
+a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 

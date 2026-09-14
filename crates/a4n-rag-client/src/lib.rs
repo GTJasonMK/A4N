@@ -1,5 +1,6 @@
 //! Typed client for the RAG sidecar service.
 
+use a4n_rag_sidecar_contract::MetadataByIdsPayload;
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -11,11 +12,14 @@ use a4n_service_protocol::{
     RAG_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
 };
 use async_trait::async_trait;
+use std::collections::HashMap;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
 pub type JsonRequest = ServiceRequest<serde_json::Value>;
 pub type JsonResponse = ServiceResponse<serde_json::Value>;
+pub type MetadataByIdsRequest = ServiceRequest<MetadataByIdsPayload>;
+pub type MetadataByIdsResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -83,7 +87,10 @@ pub trait RagClient: ServiceClient {
     async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn drop_collection(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn metadata_by_ids(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn metadata_by_ids(
+        &self,
+        request: MetadataByIdsRequest,
+    ) -> ServiceClientResult<MetadataByIdsResponse>;
     async fn metadata_by_filter(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn completeness_report_by_ids(
         &self,
@@ -123,7 +130,10 @@ impl RagClient for HttpRagClient {
         self.transport.post(RAG_DROP_COLLECTION_PATH, request).await
     }
 
-    async fn metadata_by_ids(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn metadata_by_ids(
+        &self,
+        request: MetadataByIdsRequest,
+    ) -> ServiceClientResult<MetadataByIdsResponse> {
         self.transport.post(RAG_METADATA_BY_IDS_PATH, request).await
     }
 

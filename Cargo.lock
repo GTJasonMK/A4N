@@ -868,6 +868,7 @@ dependencies = [
 name = "a4n-rag-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-rag-sidecar-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
@@ -923,6 +924,7 @@ dependencies = [
  "a4n-domain",
  "a4n-rag-core",
  "a4n-rag-index",
+ "a4n-rag-sidecar-contract",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
@@ -933,6 +935,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "a4n-rag-sidecar-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -983,6 +993,7 @@ dependencies = [
  "a4n-rag-contract",
  "a4n-rag-core",
  "a4n-rag-index",
+ "a4n-rag-sidecar-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
@@ -1183,6 +1194,7 @@ dependencies = [
  "a4n-prompt-client",
  "a4n-rag-client",
  "a4n-rag-core",
+ "a4n-rag-sidecar-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",

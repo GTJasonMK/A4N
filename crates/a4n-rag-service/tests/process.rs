@@ -3,8 +3,8 @@ use a4n_service_protocol::{
     SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };
 use a4n_test_support::process::{
-    HttpRagClient, JsonRequest, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
-    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
+    HttpRagClient, JsonRequest, MetadataByIdsPayload, RAG_INDEX_CAPABILITY_VERSION,
+    RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
     assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
     assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
@@ -170,7 +170,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         "rag-process-metadata",
         "rag-process-trace",
         RAG_INDEX_CAPABILITY_VERSION,
-        serde_json::json!({"collection": COLLECTION, "ids": []}),
+        MetadataByIdsPayload {
+            collection: COLLECTION.to_string(),
+            ids: Vec::new(),
+        },
     );
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
@@ -183,7 +186,7 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .await
         .expect("typed RAG metadata lookup should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
-    assert!(response.payload.expect("RAG metadata payload").is_object());
+    assert!(response.payload.expect("RAG metadata payload").is_empty());
 
     let records = canonical_records();
     let ingest_request = trusted_remote_request_context(

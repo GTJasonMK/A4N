@@ -23,7 +23,8 @@ a4n-llm-client = { path = "../a4n-llm-client" }
 a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 a4n-prompt-client = { path = "../a4n-prompt-client" }
 a4n-rag-core = { path = "../a4n-rag-core" }
-a4n-rag-client = { path = "../a4n-rag-client" }
+a4n-rag-client = { path = "../a4n-rag-client", features = ["test-support"] }
+a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }

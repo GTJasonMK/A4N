@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use a4n_rag_client::{JsonRequest, JsonResponse, RagClient};
+use a4n_rag_client::{
+    JsonRequest, JsonResponse, MetadataByIdsRequest, MetadataByIdsResponse, RagClient,
+};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
@@ -85,7 +87,10 @@ impl RagClient for RecordingRagClient {
         Err(unexpected_call("RecordingRagClient", "drop_collection"))
     }
 
-    async fn metadata_by_ids(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn metadata_by_ids(
+        &self,
+        _request: MetadataByIdsRequest,
+    ) -> CapabilityResult<MetadataByIdsResponse> {
         Err(unexpected_call("RecordingRagClient", "metadata_by_ids"))
     }
 
