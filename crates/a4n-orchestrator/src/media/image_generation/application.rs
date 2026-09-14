@@ -20,7 +20,7 @@ use a4n_domain::{
     source_spans::{ChapterSourceContext, source_metadata},
 };
 use a4n_error::AppError;
-use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use serde_json::{Value, json};
 
 use crate::{

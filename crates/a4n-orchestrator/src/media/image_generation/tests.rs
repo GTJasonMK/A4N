@@ -20,7 +20,7 @@ use a4n_db_models::models::{
 };
 use a4n_domain::{media::GeneratedMediaArtifactFile, project::ProjectKind};
 use a4n_error::AppError;
-use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use base64::Engine as _;

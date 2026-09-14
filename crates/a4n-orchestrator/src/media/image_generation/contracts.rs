@@ -7,7 +7,7 @@ pub use a4n_api_contract::image_generation::{
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_error::AppError;
-use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use serde_json::Value;
