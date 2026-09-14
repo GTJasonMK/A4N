@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::state::RuntimeProfile;
 
-use super::{global_provider_service_request, response_payload, service_error_string};
+use super::{global_typed_provider_service_request, service_error_string, typed_response_payload};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ModelDiscoveryKind {
@@ -35,7 +35,7 @@ pub(crate) async fn discover_models(
     }
 
     let service_name = kind.service_name();
-    let request = global_provider_service_request(
+    let request = global_typed_provider_service_request(
         expected_capability_version_for_service(service_name)
             .expect("model discovery service must have a capability version"),
         ModelDiscoveryRequest {
@@ -65,7 +65,7 @@ pub(crate) async fn discover_models(
         }
     }
     .map_err(service_error_string)?;
-    response_payload(response, service_name)
+    typed_response_payload(response, service_name)
 }
 
 impl ModelDiscoveryKind {

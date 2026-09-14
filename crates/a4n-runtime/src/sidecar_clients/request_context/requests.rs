@@ -121,7 +121,7 @@ fn resolve_egress_policy(
     Ok(policy)
 }
 
-pub(super) fn ensure_global_request_scope(request: &JsonRequest) -> Result<(), String> {
+pub(super) fn ensure_global_request_scope<T>(request: &ServiceRequest<T>) -> Result<(), String> {
     if request.project_id.is_some() || request.root_project_id.is_some() {
         return Err(format!(
             "global sidecar request 不能携带项目作用域: project_id={:?}, root_project_id={:?}",

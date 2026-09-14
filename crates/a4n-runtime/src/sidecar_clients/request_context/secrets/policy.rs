@@ -25,6 +25,19 @@ pub(crate) fn global_provider_service_request(
     Ok(request)
 }
 
+pub(crate) fn global_typed_provider_service_request<T: Serialize>(
+    capability_version: impl Into<String>,
+    payload: T,
+) -> Result<ServiceRequest<T>, String> {
+    let request = typed_service_request_with_context_provider_secret_policy(
+        SidecarRequestContext::current_global(),
+        capability_version,
+        payload,
+    )?;
+    ensure_global_request_scope(&request)?;
+    Ok(request)
+}
+
 pub(crate) fn service_request_with_context_provider_secret_policy(
     context: SidecarRequestContext,
     capability_version: impl Into<String>,

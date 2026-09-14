@@ -1,5 +1,6 @@
 //! Typed client for the LLM sidecar service.
 
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -76,7 +77,10 @@ pub trait LlmClient: ServiceClient {
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
     async fn probe(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>>;
 }
 
 #[async_trait]
@@ -95,7 +99,10 @@ impl LlmClient for HttpLlmClient {
         self.transport.post("/llm/probe", request).await
     }
 
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>> {
         self.transport.post("/llm/models", request).await
     }
 }

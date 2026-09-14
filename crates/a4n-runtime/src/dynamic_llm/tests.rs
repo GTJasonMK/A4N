@@ -97,8 +97,11 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
 #[tokio::test]
 async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
     use a4n_llm_client::{JsonRequest, JsonResponse, LlmClient};
+    use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
     use a4n_service_client::{ServiceClient, ServiceClientResult};
-    use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+    use a4n_service_protocol::{
+        CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse,
+    };
     use async_trait::async_trait;
 
     struct ToolStreamClient;
@@ -186,8 +189,8 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
 
         async fn discover_models(
             &self,
-            _request: JsonRequest,
-        ) -> ServiceClientResult<JsonResponse> {
+            _request: ServiceRequest<ModelDiscoveryRequest>,
+        ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>> {
             unreachable!("model discovery is not used")
         }
     }
