@@ -5,13 +5,12 @@ use std::path::PathBuf;
 use a4n_config::app_config::AppConfig;
 use a4n_config::{optional_non_empty_env_path, optional_non_empty_env_string};
 use a4n_export_contract::EXPORT_SERVICE_NAME;
+use a4n_import_contract::IMPORT_SERVICE_NAME;
 use a4n_process_catalog::{ReleaseManifest, ServiceCatalogEntry};
 use a4n_service_manager::{
     ManagedServiceConfig, RemoteSecurityConfig, ServiceManager, is_loopback_http_url,
 };
-use a4n_service_protocol::{
-    IMPORT_SERVICE_NAME, PROMPT_SERVICE_NAME, RELEASE_MANIFEST_ENV, SIDECAR_AUTH_TOKEN_ENV,
-};
+use a4n_service_protocol::{PROMPT_SERVICE_NAME, RELEASE_MANIFEST_ENV, SIDECAR_AUTH_TOKEN_ENV};
 
 use crate::state::RuntimeProfile;
 
