@@ -1,12 +1,26 @@
 //! Typed client for the export sidecar service.
 
-use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_export_contract::{
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderJsonInput,
+    ExportRenderZipInput, ExportRenderZipOutput,
+};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
 };
-use a4n_service_protocol::{EXPORT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse};
+use a4n_service_protocol::{
+    ServiceHealth, ServiceRequest, ServiceResponse, sidecar_resource_policy,
+};
 use async_trait::async_trait;
+
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        EXPORT_SERVICE_NAME,
+        EXPORT_RENDER_CAPABILITY_VERSION,
+        sidecar_resource_policy(EXPORT_SERVICE_NAME)
+            .expect("export service must have a resource policy"),
+    )
+}
 
 #[derive(Debug, Clone)]
 pub struct HttpExportClient {
@@ -16,20 +30,14 @@ pub struct HttpExportClient {
 impl HttpExportClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(EXPORT_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(EXPORT_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
