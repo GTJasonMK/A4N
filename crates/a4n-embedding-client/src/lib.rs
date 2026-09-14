@@ -1,6 +1,6 @@
 //! Typed client for the embedding sidecar service.
 
-use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload};
+use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -91,7 +91,7 @@ pub trait EmbeddingClient: ServiceClient {
     ) -> ServiceClientResult<JsonResponse>;
     async fn download_model_events(
         &self,
-        request: JsonRequest,
+        request: ServiceRequest<EmbeddingModelPayload>,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
 }
@@ -119,7 +119,7 @@ impl EmbeddingClient for HttpEmbeddingClient {
 
     async fn download_model_events(
         &self,
-        request: JsonRequest,
+        request: ServiceRequest<EmbeddingModelPayload>,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport

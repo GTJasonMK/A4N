@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonRequest, JsonResponse};
-use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload};
+use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
@@ -23,7 +23,7 @@ pub struct PendingEmbeddingDownloadObserver {
 
 #[derive(Default)]
 struct PendingEmbeddingDownloadState {
-    requests: RequestLedger,
+    requests: RequestLedger<ServiceRequest<EmbeddingModelPayload>>,
     stream_started: AtomicBool,
     stream_dropped: AtomicBool,
     stream_started_notify: tokio::sync::Notify,
@@ -52,7 +52,9 @@ impl PendingEmbeddingDownloadClient {
         self.state.requests.count()
     }
 
-    pub fn last_download_model_events_request(&self) -> Option<JsonRequest> {
+    pub fn last_download_model_events_request(
+        &self,
+    ) -> Option<ServiceRequest<EmbeddingModelPayload>> {
         self.state.requests.last()
     }
 }
@@ -98,7 +100,7 @@ impl EmbeddingClient for PendingEmbeddingDownloadClient {
 
     async fn download_model_events(
         &self,
-        request: JsonRequest,
+        request: ServiceRequest<EmbeddingModelPayload>,
         _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.requests.record(request);
@@ -188,7 +190,7 @@ impl EmbeddingClient for RecordingEmbeddingClient {
 
     async fn download_model_events(
         &self,
-        _request: JsonRequest,
+        _request: ServiceRequest<EmbeddingModelPayload>,
         _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         Err(unexpected_call(

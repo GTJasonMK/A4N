@@ -36,7 +36,7 @@ pub struct EmbedTextsOutput {
     pub embeddings: Vec<Vec<f32>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EmbeddingModelPayload {
     pub model: String,
