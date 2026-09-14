@@ -1,8 +1,11 @@
 use a4n_error::AppError;
-use a4n_rag_client::{CompletenessByIdsResponse, DropCollectionResponse, MetadataByIdsResponse};
-use a4n_rag_core::vector_store::{CompletenessReport, EmbeddingRecord};
+use a4n_rag_client::{
+    CompletenessByIdsResponse, DeleteResponse, DropCollectionResponse, MetadataByIdsResponse,
+};
+use a4n_rag_core::vector_store::{CompletenessReport, DeleteFilter, EmbeddingRecord};
 use a4n_rag_sidecar_contract::{
-    CompletenessByIdsPayload, DropCollectionPayload, MetadataByIdsPayload,
+    CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
+    MetadataByIdsPayload,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
@@ -15,6 +18,30 @@ use crate::sidecar_clients::{
 };
 
 impl SidecarVectorStore {
+    pub(super) async fn delete_typed(
+        &self,
+        collection: &str,
+        filter: DeleteFilter,
+    ) -> Result<usize, AppError> {
+        let request = rag_service_request_typed(
+            "rag.delete",
+            DeleteRecordsPayload {
+                collection: collection.to_string(),
+                filter: DeleteFilterPayload {
+                    ids: filter.ids,
+                    id_prefixes: filter.id_prefixes,
+                },
+            },
+        )
+        .map_err(service_app_error)?;
+        let response: DeleteResponse = self
+            .client
+            .delete(request)
+            .await
+            .map_err(service_error_app_error)?;
+        typed_response_payload(response, "rag").map_err(service_app_error)
+    }
+
     pub(super) async fn drop_collection_typed(&self, collection: &str) -> Result<(), AppError> {
         let request = rag_service_request_typed(
             "rag.drop_collection",
@@ -129,7 +156,6 @@ impl SidecarVectorStore {
             RagOperation::Query => self.client.query(request).await,
             RagOperation::SearchText => self.client.search_text(request).await,
             RagOperation::Search => self.client.search(request).await,
-            RagOperation::Delete => self.client.delete(request).await,
             RagOperation::MetadataByFilter => self.client.metadata_by_filter(request).await,
         }
         .map_err(service_error_app_error)?;
@@ -141,7 +167,6 @@ pub(super) enum RagOperation {
     Query,
     SearchText,
     Search,
-    Delete,
     MetadataByFilter,
 }
 
@@ -151,7 +176,6 @@ impl RagOperation {
             Self::Query => "rag.query",
             Self::SearchText => "rag.search_text",
             Self::Search => "rag.search",
-            Self::Delete => "rag.delete",
             Self::MetadataByFilter => "rag.metadata_by_filter",
         }
     }

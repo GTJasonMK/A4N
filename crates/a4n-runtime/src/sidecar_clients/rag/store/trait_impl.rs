@@ -86,12 +86,9 @@ impl VectorStore for SidecarVectorStore {
     }
 
     async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, ProviderError> {
-        self.call(
-            RagOperation::Delete,
-            json!({ "collection": collection, "filter": filter }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::delete_typed(self, collection, filter)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn drop_collection(&self, collection: &str) -> Result<(), ProviderError> {

@@ -3,9 +3,9 @@ use a4n_service_protocol::{
     SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };
 use a4n_test_support::process::{
-    CompletenessByIdsPayload, DropCollectionPayload, HttpRagClient, JsonRequest,
-    MetadataByIdsPayload, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
-    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
+    CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
+    HttpRagClient, JsonRequest, MetadataByIdsPayload, RAG_INDEX_CAPABILITY_VERSION,
+    RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
     assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
     assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
@@ -394,20 +394,22 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
 
     let deleted = client
-        .delete(rag_request(
+        .delete(request_context(
             "rag-process-delete",
-            json!({
-                "collection": COLLECTION,
-                "filter": {
-                    "ids": ["doc-2"],
-                    "id_prefixes": []
-                }
-            }),
+            "rag-process-delete-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            DeleteRecordsPayload {
+                collection: COLLECTION.to_string(),
+                filter: DeleteFilterPayload {
+                    ids: vec!["doc-2".to_string()],
+                    id_prefixes: Vec::new(),
+                },
+            },
         ))
         .await
         .expect("RAG delete should cross the independent process");
     assert_eq!(deleted.status, ServiceStatus::Ok);
-    assert_eq!(deleted.payload.expect("RAG delete payload"), json!(1));
+    assert_eq!(deleted.payload.expect("RAG delete payload"), 1);
     let remaining_after_delete = search_ids(&client, "删除").await;
     assert!(
         remaining_after_delete.is_empty(),
