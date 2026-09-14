@@ -68,6 +68,7 @@ capability_contracts = %w[
   a4n-llm-contract
   a4n-embedding-contract
   a4n-rag-contract
+  a4n-rag-sidecar-contract
   a4n-image-contract
   a4n-video-contract
   a4n-video-sidecar-contract

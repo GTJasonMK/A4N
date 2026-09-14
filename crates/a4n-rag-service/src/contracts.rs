@@ -51,13 +51,6 @@ pub(crate) struct CollectionPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct MetadataByIdsPayload {
-    pub(crate) collection: String,
-    pub(crate) ids: Vec<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct MetadataByFilterPayload {
     pub(crate) collection: String,
     pub(crate) filter: DeleteFilter,

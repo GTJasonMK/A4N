@@ -62,6 +62,7 @@ a4n-import-contract = { path = "../a4n-import-contract" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-rag-client = { path = "../a4n-rag-client" }
 a4n-rag-contract = { path = "../a4n-rag-contract" }
+a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-rag-index = { path = "../a4n-rag-index", optional = true }
 a4n-image = { path = "../a4n-image" }
 a4n-image-contract = { path = "../a4n-image-contract" }

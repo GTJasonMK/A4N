@@ -86,8 +86,17 @@ pub(in crate::sidecar_clients) fn service_request_with_value_context(
     capability_version: impl Into<String>,
     payload: Value,
 ) -> Result<JsonRequest, String> {
+    service_request_with_typed_context(context, capability_version, payload)
+}
+
+pub(crate) fn service_request_with_typed_context<T: Serialize>(
+    context: SidecarRequestContext,
+    capability_version: impl Into<String>,
+    payload: T,
+) -> Result<ServiceRequest<T>, String> {
+    let payload_value = serde_json::to_value(&payload).map_err(|err| err.to_string())?;
     let capability_version = capability_version.into();
-    resolved_service_request_context(context, &capability_version, &payload)?
+    resolved_service_request_context(context, &capability_version, &payload_value)?
         .with_payload(capability_version, payload)
         .map_err(|error| error.message)
 }
