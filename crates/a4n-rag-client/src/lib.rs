@@ -1,7 +1,8 @@
 //! Typed client for the RAG sidecar service.
 
 use a4n_rag_sidecar_contract::{
-    CompletenessByIdsPayload, CompletenessReport, DropCollectionPayload, MetadataByIdsPayload,
+    CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
+    MetadataByIdsPayload,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -26,6 +27,8 @@ pub type CompletenessByIdsRequest = ServiceRequest<CompletenessByIdsPayload>;
 pub type CompletenessByIdsResponse = ServiceResponse<CompletenessReport>;
 pub type DropCollectionRequest = ServiceRequest<DropCollectionPayload>;
 pub type DropCollectionResponse = ServiceResponse<()>;
+pub type DeleteRequest = ServiceRequest<DeleteRecordsPayload>;
+pub type DeleteResponse = ServiceResponse<usize>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -91,7 +94,7 @@ pub trait RagClient: ServiceClient {
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
     async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn delete(&self, request: DeleteRequest) -> ServiceClientResult<DeleteResponse>;
     async fn drop_collection(
         &self,
         request: DropCollectionRequest,
@@ -131,7 +134,7 @@ impl RagClient for HttpRagClient {
         self.transport.post(RAG_SEARCH_PATH, request).await
     }
 
-    async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn delete(&self, request: DeleteRequest) -> ServiceClientResult<DeleteResponse> {
         self.transport.post(RAG_DELETE_PATH, request).await
     }
 

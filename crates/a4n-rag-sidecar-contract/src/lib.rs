@@ -20,6 +20,22 @@ pub struct DropCollectionPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct DeleteFilterPayload {
+    #[serde(default)]
+    pub ids: Vec<String>,
+    #[serde(default)]
+    pub id_prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteRecordsPayload {
+    pub collection: String,
+    pub filter: DeleteFilterPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CompletenessByIdsPayload {
     pub collection: String,
     pub expected_ids: Vec<String>,
@@ -41,7 +57,8 @@ pub struct CompletenessReport {
 #[cfg(test)]
 mod tests {
     use super::{
-        CompletenessByIdsPayload, CompletenessReport, DropCollectionPayload, MetadataByIdsPayload,
+        CompletenessByIdsPayload, CompletenessReport, DeleteFilterPayload, DeleteRecordsPayload,
+        DropCollectionPayload, MetadataByIdsPayload,
     };
 
     #[test]
@@ -63,6 +80,26 @@ mod tests {
         }))
         .expect_err("unknown collection fields must fail at the sidecar boundary");
         assert!(error.to_string().contains("create_if_missing"));
+    }
+
+    #[test]
+    fn delete_contract_rejects_unknown_filter_fields() {
+        let error = serde_json::from_value::<DeleteRecordsPayload>(serde_json::json!({
+            "collection": "42",
+            "filter": {
+                "ids": [],
+                "id_prefixes": [],
+                "legacy_filter": true
+            }
+        }))
+        .expect_err("unknown delete filter fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_filter"));
+
+        let filter = serde_json::from_value::<DeleteFilterPayload>(serde_json::json!({
+            "ids": ["doc-1"]
+        }))
+        .expect("delete filter fields remain independently defaultable");
+        assert!(filter.id_prefixes.is_empty());
     }
 
     #[test]

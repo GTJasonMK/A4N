@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use a4n_rag_client::{
-    CompletenessByIdsRequest, CompletenessByIdsResponse, DropCollectionRequest,
-    DropCollectionResponse, JsonRequest, JsonResponse, MetadataByIdsRequest, MetadataByIdsResponse,
-    RagClient,
+    CompletenessByIdsRequest, CompletenessByIdsResponse, DeleteRequest, DeleteResponse,
+    DropCollectionRequest, DropCollectionResponse, JsonRequest, JsonResponse, MetadataByIdsRequest,
+    MetadataByIdsResponse, RagClient,
 };
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
@@ -81,7 +81,7 @@ impl RagClient for RecordingRagClient {
         Err(unexpected_call("RecordingRagClient", "search"))
     }
 
-    async fn delete(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn delete(&self, _request: DeleteRequest) -> CapabilityResult<DeleteResponse> {
         Err(unexpected_call("RecordingRagClient", "delete"))
     }
 

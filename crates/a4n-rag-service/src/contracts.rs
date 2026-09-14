@@ -38,13 +38,6 @@ pub(crate) struct SearchTextPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct DeletePayload {
-    pub(crate) collection: String,
-    pub(crate) filter: DeleteFilter,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct MetadataByFilterPayload {
     pub(crate) collection: String,
     pub(crate) filter: DeleteFilter,
