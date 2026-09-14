@@ -1,6 +1,7 @@
 use super::provider::CliProxyOpenAiVideoProvider;
 use super::response::*;
-use a4n_video::{VideoGenerationRequest, VideoJobDeleteOutcome, VideoMediaInput, VideoProvider};
+use a4n_video::{VideoJobDeleteOutcome, VideoProvider};
+use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 

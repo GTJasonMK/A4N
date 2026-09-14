@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use super::response::{decode_result, extract_job_id, required_string};
 use crate::transport::{self, ApiKeyAuth};

@@ -9,8 +9,9 @@ use super::seedance2::provider::Seedance2VideoProvider;
 use a4n_video::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
-    VideoGenerationRequest, VideoProvider, video_provider_capabilities,
+    VideoProvider, video_provider_capabilities,
 };
+use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 use serde_json::Value;
 
 pub fn pick_video_provider(
@@ -61,7 +62,7 @@ pub fn video_provider_request_body_preview(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_video::{VIDEO_PROVIDER_CAPABILITIES, VideoMediaInput};
+    use a4n_video::VIDEO_PROVIDER_CAPABILITIES;
 
     #[test]
     fn accepts_canonical_video_backends() {

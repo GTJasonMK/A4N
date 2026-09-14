@@ -8,7 +8,8 @@ use base64::Engine as _;
 use serde_json::{Map, Value, json};
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use crate::download::download_video_url;
 use crate::format::{detect_video_format_from_bytes, normalize_video_format_str};

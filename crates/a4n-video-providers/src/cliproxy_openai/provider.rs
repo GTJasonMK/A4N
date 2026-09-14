@@ -8,10 +8,8 @@ use reqwest::header::CONTENT_TYPE;
 use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{
-    VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
-    VideoProvider,
-};
+use a4n_video::{VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoProvider};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use crate::download::download_video_url;
 use crate::format::video_format_from_content_type_or_bytes;
