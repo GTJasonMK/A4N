@@ -1,4 +1,4 @@
-use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation};
+use a4n_embedding_client::EmbeddingClient;
 use a4n_embedding_contract::{
     EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelIdentity, EmbeddingModelPayload,
 };
@@ -100,17 +100,14 @@ async fn recording_embedding_unconfigured_operations_fail_explicitly() {
         embeddings: Vec::new(),
     }));
     let error = client
-        .model_operation(
-            EmbeddingModelOperation::List,
-            request("model-request", EMBEDDING_CAPABILITY_VERSION),
-        )
+        .list_models(embedding_list_request("model-request"))
         .await
-        .expect_err("unconfigured model operation must fail");
+        .expect_err("unconfigured model list must fail");
 
     assert_eq!(error.code, ServiceErrorCode::Internal);
     assert_eq!(
         error.message,
-        "unexpected RecordingEmbeddingClient model_operation call"
+        "unexpected RecordingEmbeddingClient list_models call"
     );
     assert_eq!(client.embed_call_count(), 0);
 }
@@ -485,6 +482,18 @@ fn embedding_model_request(
         },
     )
     .expect("valid embedding model request")
+}
+
+fn embedding_list_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<()> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(EMBEDDING_CAPABILITY_VERSION, ())
+    .expect("valid embedding model list request")
 }
 
 fn video_provider_request(request_id: &str) -> VideoProviderRequest {

@@ -5,8 +5,6 @@ use a4n_embedding_contract::EmbeddingModelPayload;
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
 use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH};
 #[cfg(feature = "fastembed")]
-use a4n_test_support::process::EmbeddingModelOperation;
-#[cfg(feature = "fastembed")]
 use a4n_test_support::process::force_finish_sidecar;
 use a4n_test_support::process::{
     EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbeddingClient, HttpEmbeddingClient,
@@ -354,34 +352,21 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
     #[cfg(feature = "fastembed")]
     let cache_path = {
         let response = client
-            .model_operation(
-                EmbeddingModelOperation::List,
-                request_context(
-                    "embedding-process-model-list",
-                    "embedding-process-model-list-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::Value::Null,
-                ),
-            )
+            .list_models(request_context(
+                "embedding-process-model-list",
+                "embedding-process-model-list-trace",
+                EMBEDDING_CAPABILITY_VERSION,
+                (),
+            ))
             .await
             .expect("FastEmbed model list should cross the independent process");
         assert_eq!(response.status, ServiceStatus::Ok);
         let payload = response.payload.expect("FastEmbed model list payload");
         let model = payload
-            .as_array()
-            .and_then(|models| {
-                models
-                    .iter()
-                    .find(|model| model["name"] == serde_json::json!("BGESmallZHV15"))
-            })
+            .iter()
+            .find(|model| model.name == "BGESmallZHV15")
             .expect("default FastEmbed model should be listed");
-        assert!(model.get("cache_path").is_none());
-        model_cache_path(
-            temp_dir.path(),
-            model["model_code"]
-                .as_str()
-                .expect("FastEmbed model code should be text"),
-        )
+        model_cache_path(temp_dir.path(), &model.model_code)
     };
 
     #[cfg(feature = "fastembed")]
@@ -457,15 +442,12 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         let complete = start_sidecar(&manager, EMBEDDING_SERVICE_NAME).await;
         assert!(cache_path.exists());
         let response = client
-            .model_operation(
-                EmbeddingModelOperation::List,
-                request_context(
-                    "embedding-process-complete-model-list",
-                    "embedding-process-complete-model-list-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::Value::Null,
-                ),
-            )
+            .list_models(request_context(
+                "embedding-process-complete-model-list",
+                "embedding-process-complete-model-list-trace",
+                EMBEDDING_CAPABILITY_VERSION,
+                (),
+            ))
             .await
             .expect("complete FastEmbed cache should remain readable");
         assert_eq!(response.status, ServiceStatus::Ok);
@@ -473,28 +455,20 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             response
                 .payload
                 .expect("complete model list payload")
-                .as_array()
-                .unwrap()
                 .iter()
-                .any(|model| {
-                    model["name"] == serde_json::json!("BGESmallZHV15")
-                        && model["downloaded"] == serde_json::json!(true)
-                })
+                .any(|model| model.name == "BGESmallZHV15" && model.downloaded)
         );
         let deleted = client
-            .model_operation(
-                EmbeddingModelOperation::Delete,
-                request_context(
-                    "embedding-process-model-delete",
-                    "embedding-process-model-delete-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::json!({"model": "BGESmallZHV15"}),
-                ),
-            )
+            .delete_model(request_context(
+                "embedding-process-model-delete",
+                "embedding-process-model-delete-trace",
+                EMBEDDING_CAPABILITY_VERSION,
+                embedding_model_payload("BGESmallZHV15"),
+            ))
             .await
             .expect("FastEmbed model delete should cross the independent process");
         assert_eq!(deleted.status, ServiceStatus::Ok);
-        assert_eq!(deleted.payload, Some(serde_json::Value::Null));
+        assert_eq!(deleted.payload, Some(()));
         assert!(!cache_path.exists());
         force_finish_sidecar(complete, &manager, EMBEDDING_SERVICE_NAME, addr).await;
 

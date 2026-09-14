@@ -319,7 +319,6 @@ dependencies = [
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
- "serde_json",
  "tokio",
 ]
 

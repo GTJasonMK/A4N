@@ -3,8 +3,11 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonRequest, JsonResponse};
-use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
+use a4n_embedding_client::EmbeddingClient;
+use a4n_embedding_contract::{
+    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelDownloadInfoSummary, EmbeddingModelPayload,
+    LocalEmbeddingModelSummary,
+};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
@@ -87,14 +90,33 @@ impl EmbeddingClient for PendingEmbeddingDownloadClient {
         Err(unexpected_call("PendingEmbeddingDownloadClient", "embed"))
     }
 
-    async fn model_operation(
+    async fn list_models(
         &self,
-        _operation: EmbeddingModelOperation,
-        _request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        _request: ServiceRequest<()>,
+    ) -> CapabilityResult<ServiceResponse<Vec<LocalEmbeddingModelSummary>>> {
         Err(unexpected_call(
             "PendingEmbeddingDownloadClient",
-            "model_operation",
+            "list_models",
+        ))
+    }
+
+    async fn model_download_info(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbeddingModelDownloadInfoSummary>> {
+        Err(unexpected_call(
+            "PendingEmbeddingDownloadClient",
+            "model_download_info",
+        ))
+    }
+
+    async fn delete_model(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
+        Err(unexpected_call(
+            "PendingEmbeddingDownloadClient",
+            "delete_model",
         ))
     }
 
@@ -177,15 +199,28 @@ impl EmbeddingClient for RecordingEmbeddingClient {
         Ok(self.embed_response.clone())
     }
 
-    async fn model_operation(
+    async fn list_models(
         &self,
-        _operation: EmbeddingModelOperation,
-        _request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        _request: ServiceRequest<()>,
+    ) -> CapabilityResult<ServiceResponse<Vec<LocalEmbeddingModelSummary>>> {
+        Err(unexpected_call("RecordingEmbeddingClient", "list_models"))
+    }
+
+    async fn model_download_info(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbeddingModelDownloadInfoSummary>> {
         Err(unexpected_call(
             "RecordingEmbeddingClient",
-            "model_operation",
+            "model_download_info",
         ))
+    }
+
+    async fn delete_model(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
+        Err(unexpected_call("RecordingEmbeddingClient", "delete_model"))
     }
 
     async fn download_model_events(

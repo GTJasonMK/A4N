@@ -27,9 +27,7 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 pub const SIDECAR_PROCESS_TEST_TOKEN: &str = "a4n-process-test-token";
 
-pub use a4n_embedding_client::{
-    EmbeddingClient, EmbeddingModelOperation, HttpEmbeddingClient, JsonRequest,
-};
+pub use a4n_embedding_client::{EmbeddingClient, HttpEmbeddingClient};
 pub use a4n_export_client::{ExportClient, HttpExportClient};
 pub use a4n_export_contract::{
     EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderJsonInput,
