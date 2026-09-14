@@ -1,10 +1,8 @@
 use serde_json::{Map, Value, json};
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{
-    SEEDANCE2_VIDEO_BACKEND, VideoGenerationRequest, VideoMediaInput,
-    validate_video_provider_duration,
-};
+use a4n_video::{SEEDANCE2_VIDEO_BACKEND, validate_video_provider_duration};
+use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 
 use super::provider::Seedance2VideoProvider;
 

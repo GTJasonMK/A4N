@@ -16,7 +16,8 @@ use response_parser::extract_chat_video_payload;
 use super::download::download_video_url;
 use super::format::detect_video_format_from_bytes;
 use super::transport::{self, ApiKeyAuth};
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 /// Chat-Completions 视频 provider：把 `/v1/chat/completions` 当作视频生成网关。
 ///

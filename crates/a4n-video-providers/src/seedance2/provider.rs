@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use super::super::download::download_video_url;
 use super::response::{extract_status, extract_task_id, failure_message, result_video_url};
