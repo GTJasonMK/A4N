@@ -40,10 +40,13 @@ pub use a4n_import_contract::{
 };
 pub use a4n_llm_client::{HttpLlmClient, LlmClient};
 pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
-pub use a4n_rag_client::{HttpRagClient, JsonRequest, RagClient};
+pub type JsonRequest = ServiceRequest<Value>;
+
+pub use a4n_rag_client::{HttpRagClient, RagClient};
 pub use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchPayload, SearchTextPayload,
+    EmbeddingRecordPayload, IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload,
+    QueryPayload, SearchPayload, SearchTextPayload,
 };
 pub use a4n_service_client::{
     ServiceClient as CapabilityClient, ServiceClientResult as CapabilityResult,

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use a4n_rag_client::{
     CompletenessByIdsRequest, CompletenessByIdsResponse, DeleteRequest, DeleteResponse,
-    DropCollectionRequest, DropCollectionResponse, JsonRequest, MetadataByFilterRequest,
+    DropCollectionRequest, DropCollectionResponse, IngestRequest, MetadataByFilterRequest,
     MetadataByFilterResponse, MetadataByIdsRequest, MetadataByIdsResponse, QueryRequest,
     QueryResponse, RagClient, SearchRequest, SearchResponse, SearchTextRequest, SearchTextResponse,
 };
@@ -23,7 +23,7 @@ pub struct RecordingRagClient {
 
 #[derive(Default)]
 struct RecordingRagClientState {
-    ingest_event_requests: RequestLedger,
+    ingest_event_requests: RequestLedger<IngestRequest>,
 }
 
 impl RecordingRagClient {
@@ -40,7 +40,7 @@ impl RecordingRagClient {
         self.state.ingest_event_requests.count()
     }
 
-    pub fn last_ingest_events_request(&self) -> Option<JsonRequest> {
+    pub fn last_ingest_events_request(&self) -> Option<IngestRequest> {
         self.state.ingest_event_requests.last()
     }
 }
@@ -67,7 +67,7 @@ impl RagClient for RecordingRagClient {
 
     async fn ingest_events(
         &self,
-        request: JsonRequest,
+        request: IngestRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.ingest_event_requests.record(request.clone());

@@ -8,14 +8,13 @@ use a4n_rag_core::vector_store::{
 };
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchFilterPayload,
-    SearchPayload, SearchResultPayload, SearchTextPayload,
+    EmbeddingRecordPayload, IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload,
+    QueryPayload, SearchFilterPayload, SearchPayload, SearchResultPayload, SearchTextPayload,
 };
-use serde_json::json;
 
 use super::SidecarVectorStore;
 use crate::sidecar_clients::rag::events::handle_rag_ingest_event;
-use crate::sidecar_clients::rag::request::{rag_service_request, rag_service_request_typed};
+use crate::sidecar_clients::rag::request::rag_service_request_typed;
 use crate::sidecar_clients::{service_app_error, service_error_app_error, typed_response_payload};
 
 impl SidecarVectorStore {
@@ -214,12 +213,12 @@ impl SidecarVectorStore {
         collection: &str,
         records: Vec<EmbeddingRecord>,
     ) -> Result<usize, AppError> {
-        let request = rag_service_request(
+        let request = rag_service_request_typed(
             "rag.ingest",
-            json!({
-                "collection": collection,
-                "records": records
-            }),
+            IngestPayload {
+                collection: collection.to_string(),
+                records: records.into_iter().map(embedding_record_payload).collect(),
+            },
         )
         .map_err(service_app_error)?;
         let (event_tx, mut event_rx) =
@@ -242,6 +241,15 @@ impl SidecarVectorStore {
                 }
             }
         }
+    }
+}
+
+fn embedding_record_payload(record: EmbeddingRecord) -> EmbeddingRecordPayload {
+    EmbeddingRecordPayload {
+        id: record.id,
+        embedding: record.embedding,
+        metadata: record.metadata,
+        content: record.content,
     }
 }
 

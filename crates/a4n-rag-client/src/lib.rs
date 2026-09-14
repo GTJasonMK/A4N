@@ -2,7 +2,7 @@
 
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchPayload,
+    IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchPayload,
     SearchResultPayload, SearchTextPayload,
 };
 use a4n_service_client::{
@@ -20,7 +20,7 @@ use std::collections::HashMap;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
-pub type JsonRequest = ServiceRequest<serde_json::Value>;
+pub type IngestRequest = ServiceRequest<IngestPayload>;
 pub type MetadataByIdsRequest = ServiceRequest<MetadataByIdsPayload>;
 pub type MetadataByIdsResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
 pub type CompletenessByIdsRequest = ServiceRequest<CompletenessByIdsPayload>;
@@ -101,7 +101,7 @@ pub trait RagClient: ServiceClient {
     ) -> ServiceClientResult<SearchTextResponse>;
     async fn ingest_events(
         &self,
-        request: JsonRequest,
+        request: IngestRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
     async fn search(&self, request: SearchRequest) -> ServiceClientResult<SearchResponse>;
@@ -139,7 +139,7 @@ impl RagClient for HttpRagClient {
 
     async fn ingest_events(
         &self,
-        request: JsonRequest,
+        request: IngestRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport

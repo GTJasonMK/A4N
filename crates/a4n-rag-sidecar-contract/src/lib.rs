@@ -28,6 +28,22 @@ pub struct DeleteFilterPayload {
     pub id_prefixes: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EmbeddingRecordPayload {
+    pub id: String,
+    pub embedding: Vec<f32>,
+    pub metadata: serde_json::Value,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct IngestPayload {
+    pub collection: String,
+    pub records: Vec<EmbeddingRecordPayload>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteRecordsPayload {
@@ -111,8 +127,8 @@ pub struct CompletenessReport {
 mod tests {
     use super::{
         CompletenessByIdsPayload, CompletenessReport, DeleteFilterPayload, DeleteRecordsPayload,
-        DropCollectionPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
-        SearchPayload, SearchTextPayload,
+        DropCollectionPayload, IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload,
+        QueryPayload, SearchPayload, SearchTextPayload,
     };
 
     #[test]
@@ -154,6 +170,45 @@ mod tests {
         }))
         .expect("delete filter fields remain independently defaultable");
         assert!(filter.id_prefixes.is_empty());
+    }
+
+    #[test]
+    fn ingest_contract_rejects_unknown_record_fields() {
+        let error = serde_json::from_value::<IngestPayload>(serde_json::json!({
+            "collection": "42",
+            "records": [{
+                "id": "doc-1",
+                "embedding": [1.0, 0.0],
+                "metadata": {},
+                "content": "chapter",
+                "legacy_field": true
+            }]
+        }))
+        .expect_err("unknown ingest record fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_field"));
+    }
+
+    #[test]
+    fn ingest_contract_requires_string_content() {
+        for record in [
+            serde_json::json!({
+                "id": "doc-1",
+                "embedding": [1.0, 0.0],
+                "metadata": {}
+            }),
+            serde_json::json!({
+                "id": "doc-1",
+                "embedding": [1.0, 0.0],
+                "metadata": {},
+                "content": null
+            }),
+        ] {
+            serde_json::from_value::<IngestPayload>(serde_json::json!({
+                "collection": "42",
+                "records": [record]
+            }))
+            .expect_err("missing or null content must fail at the sidecar boundary");
+        }
     }
 
     #[test]

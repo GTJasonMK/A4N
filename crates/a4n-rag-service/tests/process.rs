@@ -1,18 +1,18 @@
 use a4n_service_protocol::{
     CapabilityTaskEventKind, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_IDS_PATH,
-    SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+    SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode, ServiceRequest,
 };
 use a4n_test_support::process::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    HttpRagClient, JsonRequest, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
-    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
-    SearchPayload, SearchTextPayload, ServiceStatus, SidecarProcessTestDir,
-    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
-    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
-    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
-    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
-    trusted_remote_request_context, unused_local_addr,
+    EmbeddingRecordPayload, HttpRagClient, IngestPayload, MetadataByFilterPayload,
+    MetadataByIdsPayload, QueryPayload, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
+    SIDECAR_PROCESS_TEST_TOKEN, SearchPayload, SearchTextPayload, ServiceStatus,
+    SidecarProcessTestDir, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
+    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
+    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -20,7 +20,7 @@ use std::time::Duration;
 const COLLECTION: &str = "42";
 const MUTATION_MARKER: &str = ".a4n-rag-mutation-in-progress";
 
-fn rag_request(label: &str, payload: Value) -> a4n_test_support::process::JsonRequest {
+fn rag_request(label: &str, payload: IngestPayload) -> ServiceRequest<IngestPayload> {
     request_context(
         label,
         &format!("{label}-trace"),
@@ -29,7 +29,7 @@ fn rag_request(label: &str, payload: Value) -> a4n_test_support::process::JsonRe
     )
 }
 
-async fn ingest_records(client: &HttpRagClient, request: JsonRequest) -> usize {
+async fn ingest_records(client: &HttpRagClient, request: ServiceRequest<IngestPayload>) -> usize {
     let (events_tx, mut events_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
         .ingest_events(request, events_tx)
@@ -53,26 +53,26 @@ async fn ingest_records(client: &HttpRagClient, request: JsonRequest) -> usize {
     panic!("RAG ingest event stream ended without completion");
 }
 
-fn canonical_records() -> Vec<Value> {
+fn canonical_records() -> Vec<EmbeddingRecordPayload> {
     vec![
-        json!({
-            "id": "doc-1",
-            "embedding": [1.0, 0.0, 0.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 1},
-            "content": "第一条重建哨兵正文"
-        }),
-        json!({
-            "id": "doc-2",
-            "embedding": [0.0, 1.0, 0.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 2},
-            "content": "第二条删除哨兵正文"
-        }),
-        json!({
-            "id": "doc-3",
-            "embedding": [0.0, 0.0, 1.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 3},
-            "content": "第三条断连哨兵正文"
-        }),
+        EmbeddingRecordPayload {
+            id: "doc-1".to_string(),
+            embedding: vec![1.0, 0.0, 0.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 1}),
+            content: "第一条重建哨兵正文".to_string(),
+        },
+        EmbeddingRecordPayload {
+            id: "doc-2".to_string(),
+            embedding: vec![0.0, 1.0, 0.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 2}),
+            content: "第二条删除哨兵正文".to_string(),
+        },
+        EmbeddingRecordPayload {
+            id: "doc-3".to_string(),
+            embedding: vec![0.0, 0.0, 1.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 3}),
+            content: "第三条断连哨兵正文".to_string(),
+        },
     ]
 }
 
@@ -205,7 +205,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         "rag-process-ingest",
         "rag-process-ingest-trace",
         RAG_INDEX_CAPABILITY_VERSION,
-        json!({"collection": COLLECTION, "records": records[..2].to_vec()}),
+        IngestPayload {
+            collection: COLLECTION.to_string(),
+            records: records[..2].to_vec(),
+        },
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
@@ -247,15 +250,15 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .ingest_events(
                 rag_request(
                     "rag-process-backpressure",
-                    json!({
-                        "collection": COLLECTION,
-                        "records": [{
-                            "id": "doc-backpressure",
-                            "embedding": [1.0, 1.0, 0.0],
-                            "metadata": {"data_type": "chapter", "chapter_number": 4},
-                            "content": "背压完成后仍应持久化"
-                        }]
-                    }),
+                    IngestPayload {
+                        collection: COLLECTION.to_string(),
+                        records: vec![EmbeddingRecordPayload {
+                            id: "doc-backpressure".to_string(),
+                            embedding: vec![1.0, 1.0, 0.0],
+                            metadata: json!({"data_type": "chapter", "chapter_number": 4}),
+                            content: "背压完成后仍应持久化".to_string(),
+                        }],
+                    },
                 ),
                 backpressure_tx,
             )
@@ -355,12 +358,12 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     for index in 0..512 {
         let id = format!("stream-idle-{index}");
         expected_ids.push(id.clone());
-        idle_records.push(json!({
-            "id": id,
-            "embedding": [0.0, 0.0, 1.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 3},
-            "content": format!("stream idle 索引一致性哨兵 {index}")
-        }));
+        idle_records.push(EmbeddingRecordPayload {
+            id,
+            embedding: vec![0.0, 0.0, 1.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 3}),
+            content: format!("stream idle 索引一致性哨兵 {index}"),
+        });
     }
     let idle_client =
         HttpRagClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN)
@@ -376,7 +379,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .ingest_events(
                 rag_request(
                     "rag-process-stream-idle",
-                    json!({"collection": COLLECTION, "records": idle_records}),
+                    IngestPayload {
+                        collection: COLLECTION.to_string(),
+                        records: idle_records,
+                    },
                 ),
                 idle_tx,
             )
@@ -407,7 +413,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .ingest_events(
                 rag_request(
                     "rag-process-disconnect",
-                    json!({"collection": COLLECTION, "records": [records[2].clone()]}),
+                    IngestPayload {
+                        collection: COLLECTION.to_string(),
+                        records: vec![records[2].clone()],
+                    },
                 ),
                 event_tx,
             )
@@ -485,7 +494,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         &client,
         rag_request(
             "rag-process-rebuild",
-            json!({"collection": COLLECTION, "records": canonical_records()}),
+            IngestPayload {
+                collection: COLLECTION.to_string(),
+                records: canonical_records(),
+            },
         ),
     )
     .await;
@@ -507,7 +519,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         &client,
         rag_request(
             "rag-process-explicit-rebuild",
-            json!({"collection": COLLECTION, "records": canonical_records()}),
+            IngestPayload {
+                collection: COLLECTION.to_string(),
+                records: canonical_records(),
+            },
         ),
     )
     .await;

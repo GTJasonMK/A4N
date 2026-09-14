@@ -1,4 +1,3 @@
-use a4n_rag_client::JsonRequest;
 use a4n_service_protocol::{ServiceRequest, TraceContext};
 use serde::Serialize;
 use serde_json::Value;
@@ -6,14 +5,6 @@ use serde_json::Value;
 use crate::sidecar_clients::{SidecarRequestContext, service_request_with_typed_context};
 
 use super::context::current_rag_operation_trace_id;
-
-pub(super) fn rag_service_request(
-    operation: &str,
-    payload: impl Serialize,
-) -> Result<JsonRequest, String> {
-    let payload = serde_json::to_value(payload).map_err(|err| err.to_string())?;
-    rag_service_request_typed(operation, payload)
-}
 
 pub(super) fn rag_service_request_typed<T: Serialize>(
     operation: &str,

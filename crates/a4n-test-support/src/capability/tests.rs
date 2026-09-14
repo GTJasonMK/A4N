@@ -13,7 +13,7 @@ use a4n_image_contract::{
 };
 use a4n_llm_client::LlmClient;
 use a4n_rag_client::RagClient;
-use a4n_rag_sidecar_contract::QueryPayload;
+use a4n_rag_sidecar_contract::{EmbeddingRecordPayload, IngestPayload, QueryPayload};
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
@@ -306,7 +306,7 @@ async fn recording_video_unconfigured_operations_fail_explicitly() {
 async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
     let client = RecordingRagClient::new()
         .with_ingest_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
-    let request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
+    let request = rag_ingest_request("rag-ingest");
     let (events_tx, mut events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -325,7 +325,7 @@ async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
 #[tokio::test]
 async fn recording_rag_unconfigured_operations_fail_explicitly() {
     let client = RecordingRagClient::new();
-    let ingest_request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
+    let ingest_request = rag_ingest_request("rag-ingest");
     let (events_tx, _events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -461,6 +461,29 @@ fn rag_query_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<Q
         },
     )
     .expect("valid typed RAG query request")
+}
+
+fn rag_ingest_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<IngestPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        RAG_INDEX_CAPABILITY_VERSION,
+        IngestPayload {
+            collection: "1".to_string(),
+            records: vec![EmbeddingRecordPayload {
+                id: "test-record".to_string(),
+                embedding: vec![1.0, 0.0],
+                metadata: serde_json::json!({}),
+                content: "test content".to_string(),
+            }],
+        },
+    )
+    .expect("valid typed RAG ingest request")
 }
 
 fn embedding_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<EmbedTextsPayload> {
