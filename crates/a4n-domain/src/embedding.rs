@@ -1,7 +1,3 @@
-pub use a4n_embedding_contract::{
-    EmbeddingModelDownloadInfoSummary, EmbeddingModelIdentity, LocalEmbeddingModelSummary,
-};
-
 use super::config::{
     normalize_config_name, normalize_optional_config_value, positive_i32, required_config_value,
 };
