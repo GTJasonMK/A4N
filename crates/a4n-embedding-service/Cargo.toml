@@ -11,6 +11,7 @@ fastembed = ["dep:a4n-embedding-fastembed"]
 [dependencies]
 a4n-domain = { path = "../a4n-domain" }
 a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-contract = { path = "../a4n-embedding-contract" }
 a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }
 a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }

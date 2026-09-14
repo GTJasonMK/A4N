@@ -1,4 +1,5 @@
-use a4n_service_protocol::{EMBEDDING_SERVICE_NAME, EmbeddingModelPayload, ServiceRequest};
+use a4n_embedding_contract::EmbeddingModelPayload;
+use a4n_service_protocol::{EMBEDDING_SERVICE_NAME, ServiceRequest};
 use a4n_sidecar_bootstrap::{failed_service_event_response, service_event_ndjson_response};
 use axum::{Json, response::IntoResponse};
 
