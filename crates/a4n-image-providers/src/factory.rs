@@ -11,7 +11,8 @@ use a4n_domain::image::{
     OPENAI_COMPATIBLE_IMAGE_BACKEND, OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND,
     STABLE_DIFFUSION_IMAGE_BACKEND, image_provider_capabilities,
 };
-use a4n_image::{ImageGenerationRequest, ImageProvider};
+use a4n_image::ImageProvider;
+use a4n_image_contract::ImageGenerationRequest;
 use serde_json::Value;
 
 /// 选择 provider。

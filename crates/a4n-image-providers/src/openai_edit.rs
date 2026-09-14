@@ -5,7 +5,8 @@ use super::support::{
     reference_image_field_name, required_non_empty, response_text, send_image_request,
 };
 use a4n_domain::ProviderError as AppError;
-use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
+use a4n_image::{ImageGenerationResult, ImageProvider};
+use a4n_image_contract::ImageGenerationRequest;
 use async_trait::async_trait;
 use reqwest::multipart::{Form, Part};
 use serde_json::{Value, json};
@@ -136,8 +137,7 @@ impl ImageProvider for OpenAiCompatibleImageEditProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_image::ImageReference;
-
+    use a4n_image_contract::ImageReference;
     const PNG_1X1_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
     fn request(reference_count: usize) -> ImageGenerationRequest {

@@ -462,6 +462,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-image",
+ "a4n-image-contract",
  "async-trait",
  "base64 0.22.1",
  "image",
