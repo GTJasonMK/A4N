@@ -4,6 +4,7 @@
 //! crate so the capability client can depend on the wire shape alone.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -43,6 +44,32 @@ pub struct MetadataByFilterPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct SearchFilterPayload {
+    pub equals: Option<HashMap<String, serde_json::Value>>,
+    pub chapter_range: Option<(u32, u32)>,
+    pub data_types: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct QueryPayload {
+    pub collection: String,
+    pub query_embedding: Vec<f32>,
+    pub top_k: usize,
+    pub filters: Option<SearchFilterPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SearchResultPayload {
+    pub id: String,
+    pub content: String,
+    pub score: f32,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CompletenessByIdsPayload {
     pub collection: String,
     pub expected_ids: Vec<String>,
@@ -65,7 +92,7 @@ pub struct CompletenessReport {
 mod tests {
     use super::{
         CompletenessByIdsPayload, CompletenessReport, DeleteFilterPayload, DeleteRecordsPayload,
-        DropCollectionPayload, MetadataByFilterPayload, MetadataByIdsPayload,
+        DropCollectionPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
     };
 
     #[test]
@@ -118,6 +145,19 @@ mod tests {
         }))
         .expect_err("unknown metadata filter fields must fail at the sidecar boundary");
         assert!(error.to_string().contains("legacy_filter_mode"));
+    }
+
+    #[test]
+    fn query_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<QueryPayload>(serde_json::json!({
+            "collection": "42",
+            "query_embedding": [1.0, 0.0],
+            "top_k": 1,
+            "filters": null,
+            "legacy_query_mode": "vector"
+        }))
+        .expect_err("unknown query fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_query_mode"));
     }
 
     #[test]
