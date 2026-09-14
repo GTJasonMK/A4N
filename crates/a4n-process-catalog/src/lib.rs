@@ -34,6 +34,15 @@ pub fn service_catalog_entry(name: &str) -> Option<ServiceCatalogEntry> {
         .find(|entry| entry.name == name)
 }
 
+pub fn service_catalog_entry_for_capability_version(
+    capability_version: &str,
+) -> Option<ServiceCatalogEntry> {
+    service_catalog()
+        .expect("embedded service catalog must be valid")
+        .into_iter()
+        .find(|entry| entry.capability_version == capability_version)
+}
+
 pub fn parse_service_socket_addr(key: &str, value: &str) -> Result<SocketAddr, String> {
     let value = value.trim();
     if value.is_empty() {
@@ -46,7 +55,9 @@ pub fn parse_service_socket_addr(key: &str, value: &str) -> Result<SocketAddr, S
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_service_socket_addr, service_catalog};
+    use super::{
+        parse_service_socket_addr, service_catalog, service_catalog_entry_for_capability_version,
+    };
 
     #[test]
     fn catalog_has_unique_process_identity_and_environment_keys() {
@@ -90,5 +101,15 @@ mod tests {
             .expect_err("invalid address must fail");
         assert!(error.contains("A4N_SERVICE_ADDR 必须是有效监听地址"));
         assert!(!error.contains("sidecar-secret"));
+    }
+
+    #[test]
+    fn catalog_resolves_capability_version_to_one_service() {
+        assert_eq!(
+            service_catalog_entry_for_capability_version("export-render-v3")
+                .map(|entry| entry.name),
+            Some("export".to_string())
+        );
+        assert!(service_catalog_entry_for_capability_version("unknown-v1").is_none());
     }
 }
