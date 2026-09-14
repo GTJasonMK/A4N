@@ -245,7 +245,7 @@ async fn video_delete_carries_project_scope_and_maps_outcome() {
         .expect("recorded delete request");
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(3));
-    assert_eq!(request.payload["job_id"], "job-42");
+    assert_eq!(request.payload.job_id, "job-42");
 }
 
 fn successful_video_generation_events() -> Vec<CapabilityTaskEvent> {

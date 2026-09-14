@@ -28,6 +28,7 @@ client-dependency	a4n-llm-client	a4n-service-protocol	normal
 client-dependency	a4n-llm-client	a4n-service-client	dev
 client-dependency	a4n-llm-client	a4n-service-client	normal
 client-dependency	a4n-embedding-client	a4n-service-protocol	normal
+client-dependency	a4n-embedding-client	a4n-embedding-contract	normal
 client-dependency	a4n-embedding-client	a4n-service-client	dev
 client-dependency	a4n-embedding-client	a4n-service-client	normal
 client-dependency	a4n-rag-client	a4n-service-protocol	normal

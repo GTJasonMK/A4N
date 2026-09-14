@@ -1,4 +1,5 @@
 use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation};
+use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelIdentity};
 use a4n_export_client::ExportClient;
 use a4n_export_contract::{
     EXPORT_RENDER_CAPABILITY_VERSION, ExportRenderJsonInput, ExportRenderZipInput,
@@ -64,9 +65,16 @@ async fn recording_llm_unconfigured_operations_fail_explicitly() {
 
 #[tokio::test]
 async fn recording_embedding_returns_configured_response_and_captures_request() {
-    let response = response(serde_json::json!({"embeddings": [[1.0, 0.0]]}));
+    let response = response(EmbedTextsOutput {
+        identity: EmbeddingModelIdentity {
+            backend: "test".to_string(),
+            model: "test-model".to_string(),
+            dimension: 2,
+        },
+        embeddings: vec![vec![1.0, 0.0]],
+    });
     let client = RecordingEmbeddingClient::new(response.clone());
-    let request = request("embed-request", EMBEDDING_CAPABILITY_VERSION);
+    let request = embedding_request("embed-request");
 
     let actual = client
         .embed(request.clone())
@@ -81,7 +89,14 @@ async fn recording_embedding_returns_configured_response_and_captures_request() 
 
 #[tokio::test]
 async fn recording_embedding_unconfigured_operations_fail_explicitly() {
-    let client = RecordingEmbeddingClient::new(response(serde_json::Value::Null));
+    let client = RecordingEmbeddingClient::new(response(EmbedTextsOutput {
+        identity: EmbeddingModelIdentity {
+            backend: String::new(),
+            model: String::new(),
+            dimension: 0,
+        },
+        embeddings: Vec::new(),
+    }));
     let error = client
         .model_operation(
             EmbeddingModelOperation::List,
@@ -134,7 +149,7 @@ async fn pending_embedding_download_observes_start_and_future_drop() {
 async fn pending_embedding_download_rejects_non_download_operations() {
     let client = PendingEmbeddingDownloadClient::new();
     let error = client
-        .embed(request("embedding-pending", EMBEDDING_CAPABILITY_VERSION))
+        .embed(embedding_request("embedding-pending"))
         .await
         .expect_err("pending download client must reject embed");
 
@@ -426,6 +441,29 @@ fn request(
         serde_json::json!({"request_id": request_id}),
     )
     .expect("valid test capability request")
+}
+
+fn embedding_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<EmbedTextsPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        EMBEDDING_CAPABILITY_VERSION,
+        EmbedTextsPayload {
+            backend: "test".to_string(),
+            base_url: None,
+            api_key: None,
+            model: "test-model".to_string(),
+            dimension: 2,
+            batch_size: 1,
+            texts: vec!["test".to_string()],
+        },
+    )
+    .expect("valid embedding capability request")
 }
 
 fn video_provider_request(request_id: &str) -> VideoProviderRequest {

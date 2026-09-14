@@ -15,7 +15,7 @@ pub struct EmbeddingModelIdentity {
     pub dimension: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EmbedTextsPayload {
     pub backend: String,
@@ -29,7 +29,7 @@ pub struct EmbedTextsPayload {
     pub texts: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EmbedTextsOutput {
     pub identity: EmbeddingModelIdentity,

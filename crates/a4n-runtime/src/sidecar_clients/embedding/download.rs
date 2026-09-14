@@ -11,9 +11,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 use super::super::{
-    global_provider_service_request, global_service_request_without_secrets,
+    global_service_request_without_secrets, global_typed_provider_service_request,
     missing_sidecar_capability_message, response_payload, service_app_error,
-    service_error_app_error,
+    service_error_app_error, typed_response_payload,
 };
 use super::contracts::{
     EmbedTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
@@ -74,14 +74,14 @@ pub(crate) async fn test_embedding_config_via_sidecar(
     let client = required_embedding_client(client)?;
     let payload = embedding_connectivity_test_payload(model)?;
     let expected_dimension = payload.dimension;
-    let request = global_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
+    let request = global_typed_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
     let response = client
         .embed(request)
         .await
         .map_err(service_error_app_error)?;
     let output: EmbedTextsOutput =
-        response_payload(response, "embedding").map_err(service_app_error)?;
+        typed_response_payload(response, "embedding").map_err(service_app_error)?;
     validate_embedding_connectivity_output(&output, expected_dimension)
 }
 

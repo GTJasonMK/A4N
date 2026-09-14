@@ -1,5 +1,6 @@
 //! Typed client for the embedding sidecar service.
 
+use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -79,7 +80,10 @@ impl ServiceClient for HttpEmbeddingClient {
 
 #[async_trait]
 pub trait EmbeddingClient: ServiceClient {
-    async fn embed(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn embed(
+        &self,
+        request: ServiceRequest<EmbedTextsPayload>,
+    ) -> ServiceClientResult<ServiceResponse<EmbedTextsOutput>>;
     async fn model_operation(
         &self,
         operation: EmbeddingModelOperation,
@@ -94,7 +98,10 @@ pub trait EmbeddingClient: ServiceClient {
 
 #[async_trait]
 impl EmbeddingClient for HttpEmbeddingClient {
-    async fn embed(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn embed(
+        &self,
+        request: ServiceRequest<EmbedTextsPayload>,
+    ) -> ServiceClientResult<ServiceResponse<EmbedTextsOutput>> {
         self.transport
             .post(EMBEDDING_EMBED_TEXTS_PATH, request)
             .await

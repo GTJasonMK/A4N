@@ -315,6 +315,7 @@ dependencies = [
 name = "a4n-embedding-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-embedding-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
@@ -990,6 +991,7 @@ dependencies = [
  "a4n-video-client",
  "a4n-video-contract",
  "a4n-video-providers",
+ "a4n-video-sidecar-contract",
  "a4n-worker-contract",
  "anyhow",
  "async-trait",
@@ -1166,6 +1168,7 @@ dependencies = [
  "a4n-domain",
  "a4n-embedding",
  "a4n-embedding-client",
+ "a4n-embedding-contract",
  "a4n-error",
  "a4n-export-client",
  "a4n-export-contract",

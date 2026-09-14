@@ -9,7 +9,6 @@ use super::download::{
 };
 use crate::state::RuntimeProfile;
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use a4n_embedding_client::JsonResponse;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{
@@ -173,10 +172,10 @@ async fn embedding_connectivity_uses_typed_capability_and_deny_all_request() {
     assert_eq!(client.embed_call_count(), 1);
     let request = client.last_embed_request().expect("recorded embed request");
     assert!(request.secret_policy.is_deny_all());
-    assert_eq!(request.payload["model"], "test-model");
-    assert_eq!(request.payload["texts"], serde_json::json!(["test"]));
-    assert!(request.payload.get("cache_dir").is_none());
-    assert!(request.payload.get("api_key").is_none());
+    assert_eq!(request.payload.model, "test-model");
+    assert_eq!(request.payload.texts, vec!["test"]);
+    assert!(request.payload.base_url.is_none());
+    assert!(request.payload.api_key.is_none());
 }
 
 #[tokio::test]
@@ -193,8 +192,11 @@ async fn api_embedding_connectivity_forwards_secret_only_with_local_user_policy(
         .expect("API embedding connectivity test");
     let request = client.last_embed_request().expect("recorded embed request");
     assert!(request.secret_policy.is_local_user_secret_only());
-    assert_eq!(request.payload["base_url"], "https://provider.example/v1");
-    assert_eq!(request.payload["api_key"], "secret-key");
+    assert_eq!(
+        request.payload.base_url.as_deref(),
+        Some("https://provider.example/v1")
+    );
+    assert_eq!(request.payload.api_key.as_deref(), Some("secret-key"));
 }
 
 #[test]
@@ -312,20 +314,20 @@ fn embedding_download_event(
     }
 }
 
-fn successful_embedding_response() -> JsonResponse {
+fn successful_embedding_response() -> ServiceResponse<EmbedTextsOutput> {
     ServiceResponse {
         status: ServiceStatus::Ok,
         trace_id: Some("trace".to_string()),
         usage: None,
         artifact_refs: Vec::new(),
-        payload: Some(serde_json::json!({
-            "identity": {
-                "backend": "FastEmbed",
-                "model": "test-model",
-                "dimension": 384
+        payload: Some(EmbedTextsOutput {
+            identity: EmbeddingModelIdentity {
+                backend: "FastEmbed".to_string(),
+                model: "test-model".to_string(),
+                dimension: 384,
             },
-            "embeddings": [vec![0.0_f32; 384]]
-        })),
+            embeddings: vec![vec![0.0_f32; 384]],
+        }),
         error: None,
     }
 }
