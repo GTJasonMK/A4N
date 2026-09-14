@@ -47,6 +47,13 @@ export function reduceAgentEvent(
     return { snapshot, cursor, needsReload: false };
   }
 
+  // An editor request carries a live UI operation and an execution that may
+  // have been created after this snapshot. Reload the authoritative snapshot
+  // before the page decides whether it can answer the request.
+  if (event.editor_request) {
+    return { snapshot, cursor, needsReload: true };
+  }
+
   const payload = objectPayload(event.payload);
   let next = snapshot;
   if (MESSAGE_EVENT_KINDS.has(event.kind)) {

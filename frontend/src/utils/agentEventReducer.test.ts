@@ -89,6 +89,34 @@ describe("agent event reducer", () => {
     expect(result.snapshot.events).toHaveLength(1);
   });
 
+  it("reloads before handling an editor request event", () => {
+    const result = reduceAgentEvent(
+      snapshot(),
+      {
+        ...event(1, { waiting_reason: "external" }),
+        kind: "run_waiting",
+        message_id: null,
+        editor_request: {
+          execution_id: "execution-1",
+          source: {
+            view_instance_id: "view-1",
+            project_id: 1,
+            chapter_id: 1,
+            editor_revision: "revision-1",
+            scene_id: null,
+            shot_id: null,
+            keyframe_id: null,
+            entity_id: null,
+          },
+          operation: { kind: "inspect" },
+        },
+      },
+      0,
+    );
+    expect(result.needsReload).toBe(true);
+    expect(result.snapshot.events).toHaveLength(0);
+  });
+
   it("deduplicates events and detects sequence gaps or malformed projections", () => {
     const current = snapshot();
     const duplicate = reduceAgentEvent(current, event(1, { message: message("new") }), 1);
