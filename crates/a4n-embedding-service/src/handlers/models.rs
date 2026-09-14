@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_domain::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
-use a4n_embedding_contract::EmbeddingModelPayload;
+use a4n_embedding_contract::{
+    EmbeddingModelDownloadInfoSummary, EmbeddingModelPayload, LocalEmbeddingModelSummary,
+};
 use a4n_embedding_fastembed::{
     delete_fastembed_model, fastembed_model_download_info, list_fastembed_local_models,
 };
