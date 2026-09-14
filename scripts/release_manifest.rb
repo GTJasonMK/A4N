@@ -70,7 +70,7 @@ def protocol_version(root)
 end
 
 def release_manifest_schema_version(root)
-  content = File.read(root.join("crates", "a4n-service-protocol", "src", "release.rs"))
+  content = File.read(root.join("crates", "a4n-process-catalog", "src", "release.rs"))
   match = content.match(/RELEASE_MANIFEST_SCHEMA_VERSION:\s*u32\s*=\s*(\d+)/)
   fail_with("missing release manifest schema version") unless match
   Integer(match[1])
@@ -138,7 +138,7 @@ end
 
 def load_tool_catalog(root)
   load_inventory(
-    root.join("crates/a4n-service-protocol/release-tools.json"),
+    root.join("crates/a4n-process-catalog/release-tools.json"),
     "release tool catalog",
     required_fields: %w[package binary],
     identifier_fields: %w[package binary],
