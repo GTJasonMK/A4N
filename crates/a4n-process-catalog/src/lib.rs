@@ -1,5 +1,12 @@
+mod release;
+
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+
+pub use release::{
+    RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
+    ReleaseRuntimeFileManifest, ReleaseToolCatalogEntry, ReleaseToolManifest, release_tool_catalog,
+};
 
 /// 进程管理、开发脚本和发布包共享的 sidecar 清单。
 ///

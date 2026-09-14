@@ -9,7 +9,6 @@ mod embedding;
 mod events;
 mod health;
 mod registry;
-mod release;
 mod request;
 mod resource;
 mod response;
@@ -79,10 +78,6 @@ pub use registry::{
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, VIDEO_PROVIDER_CAPABILITY_VERSION,
     VIDEO_SERVICE_NAME, egress_data_type_for_service, expected_capability_version_for_service,
     known_service_health, service_for_capability_version,
-};
-pub use release::{
-    RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
-    ReleaseRuntimeFileManifest, ReleaseToolCatalogEntry, ReleaseToolManifest, release_tool_catalog,
 };
 pub use request::{
     SchemaVersion, SecretForwardingPolicy, SecretMaterialScope, ServiceRequest,

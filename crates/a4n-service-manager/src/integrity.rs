@@ -3,11 +3,11 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use a4n_process_catalog::service_catalog;
-use a4n_service_protocol::{
-    PROTOCOL_VERSION, RELEASE_MANIFEST_ENV, RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest,
-    ReleaseManifest, ReleaseRuntimeFileManifest, release_tool_catalog,
+use a4n_process_catalog::{
+    RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
+    ReleaseRuntimeFileManifest, release_tool_catalog, service_catalog,
 };
+use a4n_service_protocol::{PROTOCOL_VERSION, RELEASE_MANIFEST_ENV};
 use sha2::{Digest, Sha256};
 
 use crate::ServiceManagerError;
@@ -399,11 +399,11 @@ fn sha256(path: &Path) -> std::io::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{BinaryIntegrityVerifier, is_sha256, sha256};
-    use a4n_process_catalog::service_catalog;
-    use a4n_service_protocol::{
-        PROTOCOL_VERSION, RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
-        ReleaseRuntimeFileManifest, ReleaseToolManifest, release_tool_catalog,
+    use a4n_process_catalog::{
+        RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
+        ReleaseRuntimeFileManifest, ReleaseToolManifest, release_tool_catalog, service_catalog,
     };
+    use a4n_service_protocol::PROTOCOL_VERSION;
 
     fn valid_manifest(prompt_sha256: String) -> ReleaseManifest {
         let mut binaries = vec![ReleaseBinaryManifest {
