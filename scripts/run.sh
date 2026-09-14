@@ -432,11 +432,21 @@ preflight_runtime_dependencies() {
 
 preflight_runtime_dependencies
 
+build_server_children() {
+  local -a child_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
+  $RELEASE && child_command+=(--release)
+  child_command+=(-p a4n-control -p a4n-agent-worker)
+  $FULL_HOST && child_command+=(--features embedded-capabilities)
+  "${child_command[@]}"
+}
+
 if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
   migration_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && migration_command+=(--release)
   migration_command+=(-p a4n-migration)
   "${migration_command[@]}"
+
+  build_server_children
 
   server_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && server_command+=(--release)
@@ -469,6 +479,7 @@ else
 fi
 
 if $SERVER; then
+  build_server_children
   npm --prefix frontend run build
   command=("$PROJECT_ROOT/scripts/cargo.sh" run)
   $RELEASE && command+=(--release)

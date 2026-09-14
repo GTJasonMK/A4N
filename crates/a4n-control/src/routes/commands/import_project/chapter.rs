@@ -26,6 +26,7 @@ pub(in crate::routes::commands) use shooting_script::{
 };
 pub(in crate::routes::commands) use visual_plan::{
     confirm_chapter_visual_plan, discard_chapter_visual_plan_draft, edit_chapter_visual_plan_draft,
-    get_chapter_visual_plan, read_chapter_visual_plan, save_chapter_visual_plan_draft,
+    get_chapter_visual_plan, preview_visual_plan_point_generation, read_chapter_visual_plan,
+    read_visual_plan_prompt_candidate, save_chapter_visual_plan_draft,
     validate_chapter_visual_plan,
 };

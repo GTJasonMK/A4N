@@ -190,7 +190,8 @@ use self::import_project::{
     update_world_setting, upload_portrait,
 };
 use self::import_project::{
-    edit_chapter_visual_plan_draft, read_chapter_visual_plan, validate_chapter_visual_plan,
+    edit_chapter_visual_plan_draft, preview_visual_plan_point_generation, read_chapter_visual_plan,
+    read_visual_plan_prompt_candidate, validate_chapter_visual_plan,
 };
 use self::input::{
     bool_arg, command_input, empty_command_args, f32_arg, i64_arg, nullable_i64_arg,

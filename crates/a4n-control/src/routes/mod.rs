@@ -161,6 +161,10 @@ pub fn api_router(state: ServerState) -> Router {
         )
         .route("/generation-tasks/image", post(generation::start_image))
         .route(
+            "/generation-tasks/director-prompt",
+            post(generation::start_director_prompt),
+        )
+        .route(
             "/generation-tasks/video",
             post(generation::start_video)
                 .layer(DefaultBodyLimit::max(VIDEO_GENERATION_BODY_LIMIT_BYTES)),

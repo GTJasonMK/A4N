@@ -127,20 +127,26 @@ fn supervise_agent_worker(
         match event {
             ChildWatchEvent::ControlExited(status) => {
                 eprintln!("A4N Control 意外退出: {status}；准备重启");
+                stop_agent_worker(agent_worker)?;
                 std::thread::sleep(WORKER_RESTART_DELAY);
                 *control = spawn_control(control_binary, control_addr, worker_token)?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
+                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
+                *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
             ChildWatchEvent::ControlBinaryChanged => {
                 eprintln!(
                     "检测到 A4N Control 二进制更新: {}；执行热替换",
                     control_binary.display()
                 );
+                stop_agent_worker(agent_worker)?;
                 stop_control(control)?;
                 *control = spawn_control(control_binary, control_addr, worker_token)?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
+                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
+                *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
             ChildWatchEvent::WorkerExited(status) => {
                 eprintln!("A4N Agent worker 意外退出: {status}；准备重启");
