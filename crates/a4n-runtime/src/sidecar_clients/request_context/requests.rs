@@ -106,13 +106,13 @@ fn resolve_egress_policy(
         policy
     };
     if matches!(policy.scope, SecretMaterialScope::TrustedRemote) {
-        let data_type = egress_data_type_for_service(service)
+        let data_type = egress_data_type_for_service(&service)
             .ok_or_else(|| format!("sidecar service {service} 缺少 egress data type"))?;
-        let event = validate_egress_scope(service, data_type, &policy.scope)
+        let event = validate_egress_scope(&service, data_type, &policy.scope)
             .map_err(|error| error.message)?;
         tracing::info!(
             target: "a4n_sidecar_egress_audit",
-            service,
+            service = %service,
             data_type = ?event.data_type,
             audit_event = event.audit_event,
             "authorized trusted-remote sidecar egress"
