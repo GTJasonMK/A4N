@@ -293,7 +293,7 @@ async fn host_cancel_drops_embedding_sidecar_event_stream() {
         .last_download_model_events_request()
         .expect("recorded embedding download request");
     assert!(request.secret_policy.is_deny_all());
-    assert_eq!(request.payload["model"], "test-model");
+    assert_eq!(request.payload.model, "test-model");
     assert!(
         observer.stream_was_dropped(),
         "dropping the host request future must close the sidecar HTTP event stream"

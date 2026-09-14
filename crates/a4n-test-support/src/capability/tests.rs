@@ -1,5 +1,7 @@
 use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation};
-use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelIdentity};
+use a4n_embedding_contract::{
+    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelIdentity, EmbeddingModelPayload,
+};
 use a4n_export_client::ExportClient;
 use a4n_export_contract::{
     EXPORT_RENDER_CAPABILITY_VERSION, ExportRenderJsonInput, ExportRenderZipInput,
@@ -117,7 +119,7 @@ async fn recording_embedding_unconfigured_operations_fail_explicitly() {
 async fn pending_embedding_download_observes_start_and_future_drop() {
     let client = Arc::new(PendingEmbeddingDownloadClient::new());
     let observer = client.observer();
-    let request = request("embedding-download", EMBEDDING_CAPABILITY_VERSION);
+    let request = embedding_model_request("embedding-download");
     let task_client = Arc::clone(&client);
     let task_request = request.clone();
     let (events_tx, _events_rx) =
@@ -464,6 +466,25 @@ fn embedding_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<E
         },
     )
     .expect("valid embedding capability request")
+}
+
+fn embedding_model_request(
+    request_id: &str,
+) -> a4n_service_protocol::ServiceRequest<EmbeddingModelPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        EMBEDDING_CAPABILITY_VERSION,
+        EmbeddingModelPayload {
+            model: "test-model".to_string(),
+        },
+    )
+    .expect("valid embedding model request")
 }
 
 fn video_provider_request(request_id: &str) -> VideoProviderRequest {

@@ -7,7 +7,8 @@ mod trace;
 pub(crate) use context::SidecarRequestContext;
 pub(super) use requests::service_request_with_value_context;
 pub(crate) use requests::{
-    global_service_request_without_secrets, pure_transform_typed_service_request,
+    global_service_request_without_secrets, global_typed_service_request_without_secrets,
+    pure_transform_typed_service_request,
 };
 pub(crate) use secrets::{
     global_provider_service_request, global_typed_provider_service_request,

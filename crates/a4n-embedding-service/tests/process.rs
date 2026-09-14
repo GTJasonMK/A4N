@@ -1,12 +1,16 @@
 use a4n_embedding_contract::EmbedTextsPayload;
 #[cfg(feature = "fastembed")]
+use a4n_embedding_contract::EmbeddingModelPayload;
+#[cfg(feature = "fastembed")]
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
 use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH};
 #[cfg(feature = "fastembed")]
+use a4n_test_support::process::EmbeddingModelOperation;
+#[cfg(feature = "fastembed")]
 use a4n_test_support::process::force_finish_sidecar;
 use a4n_test_support::process::{
-    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbeddingClient, EmbeddingModelOperation,
-    HttpEmbeddingClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbeddingClient, HttpEmbeddingClient,
+    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
     assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
     assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
@@ -49,6 +53,13 @@ fn embedding_payload(backend: &str, dimension: usize, text: &str) -> EmbedTextsP
         dimension,
         batch_size: 8,
         texts: vec![text.to_string()],
+    }
+}
+
+#[cfg(feature = "fastembed")]
+fn embedding_model_payload(model: &str) -> EmbeddingModelPayload {
+    EmbeddingModelPayload {
+        model: model.to_string(),
     }
 }
 
@@ -176,7 +187,7 @@ async fn embedding_download_stream_idle_releases_huggingface_request() {
                     "embedding-process-stream-idle",
                     "embedding-process-stream-idle-trace",
                     EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::json!({"model": "BGESmallZHV15"}),
+                    embedding_model_payload("BGESmallZHV15"),
                 ),
                 event_tx,
             )
@@ -387,9 +398,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                         "embedding-process-download-backpressure",
                         "embedding-process-download-backpressure-trace",
                         EMBEDDING_CAPABILITY_VERSION,
-                        serde_json::json!({
-                            "model": "BGESmallZHV15"
-                        }),
+                        embedding_model_payload("BGESmallZHV15"),
                     ),
                     event_tx,
                 )

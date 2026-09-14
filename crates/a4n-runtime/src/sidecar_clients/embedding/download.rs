@@ -12,8 +12,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::super::{
     global_service_request_without_secrets, global_typed_provider_service_request,
-    missing_sidecar_capability_message, response_payload, service_app_error,
-    service_error_app_error, typed_response_payload,
+    global_typed_service_request_without_secrets, missing_sidecar_capability_message,
+    response_payload, service_app_error, service_error_app_error, typed_response_payload,
 };
 use super::contracts::{
     EmbedTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
@@ -93,8 +93,9 @@ pub(crate) async fn download_embedding_model_events(
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let client = required_embedding_client(client)?;
     let payload = embedding_model_payload(model);
-    let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
-        .map_err(service_app_error)?;
+    let request =
+        global_typed_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
+            .map_err(service_app_error)?;
     let (event_tx, mut event_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.download_model_events(request, event_tx));
