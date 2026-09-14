@@ -338,6 +338,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-embedding",
+ "a4n-embedding-contract",
  "anyhow",
  "async-trait",
  "fastembed",

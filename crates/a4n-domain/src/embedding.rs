@@ -1,7 +1,6 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
-pub use a4n_embedding_contract::EmbeddingModelIdentity;
+pub use a4n_embedding_contract::{
+    EmbeddingModelDownloadInfoSummary, EmbeddingModelIdentity, LocalEmbeddingModelSummary,
+};
 
 use super::config::{
     normalize_config_name, normalize_optional_config_value, positive_i32, required_config_value,
@@ -111,25 +110,4 @@ fn required_embedding_provider_capabilities(
         return Err("嵌入后端不能为空".into());
     }
     embedding_provider_capabilities(value).ok_or_else(|| format!("不支持的嵌入后端: {value}"))
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct LocalEmbeddingModelSummary {
-    pub name: String,
-    pub model_code: String,
-    pub description: String,
-    pub dimension: usize,
-    pub downloaded: bool,
-    pub size_bytes: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct EmbeddingModelDownloadInfoSummary {
-    pub model_name: String,
-    pub model_code: String,
-    pub total_size_bytes: u64,
-    pub downloaded_size_bytes: u64,
-    pub missing_size_bytes: u64,
 }

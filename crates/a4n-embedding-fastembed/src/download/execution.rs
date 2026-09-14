@@ -5,8 +5,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_domain::embedding::LocalEmbeddingModelSummary;
 use a4n_embedding::provider::DownloadProgress;
+use a4n_embedding_contract::LocalEmbeddingModelSummary;
 
 use super::DOWNLOAD_CANCELLED_MESSAGE;
 use super::client::{build_download_client, ensure_not_cancelled};

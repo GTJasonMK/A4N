@@ -42,6 +42,27 @@ pub struct EmbeddingModelPayload {
     pub model: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LocalEmbeddingModelSummary {
+    pub name: String,
+    pub model_code: String,
+    pub description: String,
+    pub dimension: usize,
+    pub downloaded: bool,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EmbeddingModelDownloadInfoSummary {
+    pub model_name: String,
+    pub model_code: String,
+    pub total_size_bytes: u64,
+    pub downloaded_size_bytes: u64,
+    pub missing_size_bytes: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
