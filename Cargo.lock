@@ -1250,6 +1250,7 @@ dependencies = [
  "a4n-test-support",
  "a4n-video",
  "a4n-video-providers",
+ "a4n-video-sidecar-contract",
  "anyhow",
  "axum 0.8.9",
  "base64 0.22.1",
