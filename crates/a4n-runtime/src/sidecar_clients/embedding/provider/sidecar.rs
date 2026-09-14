@@ -13,7 +13,8 @@ use crate::provider_runtime::DynamicProviderFacade;
 use crate::{dynamic_embedding, runtime_config};
 
 use super::super::super::{
-    global_provider_service_request, response_payload, service_app_error, service_error_app_error,
+    global_typed_provider_service_request, service_app_error, service_error_app_error,
+    typed_response_payload,
 };
 use super::super::contracts::{EmbedTextsOutput, embedding_texts_payload};
 
@@ -62,7 +63,7 @@ impl SidecarEmbeddingProvider {
                 TaskPriority::Low,
                 None,
                 || async move {
-                    let request = global_provider_service_request(
+                    let request = global_typed_provider_service_request(
                         a4n_service_protocol::EMBEDDING_CAPABILITY_VERSION,
                         payload,
                     )
@@ -72,7 +73,7 @@ impl SidecarEmbeddingProvider {
             )
             .await?;
         let output: EmbedTextsOutput =
-            response_payload(response, "embedding").map_err(service_app_error)?;
+            typed_response_payload(response, "embedding").map_err(service_app_error)?;
         if output.identity.dimension != expected_dimension {
             return Err(AppError::ConfigError(format!(
                 "嵌入配置 {} 的向量维度为 {}，但 sidecar 模型 {} 实际输出 {} 维",

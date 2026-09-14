@@ -1,3 +1,4 @@
+use a4n_embedding_contract::EmbedTextsPayload;
 #[cfg(feature = "fastembed")]
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
 use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH};
@@ -37,6 +38,18 @@ fn embedding_process_env(cache_dir: &std::path::Path) -> Vec<(String, String)> {
         ));
     }
     env
+}
+
+fn embedding_payload(backend: &str, dimension: usize, text: &str) -> EmbedTextsPayload {
+    EmbedTextsPayload {
+        backend: backend.to_string(),
+        base_url: None,
+        api_key: None,
+        model: "local-sha256-hash".to_string(),
+        dimension,
+        batch_size: 8,
+        texts: vec![text.to_string()],
+    }
 }
 
 #[cfg(feature = "fastembed")]
@@ -201,13 +214,7 @@ async fn embedding_download_stream_idle_releases_huggingface_request() {
             "embedding-process-after-stream-idle",
             "embedding-process-after-stream-idle-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "local_hash",
-                "model": "local-sha256-hash",
-                "dimension": 8,
-                "batch_size": 8,
-                "texts": ["still responsive after stream idle"]
-            }),
+            embedding_payload("local_hash", 8, "still responsive after stream idle"),
         ))
         .await
         .expect("embedding service should recover after stream idle cancellation");
@@ -249,13 +256,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         "embedding-process-embed",
         "embedding-process-trace",
         EMBEDDING_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "local_hash",
-            "model": "local-sha256-hash",
-            "dimension": 64,
-            "batch_size": 8,
-            "texts": ["process test"]
-        }),
+        embedding_payload("local_hash", 64, "process test"),
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
@@ -275,8 +276,11 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         .expect("local_hash embedding should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
     assert_eq!(
-        response.payload.expect("embedding payload")["embeddings"][0]
-            .as_array()
+        response
+            .payload
+            .expect("embedding payload")
+            .embeddings
+            .first()
             .map(Vec::len),
         Some(64)
     );
@@ -286,20 +290,17 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "embedding-process-remote-content",
             "embedding-process-remote-content-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "local_hash",
-                "model": "local-sha256-hash",
-                "dimension": 8,
-                "batch_size": 8,
-                "texts": ["trusted remote text egress"]
-            }),
+            embedding_payload("local_hash", 8, "trusted remote text egress"),
         ))
         .await
         .expect("secret-free remote embedding content should remain available");
     assert_eq!(remote_response.status, ServiceStatus::Ok);
     assert_eq!(
-        remote_response.payload.expect("remote embedding payload")["embeddings"][0]
-            .as_array()
+        remote_response
+            .payload
+            .expect("remote embedding payload")
+            .embeddings
+            .first()
             .map(Vec::len),
         Some(8)
     );
@@ -310,13 +311,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "embedding-process-failure",
             "embedding-process-failure-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "unsupported-process-backend",
-                "model": "local-sha256-hash",
-                "dimension": 64,
-                "batch_size": 8,
-                "texts": ["failure then recovery"]
-            }),
+            embedding_payload("unsupported-process-backend", 64, "failure then recovery"),
         ))
         .await
         .expect("embedding provider failure should return a typed response");
@@ -330,20 +325,17 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "embedding-process-after-failure",
             "embedding-process-after-failure-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "local_hash",
-                "model": "local-sha256-hash",
-                "dimension": 8,
-                "batch_size": 8,
-                "texts": ["still responsive"]
-            }),
+            embedding_payload("local_hash", 8, "still responsive"),
         ))
         .await
         .expect("embedding service should recover after a provider failure");
     assert_eq!(recovered.status, ServiceStatus::Ok);
     assert_eq!(
-        recovered.payload.expect("recovered embedding payload")["embeddings"][0]
-            .as_array()
+        recovered
+            .payload
+            .expect("recovered embedding payload")
+            .embeddings
+            .first()
             .map(Vec::len),
         Some(8)
     );
@@ -426,13 +418,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                 "embedding-process-after-cancel",
                 "embedding-process-after-cancel-trace",
                 EMBEDDING_CAPABILITY_VERSION,
-                serde_json::json!({
-                    "backend": "local_hash",
-                    "model": "local-sha256-hash",
-                    "dimension": 8,
-                    "batch_size": 8,
-                    "texts": ["still responsive"]
-                }),
+                embedding_payload("local_hash", 8, "still responsive"),
             ))
             .await
             .expect("embedding service should remain responsive after download cancellation");

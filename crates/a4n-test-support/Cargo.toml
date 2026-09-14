@@ -10,6 +10,7 @@ a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error" }
 a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-contract = { path = "../a4n-embedding-contract" }
 a4n-embedding-client = { path = "../a4n-embedding-client" }
 a4n-export-client = { path = "../a4n-export-client" }
 a4n-export-contract = { path = "../a4n-export-contract" }

@@ -4,8 +4,9 @@ use std::sync::{
 };
 
 use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonRequest, JsonResponse};
+use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
 use super::{media::RequestLedger, unexpected_call};
@@ -77,7 +78,10 @@ impl ServiceClient for PendingEmbeddingDownloadClient {
 
 #[async_trait]
 impl EmbeddingClient for PendingEmbeddingDownloadClient {
-    async fn embed(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn embed(
+        &self,
+        _request: ServiceRequest<EmbedTextsPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbedTextsOutput>> {
         Err(unexpected_call("PendingEmbeddingDownloadClient", "embed"))
     }
 
@@ -108,16 +112,16 @@ impl EmbeddingClient for PendingEmbeddingDownloadClient {
 #[derive(Clone)]
 pub struct RecordingEmbeddingClient {
     state: Arc<RecordingEmbeddingClientState>,
-    embed_response: JsonResponse,
+    embed_response: ServiceResponse<EmbedTextsOutput>,
 }
 
 #[derive(Default)]
 struct RecordingEmbeddingClientState {
-    embed_requests: Mutex<Vec<JsonRequest>>,
+    embed_requests: Mutex<Vec<ServiceRequest<EmbedTextsPayload>>>,
 }
 
 impl RecordingEmbeddingClient {
-    pub fn new(embed_response: JsonResponse) -> Self {
+    pub fn new(embed_response: ServiceResponse<EmbedTextsOutput>) -> Self {
         Self {
             state: Arc::new(RecordingEmbeddingClientState::default()),
             embed_response,
@@ -132,7 +136,7 @@ impl RecordingEmbeddingClient {
             .len()
     }
 
-    pub fn embed_requests(&self) -> Vec<JsonRequest> {
+    pub fn embed_requests(&self) -> Vec<ServiceRequest<EmbedTextsPayload>> {
         self.state
             .embed_requests
             .lock()
@@ -140,7 +144,7 @@ impl RecordingEmbeddingClient {
             .clone()
     }
 
-    pub fn last_embed_request(&self) -> Option<JsonRequest> {
+    pub fn last_embed_request(&self) -> Option<ServiceRequest<EmbedTextsPayload>> {
         self.state
             .embed_requests
             .lock()
@@ -159,7 +163,10 @@ impl ServiceClient for RecordingEmbeddingClient {
 
 #[async_trait]
 impl EmbeddingClient for RecordingEmbeddingClient {
-    async fn embed(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn embed(
+        &self,
+        request: ServiceRequest<EmbedTextsPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbedTextsOutput>> {
         self.state
             .embed_requests
             .lock()
