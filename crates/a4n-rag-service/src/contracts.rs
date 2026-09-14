@@ -56,13 +56,6 @@ pub(crate) struct MetadataByFilterPayload {
     pub(crate) filter: DeleteFilter,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct CompletenessByIdsPayload {
-    pub(crate) collection: String,
-    pub(crate) expected_ids: Vec<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

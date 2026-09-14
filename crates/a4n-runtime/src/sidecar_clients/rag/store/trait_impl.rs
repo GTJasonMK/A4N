@@ -131,11 +131,8 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         expected_ids: &[String],
     ) -> Result<CompletenessReport, ProviderError> {
-        self.call(
-            RagOperation::CompletenessReportByIds,
-            json!({ "collection": collection, "expected_ids": expected_ids }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::completeness_report_by_ids_typed(self, collection, expected_ids)
+            .await
+            .map_err(from_app_error)
     }
 }

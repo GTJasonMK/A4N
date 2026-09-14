@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use crate::app::RagServiceState;
-use crate::contracts::{
-    CollectionPayload, CompletenessByIdsPayload, DeletePayload, MetadataByFilterPayload,
-};
+use crate::contracts::{CollectionPayload, DeletePayload, MetadataByFilterPayload};
 use crate::protocol::service_error;
 use a4n_rag_core::vector_store::CompletenessReport;
-use a4n_rag_sidecar_contract::MetadataByIdsPayload;
+use a4n_rag_sidecar_contract::{
+    CompletenessByIdsPayload, CompletenessReport as CompletenessReportPayload, MetadataByIdsPayload,
+};
 use a4n_service_protocol::{RAG_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
 use serde_json::Value;
@@ -94,7 +94,7 @@ pub(crate) async fn metadata_by_filter(
 pub(crate) async fn completeness_report_by_ids(
     State(state): State<RagServiceState>,
     Json(request): Json<ServiceRequest<CompletenessByIdsPayload>>,
-) -> Json<ServiceResponse<CompletenessReport>> {
+) -> Json<ServiceResponse<CompletenessReportPayload>> {
     if let Err(error) = request.validate_known_service(RAG_SERVICE_NAME) {
         return Json(request.error_response(error));
     }
@@ -103,7 +103,17 @@ pub(crate) async fn completeness_report_by_ids(
     let result = state
         .store
         .completeness_report_by_ids(&payload.collection, &payload.expected_ids)
-        .await;
+        .await
+        .map(|report: CompletenessReport| CompletenessReportPayload {
+            collection: report.collection,
+            expected: report.expected,
+            actual_vector: report.actual_vector,
+            actual_bm25: report.actual_bm25,
+            is_complete: report.is_complete,
+            missing_vector_ids: report.missing_vector_ids,
+            missing_bm25_ids: report.missing_bm25_ids,
+            missing_ids: report.missing_ids,
+        });
     Json(ServiceResponse::from_result(
         trace_id,
         result,

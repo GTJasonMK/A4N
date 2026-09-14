@@ -1,7 +1,7 @@
 use a4n_error::AppError;
-use a4n_rag_client::MetadataByIdsResponse;
-use a4n_rag_core::vector_store::EmbeddingRecord;
-use a4n_rag_sidecar_contract::MetadataByIdsPayload;
+use a4n_rag_client::{CompletenessByIdsResponse, MetadataByIdsResponse};
+use a4n_rag_core::vector_store::{CompletenessReport, EmbeddingRecord};
+use a4n_rag_sidecar_contract::{CompletenessByIdsPayload, MetadataByIdsPayload};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
@@ -13,6 +13,37 @@ use crate::sidecar_clients::{
 };
 
 impl SidecarVectorStore {
+    pub(super) async fn completeness_report_by_ids_typed(
+        &self,
+        collection: &str,
+        expected_ids: &[String],
+    ) -> Result<CompletenessReport, AppError> {
+        let request = rag_service_request_typed(
+            "rag.completeness_report_by_ids",
+            CompletenessByIdsPayload {
+                collection: collection.to_string(),
+                expected_ids: expected_ids.to_vec(),
+            },
+        )
+        .map_err(service_app_error)?;
+        let response: CompletenessByIdsResponse = self
+            .client
+            .completeness_report_by_ids(request)
+            .await
+            .map_err(service_error_app_error)?;
+        let report = typed_response_payload(response, "rag").map_err(service_app_error)?;
+        Ok(CompletenessReport {
+            collection: report.collection,
+            expected: report.expected,
+            actual_vector: report.actual_vector,
+            actual_bm25: report.actual_bm25,
+            is_complete: report.is_complete,
+            missing_vector_ids: report.missing_vector_ids,
+            missing_bm25_ids: report.missing_bm25_ids,
+            missing_ids: report.missing_ids,
+        })
+    }
+
     pub(super) async fn metadata_by_ids_typed(
         &self,
         collection: &str,
@@ -83,9 +114,6 @@ impl SidecarVectorStore {
             RagOperation::Delete => self.client.delete(request).await,
             RagOperation::DropCollection => self.client.drop_collection(request).await,
             RagOperation::MetadataByFilter => self.client.metadata_by_filter(request).await,
-            RagOperation::CompletenessReportByIds => {
-                self.client.completeness_report_by_ids(request).await
-            }
         }
         .map_err(service_error_app_error)?;
         response_payload(response, "rag").map_err(service_app_error)
@@ -99,7 +127,6 @@ pub(super) enum RagOperation {
     Delete,
     DropCollection,
     MetadataByFilter,
-    CompletenessReportByIds,
 }
 
 impl RagOperation {
@@ -111,7 +138,6 @@ impl RagOperation {
             Self::Delete => "rag.delete",
             Self::DropCollection => "rag.drop_collection",
             Self::MetadataByFilter => "rag.metadata_by_filter",
-            Self::CompletenessReportByIds => "rag.completeness_report_by_ids",
         }
     }
 }

@@ -3,14 +3,14 @@ use a4n_service_protocol::{
     SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };
 use a4n_test_support::process::{
-    HttpRagClient, JsonRequest, MetadataByIdsPayload, RAG_INDEX_CAPABILITY_VERSION,
-    RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
-    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
-    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
-    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
-    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
-    trusted_remote_request_context, unused_local_addr,
+    CompletenessByIdsPayload, HttpRagClient, JsonRequest, MetadataByIdsPayload,
+    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
+    ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
+    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
+    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -83,9 +83,14 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
     let payload = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let response = client
-                .completeness_report_by_ids(rag_request(
+                .completeness_report_by_ids(request_context(
                     "rag-process-completeness",
-                    json!({"collection": COLLECTION, "expected_ids": expected_ids.clone()}),
+                    "rag-process-completeness-trace",
+                    RAG_INDEX_CAPABILITY_VERSION,
+                    CompletenessByIdsPayload {
+                        collection: COLLECTION.to_string(),
+                        expected_ids: expected_ids.clone(),
+                    },
                 ))
                 .await
                 .expect("RAG completeness request should cross the independent process");
@@ -93,7 +98,7 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
                 && response
                     .payload
                     .as_ref()
-                    .is_some_and(|payload| payload["is_complete"] == json!(true))
+                    .is_some_and(|payload| payload.is_complete)
             {
                 return response.payload.expect("RAG completeness payload");
             }
@@ -102,8 +107,8 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
     })
     .await
     .expect("RAG indexes should become complete before timeout");
-    assert_eq!(payload["actual_vector"], json!(expected_count));
-    assert_eq!(payload["actual_bm25"], json!(expected_count));
+    assert_eq!(payload.actual_vector, expected_count);
+    assert_eq!(payload.actual_bm25, expected_count);
 }
 
 async fn search_ids(client: &HttpRagClient, query: &str) -> Vec<String> {
