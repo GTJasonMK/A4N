@@ -14,6 +14,7 @@ use a4n_service_manager::is_loopback_http_url;
 
 type JsonRequest = ServiceRequest<Value>;
 
+#[cfg(test)]
 pub(crate) fn global_service_request_without_secrets(
     capability_version: impl Into<String>,
     payload: impl Serialize,
@@ -70,6 +71,7 @@ pub(crate) fn pure_transform_typed_service_request<T: Serialize>(
         .map_err(|error| error.message)
 }
 
+#[cfg(test)]
 pub(super) fn service_request_with_context(
     context: SidecarRequestContext,
     capability_version: impl Into<String>,
