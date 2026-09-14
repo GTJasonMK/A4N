@@ -1,6 +1,6 @@
 use a4n_config::{env_flag_enabled, optional_non_empty_env_string};
+use a4n_process_catalog::{ServiceCatalogEntry, parse_service_socket_addr};
 use a4n_service_manager::normalize_remote_service_url;
-use a4n_service_protocol::ServiceCatalogEntry;
 
 use super::catalog::{MANAGED_SIDECARS_ENV, sidecar_service_specs};
 
@@ -50,5 +50,5 @@ pub(in crate::sidecar_clients::service_manager) fn parse_sidecar_addr_env(
     default_addr: &str,
 ) -> Result<String, String> {
     let value = value.unwrap_or(default_addr);
-    a4n_service_protocol::parse_service_socket_addr(env_key, value).map(|addr| addr.to_string())
+    parse_service_socket_addr(env_key, value).map(|addr| addr.to_string())
 }

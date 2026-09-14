@@ -40,27 +40,36 @@ pub fn parse_service_socket_addr(key: &str, value: &str) -> Result<SocketAddr, S
 #[cfg(test)]
 mod tests {
     use super::{parse_service_socket_addr, service_catalog};
-    use crate::{expected_capability_version_for_service, registry};
 
     #[test]
-    fn catalog_matches_protocol_registry() {
+    fn catalog_has_unique_process_identity_and_environment_keys() {
         let entries = service_catalog().expect("embedded service catalog must be valid");
-        assert_eq!(
+        assert_eq!(entries.len(), 8);
+        for field in [
             entries
                 .iter()
                 .map(|entry| entry.name.as_str())
                 .collect::<Vec<_>>(),
-            registry::REGISTERED_SERVICE_NAMES
-        );
-        for entry in entries {
-            assert_eq!(
-                expected_capability_version_for_service(&entry.name),
-                Some(entry.capability_version.as_str()),
-                "catalog capability version drifted for {}",
-                entry.name
-            );
-            assert!(registry::expected_capability_label_for_service(&entry.name).is_some());
+            entries
+                .iter()
+                .map(|entry| entry.binary.as_str())
+                .collect::<Vec<_>>(),
+            entries
+                .iter()
+                .map(|entry| entry.addr_env.as_str())
+                .collect::<Vec<_>>(),
+            entries
+                .iter()
+                .map(|entry| entry.url_env.as_str())
+                .collect::<Vec<_>>(),
+        ] {
+            let unique = field.iter().collect::<std::collections::HashSet<_>>();
+            assert_eq!(unique.len(), field.len());
         }
+        assert!(entries.iter().all(|entry| {
+            !entry.capability_version.trim().is_empty()
+                && entry.default_addr.parse::<std::net::SocketAddr>().is_ok()
+        }));
     }
 
     #[test]

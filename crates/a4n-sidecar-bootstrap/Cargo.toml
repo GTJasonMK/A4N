@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-process-catalog = { path = "../a4n-process-catalog" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 anyhow = { workspace = true }
