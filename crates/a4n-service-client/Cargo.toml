@@ -8,6 +8,7 @@ license.workspace = true
 test-support = []
 
 [dependencies]
+a4n-process-catalog = { path = "../a4n-process-catalog" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
 async-trait = { workspace = true }

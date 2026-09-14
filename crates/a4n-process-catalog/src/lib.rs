@@ -2,6 +2,7 @@ mod release;
 
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use std::sync::OnceLock;
 
 pub use release::{
     RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
@@ -27,19 +28,34 @@ pub fn service_catalog() -> Result<Vec<ServiceCatalogEntry>, serde_json::Error> 
     serde_json::from_str(include_str!("../service-catalog.json"))
 }
 
+fn embedded_service_catalog() -> &'static [ServiceCatalogEntry] {
+    static CATALOG: OnceLock<Vec<ServiceCatalogEntry>> = OnceLock::new();
+    CATALOG
+        .get_or_init(|| service_catalog().expect("embedded service catalog must be valid"))
+        .as_slice()
+}
+
 pub fn service_catalog_entry(name: &str) -> Option<ServiceCatalogEntry> {
-    service_catalog()
-        .expect("embedded service catalog must be valid")
-        .into_iter()
+    service_catalog_entry_ref(name).cloned()
+}
+
+pub fn service_catalog_entry_ref(name: &str) -> Option<&'static ServiceCatalogEntry> {
+    embedded_service_catalog()
+        .iter()
         .find(|entry| entry.name == name)
 }
 
 pub fn service_catalog_entry_for_capability_version(
     capability_version: &str,
 ) -> Option<ServiceCatalogEntry> {
-    service_catalog()
-        .expect("embedded service catalog must be valid")
-        .into_iter()
+    service_catalog_entry_for_capability_version_ref(capability_version).cloned()
+}
+
+pub fn service_catalog_entry_for_capability_version_ref(
+    capability_version: &str,
+) -> Option<&'static ServiceCatalogEntry> {
+    embedded_service_catalog()
+        .iter()
         .find(|entry| entry.capability_version == capability_version)
 }
 
