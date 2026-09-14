@@ -1,12 +1,26 @@
 //! Typed client for the import sidecar service.
 
-use a4n_import_contract::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
+use a4n_import_contract::{
+    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportReadMediaPackageZipInput,
+    ImportReadMediaPackageZipOutput,
+};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
 };
-use a4n_service_protocol::{IMPORT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse};
+use a4n_service_protocol::{
+    ServiceHealth, ServiceRequest, ServiceResponse, sidecar_resource_policy,
+};
 use async_trait::async_trait;
+
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        IMPORT_SERVICE_NAME,
+        IMPORT_TRANSFORM_CAPABILITY_VERSION,
+        sidecar_resource_policy(IMPORT_SERVICE_NAME)
+            .expect("import service must have a resource policy"),
+    )
+}
 
 pub struct HttpImportClient {
     transport: HttpSidecarTransport,
@@ -15,20 +29,14 @@ pub struct HttpImportClient {
 impl HttpImportClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(IMPORT_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(IMPORT_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
