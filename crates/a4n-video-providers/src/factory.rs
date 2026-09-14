@@ -11,7 +11,7 @@ use a4n_video::{
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
     VideoProvider, video_provider_capabilities,
 };
-use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 use serde_json::Value;
 
 pub fn pick_video_provider(
@@ -63,6 +63,7 @@ pub fn video_provider_request_body_preview(
 mod tests {
     use super::*;
     use a4n_video::VIDEO_PROVIDER_CAPABILITIES;
+    use a4n_video_sidecar_contract::VideoMediaInput;
 
     #[test]
     fn accepts_canonical_video_backends() {
