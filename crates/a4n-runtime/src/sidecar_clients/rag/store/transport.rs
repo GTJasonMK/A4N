@@ -1,7 +1,7 @@
 use a4n_error::AppError;
 use a4n_rag_client::{
     CompletenessByIdsResponse, DeleteResponse, DropCollectionResponse, MetadataByFilterResponse,
-    MetadataByIdsResponse, QueryResponse, SearchTextResponse,
+    MetadataByIdsResponse, QueryResponse, SearchResponse, SearchTextResponse,
 };
 use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult,
@@ -9,17 +9,14 @@ use a4n_rag_core::vector_store::{
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
     MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchFilterPayload,
-    SearchResultPayload, SearchTextPayload,
+    SearchPayload, SearchResultPayload, SearchTextPayload,
 };
-use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 use super::SidecarVectorStore;
 use crate::sidecar_clients::rag::events::handle_rag_ingest_event;
 use crate::sidecar_clients::rag::request::{rag_service_request, rag_service_request_typed};
-use crate::sidecar_clients::{
-    response_payload, service_app_error, service_error_app_error, typed_response_payload,
-};
+use crate::sidecar_clients::{service_app_error, service_error_app_error, typed_response_payload};
 
 impl SidecarVectorStore {
     pub(super) async fn query_typed(
@@ -68,6 +65,34 @@ impl SidecarVectorStore {
         let response: SearchTextResponse = self
             .client
             .search_text(request)
+            .await
+            .map_err(service_error_app_error)?;
+        let results = typed_response_payload(response, "rag").map_err(service_app_error)?;
+        Ok(results.into_iter().map(core_search_result).collect())
+    }
+
+    pub(super) async fn hybrid_search_typed(
+        &self,
+        collection: &str,
+        query_text: &str,
+        query_embedding: Vec<f32>,
+        top_k: usize,
+        filters: Option<SearchFilter>,
+    ) -> Result<Vec<SearchResult>, AppError> {
+        let request = rag_service_request_typed(
+            "rag.search",
+            SearchPayload {
+                collection: collection.to_string(),
+                query_text: query_text.to_string(),
+                query_embedding,
+                top_k,
+                filters: filters.map(search_filter_payload),
+            },
+        )
+        .map_err(service_app_error)?;
+        let response: SearchResponse = self
+            .client
+            .search(request)
             .await
             .map_err(service_error_app_error)?;
         let results = typed_response_payload(response, "rag").map_err(service_app_error)?;
@@ -216,32 +241,6 @@ impl SidecarVectorStore {
                     }
                 }
             }
-        }
-    }
-
-    pub(super) async fn call<T: DeserializeOwned>(
-        &self,
-        operation: RagOperation,
-        payload: impl Serialize,
-    ) -> Result<T, AppError> {
-        let request =
-            rag_service_request(operation.trace_span(), payload).map_err(service_app_error)?;
-        let response = match operation {
-            RagOperation::Search => self.client.search(request).await,
-        }
-        .map_err(service_error_app_error)?;
-        response_payload(response, "rag").map_err(service_app_error)
-    }
-}
-
-pub(super) enum RagOperation {
-    Search,
-}
-
-impl RagOperation {
-    fn trace_span(&self) -> &'static str {
-        match self {
-            Self::Search => "rag.search",
         }
     }
 }

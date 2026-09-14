@@ -6,12 +6,13 @@ use a4n_test_support::process::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
     HttpRagClient, JsonRequest, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
-    SearchTextPayload, ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
-    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
-    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
+    SearchPayload, SearchTextPayload, ServiceStatus, SidecarProcessTestDir,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
+    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
+    trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -328,6 +329,27 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .expect("RAG vector query should cross the independent process");
     assert_eq!(queried.status, ServiceStatus::Ok);
     assert_eq!(queried.payload.expect("RAG query payload")[0].id, "doc-1");
+
+    let hybrid = client
+        .search(request_context(
+            "rag-process-hybrid-search",
+            "rag-process-hybrid-search-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            SearchPayload {
+                collection: COLLECTION.to_string(),
+                query_text: "重建".to_string(),
+                query_embedding: vec![1.0, 0.0, 0.0],
+                top_k: 1,
+                filters: None,
+            },
+        ))
+        .await
+        .expect("RAG hybrid search should cross the independent process");
+    assert_eq!(hybrid.status, ServiceStatus::Ok);
+    assert_eq!(
+        hybrid.payload.expect("RAG hybrid search payload")[0].id,
+        "doc-1"
+    );
 
     let mut idle_records = Vec::with_capacity(512);
     for index in 0..512 {

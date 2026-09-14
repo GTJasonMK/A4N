@@ -2,8 +2,8 @@
 
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchResultPayload,
-    SearchTextPayload,
+    MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchPayload,
+    SearchResultPayload, SearchTextPayload,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -21,7 +21,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 pub type JsonRequest = ServiceRequest<serde_json::Value>;
-pub type JsonResponse = ServiceResponse<serde_json::Value>;
 pub type MetadataByIdsRequest = ServiceRequest<MetadataByIdsPayload>;
 pub type MetadataByIdsResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
 pub type CompletenessByIdsRequest = ServiceRequest<CompletenessByIdsPayload>;
@@ -36,6 +35,8 @@ pub type QueryRequest = ServiceRequest<QueryPayload>;
 pub type QueryResponse = ServiceResponse<Vec<SearchResultPayload>>;
 pub type SearchTextRequest = ServiceRequest<SearchTextPayload>;
 pub type SearchTextResponse = ServiceResponse<Vec<SearchResultPayload>>;
+pub type SearchRequest = ServiceRequest<SearchPayload>;
+pub type SearchResponse = ServiceResponse<Vec<SearchResultPayload>>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -103,7 +104,7 @@ pub trait RagClient: ServiceClient {
         request: JsonRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
-    async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn search(&self, request: SearchRequest) -> ServiceClientResult<SearchResponse>;
     async fn delete(&self, request: DeleteRequest) -> ServiceClientResult<DeleteResponse>;
     async fn drop_collection(
         &self,
@@ -146,7 +147,7 @@ impl RagClient for HttpRagClient {
             .await
     }
 
-    async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn search(&self, request: SearchRequest) -> ServiceClientResult<SearchResponse> {
         self.transport.post(RAG_SEARCH_PATH, request).await
     }
 
