@@ -353,6 +353,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-embedding",
+ "a4n-embedding-contract",
  "a4n-embedding-fastembed",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",

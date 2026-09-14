@@ -1,7 +1,10 @@
 use a4n_domain::ProviderError as AppError;
+use a4n_embedding_contract::EmbedTextsPayload;
+#[cfg(feature = "fastembed")]
+use a4n_embedding_contract::EmbeddingModelPayload;
 use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbedTextsPayload, EmbeddingModelPayload,
-    PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, PROTOCOL_VERSION, ServiceErrorCode,
+    ServiceRequest, ServiceResponse, ServiceStatus,
 };
 
 use crate::handlers::embedding::embedding_provider;
