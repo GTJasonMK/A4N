@@ -50,7 +50,8 @@ impl NewApiVideoProvider {
     }
 
     pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        req.validate_dimensions()?;
+        req.validate_dimensions()
+            .map_err(AppError::InvalidArgument)?;
         if req.media.last_frame().is_some() {
             return Err(AppError::InvalidArgument(
                 "New API 视频接口只有一个 image 输入槽，只能作为首帧使用，不支持尾帧输入"

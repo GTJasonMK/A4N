@@ -10,7 +10,8 @@ use super::provider::Seedance2VideoProvider;
 
 impl Seedance2VideoProvider {
     pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        req.validate_dimensions()?;
+        req.validate_dimensions()
+            .map_err(AppError::InvalidArgument)?;
         let VideoMediaInput::References {
             images,
             videos,

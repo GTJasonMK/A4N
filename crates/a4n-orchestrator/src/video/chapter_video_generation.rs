@@ -434,7 +434,8 @@ impl OrchestratorContext {
                 image_inputs.first_frame_image_url,
                 image_inputs.last_frame_image_url,
                 image_inputs.reference_image_urls,
-            )?,
+            )
+            .map_err(AppError::InvalidArgument)?,
         };
         enforce_provider_prompt_length_contract(&config.backend, &request.prompt)
             .map_err(AppError::InvalidArgument)?;
