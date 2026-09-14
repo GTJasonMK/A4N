@@ -4,7 +4,6 @@
 //! API DTOs stay in host/orchestrator-facing crates until they are stable.
 
 mod artifacts;
-mod catalog;
 mod egress;
 mod embedding;
 mod events;
@@ -51,9 +50,6 @@ pub const SIDECAR_BIN_DIR_ENV: &str = "A4N_SIDECAR_BIN_DIR";
 pub const EMBEDDING_CACHE_DIR_ENV: &str = "A4N_EMBEDDING_CACHE_DIR";
 pub const PROMPT_SERVICE_PROMPTS_DIR_ENV: &str = "A4N_PROMPT_SERVICE_PROMPTS_DIR";
 pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
-pub use catalog::{
-    ServiceCatalogEntry, parse_service_socket_addr, service_catalog, service_catalog_entry,
-};
 pub use egress::{EgressAuditEvent, EgressDataType, validate_egress_scope};
 pub use embedding::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 pub use events::{

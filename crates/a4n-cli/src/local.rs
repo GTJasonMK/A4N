@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use a4n_api_contract::command_manifest::HOST_IDENTITY;
+use a4n_process_catalog::service_catalog;
 use a4n_service_protocol::{MANAGED_SIDECARS_ENV, RELEASE_MANIFEST_ENV, SIDECAR_BIN_DIR_ENV};
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -829,7 +830,7 @@ fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<PathBuf> {
         anyhow::anyhow!("未找到 managed sidecar 二进制；请设置 {SIDECAR_BIN_DIR_ENV}")
     })?;
     let directory = target_debug_dir(root)?;
-    let catalog = a4n_service_protocol::service_catalog()?;
+    let catalog = service_catalog()?;
     let mut command = Command::new("cargo");
     command.arg("build").arg("-q");
     for service in &catalog {
@@ -851,7 +852,7 @@ fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<PathBuf> {
 }
 
 fn validate_sidecar_directory(directory: &Path) -> Result<()> {
-    let missing = a4n_service_protocol::service_catalog()?
+    let missing = service_catalog()?
         .into_iter()
         .filter(|service| !directory.join(executable_name(&service.binary)).is_file())
         .map(|service| service.binary)

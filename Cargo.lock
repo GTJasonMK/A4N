@@ -145,6 +145,7 @@ name = "a4n-cli"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-process-catalog",
  "a4n-service-protocol",
  "anyhow",
  "base64 0.22.1",
@@ -708,6 +709,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-process-catalog"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-progress"
 version = "0.1.0"
 
@@ -921,6 +930,7 @@ dependencies = [
  "a4n-migration",
  "a4n-model-discovery",
  "a4n-orchestrator",
+ "a4n-process-catalog",
  "a4n-prompt",
  "a4n-prompt-client",
  "a4n-prompt-git",
@@ -1008,6 +1018,7 @@ dependencies = [
 name = "a4n-service-manager"
 version = "0.1.0"
 dependencies = [
+ "a4n-process-catalog",
  "a4n-service-protocol",
  "reqwest 0.12.28",
  "serde",
@@ -1035,6 +1046,7 @@ dependencies = [
 name = "a4n-sidecar-bootstrap"
 version = "0.1.0"
 dependencies = [
+ "a4n-process-catalog",
  "a4n-service-protocol",
  "anyhow",
  "axum 0.8.9",

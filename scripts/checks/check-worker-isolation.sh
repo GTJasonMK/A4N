@@ -87,7 +87,7 @@ if rg -n 'DatabaseConnection|sqlx|DATABASE_URL|JWT_SECRET|task_queue|generation_
 fi
 
 ruby -rjson -e '
-  catalog = JSON.parse(File.read("crates/a4n-service-protocol/service-catalog.json"))
+  catalog = JSON.parse(File.read("crates/a4n-process-catalog/service-catalog.json"))
   entry = catalog.find { |candidate| candidate.fetch("name") == ARGV.fetch(0) }
   abort "service catalog candidate is missing" unless entry
   abort "candidate binary must match catalog" unless entry.fetch("binary") == ARGV.fetch(1)

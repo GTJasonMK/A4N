@@ -122,7 +122,7 @@ end
 
 def load_service_catalog(root)
   catalog = load_inventory(
-    root.join("crates/a4n-service-protocol/service-catalog.json"),
+    root.join("crates/a4n-process-catalog/service-catalog.json"),
     "service catalog",
     required_fields: %w[name binary capability_version addr_env url_env default_addr],
     identifier_fields: %w[name binary],
