@@ -2,9 +2,11 @@ use a4n_domain::embedding::embedding_provider_capabilities;
 use a4n_embedding::provider::{
     EMBEDDING_CONNECTIVITY_TEST_TEXT, validate_embedding_connectivity_vectors,
 };
+pub(super) use a4n_embedding_contract::{
+    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload,
+};
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
-pub(super) use a4n_service_protocol::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 
 pub(super) use crate::dynamic_embedding::{positive_usize, required_text};
 
