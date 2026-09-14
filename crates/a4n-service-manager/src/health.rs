@@ -1,9 +1,10 @@
 use super::config::ManagedServiceConfig;
 use super::config::ServiceMode;
 use super::errors::ServiceManagerError;
+use a4n_process_catalog::service_catalog_entry;
 use a4n_service_protocol::{
     SIDECAR_AUTH_HEADER, SIDECAR_HEALTH_PATH, ServiceHealth, ServiceHealthValidationError,
-    expected_capability_version_for_service, validate_service_health_envelope,
+    validate_service_health_envelope,
 };
 
 pub(super) async fn http_health(
@@ -43,14 +44,16 @@ pub(super) fn validate_service_health(
     config: &ManagedServiceConfig,
     health: &ServiceHealth,
 ) -> Result<(), ServiceManagerError> {
+    let expected_capability_version =
+        service_catalog_entry(&config.name).map(|entry| entry.capability_version);
     validate_service_health_envelope(
         health,
         config.name.as_str(),
-        expected_capability_version_for_service(&config.name),
+        expected_capability_version.as_deref(),
     )
     .map_err(map_health_validation_error)?;
     if matches!(config.mode, ServiceMode::Sidecar)
-        && expected_capability_version_for_service(&config.name).is_some()
+        && expected_capability_version.is_some()
         && health.version.service_version != env!("CARGO_PKG_VERSION")
     {
         return Err(ServiceManagerError::ServiceBuildMismatch {

@@ -1,6 +1,7 @@
 use super::contracts::{ManagedServiceConfig, RemoteSecurityConfig, ServiceMode};
 use crate::errors::ServiceManagerError;
-use a4n_service_protocol::{SIDECAR_AUTH_TOKEN_ENV, expected_capability_version_for_service};
+use a4n_process_catalog::service_catalog_entry;
+use a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV;
 
 impl ManagedServiceConfig {
     pub fn validate(&self) -> Result<(), ServiceManagerError> {
@@ -27,7 +28,7 @@ impl ManagedServiceConfig {
     }
 
     fn validate_registered_local_mode(&self, mode: &str) -> Result<(), ServiceManagerError> {
-        if expected_capability_version_for_service(&self.name).is_none() {
+        if service_catalog_entry(&self.name).is_none() {
             return Err(ServiceManagerError::InvalidConfig(format!(
                 "{mode} service {} has no registered capability version",
                 self.name
