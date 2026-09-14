@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use a4n_rag_client::{
-    JsonRequest, JsonResponse, MetadataByIdsRequest, MetadataByIdsResponse, RagClient,
+    CompletenessByIdsRequest, CompletenessByIdsResponse, JsonRequest, JsonResponse,
+    MetadataByIdsRequest, MetadataByIdsResponse, RagClient,
 };
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
@@ -100,8 +101,8 @@ impl RagClient for RecordingRagClient {
 
     async fn completeness_report_by_ids(
         &self,
-        _request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        _request: CompletenessByIdsRequest,
+    ) -> CapabilityResult<CompletenessByIdsResponse> {
         Err(unexpected_call(
             "RecordingRagClient",
             "completeness_report_by_ids",

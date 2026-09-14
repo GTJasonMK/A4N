@@ -41,7 +41,7 @@ pub use a4n_import_contract::{
 pub use a4n_llm_client::{HttpLlmClient, LlmClient};
 pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
 pub use a4n_rag_client::{HttpRagClient, JsonRequest, RagClient};
-pub use a4n_rag_sidecar_contract::MetadataByIdsPayload;
+pub use a4n_rag_sidecar_contract::{CompletenessByIdsPayload, MetadataByIdsPayload};
 pub use a4n_service_client::{
     ServiceClient as CapabilityClient, ServiceClientResult as CapabilityResult,
 };

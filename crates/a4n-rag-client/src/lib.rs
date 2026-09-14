@@ -1,6 +1,8 @@
 //! Typed client for the RAG sidecar service.
 
-use a4n_rag_sidecar_contract::MetadataByIdsPayload;
+use a4n_rag_sidecar_contract::{
+    CompletenessByIdsPayload, CompletenessReport, MetadataByIdsPayload,
+};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -20,6 +22,8 @@ pub type JsonRequest = ServiceRequest<serde_json::Value>;
 pub type JsonResponse = ServiceResponse<serde_json::Value>;
 pub type MetadataByIdsRequest = ServiceRequest<MetadataByIdsPayload>;
 pub type MetadataByIdsResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
+pub type CompletenessByIdsRequest = ServiceRequest<CompletenessByIdsPayload>;
+pub type CompletenessByIdsResponse = ServiceResponse<CompletenessReport>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -94,8 +98,8 @@ pub trait RagClient: ServiceClient {
     async fn metadata_by_filter(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn completeness_report_by_ids(
         &self,
-        request: JsonRequest,
-    ) -> ServiceClientResult<JsonResponse>;
+        request: CompletenessByIdsRequest,
+    ) -> ServiceClientResult<CompletenessByIdsResponse>;
 }
 
 #[async_trait]
@@ -145,8 +149,8 @@ impl RagClient for HttpRagClient {
 
     async fn completeness_report_by_ids(
         &self,
-        request: JsonRequest,
-    ) -> ServiceClientResult<JsonResponse> {
+        request: CompletenessByIdsRequest,
+    ) -> ServiceClientResult<CompletenessByIdsResponse> {
         self.transport
             .post(RAG_COMPLETENESS_REPORT_BY_IDS_PATH, request)
             .await
