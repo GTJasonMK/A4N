@@ -70,6 +70,16 @@ pub struct SearchTextPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct SearchPayload {
+    pub collection: String,
+    pub query_text: String,
+    pub query_embedding: Vec<f32>,
+    pub top_k: usize,
+    pub filters: Option<SearchFilterPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SearchResultPayload {
     pub id: String,
     pub content: String,
@@ -102,7 +112,7 @@ mod tests {
     use super::{
         CompletenessByIdsPayload, CompletenessReport, DeleteFilterPayload, DeleteRecordsPayload,
         DropCollectionPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
-        SearchTextPayload,
+        SearchPayload, SearchTextPayload,
     };
 
     #[test]
@@ -181,6 +191,20 @@ mod tests {
         }))
         .expect_err("unknown text search fields must fail at the sidecar boundary");
         assert!(error.to_string().contains("legacy_query_mode"));
+    }
+
+    #[test]
+    fn search_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<SearchPayload>(serde_json::json!({
+            "collection": "42",
+            "query_text": "chapter",
+            "query_embedding": [1.0, 0.0],
+            "top_k": 1,
+            "filters": null,
+            "legacy_search_mode": "hybrid"
+        }))
+        .expect_err("unknown hybrid search fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_search_mode"));
     }
 
     #[test]

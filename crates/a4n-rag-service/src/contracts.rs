@@ -1,4 +1,4 @@
-use a4n_rag_core::vector_store::{EmbeddingRecord, SearchFilter};
+use a4n_rag_core::vector_store::EmbeddingRecord;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -6,16 +6,6 @@ use serde::Deserialize;
 pub(crate) struct IngestPayload {
     pub(crate) collection: String,
     pub(crate) records: Vec<EmbeddingRecord>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct SearchPayload {
-    pub(crate) collection: String,
-    pub(crate) query_text: String,
-    pub(crate) query_embedding: Vec<f32>,
-    pub(crate) top_k: usize,
-    pub(crate) filters: Option<SearchFilter>,
 }
 
 #[cfg(test)]

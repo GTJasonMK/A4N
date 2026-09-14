@@ -5,10 +5,9 @@ use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult, VectorStore,
 };
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::SidecarVectorStore;
-use super::transport::RagOperation;
 use crate::provider_error::from_app_error;
 
 #[async_trait]
@@ -55,15 +54,13 @@ impl VectorStore for SidecarVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, ProviderError> {
-        self.call(
-            RagOperation::Search,
-            json!({
-                "collection": collection,
-                "query_text": query_text,
-                "query_embedding": query_embedding,
-                "top_k": top_k,
-                "filters": filters
-            }),
+        SidecarVectorStore::hybrid_search_typed(
+            self,
+            collection,
+            query_text,
+            query_embedding,
+            top_k,
+            filters,
         )
         .await
         .map_err(from_app_error)

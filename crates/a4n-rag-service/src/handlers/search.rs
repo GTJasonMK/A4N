@@ -1,9 +1,8 @@
 use crate::app::RagServiceState;
-use crate::contracts::SearchPayload;
 use crate::protocol::service_error;
 use a4n_rag_core::vector_store::{SearchFilter, SearchResult};
 use a4n_rag_sidecar_contract::{
-    QueryPayload, SearchFilterPayload, SearchResultPayload, SearchTextPayload,
+    QueryPayload, SearchFilterPayload, SearchPayload, SearchResultPayload, SearchTextPayload,
 };
 use a4n_service_protocol::{RAG_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -80,7 +79,7 @@ pub(crate) async fn search_text(
 pub(crate) async fn search(
     State(state): State<RagServiceState>,
     Json(request): Json<ServiceRequest<SearchPayload>>,
-) -> Json<ServiceResponse<Vec<SearchResult>>> {
+) -> Json<ServiceResponse<Vec<SearchResultPayload>>> {
     if let Err(error) = request.validate_known_service(RAG_SERVICE_NAME) {
         return Json(request.error_response(error));
     }
@@ -93,9 +92,10 @@ pub(crate) async fn search(
             &payload.query_text,
             payload.query_embedding,
             payload.top_k,
-            payload.filters,
+            payload.filters.map(core_search_filter),
         )
-        .await;
+        .await
+        .map(|results| results.into_iter().map(search_result_payload).collect());
     Json(ServiceResponse::from_result(
         trace_id,
         result,
