@@ -9,7 +9,6 @@ mod endpoints;
 mod http;
 mod parsing;
 
-pub use contracts::{ModelDiscoveryRequest, ModelDiscoveryResult};
 pub use http::{discover_models, discover_models_from_request};
 
 #[cfg(test)]

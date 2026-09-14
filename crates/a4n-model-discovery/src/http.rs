@@ -3,9 +3,10 @@ use std::time::Duration;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 
-use crate::contracts::{DiscoveredModel, ModelDiscoveryRequest, ModelDiscoveryResult};
+use crate::contracts::DiscoveredModel;
 use crate::endpoints::{ModelDiscoveryAuth, ModelDiscoveryEndpoint, model_discovery_endpoint};
 use crate::parsing::parse_discovered_models;
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 
 const MODEL_DISCOVERY_CONNECT_TIMEOUT_SECS: u64 = 20;
 const MODEL_DISCOVERY_READ_TIMEOUT_SECS: u64 = 60;
