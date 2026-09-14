@@ -1,8 +1,9 @@
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
+
+pub use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 
 mod assembly;
 mod config;
@@ -43,93 +44,6 @@ pub const GEMINI_VEO_VIDEO_BACKEND: &str = "gemini-veo-video";
 pub const SEEDANCE2_VIDEO_BACKEND: &str = "seedance2-video";
 pub const CLIPROXY_OPENAI_VIDEO_BACKEND: &str = "cliproxy-openai-video";
 pub const OPENAI_CHAT_VIDEO_BACKEND: &str = "openai-chat-video";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum VideoMediaInput {
-    None,
-    Frames {
-        first: String,
-        last: Option<String>,
-        references: Vec<String>,
-    },
-    References {
-        images: Vec<String>,
-        videos: Vec<String>,
-        audio: Vec<String>,
-    },
-}
-
-impl VideoMediaInput {
-    pub fn from_images(
-        first: Option<String>,
-        last: Option<String>,
-        references: Vec<String>,
-    ) -> Result<Self, AppError> {
-        match (first, last, references) {
-            (Some(first), last, references) => Ok(Self::Frames {
-                first,
-                last,
-                references,
-            }),
-            (None, Some(_), _) => Err(AppError::InvalidArgument(
-                "视频尾帧不能脱离首帧单独存在".to_string(),
-            )),
-            (None, None, images) if !images.is_empty() => Ok(Self::References {
-                images,
-                videos: Vec::new(),
-                audio: Vec::new(),
-            }),
-            (None, None, _) => Ok(Self::None),
-        }
-    }
-
-    pub fn first_frame(&self) -> Option<&str> {
-        match self {
-            Self::Frames { first, .. } => Some(first),
-            _ => None,
-        }
-    }
-
-    pub fn last_frame(&self) -> Option<&str> {
-        match self {
-            Self::Frames { last, .. } => last.as_deref(),
-            _ => None,
-        }
-    }
-
-    pub fn reference_images(&self) -> &[String] {
-        match self {
-            Self::Frames { references, .. } => references,
-            Self::References { images, .. } => images,
-            Self::None => &[],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct VideoGenerationRequest {
-    pub prompt: String,
-    pub negative_prompt: Option<String>,
-    pub width: i32,
-    pub height: i32,
-    pub duration_secs: i32,
-    pub fps: i32,
-    pub model: String,
-    pub media: VideoMediaInput,
-}
-
-impl VideoGenerationRequest {
-    pub fn validate_dimensions(&self) -> Result<(), AppError> {
-        if self.width <= 0 || self.height <= 0 {
-            return Err(AppError::InvalidArgument(
-                "视频请求宽度和高度必须为正整数".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct VideoGenerationResult {

@@ -1106,7 +1106,8 @@ async fn prepare_canvas_video_request(
             images.first_frame_image_url,
             images.last_frame_image_url,
             images.reference_image_urls,
-        )?,
+        )
+        .map_err(AppError::InvalidArgument)?,
     };
     Ok(PreparedCanvasVideoRequest {
         config,

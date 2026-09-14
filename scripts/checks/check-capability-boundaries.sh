@@ -70,6 +70,7 @@ capability_contracts = %w[
   a4n-rag-contract
   a4n-image-contract
   a4n-video-contract
+  a4n-video-sidecar-contract
   a4n-import-contract
   a4n-export-contract
 ]
