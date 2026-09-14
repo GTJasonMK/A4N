@@ -1,7 +1,7 @@
 use super::operations::{generate_image, preview_image_provider_request};
 use crate::state::RuntimeProfile;
-use a4n_image::ImageGenerationRequest;
 use a4n_image_client::JsonResponse;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, ServiceResponse, ServiceStatus,
@@ -97,7 +97,8 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
         request.trace_context.parent_span_id.as_deref(),
         Some("image.generate")
     );
-    assert!(request.payload.get("project_id").is_none());
+    let payload = serde_json::to_value(&request.payload).expect("image payload serializes");
+    assert!(payload.get("project_id").is_none());
 }
 
 #[tokio::test]
@@ -124,9 +125,10 @@ async fn image_provider_preview_uses_typed_capability_request() {
     assert!(request.secret_policy.is_local_user_secret_only());
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(3));
-    assert_eq!(request.payload["backend"], "openai-compatible-image");
-    assert!(request.payload.get("project_id").is_none());
-    assert_eq!(request.payload["request"]["prompt"], "test image");
+    let payload = serde_json::to_value(&request.payload).expect("image payload serializes");
+    assert_eq!(payload["backend"], "openai-compatible-image");
+    assert!(payload.get("project_id").is_none());
+    assert_eq!(payload["request"]["prompt"], "test image");
 }
 
 #[tokio::test]

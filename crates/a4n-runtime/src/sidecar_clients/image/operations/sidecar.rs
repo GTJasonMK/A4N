@@ -9,8 +9,8 @@ use serde_json::Value;
 use super::super::super::{
     GenerationEvent, SidecarRequestContext, missing_sidecar_capability_message,
     parse_generation_event, response_payload, service_error_string,
-    service_request_with_context_provider_secret_policy,
     sidecar_context_for_workflow_operation_with_root,
+    typed_service_request_with_context_provider_secret_policy,
 };
 use super::super::contracts::{ImageGenerationOutput, image_provider_payload};
 
@@ -24,7 +24,7 @@ pub(crate) async fn preview_image_provider_request(
     let client = client.ok_or_else(|| missing_sidecar_capability_message("image"))?;
     let payload = image_provider_payload(config, request)?;
     let response = client
-        .preview_request(service_request_with_context_provider_secret_policy(
+        .preview_request(typed_service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
             a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
             payload,
@@ -44,7 +44,7 @@ pub(super) async fn generate_image_via_sidecar(
     progress: Option<&(dyn Fn(&str) + Send + Sync)>,
 ) -> Result<ImageGenerationResult, String> {
     let payload = image_provider_payload(config, request)?;
-    let request = service_request_with_context_provider_secret_policy(
+    let request = typed_service_request_with_context_provider_secret_policy(
         sidecar_context_for_workflow_operation_with_root(
             project_id,
             root_project_id,

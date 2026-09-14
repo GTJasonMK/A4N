@@ -9,7 +9,7 @@ pub const IMAGE_SERVICE_NAME: &str = "image";
 pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v4";
 
 /// 单次生成请求。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImageGenerationRequest {
     /// 完整 prompt（已合成）。
@@ -24,7 +24,7 @@ pub struct ImageGenerationRequest {
     pub reference_images: Vec<ImageReference>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImageReference {
     pub label: String,
@@ -32,7 +32,7 @@ pub struct ImageReference {
 }
 
 /// Image sidecar provider request payload.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImageProviderPayload {
     pub backend: String,
@@ -43,7 +43,7 @@ pub struct ImageProviderPayload {
 }
 
 /// Image sidecar completed-generation payload.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImageGenerationOutput {
     pub bytes_base64: String,

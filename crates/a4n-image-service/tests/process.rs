@@ -1,14 +1,18 @@
-use a4n_image_contract::{IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME};
+use a4n_image_client::{HttpImageClient, ImageClient, ImageProviderRequest};
+use a4n_image_contract::{
+    IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME, ImageProviderPayload,
+};
 use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
 use a4n_test_support::process::{
-    FakeJsonProvider, HangingJsonProvider, HttpImageClient, ImageClient, JsonRequest,
-    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, finish_sidecar, provider_request_context,
-    sidecar_base_url, sidecar_manager, start_sidecar, trusted_remote_request_context,
-    unused_local_addr,
+    FakeJsonProvider, HangingJsonProvider, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    finish_sidecar, provider_request_context as json_provider_request_context, sidecar_base_url,
+    sidecar_manager, start_sidecar,
+    trusted_remote_request_context as json_trusted_remote_request_context, unused_local_addr,
 };
+use serde_json::Value;
 use tokio::time::{Duration, timeout};
 
 const PNG_1X1_B64: &str =
@@ -372,7 +376,7 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
 
 async fn image_generation_events(
     client: &HttpImageClient,
-    request: JsonRequest,
+    request: ImageProviderRequest,
 ) -> Vec<CapabilityTaskEvent> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
@@ -384,4 +388,34 @@ async fn image_generation_events(
         events.push(event);
     }
     events
+}
+
+fn provider_request_context(
+    request_id: &str,
+    trace_id: &str,
+    capability_version: &str,
+    payload: Value,
+) -> ImageProviderRequest {
+    json_provider_request_context(
+        request_id,
+        trace_id,
+        capability_version,
+        serde_json::from_value::<ImageProviderPayload>(payload)
+            .expect("image provider payload should deserialize"),
+    )
+}
+
+fn trusted_remote_request_context(
+    request_id: &str,
+    trace_id: &str,
+    capability_version: &str,
+    payload: Value,
+) -> ImageProviderRequest {
+    json_trusted_remote_request_context(
+        request_id,
+        trace_id,
+        capability_version,
+        serde_json::from_value::<ImageProviderPayload>(payload)
+            .expect("image provider payload should deserialize"),
+    )
 }

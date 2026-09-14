@@ -1,6 +1,8 @@
 //! Typed client for the image sidecar service.
 
-use a4n_image_contract::{IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME};
+use a4n_image_contract::{
+    IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME, ImageProviderPayload,
+};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -14,6 +16,7 @@ use std::time::Duration;
 
 pub type JsonRequest = ServiceRequest<serde_json::Value>;
 pub type JsonResponse = ServiceResponse<serde_json::Value>;
+pub type ImageProviderRequest = ServiceRequest<ImageProviderPayload>;
 
 fn service_client_config() -> ServiceClientConfig {
     ServiceClientConfig::new(
@@ -76,10 +79,13 @@ impl ServiceClient for HttpImageClient {
 pub trait ImageClient: ServiceClient {
     async fn generate_events(
         &self,
-        request: JsonRequest,
+        request: ImageProviderRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
-    async fn preview_request(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn preview_request(
+        &self,
+        request: ImageProviderRequest,
+    ) -> ServiceClientResult<JsonResponse>;
     async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
 }
 
@@ -87,7 +93,7 @@ pub trait ImageClient: ServiceClient {
 impl ImageClient for HttpImageClient {
     async fn generate_events(
         &self,
-        request: JsonRequest,
+        request: ImageProviderRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport
@@ -95,7 +101,10 @@ impl ImageClient for HttpImageClient {
             .await
     }
 
-    async fn preview_request(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn preview_request(
+        &self,
+        request: ImageProviderRequest,
+    ) -> ServiceClientResult<JsonResponse> {
         self.transport.post("/image/request_preview", request).await
     }
 
