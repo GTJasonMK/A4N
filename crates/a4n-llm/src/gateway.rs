@@ -1,9 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use a4n_error::AppError;
-
-use crate::provider::{ChatRequest, ChatResponse, UsageInfo};
+use crate::provider::ChatRequest;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -32,30 +30,6 @@ pub struct LlmProbePayload {
     pub request: ChatRequest,
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct LlmProbeOutput {
-    pub response_preview: String,
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub usage: Option<UsageInfo>,
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub finish_reason: Option<String>,
-}
-
-impl LlmProbeOutput {
-    pub fn from_chat_response(response: ChatResponse) -> Result<Self, AppError> {
-        let content = response.message.content.trim();
-        if content.is_empty() {
-            return Err(AppError::LlmError("LLM 连接探测未收到有效响应".to_string()));
-        }
-        Ok(Self {
-            response_preview: content.chars().take(200).collect(),
-            usage: response.usage,
-            finish_reason: response.finish_reason,
-        })
-    }
-}
-
 fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
@@ -66,7 +40,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput, LlmProbePayload};
+    use super::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbePayload};
     use serde_json::json;
 
     #[test]
@@ -107,24 +81,5 @@ mod tests {
             }))
             .is_err()
         );
-        assert!(
-            serde_json::from_value::<LlmProbeOutput>(json!({
-                "response_preview": "pong",
-                "finish_reason": "stop"
-            }))
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn probe_output_uses_the_shared_runtime_contract() {
-        let output = serde_json::from_value::<LlmProbeOutput>(json!({
-            "response_preview": "pong",
-            "usage": null,
-            "finish_reason": "stop"
-        }))
-        .expect("probe output should deserialize");
-
-        assert_eq!(output.response_preview, "pong");
     }
 }

@@ -96,7 +96,7 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
 
 #[tokio::test]
 async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
-    use a4n_llm_client::{JsonRequest, JsonResponse, LlmClient};
+    use a4n_llm_client::{JsonRequest, LlmClient, LlmProbeResponse};
     use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
     use a4n_service_client::{ServiceClient, ServiceClientResult};
     use a4n_service_protocol::{
@@ -183,7 +183,7 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
             Ok(())
         }
 
-        async fn probe(&self, _request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+        async fn probe(&self, _request: JsonRequest) -> ServiceClientResult<LlmProbeResponse> {
             unreachable!("probe is not used")
         }
 
@@ -399,17 +399,17 @@ fn test_chat_request() -> ChatRequest {
     }
 }
 
-fn successful_probe_response() -> a4n_llm_client::JsonResponse {
+fn successful_probe_response() -> a4n_llm_client::LlmProbeResponse {
     a4n_service_protocol::ServiceResponse {
         status: a4n_service_protocol::ServiceStatus::Ok,
         trace_id: Some("trace".to_string()),
         usage: None,
         artifact_refs: Vec::new(),
-        payload: Some(serde_json::json!({
-            "response_preview": "pong",
-            "usage": null,
-            "finish_reason": "stop"
-        })),
+        payload: Some(a4n_llm_sidecar_contract::LlmProbeOutput {
+            response_preview: "pong".to_string(),
+            usage: None,
+            finish_reason: Some("stop".to_string()),
+        }),
         error: None,
     }
 }

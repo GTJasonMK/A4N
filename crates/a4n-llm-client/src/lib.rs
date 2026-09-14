@@ -1,5 +1,6 @@
 //! Typed client for the LLM sidecar service.
 
+use a4n_llm_sidecar_contract::LlmProbeOutput;
 use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -13,7 +14,7 @@ use async_trait::async_trait;
 use std::time::Duration;
 
 pub type JsonRequest = ServiceRequest<serde_json::Value>;
-pub type JsonResponse = ServiceResponse<serde_json::Value>;
+pub type LlmProbeResponse = ServiceResponse<LlmProbeOutput>;
 
 pub struct HttpLlmClient {
     transport: HttpSidecarTransport,
@@ -76,7 +77,7 @@ pub trait LlmClient: ServiceClient {
         request: JsonRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
-    async fn probe(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn probe(&self, request: JsonRequest) -> ServiceClientResult<LlmProbeResponse>;
     async fn discover_models(
         &self,
         request: ServiceRequest<ModelDiscoveryRequest>,
@@ -95,7 +96,7 @@ impl LlmClient for HttpLlmClient {
             .await
     }
 
-    async fn probe(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn probe(&self, request: JsonRequest) -> ServiceClientResult<LlmProbeResponse> {
         self.transport.post("/llm/probe", request).await
     }
 

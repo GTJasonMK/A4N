@@ -292,13 +292,11 @@ async fn typed_stream_crosses_independent_gateway_process() {
     provider.stop().await;
 
     assert_eq!(probe_response.status, ServiceStatus::Ok);
-    assert_eq!(
-        probe_response
-            .payload
-            .as_ref()
-            .map(|payload| &payload["finish_reason"]),
-        Some(&json!("stop"))
-    );
+    let probe_output = probe_response
+        .payload
+        .as_ref()
+        .expect("successful probe should include typed output");
+    assert_eq!(probe_output.finish_reason.as_deref(), Some("stop"));
     assert_eq!(models_response.status, ServiceStatus::Ok);
     assert_eq!(
         models_response

@@ -1,6 +1,7 @@
 use a4n_error::AppError;
-use a4n_llm::gateway::{LlmProbeOutput, LlmProbePayload};
-use a4n_llm::provider::{ChatRequest, LlmProvider, collect_chat_stream};
+use a4n_llm::gateway::LlmProbePayload;
+use a4n_llm::provider::{ChatRequest, ChatResponse, LlmProvider, UsageInfo, collect_chat_stream};
+use a4n_llm_sidecar_contract::{LlmProbeOutput, LlmProbeUsage};
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::Json;
 
@@ -36,5 +37,28 @@ pub(crate) async fn probe_existing_provider(
 ) -> Result<LlmProbeOutput, AppError> {
     // 探测只收集最小真实 stream，不调用完整响应 chat()。
     let response = collect_chat_stream(provider, request).await?;
-    LlmProbeOutput::from_chat_response(response)
+    probe_output_from_chat_response(response)
+}
+
+fn probe_output_from_chat_response(response: ChatResponse) -> Result<LlmProbeOutput, AppError> {
+    let content = response.message.content.trim();
+    if content.is_empty() {
+        return Err(AppError::LlmError("LLM 连接探测未收到有效响应".to_string()));
+    }
+    Ok(LlmProbeOutput {
+        response_preview: content.chars().take(200).collect(),
+        usage: response.usage.map(probe_usage),
+        finish_reason: response.finish_reason,
+    })
+}
+
+fn probe_usage(usage: UsageInfo) -> LlmProbeUsage {
+    LlmProbeUsage {
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
+        prompt_cache_hit_tokens: usage.prompt_cache_hit_tokens,
+        prompt_cache_miss_tokens: usage.prompt_cache_miss_tokens,
+        prompt_cache_write_tokens: usage.prompt_cache_write_tokens,
+    }
 }

@@ -105,7 +105,7 @@ pub(super) async fn probe_llm_via_sidecar(
     )
     .map_err(|err| AppError::ConfigError(format!("LLM sidecar probe 请求构造失败：{err}")))?;
     let response = client.probe(request).await.map_err(llm_sidecar_error)?;
-    crate::sidecar_clients::response_payload(response, "llm")
+    crate::sidecar_clients::typed_response_payload(response, "llm")
         .map_err(|err| AppError::LlmError(format!("LLM sidecar probe 响应失败：{err}")))
 }
 

@@ -579,6 +579,7 @@ dependencies = [
 name = "a4n-llm-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-llm-sidecar-contract",
  "a4n-model-discovery-contract",
  "a4n-service-client",
  "a4n-service-protocol",
@@ -607,6 +608,7 @@ dependencies = [
  "a4n-llm",
  "a4n-llm-client",
  "a4n-llm-http",
+ "a4n-llm-sidecar-contract",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
  "a4n-service-client",
@@ -638,6 +640,14 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "a4n-llm-sidecar-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -977,6 +987,7 @@ dependencies = [
  "a4n-llm-client",
  "a4n-llm-config",
  "a4n-llm-http",
+ "a4n-llm-sidecar-contract",
  "a4n-media",
  "a4n-migration",
  "a4n-model-discovery",
@@ -1190,6 +1201,7 @@ dependencies = [
  "a4n-import-contract",
  "a4n-llm",
  "a4n-llm-client",
+ "a4n-llm-sidecar-contract",
  "a4n-model-discovery-contract",
  "a4n-prompt-client",
  "a4n-rag-client",

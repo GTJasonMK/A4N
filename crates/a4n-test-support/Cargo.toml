@@ -20,6 +20,7 @@ a4n-import-contract = { path = "../a4n-import-contract" }
 a4n-import-client = { path = "../a4n-import-client" }
 a4n-llm = { path = "../a4n-llm" }
 a4n-llm-client = { path = "../a4n-llm-client" }
+a4n-llm-sidecar-contract = { path = "../a4n-llm-sidecar-contract" }
 a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 a4n-prompt-client = { path = "../a4n-prompt-client" }
 a4n-rag-core = { path = "../a4n-rag-core" }

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_llm_client::{JsonRequest, JsonResponse, LlmClient};
+use a4n_llm_client::{JsonRequest, LlmClient, LlmProbeResponse};
 use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
@@ -11,7 +11,7 @@ use super::unexpected_call;
 #[derive(Clone)]
 pub struct RecordingLlmClient {
     state: Arc<RecordingLlmClientState>,
-    probe_response: JsonResponse,
+    probe_response: LlmProbeResponse,
 }
 
 #[derive(Default)]
@@ -20,7 +20,7 @@ struct RecordingLlmClientState {
 }
 
 impl RecordingLlmClient {
-    pub fn new(probe_response: JsonResponse) -> Self {
+    pub fn new(probe_response: LlmProbeResponse) -> Self {
         Self {
             state: Arc::new(RecordingLlmClientState::default()),
             probe_response,
@@ -70,7 +70,7 @@ impl LlmClient for RecordingLlmClient {
         Err(unexpected_call("RecordingLlmClient", "stream"))
     }
 
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn probe(&self, request: JsonRequest) -> CapabilityResult<LlmProbeResponse> {
         self.state
             .probe_requests
             .lock()

@@ -12,6 +12,7 @@ use a4n_image_contract::{
     IMAGE_PROVIDER_CAPABILITY_VERSION, ImageGenerationRequest, ImageProviderPayload,
 };
 use a4n_llm_client::LlmClient;
+use a4n_llm_sidecar_contract::LlmProbeOutput;
 use a4n_rag_client::RagClient;
 use a4n_rag_sidecar_contract::{EmbeddingRecordPayload, IngestPayload, QueryPayload};
 use a4n_service_client::ServiceClient;
@@ -35,7 +36,7 @@ use super::{
 
 #[tokio::test]
 async fn recording_llm_probe_returns_configured_response_and_captures_request() {
-    let response = response(serde_json::json!({"ok": true}));
+    let response = response(probe_output());
     let client = RecordingLlmClient::new(response.clone());
     let request = request("probe-request", LLM_CHAT_CAPABILITY_VERSION);
 
@@ -52,7 +53,7 @@ async fn recording_llm_probe_returns_configured_response_and_captures_request() 
 
 #[tokio::test]
 async fn recording_llm_unconfigured_operations_fail_explicitly() {
-    let client = RecordingLlmClient::new(response(serde_json::Value::Null));
+    let client = RecordingLlmClient::new(response(probe_output()));
     let health_error = client
         .health()
         .await
@@ -626,6 +627,14 @@ fn response<T>(payload: T) -> ServiceResponse<T> {
         artifact_refs: Vec::new(),
         payload: Some(payload),
         error: None,
+    }
+}
+
+fn probe_output() -> LlmProbeOutput {
+    LlmProbeOutput {
+        response_preview: "probe".to_string(),
+        usage: None,
+        finish_reason: Some("stop".to_string()),
     }
 }
 
