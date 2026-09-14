@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use a4n_image_client::{ImageClient, ImageProviderRequest, JsonRequest, JsonResponse};
+use a4n_image_client::{ImageClient, ImageProviderRequest, JsonResponse};
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
 use super::{
@@ -90,7 +91,10 @@ impl ImageClient for RecordingImageClient {
             .ok_or_else(|| unexpected_call("RecordingImageClient", "preview_request"))
     }
 
-    async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        _request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> CapabilityResult<ServiceResponse<ModelDiscoveryResult>> {
         Err(unexpected_call("RecordingImageClient", "discover_models"))
     }
 }

@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use a4n_llm_client::{JsonRequest, JsonResponse, LlmClient};
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
 use super::unexpected_call;
@@ -78,7 +79,10 @@ impl LlmClient for RecordingLlmClient {
         Ok(self.probe_response.clone())
     }
 
-    async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        _request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> CapabilityResult<ServiceResponse<ModelDiscoveryResult>> {
         Err(unexpected_call("RecordingLlmClient", "discover_models"))
     }
 }

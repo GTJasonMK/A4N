@@ -304,8 +304,7 @@ async fn typed_stream_crosses_independent_gateway_process() {
         models_response
             .payload
             .as_ref()
-            .and_then(|payload| payload["models"].as_array())
-            .map(Vec::len),
+            .map(|payload| payload.models.len()),
         Some(1)
     );
 

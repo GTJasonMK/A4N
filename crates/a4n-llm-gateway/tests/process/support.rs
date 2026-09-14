@@ -7,6 +7,7 @@ use std::{
 
 use a4n_llm::provider::ChatRequest;
 use a4n_llm_client::{HttpLlmClient, JsonRequest, LlmClient};
+use a4n_model_discovery_contract::ModelDiscoveryRequest;
 use a4n_service_client::ServiceClient;
 use a4n_service_manager::{
     ManagedServiceConfig, ManagedSidecarState, ServiceManager, ServiceManagerError,
@@ -332,7 +333,7 @@ pub(crate) fn gateway_models_request(
     request_id: &str,
     trace_id: &str,
     provider_base_url: &str,
-) -> JsonRequest {
+) -> a4n_service_protocol::ServiceRequest<ModelDiscoveryRequest> {
     ServiceRequestContext::local_user_secret(
         request_id,
         TraceContext {
@@ -342,11 +343,11 @@ pub(crate) fn gateway_models_request(
     )
     .with_payload(
         LLM_CHAT_CAPABILITY_VERSION,
-        json!({
-            "provider": "openai",
-            "base_url": provider_base_url,
-            "api_key": "process-provider-secret"
-        }),
+        ModelDiscoveryRequest {
+            provider: "openai".to_string(),
+            base_url: provider_base_url.to_string(),
+            api_key: Some("process-provider-secret".to_string()),
+        },
     )
     .expect("process models request context should be valid")
 }

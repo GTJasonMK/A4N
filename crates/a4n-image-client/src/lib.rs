@@ -3,6 +3,7 @@
 use a4n_image_contract::{
     IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME, ImageProviderPayload,
 };
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -86,7 +87,10 @@ pub trait ImageClient: ServiceClient {
         &self,
         request: ImageProviderRequest,
     ) -> ServiceClientResult<JsonResponse>;
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>>;
 }
 
 #[async_trait]
@@ -108,7 +112,10 @@ impl ImageClient for HttpImageClient {
         self.transport.post("/image/request_preview", request).await
     }
 
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>> {
         self.transport.post("/image/models", request).await
     }
 }

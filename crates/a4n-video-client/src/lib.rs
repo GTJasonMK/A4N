@@ -1,5 +1,6 @@
 //! Typed client for the video sidecar service.
 
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -79,7 +80,10 @@ pub trait VideoClient: ServiceClient {
     async fn status(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn preview_request(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>>;
 }
 
 #[async_trait]
@@ -110,7 +114,10 @@ impl VideoClient for HttpVideoClient {
         self.transport.post("/video/request_preview", request).await
     }
 
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>> {
         self.transport.post("/video/models", request).await
     }
 }

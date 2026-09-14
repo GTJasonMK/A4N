@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use a4n_video_client::{JsonRequest, JsonResponse, VideoClient};
 use async_trait::async_trait;
 
@@ -153,7 +155,10 @@ impl VideoClient for RecordingVideoClient {
             .ok_or_else(|| unexpected_call("RecordingVideoClient", "preview_request"))
     }
 
-    async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        _request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> CapabilityResult<ServiceResponse<ModelDiscoveryResult>> {
         Err(unexpected_call("RecordingVideoClient", "discover_models"))
     }
 }

@@ -442,6 +442,7 @@ name = "a4n-image-client"
 version = "0.1.0"
 dependencies = [
  "a4n-image-contract",
+ "a4n-model-discovery-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
@@ -565,6 +566,7 @@ dependencies = [
 name = "a4n-llm-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-model-discovery-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
@@ -1161,6 +1163,7 @@ dependencies = [
  "a4n-import-contract",
  "a4n-llm",
  "a4n-llm-client",
+ "a4n-model-discovery-contract",
  "a4n-prompt-client",
  "a4n-rag-client",
  "a4n-rag-core",
@@ -1196,6 +1199,7 @@ dependencies = [
 name = "a4n-video-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-model-discovery-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
