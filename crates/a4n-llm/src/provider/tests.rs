@@ -3,6 +3,7 @@ use serde_json::json;
 use super::{
     ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities,
     UsageInfo, is_truncated_finish_reason, normalize_extra_body_json,
+    validated_model_output_tokens,
 };
 
 #[test]
@@ -11,6 +12,27 @@ fn detects_known_truncated_finish_reasons() {
     assert!(is_truncated_finish_reason(Some("max_tokens")));
     assert!(!is_truncated_finish_reason(Some("stop")));
     assert!(!is_truncated_finish_reason(None));
+}
+
+#[test]
+fn validated_model_output_tokens_preserves_large_configured_cap() {
+    let capabilities = ModelCapabilities {
+        max_context_tokens: 1_048_576,
+        max_output_tokens: 393_216,
+    };
+    assert_eq!(
+        validated_model_output_tokens(&capabilities).expect("configured output cap is valid"),
+        393_216
+    );
+}
+
+#[test]
+fn validated_model_output_tokens_rejects_missing_cap() {
+    let capabilities = ModelCapabilities {
+        max_context_tokens: 1_048_576,
+        max_output_tokens: 0,
+    };
+    assert!(validated_model_output_tokens(&capabilities).is_err());
 }
 
 #[test]

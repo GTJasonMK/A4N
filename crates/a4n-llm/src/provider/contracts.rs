@@ -13,6 +13,17 @@ pub struct ModelCapabilities {
     pub max_output_tokens: usize,
 }
 
+pub fn validated_model_output_tokens(
+    capabilities: &ModelCapabilities,
+) -> Result<usize, a4n_error::AppError> {
+    if capabilities.max_output_tokens == 0 {
+        return Err(a4n_error::AppError::InvalidArgument(
+            "模型没有可用输出预算".into(),
+        ));
+    }
+    Ok(capabilities.max_output_tokens)
+}
+
 /// 消息角色
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

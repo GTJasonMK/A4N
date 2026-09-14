@@ -49,7 +49,6 @@ const WORKER_POLL_INTERVAL: Duration = Duration::from_secs(2);
 const WORKER_RENEW_INTERVAL: Duration = Duration::from_secs(10);
 const WORKER_MAX_CLAIMS_PER_WAKEUP: usize = 8;
 const WORKER_MAX_STEPS: u32 = a4n_api_contract::agent::AGENT_DEFAULT_MAX_STEPS;
-const WORKER_MAX_OUTPUT_TOKENS: usize = 8_192;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_BASE_AGENT_TOOLS: usize = 6;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
@@ -1018,7 +1017,7 @@ async fn process_claimed_run_inner(
             .host()
             .llm_capabilities(context.owner_user_id, snapshot.as_ref(), config_id)
             .await?;
-        let output_tokens = WORKER_MAX_OUTPUT_TOKENS.min(capabilities.max_output_tokens);
+        let output_tokens = a4n_llm::provider::validated_model_output_tokens(&capabilities)?;
         let base_messages =
             with_agent_system_prompt(history::pair_tool_messages(&messages)?, &context);
         let projection = history::fit_context_projection(
