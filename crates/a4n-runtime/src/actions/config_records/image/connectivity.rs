@@ -5,7 +5,7 @@ use crate::actions::request_preview::{
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::config::ImageConfigForConnectivityTest;
 use a4n_error::AppError;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 

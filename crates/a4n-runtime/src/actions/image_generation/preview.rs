@@ -7,8 +7,8 @@ use crate::{
         ModelRequestPreviewStep, image_provider_request_step, provider_request_step,
     },
 };
-use a4n_image::ImageGenerationRequest;
 use a4n_image_client::ImageClient;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_orchestrator::media::PreparedImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 

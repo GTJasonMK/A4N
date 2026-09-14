@@ -4,7 +4,7 @@ use a4n_domain::image::{
     OPENAI_COMPATIBLE_IMAGE_BACKEND, OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND,
     STABLE_DIFFUSION_IMAGE_BACKEND,
 };
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_image_providers::image_provider_request_body_preview;
 use serde_json::Value;

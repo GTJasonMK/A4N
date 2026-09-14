@@ -4,7 +4,7 @@ use crate::actions::request_preview::{
     provider_request_step,
 };
 use crate::state::AppState;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_llm::provider::ChatRequest;
 use a4n_provider_contract::ImageProviderConfig;
 
