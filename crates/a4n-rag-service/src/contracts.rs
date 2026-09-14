@@ -45,12 +45,6 @@ pub(crate) struct DeletePayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct CollectionPayload {
-    pub(crate) collection: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct MetadataByFilterPayload {
     pub(crate) collection: String,
     pub(crate) filter: DeleteFilter,
@@ -62,7 +56,7 @@ mod tests {
 
     #[test]
     fn rag_payload_rejects_unknown_fields() {
-        let error = serde_json::from_value::<CollectionPayload>(
+        let error = serde_json::from_value::<a4n_rag_sidecar_contract::DropCollectionPayload>(
             serde_json::json!({"collection": "1", "create_if_missing": true}),
         )
         .err()

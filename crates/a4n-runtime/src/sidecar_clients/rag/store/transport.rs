@@ -1,7 +1,9 @@
 use a4n_error::AppError;
-use a4n_rag_client::{CompletenessByIdsResponse, MetadataByIdsResponse};
+use a4n_rag_client::{CompletenessByIdsResponse, DropCollectionResponse, MetadataByIdsResponse};
 use a4n_rag_core::vector_store::{CompletenessReport, EmbeddingRecord};
-use a4n_rag_sidecar_contract::{CompletenessByIdsPayload, MetadataByIdsPayload};
+use a4n_rag_sidecar_contract::{
+    CompletenessByIdsPayload, DropCollectionPayload, MetadataByIdsPayload,
+};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
@@ -13,6 +15,22 @@ use crate::sidecar_clients::{
 };
 
 impl SidecarVectorStore {
+    pub(super) async fn drop_collection_typed(&self, collection: &str) -> Result<(), AppError> {
+        let request = rag_service_request_typed(
+            "rag.drop_collection",
+            DropCollectionPayload {
+                collection: collection.to_string(),
+            },
+        )
+        .map_err(service_app_error)?;
+        let response: DropCollectionResponse = self
+            .client
+            .drop_collection(request)
+            .await
+            .map_err(service_error_app_error)?;
+        typed_response_payload(response, "rag").map_err(service_app_error)
+    }
+
     pub(super) async fn completeness_report_by_ids_typed(
         &self,
         collection: &str,
@@ -112,7 +130,6 @@ impl SidecarVectorStore {
             RagOperation::SearchText => self.client.search_text(request).await,
             RagOperation::Search => self.client.search(request).await,
             RagOperation::Delete => self.client.delete(request).await,
-            RagOperation::DropCollection => self.client.drop_collection(request).await,
             RagOperation::MetadataByFilter => self.client.metadata_by_filter(request).await,
         }
         .map_err(service_error_app_error)?;
@@ -125,7 +142,6 @@ pub(super) enum RagOperation {
     SearchText,
     Search,
     Delete,
-    DropCollection,
     MetadataByFilter,
 }
 
@@ -136,7 +152,6 @@ impl RagOperation {
             Self::SearchText => "rag.search_text",
             Self::Search => "rag.search",
             Self::Delete => "rag.delete",
-            Self::DropCollection => "rag.drop_collection",
             Self::MetadataByFilter => "rag.metadata_by_filter",
         }
     }

@@ -3,14 +3,15 @@ use a4n_service_protocol::{
     SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };
 use a4n_test_support::process::{
-    CompletenessByIdsPayload, HttpRagClient, JsonRequest, MetadataByIdsPayload,
-    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
-    ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
-    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
-    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
+    CompletenessByIdsPayload, DropCollectionPayload, HttpRagClient, JsonRequest,
+    MetadataByIdsPayload, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
+    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
+    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
+    trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -414,13 +415,18 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
 
     let dropped = client
-        .drop_collection(rag_request(
+        .drop_collection(request_context(
             "rag-process-drop",
-            json!({"collection": COLLECTION}),
+            "rag-process-drop-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            DropCollectionPayload {
+                collection: COLLECTION.to_string(),
+            },
         ))
         .await
         .expect("RAG collection drop should cross the independent process");
     assert_eq!(dropped.status, ServiceStatus::Ok);
+    assert!(dropped.payload.is_some());
     let rebuilt = ingest_records(
         &client,
         rag_request(

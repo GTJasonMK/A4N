@@ -95,12 +95,9 @@ impl VectorStore for SidecarVectorStore {
     }
 
     async fn drop_collection(&self, collection: &str) -> Result<(), ProviderError> {
-        self.call(
-            RagOperation::DropCollection,
-            json!({ "collection": collection }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::drop_collection_typed(self, collection)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn metadata_by_ids(
