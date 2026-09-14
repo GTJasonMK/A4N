@@ -1,4 +1,4 @@
-pub use a4n_domain::embedding::{
+pub use a4n_embedding_contract::{
     EmbeddingModelDownloadInfoSummary, EmbeddingModelIdentity, LocalEmbeddingModelSummary,
 };
 use schemars::JsonSchema;

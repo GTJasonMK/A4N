@@ -88,6 +88,7 @@ name = "a4n-api-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-embedding-contract",
  "a4n-error",
  "a4n-prompt-contract",
  "a4n-provider-contract",
@@ -273,7 +274,6 @@ dependencies = [
 name = "a4n-domain"
 version = "0.1.0"
 dependencies = [
- "a4n-embedding-contract",
  "a4n-model-discovery-contract",
  "chrono",
  "schemars 1.2.1",
@@ -303,6 +303,7 @@ name = "a4n-embedding"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-embedding-contract",
  "async-trait",
  "reqwest 0.12.28",
  "serde",
