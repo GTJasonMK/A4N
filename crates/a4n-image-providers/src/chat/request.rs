@@ -1,4 +1,4 @@
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use serde_json::{Value, json};
 
 pub(super) fn chat_request_body(req: &ImageGenerationRequest) -> Value {

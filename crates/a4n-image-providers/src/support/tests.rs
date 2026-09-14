@@ -1,7 +1,7 @@
 use super::reference::{MAX_REFERENCE_IMAGE_BYTES, decode_data_uri_image};
 use super::*;
 use a4n_domain::ProviderError as AppError;
-use a4n_image::ImageReference;
+use a4n_image_contract::ImageReference;
 use base64::Engine as _;
 use reqwest::StatusCode;
 #[test]
