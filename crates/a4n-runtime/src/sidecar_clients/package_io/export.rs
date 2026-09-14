@@ -1,6 +1,7 @@
 use a4n_export_client::ExportClient;
 use a4n_export_contract::{
-    ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput,
+    EXPORT_RENDER_CAPABILITY_VERSION, ExportRenderJsonInput, ExportRenderZipInput,
+    ExportRenderZipOutput, ExportZipPackageInput,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -23,7 +24,7 @@ pub(crate) async fn render_export_json(
             .ok_or_else(|| "export sidecar capability 未配置，无法执行导出渲染".to_string())?;
         let response = client
             .render_json(pure_transform_typed_service_request(
-                a4n_service_protocol::EXPORT_RENDER_CAPABILITY_VERSION,
+                EXPORT_RENDER_CAPABILITY_VERSION,
                 input,
                 project_id,
                 root_project_id,
@@ -84,7 +85,7 @@ pub(crate) async fn render_export_zip_package(
             .ok_or_else(|| "export sidecar capability 未配置，无法执行 zip 渲染".to_string())?;
         let response = client
             .render_zip(pure_transform_typed_service_request(
-                a4n_service_protocol::EXPORT_RENDER_CAPABILITY_VERSION,
+                EXPORT_RENDER_CAPABILITY_VERSION,
                 ExportRenderZipInput::from_package_input(input),
                 project_id,
                 root_project_id,
