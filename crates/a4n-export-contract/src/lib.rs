@@ -6,6 +6,9 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 
+pub const EXPORT_SERVICE_NAME: &str = "export";
+pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v3";
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExportContractError {
     #[error("{label} base64 解码失败：{source}")]
