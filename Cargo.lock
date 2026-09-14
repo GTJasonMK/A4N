@@ -440,6 +440,7 @@ dependencies = [
 name = "a4n-image-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-image-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",

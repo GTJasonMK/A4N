@@ -1,11 +1,12 @@
 //! Typed client for the image sidecar service.
 
+use a4n_image_contract::{IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
 };
 use a4n_service_protocol::{
-    CapabilityTaskEvent, IMAGE_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
+    CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse, sidecar_resource_policy,
 };
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
@@ -14,6 +15,15 @@ use std::time::Duration;
 pub type JsonRequest = ServiceRequest<serde_json::Value>;
 pub type JsonResponse = ServiceResponse<serde_json::Value>;
 
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        IMAGE_SERVICE_NAME,
+        IMAGE_PROVIDER_CAPABILITY_VERSION,
+        sidecar_resource_policy(IMAGE_SERVICE_NAME)
+            .expect("image service must have a resource policy"),
+    )
+}
+
 pub struct HttpImageClient {
     transport: HttpSidecarTransport,
 }
@@ -21,20 +31,14 @@ pub struct HttpImageClient {
 impl HttpImageClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(IMAGE_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(IMAGE_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
