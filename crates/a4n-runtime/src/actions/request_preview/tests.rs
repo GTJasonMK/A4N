@@ -1,7 +1,7 @@
 use super::*;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 #[cfg(feature = "embedded-media-providers")]
-use a4n_image::ImageReference;
+use a4n_image_contract::ImageReference;
 use a4n_llm::context::{COMPRESSION_COMPRESSED_SCENE, context_aware_system_user_request};
 use a4n_llm::context::{
     CONTEXT_MANIFEST_SCHEMA_VERSION, LlmContextManifest, LlmContextManifestPack,
