@@ -1,12 +1,13 @@
+use a4n_image_contract::{IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME};
 use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
 use a4n_test_support::process::{
-    FakeJsonProvider, HangingJsonProvider, HttpImageClient, IMAGE_PROVIDER_CAPABILITY_VERSION,
-    IMAGE_SERVICE_NAME, ImageClient, JsonRequest, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus,
-    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
-    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
-    finish_sidecar, provider_request_context, sidecar_base_url, sidecar_manager, start_sidecar,
-    trusted_remote_request_context, unused_local_addr,
+    FakeJsonProvider, HangingJsonProvider, HttpImageClient, ImageClient, JsonRequest,
+    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, finish_sidecar, provider_request_context,
+    sidecar_base_url, sidecar_manager, start_sidecar, trusted_remote_request_context,
+    unused_local_addr,
 };
 use tokio::time::{Duration, timeout};
 

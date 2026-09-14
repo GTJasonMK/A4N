@@ -1,7 +1,8 @@
-use a4n_image_contract::ImageGenerationRequest;
+use a4n_image_contract::{
+    IMAGE_PROVIDER_CAPABILITY_VERSION as IMAGE_CAPABILITY_VERSION, ImageGenerationRequest,
+};
 use a4n_service_protocol::{
-    IMAGE_PROVIDER_CAPABILITY_VERSION as IMAGE_CAPABILITY_VERSION, PROTOCOL_VERSION,
-    ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
+    PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
 };
 
 use crate::contracts::ImageProviderPayload;
