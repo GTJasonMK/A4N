@@ -453,6 +453,7 @@ name = "a4n-image-contract"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -927,6 +928,7 @@ dependencies = [
  "a4n-export-contract",
  "a4n-image",
  "a4n-image-client",
+ "a4n-image-contract",
  "a4n-image-providers",
  "a4n-import-client",
  "a4n-import-contract",
@@ -1139,6 +1141,7 @@ dependencies = [
  "a4n-export-client",
  "a4n-export-contract",
  "a4n-image-client",
+ "a4n-image-contract",
  "a4n-import-client",
  "a4n-import-contract",
  "a4n-llm",

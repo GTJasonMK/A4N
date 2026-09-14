@@ -11,7 +11,7 @@ use std::{
 use a4n_service_manager::{
     ManagedServiceConfig, ManagedSidecarProcess, ServiceManager, ServiceManagerError,
 };
-use a4n_service_protocol::{HealthStatus, SIDECAR_AUTH_TOKEN_ENV};
+use a4n_service_protocol::{HealthStatus, SIDECAR_AUTH_TOKEN_ENV, ServiceRequest};
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -627,12 +627,12 @@ impl FakeJsonProvider {
     }
 }
 
-pub fn request_context(
+pub fn request_context<T>(
     request_id: &str,
     trace_id: &str,
     capability_version: &str,
-    payload: Value,
-) -> JsonRequest {
+    payload: T,
+) -> ServiceRequest<T> {
     ServiceRequestContext::deny_all(
         request_id,
         TraceContext {
@@ -647,12 +647,12 @@ pub fn request_context(
 /// Build a secret-free request explicitly authorized for a trusted remote sidecar.
 /// Keep this in the shared process support so remote egress tests do not each
 /// invent their own envelope mutation.
-pub fn trusted_remote_request_context(
+pub fn trusted_remote_request_context<T>(
     request_id: &str,
     trace_id: &str,
     capability_version: &str,
-    payload: Value,
-) -> JsonRequest {
+    payload: T,
+) -> ServiceRequest<T> {
     ServiceRequestContext::new(
         request_id,
         TraceContext {
@@ -665,12 +665,12 @@ pub fn trusted_remote_request_context(
     .expect("trusted-remote process request context should be valid")
 }
 
-pub fn provider_request_context(
+pub fn provider_request_context<T>(
     request_id: &str,
     trace_id: &str,
     capability_version: &str,
-    payload: Value,
-) -> JsonRequest {
+    payload: T,
+) -> ServiceRequest<T> {
     ServiceRequestContext::local_user_secret(
         request_id,
         TraceContext {

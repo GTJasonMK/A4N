@@ -14,6 +14,7 @@ a4n-embedding-client = { path = "../a4n-embedding-client" }
 a4n-export-client = { path = "../a4n-export-client" }
 a4n-export-contract = { path = "../a4n-export-contract" }
 a4n-image-client = { path = "../a4n-image-client" }
+a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-import-contract = { path = "../a4n-import-contract" }
 a4n-import-client = { path = "../a4n-import-client" }
 a4n-llm = { path = "../a4n-llm" }

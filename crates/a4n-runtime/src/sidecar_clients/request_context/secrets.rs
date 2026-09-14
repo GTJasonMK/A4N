@@ -3,6 +3,7 @@ mod policy;
 
 pub(crate) use policy::{
     global_provider_service_request, service_request_with_context_provider_secret_policy,
+    typed_service_request_with_context_provider_secret_policy,
 };
 
 #[cfg(test)]

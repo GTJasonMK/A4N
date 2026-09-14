@@ -4,14 +4,17 @@ use a4n_export_contract::{
     EXPORT_RENDER_CAPABILITY_VERSION, ExportRenderJsonInput, ExportRenderZipInput,
     ExportRenderZipOutput,
 };
-use a4n_image_client::ImageClient;
+use a4n_image_client::{ImageClient, ImageProviderRequest};
+use a4n_image_contract::{
+    IMAGE_PROVIDER_CAPABILITY_VERSION, ImageGenerationRequest, ImageProviderPayload,
+};
 use a4n_llm_client::LlmClient;
 use a4n_rag_client::RagClient;
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
-    IMAGE_PROVIDER_CAPABILITY_VERSION, LLM_CHAT_CAPABILITY_VERSION, RAG_INDEX_CAPABILITY_VERSION,
-    ServiceErrorCode, ServiceRequestContext, ServiceResponse, ServiceStatus, TraceContext,
+    LLM_CHAT_CAPABILITY_VERSION, RAG_INDEX_CAPABILITY_VERSION, ServiceErrorCode,
+    ServiceRequestContext, ServiceResponse, ServiceStatus, TraceContext,
     VIDEO_PROVIDER_CAPABILITY_VERSION,
 };
 use a4n_video_client::VideoClient;
@@ -143,7 +146,7 @@ async fn pending_embedding_download_rejects_non_download_operations() {
 async fn recording_image_generate_events_capture_request_and_bind_task_id() {
     let client = RecordingImageClient::new()
         .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
-    let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let request = image_request("image-generate");
     let (events_tx, mut events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -163,7 +166,7 @@ async fn recording_image_generate_events_capture_request_and_bind_task_id() {
 async fn recording_image_responses_and_request_ledgers_are_operation_specific() {
     let preview_response = response(serde_json::json!({"operation": "preview"}));
     let client = RecordingImageClient::new().with_preview_response(preview_response.clone());
-    let preview_request = request("image-preview", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let preview_request = image_request("image-preview");
 
     assert_eq!(
         client
@@ -180,7 +183,7 @@ async fn recording_image_responses_and_request_ledgers_are_operation_specific() 
 #[tokio::test]
 async fn recording_image_unconfigured_operations_fail_explicitly() {
     let client = RecordingImageClient::new();
-    let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let request = image_request("image-generate");
     let (events_tx, _events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let error = client
@@ -419,6 +422,32 @@ fn request(
         serde_json::json!({"request_id": request_id}),
     )
     .expect("valid test capability request")
+}
+
+fn image_request(request_id: &str) -> ImageProviderRequest {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        IMAGE_PROVIDER_CAPABILITY_VERSION,
+        ImageProviderPayload {
+            backend: "test-image".to_string(),
+            base_url: "https://image.example".to_string(),
+            api_key: String::new(),
+            request: ImageGenerationRequest {
+                prompt: "test image".to_string(),
+                width: 1,
+                height: 1,
+                model: "test-model".to_string(),
+                reference_images: Vec::new(),
+            },
+        },
+    )
+    .expect("valid typed image capability request")
 }
 
 fn response<T>(payload: T) -> ServiceResponse<T> {

@@ -30,7 +30,7 @@ pub(crate) use rag::{
 pub(crate) use request_context::{
     SidecarRequestContext, global_provider_service_request, global_service_request_without_secrets,
     pure_transform_typed_service_request, service_request_with_context_provider_secret_policy,
-    sidecar_context_for_llm_trace,
+    sidecar_context_for_llm_trace, typed_service_request_with_context_provider_secret_policy,
 };
 use request_context::{
     service_request_with_value_context, sidecar_context_for_workflow_operation_with_root,
