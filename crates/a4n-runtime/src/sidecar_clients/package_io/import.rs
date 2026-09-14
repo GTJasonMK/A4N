@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use a4n_import_client::ImportClient;
-use a4n_import_contract::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
+use a4n_import_contract::{
+    IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportReadMediaPackageZipInput,
+    ImportReadMediaPackageZipOutput,
+};
 use serde_json::Value;
 
 use crate::state::RuntimeProfile;
@@ -30,7 +33,7 @@ pub(crate) async fn read_import_media_package_zip(
         );
         let response = client
             .read_media_package_zip(pure_transform_typed_service_request(
-                a4n_service_protocol::IMPORT_TRANSFORM_CAPABILITY_VERSION,
+                IMPORT_TRANSFORM_CAPABILITY_VERSION,
                 input,
                 None,
                 None,
