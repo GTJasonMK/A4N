@@ -38,6 +38,7 @@ members = [
     "crates/a4n-llm-config",
     "crates/a4n-llm-http",
     "crates/a4n-llm-gateway",
+    "crates/a4n-embedding-contract",
     "crates/a4n-embedding",
     "crates/a4n-embedding-fastembed",
     "crates/a4n-embedding-service",

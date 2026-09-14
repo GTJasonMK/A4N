@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-embedding-contract = { path = "../a4n-embedding-contract" }
 a4n-domain = { path = "../a4n-domain" }
 schemars = { workspace = true }
 serde = { workspace = true }
