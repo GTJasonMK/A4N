@@ -1,7 +1,6 @@
 use a4n_error::AppError;
-use a4n_model_discovery::{
-    ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
-};
+use a4n_model_discovery::discover_models_from_request;
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::Json;
 
