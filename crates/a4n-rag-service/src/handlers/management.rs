@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use crate::app::RagServiceState;
-use crate::contracts::MetadataByFilterPayload;
 use crate::protocol::service_error;
 use a4n_rag_core::vector_store::{CompletenessReport, DeleteFilter};
 use a4n_rag_sidecar_contract::{
-    CompletenessByIdsPayload, CompletenessReport as CompletenessReportPayload,
-    DeleteRecordsPayload, DropCollectionPayload, MetadataByIdsPayload,
+    CompletenessByIdsPayload, CompletenessReport as CompletenessReportPayload, DeleteFilterPayload,
+    DeleteRecordsPayload, DropCollectionPayload, MetadataByFilterPayload, MetadataByIdsPayload,
 };
 use a4n_service_protocol::{RAG_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -21,10 +20,7 @@ pub(crate) async fn delete_records(
     }
     let trace_id = request.trace_context.trace_id;
     let payload = request.payload;
-    let filter = DeleteFilter {
-        ids: payload.filter.ids,
-        id_prefixes: payload.filter.id_prefixes,
-    };
+    let filter = core_delete_filter(payload.filter);
     let collection = payload.collection;
     let store = state.store.clone();
     let result = state
@@ -86,15 +82,21 @@ pub(crate) async fn metadata_by_filter(
     }
     let trace_id = request.trace_context.trace_id;
     let payload = request.payload;
-    let result = state
-        .store
-        .metadata_by_filter(&payload.collection, payload.filter)
-        .await;
+    let filter = core_delete_filter(payload.filter);
+    let collection = payload.collection;
+    let result = state.store.metadata_by_filter(&collection, filter).await;
     Json(ServiceResponse::from_result(
         trace_id,
         result,
         service_error,
     ))
+}
+
+fn core_delete_filter(filter: DeleteFilterPayload) -> DeleteFilter {
+    DeleteFilter {
+        ids: filter.ids,
+        id_prefixes: filter.id_prefixes,
+    }
 }
 
 pub(crate) async fn completeness_report_by_ids(

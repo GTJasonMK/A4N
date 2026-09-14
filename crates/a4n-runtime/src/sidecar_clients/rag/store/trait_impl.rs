@@ -112,12 +112,9 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         filter: DeleteFilter,
     ) -> Result<HashMap<String, Value>, ProviderError> {
-        self.call(
-            RagOperation::MetadataByFilter,
-            json!({ "collection": collection, "filter": filter }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::metadata_by_filter_typed(self, collection, filter)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn completeness_report_by_ids(

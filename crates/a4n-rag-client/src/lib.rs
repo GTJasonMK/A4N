@@ -2,7 +2,7 @@
 
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByIdsPayload,
+    MetadataByFilterPayload, MetadataByIdsPayload,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -29,6 +29,8 @@ pub type DropCollectionRequest = ServiceRequest<DropCollectionPayload>;
 pub type DropCollectionResponse = ServiceResponse<()>;
 pub type DeleteRequest = ServiceRequest<DeleteRecordsPayload>;
 pub type DeleteResponse = ServiceResponse<usize>;
+pub type MetadataByFilterRequest = ServiceRequest<MetadataByFilterPayload>;
+pub type MetadataByFilterResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -103,7 +105,10 @@ pub trait RagClient: ServiceClient {
         &self,
         request: MetadataByIdsRequest,
     ) -> ServiceClientResult<MetadataByIdsResponse>;
-    async fn metadata_by_filter(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn metadata_by_filter(
+        &self,
+        request: MetadataByFilterRequest,
+    ) -> ServiceClientResult<MetadataByFilterResponse>;
     async fn completeness_report_by_ids(
         &self,
         request: CompletenessByIdsRequest,
@@ -152,7 +157,10 @@ impl RagClient for HttpRagClient {
         self.transport.post(RAG_METADATA_BY_IDS_PATH, request).await
     }
 
-    async fn metadata_by_filter(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn metadata_by_filter(
+        &self,
+        request: MetadataByFilterRequest,
+    ) -> ServiceClientResult<MetadataByFilterResponse> {
         self.transport
             .post(RAG_METADATA_BY_FILTER_PATH, request)
             .await

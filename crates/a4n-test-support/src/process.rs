@@ -43,7 +43,7 @@ pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
 pub use a4n_rag_client::{HttpRagClient, JsonRequest, RagClient};
 pub use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByIdsPayload,
+    MetadataByFilterPayload, MetadataByIdsPayload,
 };
 pub use a4n_service_client::{
     ServiceClient as CapabilityClient, ServiceClientResult as CapabilityResult,

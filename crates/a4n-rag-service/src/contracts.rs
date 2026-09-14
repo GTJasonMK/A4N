@@ -1,4 +1,4 @@
-use a4n_rag_core::vector_store::{DeleteFilter, EmbeddingRecord, SearchFilter};
+use a4n_rag_core::vector_store::{EmbeddingRecord, SearchFilter};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -34,13 +34,6 @@ pub(crate) struct SearchTextPayload {
     pub(crate) query_text: String,
     pub(crate) top_k: usize,
     pub(crate) filters: Option<SearchFilter>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct MetadataByFilterPayload {
-    pub(crate) collection: String,
-    pub(crate) filter: DeleteFilter,
 }
 
 #[cfg(test)]
