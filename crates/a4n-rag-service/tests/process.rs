@@ -4,14 +4,14 @@ use a4n_service_protocol::{
 };
 use a4n_test_support::process::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    HttpRagClient, JsonRequest, MetadataByIdsPayload, RAG_INDEX_CAPABILITY_VERSION,
-    RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
-    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
-    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
-    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
-    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
-    trusted_remote_request_context, unused_local_addr,
+    HttpRagClient, JsonRequest, MetadataByFilterPayload, MetadataByIdsPayload,
+    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
+    ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
+    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
+    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -209,6 +209,28 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     .await;
     assert_eq!(ingest_records(&client, ingest_request).await, 2);
     assert_complete(&client, &["doc-1", "doc-2"]).await;
+    let metadata = client
+        .metadata_by_filter(request_context(
+            "rag-process-metadata-filter",
+            "rag-process-metadata-filter-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            MetadataByFilterPayload {
+                collection: COLLECTION.to_string(),
+                filter: DeleteFilterPayload {
+                    ids: vec!["doc-1".to_string()],
+                    id_prefixes: Vec::new(),
+                },
+            },
+        ))
+        .await
+        .expect("typed RAG metadata filter should cross the independent process");
+    assert_eq!(metadata.status, ServiceStatus::Ok);
+    assert!(
+        metadata
+            .payload
+            .expect("RAG metadata filter payload")
+            .contains_key("doc-1")
+    );
     assert_eq!(search_ids(&client, "重建").await, vec!["doc-1"]);
 
     let backpressure_client =

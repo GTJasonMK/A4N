@@ -1,11 +1,12 @@
 use a4n_error::AppError;
 use a4n_rag_client::{
-    CompletenessByIdsResponse, DeleteResponse, DropCollectionResponse, MetadataByIdsResponse,
+    CompletenessByIdsResponse, DeleteResponse, DropCollectionResponse, MetadataByFilterResponse,
+    MetadataByIdsResponse,
 };
 use a4n_rag_core::vector_store::{CompletenessReport, DeleteFilter, EmbeddingRecord};
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    MetadataByIdsPayload,
+    MetadataByFilterPayload, MetadataByIdsPayload,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
@@ -27,10 +28,7 @@ impl SidecarVectorStore {
             "rag.delete",
             DeleteRecordsPayload {
                 collection: collection.to_string(),
-                filter: DeleteFilterPayload {
-                    ids: filter.ids,
-                    id_prefixes: filter.id_prefixes,
-                },
+                filter: delete_filter_payload(filter),
             },
         )
         .map_err(service_app_error)?;
@@ -110,6 +108,27 @@ impl SidecarVectorStore {
         typed_response_payload(response, "rag").map_err(service_app_error)
     }
 
+    pub(super) async fn metadata_by_filter_typed(
+        &self,
+        collection: &str,
+        filter: DeleteFilter,
+    ) -> Result<std::collections::HashMap<String, serde_json::Value>, AppError> {
+        let request = rag_service_request_typed(
+            "rag.metadata_by_filter",
+            MetadataByFilterPayload {
+                collection: collection.to_string(),
+                filter: delete_filter_payload(filter),
+            },
+        )
+        .map_err(service_app_error)?;
+        let response: MetadataByFilterResponse = self
+            .client
+            .metadata_by_filter(request)
+            .await
+            .map_err(service_error_app_error)?;
+        typed_response_payload(response, "rag").map_err(service_app_error)
+    }
+
     pub(super) async fn ingest(
         &self,
         collection: &str,
@@ -156,7 +175,6 @@ impl SidecarVectorStore {
             RagOperation::Query => self.client.query(request).await,
             RagOperation::SearchText => self.client.search_text(request).await,
             RagOperation::Search => self.client.search(request).await,
-            RagOperation::MetadataByFilter => self.client.metadata_by_filter(request).await,
         }
         .map_err(service_error_app_error)?;
         response_payload(response, "rag").map_err(service_app_error)
@@ -167,7 +185,6 @@ pub(super) enum RagOperation {
     Query,
     SearchText,
     Search,
-    MetadataByFilter,
 }
 
 impl RagOperation {
@@ -176,7 +193,13 @@ impl RagOperation {
             Self::Query => "rag.query",
             Self::SearchText => "rag.search_text",
             Self::Search => "rag.search",
-            Self::MetadataByFilter => "rag.metadata_by_filter",
         }
+    }
+}
+
+fn delete_filter_payload(filter: DeleteFilter) -> DeleteFilterPayload {
+    DeleteFilterPayload {
+        ids: filter.ids,
+        id_prefixes: filter.id_prefixes,
     }
 }

@@ -36,6 +36,13 @@ pub struct DeleteRecordsPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct MetadataByFilterPayload {
+    pub collection: String,
+    pub filter: DeleteFilterPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CompletenessByIdsPayload {
     pub collection: String,
     pub expected_ids: Vec<String>,
@@ -58,7 +65,7 @@ pub struct CompletenessReport {
 mod tests {
     use super::{
         CompletenessByIdsPayload, CompletenessReport, DeleteFilterPayload, DeleteRecordsPayload,
-        DropCollectionPayload, MetadataByIdsPayload,
+        DropCollectionPayload, MetadataByFilterPayload, MetadataByIdsPayload,
     };
 
     #[test]
@@ -100,6 +107,17 @@ mod tests {
         }))
         .expect("delete filter fields remain independently defaultable");
         assert!(filter.id_prefixes.is_empty());
+    }
+
+    #[test]
+    fn metadata_by_filter_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<MetadataByFilterPayload>(serde_json::json!({
+            "collection": "42",
+            "filter": {"ids": [], "id_prefixes": []},
+            "legacy_filter_mode": "all"
+        }))
+        .expect_err("unknown metadata filter fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_filter_mode"));
     }
 
     #[test]
