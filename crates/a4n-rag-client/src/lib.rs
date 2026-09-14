@@ -1,7 +1,7 @@
 //! Typed client for the RAG sidecar service.
 
 use a4n_rag_sidecar_contract::{
-    CompletenessByIdsPayload, CompletenessReport, MetadataByIdsPayload,
+    CompletenessByIdsPayload, CompletenessReport, DropCollectionPayload, MetadataByIdsPayload,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -24,6 +24,8 @@ pub type MetadataByIdsRequest = ServiceRequest<MetadataByIdsPayload>;
 pub type MetadataByIdsResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
 pub type CompletenessByIdsRequest = ServiceRequest<CompletenessByIdsPayload>;
 pub type CompletenessByIdsResponse = ServiceResponse<CompletenessReport>;
+pub type DropCollectionRequest = ServiceRequest<DropCollectionPayload>;
+pub type DropCollectionResponse = ServiceResponse<()>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -90,7 +92,10 @@ pub trait RagClient: ServiceClient {
     ) -> ServiceClientResult<()>;
     async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
     async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn drop_collection(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn drop_collection(
+        &self,
+        request: DropCollectionRequest,
+    ) -> ServiceClientResult<DropCollectionResponse>;
     async fn metadata_by_ids(
         &self,
         request: MetadataByIdsRequest,
@@ -130,7 +135,10 @@ impl RagClient for HttpRagClient {
         self.transport.post(RAG_DELETE_PATH, request).await
     }
 
-    async fn drop_collection(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn drop_collection(
+        &self,
+        request: DropCollectionRequest,
+    ) -> ServiceClientResult<DropCollectionResponse> {
         self.transport.post(RAG_DROP_COLLECTION_PATH, request).await
     }
 

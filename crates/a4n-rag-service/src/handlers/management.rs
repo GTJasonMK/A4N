@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use crate::app::RagServiceState;
-use crate::contracts::{CollectionPayload, DeletePayload, MetadataByFilterPayload};
+use crate::contracts::{DeletePayload, MetadataByFilterPayload};
 use crate::protocol::service_error;
 use a4n_rag_core::vector_store::CompletenessReport;
 use a4n_rag_sidecar_contract::{
-    CompletenessByIdsPayload, CompletenessReport as CompletenessReportPayload, MetadataByIdsPayload,
+    CompletenessByIdsPayload, CompletenessReport as CompletenessReportPayload,
+    DropCollectionPayload, MetadataByIdsPayload,
 };
 use a4n_service_protocol::{RAG_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -33,7 +34,7 @@ pub(crate) async fn delete_records(
 
 pub(crate) async fn drop_collection(
     State(state): State<RagServiceState>,
-    Json(request): Json<ServiceRequest<CollectionPayload>>,
+    Json(request): Json<ServiceRequest<DropCollectionPayload>>,
 ) -> Json<ServiceResponse<()>> {
     if let Err(error) = request.validate_known_service(RAG_SERVICE_NAME) {
         return Json(request.error_response(error));
