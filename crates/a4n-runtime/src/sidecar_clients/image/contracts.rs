@@ -1,9 +1,9 @@
 use a4n_config::{image_backend_api_key, image_sizes_from_json, validate_image_config_params};
 use a4n_domain::image::CreateImageConfigParams;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::{ImageGenerationRequest, ImageProviderPayload};
 use a4n_provider_contract::ImageProviderConfig;
 
-pub(super) use a4n_image::{ImageGenerationOutput, ImageProviderPayload};
+pub(super) use a4n_image_contract::ImageGenerationOutput;
 
 pub(super) fn validated_image_provider_config(
     config: &ImageProviderConfig,
