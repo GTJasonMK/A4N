@@ -949,6 +949,7 @@ dependencies = [
  "a4n-domain",
  "a4n-embedding",
  "a4n-embedding-client",
+ "a4n-embedding-contract",
  "a4n-embedding-fastembed",
  "a4n-error",
  "a4n-event",
@@ -1076,7 +1077,6 @@ name = "a4n-service-protocol"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding-contract",
  "schemars 1.2.1",
  "serde",
  "serde_json",

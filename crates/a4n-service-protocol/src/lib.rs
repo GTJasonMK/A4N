@@ -5,7 +5,6 @@
 
 mod artifacts;
 mod egress;
-mod embedding;
 mod events;
 mod health;
 mod registry;
@@ -50,7 +49,6 @@ pub const EMBEDDING_CACHE_DIR_ENV: &str = "A4N_EMBEDDING_CACHE_DIR";
 pub const PROMPT_SERVICE_PROMPTS_DIR_ENV: &str = "A4N_PROMPT_SERVICE_PROMPTS_DIR";
 pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
 pub use egress::{EgressAuditEvent, EgressDataType, validate_egress_scope};
-pub use embedding::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 pub use events::{
     capability::{CapabilityTaskEvent, CapabilityTaskEventKind},
     generation::{
