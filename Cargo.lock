@@ -431,6 +431,7 @@ name = "a4n-image"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-image-contract",
  "async-trait",
  "serde",
 ]
@@ -444,6 +445,13 @@ dependencies = [
  "async-trait",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "a4n-image-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
