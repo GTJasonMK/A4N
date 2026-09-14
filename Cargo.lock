@@ -475,8 +475,8 @@ name = "a4n-image-service"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-image",
  "a4n-image-client",
+ "a4n-image-contract",
  "a4n-image-providers",
  "a4n-model-discovery",
  "a4n-service-protocol",

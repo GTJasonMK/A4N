@@ -1,4 +1,4 @@
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_service_protocol::{
     IMAGE_PROVIDER_CAPABILITY_VERSION as IMAGE_CAPABILITY_VERSION, PROTOCOL_VERSION,
     ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,

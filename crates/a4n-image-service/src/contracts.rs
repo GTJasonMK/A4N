@@ -1,4 +1,4 @@
-pub(crate) use a4n_image::{ImageGenerationOutput, ImageProviderPayload};
+pub(crate) use a4n_image_contract::{ImageGenerationOutput, ImageProviderPayload};
 
 #[cfg(test)]
 mod tests {
