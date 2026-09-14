@@ -3,6 +3,7 @@
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
     MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchResultPayload,
+    SearchTextPayload,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -33,6 +34,8 @@ pub type MetadataByFilterRequest = ServiceRequest<MetadataByFilterPayload>;
 pub type MetadataByFilterResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
 pub type QueryRequest = ServiceRequest<QueryPayload>;
 pub type QueryResponse = ServiceResponse<Vec<SearchResultPayload>>;
+pub type SearchTextRequest = ServiceRequest<SearchTextPayload>;
+pub type SearchTextResponse = ServiceResponse<Vec<SearchResultPayload>>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -91,7 +94,10 @@ impl ServiceClient for HttpRagClient {
 #[async_trait]
 pub trait RagClient: ServiceClient {
     async fn query(&self, request: QueryRequest) -> ServiceClientResult<QueryResponse>;
-    async fn search_text(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn search_text(
+        &self,
+        request: SearchTextRequest,
+    ) -> ServiceClientResult<SearchTextResponse>;
     async fn ingest_events(
         &self,
         request: JsonRequest,
@@ -123,7 +129,10 @@ impl RagClient for HttpRagClient {
         self.transport.post(RAG_QUERY_PATH, request).await
     }
 
-    async fn search_text(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn search_text(
+        &self,
+        request: SearchTextRequest,
+    ) -> ServiceClientResult<SearchTextResponse> {
         self.transport.post(RAG_SEARCH_TEXT_PATH, request).await
     }
 

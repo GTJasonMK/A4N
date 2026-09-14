@@ -42,17 +42,9 @@ impl VectorStore for SidecarVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, ProviderError> {
-        self.call(
-            RagOperation::SearchText,
-            json!({
-                "collection": collection,
-                "query_text": query_text,
-                "top_k": top_k,
-                "filters": filters
-            }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::search_text_typed(self, collection, query_text, top_k, filters)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn hybrid_search(
