@@ -20,15 +20,6 @@ pub(crate) struct SearchPayload {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct QueryPayload {
-    pub(crate) collection: String,
-    pub(crate) query_embedding: Vec<f32>,
-    pub(crate) top_k: usize,
-    pub(crate) filters: Option<SearchFilter>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct SearchTextPayload {
     pub(crate) collection: String,
     pub(crate) query_text: String,

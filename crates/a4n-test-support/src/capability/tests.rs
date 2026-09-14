@@ -13,6 +13,7 @@ use a4n_image_contract::{
 };
 use a4n_llm_client::LlmClient;
 use a4n_rag_client::RagClient;
+use a4n_rag_sidecar_contract::QueryPayload;
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
@@ -333,7 +334,7 @@ async fn recording_rag_unconfigured_operations_fail_explicitly() {
         .await
         .expect_err("unconfigured RAG ingest events must fail");
     let query_error = client
-        .query(request("rag-query", RAG_INDEX_CAPABILITY_VERSION))
+        .query(rag_query_request("rag-query"))
         .await
         .expect_err("unconfigured RAG query must fail");
 
@@ -440,6 +441,26 @@ fn request(
         serde_json::json!({"request_id": request_id}),
     )
     .expect("valid test capability request")
+}
+
+fn rag_query_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<QueryPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        RAG_INDEX_CAPABILITY_VERSION,
+        QueryPayload {
+            collection: "1".to_string(),
+            query_embedding: vec![1.0, 0.0],
+            top_k: 1,
+            filters: None,
+        },
+    )
+    .expect("valid typed RAG query request")
 }
 
 fn embedding_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<EmbedTextsPayload> {

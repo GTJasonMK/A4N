@@ -30,17 +30,9 @@ impl VectorStore for SidecarVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, ProviderError> {
-        self.call(
-            RagOperation::Query,
-            json!({
-                "collection": collection,
-                "query_embedding": query_embedding,
-                "top_k": top_k,
-                "filters": filters
-            }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::query_typed(self, collection, query_embedding, top_k, filters)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn search_text(

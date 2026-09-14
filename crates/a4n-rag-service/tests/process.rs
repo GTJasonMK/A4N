@@ -4,7 +4,7 @@ use a4n_service_protocol::{
 };
 use a4n_test_support::process::{
     CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
-    HttpRagClient, JsonRequest, MetadataByFilterPayload, MetadataByIdsPayload,
+    HttpRagClient, JsonRequest, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient, SIDECAR_PROCESS_TEST_TOKEN,
     ServiceStatus, SidecarProcessTestDir, assert_process_concurrency_saturation,
     assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
@@ -288,13 +288,16 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     assert_complete(&client, &expected_ids).await;
 
     let failed_query = client
-        .query(rag_request(
+        .query(request_context(
             "rag-process-query-failure",
-            json!({
-                "collection": COLLECTION,
-                "query_embedding": [1.0, 0.0],
-                "top_k": 1
-            }),
+            "rag-process-query-failure-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            QueryPayload {
+                collection: COLLECTION.to_string(),
+                query_embedding: vec![1.0, 0.0],
+                top_k: 1,
+                filters: None,
+            },
         ))
         .await
         .expect("RAG dimension failure should return a typed response");
@@ -305,21 +308,21 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
 
     let queried = client
-        .query(rag_request(
+        .query(request_context(
             "rag-process-query",
-            json!({
-                "collection": COLLECTION,
-                "query_embedding": [1.0, 0.0, 0.0],
-                "top_k": 1
-            }),
+            "rag-process-query-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            QueryPayload {
+                collection: COLLECTION.to_string(),
+                query_embedding: vec![1.0, 0.0, 0.0],
+                top_k: 1,
+                filters: None,
+            },
         ))
         .await
         .expect("RAG vector query should cross the independent process");
     assert_eq!(queried.status, ServiceStatus::Ok);
-    assert_eq!(
-        queried.payload.expect("RAG query payload")[0]["id"],
-        json!("doc-1")
-    );
+    assert_eq!(queried.payload.expect("RAG query payload")[0].id, "doc-1");
 
     let mut idle_records = Vec::with_capacity(512);
     for index in 0..512 {
