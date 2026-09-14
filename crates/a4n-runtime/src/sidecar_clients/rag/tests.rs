@@ -5,7 +5,7 @@ use super::context::{
     validate_rag_client_ingest_operation_trace_id, workflow_rag_operation_trace_id,
 };
 use super::events::handle_rag_ingest_event;
-use super::request::rag_service_request;
+use super::request::rag_service_request_typed;
 use super::store::SidecarVectorStore;
 use a4n_error::AppError;
 use a4n_rag_core::vector_store::{EmbeddingRecord, VectorStore};
@@ -35,7 +35,8 @@ fn rag_service_request_uses_numeric_collection_scope_without_changing_payload() 
             }
         }
     });
-    let request = rag_service_request("rag.query", payload.clone()).expect("rag service request");
+    let request =
+        rag_service_request_typed("rag.query", payload.clone()).expect("rag service request");
 
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(42));
@@ -45,7 +46,7 @@ fn rag_service_request_uses_numeric_collection_scope_without_changing_payload() 
 
 #[test]
 fn rag_service_request_rejects_non_project_collection() {
-    let error = rag_service_request("rag.drop_collection", json!({ "collection": "novel" }))
+    let error = rag_service_request_typed("rag.drop_collection", json!({ "collection": "novel" }))
         .expect_err("non-project collection must fail");
 
     assert!(error.contains("正整数项目 ID"));
@@ -185,8 +186,10 @@ async fn rag_ingest_uses_typed_events_and_preserves_project_scope() {
         Some("rag.ingest")
     );
     assert_eq!(request.secret_policy, SecretForwardingPolicy::deny_all());
+    assert_eq!(request.payload.collection, "42");
     assert!(
-        request.payload["records"][0]["metadata"]
+        request.payload.records[0]
+            .metadata
             .get("project_id")
             .is_none()
     );

@@ -1,6 +1,7 @@
 use crate::app::RagServiceState;
-use crate::contracts::IngestPayload;
 use crate::protocol::service_error;
+use a4n_rag_core::vector_store::EmbeddingRecord;
+use a4n_rag_sidecar_contract::{EmbeddingRecordPayload, IngestPayload};
 use a4n_service_protocol::{
     CapabilityTaskEvent, RAG_SERVICE_NAME, ServiceRequest, redact_sensitive_message,
 };
@@ -28,6 +29,12 @@ fn rag_ingest_event_stream(
     let (event_tx, event_stream) = service_event_channel();
     let task_id = request.request_id;
     let payload = request.payload;
+    let collection = payload.collection;
+    let records = payload
+        .records
+        .into_iter()
+        .map(core_embedding_record)
+        .collect();
     tokio::spawn(async move {
         if event_tx
             .send(CapabilityTaskEvent::progress_message(
@@ -41,11 +48,8 @@ fn rag_ingest_event_stream(
             return;
         }
         let store = state.store.clone();
-        let ingest = state.persist_mutation(async move {
-            store
-                .add_embeddings(&payload.collection, payload.records)
-                .await
-        });
+        let ingest =
+            state.persist_mutation(async move { store.add_embeddings(&collection, records).await });
         tokio::pin!(ingest);
         tokio::select! {
             _ = event_tx.closed() => {
@@ -68,4 +72,13 @@ fn rag_ingest_event_stream(
         }
     });
     event_stream
+}
+
+fn core_embedding_record(record: EmbeddingRecordPayload) -> EmbeddingRecord {
+    EmbeddingRecord {
+        id: record.id,
+        embedding: record.embedding,
+        metadata: record.metadata,
+        content: record.content,
+    }
 }
