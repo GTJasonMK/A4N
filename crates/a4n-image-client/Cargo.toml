@@ -8,6 +8,7 @@ license.workspace = true
 test-support = ["a4n-service-client/test-support"]
 
 [dependencies]
+a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
