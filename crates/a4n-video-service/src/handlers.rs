@@ -7,9 +7,8 @@ use crate::protocol::{
 };
 use crate::providers::{video_delete_output, video_job_output, video_status_output};
 use a4n_domain::ProviderError as AppError;
-use a4n_model_discovery::{
-    ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
-};
+use a4n_model_discovery::discover_models_from_request;
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME};
 use a4n_sidecar_bootstrap::{failed_service_event_response, service_event_ndjson_response};
 use a4n_video::VideoProvider;

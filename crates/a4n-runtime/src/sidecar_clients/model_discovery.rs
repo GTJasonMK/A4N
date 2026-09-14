@@ -1,6 +1,7 @@
 use a4n_image_client::ImageClient;
 use a4n_llm_client::LlmClient;
-use a4n_model_discovery::{ModelDiscoveryRequest, ModelDiscoveryResult};
+use a4n_model_discovery::discover_models as discover_provider_models;
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_protocol::{
     IMAGE_SERVICE_NAME, LLM_SERVICE_NAME, VIDEO_SERVICE_NAME,
     expected_capability_version_for_service,
@@ -30,7 +31,7 @@ pub(crate) async fn discover_models(
     api_key: Option<&str>,
 ) -> Result<ModelDiscoveryResult, String> {
     if !profile.uses_sidecars() {
-        return a4n_model_discovery::discover_models(provider, base_url, api_key).await;
+        return discover_provider_models(provider, base_url, api_key).await;
     }
 
     let service_name = kind.service_name();
