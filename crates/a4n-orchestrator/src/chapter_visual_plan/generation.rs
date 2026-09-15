@@ -10,11 +10,11 @@ use a4n_db::{
     project::ResolvedChapterSource,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
     context_aware_system_user_request,
 };
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use a4n_service_protocol::GenerationResultRef;
 use serde_json::{Value, json};
 
