@@ -476,18 +476,6 @@ fn outline_app_error_to_generation_error(error: AppError, stage_code: &str) -> G
     generation_public_error(code, stage, error)
 }
 
-fn map_outline_start_error(error: crate::GenerationTaskAccessError) -> GenerationTaskStartError {
-    let code = error.code();
-    let retryable = !matches!(
-        code,
-        "generation_request_invalid"
-            | "generation_task_forbidden"
-            | "generation_task_unauthenticated"
-            | "generation_task_not_found"
-    );
-    GenerationTaskStartError::new(code, error.to_string(), retryable)
-}
-
 #[async_trait::async_trait]
 impl OutlineGenerationApplicationPort for OrchestratorContext {
     async fn start_task(
@@ -498,7 +486,7 @@ impl OutlineGenerationApplicationPort for OrchestratorContext {
     {
         OrchestratorContext::start_outline_generation_task(self, user_id, input)
             .await
-            .map_err(map_outline_start_error)
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(
@@ -697,14 +685,13 @@ mod tests {
 
     #[test]
     fn outline_start_errors_use_stable_codes_and_retry_policy() {
-        let invalid = map_outline_start_error(crate::GenerationTaskAccessError::InvalidArgument(
-            "请求无效".to_string(),
-        ));
+        let invalid = crate::GenerationTaskAccessError::InvalidArgument("请求无效".to_string())
+            .into_start_error();
         assert_eq!(invalid.code(), "generation_request_invalid");
         assert!(!invalid.retryable);
 
         let forbidden =
-            map_outline_start_error(crate::GenerationTaskAccessError::Forbidden("无权限".into()));
+            crate::GenerationTaskAccessError::Forbidden("无权限".into()).into_start_error();
         assert_eq!(forbidden.code(), "generation_task_forbidden");
         assert!(!forbidden.retryable);
     }

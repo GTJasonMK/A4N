@@ -7,7 +7,7 @@ use a4n_api_contract::{
     chapter::StartChapterGenerationInput,
     generation_tasks::{
         GenerationSnapshotState, GenerationStartRequestMeta, GenerationTaskHandle,
-        GenerationTaskSummary,
+        GenerationTaskStartError, GenerationTaskSummary,
     },
     image_generation::{ImageGenerationOperation, StartImageGenerationInput},
     inspiration::StartInspirationGenerationInput,
@@ -303,6 +303,18 @@ impl GenerationTaskAccessError {
             Self::Project(AppError::NotFound(_)) => "generation_task_not_found",
             Self::Project(_) => "generation_persist_failed",
         }
+    }
+
+    pub(crate) fn into_start_error(self) -> GenerationTaskStartError {
+        let code = self.code();
+        let retryable = !matches!(
+            code,
+            "generation_request_invalid"
+                | "generation_task_forbidden"
+                | "generation_task_unauthenticated"
+                | "generation_task_not_found"
+        );
+        GenerationTaskStartError::new(code, self.to_string(), retryable)
     }
 }
 

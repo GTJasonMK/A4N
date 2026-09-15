@@ -1196,7 +1196,7 @@ impl ChapterGenerationApplicationPort for OrchestratorContext {
     ) -> Result<crate::GenerationTaskStart, GenerationTaskStartError> {
         OrchestratorContext::start_chapter_generation_task(self, user_id, input)
             .await
-            .map_err(map_chapter_generation_start_error)
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(
@@ -1209,20 +1209,6 @@ impl ChapterGenerationApplicationPort for OrchestratorContext {
         OrchestratorContext::run_chapter_generation_task(self, context, input, handle, host_port)
             .await
     }
-}
-
-fn map_chapter_generation_start_error(
-    error: crate::GenerationTaskAccessError,
-) -> GenerationTaskStartError {
-    let code = error.code();
-    let retryable = !matches!(
-        code,
-        "generation_request_invalid"
-            | "generation_task_forbidden"
-            | "generation_task_unauthenticated"
-            | "generation_task_not_found"
-    );
-    GenerationTaskStartError::new(code, error.to_string(), retryable)
 }
 
 fn client_generation_rag_input(
@@ -1290,22 +1276,17 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), String> {
 
 #[cfg(test)]
 mod cancellation_tests {
-    use super::{
-        StartChapterGenerationInput, client_generation_rag_input,
-        map_chapter_generation_start_error,
-    };
+    use super::{StartChapterGenerationInput, client_generation_rag_input};
 
     #[test]
     fn chapter_generation_start_errors_use_stable_codes_and_retry_policy() {
-        let invalid = map_chapter_generation_start_error(
-            crate::GenerationTaskAccessError::InvalidArgument("请求无效".to_string()),
-        );
+        let invalid = crate::GenerationTaskAccessError::InvalidArgument("请求无效".to_string())
+            .into_start_error();
         assert_eq!(invalid.code(), "generation_request_invalid");
         assert!(!invalid.retryable);
 
-        let forbidden = map_chapter_generation_start_error(
-            crate::GenerationTaskAccessError::Forbidden("无权限".to_string()),
-        );
+        let forbidden =
+            crate::GenerationTaskAccessError::Forbidden("无权限".to_string()).into_start_error();
         assert_eq!(forbidden.code(), "generation_task_forbidden");
         assert!(!forbidden.retryable);
     }

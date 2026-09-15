@@ -253,13 +253,7 @@ impl a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplication
     > {
         self.start_visual_plan_prompt_generation_task(user_id, input)
             .await
-            .map_err(|error| {
-                a4n_api_contract::generation_tasks::GenerationTaskStartError::new(
-                    error.code(),
-                    error.to_string(),
-                    false,
-                )
-            })
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_prompt_generation(

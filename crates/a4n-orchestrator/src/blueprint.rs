@@ -232,7 +232,7 @@ impl BlueprintGenerationApplicationPort for OrchestratorContext {
     ) -> Result<crate::GenerationTaskStart, GenerationTaskStartError> {
         OrchestratorContext::start_blueprint_generation_task(self, user_id, input)
             .await
-            .map_err(map_blueprint_start_error)
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_generation(
@@ -262,7 +262,7 @@ impl BlueprintRefinementApplicationPort for OrchestratorContext {
     ) -> Result<crate::GenerationTaskStart, GenerationTaskStartError> {
         OrchestratorContext::start_blueprint_refinement_task(self, user_id, input)
             .await
-            .map_err(map_blueprint_start_error)
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_refinement(
@@ -274,18 +274,6 @@ impl BlueprintRefinementApplicationPort for OrchestratorContext {
         OrchestratorContext::run_blueprint_refinement_task(self, prompt_renderer, input, handle)
             .await
     }
-}
-
-fn map_blueprint_start_error(error: crate::GenerationTaskAccessError) -> GenerationTaskStartError {
-    let code = error.code();
-    let retryable = !matches!(
-        code,
-        "generation_request_invalid"
-            | "generation_task_forbidden"
-            | "generation_task_unauthenticated"
-            | "generation_task_not_found"
-    );
-    GenerationTaskStartError::new(code, error.to_string(), retryable)
 }
 
 pub(crate) fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
@@ -445,15 +433,15 @@ mod tests {
 
     #[test]
     fn blueprint_start_errors_use_stable_codes_and_retry_policy() {
-        let invalid = map_blueprint_start_error(crate::GenerationTaskAccessError::InvalidArgument(
-            "请求无效".to_string(),
-        ));
+        let invalid = crate::GenerationTaskAccessError::InvalidArgument("请求无效".to_string())
+            .into_start_error();
         assert_eq!(invalid.code(), "generation_request_invalid");
         assert!(!invalid.retryable);
 
-        let persistence = map_blueprint_start_error(crate::GenerationTaskAccessError::Persistence(
+        let persistence = crate::GenerationTaskAccessError::Persistence(
             GenerationTaskPersistenceError::Corrupt("状态损坏".to_string()),
-        ));
+        )
+        .into_start_error();
         assert_eq!(persistence.code(), "generation_checkpoint_corrupt");
         assert!(persistence.retryable);
     }

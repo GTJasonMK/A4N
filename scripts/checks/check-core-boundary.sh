@@ -571,22 +571,22 @@ if ! rg -n 'blueprint_generation_preview_application\(\)' \
 fi
 
 if ! rg -n 'pub trait BlueprintGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs || \
+    crates/a4n-blueprint-contract/src/lib.rs || \
    ! rg -n 'pub trait BlueprintRefinementPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs; then
+    crates/a4n-blueprint-contract/src/lib.rs; then
     printf 'Blueprint worker-specific preview contracts are missing\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub trait BlueprintGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs || \
+    crates/a4n-blueprint-contract/src/lib.rs || \
    ! rg -n 'blueprint_generation_application\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/generation.rs; then
     printf 'Blueprint generation workers must route through BlueprintGenerationApplicationPort\n' >&2
     exit 1
 fi
 if ! rg -n 'pub trait BlueprintRefinementApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs || \
+    crates/a4n-blueprint-contract/src/lib.rs || \
    ! rg -n 'blueprint_refinement_application\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/refinement.rs; then
     printf 'Blueprint refinement workers must route through BlueprintRefinementApplicationPort\n' >&2
@@ -2874,7 +2874,7 @@ if rg -n '^[[:space:]]*\.image_generation_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait OutlinePartGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/parts/generation/preview.rs; then
     printf 'Part outline generation previews must route through OutlinePartGenerationPreviewApplicationPort\n' >&2
@@ -2886,7 +2886,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_(generate|regenerate
     exit 1
 fi
 if ! rg -n 'pub trait OutlinePartMutationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_mutation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/parts; then
     printf 'Part outline mutation previews must route through OutlinePartMutationPreviewApplicationPort\n' >&2
@@ -2898,7 +2898,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_(regenerate_last_par
     exit 1
 fi
 if ! rg -n 'pub trait OutlinePartChapterGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_chapter_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/chapters/generation.rs; then
     printf 'Part chapter generation previews must route through OutlinePartChapterGenerationPreviewApplicationPort\n' >&2
@@ -2910,7 +2910,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_generate_part_chapte
     exit 1
 fi
 if ! rg -n 'pub trait OutlineBatchPartGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_batch_part_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/batch/generation.rs; then
     printf 'Batch part generation previews must route through OutlineBatchPartGenerationPreviewApplicationPort\n' >&2
@@ -2922,7 +2922,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_batch_generate_part_
     exit 1
 fi
 if ! rg -n 'pub trait OutlineChapterCountGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_chapter_count_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/batch/by_count.rs; then
     printf 'Chapter-count generation previews must route through OutlineChapterCountGenerationPreviewApplicationPort\n' >&2
@@ -2934,7 +2934,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_generate_chapter_out
     exit 1
 fi
 if ! rg -n 'pub trait OutlineChapterRegenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_chapter_regeneration_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/chapters/regeneration.rs; then
     printf 'Chapter regeneration previews must route through OutlineChapterRegenerationPreviewApplicationPort\n' >&2
@@ -2947,7 +2947,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_regenerate_chapter_o
 fi
 
 if ! rg -n 'pub trait OutlineBeatMappingPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_beat_mapping_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/batch/beat_mapping.rs; then
     printf 'Beat mapping previews must route through OutlineBeatMappingPreviewApplicationPort\n' >&2
@@ -3402,9 +3402,9 @@ if ! rg -n 'chapter_generation_request_preview_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ChapterGenerationRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_generation.rs || \
+    crates/a4n-chapter-generation-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterGenerationRagPreparationApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_generation.rs; then
+    crates/a4n-chapter-generation-contract/src/lib.rs; then
     printf 'Chapter-generation worker-specific preview contracts are missing\n' >&2
     exit 1
 fi

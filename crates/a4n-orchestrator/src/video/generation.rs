@@ -543,18 +543,6 @@ fn video_app_error(error: AppError, stage_code: &str) -> GenerationError {
     generation_public_error(code, stage_code, error)
 }
 
-fn map_video_start_error(error: crate::GenerationTaskAccessError) -> GenerationTaskStartError {
-    let code = error.code();
-    let retryable = !matches!(
-        code,
-        "generation_request_invalid"
-            | "generation_task_forbidden"
-            | "generation_task_unauthenticated"
-            | "generation_task_not_found"
-    );
-    GenerationTaskStartError::new(code, error.to_string(), retryable)
-}
-
 struct VideoPromptRendererAdapter<'a> {
     host_port: &'a dyn VideoPromptGenerationHostPort,
 }
@@ -582,7 +570,7 @@ impl a4n_api_contract::video::VideoGenerationApplicationPort for OrchestratorCon
     ) -> Result<GenerationTaskStart, GenerationTaskStartError> {
         OrchestratorContext::start_video_generation_task(self, user_id, input)
             .await
-            .map_err(map_video_start_error)
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(
