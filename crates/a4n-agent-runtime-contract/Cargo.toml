@@ -8,7 +8,6 @@ license.workspace = true
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error" }
-a4n-llm = { path = "../a4n-llm" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 async-trait = { workspace = true }

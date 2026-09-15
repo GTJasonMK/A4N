@@ -54,7 +54,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
  "a4n-worker-contract",
  "async-trait",
  "chrono",

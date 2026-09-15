@@ -13,7 +13,6 @@ use a4n_api_contract::agent::{
 };
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
@@ -42,24 +41,6 @@ mod ports;
 pub use ports::*;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
-
-pub fn model_request_snapshot(request: &ChatRequest) -> Result<Value, AppError> {
-    request.snapshot_value()
-}
-
-pub fn restore_model_request_snapshot(mut value: Value) -> Result<ChatRequest, AppError> {
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidArgument("模型请求快照必须是对象".into()))?;
-    let trace = object.remove("trace_context");
-    let manifest = object
-        .remove("context_manifest_json")
-        .filter(|value| !value.is_null());
-    let mut request: ChatRequest = serde_json::from_value(value)?;
-    request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
-    request.context_manifest_json = manifest;
-    Ok(request)
-}
 
 /// Stable worker-facing projection of a durable Agent run.
 #[derive(Debug, Clone)]
@@ -892,7 +873,6 @@ fn budget_usage_u64(value: &Value, key: &str) -> Result<u64, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::provider::LlmTraceContext;
     use serde_json::json;
 
     #[test]
@@ -964,43 +944,6 @@ mod tests {
             covered_through_sequence: 4,
         };
         assert!(valid.validate().is_ok());
-    }
-
-    #[test]
-    fn model_request_snapshot_round_trips_internal_fields() {
-        let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
-        request.trace_context = Some(LlmTraceContext {
-            project_id: Some(7),
-            root_project_id: Some(3),
-            workflow: "agent".into(),
-            step_key: "model".into(),
-            generation_run_id: None,
-            workflow_run_id: None,
-            call_key: Some("call-1".into()),
-            input_fingerprint_sha256: None,
-            context_plan_json: None,
-            context_pack_refs_json: None,
-        });
-        request.context_manifest_json = Some(json!({"packs": ["thread"]}));
-
-        let snapshot = model_request_snapshot(&request).expect("request must serialize");
-        assert_eq!(snapshot["trace_context"]["project_id"], 7);
-        assert_eq!(snapshot["context_manifest_json"]["packs"][0], "thread");
-
-        let restored = restore_model_request_snapshot(snapshot).expect("snapshot must restore");
-        assert_eq!(restored.messages.len(), 2);
-        assert_eq!(restored.max_tokens, Some(128));
-        assert_eq!(
-            restored
-                .trace_context
-                .as_ref()
-                .map(|trace| trace.project_id),
-            Some(Some(7))
-        );
-        assert_eq!(
-            restored.context_manifest_json,
-            Some(json!({"packs": ["thread"]}))
-        );
     }
 }
 

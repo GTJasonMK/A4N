@@ -116,6 +116,44 @@ fn chat_request_snapshot_preserves_internal_context() {
 }
 
 #[test]
+fn chat_request_snapshot_round_trips_internal_context() {
+    let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
+    request.trace_context = Some(LlmTraceContext {
+        project_id: Some(7),
+        root_project_id: Some(3),
+        workflow: "agent".into(),
+        step_key: "model".into(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: Some("call-1".into()),
+        input_fingerprint_sha256: None,
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    });
+    request.context_manifest_json = Some(json!({"packs": ["thread"]}));
+
+    let restored = ChatRequest::from_snapshot_value(
+        request
+            .snapshot_value()
+            .expect("request snapshot serializes"),
+    )
+    .expect("request snapshot restores");
+    assert_eq!(restored.messages.len(), 2);
+    assert_eq!(restored.max_tokens, Some(128));
+    assert_eq!(
+        restored
+            .trace_context
+            .as_ref()
+            .map(|trace| trace.project_id),
+        Some(Some(7))
+    );
+    assert_eq!(
+        restored.context_manifest_json,
+        Some(json!({"packs": ["thread"]}))
+    );
+}
+
+#[test]
 fn chat_request_serializes_json_response_format() {
     let request =
         ChatRequest::new(vec![ChatMessage::user("json")], None, None).with_json_response_format();

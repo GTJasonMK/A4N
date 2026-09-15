@@ -17,7 +17,7 @@ impl AgentApplication {
         request.stream_include_usage = true;
         if let Some(available) = self.run_budget_snapshot(run_id).await?.remaining.max_tokens {
             let input =
-                a4n_domain::agent::agent_model_token_reservation(&model_request_snapshot(request)?)
+                a4n_domain::agent::agent_model_token_reservation(&request.snapshot_value()?)
                     .saturating_sub(output as u64);
             if available <= input {
                 return Err(AppError::InvalidArgument(

@@ -2621,9 +2621,7 @@ async fn compact_context(
             tool_name: None,
             effect: Some("read".into()),
             replay_policy: Some("safe".into()),
-            arguments_json: Some(a4n_agent_runtime_contract::model_request_snapshot(
-                &request,
-            )?),
+            arguments_json: Some(request.snapshot_value()?),
             resource_preconditions_json: Some(json!({
                 "covered_through_sequence": covered_through_sequence,
             })),

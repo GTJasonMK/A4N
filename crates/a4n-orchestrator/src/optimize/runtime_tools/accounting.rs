@@ -7,7 +7,6 @@ use a4n_llm::{
 };
 use serde_json::{Value, json};
 
-use crate::agent::{model_request_snapshot, restore_model_request_snapshot};
 use crate::{OrchestratorContext, optimize::AgentLoopGenerationContext};
 
 pub(in crate::optimize) async fn prepare_model_execution(
@@ -34,7 +33,7 @@ pub(in crate::optimize) async fn prepare_model_execution(
     if let Some(execution) = agent.execution_by_key(owner.id, &key).await? {
         // A completed request can precede its workflow checkpoint. Reuse its
         // exact durable request/response instead of issuing a second call.
-        let original = restore_model_request_snapshot(
+        let original = ChatRequest::from_snapshot_value(
             execution
                 .arguments_json
                 .clone()
@@ -115,7 +114,7 @@ pub(in crate::optimize) async fn prepare_model_execution(
             },
             execution_key: call_key.into(),
             tool_name: None,
-            arguments: model_request_snapshot(request)?,
+            arguments: request.snapshot_value()?,
             input_message_id: Some(input_message_id),
             base_input_fingerprint: Some(base_input_fingerprint),
         })

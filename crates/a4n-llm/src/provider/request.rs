@@ -104,6 +104,21 @@ impl ChatRequest {
         value["context_manifest_json"] = self.context_manifest_json.clone().unwrap_or(Value::Null);
         Ok(value)
     }
+
+    /// Restore a durable snapshot, including internal context omitted from the provider wire.
+    pub fn from_snapshot_value(mut value: Value) -> Result<Self, a4n_error::AppError> {
+        let object = value
+            .as_object_mut()
+            .ok_or_else(|| a4n_error::AppError::InvalidArgument("模型请求快照必须是对象".into()))?;
+        let trace = object.remove("trace_context");
+        let manifest = object
+            .remove("context_manifest_json")
+            .filter(|value| !value.is_null());
+        let mut request: Self = serde_json::from_value(value)?;
+        request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
+        request.context_manifest_json = manifest;
+        Ok(request)
+    }
 }
 
 /// OpenAI-compatible response format.
