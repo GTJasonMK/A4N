@@ -1,11 +1,11 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse, LlmProvider, UsageInfo, collect_chat_stream};
+use a4n_llm::provider::{ChatRequest, ChatResponse, LlmProvider, collect_chat_stream};
+use a4n_llm_sidecar_contract::LlmProbeOutput;
 use a4n_llm_sidecar_contract::LlmProbePayload;
-use a4n_llm_sidecar_contract::{LlmProbeOutput, LlmProbeUsage};
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::Json;
 
-use super::provider_from_config;
+use super::{provider_from_config, stream_usage};
 use crate::protocol::{error_response, service_error};
 
 pub(crate) async fn probe(
@@ -47,18 +47,7 @@ fn probe_output_from_chat_response(response: ChatResponse) -> Result<LlmProbeOut
     }
     Ok(LlmProbeOutput {
         response_preview: content.chars().take(200).collect(),
-        usage: response.usage.map(probe_usage),
+        usage: response.usage.map(stream_usage),
         finish_reason: response.finish_reason,
     })
-}
-
-fn probe_usage(usage: UsageInfo) -> LlmProbeUsage {
-    LlmProbeUsage {
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens,
-        prompt_cache_hit_tokens: usage.prompt_cache_hit_tokens,
-        prompt_cache_miss_tokens: usage.prompt_cache_miss_tokens,
-        prompt_cache_write_tokens: usage.prompt_cache_write_tokens,
-    }
 }

@@ -4,8 +4,8 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest};
-use a4n_llm_sidecar_contract::LlmGatewayPayload;
+use a4n_llm::provider::{ChatChunk, ChatRequest, ToolCall};
+use a4n_llm_sidecar_contract::{LlmGatewayPayload, LlmStreamChunk, LlmStreamToolCall};
 use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_STREAM_IDLE_TIMEOUT, ServiceRequest};
 use a4n_sidecar_bootstrap::service_event_line;
 use axum::body::Bytes;
@@ -108,7 +108,7 @@ fn llm_event_stream_from_source(
                         match CapabilityTaskEvent::chunk(
                             state.task_id.clone(),
                             state.sequence,
-                            chunk,
+                            stream_chunk_payload(chunk),
                             "LLM chunk serialization failed",
                         ) {
                             Ok(event) => break event,
@@ -145,6 +145,29 @@ fn llm_event_stream_from_source(
             Some((Ok(service_event_line(event)), state))
         },
     )
+}
+
+fn stream_chunk_payload(chunk: ChatChunk) -> LlmStreamChunk {
+    LlmStreamChunk {
+        content: chunk.content,
+        reasoning_content: chunk.reasoning_content,
+        tool_calls: chunk
+            .tool_calls
+            .map(|calls| calls.into_iter().map(stream_tool_call).collect()),
+        finish_reason: chunk.finish_reason,
+        index: chunk.index,
+        usage: chunk.usage.map(super::super::stream_usage),
+    }
+}
+
+fn stream_tool_call(call: ToolCall) -> LlmStreamToolCall {
+    LlmStreamToolCall {
+        id: call.id,
+        name: call.name,
+        arguments: call.arguments,
+        stream_index: call.stream_index,
+        provider_metadata: call.provider_metadata,
+    }
 }
 
 struct LlmEventStreamState {

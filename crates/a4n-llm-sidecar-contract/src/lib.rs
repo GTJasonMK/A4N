@@ -28,6 +28,31 @@ pub struct LlmGatewayPayload<T> {
 
 pub type LlmProbePayload<T> = LlmGatewayPayload<T>;
 
+pub type LlmStreamUsage = LlmProbeUsage;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmStreamChunk {
+    pub content: Option<String>,
+    pub reasoning_content: Option<String>,
+    pub tool_calls: Option<Vec<LlmStreamToolCall>>,
+    pub finish_reason: Option<String>,
+    pub index: u32,
+    pub usage: Option<LlmStreamUsage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmStreamToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_index: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LlmProbeOutput {
@@ -60,7 +85,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput, LlmProbeUsage};
+    use super::{
+        LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput, LlmProbeUsage, LlmStreamChunk,
+        LlmStreamToolCall,
+    };
     use serde_json::{Value, json};
 
     fn usage() -> LlmProbeUsage {
@@ -141,6 +169,40 @@ mod tests {
             }
         }))
         .expect_err("gateway payload must require request");
+    }
+
+    #[test]
+    fn stream_chunk_rejects_unknown_fields_and_roundtrips_tool_calls() {
+        let error = serde_json::from_value::<LlmStreamChunk>(json!({
+            "content": "tool",
+            "reasoning_content": null,
+            "tool_calls": null,
+            "finish_reason": null,
+            "index": 0,
+            "usage": null,
+            "legacy_field": true
+        }))
+        .expect_err("unknown stream chunk fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_field"));
+
+        let chunk = LlmStreamChunk {
+            content: None,
+            reasoning_content: Some("reasoning".to_string()),
+            tool_calls: Some(vec![LlmStreamToolCall {
+                id: "call-1".to_string(),
+                name: "lookup".to_string(),
+                arguments: json!({"key": "value"}),
+                stream_index: Some(0),
+                provider_metadata: Some(json!({"signature": "opaque"})),
+            }]),
+            finish_reason: Some("tool_calls".to_string()),
+            index: 1,
+            usage: None,
+        };
+        let encoded = serde_json::to_value(&chunk).expect("stream chunk should serialize");
+        let decoded: LlmStreamChunk =
+            serde_json::from_value(encoded).expect("stream chunk should deserialize");
+        assert_eq!(decoded, chunk);
     }
 
     #[test]
