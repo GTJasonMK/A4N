@@ -533,6 +533,14 @@ if ! rg -n 'pub trait CleanupOutboxApplicationPort' \
     exit 1
 fi
 
+for package in a4n-blueprint-contract a4n-chapter-generation-contract a4n-outline-contract; do
+    contract_tree="$(cargo tree --locked -e normal,build -p "$package")"
+    if rg -n '(^|[[:space:]])a4n-prompt([[:space:]]|v|$)' <<<"$contract_tree"; then
+        printf '%s must depend on prompt contracts, not the prompt implementation crate\n' "$package" >&2
+        exit 1
+    fi
+done
+
 if rg -n 'state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/manual.rs \
     crates/a4n-runtime/src/actions/blueprint_records/world_setting.rs \

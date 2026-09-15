@@ -10,7 +10,14 @@ use a4n_api_contract::{
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_prompt::{blueprint_generation::BlueprintGenerationPreviewStep, rendering::PromptRenderer};
+use a4n_prompt_contract::rendering::PromptRenderer;
+
+pub struct BlueprintGenerationPreviewStep {
+    pub key: String,
+    pub title: String,
+    pub prompt_name: String,
+    pub request: ChatRequest,
+}
 
 /// Host-facing boundary for blueprint generation request previews.
 #[async_trait::async_trait]

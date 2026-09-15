@@ -1,7 +1,7 @@
 //! Blueprint generation prompt request contracts.
 
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::{ChatRequest, is_truncated_finish_reason};
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 
 mod refine;
 mod stage_request;
@@ -10,13 +10,6 @@ mod stage_response;
 pub use refine::build_blueprint_refine_request;
 pub use stage_request::{BlueprintStageRequestInput, build_blueprint_stage_request};
 pub use stage_response::parse_blueprint_stage_json_object;
-
-pub struct BlueprintGenerationPreviewStep {
-    pub key: String,
-    pub title: String,
-    pub prompt_name: String,
-    pub request: ChatRequest,
-}
 
 pub fn ensure_blueprint_response_not_truncated(
     finish_reason: Option<&str>,

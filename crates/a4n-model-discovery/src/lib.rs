@@ -9,6 +9,7 @@ mod endpoints;
 mod http;
 mod parsing;
 
+pub use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 pub use http::{discover_models, discover_models_from_request};
 
 #[cfg(test)]

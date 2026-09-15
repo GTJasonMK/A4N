@@ -11,7 +11,7 @@ use a4n_api_contract::{
 };
 use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_prompt::rendering::PromptRenderer;
+use a4n_prompt_contract::rendering::PromptRenderer;
 
 pub struct ChapterGenerationApplicationContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,

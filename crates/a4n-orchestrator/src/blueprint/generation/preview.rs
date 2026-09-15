@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use super::contracts::BLUEPRINT_GENERATION_STAGES;
+use a4n_blueprint_contract::BlueprintGenerationPreviewStep;
 use a4n_domain::project::{
     BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATION_PROMPTS, build_blueprint_generation_payload,
 };
 use a4n_error::AppError;
-use a4n_prompt::blueprint_generation::{
-    BlueprintGenerationPreviewStep, BlueprintStageRequestInput, build_blueprint_stage_request,
-};
+use a4n_prompt::blueprint_generation::{BlueprintStageRequestInput, build_blueprint_stage_request};
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 

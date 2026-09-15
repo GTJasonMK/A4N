@@ -83,6 +83,10 @@ mod tests {
                 .iter()
                 .map(|entry| entry.url_env.as_str())
                 .collect::<Vec<_>>(),
+            entries
+                .iter()
+                .map(|entry| entry.capability_version.as_str())
+                .collect::<Vec<_>>(),
         ] {
             let unique = field.iter().collect::<std::collections::HashSet<_>>();
             assert_eq!(unique.len(), field.len());

@@ -18,7 +18,6 @@ use a4n_domain::project::{
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use uuid::Uuid;
@@ -34,7 +33,8 @@ mod refine;
 
 pub use a4n_blueprint_contract::{
     BlueprintGenerationApplicationPort, BlueprintGenerationPreviewApplicationPort,
-    BlueprintRefinementApplicationPort, BlueprintRefinementPreviewApplicationPort,
+    BlueprintGenerationPreviewStep, BlueprintRefinementApplicationPort,
+    BlueprintRefinementPreviewApplicationPort,
 };
 
 pub(crate) use json::validate_sparse_blueprint_sections;
