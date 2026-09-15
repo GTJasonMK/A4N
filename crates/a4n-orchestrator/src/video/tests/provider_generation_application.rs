@@ -19,13 +19,15 @@ use a4n_video::{
     ProviderImageInputTransport, VideoGenerationRequest, VideoGenerationResult, VideoJobState,
 };
 use a4n_video_contract::{
+    VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1,
+    VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
+};
+use a4n_video_host_contract::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
     PersistedVideoResult, ReferenceMediaVideoGenerationHostPort,
-    ReferenceMediaVideoPreviewHostPort, ResolvedChapterVideoImageInputs,
-    VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoCancellationHandle, VideoGenerationProgressPort,
-    VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderResultTarget,
-    VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1, VideoSegmentExecutionRecipeV1,
-    VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
+    ReferenceMediaVideoPreviewHostPort, ResolvedChapterVideoImageInputs, VideoCancellationHandle,
+    VideoGenerationProgressPort, VideoProviderRequestBody, VideoProviderRequestInput,
+    VideoProviderResultTarget,
 };
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -38,7 +40,7 @@ use crate::test_support::TestOrchestratorBuilder;
 use crate::video::{
     GenerateChapterVideosBatchInput, SEEDANCE2_VIDEO_BACKEND, VideoGenerationProgress,
 };
-use a4n_video_contract::VideoProviderHostPort;
+use a4n_video_host_contract::VideoProviderHostPort;
 
 use super::*;
 

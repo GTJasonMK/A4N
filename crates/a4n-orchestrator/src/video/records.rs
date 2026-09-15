@@ -23,9 +23,9 @@ use a4n_video::{
     assembly_media_properties, canvas_frame_timestamp, imported_chapter_video_metadata,
     tail_frame_metadata_belongs_to_video, trimmed_video_metadata, validate_video_trim_range,
 };
-use a4n_video_contract::{
+use a4n_video_contract::VideoSegmentWorkflowModeV1;
+use a4n_video_host_contract::{
     ImportedVideoProperties, VideoProviderHostPort, VideoProviderPollTarget,
-    VideoSegmentWorkflowModeV1,
 };
 use async_trait::async_trait;
 use chrono::Utc;

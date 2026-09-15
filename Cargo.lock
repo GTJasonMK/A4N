@@ -93,6 +93,7 @@ dependencies = [
  "a4n-provider-contract",
  "a4n-service-protocol",
  "a4n-video-contract",
+ "a4n-video-host-contract",
  "async-trait",
  "schemars 1.2.1",
  "serde",
@@ -746,6 +747,7 @@ dependencies = [
  "a4n-test-support",
  "a4n-video",
  "a4n-video-contract",
+ "a4n-video-host-contract",
  "a4n-worker-contract",
  "anyhow",
  "async-trait",
@@ -1026,6 +1028,7 @@ dependencies = [
  "a4n-video",
  "a4n-video-client",
  "a4n-video-contract",
+ "a4n-video-host-contract",
  "a4n-video-providers",
  "a4n-video-sidecar-contract",
  "a4n-worker-contract",
@@ -1266,15 +1269,23 @@ name = "a4n-video-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "a4n-video-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
  "a4n-error",
  "a4n-generation-artifact-contract",
  "a4n-provider-contract",
  "a4n-video",
  "async-trait",
- "schemars 1.2.1",
- "serde",
  "serde_json",
- "sha2",
 ]
 
 [[package]]

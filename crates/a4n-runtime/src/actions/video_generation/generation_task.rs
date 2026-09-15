@@ -6,7 +6,7 @@ use a4n_api_contract::{
 };
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
-use a4n_video_contract::VideoPromptGenerationHostPort;
+use a4n_video_host_contract::VideoPromptGenerationHostPort;
 use async_trait::async_trait;
 use serde_json::Value;
 

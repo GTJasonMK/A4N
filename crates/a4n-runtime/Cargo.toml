@@ -77,6 +77,7 @@ a4n-storage = { path = "../a4n-storage" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-client = { path = "../a4n-video-client" }
 a4n-video-contract = { path = "../a4n-video-contract" }
+a4n-video-host-contract = { path = "../a4n-video-host-contract" }
 a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
 a4n-video-providers = { path = "../a4n-video-providers", optional = true }
 a4n-worker-contract = { path = "../a4n-worker-contract" }

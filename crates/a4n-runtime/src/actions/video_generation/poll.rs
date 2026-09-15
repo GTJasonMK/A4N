@@ -1,7 +1,7 @@
 use super::{GeneratedVideoSummary, provider_host::RuntimeVideoProviderHostPort};
 use crate::AppState;
 use a4n_error::AppError;
-use a4n_video_contract::VideoProviderPollTarget;
+use a4n_video_host_contract::VideoProviderPollTarget;
 
 pub async fn poll_video_job(
     state: &AppState,

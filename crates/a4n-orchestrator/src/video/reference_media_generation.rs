@@ -5,10 +5,10 @@ use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{VideoGenerationRequest, provider_request_snapshot_value};
-use a4n_video_contract::{
+use a4n_video_contract::VideoSegmentWorkflowModeV1;
+use a4n_video_host_contract::{
     ReferenceMediaVideoGenerationHostPort, ReferenceMediaVideoPreviewHostPort,
     ReferenceMediaVideoRequestPreview, VideoProviderRequestInput, VideoProviderValidationMode,
-    VideoSegmentWorkflowModeV1,
 };
 use serde_json::{Value, json};
 

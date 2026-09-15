@@ -16,7 +16,7 @@ use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
-use a4n_video_contract::{
+use a4n_video_host_contract::{
     CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoRequestPreview,
     CanvasVideoResolvedImages, VideoProviderValidationMode,
 };

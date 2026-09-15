@@ -10,7 +10,7 @@ use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow, required_video_chapter_id,
     should_capture_video_tail_frame_fields,
 };
-use a4n_video_contract::{PersistedVideoResult, VideoProviderResultTarget};
+use a4n_video_host_contract::{PersistedVideoResult, VideoProviderResultTarget};
 
 pub(in crate::actions::video_generation) async fn persist_video_result(
     state: &AppState,

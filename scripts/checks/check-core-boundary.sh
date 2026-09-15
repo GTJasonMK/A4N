@@ -239,13 +239,13 @@ fi
 
 if rg -n 'a4n_orchestrator::video::VideoProviderPollTarget|pub enum VideoProviderPollTarget' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
-    printf 'VideoProviderPollTarget must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'VideoProviderPollTarget must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
 if rg -U -n '^pub use a4n_video_contract::\{[^}]*\b(ChapterVideoGenerationHostPort|ReferenceMediaVideoGenerationHostPort|VideoGenerationHostPort)\b' \
     crates/a4n-orchestrator/src/video/mod.rs; then
-    printf 'Video generation HostPorts must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'Video generation HostPorts must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
@@ -352,10 +352,10 @@ if rg -n 'pub use a4n_video_contract::VideoProviderValidationMode' \
     exit 1
 fi
 
-if ! rg -n 'a4n_video_contract::VideoProviderPollTarget|VideoProviderPollTarget' \
+if ! rg -n 'a4n_video_host_contract::VideoProviderPollTarget|VideoProviderPollTarget' \
     crates/a4n-runtime/src/actions/video_generation/poll.rs \
     crates/a4n-orchestrator/src/video/records.rs \
-    crates/a4n-video-contract/src/contracts.rs; then
+    crates/a4n-video-host-contract/src/lib.rs; then
     printf 'Video provider polling must consume the narrow video contract\n' >&2
     exit 1
 fi
@@ -369,7 +369,7 @@ fi
 
 if rg -n 'pub trait VideoProviderHostPort|a4n_orchestrator::video::VideoProviderHostPort' \
     crates/a4n-orchestrator/src crates/a4n-runtime/src; then
-    printf 'VideoProviderHostPort must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'VideoProviderHostPort must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
@@ -381,7 +381,7 @@ fi
 
 if ! rg -n 'pub trait VideoProviderExecutionApplicationPort' \
     crates/a4n-api-contract/src/video.rs || \
-   ! rg -n 'a4n_video_contract::VideoProviderHostPort' \
+   ! rg -n 'a4n_video_host_contract::VideoProviderHostPort' \
     crates/a4n-api-contract/src/video.rs \
     crates/a4n-orchestrator/src/video/records.rs \
     crates/a4n-runtime/src/actions/video_generation/provider_host.rs; then
@@ -391,11 +391,11 @@ fi
 
 if rg -n 'a4n_orchestrator::video::ImportedVideoProperties|pub struct ImportedVideoProperties' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
-    printf 'ImportedVideoProperties must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'ImportedVideoProperties must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
-if ! rg -n 'a4n_video_contract::ImportedVideoProperties' \
+if ! rg -n 'a4n_video_host_contract::ImportedVideoProperties' \
     crates/a4n-runtime/src/actions/video_records/imports/source/probe.rs; then
     printf 'Video probing must return the narrow ImportedVideoProperties contract\n' >&2
     exit 1
@@ -403,7 +403,7 @@ fi
 
 if rg -n 'a4n_orchestrator::video::(VideoProviderRequestInput|VideoProviderRequestBody|PersistedVideoResult|VideoProviderResultTarget)|pub (struct|enum) (VideoProviderRequestInput|VideoProviderRequestBody|PersistedVideoResult|VideoProviderResultTarget)' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
-    printf 'Video provider execution DTOs must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'Video provider execution DTOs must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
@@ -415,8 +415,8 @@ for video_contract_consumer in \
     crates/a4n-runtime/src/actions/video_generation/job_lifecycle/completion/video.rs \
     crates/a4n-runtime/src/actions/video_generation/media/tail_frames/capture.rs \
     crates/a4n-runtime/src/actions/video_records/imports/chapter.rs; do
-    if ! rg -n 'a4n_video_contract::' "$video_contract_consumer"; then
-        printf '%s must consume video provider DTOs from a4n-video-contract directly\n' "$video_contract_consumer" >&2
+    if ! rg -n 'a4n_video_host_contract::' "$video_contract_consumer"; then
+        printf '%s must consume video provider DTOs from a4n-video-host-contract directly\n' "$video_contract_consumer" >&2
         exit 1
     fi
 done
@@ -431,7 +431,7 @@ if ! rg -n 'pub trait CanvasVideoRequestPreviewApplicationPort' crates/a4n-api-c
    ! rg -n 'pub trait ChapterVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
    ! rg -n 'pub trait ReferenceMediaVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
    ! rg -n 'pub (struct|trait) (CanvasVideoRequestPreview|ChapterVideoRequestPreview|ReferenceMediaVideoRequestPreview|CanvasVideoPreviewHostPort|ChapterVideoPreviewHostPort|ReferenceMediaVideoPreviewHostPort)' \
-    crates/a4n-video-contract/src/contracts.rs; then
+    crates/a4n-video-host-contract/src/lib.rs; then
     printf 'Video request preview contracts are missing from their stable owners\n' >&2
     exit 1
 fi

@@ -18,7 +18,7 @@ use a4n_error::AppError;
 use a4n_service_protocol::{
     BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
 };
-use a4n_video_contract::{
+use a4n_video_host_contract::{
     CanvasVideoPreviewHostPort, CanvasVideoRequestPreview, ChapterVideoGenerationHostPort,
     ChapterVideoPreviewHostPort, ChapterVideoRequestPreview, ReferenceMediaVideoGenerationHostPort,
     ReferenceMediaVideoPreviewHostPort, ReferenceMediaVideoRequestPreview, VideoGenerationHostPort,
@@ -666,7 +666,7 @@ mod unit_tests {
     use a4n_domain::media::GeneratedMediaArtifactFile;
     use a4n_provider_contract::VideoProviderConfig;
     use a4n_video::VideoJobState;
-    use a4n_video_contract::{
+    use a4n_video_host_contract::{
         PersistedVideoResult, VideoCancellationHandle, VideoProviderResultTarget,
     };
     use async_trait::async_trait;

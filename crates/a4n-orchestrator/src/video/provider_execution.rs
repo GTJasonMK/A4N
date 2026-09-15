@@ -4,7 +4,7 @@ use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{VideoGenerationResult, VideoJobState};
-use a4n_video_contract::{
+use a4n_video_host_contract::{
     VideoCancellationHandle, VideoGenerationProgressPort, VideoProviderHostPort,
     VideoProviderResultTarget,
 };
