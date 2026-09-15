@@ -1,10 +1,7 @@
 # rule	subject	dependency or source marker	kind
 # Batch 0 keeps the current contract exceptions explicit while each contract is migrated.
 legacy-contract-dependency	a4n-rag-contract	a4n-domain	normal
-legacy-contract-dependency	a4n-rag-contract	a4n-embedding	normal
-legacy-contract-dependency	a4n-rag-contract	a4n-rag-core	normal
 legacy-contract-dependency	a4n-video-contract	a4n-domain	normal
-legacy-contract-dependency	a4n-video-contract	a4n-video	normal
 
 orchestrator-client	a4n-orchestrator	a4n-prompt-client	normal
 orchestrator-client	a4n-orchestrator	a4n-service-client	normal

@@ -323,14 +323,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-embedding"
-version = "0.1.0"
-dependencies = [
- "a4n-embedding-provider-contract",
- "a4n-embedding-providers",
-]
-
-[[package]]
 name = "a4n-embedding-client"
 version = "0.1.0"
 dependencies = [
@@ -499,14 +491,6 @@ version = "0.1.0"
 dependencies = [
  "schemars 1.2.1",
  "serde",
-]
-
-[[package]]
-name = "a4n-image"
-version = "0.1.0"
-dependencies = [
- "a4n-image-contract",
- "a4n-image-provider-contract",
 ]
 
 [[package]]

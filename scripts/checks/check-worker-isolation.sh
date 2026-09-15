@@ -14,10 +14,10 @@ SERVICE_NAME="export"
 # Provider implementations are leaf-worker candidates. Keep their contracts,
 # adapters, and service entrypoints independent from Host core so changing an
 # adapter cannot invalidate database/orchestrator code.
-IMAGE_PACKAGE="a4n-image"
+IMAGE_PACKAGE="a4n-image-provider-contract"
 IMAGE_PROVIDER_PACKAGE="a4n-image-providers"
 IMAGE_SERVICE_PACKAGE="a4n-image-service"
-EMBEDDING_PACKAGE="a4n-embedding"
+EMBEDDING_PACKAGE="a4n-embedding-provider-contract"
 EMBEDDING_PROVIDER_PACKAGE="a4n-embedding-fastembed"
 EMBEDDING_SERVICE_PACKAGE="a4n-embedding-service"
 VIDEO_PACKAGE="a4n-video"
