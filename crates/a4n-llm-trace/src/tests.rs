@@ -1,10 +1,10 @@
 use serde_json::json;
 
-use crate::context::{
+use a4n_llm_context::{
     CONTEXT_MANIFEST_SCHEMA_VERSION, LlmContextManifest, LlmContextManifestPack,
     LlmContextManifestPackVariant,
 };
-use crate::provider::{ChatMessage, ChatRequest, UsageInfo};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, UsageInfo};
 
 use super::{
     chat_request_messages_json, chat_request_trace_json, context_aware_chat_request_trace_json,
@@ -88,7 +88,7 @@ fn projects_context_manifest_summary_and_trace_context_for_audit() {
     };
     let request = ChatRequest::system_user("system", "user", None, None)
         .with_context_manifest_json(serde_json::to_value(manifest).expect("manifest serializes"))
-        .with_trace_context(crate::provider::LlmTraceContext {
+        .with_trace_context(a4n_llm_provider_contract::provider::LlmTraceContext {
             project_id: Some(7),
             root_project_id: Some(3),
             workflow: "chapter_generation".to_string(),

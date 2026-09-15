@@ -2,8 +2,8 @@ use a4n_domain::source_text_hash;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
-use crate::context::{LlmContextManifest, estimate_context_tokens};
-use crate::provider::{ChatRequest, UsageInfo};
+use a4n_llm_context::{LlmContextManifest, estimate_context_tokens};
+use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};
 
 pub fn llm_usage_summary_text(usage: Option<&UsageInfo>) -> String {
     let Some(usage) = usage else {

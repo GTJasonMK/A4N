@@ -614,6 +614,7 @@ dependencies = [
  "a4n-error",
  "a4n-llm-context",
  "a4n-llm-provider-contract",
+ "a4n-llm-trace",
  "a4n-progress",
  "async-trait",
  "futures",
@@ -720,6 +721,17 @@ name = "a4n-llm-sidecar-contract"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-llm-trace"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-context",
+ "a4n-llm-provider-contract",
  "serde_json",
 ]
 
