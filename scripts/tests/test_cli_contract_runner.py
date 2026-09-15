@@ -564,6 +564,12 @@ class CliContractRunnerTest(unittest.TestCase):
             "run_import_project_analysis": {"progress": {}, "analyzed_chapters": 1},
             "preview_import_project_analysis_request": {},
             "list_import_queue": [],
+            "rag_prepare_ingest_all": {
+                "operation_trace_id": "rag:fixture:trace",
+                "embedding_identity": {"backend": "fixture", "model": "fixture", "dimension": 3},
+                "records": [{"chunk_id": "chapter:1:chunk:0", "text": "车站的钟每天少走七分钟。", "content_hash": "hash-1"}],
+            },
+            "rag_ingest_all": {"added_count": 1, "updated_count": 0, "skipped_count": 0, "deleted_count": 0},
             "rag_prepare_enhanced_search": {"query_texts": ["车站的钟每天少走七分钟"], "embedding_identity": {"backend": "fixture", "model": "fixture", "dimension": 3}},
             "rag_enhanced_search": {"results": [{"id": "chunk:1", "content": "车站的钟每天少走七分钟。", "score": 0.9, "metadata": {"chapter_number": 1}}], "queries": [{"label": "original", "query": "车站的钟每天少走七分钟"}], "candidate_count": 1},
             "get_chapter_visual_plan": {},

@@ -1778,14 +1778,45 @@ def seed_fixtures(
             "taskId": str(uuid.uuid4()),
         },
     )
-    call(
+    rag_prepare = call(
         "rag_prepare_ingest_all",
         {"projectId": project_id, "input": {"rebuild": False}},
     )
-    call(
+    prepare_data = rag_prepare.get("data")
+    rag_records = prepare_data.get("records") if isinstance(prepare_data, dict) else None
+    if (
+        not isinstance(prepare_data, dict)
+        or not isinstance(prepare_data.get("operation_trace_id"), str)
+        or not prepare_data["operation_trace_id"]
+        or not isinstance(prepare_data.get("embedding_identity"), dict)
+        or not isinstance(rag_records, list)
+        or not rag_records
+    ):
+        raise RunnerError("fixture rag_prepare_ingest_all 未返回有效分块记录")
+    chunk_ids = [record.get("chunk_id") for record in rag_records if isinstance(record, dict)]
+    content_hashes = [record.get("content_hash") for record in rag_records if isinstance(record, dict)]
+    if (
+        len(chunk_ids) != len(rag_records)
+        or any(not isinstance(chunk_id, str) or not chunk_id for chunk_id in chunk_ids)
+        or len(set(chunk_ids)) != len(chunk_ids)
+        or any(not isinstance(content_hash, str) or not content_hash for content_hash in content_hashes)
+        or any(not isinstance(record.get("text"), str) or not record["text"].strip() for record in rag_records if isinstance(record, dict))
+    ):
+        raise RunnerError("fixture rag_prepare_ingest_all 的分块 ID、正文或 hash 无效")
+    rag_ingest = call(
         "rag_ingest_all",
         {"projectId": project_id, "input": {"rebuild": False}},
     )
+    ingest_data = rag_ingest.get("data")
+    if (
+        not isinstance(ingest_data, dict)
+        or not isinstance(ingest_data.get("added_count"), int)
+        or not isinstance(ingest_data.get("updated_count"), int)
+        or not isinstance(ingest_data.get("skipped_count"), int)
+        or not isinstance(ingest_data.get("deleted_count"), int)
+        or sum(ingest_data[field] for field in ("added_count", "updated_count", "skipped_count")) <= 0
+    ):
+        raise RunnerError("fixture rag_ingest_all 未返回有效摄取统计")
     rag_prepared = call(
         "rag_prepare_enhanced_search",
         {
