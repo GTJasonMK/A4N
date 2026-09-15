@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
 use a4n_llm_context::chat_request_with_workflow_run_id;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_llm_structured_stream::StructuredLlmProgress;
 use a4n_progress::StructuredJsonProgressSpec;
 use a4n_prompt::rendering::PromptRenderer;
@@ -117,7 +117,7 @@ impl OrchestratorContext {
     ) -> Result<
         (
             ObjectDiscoveryRequestContext,
-            a4n_llm::provider::ChatRequest,
+            a4n_llm_provider_contract::provider::ChatRequest,
         ),
         AppError,
     > {
@@ -177,7 +177,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         project_id: i64,
         chapter_number: Option<i32>,
-        request: &a4n_llm::provider::ChatRequest,
+        request: &a4n_llm_provider_contract::provider::ChatRequest,
         chapters: &[a4n_db_models::models::chapter::chapter::Model],
         text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
         progress: Option<ObjectDiscoveryProgress<'_>>,

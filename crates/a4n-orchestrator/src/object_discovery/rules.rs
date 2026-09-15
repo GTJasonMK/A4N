@@ -1,7 +1,7 @@
 //! 物体发现工作流指纹与章节范围纯规则（无 DB）。
 
 use a4n_db_models::models::{chapter::chapter, project::text_anchor};
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
