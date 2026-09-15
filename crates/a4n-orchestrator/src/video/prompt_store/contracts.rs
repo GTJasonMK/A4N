@@ -1,6 +1,6 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, UsageInfo};
+use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::{Value, json};
 

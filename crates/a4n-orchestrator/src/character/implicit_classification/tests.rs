@@ -13,7 +13,7 @@ use a4n_db::{
 use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::workflow::WORKFLOW_STATUS_RUNNING;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatMessage, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse};
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_test_support::llm::CountingLlmProvider;
 use async_trait::async_trait;

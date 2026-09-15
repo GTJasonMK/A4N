@@ -10,7 +10,7 @@ use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgres
 use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 use a4n_domain::project::ProjectStatus;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
 use serde_json::json;
 

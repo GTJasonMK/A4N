@@ -1,10 +1,10 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 
-pub(crate) use a4n_llm::structured_stream::StructuredLlmProgress;
-pub(crate) use a4n_llm::structured_stream::StructuredLlmStreamResult;
+pub(crate) use a4n_llm_structured_stream::StructuredLlmProgress;
+pub(crate) use a4n_llm_structured_stream::StructuredLlmStreamResult;
 
 pub(crate) struct ChatJsonStreamInput<'a> {
     pub(crate) request: ChatRequest,

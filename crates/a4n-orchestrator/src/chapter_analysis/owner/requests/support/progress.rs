@@ -1,4 +1,4 @@
-use a4n_llm::structured_stream::StructuredLlmProgress;
+use a4n_llm_structured_stream::StructuredLlmProgress;
 use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
 
 pub fn chapter_analysis_root_field_progress(

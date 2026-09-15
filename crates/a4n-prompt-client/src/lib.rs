@@ -1,17 +1,20 @@
 //! Typed client for the prompt sidecar service.
 
 use a4n_prompt_contract::{
-    CountOutput, PromptCategory, PromptEmptyPayload, PromptEntry, PromptHydrateOverridesPayload,
-    PromptListOutput, PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput,
-    PromptRenderPayload, PromptSetProjectOverridePayload, PromptUpdateManyPayload,
-    PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
-    PromptVersionDiffPayload, PromptVersionHistoryOutput,
+    CountOutput, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PromptCategory,
+    PromptEmptyPayload, PromptEntry, PromptHydrateOverridesPayload, PromptListOutput,
+    PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload,
+    PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
+    PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput, PromptVersionDiffPayload,
+    PromptVersionHistoryOutput,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
 };
-use a4n_service_protocol::{PROMPT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse};
+use a4n_service_protocol::{
+    ServiceHealth, ServiceRequest, ServiceResponse, sidecar_resource_policy,
+};
 use async_trait::async_trait;
 
 pub struct HttpPromptClient {
@@ -21,20 +24,14 @@ pub struct HttpPromptClient {
 impl HttpPromptClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(PROMPT_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(PROMPT_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
@@ -42,6 +39,15 @@ impl HttpPromptClient {
         self.transport = self.transport.with_http_client_factory(factory);
         self
     }
+}
+
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        PROMPT_SERVICE_NAME,
+        PROMPT_RENDER_CAPABILITY_VERSION,
+        sidecar_resource_policy(PROMPT_SERVICE_NAME)
+            .expect("prompt service must have a resource policy"),
+    )
 }
 
 #[async_trait]

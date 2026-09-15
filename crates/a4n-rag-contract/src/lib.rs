@@ -6,15 +6,16 @@
 use std::collections::HashMap;
 
 use a4n_domain::rag::RagDataType;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_value_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
-use a4n_rag_core::vector_store::SearchFilter;
-use a4n_rag_core::{
-    EnhancedRagQuery, EnhancedRagSearchResult, PreparedEnhancedRagSearch, PreparedRagRecordSync,
-    RagEmbeddedInput,
-};
 use async_trait::async_trait;
 use serde_json::Value;
+
+pub use a4n_rag_value_contract::{
+    ChapterRagChunkingMode, EnhancedRagQuery, EnhancedRagSearchResult, PreparedEnhancedRagSearch,
+    PreparedRagRecordSync, RagEmbeddedInput, RagRecord, RagRecordSyncOutcome, SearchFilter,
+    SearchResult,
+};
 
 /// Snapshot used by Runtime's pure record comparison loop.  The implementing
 /// application owns how metadata and stale IDs are read; Runtime only decides
@@ -73,15 +74,15 @@ pub trait RagIngestPort: Send + Sync {
         &self,
         project_id: i64,
         chapter_id: i64,
-        chapter_mode: a4n_rag_core::ChapterRagChunkingMode,
+        chapter_mode: ChapterRagChunkingMode,
     ) -> Result<u32, AppError>;
 
     async fn expected_records(
         &self,
         project_id: i64,
         set: RagRecordSet,
-        chapter_mode: a4n_rag_core::ChapterRagChunkingMode,
-    ) -> Result<Vec<a4n_rag_core::RagRecord>, AppError>;
+        chapter_mode: ChapterRagChunkingMode,
+    ) -> Result<Vec<RagRecord>, AppError>;
 
     async fn prepare_rag_sync(
         &self,

@@ -1,5 +1,5 @@
 use crate::OrchestratorContext;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_rag_core::RagSyncError;
 
 pub(super) async fn current_embedding_identity(

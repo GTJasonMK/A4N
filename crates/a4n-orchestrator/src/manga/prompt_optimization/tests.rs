@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_error::AppError;
-use a4n_llm::provider::ResponseFormat;
+use a4n_llm_provider_contract::provider::ResponseFormat;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use chrono::NaiveDateTime;

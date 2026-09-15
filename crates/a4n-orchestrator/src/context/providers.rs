@@ -1,6 +1,6 @@
 use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use a4n_rag_core::{ChapterRagChunkingMode, RagRecord};
 use tokio_util::sync::CancellationToken;
 
@@ -29,7 +29,7 @@ impl OrchestratorContext {
     }
 
     /// 领域 LLM 调用需要的 provider 引用（不暴露字段）。
-    pub(crate) fn llm_backend(&self) -> &dyn a4n_llm::provider::LlmProvider {
+    pub(crate) fn llm_backend(&self) -> &dyn a4n_llm_provider_contract::provider::LlmProvider {
         self.llm.as_ref()
     }
 
@@ -49,8 +49,8 @@ impl OrchestratorContext {
             cancel_token,
             cancelled_message,
         } = input;
-        a4n_llm::structured_stream::chat_json_stream_result_with_sink(
-            a4n_llm::structured_stream::ChatJsonStreamInput {
+        a4n_llm_structured_stream::chat_json_stream_result_with_sink(
+            a4n_llm_structured_stream::ChatJsonStreamInput {
                 llm: self.llm.as_ref(),
                 request,
                 prompt_name,

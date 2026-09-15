@@ -2,7 +2,9 @@ use crate::contracts::{
     VideoDeleteOutput, VideoGenerationOutput, VideoJobOutput, VideoStatusOutput,
 };
 use a4n_service_protocol::redact_sensitive_message;
-use a4n_video::{VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};
+use a4n_video_provider_contract::{
+    VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus,
+};
 use base64::Engine as _;
 
 pub(crate) fn video_generation_output(result: VideoGenerationResult) -> VideoGenerationOutput {

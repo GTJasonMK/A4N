@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, MessageRole};
+use a4n_llm_provider_contract::{ChatRequest, MessageRole};
 use serde_json::{Map, Value, json};
 
 use crate::http::cache::{apply_openai_cache_options, openai_text_content};

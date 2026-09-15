@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use a4n_config::app_config;
 use a4n_domain::embedding::embedding_provider_capabilities;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 

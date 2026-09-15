@@ -6,7 +6,7 @@ use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::validate_reference_image_id_list;
 use a4n_domain::video_timeline::{VideoTimelineGap, timeline_gap_index};
 use a4n_domain::{VideoAspectRatio, prompt_language::PromptOutputLanguage, source_text_hash};
-use a4n_llm::context::LlmContextLedger;
+use a4n_llm_context::LlmContextLedger;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::GenerationResultRef;
 use a4n_video_contract::VideoSegmentGuidanceModeV1;

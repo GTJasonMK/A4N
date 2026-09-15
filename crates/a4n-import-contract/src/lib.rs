@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 
 pub const IMPORT_SERVICE_NAME: &str = "import";
 pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v3";
+pub const IMPORT_SERVICE_ADDR_ENV: &str = "A4N_IMPORT_SERVICE_ADDR";
+pub const IMPORT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47647";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ImportContractError {

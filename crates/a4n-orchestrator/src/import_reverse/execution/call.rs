@@ -1,6 +1,6 @@
 use a4n_api_contract::import_reverse::ReverseEngineeringCandidate;
 use a4n_error::AppError;
-use a4n_llm::provider::is_truncated_finish_reason;
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;

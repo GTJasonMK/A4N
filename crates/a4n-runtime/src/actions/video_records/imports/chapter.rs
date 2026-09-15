@@ -15,7 +15,7 @@ use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow,
     should_capture_video_tail_frame_fields,
 };
-use a4n_video_contract::VideoProviderResultTarget;
+use a4n_video_host_contract::VideoProviderResultTarget;
 use chrono::Utc;
 use serde_json::Value;
 

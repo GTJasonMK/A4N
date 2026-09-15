@@ -2,7 +2,7 @@ use a4n_canvas_contract::{
     CanvasPreviewNodeApplicationInput, GenerateCanvasImageInput, GenerateCanvasVideoInput,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use async_trait::async_trait;
 
 #[derive(Debug, Clone)]

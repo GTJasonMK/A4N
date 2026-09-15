@@ -1,8 +1,8 @@
 //! Typed client for the embedding sidecar service.
 
 use a4n_embedding_contract::{
-    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelDownloadInfoSummary, EmbeddingModelPayload,
-    LocalEmbeddingModelSummary,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbedTextsOutput, EmbedTextsPayload,
+    EmbeddingModelDownloadInfoSummary, EmbeddingModelPayload, LocalEmbeddingModelSummary,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -11,7 +11,7 @@ use a4n_service_client::{
 use a4n_service_protocol::{
     CapabilityTaskEvent, EMBEDDING_EMBED_TEXTS_PATH, EMBEDDING_MODEL_DELETE_PATH,
     EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH, EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
-    EMBEDDING_MODELS_PATH, EMBEDDING_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
+    EMBEDDING_MODELS_PATH, ServiceHealth, ServiceRequest, ServiceResponse, sidecar_resource_policy,
 };
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
@@ -24,20 +24,14 @@ pub struct HttpEmbeddingClient {
 impl HttpEmbeddingClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(EMBEDDING_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(EMBEDDING_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
@@ -62,6 +56,15 @@ impl HttpEmbeddingClient {
         );
         self
     }
+}
+
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        EMBEDDING_SERVICE_NAME,
+        EMBEDDING_CAPABILITY_VERSION,
+        sidecar_resource_policy(EMBEDDING_SERVICE_NAME)
+            .expect("embedding service must have a resource policy"),
+    )
 }
 
 #[async_trait]

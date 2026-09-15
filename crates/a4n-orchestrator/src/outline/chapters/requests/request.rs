@@ -1,11 +1,11 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;
 
 use crate::outline::chapter_contract::chapter_outline_generation_manifest_user_message;
 use crate::outline::context::part_context_json;
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::context::context_aware_system_user_request;
+use a4n_llm_context::context_aware_system_user_request;
 
 use super::super::contracts::{ChapterOutlineRequestInput, ContextAwareChapterOutlineRequestInput};
 use super::context::build_chapter_outline_context_manifest;

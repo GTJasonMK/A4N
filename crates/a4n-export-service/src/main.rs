@@ -8,7 +8,8 @@ use std::{
 };
 
 use a4n_export_contract::{
-    EXPORT_SERVICE_NAME, ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput,
+    EXPORT_SERVICE_ADDR_ENV, EXPORT_SERVICE_DEFAULT_ADDR, EXPORT_SERVICE_NAME,
+    ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput,
 };
 use a4n_export_core::{render_json, render_zip};
 use a4n_service_protocol::{
@@ -176,7 +177,8 @@ async fn main() -> anyhow::Result<()> {
         "A4N_EXPORT_SERVICE_LOG",
         "a4n_export_service=info,tower_http=warn",
     )?;
-    let addr = a4n_sidecar_bootstrap::service_socket_addr(EXPORT_SERVICE_NAME)?;
+    let addr =
+        a4n_sidecar_bootstrap::socket_addr(EXPORT_SERVICE_ADDR_ENV, EXPORT_SERVICE_DEFAULT_ADDR)?;
     let policy = a4n_service_protocol::sidecar_resource_policy(EXPORT_SERVICE_NAME)
         .expect("export sidecar must have a resource policy");
     let render_metrics = ExportRenderMetrics::with_policy(

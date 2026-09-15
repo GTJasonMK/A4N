@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::validation::{ensure_chat_session_accepts_message, required_chat_user_text};
 use crate::optimize::agent_loop::{

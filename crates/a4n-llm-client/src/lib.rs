@@ -1,19 +1,23 @@
 //! Typed client for the LLM sidecar service.
 
+use a4n_llm_sidecar_contract::{
+    LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME, LlmChatRequest, LlmGatewayPayload,
+    LlmProbeOutput,
+};
 use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
 };
 use a4n_service_protocol::{
-    CapabilityTaskEvent, LLM_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
+    CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse, sidecar_resource_policy,
 };
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
-pub type JsonRequest = ServiceRequest<serde_json::Value>;
-pub type JsonResponse = ServiceResponse<serde_json::Value>;
+pub type LlmGatewayRequest = ServiceRequest<LlmGatewayPayload<LlmChatRequest>>;
+pub type LlmProbeResponse = ServiceResponse<LlmProbeOutput>;
 
 pub struct HttpLlmClient {
     transport: HttpSidecarTransport,
@@ -22,20 +26,14 @@ pub struct HttpLlmClient {
 impl HttpLlmClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(LLM_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(LLM_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
@@ -62,6 +60,14 @@ impl HttpLlmClient {
     }
 }
 
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        LLM_SERVICE_NAME,
+        LLM_CHAT_CAPABILITY_VERSION,
+        sidecar_resource_policy(LLM_SERVICE_NAME).expect("llm service must have a resource policy"),
+    )
+}
+
 #[async_trait]
 impl ServiceClient for HttpLlmClient {
     async fn health(&self) -> ServiceClientResult<ServiceHealth> {
@@ -73,10 +79,10 @@ impl ServiceClient for HttpLlmClient {
 pub trait LlmClient: ServiceClient {
     async fn stream(
         &self,
-        request: JsonRequest,
+        request: LlmGatewayRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
-    async fn probe(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn probe(&self, request: LlmGatewayRequest) -> ServiceClientResult<LlmProbeResponse>;
     async fn discover_models(
         &self,
         request: ServiceRequest<ModelDiscoveryRequest>,
@@ -87,7 +93,7 @@ pub trait LlmClient: ServiceClient {
 impl LlmClient for HttpLlmClient {
     async fn stream(
         &self,
-        request: JsonRequest,
+        request: LlmGatewayRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport
@@ -95,7 +101,7 @@ impl LlmClient for HttpLlmClient {
             .await
     }
 
-    async fn probe(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn probe(&self, request: LlmGatewayRequest) -> ServiceClientResult<LlmProbeResponse> {
         self.transport.post("/llm/probe", request).await
     }
 

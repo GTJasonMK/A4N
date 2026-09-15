@@ -8,7 +8,9 @@ use reqwest::header::CONTENT_TYPE;
 use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoProvider};
+use a4n_video_provider_contract::{
+    VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus, VideoProvider,
+};
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use crate::download::download_video_url;
@@ -228,7 +230,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         }
     }
 
-    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+    async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
             return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
@@ -247,28 +249,28 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         )
         .await?;
         let Some(value) = value else {
-            return Ok(a4n_video::VideoJobStatus::NotFound);
+            return Ok(VideoJobStatus::NotFound);
         };
         let status = required_status(&value)?;
         if matches!(
             status.as_str(),
             "queued" | "pending" | "submitted" | "starting"
         ) {
-            return Ok(a4n_video::VideoJobStatus::Pending);
+            return Ok(VideoJobStatus::Pending);
         }
         if matches!(status.as_str(), "in_progress" | "processing" | "running") {
-            return Ok(a4n_video::VideoJobStatus::Running);
+            return Ok(VideoJobStatus::Running);
         }
         if matches!(status.as_str(), "cancelled" | "canceled") {
-            return Ok(a4n_video::VideoJobStatus::Cancelled);
+            return Ok(VideoJobStatus::Cancelled);
         }
         if matches!(status.as_str(), "failed" | "failure" | "error" | "expired") {
-            return Ok(a4n_video::VideoJobStatus::Failed(
+            return Ok(VideoJobStatus::Failed(
                 failure_message(&value).unwrap_or_else(|| "视频生成失败".to_string()),
             ));
         }
         if is_completed_status(Some(status.as_str())) {
-            return Ok(a4n_video::VideoJobStatus::Completed);
+            return Ok(VideoJobStatus::Completed);
         }
         Err(AppError::Internal(format!(
             "未知 CLIProxy 视频任务 status={status}"

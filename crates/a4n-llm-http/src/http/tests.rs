@@ -3,7 +3,7 @@ use super::provider::HttpLlmProvider;
 use super::response::*;
 use super::sse::*;
 use a4n_error::AppError;
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::{
     ChatChunk, ChatMessage, ChatRequest, ModelCapabilities, normalize_extra_body,
 };
 use reqwest::StatusCode;

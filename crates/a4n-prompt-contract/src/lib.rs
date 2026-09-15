@@ -6,6 +6,28 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod rendering {
+    use a4n_error::AppError;
+    use serde_json::Value;
+    use std::collections::HashMap;
+
+    /// Application boundary for rendering a named prompt with project scope.
+    #[async_trait::async_trait]
+    pub trait PromptRenderer: Send + Sync {
+        async fn render_prompt(
+            &self,
+            template_name: &str,
+            variables: &HashMap<String, Value>,
+            project_id: Option<i64>,
+        ) -> Result<String, AppError>;
+    }
+}
+
+pub const PROMPT_SERVICE_NAME: &str = "prompt";
+pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v4";
+pub const PROMPT_SERVICE_ADDR_ENV: &str = "A4N_PROMPT_SERVICE_ADDR";
+pub const PROMPT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47641";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptEntry {

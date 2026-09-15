@@ -1,6 +1,8 @@
 use super::response::aspect_ratio_from_size;
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{CLIPROXY_OPENAI_VIDEO_BACKEND, validate_video_provider_duration};
+use a4n_video_provider_contract::{
+    CLIPROXY_OPENAI_VIDEO_BACKEND, validate_video_provider_duration,
+};
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 use serde_json::{Map, Value, json};
 

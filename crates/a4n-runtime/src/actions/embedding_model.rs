@@ -9,7 +9,7 @@ pub use a4n_api_contract::embedding::{
     EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, LocalEmbedTextsInput,
     LocalEmbedTextsOutput, LocalEmbeddingConfigInput, LocalEmbeddingModelSummary,
 };
-pub use a4n_embedding::provider::DownloadProgress;
+pub use a4n_embedding_provider_contract::DownloadProgress;
 pub use download::{download_embedding_model, download_embedding_model_to_cache};
 pub use models::{
     delete_local_embedding_model, delete_local_embedding_model_in_cache,

@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::context::LlmContextManifest;
+use a4n_llm_context::LlmContextManifest;
 use serde_json::{Value, json};
 
 use a4n_domain::source_spans::SourceSpan;

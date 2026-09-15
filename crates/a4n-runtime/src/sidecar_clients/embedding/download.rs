@@ -1,6 +1,6 @@
-use a4n_embedding::provider::DownloadProgress;
 use a4n_embedding_client::EmbeddingClient;
 use a4n_embedding_contract::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
+use a4n_embedding_provider_contract::DownloadProgress;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{

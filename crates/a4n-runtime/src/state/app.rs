@@ -231,15 +231,17 @@ pub struct AppState {
     blueprint_read_application: Arc<dyn a4n_api_contract::blueprint::BlueprintReadApplicationPort>,
     /// Blueprint generation request preview owner.
     blueprint_generation_preview_application:
-        Arc<dyn a4n_orchestrator::BlueprintGenerationPreviewApplicationPort>,
+        Arc<dyn a4n_blueprint_contract::BlueprintGenerationPreviewApplicationPort>,
     /// Blueprint refinement request preview owner.
     blueprint_refinement_preview_application:
-        Arc<dyn a4n_orchestrator::BlueprintRefinementPreviewApplicationPort>,
+        Arc<dyn a4n_blueprint_contract::BlueprintRefinementPreviewApplicationPort>,
     /// Blueprint generation owner. Runtime supplies task workers and prompt
     /// rendering; workflow persistence stays with the blueprint owner.
-    blueprint_generation_application: Arc<dyn a4n_orchestrator::BlueprintGenerationApplicationPort>,
+    blueprint_generation_application:
+        Arc<dyn a4n_blueprint_contract::BlueprintGenerationApplicationPort>,
     /// Blueprint refinement worker boundary.
-    blueprint_refinement_application: Arc<dyn a4n_orchestrator::BlueprintRefinementApplicationPort>,
+    blueprint_refinement_application:
+        Arc<dyn a4n_blueprint_contract::BlueprintRefinementApplicationPort>,
     /// Host-facing blueprint mutation boundary. Durable version writes remain
     /// owned by the blueprint application.
     blueprint_mutation_application:
@@ -257,46 +259,43 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
     /// Chapter request preview owner. Runtime supplies prompt and embedding
     /// inputs.
-    chapter_generation_request_preview_application: Arc<
-        dyn a4n_orchestrator::chapter_generation::ChapterGenerationRequestPreviewApplicationPort,
-    >,
+    chapter_generation_request_preview_application:
+        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationRequestPreviewApplicationPort>,
     /// Chapter-generation RAG preparation owner.
-    chapter_generation_rag_preparation_application: Arc<
-        dyn a4n_orchestrator::chapter_generation::ChapterGenerationRagPreparationApplicationPort,
-    >,
+    chapter_generation_rag_preparation_application:
+        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationRagPreparationApplicationPort>,
     /// Chapter generation task owner. Runtime supplies prompt, embedding and
     /// cleanup adapters when a worker is started.
     chapter_generation_application:
-        Arc<dyn a4n_orchestrator::chapter_generation::ChapterGenerationApplicationPort>,
+        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationApplicationPort>,
     /// Host-facing outline read boundary.
     outline_read_application: Arc<dyn a4n_api_contract::outline::OutlineReadApplicationPort>,
     /// Host-facing outline mutation boundary.
     outline_mutation_application:
         Arc<dyn a4n_api_contract::outline::OutlineMutationApplicationPort>,
     /// Outline generation task owner. Runtime only schedules the worker.
-    outline_generation_application:
-        Arc<dyn a4n_orchestrator::outline::OutlineGenerationApplicationPort>,
+    outline_generation_application: Arc<dyn a4n_outline_contract::OutlineGenerationApplicationPort>,
     /// Part outline generation preview owner.
     outline_part_generation_preview_application:
-        Arc<dyn a4n_orchestrator::OutlinePartGenerationPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlinePartGenerationPreviewApplicationPort>,
     /// Part outline mutation preview owner.
     outline_part_mutation_preview_application:
-        Arc<dyn a4n_orchestrator::OutlinePartMutationPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlinePartMutationPreviewApplicationPort>,
     /// Part chapter generation preview owner.
     outline_part_chapter_generation_preview_application:
-        Arc<dyn a4n_orchestrator::OutlinePartChapterGenerationPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlinePartChapterGenerationPreviewApplicationPort>,
     /// Batch part/chapter outline generation preview owner.
     outline_batch_part_generation_preview_application:
-        Arc<dyn a4n_orchestrator::OutlineBatchPartGenerationPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlineBatchPartGenerationPreviewApplicationPort>,
     /// Chapter-count generation preview owner.
     outline_chapter_count_generation_preview_application:
-        Arc<dyn a4n_orchestrator::OutlineChapterCountGenerationPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlineChapterCountGenerationPreviewApplicationPort>,
     /// Chapter outline regeneration preview owner.
     outline_chapter_regeneration_preview_application:
-        Arc<dyn a4n_orchestrator::OutlineChapterRegenerationPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlineChapterRegenerationPreviewApplicationPort>,
     /// Outline beat-mapping preview owner.
     outline_beat_mapping_preview_application:
-        Arc<dyn a4n_orchestrator::OutlineBeatMappingPreviewApplicationPort>,
+        Arc<dyn a4n_outline_contract::OutlineBeatMappingPreviewApplicationPort>,
     /// Host-facing theme/settings read boundary. Theme ownership and metadata
     /// stay in the settings application; Runtime handles only protected files.
     theme_read_application: Arc<dyn a4n_api_contract::theme::ThemeReadApplicationPort>,
@@ -1504,25 +1503,25 @@ impl AppState {
 
     pub(crate) fn blueprint_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintGenerationPreviewApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintGenerationPreviewApplicationPort {
         self.blueprint_generation_preview_application.as_ref()
     }
 
     pub(crate) fn blueprint_refinement_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintRefinementPreviewApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintRefinementPreviewApplicationPort {
         self.blueprint_refinement_preview_application.as_ref()
     }
 
     pub(crate) fn blueprint_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintGenerationApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintGenerationApplicationPort {
         self.blueprint_generation_application.as_ref()
     }
 
     pub(crate) fn blueprint_refinement_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintRefinementApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintRefinementApplicationPort {
         self.blueprint_refinement_application.as_ref()
     }
 
@@ -1613,21 +1612,19 @@ impl AppState {
 
     pub(crate) fn chapter_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationApplicationPort {
+    ) -> &dyn a4n_chapter_generation_contract::ChapterGenerationApplicationPort {
         self.chapter_generation_application.as_ref()
     }
 
     pub(crate) fn chapter_generation_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationRequestPreviewApplicationPort
-    {
+    ) -> &dyn a4n_chapter_generation_contract::ChapterGenerationRequestPreviewApplicationPort {
         self.chapter_generation_request_preview_application.as_ref()
     }
 
     pub(crate) fn chapter_generation_rag_preparation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationRagPreparationApplicationPort
-    {
+    ) -> &dyn a4n_chapter_generation_contract::ChapterGenerationRagPreparationApplicationPort {
         self.chapter_generation_rag_preparation_application.as_ref()
     }
 
@@ -1645,53 +1642,53 @@ impl AppState {
 
     pub(crate) fn outline_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::outline::OutlineGenerationApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlineGenerationApplicationPort {
         self.outline_generation_application.as_ref()
     }
 
     pub(crate) fn outline_part_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlinePartGenerationPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlinePartGenerationPreviewApplicationPort {
         self.outline_part_generation_preview_application.as_ref()
     }
 
     pub(crate) fn outline_part_mutation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlinePartMutationPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlinePartMutationPreviewApplicationPort {
         self.outline_part_mutation_preview_application.as_ref()
     }
 
     pub(crate) fn outline_part_chapter_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlinePartChapterGenerationPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlinePartChapterGenerationPreviewApplicationPort {
         self.outline_part_chapter_generation_preview_application
             .as_ref()
     }
 
     pub(crate) fn outline_batch_part_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlineBatchPartGenerationPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlineBatchPartGenerationPreviewApplicationPort {
         self.outline_batch_part_generation_preview_application
             .as_ref()
     }
 
     pub(crate) fn outline_chapter_count_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlineChapterCountGenerationPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlineChapterCountGenerationPreviewApplicationPort {
         self.outline_chapter_count_generation_preview_application
             .as_ref()
     }
 
     pub(crate) fn outline_chapter_regeneration_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlineChapterRegenerationPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlineChapterRegenerationPreviewApplicationPort {
         self.outline_chapter_regeneration_preview_application
             .as_ref()
     }
 
     pub(crate) fn outline_beat_mapping_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::OutlineBeatMappingPreviewApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlineBeatMappingPreviewApplicationPort {
         self.outline_beat_mapping_preview_application.as_ref()
     }
 

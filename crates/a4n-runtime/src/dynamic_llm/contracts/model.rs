@@ -1,10 +1,9 @@
 use crate::dynamic_llm::config::{model_capabilities, validated_timeout_secs};
 use a4n_error::AppError;
-use a4n_llm::gateway::{
-    LlmGatewayPayload as LlmChatPayload, LlmGatewayProviderConfig, LlmProbePayload,
-};
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use a4n_llm_config::LlmConfigSnapshot;
+use a4n_llm_provider_contract::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
+use a4n_llm_sidecar_contract::LlmChatRequest;
+use a4n_llm_sidecar_contract::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbePayload};
 use a4n_provider_contract::LlmProviderConfig;
 use async_trait::async_trait;
 use futures::Stream;
@@ -58,17 +57,23 @@ impl ResolvedLlmModel {
         }
     }
 
-    pub(in crate::dynamic_llm) fn sidecar_payload(self, request: ChatRequest) -> LlmChatPayload {
-        LlmChatPayload {
+    pub(in crate::dynamic_llm) fn sidecar_payload(
+        self,
+        request: ChatRequest,
+    ) -> LlmGatewayPayload<LlmChatRequest> {
+        LlmGatewayPayload {
             provider: self.provider_config(),
-            request,
+            request: request.into(),
         }
     }
 
-    pub(in crate::dynamic_llm) fn probe_payload(self, request: ChatRequest) -> LlmProbePayload {
+    pub(in crate::dynamic_llm) fn probe_payload(
+        self,
+        request: ChatRequest,
+    ) -> LlmProbePayload<LlmChatRequest> {
         LlmProbePayload {
             provider: self.provider_config(),
-            request,
+            request: request.into(),
         }
     }
 

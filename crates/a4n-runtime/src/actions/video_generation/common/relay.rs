@@ -4,7 +4,7 @@ use a4n_video::VideoGenerationResult;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::state::RuntimeProfile;
-use a4n_video_contract::VideoGenerationProgressPort;
+use a4n_video_host_contract::VideoGenerationProgressPort;
 
 use a4n_domain::video_workflow::VIDEO_GENERATION_PROGRESS_TOTAL;
 

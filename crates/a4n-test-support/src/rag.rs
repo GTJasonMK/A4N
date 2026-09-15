@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult, VectorStore,
 };

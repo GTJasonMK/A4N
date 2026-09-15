@@ -12,19 +12,6 @@ use serde::Serialize;
 
 type JsonRequest = ServiceRequest<serde_json::Value>;
 
-pub(crate) fn global_provider_service_request(
-    capability_version: impl Into<String>,
-    payload: impl Serialize,
-) -> Result<JsonRequest, String> {
-    let request = service_request_with_context_provider_secret_policy(
-        SidecarRequestContext::current_global(),
-        capability_version,
-        payload,
-    )?;
-    ensure_global_request_scope(&request)?;
-    Ok(request)
-}
-
 pub(crate) fn global_typed_provider_service_request<T: Serialize>(
     capability_version: impl Into<String>,
     payload: T,

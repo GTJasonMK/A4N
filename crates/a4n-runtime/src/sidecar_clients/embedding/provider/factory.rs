@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::provider_runtime::DynamicProviderFacade;
 use a4n_config::app_config::AppConfig;
-use a4n_embedding::provider::EmbeddingProvider;
 use a4n_embedding_client::EmbeddingClient;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_error::AppError;
 
 use crate::{dynamic_embedding::DynamicEmbeddingProvider, state::RuntimeProfile};

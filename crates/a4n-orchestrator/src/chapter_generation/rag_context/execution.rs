@@ -1,4 +1,4 @@
-use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
+use a4n_embedding_provider_contract::{EmbeddingModelIdentity, EmbeddingProvider};
 use a4n_rag_core::{
     validation::{validate_embedding_identity_match, validate_query_vectors},
     vector_store::VectorStore,

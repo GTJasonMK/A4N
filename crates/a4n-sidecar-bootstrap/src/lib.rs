@@ -12,9 +12,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use a4n_process_catalog::{parse_service_socket_addr, service_catalog_entry};
 use a4n_service_protocol::{
     SIDECAR_AUTH_HEADER, SIDECAR_AUTH_TOKEN_ENV, SIDECAR_HEALTH_PATH, SIDECAR_SHUTDOWN_PATH,
+    parse_service_socket_addr,
 };
 use anyhow::anyhow;
 use axum::{
@@ -108,12 +108,6 @@ pub fn init_tracing(log_env: &str, default_filter: &str) -> anyhow::Result<()> {
 pub fn socket_addr(addr_env: &str, default_addr: &str) -> anyhow::Result<SocketAddr> {
     let value = string_or_default(addr_env, default_addr)?;
     parse_service_socket_addr(addr_env, &value).map_err(anyhow::Error::msg)
-}
-
-pub fn service_socket_addr(service: &str) -> anyhow::Result<SocketAddr> {
-    let entry =
-        service_catalog_entry(service).ok_or_else(|| anyhow!("未知 sidecar service: {service}"))?;
-    socket_addr(&entry.addr_env, &entry.default_addr)
 }
 
 fn validate_bind_addr(addr: SocketAddr, has_auth: bool) -> anyhow::Result<()> {

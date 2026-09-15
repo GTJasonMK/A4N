@@ -1,4 +1,4 @@
-use a4n_llm::context::{
+use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedgerPackDraft,
     LlmContextLedgerPackInput,
 };

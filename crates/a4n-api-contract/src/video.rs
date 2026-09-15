@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use a4n_provider_contract::VideoProviderConfig;
-use a4n_video_contract::{VideoProviderPollTarget, VideoSegmentPlanV2};
+use a4n_video_contract::VideoSegmentPlanV2;
+use a4n_video_host_contract::VideoProviderPollTarget;
 
 pub use a4n_domain::{AssemblyPostprocessOperation, CanvasFrameKind, DownstreamConflictStrategy};
 pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
@@ -34,7 +35,7 @@ pub trait VideoProviderConfigPort: Send + Sync {
 /// Host-facing video owner boundary for provider-job recovery.
 ///
 /// The video owner keeps permission checks and status transitions; Runtime
-/// supplies only the provider execution adapter from `a4n-video-contract`.
+/// supplies only the provider execution adapter from `a4n-video-host-contract`.
 #[async_trait::async_trait]
 pub trait VideoProviderExecutionApplicationPort: Send + Sync {
     async fn poll_target(
@@ -48,7 +49,7 @@ pub trait VideoProviderExecutionApplicationPort: Send + Sync {
         user_id: i64,
         video_id: i64,
         config: Option<&VideoProviderConfig>,
-        host_port: &dyn a4n_video_contract::VideoProviderHostPort,
+        host_port: &dyn a4n_video_host_contract::VideoProviderHostPort,
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
 }
 
@@ -89,8 +90,8 @@ pub trait CanvasVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_canvas(
         &self,
         input: crate::canvas::GenerateCanvasVideoInput,
-        host_port: &dyn a4n_video_contract::CanvasVideoPreviewHostPort,
-    ) -> Result<a4n_video_contract::CanvasVideoRequestPreview, a4n_error::AppError>;
+        host_port: &dyn a4n_video_host_contract::CanvasVideoPreviewHostPort,
+    ) -> Result<a4n_video_host_contract::CanvasVideoRequestPreview, a4n_error::AppError>;
 }
 
 /// Host-facing request preview boundary for chapter videos.
@@ -98,10 +99,10 @@ pub trait CanvasVideoRequestPreviewApplicationPort: Send + Sync {
 pub trait ChapterVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_chapter(
         &self,
-        host_port: &dyn a4n_video_contract::ChapterVideoPreviewHostPort,
+        host_port: &dyn a4n_video_host_contract::ChapterVideoPreviewHostPort,
         input: GenerateChapterVideoInput,
         prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
-    ) -> Result<a4n_video_contract::ChapterVideoRequestPreview, a4n_error::AppError>;
+    ) -> Result<a4n_video_host_contract::ChapterVideoRequestPreview, a4n_error::AppError>;
 }
 
 /// Host-facing request preview boundary for reference-media videos.
@@ -109,9 +110,9 @@ pub trait ChapterVideoRequestPreviewApplicationPort: Send + Sync {
 pub trait ReferenceMediaVideoRequestPreviewApplicationPort: Send + Sync {
     async fn preview_reference_media(
         &self,
-        host_port: &dyn a4n_video_contract::ReferenceMediaVideoPreviewHostPort,
+        host_port: &dyn a4n_video_host_contract::ReferenceMediaVideoPreviewHostPort,
         input: GenerateReferenceMediaVideoInput,
-    ) -> Result<a4n_video_contract::ReferenceMediaVideoRequestPreview, a4n_error::AppError>;
+    ) -> Result<a4n_video_host_contract::ReferenceMediaVideoRequestPreview, a4n_error::AppError>;
 }
 
 /// Host-facing boundary for the video generation worker.
@@ -134,7 +135,7 @@ pub trait VideoGenerationApplicationPort: Send + Sync {
         user_id: i64,
         input: StartVideoGenerationInput,
         handle: crate::generation_tasks::GenerationTaskHandle,
-        host_port: &dyn a4n_video_contract::VideoGenerationHostPort,
+        host_port: &dyn a4n_video_host_contract::VideoGenerationHostPort,
     ) -> Result<(), String>;
 
     async fn run_prompt_task(
@@ -142,7 +143,7 @@ pub trait VideoGenerationApplicationPort: Send + Sync {
         user_id: i64,
         input: StartVideoGenerationInput,
         handle: crate::generation_tasks::GenerationTaskHandle,
-        host_port: &dyn a4n_video_contract::VideoPromptGenerationHostPort,
+        host_port: &dyn a4n_video_host_contract::VideoPromptGenerationHostPort,
     ) -> Result<(), String>;
 }
 
@@ -656,7 +657,7 @@ pub trait ChapterVideoImportApplicationPort: Send + Sync {
         project_id: i64,
         chapter_id: i64,
         prompt_id: i64,
-        properties: a4n_video_contract::ImportedVideoProperties,
+        properties: a4n_video_host_contract::ImportedVideoProperties,
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,
@@ -670,7 +671,7 @@ pub trait ReferenceMediaVideoImportApplicationPort: Send + Sync {
         &self,
         project_id: i64,
         chapter_id: i64,
-        properties: a4n_video_contract::ImportedVideoProperties,
+        properties: a4n_video_host_contract::ImportedVideoProperties,
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,
@@ -689,7 +690,7 @@ pub trait AssemblyVideoImportApplicationPort: Send + Sync {
         chapter_id: i64,
         workflow_mode: &str,
         insert_after_video_id: Option<i64>,
-        properties: a4n_video_contract::ImportedVideoProperties,
+        properties: a4n_video_host_contract::ImportedVideoProperties,
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,
@@ -702,7 +703,7 @@ pub trait CanvasVideoImportApplicationPort: Send + Sync {
     async fn create_imported_canvas_video_record(
         &self,
         project_id: i64,
-        properties: a4n_video_contract::ImportedVideoProperties,
+        properties: a4n_video_host_contract::ImportedVideoProperties,
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,

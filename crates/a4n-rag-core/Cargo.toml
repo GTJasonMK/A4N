@@ -6,7 +6,8 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { path = "../a4n-domain" }
-a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" }
+a4n-rag-value-contract = { path = "../a4n-rag-value-contract" }
 
 async-trait = { workspace = true }
 dashmap = { workspace = true }

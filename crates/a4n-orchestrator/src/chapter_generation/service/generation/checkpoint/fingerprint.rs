@@ -1,13 +1,13 @@
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 pub fn chapter_generation_call_fingerprint_json(
     project_id: i64,
     chapter_number: i32,
     source_fingerprint_json: &Value,
-    request: &a4n_llm::provider::ChatRequest,
+    request: &a4n_llm_provider_contract::provider::ChatRequest,
 ) -> Result<Value, AppError> {
     Ok(json!({
         "workflow": "chapter_generation",
@@ -51,7 +51,9 @@ mod tests {
     #[test]
     fn call_fingerprint_records_formal_source_fingerprint() {
         let source = json!({"version": 1, "outline": "章纲"});
-        let request = a4n_llm::provider::ChatRequest::system_user("system", "user", None, None);
+        let request = a4n_llm_provider_contract::provider::ChatRequest::system_user(
+            "system", "user", None, None,
+        );
 
         let fingerprint = chapter_generation_call_fingerprint_json(7, 3, &source, &request)
             .expect("fingerprint should serialize");

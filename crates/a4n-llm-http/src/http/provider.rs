@@ -4,7 +4,7 @@ mod request;
 mod streaming;
 mod trait_impl;
 
-use a4n_llm::provider::{LlmProtocolKind, ModelCapabilities};
+use a4n_llm_provider_contract::{LlmProtocolKind, ModelCapabilities};
 use reqwest::Client;
 use serde_json::{Map, Value};
 

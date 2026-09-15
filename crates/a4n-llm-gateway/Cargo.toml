@@ -7,8 +7,9 @@ license.workspace = true
 [dependencies]
 a4n-error = { path = "../a4n-error", default-features = false }
 a4n-domain = { path = "../a4n-domain" }
-a4n-llm = { path = "../a4n-llm" }
+a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-llm-http = { path = "../a4n-llm-http" }
+a4n-llm-sidecar-contract = { path = "../a4n-llm-sidecar-contract" }
 a4n-model-discovery = { path = "../a4n-model-discovery" }
 a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
@@ -17,7 +18,6 @@ a4n-service-protocol = { path = "../a4n-service-protocol" }
 anyhow = { workspace = true }
 axum = { workspace = true }
 futures = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

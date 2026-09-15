@@ -1,4 +1,4 @@
-use a4n_llm::provider::LlmTraceContext;
+use a4n_llm_provider_contract::provider::LlmTraceContext;
 
 pub(super) fn chapter_analysis_trace_context(
     project_id: i64,

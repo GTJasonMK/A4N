@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 use a4n_db::shooting_script::ParsedChapterShootingScript;
@@ -29,7 +29,7 @@ pub(super) struct MangaPreviewCallInput<'a> {
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) project_id: i64,
     pub(super) variables: &'a HashMap<String, Value>,
-    pub(super) user_content: a4n_llm::context::LlmContextManifest,
+    pub(super) user_content: a4n_llm_context::LlmContextManifest,
     pub(super) temperature: f32,
 }
 

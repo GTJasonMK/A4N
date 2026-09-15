@@ -1,6 +1,6 @@
 use a4n_domain::workflow::WORKFLOW_STATUS_CANCELLED;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 

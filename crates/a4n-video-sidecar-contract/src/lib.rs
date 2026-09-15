@@ -9,6 +9,8 @@ use serde_json::Value;
 
 pub const VIDEO_SERVICE_NAME: &str = "video";
 pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v7";
+pub const VIDEO_SERVICE_ADDR_ENV: &str = "A4N_VIDEO_SERVICE_ADDR";
+pub const VIDEO_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47646";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]

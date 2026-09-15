@@ -4,7 +4,7 @@ use a4n_domain::{
     source_text_hash,
 };
 use a4n_error::AppError;
-use a4n_llm::context::{
+use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft,
 };
@@ -19,7 +19,7 @@ pub fn add_chapter_analysis_source_pack(
 ) -> Result<(), AppError> {
     let content_sha256 = source_text_hash(&ch.content);
     let chapter_title = chapter_display_title(ch);
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: ("chapter").into(),
         pack_kind: ("chapter_analysis_source").into(),
         source_refs_json: Some(json!({

@@ -1,6 +1,6 @@
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::ProviderError;
-use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
+use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use a4n_rag_core::ChapterRagChunkingMode;
 use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use async_trait::async_trait;

@@ -1,13 +1,10 @@
 use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
 use a4n_db_models::models::{agent::execution, ai::optimization_session};
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{LlmContextManifest, replace_request_user_content_from_manifest},
-    provider::ChatRequest,
-};
+use a4n_llm_context::{LlmContextManifest, replace_request_user_content_from_manifest};
+use a4n_llm_provider_contract::provider::{ChatRequest, MessageRole};
 use serde_json::{Value, json};
 
-use crate::agent::{model_request_snapshot, restore_model_request_snapshot};
 use crate::{OrchestratorContext, optimize::AgentLoopGenerationContext};
 
 pub(in crate::optimize) async fn prepare_model_execution(
@@ -34,7 +31,7 @@ pub(in crate::optimize) async fn prepare_model_execution(
     if let Some(execution) = agent.execution_by_key(owner.id, &key).await? {
         // A completed request can precede its workflow checkpoint. Reuse its
         // exact durable request/response instead of issuing a second call.
-        let original = restore_model_request_snapshot(
+        let original = ChatRequest::from_snapshot_value(
             execution
                 .arguments_json
                 .clone()
@@ -79,11 +76,11 @@ pub(in crate::optimize) async fn prepare_model_execution(
         let first_user = request
             .messages
             .iter()
-            .position(|message| matches!(message.role, a4n_llm::provider::MessageRole::User));
+            .position(|message| matches!(message.role, MessageRole::User));
         let last_user = request
             .messages
             .iter()
-            .rposition(|message| matches!(message.role, a4n_llm::provider::MessageRole::User))
+            .rposition(|message| matches!(message.role, MessageRole::User))
             .ok_or_else(|| AppError::InvalidArgument("内容优化请求缺少 user 消息".into()))?;
         if first_user != Some(last_user) {
             request.messages[last_user].content.push_str(&followups);
@@ -115,7 +112,7 @@ pub(in crate::optimize) async fn prepare_model_execution(
             },
             execution_key: call_key.into(),
             tool_name: None,
-            arguments: model_request_snapshot(request)?,
+            arguments: request.snapshot_value()?,
             input_message_id: Some(input_message_id),
             base_input_fingerprint: Some(base_input_fingerprint),
         })

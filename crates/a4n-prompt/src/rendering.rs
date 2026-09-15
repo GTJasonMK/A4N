@@ -6,15 +6,7 @@ use serde_json::Value;
 
 use crate::tera_engine::TeraPromptEngine;
 
-#[async_trait]
-pub trait PromptRenderer: Send + Sync {
-    async fn render_prompt(
-        &self,
-        template_name: &str,
-        variables: &HashMap<String, Value>,
-        project_id: Option<i64>,
-    ) -> Result<String, AppError>;
-}
+pub use a4n_prompt_contract::rendering::PromptRenderer;
 
 #[async_trait]
 impl PromptRenderer for TeraPromptEngine {

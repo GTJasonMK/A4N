@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_domain::rag::RagDataType;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_rag_contract::{RagIngestPort, RagIngestPreparation};
 use a4n_rag_core::{

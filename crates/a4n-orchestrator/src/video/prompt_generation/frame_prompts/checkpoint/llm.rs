@@ -4,12 +4,12 @@ use a4n_db::workflow::{
 };
 use a4n_domain::workflow::WORKFLOW_STATUS_FAILED;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 use super::super::{OrchestratorContext, RenderedVideoPromptTrace, VideoPromptLlmCallTraceContext};
 

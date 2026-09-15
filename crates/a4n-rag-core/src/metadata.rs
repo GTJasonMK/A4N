@@ -2,7 +2,7 @@ use a4n_domain::{
     ProviderError as AppError,
     rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION},
 };
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use sha2::{Digest, Sha256};
 
 use crate::validation::required_content;

@@ -6,14 +6,12 @@ use super::gemini_veo::provider::GeminiVeoVideoProvider;
 use super::http::provider::HttpVideoProvider;
 use super::newapi::provider::NewApiVideoProvider;
 use super::seedance2::provider::Seedance2VideoProvider;
-use a4n_video::{
+use a4n_video_provider_contract::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
     VideoProvider, video_provider_capabilities,
 };
 use a4n_video_sidecar_contract::VideoGenerationRequest;
-#[cfg(test)]
-use a4n_video_sidecar_contract::VideoMediaInput;
 use serde_json::Value;
 
 pub fn pick_video_provider(
@@ -64,7 +62,8 @@ pub fn video_provider_request_body_preview(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_video::VIDEO_PROVIDER_CAPABILITIES;
+    use a4n_video_provider_contract::VIDEO_PROVIDER_CAPABILITIES;
+    use a4n_video_sidecar_contract::VideoMediaInput;
 
     #[test]
     fn accepts_canonical_video_backends() {

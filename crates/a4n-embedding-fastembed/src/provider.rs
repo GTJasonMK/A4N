@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
+use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use async_trait::async_trait;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding, TextInitOptions};
 use tokio::sync::Mutex;

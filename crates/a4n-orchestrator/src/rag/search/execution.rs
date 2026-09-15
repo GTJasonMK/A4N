@@ -1,4 +1,4 @@
-use a4n_embedding::provider::EmbeddingProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_error::AppError;
 use a4n_rag_core::{
     errors::{embedding_provider_error, vector_store_error},

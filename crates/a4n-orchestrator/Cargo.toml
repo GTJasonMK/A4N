@@ -8,10 +8,13 @@ license.workspace = true
 a4n-agent-application = { path = "../a4n-agent-application" }
 a4n-archive-core = { path = "../a4n-archive-core" }
 a4n-api-contract = { path = "../a4n-api-contract" }
+a4n-blueprint-contract = { path = "../a4n-blueprint-contract" }
+a4n-chapter-generation-contract = { path = "../a4n-chapter-generation-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-chapter-analysis = { path = "../a4n-chapter-analysis" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-canvas-contract = { path = "../a4n-canvas-contract" }
+a4n-outline-contract = { path = "../a4n-outline-contract" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-document-export-core = { path = "../a4n-document-export-core" }
 a4n-domain = { path = "../a4n-domain" }
@@ -22,8 +25,11 @@ a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-storage = { path = "../a4n-storage" }
 a4n-task-runtime = { path = "../a4n-task-runtime" }
-a4n-llm = { path = "../a4n-llm" }
+a4n-llm-context = { path = "../a4n-llm-context" }
+a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
+a4n-llm-structured-stream = { path = "../a4n-llm-structured-stream" }
 a4n-llm-config = { path = "../a4n-llm-config" }
+a4n-llm-trace = { path = "../a4n-llm-trace" }
 a4n-prompt = { path = "../a4n-prompt" }
 a4n-prompt-client = { path = "../a4n-prompt-client" }
 a4n-prompt-contract = { path = "../a4n-prompt-contract" }
@@ -31,7 +37,7 @@ a4n-progress = { path = "../a4n-progress" }
 a4n-provider-contract = { path = "../a4n-provider-contract" }
 a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
 a4n-queue = { path = "../a4n-queue" }
-a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-rag-contract = { path = "../a4n-rag-contract" }
 a4n-import-core = { path = "../a4n-import-core" }
@@ -39,6 +45,7 @@ a4n-media = { path = "../a4n-media" }
 a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-contract = { path = "../a4n-video-contract" }
+a4n-video-host-contract = { path = "../a4n-video-host-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
 
 anyhow = { workspace = true }

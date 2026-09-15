@@ -5,7 +5,9 @@ use std::pin::Pin;
 
 use a4n_domain::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
+use a4n_llm_provider_contract::provider::{
+    ChatChunk, ChatChunkStream, ChatRequest, LlmProvider, ModelCapabilities, open_chat_stream,
+};
 use async_trait::async_trait;
 use futures::stream::Stream;
 
@@ -17,7 +19,7 @@ impl DynamicLlmProvider {
         config_id: Option<i64>,
         request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-        a4n_llm::provider::open_chat_stream(
+        open_chat_stream(
             self.raw_chat_stream_by_id(config_id, request),
             Default::default(),
         )
@@ -28,7 +30,7 @@ impl DynamicLlmProvider {
         &self,
         config_id: Option<i64>,
         request: ChatRequest,
-    ) -> Result<a4n_llm::provider::ChatChunkStream, AppError> {
+    ) -> Result<ChatChunkStream, AppError> {
         let model = self.resolve_runtime_model_by_id(config_id).await?;
         self.chat_stream_with_resolved_model(model, request).await
     }
@@ -37,7 +39,7 @@ impl DynamicLlmProvider {
         &self,
         model: ResolvedLlmModel,
         request: ChatRequest,
-    ) -> Result<a4n_llm::provider::ChatChunkStream, AppError> {
+    ) -> Result<ChatChunkStream, AppError> {
         if let Some(client) = self.sidecar_client.clone() {
             let prepared = self.prepare_call(model, request).await?;
             return self.chat_stream_via_sidecar(client, prepared).await;

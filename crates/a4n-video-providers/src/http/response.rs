@@ -1,5 +1,5 @@
 use a4n_domain::ProviderError as AppError;
-use a4n_video::VideoGenerationResult;
+use a4n_video_provider_contract::VideoGenerationResult;
 use base64::Engine as _;
 use serde_json::Value;
 

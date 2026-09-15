@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle,
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
     outline::{
         ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
         GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
@@ -12,13 +12,15 @@ use a4n_api_contract::{
 };
 use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, StreamTextHash, TextStreamSnapshot,
 };
 use futures::future::BoxFuture;
 use serde_json::{Map, Value};
 use tokio::sync::mpsc;
+
+use a4n_outline_contract::OutlineGenerationApplicationPort;
 
 use crate::{
     OrchestratorContext,
@@ -30,7 +32,7 @@ use crate::{
     outline::{
         OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
         OutlineChapterCountGenerationPreviewApplicationPort,
-        OutlineChapterRegenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
+        OutlineChapterRegenerationPreviewApplicationPort,
         OutlinePartChapterGenerationPreviewApplicationPort,
         OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
         OutlineRequestPreviewStep,
@@ -480,8 +482,11 @@ impl OutlineGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &StartOutlineGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_outline_generation_task(self, user_id, input).await
+    ) -> Result<a4n_api_contract::generation_tasks::GenerationTaskStart, GenerationTaskStartError>
+    {
+        OrchestratorContext::start_outline_generation_task(self, user_id, input)
+            .await
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(
@@ -677,6 +682,19 @@ fn require_positive_i64(value: i64, field: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn outline_start_errors_use_stable_codes_and_retry_policy() {
+        let invalid = crate::GenerationTaskAccessError::InvalidArgument("请求无效".to_string())
+            .into_start_error();
+        assert_eq!(invalid.code(), "generation_request_invalid");
+        assert!(!invalid.retryable);
+
+        let forbidden =
+            crate::GenerationTaskAccessError::Forbidden("无权限".into()).into_start_error();
+        assert_eq!(forbidden.code(), "generation_task_forbidden");
+        assert!(!forbidden.retryable);
+    }
 
     #[test]
     fn snapshot_text_hashes_cover_every_stream() {

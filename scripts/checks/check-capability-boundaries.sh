@@ -65,6 +65,7 @@ end
 
 capability_contracts = %w[
   a4n-prompt-contract
+  a4n-llm-sidecar-contract
   a4n-embedding-contract
   a4n-rag-contract
   a4n-rag-sidecar-contract
@@ -86,7 +87,6 @@ forbidden_contract_dependency = lambda do |dependency|
     a4n-image
     a4n-image-providers
     a4n-import-core
-    a4n-llm
     a4n-llm-http
     a4n-model-discovery
     a4n-orchestrator

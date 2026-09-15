@@ -1,4 +1,4 @@
-use a4n_llm::provider::LlmTraceContext;
+use a4n_llm_provider_contract::provider::LlmTraceContext;
 use a4n_service_protocol::TraceContext;
 
 use super::context::SidecarRequestContext;

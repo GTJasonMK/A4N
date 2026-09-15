@@ -3,8 +3,8 @@ use super::super::support::{
     required_non_empty, response_text, send_image_request,
 };
 use a4n_domain::ProviderError as AppError;
-use a4n_image::{ImageGenerationResult, ImageProvider};
 use a4n_image_contract::ImageGenerationRequest;
+use a4n_image_provider_contract::{ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 
 /// CLIProxyAPI image provider for xAI Grok Imagine Image.

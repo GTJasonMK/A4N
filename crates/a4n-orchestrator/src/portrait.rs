@@ -10,7 +10,7 @@ use a4n_api_contract::{
 };
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
+use a4n_llm_provider_contract::provider::{ChatRequest, is_truncated_finish_reason};
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
@@ -367,7 +367,7 @@ fn portrait_prompt_call_fingerprint_json(
         "project_id": project_id,
         "profile_name": profile_name,
         "portrait_type": portrait_type,
-        "request": a4n_llm::trace::context_aware_chat_request_trace_json(request)?,
+        "request": a4n_llm_trace::context_aware_chat_request_trace_json(request)?,
     }))
 }
 

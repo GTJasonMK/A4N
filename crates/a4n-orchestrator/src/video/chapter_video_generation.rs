@@ -20,11 +20,13 @@ use a4n_video::{
     video_request_prompt_length_context,
 };
 use a4n_video_contract::{
-    ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
-    ChapterVideoRequestPreview, VIDEO_EXECUTION_CONTRACT_EPOCH, VideoProviderRequestInput,
-    VideoProviderValidationMode, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
+    VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
     VideoSegmentPlanV2, validate_video_segment_recipes_for_plan,
     video_segment_recipes_from_metadata,
+};
+use a4n_video_host_contract::{
+    ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
+    ChapterVideoRequestPreview, VideoProviderRequestInput, VideoProviderValidationMode,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};

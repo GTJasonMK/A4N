@@ -1,5 +1,7 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext, is_truncated_finish_reason};
+use a4n_llm_provider_contract::provider::{
+    ChatRequest, LlmTraceContext, is_truncated_finish_reason,
+};
 use serde_json::{Value, json};
 
 use crate::galgame::OrchestratorContext;

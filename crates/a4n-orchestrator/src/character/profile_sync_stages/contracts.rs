@@ -1,4 +1,4 @@
-use a4n_llm::provider::{ChatMessage, ChatRequest};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]

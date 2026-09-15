@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatMessage, ChatRequest, LlmProvider, collect_chat_stream};
+use a4n_llm_provider_contract::{ChatMessage, ChatRequest, LlmProvider, collect_chat_stream};
 use tokio_util::sync::CancellationToken;
 
 use super::{

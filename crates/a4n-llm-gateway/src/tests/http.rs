@@ -5,14 +5,15 @@ use std::{
     time::Instant,
 };
 
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
-use a4n_llm::provider::{ChatChunk, ChatRequest};
-use a4n_llm_client::{HttpLlmClient, JsonRequest, LlmClient};
+use a4n_llm_client::{HttpLlmClient, LlmClient, LlmGatewayRequest};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+};
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, HealthStatus, LLM_CHAT_CAPABILITY_VERSION,
     LLM_SERVICE_NAME, PROTOCOL_VERSION, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
-    ServiceRequest,
 };
 use axum::{
     Json, Router,
@@ -23,7 +24,6 @@ use axum::{
     routing::post,
 };
 use futures::{future::pending, stream};
-use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::{
@@ -36,6 +36,8 @@ use super::{service_request, test_provider_config};
 use crate::app::build_router;
 
 mod errors;
+
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
 
 struct TestHttpServer {
     addr: SocketAddr,
@@ -87,7 +89,7 @@ impl TestHttpServer {
 
 async fn collect_stream_events(
     client: &impl LlmClient,
-    request: JsonRequest,
+    request: LlmGatewayRequest,
 ) -> Vec<CapabilityTaskEvent> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
@@ -109,15 +111,8 @@ fn invalid_provider_payload() -> LlmGatewayPayload {
             api_key: Some("payload-provider-secret".to_string()),
             ..test_provider_config()
         },
-        request: ChatRequest::system_user("system", "ping", None, None),
+        request: ChatRequest::system_user("system", "ping", None, None).into(),
     }
-}
-
-fn json_request<T: Serialize>(request: ServiceRequest<T>) -> JsonRequest {
-    serde_json::from_value(
-        serde_json::to_value(request).expect("typed service request should serialize"),
-    )
-    .expect("typed service request should preserve the generic JSON envelope")
 }
 
 fn event_chunk(event: &CapabilityTaskEvent) -> ChatChunk {
@@ -251,7 +246,7 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
     let mut root_without_project = service_request(invalid_provider_payload());
     root_without_project.project_id = None;
     root_without_project.root_project_id = Some(3);
-    let root_events = collect_stream_events(&client, json_request(root_without_project)).await;
+    let root_events = collect_stream_events(&client, root_without_project).await;
 
     let mut unredacted_snapshot = service_request(invalid_provider_payload());
     unredacted_snapshot.runtime_config_snapshot = Some(json!({
@@ -260,12 +255,11 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
             "base_url": "https://private-provider.example/v1"
         }
     }));
-    let snapshot_events = collect_stream_events(&client, json_request(unredacted_snapshot)).await;
+    let snapshot_events = collect_stream_events(&client, unredacted_snapshot).await;
 
     let mut incompatible_capability = service_request(invalid_provider_payload());
     incompatible_capability.capability_version = "llm-chat-v0".to_string();
-    let capability_events =
-        collect_stream_events(&client, json_request(incompatible_capability)).await;
+    let capability_events = collect_stream_events(&client, incompatible_capability).await;
 
     server.stop().await;
 
@@ -357,12 +351,13 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks() {
             extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "stream ping", None, Some(16))
-            .with_stream_usage(),
+            .with_stream_usage()
+            .into(),
     });
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     client
-        .stream(json_request(request), event_tx)
+        .stream(request, event_tx)
         .await
         .expect("typed LLM stream should complete through the fake provider");
     let mut events = Vec::new();
@@ -439,13 +434,13 @@ async fn closed_receiver_cancels_before_and_during_provider_streams() {
             timeout_secs: 5,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "cancel ping", None, Some(16)),
+        request: ChatRequest::system_user("system", "cancel ping", None, Some(16)).into(),
     });
     let (closed_tx, closed_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     drop(closed_rx);
     let early_error = timeout(
         Duration::from_secs(1),
-        client.stream(json_request(request.clone()), closed_tx),
+        client.stream(request.clone(), closed_tx),
     )
     .await
     .expect("a closed receiver must cancel before opening the request")
@@ -454,7 +449,7 @@ async fn closed_receiver_cancels_before_and_during_provider_streams() {
     assert!(provider_observation.lock().unwrap().is_none());
 
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    let stream = tokio::spawn(async move { client.stream(json_request(request), event_tx).await });
+    let stream = tokio::spawn(async move { client.stream(request, event_tx).await });
     let first = timeout(Duration::from_secs(5), event_rx.recv())
         .await
         .expect("provider should start streaming before cancellation")
@@ -551,12 +546,11 @@ async fn run_stream_baseline(
             timeout_secs: 30,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "baseline", None, None),
+        request: ChatRequest::system_user("system", "baseline", None, None).into(),
     });
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(event_capacity);
     let started_at = Instant::now();
-    let mut producer =
-        tokio::spawn(async move { client.stream(json_request(request), event_tx).await });
+    let mut producer = tokio::spawn(async move { client.stream(request, event_tx).await });
 
     let first_event = timeout(Duration::from_secs(10), event_rx.recv())
         .await

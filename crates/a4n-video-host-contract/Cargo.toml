@@ -1,0 +1,16 @@
+[package]
+name = "a4n-video-host-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error" }
+a4n-generation-artifact-contract = { path = "../a4n-generation-artifact-contract" }
+a4n-provider-contract = { path = "../a4n-provider-contract" }
+a4n-video-provider-contract = { path = "../a4n-video-provider-contract" }
+a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
+
+async-trait = { workspace = true }
+serde_json = { workspace = true }

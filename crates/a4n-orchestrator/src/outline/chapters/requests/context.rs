@@ -6,8 +6,8 @@ use crate::outline::context::{
     minimal_part_context, part_context_json,
 };
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::context::LlmContextManifest;
-use a4n_llm::context::{
+use a4n_llm_context::LlmContextManifest;
+use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft,
 };
@@ -21,7 +21,7 @@ pub(super) fn build_chapter_outline_context_manifest(
     let blueprint_available = context.blueprint_payload["blueprint_available"]
         .as_bool()
         .unwrap_or(true);
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: ("project").into(),
         pack_kind: ("outline_blueprint_context").into(),
         source_refs_json: Some(json!({
@@ -70,7 +70,7 @@ pub(super) fn build_chapter_outline_context_manifest(
         .map(part_context_json)
         .collect::<Vec<_>>();
     let part_hash = source_content_sha256(&serde_json::to_string(&part_context)?);
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: ("project").into(),
         pack_kind: ("outline_part_outlines").into(),
         source_refs_json: Some(json!({

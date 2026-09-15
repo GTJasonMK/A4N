@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, LlmProtocolKind};
+use a4n_llm_provider_contract::{ChatRequest, LlmProtocolKind};
 use reqwest::{RequestBuilder, Url};
 
 use super::HttpLlmProvider;
@@ -54,7 +54,7 @@ impl HttpLlmProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::provider::ModelCapabilities;
+    use a4n_llm_provider_contract::ModelCapabilities;
 
     #[test]
     fn native_requests_use_protocol_paths_auth_and_streaming_headers() {

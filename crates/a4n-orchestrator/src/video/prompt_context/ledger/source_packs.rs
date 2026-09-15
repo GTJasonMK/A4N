@@ -41,7 +41,7 @@ pub(super) fn add_chapter_source_pack(
         "source_span_count": source_spans.len(),
         "content_sha256": content_sha256
     });
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
         pack_kind: ("video_chapter_source").into(),
         source_refs_json: Some(json!({
@@ -87,7 +87,7 @@ pub(super) fn add_public_chapter_source_pack(
         "summary": trimmed_optional(source.summary),
         "content_sha256": content_sha256
     });
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
         pack_kind: ("video_chapter_source_public").into(),
         source_refs_json: Some(json!({

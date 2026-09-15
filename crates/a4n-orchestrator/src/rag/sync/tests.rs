@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_domain::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_rag_core::contracts::sync::{
     classify_rag_record, ensure_project_embedding_identity_matches,
 };

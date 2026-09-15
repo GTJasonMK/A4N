@@ -1,4 +1,4 @@
-//! Pure video execution contracts shared by Host, database, and workers.
+//! Pure video workflow and execution contracts shared by owners and workers.
 //!
 //! This crate deliberately contains no ORM, provider, filesystem, or runtime
 //! state. Implementations can evolve behind these serialized contracts.

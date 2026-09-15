@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use a4n_domain::project::{BLUEPRINT_RAW_JSON_STREAM_ID, blueprint_stage_call_key};
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::ensure_blueprint_response_not_truncated;
 use tokio_util::sync::CancellationToken;
 

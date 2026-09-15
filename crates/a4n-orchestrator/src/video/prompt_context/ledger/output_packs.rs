@@ -12,7 +12,7 @@ pub(super) fn add_previous_output_pack(
     output: &VideoContextPreviousOutput<'_>,
 ) -> Result<(), AppError> {
     let raw_sha256 = output.raw_output.map(source_content_sha256);
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
         pack_kind: (output.pack_kind).into(),
         source_refs_json: Some(json!({
@@ -64,7 +64,7 @@ pub(super) fn add_optional_value_pack(
     config_identity: Value,
     value: &Value,
 ) -> Result<(), AppError> {
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
         pack_kind: (pack_kind).into(),
         source_refs_json: None,

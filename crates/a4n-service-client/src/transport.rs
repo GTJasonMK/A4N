@@ -11,7 +11,6 @@ pub(crate) use health::validate_service_health;
 pub(crate) use json::serialize_request;
 pub use json::sidecar_response_payload;
 
-use a4n_process_catalog::service_catalog_entry_ref;
 use a4n_service_protocol::{
     SIDECAR_AUTH_HEADER, SIDECAR_REQUEST_ID_HEADER, SIDECAR_TRACE_ID_HEADER, ServiceError,
     ServiceErrorCode, ServiceRequest, SidecarResourcePolicy, redact_sensitive_message,
@@ -29,15 +28,6 @@ pub struct ServiceClientConfig {
 }
 
 impl ServiceClientConfig {
-    pub fn for_service(service_name: &'static str) -> Self {
-        let capability_version = service_catalog_entry_ref(service_name)
-            .map(|entry| entry.capability_version.as_str())
-            .unwrap_or_else(|| panic!("typed HTTP client service 未注册: {service_name}"));
-        let resource_policy = a4n_service_protocol::sidecar_resource_policy(service_name)
-            .unwrap_or_else(|| panic!("typed HTTP client service 缺少资源策略: {service_name}"));
-        Self::new(service_name, capability_version, resource_policy)
-    }
-
     pub const fn new(
         service_name: &'static str,
         capability_version: &'static str,

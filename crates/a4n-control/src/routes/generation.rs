@@ -177,25 +177,27 @@ async fn start_generation(
         }};
     }
 
-    let result = match command {
-        "start_visual_plan_prompt_generation" => {
-            match decode_generation_start_input::<
-                a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
-            >(input)
-            {
+    macro_rules! start_stable {
+        ($input:ty, $action:path) => {{
+            match decode_generation_start_input::<$input>(input) {
                 Ok(input) => a4n_runtime::host_api::runtime_config::request_scope(
                     user_id,
                     runtime_config_snapshot,
-                    a4n_runtime::host_api::chapter_visual_plan_records::start_visual_plan_prompt_generation(
-                        runtime, user_id, input,
-                    ),
+                    ($action)(runtime, user_id, input),
                 )
                 .await
-                .map_err(map_video_start_error),
+                .map_err(map_generation_start_error),
                 Err(error) => Err(error),
             }
-        }
-        "start_chapter_generation" => start!(
+        }};
+    }
+
+    let result = match command {
+        "start_visual_plan_prompt_generation" => start_stable!(
+            a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
+            a4n_runtime::host_api::chapter_visual_plan_records::start_visual_plan_prompt_generation
+        ),
+        "start_chapter_generation" => start_stable!(
             StartChapterGenerationInput,
             a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed
         ),
@@ -203,15 +205,15 @@ async fn start_generation(
             StartInspirationGenerationInput,
             a4n_runtime::host_api::inspiration_records::start_inspiration_generation_typed
         ),
-        "start_blueprint_generation" => start!(
+        "start_blueprint_generation" => start_stable!(
             StartBlueprintGenerationInput,
             a4n_runtime::host_api::blueprint_records::start_blueprint_generation_typed
         ),
-        "start_blueprint_refinement" => start!(
+        "start_blueprint_refinement" => start_stable!(
             StartBlueprintRefinementInput,
             a4n_runtime::host_api::blueprint_records::start_blueprint_refinement_typed
         ),
-        "start_outline_generation" => start!(
+        "start_outline_generation" => start_stable!(
             StartOutlineGenerationInput,
             a4n_runtime::host_api::outline_records::start_outline_generation_typed
         ),
@@ -223,20 +225,10 @@ async fn start_generation(
             StartImageGenerationInput,
             a4n_runtime::host_api::image_generation::start_image_generation_typed
         ),
-        "start_video_generation" => {
-            match decode_generation_start_input::<StartVideoGenerationInput>(input) {
-                Ok(input) => a4n_runtime::host_api::runtime_config::request_scope(
-                    user_id,
-                    runtime_config_snapshot,
-                    a4n_runtime::host_api::video_generation::start_video_generation_typed(
-                        runtime, user_id, input,
-                    ),
-                )
-                .await
-                .map_err(map_video_start_error),
-                Err(error) => Err(error),
-            }
-        }
+        "start_video_generation" => start_stable!(
+            StartVideoGenerationInput,
+            a4n_runtime::host_api::video_generation::start_video_generation_typed
+        ),
         "start_optimize_chat_generation" => start!(
             StartOptimizeChatGenerationInput,
             a4n_runtime::host_api::optimize::start_optimize_chat_generation_typed
@@ -704,7 +696,7 @@ fn map_access_error(error: generation_actions::GenerationTaskAccessError) -> Gen
     }
 }
 
-fn map_video_start_error(
+fn map_generation_start_error(
     error: a4n_api_contract::generation_tasks::GenerationTaskStartError,
 ) -> GenerationApiError {
     let code = error.code().to_owned();

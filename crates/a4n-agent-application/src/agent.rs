@@ -24,8 +24,8 @@ pub use a4n_agent_runtime_contract::{
     AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
     AgentWorkflowCancelSnapshot, EnsureCanonicalSubagentThreadInput, WorkerDelegationInput,
     WorkerDelegationResult, WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage,
-    child_budget_within_parent, enforce_delegation_limits, model_request_snapshot,
-    parse_agent_context_summary, restore_model_request_snapshot, validate_agent_budget,
+    child_budget_within_parent, enforce_delegation_limits, parse_agent_context_summary,
+    validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AGENT_API_PROTOCOL_VERSION, AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT,

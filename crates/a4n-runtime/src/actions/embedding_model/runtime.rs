@@ -2,7 +2,7 @@ use super::{
     LocalEmbedTextsInput, LocalEmbedTextsOutput, LocalEmbeddingConfigInput,
     provider::cached_local_embedding_provider,
 };
-use a4n_embedding::provider::EmbeddingProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_error::AppError;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;

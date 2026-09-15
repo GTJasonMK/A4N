@@ -6,7 +6,7 @@ use a4n_api_contract::chapter_visual_plan::{
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AgentRunPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalExpiryRequest, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,

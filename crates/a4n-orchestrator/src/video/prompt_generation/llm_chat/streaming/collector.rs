@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use a4n_error::AppError;
-use a4n_llm::provider::UsageInfo;
+use a4n_llm_provider_contract::provider::UsageInfo;
 use a4n_progress::StructuredJsonProgressTracker;
 
 use super::super::contracts::report_video_prompt_progress;

@@ -1,15 +1,15 @@
 use a4n_error::AppError;
-use a4n_llm::context::LlmContextManifest;
-use a4n_llm::provider::{ChatMessage, ChatRequest, LlmTraceContext};
+use a4n_llm_context::LlmContextManifest;
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 
 use super::step::{agent_loop_rules, build_agent_loop_step_user_message};
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::context::{
+use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, context_aware_system_user_request,
 };
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::request::json_user_message_payload;
 
 const FOCUSED_HISTORY_TURNS: usize = 4;
@@ -93,7 +93,7 @@ fn build_agent_loop_context_manifest(
     let mut ledger = LlmContextLedger::new();
     let base_hash = source_content_sha256(base_user_message);
     let (focused_base_task, minimal_base_task) = compressed_base_task_variants(base_user_message);
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: ("optimization_session").into(),
         pack_kind: ("optimization_agent_base_task").into(),
         source_refs_json: Some(json!({
@@ -115,7 +115,7 @@ fn build_agent_loop_context_manifest(
             LlmContextLedgerPackDraft::new(COMPRESSION_MINIMAL, minimal_base_task),
         ],
     })?;
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: "optimization_session".into(),
         pack_kind: "optimization_agent_rules".into(),
         source_refs_json: None,
@@ -233,8 +233,8 @@ pub(in crate::optimize) fn agent_loop_request_payload(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::context::preview_context_aware_chat_request;
-    use a4n_llm::provider::{MessageRole, PromptCacheMode};
+    use a4n_llm_context::preview_context_aware_chat_request;
+    use a4n_llm_provider_contract::provider::{MessageRole, PromptCacheMode};
 
     #[test]
     fn loop_appends_full_observations_after_a_frozen_base_and_budget_counts_them() {

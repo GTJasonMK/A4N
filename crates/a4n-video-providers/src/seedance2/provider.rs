@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_provider_contract::{
+    VideoGenerationResult, VideoJobState, VideoJobStatus, VideoProvider,
+};
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use super::super::download::download_video_url;
@@ -138,7 +140,7 @@ impl VideoProvider for Seedance2VideoProvider {
         }
     }
 
-    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+    async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
             return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
@@ -151,22 +153,18 @@ impl VideoProvider for Seedance2VideoProvider {
         )
         .await?;
         let Some(value) = value else {
-            return Ok(a4n_video::VideoJobStatus::NotFound);
+            return Ok(VideoJobStatus::NotFound);
         };
         let status = extract_status(&value)
             .ok_or_else(|| AppError::Internal("Seedance 2.0 任务响应缺少 status".to_string()))?
             .to_ascii_lowercase();
         match status.as_str() {
-            "pending" | "queued" | "submitted" | "starting" => {
-                Ok(a4n_video::VideoJobStatus::Pending)
-            }
-            "processing" | "running" | "in_progress" => Ok(a4n_video::VideoJobStatus::Running),
-            "completed" | "succeeded" | "success" | "done" => {
-                Ok(a4n_video::VideoJobStatus::Completed)
-            }
-            "cancelled" | "canceled" => Ok(a4n_video::VideoJobStatus::Cancelled),
+            "pending" | "queued" | "submitted" | "starting" => Ok(VideoJobStatus::Pending),
+            "processing" | "running" | "in_progress" => Ok(VideoJobStatus::Running),
+            "completed" | "succeeded" | "success" | "done" => Ok(VideoJobStatus::Completed),
+            "cancelled" | "canceled" => Ok(VideoJobStatus::Cancelled),
             "failed" | "error" | "failure" | "expired" => {
-                Ok(a4n_video::VideoJobStatus::Failed(failure_message(&value)))
+                Ok(VideoJobStatus::Failed(failure_message(&value)))
             }
             other => Err(AppError::Internal(format!(
                 "未知 Seedance 2.0 任务状态：{other}"

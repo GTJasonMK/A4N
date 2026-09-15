@@ -18,14 +18,14 @@ use a4n_domain::{
     source_text_hash as source_content_sha256,
 };
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{
-        COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-        LlmContextLedgerPackDraft, context_aware_system_user_request,
-    },
-    provider::{ChatRequest, LlmTraceContext, is_truncated_finish_reason},
-    trace::context_aware_chat_request_trace_json,
+use a4n_llm_context::{
+    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
+    LlmContextLedgerPackDraft, context_aware_system_user_request,
 };
+use a4n_llm_provider_contract::provider::{
+    ChatRequest, LlmTraceContext, is_truncated_finish_reason,
+};
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
@@ -499,7 +499,7 @@ fn build_video_prompt_optimization_request_with_prompts(
     let current_prompt = video_prompt_optimization_source_artifact(prompt);
     let source_hash = source_content_sha256(&serde_json::to_string(&current_prompt)?);
     let mut ledger = LlmContextLedger::new();
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: "prompt_optimization".into(),
         pack_kind: "source_artifact".into(),
         source_refs_json: Some(json!({

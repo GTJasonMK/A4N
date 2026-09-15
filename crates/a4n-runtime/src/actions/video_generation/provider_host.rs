@@ -15,7 +15,7 @@ use a4n_video::{
     append_video_request_prompt_length_context, is_canvas_video_record_fields,
     provider_image_input_transport_with_override, video_request_prompt_length_context,
 };
-use a4n_video_contract::{
+use a4n_video_host_contract::{
     CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoResolvedImages,
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
     PersistedVideoResult, ReferenceMediaVideoGenerationHostPort,

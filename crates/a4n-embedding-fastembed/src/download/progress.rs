@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::UnboundedSender;
 
-use a4n_embedding::provider::DownloadProgress;
+use a4n_embedding_provider_contract::DownloadProgress;
 
 pub(super) struct AggregatedDownloadProgress<'a> {
     tx: Option<UnboundedSender<DownloadProgress>>,

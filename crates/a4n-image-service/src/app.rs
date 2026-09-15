@@ -13,7 +13,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         "a4n_image_service=info,tower_http=warn",
     )?;
 
-    let addr = a4n_sidecar_bootstrap::service_socket_addr(IMAGE_SERVICE_NAME)?;
+    let addr = a4n_sidecar_bootstrap::socket_addr(
+        a4n_image_contract::IMAGE_SERVICE_ADDR_ENV,
+        a4n_image_contract::IMAGE_SERVICE_DEFAULT_ADDR,
+    )?;
     let policy = a4n_service_protocol::sidecar_resource_policy(IMAGE_SERVICE_NAME)
         .expect("image sidecar must have a resource policy");
     let app = Router::new()

@@ -1,5 +1,5 @@
 use a4n_domain::ProviderError as AppError;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 
 pub fn required_chunk_id(chunk_id: &str) -> Result<String, AppError> {
     let chunk_id = chunk_id.trim();

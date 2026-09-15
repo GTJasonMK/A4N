@@ -45,7 +45,7 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|runtime|orchestrator)|sea-orm|sqlx)([[:sp
     exit 1
 fi
 
-for package in a4n-llm a4n-llm-http a4n-llm-gateway a4n-prompt a4n-prompt-git a4n-prompt-service a4n-queue; do
+for package in a4n-llm-http a4n-llm-gateway a4n-prompt a4n-prompt-git a4n-prompt-service a4n-queue; do
     if rg -n 'a4n[-_]core' "crates/$package/Cargo.toml" "crates/$package/src"; then
         printf '%s must depend on domain/contracts directly instead of a4n-core\n' "$package" >&2
         exit 1
@@ -104,6 +104,12 @@ storage_tree="$(cargo tree --locked -e normal,build -p a4n-storage)"
 if rg -n '(^|[[:space:]])(a4n-(core|db|runtime|orchestrator|server|tauri)|sea-orm|sqlx|tokio|reqwest)([[:space:]]|v|$)' \
     <<<"$storage_tree"; then
     printf 'a4n-storage must remain independent of Host, database, and runtime crates\n' >&2
+    exit 1
+fi
+
+rag_core_tree="$(cargo tree --locked -e normal,build -p a4n-rag-core)"
+if rg -n '(^|[[:space:]])a4n-embedding([[:space:]]|v|$)' <<<"$rag_core_tree"; then
+    printf 'a4n-rag-core must consume a4n-embedding-provider-contract instead of embedding implementations\n' >&2
     exit 1
 fi
 
@@ -239,13 +245,13 @@ fi
 
 if rg -n 'a4n_orchestrator::video::VideoProviderPollTarget|pub enum VideoProviderPollTarget' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
-    printf 'VideoProviderPollTarget must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'VideoProviderPollTarget must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
 if rg -U -n '^pub use a4n_video_contract::\{[^}]*\b(ChapterVideoGenerationHostPort|ReferenceMediaVideoGenerationHostPort|VideoGenerationHostPort)\b' \
     crates/a4n-orchestrator/src/video/mod.rs; then
-    printf 'Video generation HostPorts must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'Video generation HostPorts must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
@@ -352,10 +358,10 @@ if rg -n 'pub use a4n_video_contract::VideoProviderValidationMode' \
     exit 1
 fi
 
-if ! rg -n 'a4n_video_contract::VideoProviderPollTarget|VideoProviderPollTarget' \
+if ! rg -n 'a4n_video_host_contract::VideoProviderPollTarget|VideoProviderPollTarget' \
     crates/a4n-runtime/src/actions/video_generation/poll.rs \
     crates/a4n-orchestrator/src/video/records.rs \
-    crates/a4n-video-contract/src/contracts.rs; then
+    crates/a4n-video-host-contract/src/lib.rs; then
     printf 'Video provider polling must consume the narrow video contract\n' >&2
     exit 1
 fi
@@ -367,9 +373,15 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|db-models|runtime|orchestrator|server|tau
     exit 1
 fi
 
+video_host_contract_tree="$(cargo tree --locked -e normal,build -p a4n-video-host-contract)"
+if rg -n '(^|[[:space:]])a4n-video([[:space:]]|v|$)' <<<"$video_host_contract_tree"; then
+    printf 'a4n-video-host-contract must consume provider/sidecar contracts instead of a4n-video implementation\n' >&2
+    exit 1
+fi
+
 if rg -n 'pub trait VideoProviderHostPort|a4n_orchestrator::video::VideoProviderHostPort' \
     crates/a4n-orchestrator/src crates/a4n-runtime/src; then
-    printf 'VideoProviderHostPort must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'VideoProviderHostPort must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
@@ -379,9 +391,16 @@ if rg -n 'a4n_orchestrator::video::VideoProviderExecutionApplicationPort' \
     exit 1
 fi
 
+image_provider_tree="$(cargo tree --locked -e normal,build -p a4n-image-providers)"
+if rg -n '(^|[[:space:]])a4n-image([[:space:]]|v|$)' <<<"$image_provider_tree" \
+    || rg -n 'a4n_image::' crates/a4n-image-providers/src crates/a4n-runtime/src/sidecar_clients/image; then
+    printf 'Image providers and Runtime image adapters must consume a4n-image-provider-contract instead of a4n-image\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub trait VideoProviderExecutionApplicationPort' \
     crates/a4n-api-contract/src/video.rs || \
-   ! rg -n 'a4n_video_contract::VideoProviderHostPort' \
+   ! rg -n 'a4n_video_host_contract::VideoProviderHostPort' \
     crates/a4n-api-contract/src/video.rs \
     crates/a4n-orchestrator/src/video/records.rs \
     crates/a4n-runtime/src/actions/video_generation/provider_host.rs; then
@@ -391,11 +410,11 @@ fi
 
 if rg -n 'a4n_orchestrator::video::ImportedVideoProperties|pub struct ImportedVideoProperties' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
-    printf 'ImportedVideoProperties must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'ImportedVideoProperties must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
-if ! rg -n 'a4n_video_contract::ImportedVideoProperties' \
+if ! rg -n 'a4n_video_host_contract::ImportedVideoProperties' \
     crates/a4n-runtime/src/actions/video_records/imports/source/probe.rs; then
     printf 'Video probing must return the narrow ImportedVideoProperties contract\n' >&2
     exit 1
@@ -403,7 +422,7 @@ fi
 
 if rg -n 'a4n_orchestrator::video::(VideoProviderRequestInput|VideoProviderRequestBody|PersistedVideoResult|VideoProviderResultTarget)|pub (struct|enum) (VideoProviderRequestInput|VideoProviderRequestBody|PersistedVideoResult|VideoProviderResultTarget)' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
-    printf 'Video provider execution DTOs must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    printf 'Video provider execution DTOs must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2
     exit 1
 fi
 
@@ -415,8 +434,8 @@ for video_contract_consumer in \
     crates/a4n-runtime/src/actions/video_generation/job_lifecycle/completion/video.rs \
     crates/a4n-runtime/src/actions/video_generation/media/tail_frames/capture.rs \
     crates/a4n-runtime/src/actions/video_records/imports/chapter.rs; do
-    if ! rg -n 'a4n_video_contract::' "$video_contract_consumer"; then
-        printf '%s must consume video provider DTOs from a4n-video-contract directly\n' "$video_contract_consumer" >&2
+    if ! rg -n 'a4n_video_host_contract::' "$video_contract_consumer"; then
+        printf '%s must consume video provider DTOs from a4n-video-host-contract directly\n' "$video_contract_consumer" >&2
         exit 1
     fi
 done
@@ -431,7 +450,7 @@ if ! rg -n 'pub trait CanvasVideoRequestPreviewApplicationPort' crates/a4n-api-c
    ! rg -n 'pub trait ChapterVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
    ! rg -n 'pub trait ReferenceMediaVideoRequestPreviewApplicationPort' crates/a4n-api-contract/src/video.rs || \
    ! rg -n 'pub (struct|trait) (CanvasVideoRequestPreview|ChapterVideoRequestPreview|ReferenceMediaVideoRequestPreview|CanvasVideoPreviewHostPort|ChapterVideoPreviewHostPort|ReferenceMediaVideoPreviewHostPort)' \
-    crates/a4n-video-contract/src/contracts.rs; then
+    crates/a4n-video-host-contract/src/lib.rs; then
     printf 'Video request preview contracts are missing from their stable owners\n' >&2
     exit 1
 fi
@@ -514,6 +533,14 @@ if ! rg -n 'pub trait CleanupOutboxApplicationPort' \
     exit 1
 fi
 
+for package in a4n-blueprint-contract a4n-chapter-generation-contract a4n-outline-contract; do
+    contract_tree="$(cargo tree --locked -e normal,build -p "$package")"
+    if rg -n '(^|[[:space:]])a4n-prompt([[:space:]]|v|$)' <<<"$contract_tree"; then
+        printf '%s must depend on prompt contracts, not the prompt implementation crate\n' "$package" >&2
+        exit 1
+    fi
+done
+
 if rg -n 'state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/manual.rs \
     crates/a4n-runtime/src/actions/blueprint_records/world_setting.rs \
@@ -552,22 +579,22 @@ if ! rg -n 'blueprint_generation_preview_application\(\)' \
 fi
 
 if ! rg -n 'pub trait BlueprintGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs || \
+    crates/a4n-blueprint-contract/src/lib.rs || \
    ! rg -n 'pub trait BlueprintRefinementPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs; then
+    crates/a4n-blueprint-contract/src/lib.rs; then
     printf 'Blueprint worker-specific preview contracts are missing\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub trait BlueprintGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs || \
+    crates/a4n-blueprint-contract/src/lib.rs || \
    ! rg -n 'blueprint_generation_application\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/generation.rs; then
     printf 'Blueprint generation workers must route through BlueprintGenerationApplicationPort\n' >&2
     exit 1
 fi
 if ! rg -n 'pub trait BlueprintRefinementApplicationPort' \
-    crates/a4n-orchestrator/src/blueprint.rs || \
+    crates/a4n-blueprint-contract/src/lib.rs || \
    ! rg -n 'blueprint_refinement_application\(\)' \
     crates/a4n-runtime/src/actions/blueprint_records/refinement.rs; then
     printf 'Blueprint refinement workers must route through BlueprintRefinementApplicationPort\n' >&2
@@ -2855,7 +2882,7 @@ if rg -n '^[[:space:]]*\.image_generation_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait OutlinePartGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/parts/generation/preview.rs; then
     printf 'Part outline generation previews must route through OutlinePartGenerationPreviewApplicationPort\n' >&2
@@ -2867,7 +2894,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_(generate|regenerate
     exit 1
 fi
 if ! rg -n 'pub trait OutlinePartMutationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_mutation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/parts; then
     printf 'Part outline mutation previews must route through OutlinePartMutationPreviewApplicationPort\n' >&2
@@ -2879,7 +2906,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_(regenerate_last_par
     exit 1
 fi
 if ! rg -n 'pub trait OutlinePartChapterGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_chapter_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/chapters/generation.rs; then
     printf 'Part chapter generation previews must route through OutlinePartChapterGenerationPreviewApplicationPort\n' >&2
@@ -2891,7 +2918,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_generate_part_chapte
     exit 1
 fi
 if ! rg -n 'pub trait OutlineBatchPartGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_batch_part_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/batch/generation.rs; then
     printf 'Batch part generation previews must route through OutlineBatchPartGenerationPreviewApplicationPort\n' >&2
@@ -2903,7 +2930,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_batch_generate_part_
     exit 1
 fi
 if ! rg -n 'pub trait OutlineChapterCountGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_chapter_count_generation_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/batch/by_count.rs; then
     printf 'Chapter-count generation previews must route through OutlineChapterCountGenerationPreviewApplicationPort\n' >&2
@@ -2915,7 +2942,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_generate_chapter_out
     exit 1
 fi
 if ! rg -n 'pub trait OutlineChapterRegenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_chapter_regeneration_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/chapters/regeneration.rs; then
     printf 'Chapter regeneration previews must route through OutlineChapterRegenerationPreviewApplicationPort\n' >&2
@@ -2928,7 +2955,7 @@ if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_regenerate_chapter_o
 fi
 
 if ! rg -n 'pub trait OutlineBeatMappingPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/outline/mod.rs || \
+    crates/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_beat_mapping_preview_application\(\)' \
     crates/a4n-runtime/src/actions/outline_records/batch/beat_mapping.rs; then
     printf 'Beat mapping previews must route through OutlineBeatMappingPreviewApplicationPort\n' >&2
@@ -3383,9 +3410,9 @@ if ! rg -n 'chapter_generation_request_preview_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ChapterGenerationRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_generation.rs || \
+    crates/a4n-chapter-generation-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterGenerationRagPreparationApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_generation.rs; then
+    crates/a4n-chapter-generation-contract/src/lib.rs; then
     printf 'Chapter-generation worker-specific preview contracts are missing\n' >&2
     exit 1
 fi

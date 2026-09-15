@@ -1,6 +1,6 @@
 use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatMessage, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse};
 use serde_json::Value;
 
 use crate::optimize::{

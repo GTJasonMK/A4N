@@ -22,8 +22,8 @@ use a4n_domain::{
     },
 };
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
-use a4n_llm::trace::{
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::{
     chat_request_messages_json, context_aware_chat_request_trace_json, text_response_summary_json,
 };
 use a4n_service_protocol::ProgressEvent;

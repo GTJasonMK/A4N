@@ -10,7 +10,7 @@ use a4n_api_contract::{
 };
 use a4n_domain::{image::validate_reference_image_ids, progress::ProgressPhaseKind};
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_service_protocol::{BatchSummary, GenerationError, GenerationResultRef};
 use serde_json::Value;
 use tokio::sync::mpsc;

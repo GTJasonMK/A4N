@@ -2,7 +2,7 @@ use std::future;
 use std::pin::Pin;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;
 use futures::Stream;
 use tokio_util::sync::CancellationToken;

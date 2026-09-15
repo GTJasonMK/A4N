@@ -1,10 +1,10 @@
 use a4n_domain::source_spans::source_span_prompt_values;
 use a4n_error::AppError;
-use a4n_llm::context::{
+use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
     LlmContextManifest, context_aware_system_user_request,
 };
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use serde::Serialize;
 use serde_json::json;
 

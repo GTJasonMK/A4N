@@ -101,7 +101,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         mutation_lock: Arc::new(tokio::sync::Mutex::new(())),
         data_dir: data_dir.clone(),
     };
-    let addr = a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::RAG_SERVICE_NAME)?;
+    let addr = a4n_sidecar_bootstrap::socket_addr(
+        a4n_rag_sidecar_contract::RAG_SERVICE_ADDR_ENV,
+        a4n_rag_sidecar_contract::RAG_SERVICE_DEFAULT_ADDR,
+    )?;
 
     tracing::info!(%addr, data_dir = ?data_dir, "starting rag sidecar (qdrant backend)");
     a4n_sidecar_bootstrap::serve_sidecar(

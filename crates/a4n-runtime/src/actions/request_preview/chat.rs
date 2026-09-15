@@ -1,6 +1,6 @@
 use super::{ChatRequestStepInput, ModelRequestPreview, ModelRequestPreviewStep};
 use crate::AppState;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 mod budget;
 mod step;

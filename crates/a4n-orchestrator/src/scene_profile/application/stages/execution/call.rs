@@ -4,7 +4,7 @@ use crate::{
     OrchestratorContext,
     structured_llm::{ChatJsonStreamInput, StructuredLlmProgress},
 };
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::super::super::progress::{SceneProfileSyncProgress, report_scene_profile_sync_progress};
 use super::super::super::types::{SceneProfileStageCallResult, SceneProfileStageProgressSpec};

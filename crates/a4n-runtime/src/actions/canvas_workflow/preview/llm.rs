@@ -5,7 +5,7 @@ use crate::{
         ChatRequestStepInput, chat_request_step_for_state, model_request_preview,
     },
 };
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 pub(super) async fn preview_canvas_llm_node(
     state: &AppState,

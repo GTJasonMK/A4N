@@ -4,43 +4,19 @@
 //! synchronisation and record-building implementations stay in their owners.
 
 pub mod chapter {
-    #[derive(Clone, Copy, PartialEq)]
-    pub enum ChapterRagChunkingMode {
-        Semantic,
-        ClientDesktop,
-    }
+    pub use a4n_rag_value_contract::chapter::ChapterRagChunkingMode;
 }
 
 pub mod search {
-    use crate::vector_store::{SearchFilter, SearchResult};
-    use a4n_embedding::provider::EmbeddingModelIdentity;
-
-    pub struct EnhancedRagQuery {
-        pub label: &'static str,
-        pub query: String,
-        pub weight: f32,
-    }
-
-    pub struct PreparedEnhancedRagSearch {
-        pub project_id: i64,
-        pub queries: Vec<EnhancedRagQuery>,
-        pub filter: SearchFilter,
-        pub top_k: usize,
-        pub chapter_number: Option<i32>,
-        pub embedding_identity: EmbeddingModelIdentity,
-    }
-
-    pub struct EnhancedRagSearchResult {
-        pub results: Vec<SearchResult>,
-        pub queries: Vec<EnhancedRagQuery>,
-        pub candidate_count: usize,
-    }
+    pub use a4n_rag_value_contract::search::{
+        EnhancedRagQuery, EnhancedRagSearchResult, PreparedEnhancedRagSearch,
+    };
 }
 
 pub mod sync {
     use std::collections::HashMap;
 
-    use a4n_embedding::provider::EmbeddingModelIdentity;
+    use a4n_embedding_provider_contract::EmbeddingModelIdentity;
     use serde_json::Value;
 
     use crate::{
@@ -49,6 +25,10 @@ pub mod sync {
             metadata_matches_current_text_index, metadata_matches_embedding_identity,
         },
         validation::validate_embedding_identity_match,
+    };
+
+    pub use a4n_rag_value_contract::sync::{
+        PreparedRagRecordSync, RagEmbeddedInput, RagRecord, RagRecordSyncOutcome,
     };
 
     #[derive(Debug, thiserror::Error)]
@@ -71,54 +51,10 @@ pub mod sync {
         EmbeddingIdentityMismatch { message: String },
     }
 
-    pub struct RagRecord {
-        pub chunk_id: String,
-        pub text: String,
-        pub metadata: Value,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq)]
-    pub enum RagRecordSyncOutcome {
-        Added,
-        Updated,
-        Skipped,
-    }
-
-    pub struct PreparedRagRecordSync {
-        pub(super) record: RagRecord,
-        pub(super) outcome: RagRecordSyncOutcome,
-    }
-
     pub struct DeleteRagRecordsInput {
         pub project_id: i64,
         pub ids: Vec<String>,
         pub id_prefixes: Vec<String>,
-    }
-
-    impl PreparedRagRecordSync {
-        pub fn new(record: RagRecord, outcome: RagRecordSyncOutcome) -> Self {
-            Self { record, outcome }
-        }
-
-        pub fn outcome(&self) -> RagRecordSyncOutcome {
-            self.outcome
-        }
-
-        pub fn chunk_id(&self) -> &str {
-            &self.record.chunk_id
-        }
-
-        pub fn into_parts(self) -> (RagRecord, RagRecordSyncOutcome) {
-            (self.record, self.outcome)
-        }
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct RagEmbeddedInput {
-        pub chunk_id: String,
-        pub text: String,
-        pub metadata: Value,
-        pub embedding: Vec<f32>,
     }
 
     pub fn classify_rag_record(

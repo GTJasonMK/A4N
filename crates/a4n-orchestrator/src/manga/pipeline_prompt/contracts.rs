@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_llm::provider::{ChatRequest, UsageInfo};
+use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -56,6 +56,6 @@ pub(in crate::manga) struct MangaLlmCallInput<'a> {
     pub(in crate::manga) call_key: String,
     pub(in crate::manga) call_order: i32,
     pub(in crate::manga) variables: &'a HashMap<String, Value>,
-    pub(in crate::manga) user_content: a4n_llm::context::LlmContextManifest,
+    pub(in crate::manga) user_content: a4n_llm_context::LlmContextManifest,
     pub(in crate::manga) temperature: f32,
 }

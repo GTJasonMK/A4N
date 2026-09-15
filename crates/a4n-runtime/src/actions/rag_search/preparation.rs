@@ -1,4 +1,4 @@
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_rag_core::{
     PreparedEnhancedRagSearch,

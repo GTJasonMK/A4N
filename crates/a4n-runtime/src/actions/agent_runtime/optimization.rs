@@ -5,6 +5,7 @@ use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskSummary},
     optimize::OptimizeSessionInput,
 };
+use a4n_llm_provider_contract::provider::validated_model_output_tokens;
 use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
 
 pub(super) async fn start(
@@ -54,7 +55,7 @@ pub(super) async fn start(
             &context.scope,
             input,
             request_id,
-            a4n_llm::provider::validated_model_output_tokens(&capabilities)?,
+            validated_model_output_tokens(&capabilities)?,
         )
         .await
     })

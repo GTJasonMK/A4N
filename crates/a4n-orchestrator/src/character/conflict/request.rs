@@ -1,8 +1,6 @@
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{ContextAwareJsonLlmRequestInput, context_aware_system_user_llm_request},
-    provider::ChatRequest,
-};
+use a4n_llm_context::{ContextAwareJsonLlmRequestInput, context_aware_system_user_llm_request};
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 

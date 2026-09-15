@@ -1,5 +1,5 @@
-use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_llm_client::LlmClient;
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, LLM_SERVICE_NAME, PROTOCOL_VERSION,
@@ -292,13 +292,11 @@ async fn typed_stream_crosses_independent_gateway_process() {
     provider.stop().await;
 
     assert_eq!(probe_response.status, ServiceStatus::Ok);
-    assert_eq!(
-        probe_response
-            .payload
-            .as_ref()
-            .map(|payload| &payload["finish_reason"]),
-        Some(&json!("stop"))
-    );
+    let probe_output = probe_response
+        .payload
+        .as_ref()
+        .expect("successful probe should include typed output");
+    assert_eq!(probe_output.finish_reason.as_deref(), Some("stop"));
     assert_eq!(models_response.status, ServiceStatus::Ok);
     assert_eq!(
         models_response

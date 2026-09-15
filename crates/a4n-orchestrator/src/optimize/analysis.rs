@@ -6,7 +6,7 @@ mod request;
 use a4n_db::optimize::{OptimizationSessionCreateInput, OptimizationSessionUpdateInput};
 use a4n_db_models::models::ai::optimization_session;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 use super::agent_loop::build_first_agent_loop_chat_request;

@@ -9,15 +9,13 @@ use a4n_api_contract::{
         ChapterDerivedCleanupHostPort, PreparedGenerationRagEmbeddingRequest,
         PreviewChapterPromptInput, StartChapterGenerationInput,
     },
-    generation_tasks::GenerationTaskHandle,
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
 };
 use a4n_db::workflow;
 use a4n_db_models::models::chapter::chapter_outline;
 use a4n_domain::progress::ProgressPhaseKind;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
-use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
 use serde_json::{Value, json};
@@ -50,24 +48,14 @@ use super::service::{
 };
 
 use super::{
-    ChapterGenerationApplicationPort, ChapterGenerationRagPreparationApplicationPort,
+    ChapterGenerationApplicationContext, ChapterGenerationApplicationPort,
+    ChapterGenerationRagPreparationApplicationPort, ChapterGenerationRequestPreview,
     ChapterGenerationRequestPreviewApplicationPort, ChapterGenerationWordCountRange,
     generation_chapter_title, generation_rag_query_fingerprint, merge_generation_outline_text,
     non_empty_trimmed, resolve_generation_word_count_range, upsert_chapter_generation_variables,
     validate_generation_rag_query_fingerprint,
 };
 use a4n_rag_core::validation::validate_query_vectors;
-
-pub struct ChapterGenerationApplicationContext<'a> {
-    pub prompt_renderer: &'a dyn PromptRenderer,
-    pub runtime_embedding_identity: Option<EmbeddingModelIdentity>,
-}
-
-pub struct ChapterGenerationRequestPreview {
-    pub title: String,
-    pub note: String,
-    pub request: ChatRequest,
-}
 
 struct PreparedChapterGeneration {
     chapter_title: String,
@@ -1205,8 +1193,10 @@ impl ChapterGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &StartChapterGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_chapter_generation_task(self, user_id, input).await
+    ) -> Result<crate::GenerationTaskStart, GenerationTaskStartError> {
+        OrchestratorContext::start_chapter_generation_task(self, user_id, input)
+            .await
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(
@@ -1287,6 +1277,19 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), String> {
 #[cfg(test)]
 mod cancellation_tests {
     use super::{StartChapterGenerationInput, client_generation_rag_input};
+
+    #[test]
+    fn chapter_generation_start_errors_use_stable_codes_and_retry_policy() {
+        let invalid = crate::GenerationTaskAccessError::InvalidArgument("请求无效".to_string())
+            .into_start_error();
+        assert_eq!(invalid.code(), "generation_request_invalid");
+        assert!(!invalid.retryable);
+
+        let forbidden =
+            crate::GenerationTaskAccessError::Forbidden("无权限".to_string()).into_start_error();
+        assert_eq!(forbidden.code(), "generation_task_forbidden");
+        assert!(!forbidden.retryable);
+    }
 
     fn chapter_generation_input(chapter_number: i32) -> StartChapterGenerationInput {
         StartChapterGenerationInput {

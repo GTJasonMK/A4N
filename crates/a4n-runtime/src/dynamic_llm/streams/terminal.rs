@@ -9,7 +9,9 @@ use std::{
 };
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, LlmTraceContext, UsageInfo};
+use a4n_llm_provider_contract::provider::{
+    ChatChunk, LlmTraceContext, UsageInfo, classify_finish_reason,
+};
 use a4n_provider_runtime_contract::TaskLease;
 
 use crate::provider_runtime::DynamicProviderFacade;
@@ -84,8 +86,7 @@ impl QueueTrackedStreamTerminal {
         if self.finished || self.terminal_task.is_some() {
             return;
         }
-        if let Err(error) = a4n_llm::provider::classify_finish_reason(self.finish_reason.as_deref())
-        {
+        if let Err(error) = classify_finish_reason(self.finish_reason.as_deref()) {
             self.start_failed(error);
             return;
         }

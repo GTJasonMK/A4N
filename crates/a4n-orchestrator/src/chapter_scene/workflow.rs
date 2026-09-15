@@ -1,6 +1,7 @@
 use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
 use a4n_error::AppError;
-use a4n_llm::{provider::ChatRequest, trace::context_aware_chat_request_trace_json};
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
@@ -88,7 +89,7 @@ pub(super) fn chapter_scene_workflow_run_input(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::provider::ChatMessage;
+    use a4n_llm_provider_contract::provider::ChatMessage;
 
     fn sample_request() -> ChatRequest {
         ChatRequest::new(vec![ChatMessage::user("scene")], None, None)

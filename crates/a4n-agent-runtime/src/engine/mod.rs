@@ -13,9 +13,9 @@ use a4n_api_contract::agent::{
     SearchAgentToolsInput,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::{
     ChatMessage, ChatRequest, ChatResponse, ChatStreamAccumulator, LlmTraceContext, MessageRole,
-    ToolCall,
+    ToolCall, validated_model_output_tokens,
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalExpiryRequest,
@@ -1019,8 +1019,7 @@ async fn process_claimed_run_inner(
             .host()
             .llm_capabilities(context.owner_user_id, snapshot.as_ref(), config_id)
             .await?;
-        let requested_output_tokens =
-            a4n_llm::provider::validated_model_output_tokens(&capabilities)?;
+        let requested_output_tokens = validated_model_output_tokens(&capabilities)?;
         let base_messages =
             with_agent_system_prompt(history::pair_tool_messages(&messages)?, &context);
         let projection = history::fit_context_projection(
@@ -1232,7 +1231,7 @@ async fn process_claimed_run_inner(
                 .await?;
             response
         };
-        a4n_llm::provider::validate_finish_reason(response.finish_reason.as_deref())?;
+        a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())?;
         // A succeeded durable execution is a replay after a worker restart;
         // its usage was already persisted before the crash. Counting it
         // again would let retries silently exceed token budgets.
@@ -1382,7 +1381,7 @@ async fn compact_context(
     context: &mut AgentRunContext,
     execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
     config_id: Option<i64>,
-    capabilities: &a4n_llm::provider::ModelCapabilities,
+    capabilities: &a4n_llm_provider_contract::ModelCapabilities,
     covered_through_sequence: i64,
     source: String,
     cancel: &CancellationToken,
@@ -1403,7 +1402,7 @@ async fn compact_context(
         ],
         temperature: Some(0.0),
         max_tokens: Some(output_tokens),
-        response_format: Some(a4n_llm::provider::ResponseFormat::json_object()),
+        response_format: Some(a4n_llm_provider_contract::ResponseFormat::json_object()),
         stream_include_usage: true,
         cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
         cache_breakpoints: Vec::new(),
@@ -1457,9 +1456,7 @@ async fn compact_context(
             tool_name: None,
             effect: Some("read".into()),
             replay_policy: Some("safe".into()),
-            arguments_json: Some(a4n_agent_runtime_contract::model_request_snapshot(
-                &request,
-            )?),
+            arguments_json: Some(request.snapshot_value()?),
             resource_preconditions_json: Some(json!({
                 "covered_through_sequence": covered_through_sequence,
             })),
@@ -1535,7 +1532,7 @@ async fn compact_context(
                 config_id,
                 request,
             ) => {
-                a4n_llm::provider::collect_chat_chunks(stream?).await?
+                a4n_llm_provider_contract::collect_chat_chunks(stream?).await?
             },
         };
         let usage = response.usage.ok_or_else(|| AppError::InvalidState {
@@ -1633,7 +1630,7 @@ async fn recover_model_messages(
             continue;
         }
         let response = model_response(execution)?;
-        a4n_llm::provider::validate_finish_reason(response.finish_reason.as_deref())?;
+        a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())?;
         let calls = response.message.tool_calls.unwrap_or_default();
         if calls.is_empty() {
             if response.message.content.trim().is_empty() {
@@ -1718,7 +1715,10 @@ async fn complete_run(
 
 async fn consume_model_stream(
     stream: std::pin::Pin<
-        Box<dyn futures::Stream<Item = Result<a4n_llm::provider::ChatChunk, AppError>> + Send>,
+        Box<
+            dyn futures::Stream<Item = Result<a4n_llm_provider_contract::ChatChunk, AppError>>
+                + Send,
+        >,
     >,
     message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,

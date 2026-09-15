@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{LlmTraceContext, UsageInfo};
+use a4n_llm_provider_contract::provider::{LlmTraceContext, UsageInfo};
 use a4n_provider_runtime_contract::TaskLease;
 
 use crate::dynamic_llm::trace::{

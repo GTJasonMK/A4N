@@ -8,10 +8,8 @@ use a4n_domain::{
     source_text_hash as source_content_sha256,
 };
 use a4n_error::AppError;
-use a4n_llm::{
-    context::context_aware_system_user_request,
-    provider::{ChatRequest, LlmTraceContext},
-};
+use a4n_llm_context::context_aware_system_user_request;
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 
 use crate::rendering::PromptRenderer;

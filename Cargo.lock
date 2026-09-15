@@ -12,7 +12,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-migration",
  "a4n-worker-contract",
  "anyhow",
@@ -33,7 +33,8 @@ dependencies = [
  "a4n-api-contract",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-context",
+ "a4n-llm-provider-contract",
  "a4n-service-protocol",
  "a4n-worker-contract",
  "async-trait",
@@ -54,7 +55,7 @@ dependencies = [
  "a4n-api-contract",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-worker-contract",
  "async-trait",
  "chrono",
@@ -71,7 +72,7 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-worker-contract",
  "anyhow",
  "async-trait",
@@ -95,6 +96,7 @@ dependencies = [
  "a4n-provider-contract",
  "a4n-service-protocol",
  "a4n-video-contract",
+ "a4n-video-host-contract",
  "async-trait",
  "schemars 1.2.1",
  "serde",
@@ -109,6 +111,17 @@ version = "0.1.0"
 dependencies = [
  "thiserror 2.0.18",
  "zip",
+]
+
+[[package]]
+name = "a4n-blueprint-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
 ]
 
 [[package]]
@@ -130,6 +143,17 @@ dependencies = [
  "a4n-error",
  "a4n-progress",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-chapter-generation-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-embedding-provider-contract",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
 ]
 
 [[package]]
@@ -184,7 +208,7 @@ dependencies = [
  "a4n-config",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-media",
  "a4n-runtime",
  "a4n-service-protocol",
@@ -276,6 +300,7 @@ name = "a4n-domain"
 version = "0.1.0"
 dependencies = [
  "a4n-model-discovery-contract",
+ "a4n-progress",
  "chrono",
  "schemars 1.2.1",
  "serde",
@@ -300,20 +325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-embedding"
-version = "0.1.0"
-dependencies = [
- "a4n-domain",
- "a4n-embedding-contract",
- "async-trait",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
-]
-
-[[package]]
 name = "a4n-embedding-client"
 version = "0.1.0"
 dependencies = [
@@ -328,6 +339,7 @@ dependencies = [
 name = "a4n-embedding-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-embedding-value-contract",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -338,8 +350,8 @@ name = "a4n-embedding-fastembed"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding",
  "a4n-embedding-contract",
+ "a4n-embedding-provider-contract",
  "anyhow",
  "async-trait",
  "fastembed",
@@ -351,13 +363,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-embedding-provider-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-embedding-value-contract",
+ "async-trait",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "a4n-embedding-providers"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-embedding-provider-contract",
+ "async-trait",
+ "reqwest 0.12.28",
+ "serde_json",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "a4n-embedding-service"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding",
  "a4n-embedding-contract",
  "a4n-embedding-fastembed",
+ "a4n-embedding-provider-contract",
+ "a4n-embedding-providers",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
@@ -368,6 +405,15 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "a4n-embedding-value-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -442,12 +488,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-image"
+name = "a4n-generation-artifact-contract"
 version = "0.1.0"
 dependencies = [
- "a4n-domain",
- "a4n-image-contract",
- "async-trait",
+ "schemars 1.2.1",
+ "serde",
 ]
 
 [[package]]
@@ -472,12 +517,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-image-provider-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-image-contract",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-image-providers"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-image",
  "a4n-image-contract",
+ "a4n-image-provider-contract",
  "async-trait",
  "base64 0.22.1",
  "image",
@@ -561,29 +615,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-llm"
-version = "0.1.0"
-dependencies = [
- "a4n-domain",
- "a4n-error",
- "a4n-progress",
- "async-trait",
- "futures",
- "serde",
- "serde_json",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "a4n-llm-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-llm-sidecar-contract",
  "a4n-model-discovery-contract",
  "a4n-service-client",
  "a4n-service-protocol",
  "async-trait",
- "serde_json",
  "tokio",
 ]
 
@@ -593,9 +632,20 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "serde_json",
  "url",
+]
+
+[[package]]
+name = "a4n-llm-context"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -604,9 +654,10 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
  "a4n-llm-client",
  "a4n-llm-http",
+ "a4n-llm-provider-contract",
+ "a4n-llm-sidecar-contract",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
  "a4n-service-client",
@@ -617,7 +668,6 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "futures",
- "serde",
  "serde_json",
  "sha2",
  "tokio",
@@ -630,7 +680,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "anyhow",
  "async-trait",
  "futures",
@@ -638,6 +688,53 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "a4n-llm-provider-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-sidecar-contract",
+ "async-trait",
+ "futures",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "a4n-llm-sidecar-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-llm-structured-stream"
+version = "0.1.0"
+dependencies = [
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-progress",
+ "async-trait",
+ "futures",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "a4n-llm-trace"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-context",
+ "a4n-llm-provider-contract",
+ "serde_json",
 ]
 
 [[package]]
@@ -693,23 +790,29 @@ dependencies = [
  "a4n-agent-application",
  "a4n-api-contract",
  "a4n-archive-core",
+ "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-chapter-analysis",
+ "a4n-chapter-generation-contract",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
  "a4n-db-models",
  "a4n-document-export-core",
  "a4n-domain",
- "a4n-embedding",
+ "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-event",
  "a4n-image-contract",
  "a4n-import-core",
- "a4n-llm",
  "a4n-llm-config",
+ "a4n-llm-context",
+ "a4n-llm-provider-contract",
+ "a4n-llm-structured-stream",
+ "a4n-llm-trace",
  "a4n-media",
  "a4n-migration",
+ "a4n-outline-contract",
  "a4n-progress",
  "a4n-prompt",
  "a4n-prompt-client",
@@ -727,6 +830,7 @@ dependencies = [
  "a4n-test-support",
  "a4n-video",
  "a4n-video-contract",
+ "a4n-video-host-contract",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -746,6 +850,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-outline-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-process-catalog"
 version = "0.1.0"
 dependencies = [
@@ -756,6 +870,10 @@ dependencies = [
 [[package]]
 name = "a4n-progress"
 version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+]
 
 [[package]]
 name = "a4n-prompt"
@@ -763,7 +881,9 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-context",
+ "a4n-llm-provider-contract",
+ "a4n-llm-trace",
  "a4n-prompt-contract",
  "anyhow",
  "async-trait",
@@ -794,6 +914,8 @@ dependencies = [
 name = "a4n-prompt-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-error",
+ "async-trait",
  "chrono",
  "serde",
  "serde_json",
@@ -879,9 +1001,9 @@ name = "a4n-rag-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding",
+ "a4n-embedding-value-contract",
  "a4n-error",
- "a4n-rag-core",
+ "a4n-rag-value-contract",
  "async-trait",
  "serde_json",
 ]
@@ -891,7 +1013,8 @@ name = "a4n-rag-core"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding",
+ "a4n-embedding-provider-contract",
+ "a4n-rag-value-contract",
  "async-trait",
  "dashmap",
  "parking_lot",
@@ -943,42 +1066,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-rag-value-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-embedding-value-contract",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-runtime"
 version = "0.1.0"
 dependencies = [
  "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-archive-core",
+ "a4n-blueprint-contract",
  "a4n-canvas-contract",
+ "a4n-chapter-generation-contract",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
- "a4n-embedding",
  "a4n-embedding-client",
  "a4n-embedding-contract",
  "a4n-embedding-fastembed",
+ "a4n-embedding-provider-contract",
+ "a4n-embedding-providers",
  "a4n-error",
  "a4n-event",
  "a4n-export-client",
  "a4n-export-contract",
- "a4n-image",
  "a4n-image-client",
  "a4n-image-contract",
+ "a4n-image-provider-contract",
  "a4n-image-providers",
  "a4n-import-client",
  "a4n-import-contract",
  "a4n-import-core",
- "a4n-llm",
  "a4n-llm-client",
  "a4n-llm-config",
+ "a4n-llm-context",
  "a4n-llm-http",
+ "a4n-llm-provider-contract",
+ "a4n-llm-sidecar-contract",
  "a4n-media",
  "a4n-migration",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
  "a4n-orchestrator",
+ "a4n-outline-contract",
  "a4n-process-catalog",
  "a4n-prompt",
  "a4n-prompt-client",
@@ -1000,6 +1138,7 @@ dependencies = [
  "a4n-video",
  "a4n-video-client",
  "a4n-video-contract",
+ "a4n-video-host-contract",
  "a4n-video-providers",
  "a4n-video-sidecar-contract",
  "a4n-worker-contract",
@@ -1085,7 +1224,8 @@ dependencies = [
 name = "a4n-service-protocol"
 version = "0.1.0"
 dependencies = [
- "a4n-domain",
+ "a4n-generation-artifact-contract",
+ "a4n-progress",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -1098,7 +1238,6 @@ dependencies = [
 name = "a4n-sidecar-bootstrap"
 version = "0.1.0"
 dependencies = [
- "a4n-process-catalog",
  "a4n-service-protocol",
  "anyhow",
  "axum 0.8.9",
@@ -1175,9 +1314,9 @@ version = "0.1.0"
 dependencies = [
  "a4n-db-models",
  "a4n-domain",
- "a4n-embedding",
  "a4n-embedding-client",
  "a4n-embedding-contract",
+ "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-export-client",
  "a4n-export-contract",
@@ -1185,8 +1324,9 @@ dependencies = [
  "a4n-image-contract",
  "a4n-import-client",
  "a4n-import-contract",
- "a4n-llm",
  "a4n-llm-client",
+ "a4n-llm-provider-contract",
+ "a4n-llm-sidecar-contract",
  "a4n-model-discovery-contract",
  "a4n-prompt-client",
  "a4n-rag-client",
@@ -1214,8 +1354,8 @@ name = "a4n-video"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-video-provider-contract",
  "a4n-video-sidecar-contract",
- "async-trait",
  "chrono",
  "serde",
  "serde_json",
@@ -1239,11 +1379,6 @@ name = "a4n-video-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-error",
- "a4n-provider-contract",
- "a4n-service-protocol",
- "a4n-video",
- "async-trait",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -1251,11 +1386,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-video-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-error",
+ "a4n-generation-artifact-contract",
+ "a4n-provider-contract",
+ "a4n-video-provider-contract",
+ "a4n-video-sidecar-contract",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-video-provider-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-video-sidecar-contract",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-video-providers"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-video",
+ "a4n-video-provider-contract",
  "a4n-video-sidecar-contract",
  "async-trait",
  "base64 0.22.1",
@@ -1275,7 +1434,7 @@ dependencies = [
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
- "a4n-video",
+ "a4n-video-provider-contract",
  "a4n-video-providers",
  "a4n-video-sidecar-contract",
  "anyhow",

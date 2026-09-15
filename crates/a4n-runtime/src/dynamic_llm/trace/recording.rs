@@ -1,6 +1,6 @@
 use crate::provider_runtime::DynamicProviderFacade;
 use a4n_domain::llm::RecordLlmCallTraceInput;
-use a4n_llm::provider::{LlmTraceContext, UsageInfo};
+use a4n_llm_provider_contract::provider::{LlmTraceContext, UsageInfo};
 
 pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
     facade: &DynamicProviderFacade,

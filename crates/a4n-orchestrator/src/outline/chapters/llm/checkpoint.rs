@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::{Value, json};
 
 use crate::outline::chapter_contract::parse_chapter_outline_batch;

@@ -8,7 +8,7 @@ mod tests;
 use std::{collections::VecDeque, pin::Pin, time::Instant};
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, LlmProtocolKind};
+use a4n_llm_provider_contract::{ChatChunk, LlmProtocolKind};
 use futures::{Stream, StreamExt};
 use serde_json::Value;
 

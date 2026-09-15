@@ -1,6 +1,6 @@
 use super::super::expected_records::{ExpectedRagRecords, expected_rag_records};
 use crate::{actions::access, state::AppState};
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_rag_core::contracts::sync::{
     ensure_embedding_identity_matches, ensure_project_embedding_identity_matches,
 };

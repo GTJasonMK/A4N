@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_db_models::models::{chapter::chapter, project::text_anchor};
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::{FieldMilestone, ProgressSpan};
 use tokio_util::sync::CancellationToken;
 

@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use crate::optimize::context::build_content_optimization_context;
 use crate::optimize::messages::{

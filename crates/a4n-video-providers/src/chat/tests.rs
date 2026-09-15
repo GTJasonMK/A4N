@@ -1,6 +1,6 @@
 use super::{ChatCompletionsVideoProvider, ChatVideoPayload};
 use a4n_domain::ProviderError as AppError;
-use a4n_video::VideoProvider;
+use a4n_video_provider_contract::VideoProvider;
 use base64::Engine as _;
 use serde_json::json;
 

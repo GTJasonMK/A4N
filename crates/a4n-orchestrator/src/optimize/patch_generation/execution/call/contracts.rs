@@ -1,5 +1,5 @@
 use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use serde_json::Value;
 
 use crate::optimize::{OptimizationPatchProposal, agent_loop_executor::AgentLoopGenerationContext};

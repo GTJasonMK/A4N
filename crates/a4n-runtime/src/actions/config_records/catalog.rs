@@ -3,7 +3,7 @@ use a4n_api_contract::provider_catalog::{
     ModelProviderCatalog, VideoProviderDescriptor,
 };
 use a4n_domain::{embedding::EMBEDDING_PROVIDER_CAPABILITIES, image::IMAGE_PROVIDER_CAPABILITIES};
-use a4n_llm::provider::LLM_PROVIDER_CAPABILITIES;
+use a4n_llm_provider_contract::provider::LLM_PROVIDER_CAPABILITIES;
 use a4n_video::VIDEO_PROVIDER_CAPABILITIES;
 
 pub fn model_provider_catalog() -> ModelProviderCatalog {

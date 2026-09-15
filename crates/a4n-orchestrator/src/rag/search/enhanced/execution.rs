@@ -1,4 +1,4 @@
-use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
+use a4n_embedding_provider_contract::{EmbeddingModelIdentity, EmbeddingProvider};
 use a4n_error::AppError;
 use a4n_rag_core::{
     search::enhanced_rag_pull_k,

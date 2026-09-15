@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::provider_runtime::DynamicProviderFacade;
 use a4n_error::AppError;
 use a4n_llm_client::LlmClient;
+use a4n_llm_provider_contract::provider::ModelCapabilities;
 use a4n_provider_contract::LlmProviderConfig;
 
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
@@ -12,7 +13,7 @@ impl DynamicLlmProvider {
     pub(crate) async fn capabilities_for_config_id(
         &self,
         config_id: Option<i64>,
-    ) -> Result<a4n_llm::provider::ModelCapabilities, AppError> {
+    ) -> Result<ModelCapabilities, AppError> {
         let model = self.resolve_model_by_id(config_id).await?;
         super::super::config::model_capabilities(&model)
     }

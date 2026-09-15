@@ -1,6 +1,6 @@
 use a4n_db::workflow::WorkflowProgressEventInput;
 use a4n_error::AppError;
-use a4n_llm::trace::llm_usage_summary_text;
+use a4n_llm_trace::llm_usage_summary_text;
 
 use super::super::pipeline_prompt::MangaPromptGenerationTrace;
 use super::super::{MANGA_PIPELINE_TOTAL_STEPS, OrchestratorContext};

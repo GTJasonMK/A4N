@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatMessage;
+use a4n_llm_provider_contract::provider::ChatMessage;
 use serde_json::Value;
 
 use crate::galgame::{GalgamePipelineStartStage, OrchestratorContext};

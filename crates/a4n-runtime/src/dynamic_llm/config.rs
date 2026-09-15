@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use a4n_error::AppError;
+use a4n_llm_client::{LlmClient, LlmGatewayRequest};
 #[cfg(feature = "embedded-llm-provider")]
-use a4n_llm::provider::LlmProvider;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext, ModelCapabilities};
-use a4n_llm_client::{JsonRequest, LlmClient};
+use a4n_llm_provider_contract::provider::LlmProvider;
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext, ModelCapabilities};
 use a4n_provider_contract::LlmProviderConfig;
 
 use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
@@ -69,12 +69,12 @@ pub(super) fn sidecar_chat_request(
     mut request: ChatRequest,
     trace_context: &LlmTraceContext,
     operation: &str,
-) -> Result<JsonRequest, AppError> {
+) -> Result<LlmGatewayRequest, AppError> {
     request.stream_include_usage = true;
     let payload = resolved_model.sidecar_payload(request);
     let sidecar_context = crate::sidecar_clients::sidecar_context_for_llm_trace(trace_context)
         .map_err(|err| AppError::ConfigError(format!("{operation} 请求构造失败：{err}")))?;
-    crate::sidecar_clients::service_request_with_context_provider_secret_policy(
+    crate::sidecar_clients::typed_service_request_with_context_provider_secret_policy(
         sidecar_context,
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         payload,
@@ -103,13 +103,13 @@ pub(super) async fn probe_llm_via_sidecar(
     request: ChatRequest,
 ) -> Result<LlmProbeOutput, AppError> {
     let payload = resolved_model.probe_payload(request);
-    let request = crate::sidecar_clients::global_provider_service_request(
+    let request = crate::sidecar_clients::global_typed_provider_service_request(
         a4n_service_protocol::LLM_CHAT_CAPABILITY_VERSION,
         payload,
     )
     .map_err(|err| AppError::ConfigError(format!("LLM sidecar probe 请求构造失败：{err}")))?;
     let response = client.probe(request).await.map_err(llm_sidecar_error)?;
-    crate::sidecar_clients::response_payload(response, "llm")
+    crate::sidecar_clients::typed_response_payload(response, "llm")
         .map_err(|err| AppError::LlmError(format!("LLM sidecar probe 响应失败：{err}")))
 }
 

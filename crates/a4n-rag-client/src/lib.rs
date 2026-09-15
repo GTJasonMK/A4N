@@ -2,8 +2,9 @@
 
 use a4n_rag_sidecar_contract::{
     CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
-    IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchPayload,
-    SearchResultPayload, SearchTextPayload,
+    IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload,
+    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, SearchPayload, SearchResultPayload,
+    SearchTextPayload,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -12,8 +13,8 @@ use a4n_service_client::{
 use a4n_service_protocol::{
     CapabilityTaskEvent, RAG_COMPLETENESS_REPORT_BY_IDS_PATH, RAG_DELETE_PATH,
     RAG_DROP_COLLECTION_PATH, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_FILTER_PATH,
-    RAG_METADATA_BY_IDS_PATH, RAG_QUERY_PATH, RAG_SEARCH_PATH, RAG_SEARCH_TEXT_PATH,
-    RAG_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
+    RAG_METADATA_BY_IDS_PATH, RAG_QUERY_PATH, RAG_SEARCH_PATH, RAG_SEARCH_TEXT_PATH, ServiceHealth,
+    ServiceRequest, ServiceResponse, sidecar_resource_policy,
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -45,20 +46,14 @@ pub struct HttpRagClient {
 impl HttpRagClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(RAG_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(RAG_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, service_client_config())
+                .with_auth_token(token),
         }
     }
 
@@ -83,6 +78,14 @@ impl HttpRagClient {
         );
         self
     }
+}
+
+fn service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        RAG_SERVICE_NAME,
+        RAG_INDEX_CAPABILITY_VERSION,
+        sidecar_resource_policy(RAG_SERVICE_NAME).expect("rag service must have a resource policy"),
+    )
 }
 
 #[async_trait]

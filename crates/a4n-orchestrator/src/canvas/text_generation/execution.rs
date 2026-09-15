@@ -7,15 +7,14 @@ use a4n_db::{
     },
 };
 use a4n_error::AppError;
-use a4n_llm::{
-    provider::{ChatMessage, ChatResponse, UsageInfo, is_truncated_finish_reason},
-    trace::context_aware_chat_request_trace_json,
+use a4n_llm_provider_contract::provider::{
+    ChatMessage, ChatRequest, ChatResponse, UsageInfo, is_truncated_finish_reason,
 };
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    agent::{model_request_snapshot, restore_model_request_snapshot},
     canvas::WORKFLOW_KIND_VIDEO_CANVAS_GRAPH,
     project::ProjectSourceMode,
     structured_llm::ensure_checkpoint_parsed_output_matches,
@@ -322,10 +321,11 @@ impl OrchestratorContext {
         let model_execution = if let Some(owner) = agent.workflow_owner(workflow_run_id).await? {
             let key = task.execution_key(true, &call_key);
             if let Some(execution) = agent.execution_by_key(owner.id, &key).await? {
-                let original =
-                    restore_model_request_snapshot(execution.arguments_json.clone().ok_or_else(
-                        || AppError::InvalidArgument("Canvas 模型缺少持久请求".into()),
-                    )?)?;
+                let original = ChatRequest::from_snapshot_value(
+                    execution.arguments_json.clone().ok_or_else(|| {
+                        AppError::InvalidArgument("Canvas 模型缺少持久请求".into())
+                    })?,
+                )?;
                 if original
                     .trace_context
                     .as_ref()
@@ -354,7 +354,7 @@ impl OrchestratorContext {
                         task: task.clone(),
                         execution_key: call_key.clone(),
                         tool_name: None,
-                        arguments: model_request_snapshot(&request)?,
+                        arguments: request.snapshot_value()?,
                         input_message_id: None,
                         base_input_fingerprint: None,
                     })

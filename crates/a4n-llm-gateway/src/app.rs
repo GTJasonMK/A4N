@@ -5,6 +5,7 @@ use axum::{
 };
 
 use crate::handlers::{discover_models, healthz, probe, stream_chat};
+use a4n_llm_sidecar_contract::{LLM_SERVICE_ADDR_ENV, LLM_SERVICE_DEFAULT_ADDR};
 
 pub(crate) fn build_router() -> Router {
     let policy =
@@ -29,7 +30,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         "a4n_llm_gateway=info,tower_http=warn",
     )?;
 
-    let addr = a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::LLM_SERVICE_NAME)?;
+    let addr = a4n_sidecar_bootstrap::socket_addr(LLM_SERVICE_ADDR_ENV, LLM_SERVICE_DEFAULT_ADDR)?;
 
     tracing::info!(%addr, "starting llm gateway sidecar");
     a4n_sidecar_bootstrap::serve_sidecar(

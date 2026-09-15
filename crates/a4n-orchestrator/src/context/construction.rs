@@ -52,8 +52,8 @@ impl OrchestratorContext {
             Arc<dyn ProviderRuntimePort>,
         ) -> Result<
             (
-                Arc<dyn a4n_llm::provider::LlmProvider>,
-                Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
+                Arc<dyn a4n_llm_provider_contract::provider::LlmProvider>,
+                Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
             ),
             AppError,
         >,
@@ -176,7 +176,7 @@ impl OrchestratorContext {
     /// embedding 模型身份（runtime/RAG 同步用）。
     pub(crate) async fn embedding_model_identity(
         &self,
-    ) -> Result<a4n_embedding::provider::EmbeddingModelIdentity, AppError> {
+    ) -> Result<a4n_embedding_provider_contract::EmbeddingModelIdentity, AppError> {
         self.embedding
             .model_identity()
             .await

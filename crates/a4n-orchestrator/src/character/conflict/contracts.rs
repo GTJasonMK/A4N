@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use crate::character::conflict_context_rules::CharacterConflictChapterScope;
 

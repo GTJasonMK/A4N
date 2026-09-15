@@ -1,7 +1,7 @@
 use std::{convert::Infallible, path::PathBuf};
 
-use a4n_embedding::provider::DownloadProgress;
 use a4n_embedding_fastembed::download_fastembed_model;
+use a4n_embedding_provider_contract::DownloadProgress;
 use a4n_service_protocol::CapabilityTaskEvent;
 use a4n_sidecar_bootstrap::service_event_channel;
 use axum::body::Bytes;

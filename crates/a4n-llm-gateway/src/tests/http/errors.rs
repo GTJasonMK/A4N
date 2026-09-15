@@ -1,7 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::ChatRequest;
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+};
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use axum::{
     Json, Router,
@@ -16,8 +18,10 @@ use serde_json::{Value, json};
 
 use super::{
     FakeProviderObservation, TestHttpServer, build_router, collect_stream_events, event_chunk,
-    json_request, observe_fake_provider_request, service_request,
+    observe_fake_provider_request, service_request,
 };
+
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
 fn malformed_fake_provider_router(observation: FakeProviderObservation) -> Router {
     Router::new()
         .route("/chat/completions", post(malformed_fake_chat_completions))
@@ -164,10 +168,10 @@ async fn malformed_provider_sse_emits_one_redacted_failed_terminal_event() {
             timeout_secs: 5,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "malformed ping", None, Some(16)),
+        request: ChatRequest::system_user("system", "malformed ping", None, Some(16)).into(),
     });
 
-    let events = collect_stream_events(&client, json_request(request)).await;
+    let events = collect_stream_events(&client, request).await;
 
     gateway.stop().await;
     provider.stop().await;
@@ -270,9 +274,9 @@ async fn provider_http_status_errors_map_to_redacted_failed_terminal_events() {
                 timeout_secs: 5,
                 extra_body_json: None,
             },
-            request: ChatRequest::system_user("system", "status ping", None, Some(16)),
+            request: ChatRequest::system_user("system", "status ping", None, Some(16)).into(),
         });
-        let events = collect_stream_events(&client, json_request(request)).await;
+        let events = collect_stream_events(&client, request).await;
 
         assert_eq!(events.len(), 1);
         assert_one_failed_terminal(&events);
@@ -326,10 +330,10 @@ async fn provider_body_error_after_done_keeps_completed_result() {
             timeout_secs: 5,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "done ping", None, Some(16)),
+        request: ChatRequest::system_user("system", "done ping", None, Some(16)).into(),
     });
 
-    let events = collect_stream_events(&client, json_request(request)).await;
+    let events = collect_stream_events(&client, request).await;
 
     gateway.stop().await;
     provider.stop().await;
@@ -364,10 +368,10 @@ async fn provider_body_error_after_finish_preserves_truncation_contract() {
             timeout_secs: 5,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "length ping", None, Some(16)),
+        request: ChatRequest::system_user("system", "length ping", None, Some(16)).into(),
     });
 
-    let events = collect_stream_events(&client, json_request(request)).await;
+    let events = collect_stream_events(&client, request).await;
 
     gateway.stop().await;
     provider.stop().await;
@@ -403,10 +407,10 @@ async fn provider_body_error_before_terminal_marker_remains_failed() {
                 timeout_secs: 5,
                 extra_body_json: None,
             },
-            request: ChatRequest::system_user("system", "partial ping", None, Some(16)),
+            request: ChatRequest::system_user("system", "partial ping", None, Some(16)).into(),
         });
 
-        let events = collect_stream_events(&client, json_request(request)).await;
+        let events = collect_stream_events(&client, request).await;
 
         gateway.stop().await;
         provider.stop().await;
@@ -456,9 +460,9 @@ async fn incomplete_or_interleaved_provider_output_cannot_complete_gateway_strea
                 api_key: None,
                 ..super::test_provider_config()
             },
-            request: ChatRequest::system_user("system", "protocol ping", None, Some(16)),
+            request: ChatRequest::system_user("system", "protocol ping", None, Some(16)).into(),
         });
-        let events = collect_stream_events(&gateway.client(), json_request(request)).await;
+        let events = collect_stream_events(&gateway.client(), request).await;
         gateway.stop().await;
         provider.stop().await;
 

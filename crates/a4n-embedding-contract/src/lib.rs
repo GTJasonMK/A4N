@@ -6,14 +6,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct EmbeddingModelIdentity {
-    pub backend: String,
-    pub model: String,
-    #[schemars(with = "u32")]
-    pub dimension: usize,
-}
+pub use a4n_embedding_value_contract::EmbeddingModelIdentity;
+
+pub const EMBEDDING_SERVICE_NAME: &str = "embedding";
+pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v5";
+pub const EMBEDDING_SERVICE_ADDR_ENV: &str = "A4N_EMBEDDING_SERVICE_ADDR";
+pub const EMBEDDING_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47643";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -81,18 +79,6 @@ mod tests {
         }))
         .expect_err("unknown embedding payload fields must fail");
         assert!(error.to_string().contains("legacy_field"));
-    }
-
-    #[test]
-    fn embedding_identity_rejects_unknown_fields() {
-        let error = serde_json::from_value::<EmbeddingModelIdentity>(serde_json::json!({
-            "backend": "FastEmbed",
-            "model": "model",
-            "dimension": 384,
-            "legacy_backend": "local"
-        }))
-        .expect_err("unknown embedding identity fields must fail");
-        assert!(error.to_string().contains("legacy_backend"));
     }
 
     #[test]

@@ -3,7 +3,7 @@ use super::{
     json::{optional_nested_usize, optional_usize, required_usize},
 };
 use a4n_error::AppError;
-use a4n_llm::provider::UsageInfo;
+use a4n_llm_provider_contract::UsageInfo;
 use serde_json::Value;
 
 pub(in crate::http) fn stream_usage_only_chunk(

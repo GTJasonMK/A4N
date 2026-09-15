@@ -16,7 +16,7 @@ use a4n_api_contract::agent::{
 };
 use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ModelCapabilities};
+use a4n_llm_provider_contract::{ChatChunk, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
@@ -1449,7 +1449,7 @@ fn validate_event_batch(
 mod tests {
     use super::*;
     use a4n_api_contract::agent::AGENT_API_PROTOCOL_VERSION;
-    use a4n_llm::provider::{ChatRequest, LlmTraceContext};
+    use a4n_llm_provider_contract::{ChatRequest, LlmTraceContext};
     use serde_json::json;
 
     fn event(thread_id: &str, sequence: u64) -> AgentEvent {

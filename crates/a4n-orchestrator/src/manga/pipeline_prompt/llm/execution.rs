@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_error::AppError;
-use a4n_llm::provider::is_truncated_finish_reason;
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use serde_json::Value;
 
 use crate::{OrchestratorContext, structured_llm::parse_strict_json_response};
@@ -20,7 +20,7 @@ pub(in crate::manga) struct MangaRenderTraceInput<'a> {
     pub call_order: i32,
     pub restore_from_checkpoint: bool,
     pub variables: &'a HashMap<String, Value>,
-    pub user_content: a4n_llm::context::LlmContextManifest,
+    pub user_content: a4n_llm_context::LlmContextManifest,
     pub temperature: f32,
 }
 

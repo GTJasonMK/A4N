@@ -155,7 +155,7 @@ fn screenplay_layout_unit_request(
     workflow_run_id: i64,
     skeleton: &ChapterScreenplaySkeletonV1,
     unit: &ScreenplaySkeletonUnitV1,
-) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
     shooting_context_request(
         prepared,
         workflow_run_id,

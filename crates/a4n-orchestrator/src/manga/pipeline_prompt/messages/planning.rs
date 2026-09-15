@@ -1,6 +1,6 @@
 use a4n_domain::manga::{MANGA_PAGE_DRAWING_PROMPT_V2, MangaPageV3};
 use a4n_error::AppError;
-use a4n_llm::context::LlmContextManifest;
+use a4n_llm_context::LlmContextManifest;
 use serde_json::{Value, json};
 
 use super::common::build_manga_step_user_message;

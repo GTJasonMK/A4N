@@ -4,7 +4,7 @@ use a4n_db_models::models::chapter::chapter;
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::text_anchor;
 use a4n_db_models::models::scene::scene_profile;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::{ProgressSpan, StructuredJsonProgressSpec};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};

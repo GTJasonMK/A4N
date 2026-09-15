@@ -1,7 +1,7 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db_models::models::canvas::canvas_node;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use async_trait::async_trait;
 
 use crate::canvas::CanvasNodeRunHandle;

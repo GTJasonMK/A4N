@@ -16,7 +16,9 @@ use response_parser::extract_chat_video_payload;
 use super::download::download_video_url;
 use super::format::detect_video_format_from_bytes;
 use super::transport::{self, ApiKeyAuth};
-use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_provider_contract::{
+    VideoGenerationResult, VideoJobState, VideoJobStatus, VideoProvider,
+};
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 /// Chat-Completions 视频 provider：把 `/v1/chat/completions` 当作视频生成网关。
@@ -132,7 +134,7 @@ impl VideoProvider for ChatCompletionsVideoProvider {
         ))
     }
 
-    async fn status(&self, _job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+    async fn status(&self, _job_id: &str) -> Result<VideoJobStatus, AppError> {
         Err(AppError::InvalidArgument(
             "chat-completions 视频 backend 仅支持同步返回，不支持状态查询".to_string(),
         ))

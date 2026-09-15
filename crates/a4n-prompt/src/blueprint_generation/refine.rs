@@ -8,7 +8,7 @@ pub use builder::build_blueprint_refine_request;
 mod tests {
     use std::path::Path;
 
-    use a4n_llm::provider::MessageRole;
+    use a4n_llm_provider_contract::provider::MessageRole;
     use serde_json::json;
 
     use crate::tera_engine::TeraPromptEngine;

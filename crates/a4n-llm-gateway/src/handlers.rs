@@ -4,8 +4,8 @@ mod stream;
 
 use a4n_domain::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
 use a4n_error::AppError;
-use a4n_llm::gateway::LlmGatewayProviderConfig;
-use a4n_llm::provider::{LlmProvider, ModelCapabilities};
+use a4n_llm_provider_contract::{LlmProvider, ModelCapabilities, UsageInfo};
+use a4n_llm_sidecar_contract::{LlmGatewayProviderConfig, LlmStreamUsage};
 use a4n_service_protocol::{HealthStatus, LLM_SERVICE_NAME, ServiceHealth, known_service_health};
 use axum::Json;
 
@@ -40,4 +40,15 @@ fn provider_from_config(
             max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
         },
     )
+}
+
+pub(super) fn stream_usage(usage: UsageInfo) -> LlmStreamUsage {
+    LlmStreamUsage {
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
+        prompt_cache_hit_tokens: usage.prompt_cache_hit_tokens,
+        prompt_cache_miss_tokens: usage.prompt_cache_miss_tokens,
+        prompt_cache_write_tokens: usage.prompt_cache_write_tokens,
+    }
 }

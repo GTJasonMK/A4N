@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use a4n_image::ImageGenerationResult;
 use a4n_image_client::ImageClient;
 use a4n_image_contract::ImageGenerationRequest;
+use a4n_image_provider_contract::ImageGenerationResult;
 use a4n_provider_contract::ImageProviderConfig;
 use base64::Engine as _;
 use serde_json::Value;

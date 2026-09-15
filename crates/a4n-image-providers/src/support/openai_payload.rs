@@ -2,7 +2,7 @@ use super::errors::internal_error;
 use super::format::{decode_base64_image, image_format_hint, optional_format_from_response_item};
 use super::http::download_image_url;
 use a4n_domain::ProviderError as AppError;
-use a4n_image::ImageGenerationResult;
+use a4n_image_provider_contract::ImageGenerationResult;
 pub(crate) async fn image_result_from_openai_payload(
     client: &reqwest::Client,
     text: &str,

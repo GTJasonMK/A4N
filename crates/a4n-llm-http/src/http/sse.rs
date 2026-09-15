@@ -3,7 +3,7 @@ use super::response::{
     first_choice, required_object, required_usize, stream_usage, stream_usage_only_chunk,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::ChatChunk;
+use a4n_llm_provider_contract::ChatChunk;
 use serde_json::{Map, Value, json};
 use std::collections::VecDeque;
 
@@ -132,7 +132,9 @@ pub(super) fn parse_sse_data_line(line_bytes: &[u8]) -> ParsedSseLine {
     }
 }
 
-fn parse_tool_calls(value: &Value) -> Result<Option<Vec<a4n_llm::provider::ToolCall>>, AppError> {
+fn parse_tool_calls(
+    value: &Value,
+) -> Result<Option<Vec<a4n_llm_provider_contract::ToolCall>>, AppError> {
     let Some(items) = value.as_array() else {
         return Ok(None);
     };
@@ -160,7 +162,7 @@ fn parse_tool_calls(value: &Value) -> Result<Option<Vec<a4n_llm::provider::ToolC
             .get("arguments")
             .cloned()
             .unwrap_or_else(|| Value::String(String::new()));
-        calls.push(a4n_llm::provider::ToolCall {
+        calls.push(a4n_llm_provider_contract::ToolCall {
             id,
             name,
             arguments,

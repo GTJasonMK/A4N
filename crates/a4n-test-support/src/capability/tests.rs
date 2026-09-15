@@ -12,6 +12,11 @@ use a4n_image_contract::{
     IMAGE_PROVIDER_CAPABILITY_VERSION, ImageGenerationRequest, ImageProviderPayload,
 };
 use a4n_llm_client::LlmClient;
+use a4n_llm_provider_contract::ChatRequest;
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+    LlmProbeOutput,
+};
 use a4n_rag_client::RagClient;
 use a4n_rag_sidecar_contract::{EmbeddingRecordPayload, IngestPayload, QueryPayload};
 use a4n_service_client::ServiceClient;
@@ -33,9 +38,11 @@ use super::{
     RecordingImageClient, RecordingLlmClient, RecordingRagClient, RecordingVideoClient,
 };
 
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
+
 #[tokio::test]
 async fn recording_llm_probe_returns_configured_response_and_captures_request() {
-    let response = response(serde_json::json!({"ok": true}));
+    let response = response(probe_output());
     let client = RecordingLlmClient::new(response.clone());
     let request = request("probe-request", LLM_CHAT_CAPABILITY_VERSION);
 
@@ -52,7 +59,7 @@ async fn recording_llm_probe_returns_configured_response_and_captures_request() 
 
 #[tokio::test]
 async fn recording_llm_unconfigured_operations_fail_explicitly() {
-    let client = RecordingLlmClient::new(response(serde_json::Value::Null));
+    let client = RecordingLlmClient::new(response(probe_output()));
     let health_error = client
         .health()
         .await
@@ -425,10 +432,7 @@ fn export_request<T>(request_id: &str, payload: T) -> a4n_service_protocol::Serv
     .expect("valid typed export request")
 }
 
-fn request(
-    request_id: &str,
-    capability_version: &str,
-) -> a4n_service_protocol::ServiceRequest<serde_json::Value> {
+fn request(request_id: &str, capability_version: &str) -> a4n_llm_client::LlmGatewayRequest {
     ServiceRequestContext::deny_all(
         request_id,
         TraceContext {
@@ -438,7 +442,17 @@ fn request(
     )
     .with_payload(
         capability_version,
-        serde_json::json!({"request_id": request_id}),
+        LlmGatewayPayload {
+            provider: LlmGatewayProviderConfig {
+                provider: "openai".to_string(),
+                base_url: "http://127.0.0.1:1/v1".to_string(),
+                model: "test-model".to_string(),
+                api_key: None,
+                timeout_secs: 1,
+                extra_body_json: None,
+            },
+            request: ChatRequest::system_user("system", request_id, None, Some(16)).into(),
+        },
     )
     .expect("valid test capability request")
 }
@@ -626,6 +640,14 @@ fn response<T>(payload: T) -> ServiceResponse<T> {
         artifact_refs: Vec::new(),
         payload: Some(payload),
         error: None,
+    }
+}
+
+fn probe_output() -> LlmProbeOutput {
+    LlmProbeOutput {
+        response_preview: "probe".to_string(),
+        usage: None,
+        finish_reason: Some("stop".to_string()),
     }
 }
 

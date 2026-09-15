@@ -1,6 +1,7 @@
 //! Concrete image provider implementations.
 //!
-//! Host minimal builds should depend on `a4n-image` contracts, not this crate.
+//! Host minimal builds should depend on `a4n-image-provider-contract`, not this
+//! crate.
 
 mod chat;
 mod cliproxy;

@@ -1,4 +1,4 @@
-use a4n_llm::provider::{ChatMessage, ChatRequest, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, ChatResponse};
 use serde_json::Value;
 
 use super::super::super::{

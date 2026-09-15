@@ -3,7 +3,9 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, MessageRole, ModelCapabilities};
+use a4n_llm_provider_contract::{
+    ChatChunk, ChatRequest, LlmProvider, MessageRole, ModelCapabilities,
+};
 use async_trait::async_trait;
 use futures::{Stream, stream};
 

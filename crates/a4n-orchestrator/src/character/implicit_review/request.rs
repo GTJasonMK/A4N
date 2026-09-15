@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{
-        ContextAwareJsonLlmRequestInput, PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT,
-        context_aware_system_user_json_llm_request,
-    },
-    trace::context_aware_chat_request_trace_json,
+use a4n_llm_context::{
+    ContextAwareJsonLlmRequestInput, PACK_KIND_IMPLICIT_UPDATE_REVIEW_CONTEXT,
+    context_aware_system_user_json_llm_request,
 };
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_message};
 use serde_json::{Value, json};
 

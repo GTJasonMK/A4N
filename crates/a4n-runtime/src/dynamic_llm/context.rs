@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use a4n_domain::llm::{ContextPackReference, RecordOrReuseContextPackInput};
 use a4n_error::AppError;
-use a4n_llm::context::LlmContextManifest;
-use a4n_llm::context::{
+use a4n_llm_context::LlmContextManifest;
+use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextPackDraft, LlmContextPackDraftInput, LlmContextPackRef,
     LlmContextPackRequirement, PlannedContextPack,
 };
-use a4n_llm::provider::{ChatMessage, LlmProvider, LlmTraceContext, MessageRole};
+use a4n_llm_provider_contract::provider::{ChatMessage, LlmProvider, LlmTraceContext, MessageRole};
 use serde_json::json;
 
 use crate::provider_runtime::DynamicProviderFacade;

@@ -33,8 +33,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
             tracing::warn!(?removed, "removed incomplete fastembed model caches");
         }
     }
-    let addr =
-        a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::EMBEDDING_SERVICE_NAME)?;
+    let addr = a4n_sidecar_bootstrap::socket_addr(
+        a4n_embedding_contract::EMBEDDING_SERVICE_ADDR_ENV,
+        a4n_embedding_contract::EMBEDDING_SERVICE_DEFAULT_ADDR,
+    )?;
     let policy =
         a4n_service_protocol::sidecar_resource_policy(a4n_service_protocol::EMBEDDING_SERVICE_NAME)
             .expect("embedding sidecar must have a resource policy");

@@ -20,7 +20,7 @@ use a4n_db_models::models::generation::{
     generation_spec, prompt_artifact, workflow_checkpoint, workflow_run,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatMessage, ChatResponse, UsageInfo};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse, UsageInfo};
 use async_trait::async_trait;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{Value, json};

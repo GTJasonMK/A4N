@@ -1,11 +1,6 @@
 //! 视频 provider 参考图输入的纯规则。
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProviderImageInputTransport {
-    PublicUrl,
-    InlineDataUrl,
-    RemoteTempUpload,
-}
+use a4n_video_provider_contract::ProviderImageInputTransport;
 
 pub fn provider_image_input_transport_with_override(
     override_value: Option<&str>,

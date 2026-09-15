@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, MessageRole, ToolCall, UsageInfo};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest, MessageRole, ToolCall, UsageInfo};
 use serde_json::{Map, Value, json};
 
 use super::{empty_chunk, function_definition, required_string};

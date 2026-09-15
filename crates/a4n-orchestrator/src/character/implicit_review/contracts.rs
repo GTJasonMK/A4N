@@ -5,7 +5,7 @@ pub(super) use a4n_api_contract::character::{
 };
 use a4n_db_models::models::character::{protagonist_behavior_record, protagonist_profile};
 use a4n_domain::character::ImplicitUpdateDecision;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 pub(crate) struct CharacterSyncImplicitReviewInput<'a> {

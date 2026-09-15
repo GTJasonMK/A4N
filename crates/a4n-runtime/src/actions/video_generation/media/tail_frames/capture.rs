@@ -6,7 +6,7 @@ use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 use a4n_api_contract::video::VideoTailFrameInput;
 use a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE;
 use a4n_storage::{data_dir_relative_file_path, data_file_record_facts};
-use a4n_video_contract::VideoProviderResultTarget;
+use a4n_video_host_contract::VideoProviderResultTarget;
 use serde_json::{Value, json};
 use std::path::Path;
 

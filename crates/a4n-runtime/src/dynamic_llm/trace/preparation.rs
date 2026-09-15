@@ -1,13 +1,11 @@
 use crate::provider_runtime::DynamicProviderFacade;
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{
-        ContextBudgetPlanner, LlmContextManifest, LlmContextPackRequirement,
-        context_manifest_dynamic_messages, replace_request_user_content_from_manifest,
-        validate_context_manifest,
-    },
-    provider::{ChatRequest, LlmProvider, LlmTraceContext},
+use a4n_llm_context::{
+    ContextBudgetPlanner, LlmContextManifest, LlmContextPackRequirement,
+    context_manifest_dynamic_messages, replace_request_user_content_from_manifest,
+    validate_context_manifest,
 };
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmProvider, LlmTraceContext};
 
 use super::super::context::{
     build_manifest_requirements, build_system_prefix_pack_ref,

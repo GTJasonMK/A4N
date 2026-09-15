@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use a4n_api_contract::outline::OutlineDeleteTarget;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
@@ -77,14 +76,4 @@ pub struct PartOutlineContinuationInput<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub variables: &'a HashMap<String, Value>,
     pub workflow_run_id: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct OutlineRequestPreviewStep {
-    pub key: String,
-    pub title: String,
-    pub prompt_name: String,
-    pub state: String,
-    pub note: Option<String>,
-    pub request: Option<ChatRequest>,
 }
