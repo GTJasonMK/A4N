@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db::workflow;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatMessage;
+use a4n_llm_provider_contract::provider::ChatMessage;
 use serde_json::json;
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
@@ -83,7 +83,7 @@ fn galgame_pipeline_session_messages(
 
 #[cfg(test)]
 mod tests {
-    use a4n_llm::provider::MessageRole;
+    use a4n_llm_provider_contract::provider::MessageRole;
     use serde_json::json;
 
     use super::galgame_pipeline_session_messages;
