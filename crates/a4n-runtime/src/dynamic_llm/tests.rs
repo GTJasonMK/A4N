@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use a4n_domain::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
 use a4n_error::AppError;
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::provider::{
     ChatChunk, ChatMessage, ChatRequest, LlmTraceContext, MessageRole, ToolCall, UsageInfo,
 };
 use a4n_provider_contract::LlmProviderConfig;
