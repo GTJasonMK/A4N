@@ -34,6 +34,7 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-service-protocol",
  "a4n-worker-contract",
  "async-trait",

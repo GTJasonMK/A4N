@@ -10,6 +10,7 @@ a4n-agent-runtime-contract = { path = "../a4n-agent-runtime-contract" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error" }
 a4n-llm = { path = "../a4n-llm" }
+a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 
