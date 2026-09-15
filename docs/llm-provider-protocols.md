@@ -49,7 +49,7 @@
 按 AGENTS.md 在 agent 工作树、共享构建锁及指定 target 下运行：
 
 ```bash
-timeout 60s cargo test --locked --offline -p a4n-domain -p a4n-llm -p a4n-llm-http -p a4n-llm-config -p a4n-model-discovery --lib
+timeout 60s cargo test --locked --offline -p a4n-domain -p a4n-llm-http -p a4n-llm-config -p a4n-model-discovery --lib
 timeout 60s python3 scripts/tests/test_mock_openai_provider.py
 ```
 

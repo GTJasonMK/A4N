@@ -87,7 +87,6 @@ forbidden_contract_dependency = lambda do |dependency|
     a4n-image
     a4n-image-providers
     a4n-import-core
-    a4n-llm
     a4n-llm-http
     a4n-model-discovery
     a4n-orchestrator

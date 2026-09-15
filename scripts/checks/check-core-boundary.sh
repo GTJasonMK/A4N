@@ -45,7 +45,7 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|runtime|orchestrator)|sea-orm|sqlx)([[:sp
     exit 1
 fi
 
-for package in a4n-llm a4n-llm-http a4n-llm-gateway a4n-prompt a4n-prompt-git a4n-prompt-service a4n-queue; do
+for package in a4n-llm-http a4n-llm-gateway a4n-prompt a4n-prompt-git a4n-prompt-service a4n-queue; do
     if rg -n 'a4n[-_]core' "crates/$package/Cargo.toml" "crates/$package/src"; then
         printf '%s must depend on domain/contracts directly instead of a4n-core\n' "$package" >&2
         exit 1

@@ -607,25 +607,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-llm"
-version = "0.1.0"
-dependencies = [
- "a4n-domain",
- "a4n-error",
- "a4n-llm-context",
- "a4n-llm-provider-contract",
- "a4n-llm-structured-stream",
- "a4n-llm-trace",
- "a4n-progress",
- "async-trait",
- "futures",
- "serde",
- "serde_json",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "a4n-llm-client"
 version = "0.1.0"
 dependencies = [
