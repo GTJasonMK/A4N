@@ -183,7 +183,7 @@ dependencies = [
  "a4n-config",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-media",
  "a4n-runtime",
  "a4n-service-protocol",

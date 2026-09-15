@@ -22,7 +22,7 @@ a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
-a4n-llm = { path = "../a4n-llm" }
+a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-media = { path = "../a4n-media" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-service-protocol = { path = "../a4n-service-protocol" }

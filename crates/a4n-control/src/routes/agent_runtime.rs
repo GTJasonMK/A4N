@@ -16,7 +16,7 @@ use a4n_api_contract::agent::{
 };
 use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
