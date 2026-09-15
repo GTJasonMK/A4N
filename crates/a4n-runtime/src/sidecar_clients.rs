@@ -29,10 +29,10 @@ pub(crate) use rag::{
 };
 use request_context::sidecar_context_for_workflow_operation_with_root;
 pub(crate) use request_context::{
-    SidecarRequestContext, global_provider_service_request, global_typed_provider_service_request,
+    SidecarRequestContext, global_typed_provider_service_request,
     global_typed_service_request_without_secrets, pure_transform_typed_service_request,
-    service_request_with_context_provider_secret_policy, service_request_with_typed_context,
-    sidecar_context_for_llm_trace, typed_service_request_with_context_provider_secret_policy,
+    service_request_with_typed_context, sidecar_context_for_llm_trace,
+    typed_service_request_with_context_provider_secret_policy,
 };
 use response::{
     GenerationEvent, parse_generation_event, service_app_error, service_error_app_error,

@@ -120,7 +120,7 @@ async fn provider_idle_timeout_emits_failed_terminal_event_and_recovers() {
         "process-timeout-model",
         ChatRequest::system_user("system", "timeout ping", None, Some(16)),
     );
-    request.payload["provider"]["timeout_secs"] = json!(1);
+    request.payload.provider.timeout_secs = 1;
 
     let events = timeout(
         Duration::from_secs(5),
@@ -204,7 +204,7 @@ async fn stream_idle_timeout_releases_provider_body_across_independent_process()
         "process-stream-idle-model",
         ChatRequest::system_user("system", "stream idle ping", None, Some(16)),
     );
-    request.payload["provider"]["timeout_secs"] = json!(120);
+    request.payload.provider.timeout_secs = 120;
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
     let error = timeout(Duration::from_secs(5), client.stream(request, event_tx))

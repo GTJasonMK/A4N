@@ -11,6 +11,8 @@ use a4n_image_client::{ImageClient, ImageProviderRequest};
 use a4n_image_contract::{
     IMAGE_PROVIDER_CAPABILITY_VERSION, ImageGenerationRequest, ImageProviderPayload,
 };
+use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
+use a4n_llm::provider::ChatRequest;
 use a4n_llm_client::LlmClient;
 use a4n_llm_sidecar_contract::LlmProbeOutput;
 use a4n_rag_client::RagClient;
@@ -426,10 +428,7 @@ fn export_request<T>(request_id: &str, payload: T) -> a4n_service_protocol::Serv
     .expect("valid typed export request")
 }
 
-fn request(
-    request_id: &str,
-    capability_version: &str,
-) -> a4n_service_protocol::ServiceRequest<serde_json::Value> {
+fn request(request_id: &str, capability_version: &str) -> a4n_llm_client::LlmGatewayRequest {
     ServiceRequestContext::deny_all(
         request_id,
         TraceContext {
@@ -439,7 +438,17 @@ fn request(
     )
     .with_payload(
         capability_version,
-        serde_json::json!({"request_id": request_id}),
+        LlmGatewayPayload {
+            provider: LlmGatewayProviderConfig {
+                provider: "openai".to_string(),
+                base_url: "http://127.0.0.1:1/v1".to_string(),
+                model: "test-model".to_string(),
+                api_key: None,
+                timeout_secs: 1,
+                extra_body_json: None,
+            },
+            request: ChatRequest::system_user("system", request_id, None, Some(16)).into(),
+        },
     )
     .expect("valid test capability request")
 }

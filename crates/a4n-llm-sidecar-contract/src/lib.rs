@@ -6,7 +6,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LlmGatewayProviderConfig {
     pub provider: String,
@@ -96,7 +96,7 @@ pub struct LlmChatRequest {
     pub stop_sequences: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LlmGatewayPayload<T> {
     pub provider: LlmGatewayProviderConfig,

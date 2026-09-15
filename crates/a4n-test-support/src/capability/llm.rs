@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_llm_client::{JsonRequest, LlmClient, LlmProbeResponse};
+use a4n_llm_client::{LlmClient, LlmGatewayRequest, LlmProbeResponse};
 use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
@@ -16,7 +16,7 @@ pub struct RecordingLlmClient {
 
 #[derive(Default)]
 struct RecordingLlmClientState {
-    probe_requests: Mutex<Vec<JsonRequest>>,
+    probe_requests: Mutex<Vec<LlmGatewayRequest>>,
 }
 
 impl RecordingLlmClient {
@@ -35,7 +35,7 @@ impl RecordingLlmClient {
             .len()
     }
 
-    pub fn probe_requests(&self) -> Vec<JsonRequest> {
+    pub fn probe_requests(&self) -> Vec<LlmGatewayRequest> {
         self.state
             .probe_requests
             .lock()
@@ -43,7 +43,7 @@ impl RecordingLlmClient {
             .clone()
     }
 
-    pub fn last_probe_request(&self) -> Option<JsonRequest> {
+    pub fn last_probe_request(&self) -> Option<LlmGatewayRequest> {
         self.state
             .probe_requests
             .lock()
@@ -64,13 +64,13 @@ impl ServiceClient for RecordingLlmClient {
 impl LlmClient for RecordingLlmClient {
     async fn stream(
         &self,
-        _request: JsonRequest,
+        _request: LlmGatewayRequest,
         _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         Err(unexpected_call("RecordingLlmClient", "stream"))
     }
 
-    async fn probe(&self, request: JsonRequest) -> CapabilityResult<LlmProbeResponse> {
+    async fn probe(&self, request: LlmGatewayRequest) -> CapabilityResult<LlmProbeResponse> {
         self.state
             .probe_requests
             .lock()

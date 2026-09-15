@@ -89,14 +89,17 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
     assert_eq!(client.probe_call_count(), 1);
     let request = client.last_probe_request().expect("recorded probe request");
     assert!(request.secret_policy.is_local_user_secret_only());
-    assert_eq!(request.payload["provider"]["model"], "test-model");
-    assert_eq!(request.payload["provider"]["api_key"], "test-key");
-    assert_eq!(request.payload["request"]["messages"][0]["content"], "ping");
+    assert_eq!(request.payload.provider.model, "test-model");
+    assert_eq!(
+        request.payload.provider.api_key.as_deref(),
+        Some("test-key")
+    );
+    assert_eq!(request.payload.request.messages[0].content, "ping");
 }
 
 #[tokio::test]
 async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
-    use a4n_llm_client::{JsonRequest, LlmClient, LlmProbeResponse};
+    use a4n_llm_client::{LlmClient, LlmGatewayRequest, LlmProbeResponse};
     use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
     use a4n_service_client::{ServiceClient, ServiceClientResult};
     use a4n_service_protocol::{
@@ -117,7 +120,7 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
     impl LlmClient for ToolStreamClient {
         async fn stream(
             &self,
-            request: JsonRequest,
+            request: LlmGatewayRequest,
             events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
         ) -> ServiceClientResult<()> {
             let chunks = [
@@ -183,7 +186,10 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
             Ok(())
         }
 
-        async fn probe(&self, _request: JsonRequest) -> ServiceClientResult<LlmProbeResponse> {
+        async fn probe(
+            &self,
+            _request: LlmGatewayRequest,
+        ) -> ServiceClientResult<LlmProbeResponse> {
             unreachable!("probe is not used")
         }
 

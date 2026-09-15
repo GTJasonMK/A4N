@@ -5,8 +5,9 @@ use std::{
     time::Duration,
 };
 
+use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
 use a4n_llm::provider::ChatRequest;
-use a4n_llm_client::{HttpLlmClient, JsonRequest, LlmClient};
+use a4n_llm_client::{HttpLlmClient, LlmClient, LlmGatewayRequest};
 use a4n_model_discovery_contract::ModelDiscoveryRequest;
 use a4n_service_client::ServiceClient;
 use a4n_service_manager::{
@@ -216,7 +217,7 @@ pub(crate) fn gateway_request(
     trace_id: &str,
     provider_base_url: &str,
     request: ChatRequest,
-) -> JsonRequest {
+) -> LlmGatewayRequest {
     gateway_request_for_model(
         request_id,
         trace_id,
@@ -232,7 +233,7 @@ pub(crate) fn gateway_request_for_model(
     provider_base_url: &str,
     provider_model: &str,
     request: ChatRequest,
-) -> JsonRequest {
+) -> LlmGatewayRequest {
     gateway_request_with_policy(
         request_id,
         trace_id,
@@ -251,7 +252,7 @@ pub(crate) fn gateway_remote_request_for_model(
     provider_model: &str,
     api_key: Option<&str>,
     request: ChatRequest,
-) -> JsonRequest {
+) -> LlmGatewayRequest {
     gateway_request_with_policy(
         request_id,
         trace_id,
@@ -271,7 +272,7 @@ fn gateway_request_with_policy(
     api_key: Option<&str>,
     secret_policy: SecretForwardingPolicy,
     request: ChatRequest,
-) -> JsonRequest {
+) -> LlmGatewayRequest {
     let mut context = ServiceRequestContext::new(
         request_id,
         TraceContext {
@@ -285,17 +286,17 @@ fn gateway_request_with_policy(
     context
         .with_payload(
             LLM_CHAT_CAPABILITY_VERSION,
-            json!({
-                "provider": {
-                    "provider": "openai",
-                    "base_url": provider_base_url,
-                    "model": provider_model,
-                    "api_key": api_key,
-                    "timeout_secs": 5,
-                    "extra_body_json": null
+            LlmGatewayPayload {
+                provider: LlmGatewayProviderConfig {
+                    provider: "openai".to_string(),
+                    base_url: provider_base_url.to_string(),
+                    model: provider_model.to_string(),
+                    api_key: api_key.map(str::to_string),
+                    timeout_secs: 5,
+                    extra_body_json: None,
                 },
-                "request": request
-            }),
+                request: request.into(),
+            },
         )
         .expect("process integration request context should be valid")
 }
@@ -304,7 +305,7 @@ pub(crate) fn gateway_probe_request(
     request_id: &str,
     trace_id: &str,
     provider_base_url: &str,
-) -> JsonRequest {
+) -> LlmGatewayRequest {
     ServiceRequestContext::local_user_secret(
         request_id,
         TraceContext {
@@ -314,17 +315,17 @@ pub(crate) fn gateway_probe_request(
     )
     .with_payload(
         LLM_CHAT_CAPABILITY_VERSION,
-        json!({
-            "provider": {
-                "provider": "openai",
-                "base_url": provider_base_url,
-                "model": "process-fake-model",
-                "api_key": "process-provider-secret",
-                "timeout_secs": 5,
-                "extra_body_json": null
+        LlmGatewayPayload {
+            provider: LlmGatewayProviderConfig {
+                provider: "openai".to_string(),
+                base_url: provider_base_url.to_string(),
+                model: "process-fake-model".to_string(),
+                api_key: Some("process-provider-secret".to_string()),
+                timeout_secs: 5,
+                extra_body_json: None,
             },
-            "request": ChatRequest::system_user("system", "probe ping", None, Some(16))
-        }),
+            request: ChatRequest::system_user("system", "probe ping", None, Some(16)).into(),
+        },
     )
     .expect("process probe request context should be valid")
 }
@@ -354,7 +355,7 @@ pub(crate) fn gateway_models_request(
 
 pub(crate) async fn collect_stream_events(
     client: &impl LlmClient,
-    request: JsonRequest,
+    request: LlmGatewayRequest,
 ) -> Vec<CapabilityTaskEvent> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
