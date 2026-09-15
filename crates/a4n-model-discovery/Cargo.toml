@@ -8,5 +8,4 @@ license.workspace = true
 a4n-domain = { path = "../a4n-domain" }
 a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 reqwest = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }

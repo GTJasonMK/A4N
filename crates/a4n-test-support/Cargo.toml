@@ -29,8 +29,7 @@ a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
-a4n-task-runtime = { path = "../a4n-task-runtime" }
-a4n-video-client = { path = "../a4n-video-client" }
+a4n-video-client = { path = "../a4n-video-client", features = ["test-support"] }
 a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
 
 anyhow = { workspace = true }

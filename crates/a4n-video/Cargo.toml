@@ -8,8 +8,6 @@ license.workspace = true
 a4n-domain = { path = "../a4n-domain" }
 a4n-video-provider-contract = { path = "../a4n-video-provider-contract" }
 a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
-
-async-trait = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
