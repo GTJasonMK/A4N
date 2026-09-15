@@ -5,7 +5,7 @@ use crate::actions::request_preview::{
     chat_request_step_with_budget, model_request_preview,
 };
 use crate::{AppState, actions::app_error_message};
-use a4n_llm::provider::{ChatMessage, ChatRequest};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 use a4n_provider_contract::LlmProviderConfig;
 
 const LLM_CONNECTIVITY_TEST_PROMPT: &str = "ping";

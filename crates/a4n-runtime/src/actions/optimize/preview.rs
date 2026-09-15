@@ -4,7 +4,7 @@ use crate::{
         ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
     },
 };
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 pub(super) async fn optimization_analysis_request_preview(
     state: &AppState,

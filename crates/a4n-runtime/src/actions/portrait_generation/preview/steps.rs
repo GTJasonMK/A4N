@@ -5,7 +5,7 @@ use crate::actions::request_preview::{
 };
 use crate::state::AppState;
 use a4n_image_contract::ImageGenerationRequest;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_provider_contract::ImageProviderConfig;
 
 pub(in crate::actions::portrait_generation) fn portrait_preview(

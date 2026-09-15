@@ -2,8 +2,8 @@ use super::super::contracts::{
     ChatRequestStepInput, ChatRequestStepWithBudgetInput, ModelRequestPreviewStep,
 };
 use super::super::sanitize::{redact_data_uris_in_text, sanitize_preview_value};
-use a4n_llm::provider::MessageRole;
 use a4n_llm_context::preview_context_aware_chat_request;
+use a4n_llm_provider_contract::provider::MessageRole;
 use serde_json::json;
 
 pub(crate) fn chat_request_step_with_budget(
