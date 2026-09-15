@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 use a4n_db::shooting_script::ParsedChapterShootingScript;

@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 #[derive(Debug, Clone)]
 pub struct MangaPromptOptimizationInput {
