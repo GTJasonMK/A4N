@@ -2,12 +2,12 @@ use a4n_domain::{
     ProviderError as AppError,
     embedding::{EmbeddingBackendKind, embedding_provider_capabilities},
 };
-use a4n_embedding::http::HttpEmbeddingProvider;
-use a4n_embedding::local::LocalEmbeddingProvider;
 use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload};
 #[cfg(feature = "fastembed")]
 use a4n_embedding_fastembed::FastEmbedProvider;
 use a4n_embedding_provider_contract::EmbeddingProvider;
+use a4n_embedding_providers::http::HttpEmbeddingProvider;
+use a4n_embedding_providers::local::LocalEmbeddingProvider;
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 

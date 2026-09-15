@@ -53,7 +53,7 @@ a4n-llm-sidecar-contract = { path = "../a4n-llm-sidecar-contract" }
 a4n-llm-config = { path = "../a4n-llm-config" }
 a4n-llm-http = { path = "../a4n-llm-http", optional = true }
 a4n-media = { path = "../a4n-media" }
-a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-providers = { path = "../a4n-embedding-providers" }
 a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }
 a4n-archive-core = { path = "../a4n-archive-core" }
 a4n-embedding-client = { path = "../a4n-embedding-client" }
