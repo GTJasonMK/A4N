@@ -19,6 +19,83 @@ pub struct LlmGatewayProviderConfig {
     pub extra_body_json: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum LlmMessageRole {
+    System,
+    User,
+    Assistant,
+    Tool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_index: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmChatMessage {
+    pub role: LlmMessageRole,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<LlmToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(deny_unknown_fields)]
+pub struct LlmPromptCacheBreakpoint {
+    pub message_index: usize,
+    pub byte_offset: usize,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LlmPromptCacheMode {
+    Explicit,
+    Implicit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmResponseFormat {
+    pub r#type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmChatRequest {
+    pub messages: Vec<LlmChatMessage>,
+    pub temperature: Option<f32>,
+    pub max_tokens: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<LlmResponseFormat>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub stream_include_usage: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_scope_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cache_breakpoints: Vec<LlmPromptCacheBreakpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_mode: Option<LlmPromptCacheMode>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub cache_system_prefix: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_user_prefix_len: Option<usize>,
+    pub tools: Option<Vec<Value>>,
+    pub tool_choice: Option<String>,
+    pub stop_sequences: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LlmGatewayPayload<T> {
@@ -29,6 +106,7 @@ pub struct LlmGatewayPayload<T> {
 pub type LlmProbePayload<T> = LlmGatewayPayload<T>;
 
 pub type LlmStreamUsage = LlmProbeUsage;
+pub type LlmStreamToolCall = LlmToolCall;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -39,18 +117,6 @@ pub struct LlmStreamChunk {
     pub finish_reason: Option<String>,
     pub index: u32,
     pub usage: Option<LlmStreamUsage>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct LlmStreamToolCall {
-    pub id: String,
-    pub name: String,
-    pub arguments: Value,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stream_index: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provider_metadata: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -75,6 +141,10 @@ pub struct LlmProbeUsage {
     pub prompt_cache_write_tokens: Option<usize>,
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
@@ -86,8 +156,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput, LlmProbeUsage, LlmStreamChunk,
-        LlmStreamToolCall,
+        LlmChatMessage, LlmChatRequest, LlmGatewayPayload, LlmGatewayProviderConfig,
+        LlmMessageRole, LlmProbeOutput, LlmProbeUsage, LlmPromptCacheBreakpoint,
+        LlmPromptCacheMode, LlmResponseFormat, LlmStreamChunk, LlmStreamToolCall,
     };
     use serde_json::{Value, json};
 
@@ -203,6 +274,51 @@ mod tests {
         let decoded: LlmStreamChunk =
             serde_json::from_value(encoded).expect("stream chunk should deserialize");
         assert_eq!(decoded, chunk);
+    }
+
+    #[test]
+    fn chat_request_rejects_unknown_fields_and_roundtrips_wire_options() {
+        let error = serde_json::from_value::<LlmChatRequest>(json!({
+            "messages": [],
+            "temperature": null,
+            "max_tokens": null,
+            "tools": null,
+            "tool_choice": null,
+            "stop_sequences": null,
+            "legacy_field": true
+        }))
+        .expect_err("unknown chat request fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_field"));
+
+        let request = LlmChatRequest {
+            messages: vec![LlmChatMessage {
+                role: LlmMessageRole::Tool,
+                content: "result".to_string(),
+                tool_calls: None,
+                tool_call_id: Some("call-1".to_string()),
+            }],
+            temperature: Some(0.2),
+            max_tokens: Some(256),
+            response_format: Some(LlmResponseFormat {
+                r#type: "json_object".to_string(),
+            }),
+            stream_include_usage: true,
+            cache_scope_key: Some("scope".to_string()),
+            cache_breakpoints: vec![LlmPromptCacheBreakpoint {
+                message_index: 0,
+                byte_offset: 6,
+            }],
+            cache_mode: Some(LlmPromptCacheMode::Explicit),
+            cache_system_prefix: true,
+            cache_user_prefix_len: Some(4),
+            tools: Some(vec![json!({"type": "function"})]),
+            tool_choice: Some("auto".to_string()),
+            stop_sequences: Some(vec!["DONE".to_string()]),
+        };
+        let encoded = serde_json::to_value(&request).expect("chat request should serialize");
+        let decoded: LlmChatRequest =
+            serde_json::from_value(encoded).expect("chat request should deserialize");
+        assert_eq!(decoded, request);
     }
 
     #[test]
