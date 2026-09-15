@@ -23,6 +23,7 @@ pub use self::request::{
     context_aware_system_user_request, context_manifest_dynamic_messages,
     preview_context_aware_chat_request, replace_request_user_content_from_manifest,
 };
+pub use a4n_llm_provider_contract::estimate_context_tokens;
 
 pub const CONTEXT_MANIFEST_SCHEMA_VERSION: u32 = 1;
 pub const PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT: &str = "profile_sync_source_context";
@@ -57,12 +58,6 @@ pub struct LlmContextManifestPackVariant {
 
 pub fn canonical_json_text(value: &Value) -> Result<String, AppError> {
     serde_json::to_string_pretty(value).map_err(AppError::Serialization)
-}
-
-pub fn estimate_context_tokens(text: &str) -> usize {
-    // ponytail: UTF-8 bytes conservatively bound text tokens; use model tokenizers
-    // when recovering unused context capacity is worth their model data/dependency.
-    text.len()
 }
 
 #[cfg(test)]

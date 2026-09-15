@@ -87,7 +87,7 @@ impl ChatRequest {
         self
     }
 
-    pub(crate) fn with_context_manifest_json(mut self, manifest: Value) -> Self {
+    pub fn with_context_manifest_json(mut self, manifest: Value) -> Self {
         self.context_manifest_json = Some(manifest);
         self
     }

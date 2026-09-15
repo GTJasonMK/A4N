@@ -27,7 +27,7 @@ pub trait LlmProvider: Send + Sync {
 
     /// 计算文本的 Token 数量
     fn count_tokens(&self, text: &str) -> usize {
-        crate::context::estimate_context_tokens(text)
+        crate::estimate_context_tokens(text)
     }
 
     /// 计算消息列表的总 Token 数
