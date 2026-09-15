@@ -1,4 +1,4 @@
-use a4n_llm::provider::{ChatRequest, UsageInfo};
+use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};
 use a4n_progress::StructuredJsonProgressSpec;
 use tokio_util::sync::CancellationToken;
 

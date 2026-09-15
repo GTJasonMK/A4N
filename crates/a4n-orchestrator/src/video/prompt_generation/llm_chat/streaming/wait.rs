@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::time::{Duration, Instant};
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider};
+use a4n_llm_provider_contract::provider::{ChatChunk, ChatRequest, LlmProvider, open_chat_stream};
 use futures::{Stream, StreamExt};
 use tokio::time::{Instant as TokioInstant, MissedTickBehavior, interval_at};
 use tokio_util::sync::CancellationToken;
@@ -20,7 +20,7 @@ pub(super) async fn open_video_prompt_stream(
     progress: &mut Option<VideoPromptProgress<'_>>,
     started: Instant,
 ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-    let mut request_future = Box::pin(a4n_llm::provider::open_chat_stream(
+    let mut request_future = Box::pin(open_chat_stream(
         llm.chat_stream(request),
         cancel_token.cloned().unwrap_or_default(),
     ));
