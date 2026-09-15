@@ -5,7 +5,9 @@ use a4n_api_contract::{
         PreviewBlueprintGenerationInput, PreviewBlueprintRefinementInput,
         StartBlueprintGenerationInput, StartBlueprintRefinementInput,
     },
-    generation_tasks::{GenerationStartRequestMeta, GenerationTaskHandle},
+    generation_tasks::{
+        GenerationStartRequestMeta, GenerationTaskHandle, GenerationTaskStartError,
+    },
 };
 use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::project::{
@@ -30,74 +32,10 @@ mod json;
 mod persistence;
 mod refine;
 
-/// Host-facing boundary for blueprint generation request previews.
-#[async_trait::async_trait]
-pub trait BlueprintGenerationPreviewApplicationPort: Send + Sync {
-    async fn preview_generation(
-        &self,
-        user_id: i64,
-        input: PreviewBlueprintGenerationInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<BlueprintGenerationPreviewStep, AppError>;
-}
-
-/// Host-facing boundary for blueprint refinement request previews.
-#[async_trait::async_trait]
-pub trait BlueprintRefinementPreviewApplicationPort: Send + Sync {
-    async fn preview_refinement(
-        &self,
-        user_id: i64,
-        input: PreviewBlueprintRefinementInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ChatRequest, AppError>;
-}
-
-/// Host-facing boundary for blueprint generation workers.
-///
-/// Runtime owns worker scheduling and supplies the prompt renderer; blueprint
-/// validation, persistence and terminal workflow state remain here.
-#[async_trait::async_trait]
-pub trait BlueprintGenerationApplicationPort: Send + Sync {
-    fn generation_input_from_workflow_run(
-        &self,
-        run: &WorkflowResumeRecord,
-    ) -> Result<StartBlueprintGenerationInput, AppError>;
-
-    async fn start_generation(
-        &self,
-        user_id: i64,
-        input: &StartBlueprintGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn run_generation(
-        &self,
-        prompt_renderer: &dyn PromptRenderer,
-        input: StartBlueprintGenerationInput,
-        handle: GenerationTaskHandle,
-    ) -> Result<(), String>;
-}
-
-/// Host-facing boundary for blueprint refinement workers.
-#[async_trait::async_trait]
-pub trait BlueprintRefinementApplicationPort: Send + Sync {
-    fn refinement_input_from_workflow_run(
-        &self,
-        run: &WorkflowResumeRecord,
-    ) -> Result<StartBlueprintRefinementInput, AppError>;
-
-    async fn start_refinement(
-        &self,
-        user_id: i64,
-        input: &StartBlueprintRefinementInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn run_refinement(
-        &self,
-        prompt_renderer: &dyn PromptRenderer,
-        input: StartBlueprintRefinementInput,
-        handle: GenerationTaskHandle,
-    ) -> Result<(), String>;
-}
+pub use a4n_blueprint_contract::{
+    BlueprintGenerationApplicationPort, BlueprintGenerationPreviewApplicationPort,
+    BlueprintRefinementApplicationPort, BlueprintRefinementPreviewApplicationPort,
+};
 
 pub(crate) use json::validate_sparse_blueprint_sections;
 
@@ -291,8 +229,10 @@ impl BlueprintGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &StartBlueprintGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_blueprint_generation_task(self, user_id, input).await
+    ) -> Result<crate::GenerationTaskStart, GenerationTaskStartError> {
+        OrchestratorContext::start_blueprint_generation_task(self, user_id, input)
+            .await
+            .map_err(map_blueprint_start_error)
     }
 
     async fn run_generation(
@@ -319,8 +259,10 @@ impl BlueprintRefinementApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &StartBlueprintRefinementInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_blueprint_refinement_task(self, user_id, input).await
+    ) -> Result<crate::GenerationTaskStart, GenerationTaskStartError> {
+        OrchestratorContext::start_blueprint_refinement_task(self, user_id, input)
+            .await
+            .map_err(map_blueprint_start_error)
     }
 
     async fn run_refinement(
@@ -332,6 +274,18 @@ impl BlueprintRefinementApplicationPort for OrchestratorContext {
         OrchestratorContext::run_blueprint_refinement_task(self, prompt_renderer, input, handle)
             .await
     }
+}
+
+fn map_blueprint_start_error(error: crate::GenerationTaskAccessError) -> GenerationTaskStartError {
+    let code = error.code();
+    let retryable = !matches!(
+        code,
+        "generation_request_invalid"
+            | "generation_task_forbidden"
+            | "generation_task_unauthenticated"
+            | "generation_task_not_found"
+    );
+    GenerationTaskStartError::new(code, error.to_string(), retryable)
 }
 
 pub(crate) fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
@@ -486,7 +440,23 @@ fn required_fingerprint_variables(value: &Value) -> Result<Value, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_db::generation::GenerationTaskPersistenceError;
     use serde_json::json;
+
+    #[test]
+    fn blueprint_start_errors_use_stable_codes_and_retry_policy() {
+        let invalid = map_blueprint_start_error(crate::GenerationTaskAccessError::InvalidArgument(
+            "请求无效".to_string(),
+        ));
+        assert_eq!(invalid.code(), "generation_request_invalid");
+        assert!(!invalid.retryable);
+
+        let persistence = map_blueprint_start_error(crate::GenerationTaskAccessError::Persistence(
+            GenerationTaskPersistenceError::Corrupt("状态损坏".to_string()),
+        ));
+        assert_eq!(persistence.code(), "generation_checkpoint_corrupt");
+        assert!(persistence.retryable);
+    }
 
     #[test]
     fn required_fingerprint_string_preserves_request_value() {

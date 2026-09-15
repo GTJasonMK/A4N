@@ -1,14 +1,13 @@
 use a4n_api_contract::workflow::WorkflowResumeRecord;
 use a4n_api_contract::{
     blueprint::{PreviewBlueprintRefinementInput, StartBlueprintRefinementInput},
-    generation_tasks::GenerationTaskHandle,
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
 };
 use a4n_domain::project::{
     BLUEPRINT_REFINEMENT_PROMPTS, BLUEPRINT_REFINEMENT_TASK_KIND,
     BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
 };
 use a4n_error::AppError;
-use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::AppState;
 use crate::actions::request_preview::{
@@ -19,7 +18,7 @@ pub async fn start_blueprint_refinement_typed(
     state: &AppState,
     user_id: i64,
     input: StartBlueprintRefinementInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .blueprint_refinement_application()
         .start_refinement(user_id, &input)

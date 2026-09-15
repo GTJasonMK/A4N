@@ -37,6 +37,7 @@ members = [
     "crates/a4n-provider-contract",
     "crates/a4n-provider-runtime-contract",
     "crates/a4n-cleanup-contract",
+    "crates/a4n-blueprint-contract",
     "crates/a4n-canvas-contract",
     "crates/a4n-outline-contract",
     "crates/a4n-llm-context",

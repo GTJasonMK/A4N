@@ -231,15 +231,17 @@ pub struct AppState {
     blueprint_read_application: Arc<dyn a4n_api_contract::blueprint::BlueprintReadApplicationPort>,
     /// Blueprint generation request preview owner.
     blueprint_generation_preview_application:
-        Arc<dyn a4n_orchestrator::BlueprintGenerationPreviewApplicationPort>,
+        Arc<dyn a4n_blueprint_contract::BlueprintGenerationPreviewApplicationPort>,
     /// Blueprint refinement request preview owner.
     blueprint_refinement_preview_application:
-        Arc<dyn a4n_orchestrator::BlueprintRefinementPreviewApplicationPort>,
+        Arc<dyn a4n_blueprint_contract::BlueprintRefinementPreviewApplicationPort>,
     /// Blueprint generation owner. Runtime supplies task workers and prompt
     /// rendering; workflow persistence stays with the blueprint owner.
-    blueprint_generation_application: Arc<dyn a4n_orchestrator::BlueprintGenerationApplicationPort>,
+    blueprint_generation_application:
+        Arc<dyn a4n_blueprint_contract::BlueprintGenerationApplicationPort>,
     /// Blueprint refinement worker boundary.
-    blueprint_refinement_application: Arc<dyn a4n_orchestrator::BlueprintRefinementApplicationPort>,
+    blueprint_refinement_application:
+        Arc<dyn a4n_blueprint_contract::BlueprintRefinementApplicationPort>,
     /// Host-facing blueprint mutation boundary. Durable version writes remain
     /// owned by the blueprint application.
     blueprint_mutation_application:
@@ -1482,25 +1484,25 @@ impl AppState {
 
     pub(crate) fn blueprint_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintGenerationPreviewApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintGenerationPreviewApplicationPort {
         self.blueprint_generation_preview_application.as_ref()
     }
 
     pub(crate) fn blueprint_refinement_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintRefinementPreviewApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintRefinementPreviewApplicationPort {
         self.blueprint_refinement_preview_application.as_ref()
     }
 
     pub(crate) fn blueprint_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintGenerationApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintGenerationApplicationPort {
         self.blueprint_generation_application.as_ref()
     }
 
     pub(crate) fn blueprint_refinement_application(
         &self,
-    ) -> &dyn a4n_orchestrator::BlueprintRefinementApplicationPort {
+    ) -> &dyn a4n_blueprint_contract::BlueprintRefinementApplicationPort {
         self.blueprint_refinement_application.as_ref()
     }
 

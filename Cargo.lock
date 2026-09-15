@@ -112,6 +112,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-blueprint-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-canvas-contract"
 version = "0.1.0"
 dependencies = [
@@ -784,6 +795,7 @@ dependencies = [
  "a4n-agent-application",
  "a4n-api-contract",
  "a4n-archive-core",
+ "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-chapter-analysis",
  "a4n-cleanup-contract",
@@ -1073,6 +1085,7 @@ dependencies = [
  "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-archive-core",
+ "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-cleanup-contract",
  "a4n-config",

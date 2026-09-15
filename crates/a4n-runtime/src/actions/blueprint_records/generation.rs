@@ -1,11 +1,10 @@
 use a4n_api_contract::workflow::WorkflowResumeRecord;
 use a4n_api_contract::{
     blueprint::{BlueprintSummary, PreviewBlueprintGenerationInput, StartBlueprintGenerationInput},
-    generation_tasks::GenerationTaskHandle,
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
 };
 use a4n_domain::project::BLUEPRINT_GENERATION_KIND;
 use a4n_error::AppError;
-use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::AppState;
 use crate::actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state};
@@ -14,7 +13,7 @@ pub async fn start_blueprint_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartBlueprintGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .blueprint_generation_application()
         .start_generation(user_id, &input)

@@ -205,11 +205,11 @@ async fn start_generation(
             StartInspirationGenerationInput,
             a4n_runtime::host_api::inspiration_records::start_inspiration_generation_typed
         ),
-        "start_blueprint_generation" => start!(
+        "start_blueprint_generation" => start_stable!(
             StartBlueprintGenerationInput,
             a4n_runtime::host_api::blueprint_records::start_blueprint_generation_typed
         ),
-        "start_blueprint_refinement" => start!(
+        "start_blueprint_refinement" => start_stable!(
             StartBlueprintRefinementInput,
             a4n_runtime::host_api::blueprint_records::start_blueprint_refinement_typed
         ),
