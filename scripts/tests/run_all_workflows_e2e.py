@@ -1625,6 +1625,8 @@ def seed_fixtures(
             value = result.get("data")
             if isinstance(value, dict):
                 if value.get("status") == "completed":
+                    if not value.get("file_path") or not isinstance(value.get("duration_secs"), (int, float)) or value["duration_secs"] <= 0:
+                        raise RunnerError(f"fixture video completed without a deliverable file/duration: {value}")
                     return result
                 if value.get("status") in {"failed", "cancelled"}:
                     raise RunnerError(f"fixture video job 失败: {value}")
@@ -1784,7 +1786,7 @@ def seed_fixtures(
         "rag_ingest_all",
         {"projectId": project_id, "input": {"rebuild": False}},
     )
-    call(
+    rag_prepared = call(
         "rag_prepare_enhanced_search",
         {
             "projectId": project_id,
@@ -1795,7 +1797,15 @@ def seed_fixtures(
             },
         },
     )
-    call(
+    prepared_data = rag_prepared.get("data")
+    if (
+        not isinstance(prepared_data, dict)
+        or not isinstance(prepared_data.get("query_texts"), list)
+        or not prepared_data["query_texts"]
+        or not isinstance(prepared_data.get("embedding_identity"), dict)
+    ):
+        raise RunnerError("fixture rag_prepare_enhanced_search 未返回可执行查询和 embedding identity")
+    rag_search = call(
         "rag_enhanced_search",
         {
             "projectId": project_id,
@@ -1806,6 +1816,21 @@ def seed_fixtures(
             },
         },
     )
+    search_data = rag_search.get("data")
+    if not isinstance(search_data, dict):
+        raise RunnerError("fixture rag_enhanced_search 未返回 object")
+    results = search_data.get("results")
+    queries = search_data.get("queries")
+    candidate_count = search_data.get("candidate_count")
+    if not isinstance(results, list) or not results:
+        raise RunnerError("fixture rag_enhanced_search 未返回任何召回片段")
+    if not isinstance(queries, list) or not any("七分钟" in str(item.get("query", "")) for item in queries if isinstance(item, dict)):
+        raise RunnerError("fixture rag_enhanced_search 未保留原始查询及增强查询")
+    if not isinstance(candidate_count, int) or candidate_count < len(results):
+        raise RunnerError("fixture rag_enhanced_search candidate_count 与结果数量不一致")
+    for result in results:
+        if not isinstance(result, dict) or not result.get("id") or not str(result.get("content", "")).strip() or not isinstance(result.get("metadata"), dict):
+            raise RunnerError("fixture rag_enhanced_search 返回了缺少来源元数据的片段")
 
     director_scene = call("create_scene_profile", {"input": {"project_id": project_id, "profile": {
         "name": f"Director station {run_id}", "scene_type": "room", "importance": "primary",
