@@ -6,6 +6,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const EMBEDDING_SERVICE_NAME: &str = "embedding";
+pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v5";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EmbeddingModelIdentity {

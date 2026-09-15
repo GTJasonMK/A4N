@@ -6,6 +6,9 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub const PROMPT_SERVICE_NAME: &str = "prompt";
+pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v4";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptEntry {

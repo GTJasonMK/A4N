@@ -6,6 +6,9 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+pub const LLM_SERVICE_NAME: &str = "llm";
+pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v7";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LlmGatewayProviderConfig {

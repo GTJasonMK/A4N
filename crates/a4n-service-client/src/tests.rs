@@ -1,12 +1,11 @@
 use super::transport::*;
 use crate::{ServiceClientConfig, ServiceClientResult};
-use a4n_process_catalog::service_catalog_entry_ref;
 use a4n_service_protocol::{
     CapabilityTaskEventKind, HealthStatus, IMPORT_SERVICE_NAME, LLM_SERVICE_NAME,
     PROMPT_SERVICE_NAME, PROTOCOL_VERSION, SIDECAR_EVENT_CONTENT_TYPE,
     SIDECAR_EVENT_QUEUE_CAPACITY, SIDECAR_HEALTH_PATH, SIDECAR_REQUEST_ID_HEADER,
     SIDECAR_TRACE_ID_HEADER, ServiceErrorCode, ServiceRequest, ServiceResponse, TraceContext,
-    sidecar_resource_policy,
+    expected_capability_version_for_service, sidecar_resource_policy,
 };
 use std::{net::SocketAddr, time::Duration};
 use tokio::{io::AsyncWriteExt, net::TcpListener};
@@ -455,8 +454,7 @@ fn typed_test_request<T>(capability_version: &str, payload: T) -> ServiceRequest
 }
 
 fn capability_version_for(service_name: &'static str) -> &'static str {
-    service_catalog_entry_ref(service_name)
-        .map(|entry| entry.capability_version.as_str())
+    expected_capability_version_for_service(service_name)
         .expect("test service must have protocol capability version")
 }
 

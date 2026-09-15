@@ -6,6 +6,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+pub const RAG_SERVICE_NAME: &str = "rag";
+pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v3";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MetadataByIdsPayload {

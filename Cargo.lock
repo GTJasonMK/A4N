@@ -1069,7 +1069,6 @@ dependencies = [
 name = "a4n-service-client"
 version = "0.1.0"
 dependencies = [
- "a4n-process-catalog",
  "a4n-service-protocol",
  "async-trait",
  "futures",
