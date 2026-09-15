@@ -816,7 +816,6 @@ dependencies = [
  "a4n-event",
  "a4n-image-contract",
  "a4n-import-core",
- "a4n-llm",
  "a4n-llm-config",
  "a4n-llm-context",
  "a4n-llm-provider-contract",

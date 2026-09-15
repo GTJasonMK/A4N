@@ -22,7 +22,6 @@ a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-storage = { path = "../a4n-storage" }
 a4n-task-runtime = { path = "../a4n-task-runtime" }
-a4n-llm = { path = "../a4n-llm" }
 a4n-llm-context = { path = "../a4n-llm-context" }
 a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-llm-structured-stream = { path = "../a4n-llm-structured-stream" }
