@@ -159,6 +159,13 @@ def main():
                 for patch_set in patch_sets
                 if patch_set["status"] == "pending" and patch_set["patches"]
             )
+            call("apply_optimization_patches", {
+                "session_id": session["id"],
+                "base_content_hash": "stale-content-hash",
+                "patches": pending_patch["patches"],
+            }, failure=True, destructive=True)
+            assert data(checked(cli, ["chapter", "get", str(chapter["id"])], "stale apply chapter")[0], "chapter")["content"] == original
+            report["checks"].append("stale optimization PatchSet hash is rejected without changing chapter content")
             applied = call("apply_optimization_patches", {
                 "session_id": session["id"],
                 "base_content_hash": pending_patch["base_content_hash"],
@@ -199,6 +206,16 @@ def main():
             assert changed["nodes"][:2] == graph["nodes"][:2] and changed["edges"] == graph["edges"]
             assert [row["id"] for row in changed["nodes"]] == [row["id"] for row in graph["nodes"]]
             assert changed["nodes"][2]["config_json"] == canvas_task["config"]
+            rejected_task = {**canvas_task, "config": {"prompt": "用户拒绝的执行"}}
+            rejected_run = send(canvas_thread["id"], MARKER + json.dumps(rejected_task, ensure_ascii=False))
+            rejected_approval = wait_state(canvas_thread["id"], rejected_run, "approval")
+            rejected_pending = next(row for row in rejected_approval["approvals"] if row["status"] == "pending")
+            checked(cli, ["agent", "approve", rejected_pending["id"], "reject"], "canvas rejection")
+            _, rejected_snapshot = finish(canvas_thread["id"], rejected_run)
+            rejected_execution = next(row for row in rejected_snapshot["executions"] if row["run_id"] == rejected_run and row["tool_name"] == "edit_canvas_graph")
+            assert rejected_execution["status"] == "rejected"
+            assert call("get_canvas_graph", resource) == changed
+            report["checks"].append("rejecting a Canvas write leaves graph state and workflow untouched")
             version = changed["graph"]["version"]
             edit = {**resource, "expected_version": version, "operations": [{"kind": "set_node_config", "node_id": canvas_task["node_id"], "config_json": canvas_task["config"]}]}
             noop = call("edit_canvas_graph", edit)
