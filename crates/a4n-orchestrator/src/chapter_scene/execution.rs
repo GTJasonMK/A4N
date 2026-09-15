@@ -5,7 +5,7 @@ use a4n_api_contract::chapter::{
 };
 use a4n_db_models::models::chapter::chapter_scene;
 use a4n_error::AppError;
-use a4n_llm::provider::is_truncated_finish_reason;
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
@@ -234,7 +234,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         workflow_fingerprint: Value,
         call_key: String,
-        mut request: a4n_llm::provider::ChatRequest,
+        mut request: a4n_llm_provider_contract::provider::ChatRequest,
         progress: ChapterSceneProgressReporter<'_>,
     ) -> Result<String, AppError> {
         let fingerprint_json =

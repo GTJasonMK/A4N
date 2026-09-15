@@ -1,6 +1,6 @@
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use crate::structured_llm::{ChatJsonStreamInput, stream_error_or_cancelled};
 

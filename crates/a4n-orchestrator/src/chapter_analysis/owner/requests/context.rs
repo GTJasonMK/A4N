@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
 use a4n_llm_context::{LlmContextLedger, context_aware_system_user_request};
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 use a4n_prompt::rendering::PromptRenderer;

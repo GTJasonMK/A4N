@@ -5,7 +5,7 @@ use a4n_chapter_analysis::{
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
-use a4n_llm::trace::{chat_request_messages_json, context_aware_chat_request_trace_json};
+use a4n_llm_trace::{chat_request_messages_json, context_aware_chat_request_trace_json};
 use serde_json::{Value, json};
 
 use super::super::OrchestratorContext;

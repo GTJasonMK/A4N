@@ -16,7 +16,7 @@ use a4n_db_models::models::chapter::chapter_outline;
 use a4n_domain::progress::ProgressPhaseKind;
 use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
