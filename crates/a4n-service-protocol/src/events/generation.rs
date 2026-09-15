@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
+use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use sha2::{Digest, Sha256};
