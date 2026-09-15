@@ -26,9 +26,9 @@ use a4n_api_contract::package::PackageId;
 use a4n_api_contract::web_search::WebSearchInput;
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
-use a4n_llm::provider::{
-    ChatMessage, ChatRequest, ChatResponse, ChatStreamAccumulator, LlmTraceContext, MessageRole,
-    ToolCall,
+use a4n_llm_provider_contract::provider::{
+    ChatChunk, ChatMessage, ChatRequest, ChatResponse, ChatStreamAccumulator, LlmTraceContext,
+    MessageRole, ModelCapabilities, ResponseFormat, ToolCall, validate_finish_reason,
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalCheckRequest,
@@ -1701,7 +1701,7 @@ pub async fn agent_llm_capabilities(
     user_id: i64,
     runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
     config_id: Option<i64>,
-) -> Result<a4n_llm::provider::ModelCapabilities, AppError> {
+) -> Result<ModelCapabilities, AppError> {
     crate::runtime_config::request_scope(user_id, runtime_snapshot, async {
         state
             .dynamic_llm_provider_for_profile()?
@@ -1717,10 +1717,7 @@ pub async fn agent_chat_stream(
     runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
     config_id: Option<i64>,
     request: ChatRequest,
-) -> Result<
-    Pin<Box<dyn Stream<Item = Result<a4n_llm::provider::ChatChunk, AppError>> + Send>>,
-    AppError,
-> {
+) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
     crate::runtime_config::request_scope(user_id, runtime_snapshot, async {
         state
             .dynamic_llm_provider_for_profile()?
@@ -2392,7 +2389,7 @@ async fn process_claimed_run_inner(
                 .await?;
             response
         };
-        a4n_llm::provider::validate_finish_reason(response.finish_reason.as_deref())?;
+        validate_finish_reason(response.finish_reason.as_deref())?;
         // A succeeded durable execution is a replay after a worker restart;
         // its usage was already persisted before the crash. Counting it
         // again would let retries silently exceed token budgets.
@@ -2546,7 +2543,7 @@ async fn compact_context(
     context: &mut AgentRunContext,
     execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
     config_id: Option<i64>,
-    capabilities: &a4n_llm::provider::ModelCapabilities,
+    capabilities: &ModelCapabilities,
     covered_through_sequence: i64,
     source: String,
     cancel: &CancellationToken,
@@ -2567,7 +2564,7 @@ async fn compact_context(
         ],
         temperature: Some(0.0),
         max_tokens: Some(output_tokens),
-        response_format: Some(a4n_llm::provider::ResponseFormat::json_object()),
+        response_format: Some(ResponseFormat::json_object()),
         stream_include_usage: true,
         cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
         cache_breakpoints: Vec::new(),
@@ -2800,7 +2797,7 @@ async fn recover_model_messages(
             continue;
         }
         let response = model_response(execution)?;
-        a4n_llm::provider::validate_finish_reason(response.finish_reason.as_deref())?;
+        validate_finish_reason(response.finish_reason.as_deref())?;
         let calls = response.message.tool_calls.unwrap_or_default();
         if calls.is_empty() {
             if response.message.content.trim().is_empty() {
@@ -2907,9 +2904,7 @@ async fn complete_run(
 }
 
 async fn consume_model_stream(
-    stream: std::pin::Pin<
-        Box<dyn futures::Stream<Item = Result<a4n_llm::provider::ChatChunk, AppError>> + Send>,
-    >,
+    stream: std::pin::Pin<Box<dyn futures::Stream<Item = Result<ChatChunk, AppError>> + Send>>,
     message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     stream_client_message_id: &str,
