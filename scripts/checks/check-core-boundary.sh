@@ -367,6 +367,12 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|db-models|runtime|orchestrator|server|tau
     exit 1
 fi
 
+video_host_contract_tree="$(cargo tree --locked -e normal,build -p a4n-video-host-contract)"
+if rg -n '(^|[[:space:]])a4n-video([[:space:]]|v|$)' <<<"$video_host_contract_tree"; then
+    printf 'a4n-video-host-contract must consume provider/sidecar contracts instead of a4n-video implementation\n' >&2
+    exit 1
+fi
+
 if rg -n 'pub trait VideoProviderHostPort|a4n_orchestrator::video::VideoProviderHostPort' \
     crates/a4n-orchestrator/src crates/a4n-runtime/src; then
     printf 'VideoProviderHostPort must remain in a4n-video-host-contract, not the orchestrator facade\n' >&2

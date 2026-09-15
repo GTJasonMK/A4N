@@ -8,7 +8,10 @@ use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_error::AppError;
 use a4n_generation_artifact_contract::GenerationArtifactRef;
 use a4n_provider_contract::VideoProviderConfig;
-use a4n_video::{VideoGenerationResult, VideoJobState};
+use a4n_video_provider_contract::{
+    ProviderImageInputTransport, VideoGenerationResult, VideoJobState,
+};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 use async_trait::async_trait;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
@@ -34,7 +37,7 @@ pub struct ImportedVideoProperties {
 pub struct VideoProviderRequestInput {
     pub project_id: i64,
     pub config: VideoProviderConfig,
-    pub request: a4n_video::VideoGenerationRequest,
+    pub request: VideoGenerationRequest,
     pub provider_idempotency_key_sha256: Option<String>,
 }
 
@@ -74,7 +77,7 @@ pub struct ChapterVideoImageInput {
     pub project_id: i64,
     pub chapter_id: i64,
     pub mode: VideoProviderValidationMode,
-    pub transport: a4n_video::ProviderImageInputTransport,
+    pub transport: ProviderImageInputTransport,
     pub reference_image_ids: Vec<i64>,
     pub first_frame_image_id: Option<i64>,
     pub last_frame_image_id: Option<i64>,
@@ -95,7 +98,7 @@ pub struct CanvasVideoRequestPreview {
     pub model: String,
     pub graph_id: i64,
     pub node_id: i64,
-    pub request: a4n_video::VideoGenerationRequest,
+    pub request: VideoGenerationRequest,
 }
 
 #[derive(Debug, Clone)]
@@ -211,7 +214,7 @@ pub trait ChapterVideoGenerationHostPort: ChapterVideoPreviewHostPort {
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError>;
 
-    fn resolve_image_transport(&self) -> Result<a4n_video::ProviderImageInputTransport, AppError>;
+    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError>;
 
     async fn resolve_chapter_video_image_inputs(
         &self,
@@ -227,7 +230,7 @@ pub trait ChapterVideoGenerationHostPort: ChapterVideoPreviewHostPort {
         &self,
         input: VideoProviderRequestInput,
         progress: &mut dyn VideoGenerationProgressPort,
-    ) -> Result<a4n_video::VideoGenerationResult, AppError>;
+    ) -> Result<VideoGenerationResult, AppError>;
 
     fn runtime_config_snapshot(&self) -> Option<serde_json::Value>;
 
@@ -250,7 +253,7 @@ pub trait ReferenceMediaVideoGenerationHostPort: ReferenceMediaVideoPreviewHostP
         &self,
         input: VideoProviderRequestInput,
         progress: &mut dyn VideoGenerationProgressPort,
-    ) -> Result<a4n_video::VideoGenerationResult, AppError>;
+    ) -> Result<VideoGenerationResult, AppError>;
 
     async fn upload_reference_media_input(
         &self,
@@ -329,9 +332,7 @@ pub trait ChapterVideoPreviewHostPort: Send + Sync {
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError>;
 
-    fn resolve_image_transport_for_preview(
-        &self,
-    ) -> Result<a4n_video::ProviderImageInputTransport, AppError>;
+    fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError>;
 
     async fn resolve_chapter_video_image_inputs_for_preview(
         &self,

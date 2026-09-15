@@ -57,6 +57,7 @@ members = [
     "crates/a4n-video",
     "crates/a4n-video-contract",
     "crates/a4n-video-host-contract",
+    "crates/a4n-video-provider-contract",
     "crates/a4n-video-sidecar-contract",
     "crates/a4n-video-providers",
     "crates/a4n-video-service",

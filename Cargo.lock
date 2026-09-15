@@ -1244,6 +1244,7 @@ name = "a4n-video"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-video-provider-contract",
  "a4n-video-sidecar-contract",
  "async-trait",
  "chrono",
@@ -1283,8 +1284,16 @@ dependencies = [
  "a4n-error",
  "a4n-generation-artifact-contract",
  "a4n-provider-contract",
- "a4n-video",
+ "a4n-video-provider-contract",
+ "a4n-video-sidecar-contract",
  "async-trait",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-video-provider-contract"
+version = "0.1.0"
+dependencies = [
  "serde_json",
 ]
 
