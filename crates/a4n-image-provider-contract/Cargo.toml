@@ -1,0 +1,11 @@
+[package]
+name = "a4n-image-provider-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { path = "../a4n-domain" }
+a4n-image-contract = { path = "../a4n-image-contract" }
+
+async-trait = { workspace = true }

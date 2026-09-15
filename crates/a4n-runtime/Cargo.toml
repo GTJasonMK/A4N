@@ -65,9 +65,9 @@ a4n-rag-client = { path = "../a4n-rag-client" }
 a4n-rag-contract = { path = "../a4n-rag-contract" }
 a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-rag-index = { path = "../a4n-rag-index", optional = true }
-a4n-image = { path = "../a4n-image" }
 a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-image-client = { path = "../a4n-image-client" }
+a4n-image-provider-contract = { path = "../a4n-image-provider-contract" }
 a4n-import-core = { path = "../a4n-import-core" }
 a4n-image-providers = { path = "../a4n-image-providers", optional = true }
 a4n-model-discovery = { path = "../a4n-model-discovery" }

@@ -453,10 +453,8 @@ dependencies = [
 name = "a4n-image"
 version = "0.1.0"
 dependencies = [
- "a4n-domain",
  "a4n-image-contract",
- "async-trait",
- "serde",
+ "a4n-image-provider-contract",
 ]
 
 [[package]]
@@ -481,12 +479,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-image-provider-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-image-contract",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-image-providers"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-image",
  "a4n-image-contract",
+ "a4n-image-provider-contract",
  "async-trait",
  "base64 0.22.1",
  "image",
@@ -1000,9 +1007,9 @@ dependencies = [
  "a4n-event",
  "a4n-export-client",
  "a4n-export-contract",
- "a4n-image",
  "a4n-image-client",
  "a4n-image-contract",
+ "a4n-image-provider-contract",
  "a4n-image-providers",
  "a4n-import-client",
  "a4n-import-contract",

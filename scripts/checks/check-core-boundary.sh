@@ -385,6 +385,13 @@ if rg -n 'a4n_orchestrator::video::VideoProviderExecutionApplicationPort' \
     exit 1
 fi
 
+image_provider_tree="$(cargo tree --locked -e normal,build -p a4n-image-providers)"
+if rg -n '(^|[[:space:]])a4n-image([[:space:]]|v|$)' <<<"$image_provider_tree" \
+    || rg -n 'a4n_image::' crates/a4n-image-providers/src crates/a4n-runtime/src/sidecar_clients/image; then
+    printf 'Image providers and Runtime image adapters must consume a4n-image-provider-contract instead of a4n-image\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub trait VideoProviderExecutionApplicationPort' \
     crates/a4n-api-contract/src/video.rs || \
    ! rg -n 'a4n_video_host_contract::VideoProviderHostPort' \
