@@ -144,7 +144,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::admin::AdminApplicationPort for OrchestratorContext {
+impl a4n_api_contract::admin::AdminReadApplicationPort for OrchestratorContext {
     async fn require_permission(
         &self,
         caller_user_id: i64,
@@ -200,6 +200,14 @@ impl a4n_api_contract::admin::AdminApplicationPort for OrchestratorContext {
         OrchestratorContext::list_auth_users(self).await
     }
 
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
+        let codes = OrchestratorContext::list_invite_code_records(self).await?;
+        Ok(codes.iter().map(invite_code_summary).collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::admin::AdminMutationApplicationPort for OrchestratorContext {
     async fn create_user(
         &self,
         input: a4n_api_contract::admin::CreateUserInput,
@@ -213,11 +221,6 @@ impl a4n_api_contract::admin::AdminApplicationPort for OrchestratorContext {
         )
         .await?;
         Ok(super::auth::auth_user_summary(&user))
-    }
-
-    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
-        let codes = OrchestratorContext::list_invite_code_records(self).await?;
-        Ok(codes.iter().map(invite_code_summary).collect())
     }
 
     async fn create_invite_code(

@@ -39,6 +39,34 @@ pub struct ProjectSummary {
     pub updated_at: String,
 }
 
+/// Host adapter for project duplication.
+///
+/// The project owner keeps permission checks and database transactions; the
+/// host only supplies media copying and rollback side effects.
+#[async_trait::async_trait]
+pub trait ProjectDuplicationHostPort:
+    a4n_domain::project::ProjectMediaFileCopier + Send + Sync
+{
+    async fn verify_project_editor(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn rollback_copied_media_files(&mut self, label: &str) -> Result<(), String>;
+}
+
+/// Host-facing project duplication boundary.
+#[async_trait::async_trait]
+pub trait ProjectDuplicationApplicationPort: Send + Sync {
+    async fn duplicate_project(
+        &self,
+        user_id: i64,
+        input: DuplicateProjectInput,
+        host_port: &mut dyn ProjectDuplicationHostPort,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+}
+
 /// Host-facing project status application boundary.
 ///
 /// Status transitions, rollback impact checks, permissions and project-family

@@ -3,7 +3,56 @@ use serde_json::json;
 use super::{
     ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities,
     UsageInfo, is_truncated_finish_reason, normalize_extra_body_json,
+    validated_model_output_tokens,
 };
+
+#[test]
+fn validated_model_output_tokens_preserves_large_configured_cap() {
+    let capabilities = ModelCapabilities {
+        max_context_tokens: 1_048_576,
+        max_output_tokens: 393_216,
+    };
+    assert_eq!(
+        validated_model_output_tokens(&capabilities).expect("configured output cap is valid"),
+        393_216
+    );
+}
+
+#[test]
+fn validated_model_output_tokens_rejects_missing_cap() {
+    let capabilities = ModelCapabilities {
+        max_context_tokens: 1_048_576,
+        max_output_tokens: 0,
+    };
+    assert!(validated_model_output_tokens(&capabilities).is_err());
+}
+
+#[test]
+fn business_trace_validation_keeps_global_agent_scope_but_rejects_invalid_relations() {
+    let global = LlmTraceContext {
+        project_id: None,
+        root_project_id: None,
+        workflow: "agent".into(),
+        step_key: "run:7:model:1".into(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: None,
+        input_fingerprint_sha256: None,
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    };
+    global
+        .validate_business_trace()
+        .expect("global Agent trace is valid");
+
+    let mut detached_root = global.clone();
+    detached_root.root_project_id = Some(3);
+    assert!(detached_root.validate_business_trace().is_err());
+
+    let mut invalid_project = global;
+    invalid_project.project_id = Some(0);
+    assert!(invalid_project.validate_business_trace().is_err());
+}
 
 #[test]
 fn detects_known_truncated_finish_reasons() {

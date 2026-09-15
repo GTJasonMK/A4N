@@ -92,9 +92,6 @@ export function requireSessionName(
   return trimmed;
 }
 
-export const isNearBottom = (element: HTMLElement): boolean =>
-  element.scrollHeight - element.scrollTop - element.clientHeight < 96;
-
 export const isReusableAgentSession = (session: OptimizeSession): boolean =>
   session.status === "waiting_user" || session.status === "completed";
 

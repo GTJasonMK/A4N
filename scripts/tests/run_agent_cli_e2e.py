@@ -28,6 +28,7 @@ from run_cli_contract_e2e import (
     secure_json,
     start_provider,
 )
+from specialized_agent_fixture import GENERAL_MARKER
 
 
 TERMINAL_RUN_STATUSES = {
@@ -341,6 +342,48 @@ def main() -> int:
             ) != 1:
                 raise RunnerError("child followup run 未持久化到同一 thread")
 
+            general_thread, _ = checked(
+                cli,
+                [
+                    "agent",
+                    "thread",
+                    "create",
+                    "--kind",
+                    "subagent",
+                    "--capability",
+                    "general",
+                    "--project-id",
+                    str(project_id),
+                    "--resource-kind",
+                    "project",
+                    "--resource-id",
+                    str(project_id),
+                ],
+                "general thread",
+            )
+            general_thread_value = data(general_thread, "general thread")
+            general_run_value, _ = checked(
+                cli,
+                [
+                    "agent",
+                    "chat",
+                    general_thread_value["id"],
+                    GENERAL_MARKER + json.dumps({"project_id": project_id}, ensure_ascii=False),
+                ],
+                "general Agent chat",
+            )
+            general_run_id = required_text(data(general_run_value, "general Agent chat").get("run_id"), "general run_id")
+            general_run = wait_for_run(cli, general_run_id, args.poll_timeout, args.poll_interval)
+            general_snapshot = thread_snapshot(cli, general_thread_value["id"])
+            general_executions = [row for row in general_snapshot["executions"] if row["run_id"] == general_run_id]
+            assert general_run["status"] == "completed"
+            assert [row["tool_name"] for row in general_executions if row["status"] == "succeeded"] == [
+                "search_agent_tools",
+                "describe_agent_tool",
+                "get_project",
+            ]
+            report["checks"].append("general Agent discovers a project tool, loads its schema and reads a real project result")
+
             report["agent"] = {
                 "parent": {"run_id": parent_run_id, "status": parent_run.get("status")},
                 "delegation": {
@@ -355,6 +398,7 @@ def main() -> int:
                     "run_id": followup_run_id,
                     "status": followup_run.get("status"),
                 },
+                "general": {"thread_id": general_thread_value["id"], "run_id": general_run_id, "status": general_run["status"]},
             }
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError) as error:

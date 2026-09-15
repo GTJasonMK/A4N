@@ -27,6 +27,56 @@ async fn generate_shared_segment_plan_stage(
         .unwrap();
 }
 
+async fn generate_shared_segment_plan_stage_with_explicit_end_frame(
+    db: &DatabaseConnection,
+    service: &OrchestratorContext,
+    llm_switch: &SwitchableLlmProvider,
+    project_id: i64,
+    chapter_id: i64,
+    engine: &TeraPromptEngine,
+) {
+    service
+        .generate_chapter_segment_plan(
+            prompt_stage_input(
+                llm_switch,
+                project_id,
+                chapter_id,
+                "shared_segment_plan",
+                &SequenceLlmProvider::new_owned(vec![
+                    segment_plan_json_for_shot(1, None),
+                    segment_plan_json_for_shot(2, None),
+                ]),
+                engine,
+                frame_generation_options(),
+                None,
+            ),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    let plan = service
+        .current_shared_segment_plan(project_id, chapter_id)
+        .await
+        .unwrap();
+    let mut metadata = plan
+        .metadata_json
+        .clone()
+        .expect("test segment plan should include metadata");
+    let segments = metadata["segments"]
+        .as_array_mut()
+        .expect("test segment plan metadata should include segments");
+    for segment in segments {
+        if segment["source_shot_id"] == "shot-1" {
+            segment["director_constraints"] = explicit_director_end_frame_for_test();
+        }
+    }
+    let mut active: chapter_video_prompt::ActiveModel = plan.into();
+    active.metadata_json = Set(Some(metadata));
+    active.update(db).await.unwrap();
+}
+
 async fn set_segment_recipe_mode(
     service: &OrchestratorContext,
     project_id: i64,

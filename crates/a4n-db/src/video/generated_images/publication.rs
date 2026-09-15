@@ -2,7 +2,7 @@
 
 use super::super::{
     CreateGeneratedImageRecordDraftInput, VideoDbError, lock_generated_media_project,
-    lock_generated_media_project_for_update,
+    lock_generated_media_project_for_update, lock_image_publication_reclaim_project_for_update,
 };
 use super::create::{
     image_generation_parsed_output, image_generation_response_summary,
@@ -14,7 +14,7 @@ use a4n_domain::media::{
     IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
 };
 use chrono::Utc;
-use sea_orm::sea_query::OnConflict;
+use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
@@ -184,6 +184,48 @@ where
         .map_err(VideoDbError::Database)
 }
 
+pub(crate) async fn reclaim_image_publications_for_deleted_images<C>(
+    db: &C,
+    image_ids: &[i64],
+) -> Result<u64, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let mut image_ids = image_ids
+        .iter()
+        .copied()
+        .filter(|image_id| *image_id > 0)
+        .collect::<Vec<_>>();
+    image_ids.sort_unstable();
+    image_ids.dedup();
+    if image_ids.is_empty() {
+        return Ok(0);
+    }
+
+    image_publication::Entity::update_many()
+        .col_expr(
+            image_publication::Column::Status,
+            Expr::value(IMAGE_PUBLICATION_STATUS_RECLAIMING.to_string()),
+        )
+        .col_expr(
+            image_publication::Column::Version,
+            Expr::col(image_publication::Column::Version).add(1),
+        )
+        .col_expr(
+            image_publication::Column::LastError,
+            Expr::value(Some("generated_image 记录已删除".to_string())),
+        )
+        .col_expr(
+            image_publication::Column::UpdatedAt,
+            Expr::value(Utc::now().naive_utc()),
+        )
+        .filter(image_publication::Column::ImageId.is_in(image_ids))
+        .filter(image_publication::Column::Status.eq(IMAGE_PUBLICATION_STATUS_PUBLISHED))
+        .exec(db)
+        .await
+        .map(|result| result.rows_affected)
+}
+
 pub async fn publish_image_publication<C>(
     db: &C,
     publication_id: &str,
@@ -339,27 +381,43 @@ where
             operation: "读取已发布图片文件事实".to_string(),
         });
     }
-    let image_id = publication
-        .image_id
-        .ok_or_else(|| VideoDbError::InvalidState {
-            current: publication.status.clone(),
-            operation: "读取已发布图片".to_string(),
-        })?;
-    let image = generated_image::Entity::find_by_id(image_id)
-        .one(db)
-        .await
-        .map_err(VideoDbError::Database)?
-        .ok_or_else(|| VideoDbError::InvalidState {
-            current: format!("published:image_id={image_id}"),
-            operation: "读取已发布图片".to_string(),
-        })?;
+    let image = match publication.image_id {
+        Some(image_id) => generated_image::Entity::find_by_id(image_id)
+            .one(db)
+            .await
+            .map_err(VideoDbError::Database)?,
+        None => None,
+    };
+    let Some(image) = image else {
+        let image_input =
+            validate_create_generated_image_record_input(db, publication_image_input(publication))
+                .await?;
+        let image = insert_generated_image_record(db, image_input)
+            .await
+            .map_err(VideoDbError::Database)?;
+        let next_version =
+            publication
+                .version
+                .checked_add(1)
+                .ok_or_else(|| VideoDbError::InvalidState {
+                    current: publication.version.to_string(),
+                    operation: "更新图片发布版本".to_string(),
+                })?;
+        let mut active: image_publication::ActiveModel = publication.clone().into();
+        active.image_id = Set(Some(image.id));
+        active.version = Set(next_version);
+        active.last_error = Set(None);
+        active.updated_at = Set(Utc::now().naive_utc());
+        active.update(db).await.map_err(VideoDbError::Database)?;
+        return Ok(image);
+    };
     if image.project_id != publication.project_id
         || image.file_path != publication.final_path
         || image.file_size != Some(publication.expected_file_size)
         || image.image_type != publication.image_type
     {
         return Err(VideoDbError::InvalidState {
-            current: format!("published:image_id={image_id}"),
+            current: format!("published:image_id={:?}", publication.image_id),
             operation: "校验已发布图片身份".to_string(),
         });
     }
@@ -440,7 +498,7 @@ where
         .await
         .map_err(VideoDbError::Database)?
         .ok_or_else(|| VideoDbError::NotFound(format!("图片发布意图不存在: {publication_id}")))?;
-    lock_generated_media_project_for_update(&txn, snapshot.project_id).await?;
+    lock_image_publication_reclaim_project_for_update(&txn, snapshot.project_id).await?;
     let result = image_publication::Entity::update_many()
         .col_expr(
             image_publication::Column::Status,
@@ -460,7 +518,10 @@ where
         )
         .filter(image_publication::Column::PublicationId.eq(&publication_id))
         .filter(image_publication::Column::Version.eq(version))
-        .filter(image_publication::Column::Status.eq(IMAGE_PUBLICATION_STATUS_PENDING))
+        .filter(image_publication::Column::Status.is_in([
+            IMAGE_PUBLICATION_STATUS_PENDING,
+            IMAGE_PUBLICATION_STATUS_PUBLISHED,
+        ]))
         .exec(&txn)
         .await
         .map_err(VideoDbError::Database)?;
@@ -511,7 +572,7 @@ where
         .await
         .map_err(VideoDbError::Database)?
         .ok_or_else(|| VideoDbError::NotFound(format!("图片发布意图不存在: {publication_id}")))?;
-    lock_generated_media_project_for_update(&txn, snapshot.project_id).await?;
+    lock_image_publication_reclaim_project_for_update(&txn, snapshot.project_id).await?;
     let result = image_publication::Entity::update_many()
         .col_expr(
             image_publication::Column::Status,
@@ -775,7 +836,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn successful_publication_replay_returns_existing_image_without_duplicate() {
+    async fn successful_publication_replay_repairs_missing_image_without_duplicate() {
         let db = connect_test_database().await;
         let suffix = Uuid::new_v4().simple().to_string();
         let user = crate::auth::create_user(
@@ -813,6 +874,20 @@ mod tests {
         )
         .await
         .expect("first publication must succeed");
+        generated_image::Entity::delete_by_id(first.id)
+            .exec(&db)
+            .await
+            .expect("test must be able to remove the published image");
+        let repaired = publish_image_publication(
+            &db,
+            &publication_id,
+            ImagePublicationFileFacts {
+                file_size: 4,
+                sha256: expected_sha256.clone(),
+            },
+        )
+        .await
+        .expect("publication replay must rebuild a missing image");
         let replayed = publish_image_publication(
             &db,
             &publication_id,
@@ -822,9 +897,10 @@ mod tests {
             },
         )
         .await
-        .expect("successful publication replay must return the existing image");
+        .expect("successful publication replay must return the repaired image");
 
-        assert_eq!(replayed.id, first.id);
+        assert_ne!(repaired.id, first.id);
+        assert_eq!(replayed.id, repaired.id);
         assert_eq!(
             generated_image::Entity::find()
                 .filter(generated_image::Column::ProjectId.eq(project.id))
@@ -834,6 +910,13 @@ mod tests {
                 .len(),
             1
         );
+        let publication = image_publication::Entity::find_by_id(&publication_id)
+            .one(&db)
+            .await
+            .expect("publication lookup must succeed")
+            .expect("publication must remain durable");
+        assert_eq!(publication.image_id, Some(repaired.id));
+        assert_eq!(publication.version, 3);
         let recovered = image_publications_for_recovery(&db, 10, None)
             .await
             .expect("published publication recovery lookup must succeed");

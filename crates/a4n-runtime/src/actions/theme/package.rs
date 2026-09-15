@@ -51,14 +51,14 @@ pub async fn export_theme_package_for_user(
     theme_id: i64,
 ) -> Result<ThemePackageExport, AppError> {
     let theme = state
-        .theme_application()
+        .theme_read_application()
         .export_theme(user_id, theme_id)
         .await?;
     let document = theme.document.clone();
     a4n_domain::validate_theme_document(&document).map_err(AppError::InvalidArgument)?;
 
     let resources = state
-        .theme_application()
+        .theme_read_application()
         .list_resources(user_id, theme_id)
         .await?;
     let mut entries = Vec::with_capacity(resources.len());
@@ -173,7 +173,7 @@ pub async fn import_theme_package_for_user(
         }
     }
     let theme = state
-        .theme_application()
+        .theme_mutation_application()
         .import_theme(
             user_id,
             CreateThemeInput {
@@ -232,7 +232,7 @@ pub async fn import_theme_package_for_user(
             }
         }
         state
-            .theme_application()
+            .theme_read_application()
             .export_theme(user_id, theme.id)
             .await
     }
@@ -301,7 +301,7 @@ async fn cleanup_failed_import(
         }
     }
     if let Err(error) = state
-        .theme_application()
+        .theme_mutation_application()
         .delete_theme(user_id, theme_id)
         .await
     {

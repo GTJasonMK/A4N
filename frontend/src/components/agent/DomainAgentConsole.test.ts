@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { AgentThreadView } from "../../api/agent";
+import {
+  isAgentThreadOperational,
+  type AgentThreadView,
+} from "../../api/agent";
 import {
   domainAgentBinding,
   findDomainAgentThread,
+  matchesEditorSourceScope,
   matchesDomainAgentThread,
 } from "./DomainAgentConsole";
 
@@ -40,6 +44,23 @@ function thread(
 }
 
 describe("domain Agent binding", () => {
+  it("matches editor requests after a same-resource view remount", () => {
+    const source = {
+      chapter_id: 11,
+      editor_revision: "revision-1",
+      entity_id: null,
+      keyframe_id: null,
+      project_id: 7,
+      scene_id: null,
+      shot_id: null,
+      view_instance_id: "view-1",
+    };
+    expect(matchesEditorSourceScope(source, 7, 11)).toBe(true);
+    expect(matchesEditorSourceScope(source, 8, 11)).toBe(false);
+    expect(matchesEditorSourceScope(source, 7, 12)).toBe(false);
+    expect(matchesEditorSourceScope(source, 7, null)).toBe(false);
+  });
+
   it("builds the canonical chapter and project bindings", () => {
     const optimization = domainAgentBinding("content_optimization", 7, 11);
     const canvas = domainAgentBinding("canvas", 7);
@@ -122,5 +143,12 @@ describe("domain Agent binding", () => {
     const archived = thread({ id: "archived", status: "archived" });
     const active = thread({ id: "active" });
     expect(findDomainAgentThread([archived, active], binding)?.id).toBe("active");
+    expect(findDomainAgentThread([archived], binding)).toBeNull();
+  });
+
+  it("keeps a non-archived thread operational even if an older server reports idle", () => {
+    expect(isAgentThreadOperational(thread({ status: "active" }))).toBe(true);
+    expect(isAgentThreadOperational({ status: "idle" })).toBe(true);
+    expect(isAgentThreadOperational(thread({ status: "archived" }))).toBe(false);
   });
 });

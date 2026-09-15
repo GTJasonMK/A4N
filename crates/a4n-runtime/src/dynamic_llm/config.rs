@@ -86,11 +86,15 @@ pub(super) fn require_sidecar_business_trace<'a>(
     trace_context: Option<&'a LlmTraceContext>,
     operation: &str,
 ) -> Result<&'a LlmTraceContext, AppError> {
-    trace_context.ok_or_else(|| {
+    let trace_context = trace_context.ok_or_else(|| {
         AppError::InvalidArgument(format!(
             "{operation} 缺少 trace_context；业务 LLM sidecar 请求必须显式携带 project/root project 和 workflow/generation trace"
         ))
-    })
+    })?;
+    trace_context.validate_business_trace().map_err(|error| {
+        AppError::InvalidArgument(format!("{operation} trace_context 无效：{error}"))
+    })?;
+    Ok(trace_context)
 }
 
 pub(super) async fn probe_llm_via_sidecar(

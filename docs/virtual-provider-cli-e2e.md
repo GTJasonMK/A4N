@@ -143,7 +143,7 @@ python3 scripts/tests/run_specialized_agent_cli_e2e.py \
   --report "$A4N_E2E_ARTIFACT_DIR/cli/report.json"
 ```
 
-它验证原调用恢复、审批、局部修改、noop、版本冲突、按需工具发现、大结果读取、Thread 隔离、预算和编辑器离线；首模型请求检查未请求正文/方案/Memory 的哨兵内容。可选的 `--fault-database-url-env A4N_FAULT_TEST_DATABASE_URL --postgres-container a4n-postgres` 只接受名为 `a4n_agent_<hex>` 的隔离库，并仅修改本次新建 Run 的持久化记录，模拟消息或回执缺口。它不模拟真实进程终止。
+它验证原调用恢复、审批、局部修改、noop、版本冲突、按需工具发现、大结果读取、Thread 隔离、预算和编辑器离线；首模型请求检查未请求正文/方案/Memory 的哨兵内容。现在还包含一条从无草稿 starter 开始的导演 Agent 纵向流程：Agent 通过 typed operation 插入图片点、绑定参考图、两次切分镜头、配置场景转场并伸缩总时长；脚本随后以用户身份确认方案，并断言拍摄脚本保留三段镜头 ID 和时长。可选的 `--fault-database-url-env A4N_FAULT_TEST_DATABASE_URL --postgres-container a4n-postgres` 只接受名为 `a4n_agent_<hex>` 的隔离库，并仅修改本次新建 Run 的持久化记录，模拟消息或回执缺口。它不模拟真实进程终止。
 
 UI E2E 复用成功报告中的资源。Provider 必须在整个 UI 测试期间运行；可以先单独启动 `mock_openai_provider.py --host 127.0.0.1 --port 18765 --log "$A4N_E2E_PROVIDER_LOG"`，并向 CLI runner 传入 `--provider-url http://127.0.0.1:18765/v1 --provider-log "$A4N_E2E_PROVIDER_LOG"`。测试 Host 的公共 LLM 模板也应指向这个隔离 Provider。
 

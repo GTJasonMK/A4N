@@ -32,16 +32,18 @@ pub async fn sync_all_character_profiles_to_chapter(
     };
     scope_rag_operation_trace(
         batch_character_sync_trace_id("all", input.project_id, input.chapter_number)?,
-        state.character_ai_application().sync_all_profiles(
-            user_id,
-            input,
-            prompt_renderer,
-            CharacterProfileSyncProgress {
-                reporter: Some(&report_progress),
-                active_task_id: progress.and_then(|progress| progress.task_id),
-            },
-            Some(&trace_port),
-        ),
+        state
+            .character_profile_sync_application()
+            .sync_all_profiles(
+                user_id,
+                input,
+                prompt_renderer,
+                CharacterProfileSyncProgress {
+                    reporter: Some(&report_progress),
+                    active_task_id: progress.and_then(|progress| progress.task_id),
+                },
+                Some(&trace_port),
+            ),
     )
     .await
     .map_err(|error| error.to_string())
@@ -54,7 +56,7 @@ pub(crate) async fn sync_all_character_profiles_preview_steps(
 ) -> Result<Vec<CharacterProfileSyncPreviewStep>, String> {
     let prompt_renderer = state;
     state
-        .character_ai_application()
+        .character_profile_sync_application()
         .preview_all_profiles_sync(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())

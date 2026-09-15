@@ -87,14 +87,13 @@ fn rejects_unknown_think_argument_field() {
 }
 
 #[test]
-fn step_user_message_keeps_tool_names_out_of_root_action() {
+fn step_user_message_references_context_without_repeating_protocol_rules() {
     let message = build_agent_loop_step_user_message(&[], 1).unwrap();
-    assert!(message.contains("protocol_constraints"));
-    assert!(message.contains("tool_names_are_not_actions"));
+    assert!(message.contains("context_refs"));
     assert!(message.contains("optimization_agent_base_task"));
-    assert!(message.contains("public_update_required_for"));
-    assert!(message.contains(r#""action": "edit_article""#));
-    assert!(message.contains(r#""action": "run_tool""#));
+    assert!(!message.contains("protocol_constraints"));
+    assert!(!message.contains(r#""action": "edit_article""#));
+    assert!(!message.contains(r#""action": "run_tool""#));
 }
 
 #[test]
@@ -118,10 +117,15 @@ fn agent_loop_request_moves_base_task_into_context_manifest() {
         .filter_map(|pack| pack["pack_kind"].as_str())
         .collect::<Vec<_>>();
     assert!(pack_kinds.contains(&"optimization_agent_base_task"));
+    assert!(pack_kinds.contains(&"optimization_agent_rules"));
+    let manifest_text = serde_json::to_string(manifest).unwrap();
+    assert!(manifest_text.contains("protocol_constraints"));
+    assert!(manifest_text.contains("tool_names_are_not_actions"));
     let user_message = request
         .messages
         .iter()
-        .find(|message| matches!(message.role, a4n_llm::provider::MessageRole::User))
+        .filter(|message| matches!(message.role, a4n_llm::provider::MessageRole::User))
+        .next_back()
         .expect("user message should exist");
     assert!(user_message.content.contains("context_refs"));
     assert!(

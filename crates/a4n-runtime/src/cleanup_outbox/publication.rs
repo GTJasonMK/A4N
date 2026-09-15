@@ -17,7 +17,7 @@ pub(super) async fn recover_image_publications(
     published_after: &mut Option<String>,
 ) {
     let publications = match state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .image_publications_for_recovery(RECOVERY_LIMIT, published_after.as_deref())
         .await
     {
@@ -51,7 +51,7 @@ async fn recover_image_publication(
         .await;
     // A writer may have committed while recovery waited for the same guard.
     let Some(publication) = state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .image_publication_by_id(&publication.publication_id)
         .await
         .map_err(|error| error.to_string())?
@@ -128,19 +128,82 @@ async fn recover_published_publication(
         state.data_dir(),
         &publication.final_path,
         "已发布图片最终文件",
-    )?
-    .ok_or_else(|| {
-        format!(
-            "已发布图片最终文件缺失，需人工恢复或从备份还原: publication_id={}, image_id={:?}",
-            publication.publication_id, publication.image_id
-        )
-    })?;
+    )?;
+    let final_facts = match final_facts {
+        Some(final_facts) => final_facts,
+        None => {
+            let staging_facts = inspect_data_file_facts(
+                state.data_dir(),
+                &publication.staging_path,
+                "已发布图片暂存文件",
+            )?;
+            if let Some(staging_facts) = staging_facts {
+                if !facts_match(&staging_facts, &publication) {
+                    return Err(format!(
+                        "已发布图片最终文件缺失且暂存文件事实不匹配，保留文件等待人工恢复: publication_id={}, image_id={:?}",
+                        publication.publication_id, publication.image_id
+                    ));
+                }
+                promote_data_file(
+                    state.data_dir(),
+                    &publication.staging_path,
+                    &publication.final_path,
+                    "已发布图片恢复",
+                )?;
+                inspect_data_file_facts(
+                    state.data_dir(),
+                    &publication.final_path,
+                    "已发布图片恢复后的最终文件",
+                )?
+                .ok_or_else(|| "已发布图片恢复提升后找不到最终文件".to_string())?
+            } else {
+                let image_is_missing = match publication.image_id {
+                    Some(image_id) => state
+                        .image_publication_recovery_read_application()
+                        .generated_image_identity(image_id)
+                        .await
+                        .map_err(|error| error.to_string())?
+                        .is_none(),
+                    None => true,
+                };
+                if image_is_missing {
+                    return reclaim_publication(
+                        state,
+                        publication,
+                        "已发布图片记录和最终文件均缺失，按历史孤儿意图回收",
+                    )
+                    .await;
+                }
+                return Err(format!(
+                    "已发布图片最终文件缺失，需人工恢复或从备份还原: publication_id={}, image_id={:?}",
+                    publication.publication_id, publication.image_id
+                ));
+            }
+        }
+    };
     if !facts_match(&final_facts, &publication) {
         return Err(format!(
             "已发布图片最终文件事实不匹配，保留数据库记录并显式告警: publication_id={}, image_id={:?}",
             publication.publication_id, publication.image_id
         ));
     }
+    state
+        .image_publication_recovery_application()
+        .publish_recovered_image(
+            publication.requested_by_user_id,
+            publication.project_id,
+            &publication.publication_id,
+            final_facts.1,
+            final_facts.2.clone(),
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+    let publication = state
+        .image_publication_recovery_read_application()
+        .image_publication_by_id(&publication.publication_id)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "图片发布恢复后找不到 publication".to_string())?;
     ensure_published_generated_image_identity(state, &publication).await?;
     state
         .image_publication_recovery_application()
@@ -173,7 +236,7 @@ async fn ensure_published_generated_image_identity(
         )
     })?;
     let image = state
-        .image_publication_recovery_application()
+        .image_publication_recovery_read_application()
         .generated_image_identity(image_id)
         .await
         .map_err(|error| error.to_string())?

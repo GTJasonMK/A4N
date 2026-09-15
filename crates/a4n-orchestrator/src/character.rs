@@ -20,8 +20,7 @@ mod sync_projection;
 mod sync_rules;
 use a4n_api_contract::character::{
     ApplyImplicitUpdateDecisionInput, ApplyImplicitUpdateDecisionResultSummary,
-    CheckImplicitUpdateInput, GetImplicitReviewInput, ImplicitReviewSummary,
-    ImplicitUpdateDecisionSummary,
+    CheckImplicitUpdateInput, ImplicitUpdateDecisionSummary,
 };
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
@@ -110,9 +109,9 @@ pub use conflict::{
     validate_character_conflict_input,
 };
 
-/// Runtime-facing character discovery and timeline-sync boundary.
+/// Runtime-facing character discovery boundary.
 #[async_trait::async_trait]
-pub trait CharacterAiApplicationPort: Send + Sync {
+pub trait CharacterDiscoveryApplicationPort: Send + Sync {
     async fn preview_discovery(
         &self,
         user_id: i64,
@@ -127,7 +126,11 @@ pub trait CharacterAiApplicationPort: Send + Sync {
         prompt_renderer: &dyn PromptRenderer,
         progress: Option<CharacterDiscoveryProgress<'_>>,
     ) -> Result<a4n_api_contract::character::DiscoverCharacterProfilesResult, AppError>;
+}
 
+/// Runtime-facing character profile synchronization boundary.
+#[async_trait::async_trait]
+pub trait CharacterProfileSyncApplicationPort: Send + Sync {
     async fn preview_profile_sync(
         &self,
         user_id: i64,
@@ -162,7 +165,7 @@ pub trait CharacterAiApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-impl CharacterAiApplicationPort for crate::OrchestratorContext {
+impl CharacterDiscoveryApplicationPort for crate::OrchestratorContext {
     async fn preview_discovery(
         &self,
         user_id: i64,
@@ -195,7 +198,10 @@ impl CharacterAiApplicationPort for crate::OrchestratorContext {
         self.discover_character_profiles_validated(input, prompt_renderer, progress)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
     async fn preview_profile_sync(
         &self,
         user_id: i64,
@@ -302,32 +308,31 @@ pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub use implicit_review::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 
-/// Host-facing boundary for implicit character review.
-///
-/// Review preparation, workflow execution and deletion-mark projection remain
-/// owned by the character application; Runtime only supplies prompt rendering.
+/// Host-facing boundary for implicit character review checks.
 #[async_trait::async_trait]
-pub trait CharacterImplicitReviewApplicationPort: Send + Sync {
-    async fn summary(
-        &self,
-        user_id: i64,
-        input: GetImplicitReviewInput,
-    ) -> Result<ImplicitReviewSummary, AppError>;
-
+pub trait CharacterImplicitReviewCheckApplicationPort: Send + Sync {
     async fn check(
         &self,
         user_id: i64,
         input: CheckImplicitUpdateInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ImplicitUpdateDecisionSummary, AppError>;
+}
 
+/// Host-facing boundary for implicit character review request previews.
+#[async_trait::async_trait]
+pub trait CharacterImplicitReviewPreviewApplicationPort: Send + Sync {
     async fn preview(
         &self,
         user_id: i64,
         input: CheckImplicitUpdateInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError>;
+}
 
+/// Host-facing boundary for applying implicit character review decisions.
+#[async_trait::async_trait]
+pub trait CharacterImplicitReviewApplyApplicationPort: Send + Sync {
     async fn apply(
         &self,
         user_id: i64,

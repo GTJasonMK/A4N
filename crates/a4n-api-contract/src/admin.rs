@@ -20,13 +20,12 @@ pub use a4n_domain::admin::{
 };
 pub use a4n_domain::auth::UserSummary;
 
-/// Host-facing administrative application boundary.
+/// Host-facing administrative read and authorization boundary.
 ///
 /// Database queries and user-management mutations stay in the administrative
-/// owner. Runtime keeps only the command authorization wrapper and lifecycle
-/// operations that belong to the queue or service manager.
+/// owner.
 #[async_trait::async_trait]
-pub trait AdminApplicationPort: Send + Sync {
+pub trait AdminReadApplicationPort: Send + Sync {
     async fn require_permission(
         &self,
         caller_user_id: i64,
@@ -63,10 +62,14 @@ pub trait AdminApplicationPort: Send + Sync {
 
     async fn list_users(&self) -> Result<Vec<UserSummary>, a4n_error::AppError>;
 
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, a4n_error::AppError>;
+}
+
+/// Host-facing administrative mutation boundary.
+#[async_trait::async_trait]
+pub trait AdminMutationApplicationPort: Send + Sync {
     async fn create_user(&self, input: CreateUserInput)
     -> Result<UserSummary, a4n_error::AppError>;
-
-    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, a4n_error::AppError>;
 
     async fn create_invite_code(
         &self,

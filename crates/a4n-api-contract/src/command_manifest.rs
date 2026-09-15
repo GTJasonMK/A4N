@@ -828,9 +828,15 @@ pub fn command_descriptor(command: &str) -> Option<CommandDescriptor> {
 }
 
 pub fn command_runtime_config_policy(command: &str) -> RuntimeConfigPolicy {
-    command_spec(command)
-        .map(|spec| spec.runtime_config_policy)
-        .unwrap_or(RuntimeConfigPolicy::None)
+    match command {
+        // This Agent-native command starts the existing optimization
+        // generation path and therefore needs the Run's full provider
+        // snapshot when the worker is external to Control.
+        "send_content_optimization_message" => RuntimeConfigPolicy::Full,
+        _ => command_spec(command)
+            .map(|spec| spec.runtime_config_policy)
+            .unwrap_or(RuntimeConfigPolicy::None),
+    }
 }
 
 pub fn is_destructive(command: &str) -> bool {
@@ -877,7 +883,7 @@ fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
             "review_agent_delegation" => "Explicitly accept a child's delivered resources or request revision, recording the reason and exact inspected versions. Acceptance requires successful parent read/verification executions for every delivered resource; delegate results and child completion text are not evidence. A final reply alone never accepts a delegation.".into(),
             "read_canvas_graph" => "Read a paged graph index, or selected node IDs with incident edges and neighbor IDs. Use expected_version when continuing a read. Never creates a graph; node configs are returned only when requested.".into(),
             "edit_canvas_graph" => "Apply 1..20 typed node-config or connection edits at expected_version. Reuses graph/port/reference validation and transactional CAS. Unrelated nodes and edges keep their IDs; returns actual changed records and the saved version. Does not run the graph.".into(),
-            "edit_chapter_visual_plan_draft" => "Edit a saved director timeline with typed operations: image points, shot segments, shared boundaries, proportional retiming, image bindings and scene/prompt fields. Inserting a point does not split a shot. End images are opt-in. Requires record_id and expected_revision; returns the updated plan and actual changes. Does not confirm the plan.".into(),
+            "edit_chapter_visual_plan_draft" => "Edit a saved director timeline with typed operations: image points, shot segments, shared boundaries, proportional retiming, image bindings, scene/prompt fields, single-point removal, remove_points batches and a combined remove operation for point_ids plus segment_ids. Combined removal preserves fixed endpoints; a draft may temporarily contain zero segments, while confirmed plans still require a complete timeline. Partial segment removal must leave a valid contiguous timeline or be handled by merge operations. Inserting a point does not split a shot. End images are opt-in. Requires record_id and expected_revision; returns the updated plan and actual changes. Does not confirm the plan.".into(),
             "validate_chapter_visual_plan" => "Check a saved plan at the specified revision with draft or confirmed structure rules. Returns the first diagnostic with its path; never confirms the plan or assesses visual quality.".into(),
             _ => spec.name.replace('_', " "),
         },

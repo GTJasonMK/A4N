@@ -17,7 +17,7 @@ async fn build_reverse_request_for_user(
     let target = input.target;
     let prompt_renderer = state;
     let request = state
-        .import_reverse_application()
+        .import_reverse_preview_application()
         .prepare_request(input, prompt_renderer)
         .await?;
     Ok((target, request))

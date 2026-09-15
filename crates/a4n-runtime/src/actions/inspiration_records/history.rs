@@ -8,7 +8,7 @@ pub async fn get_inspiration_history(
     input: InspirationHistoryInput,
 ) -> Result<Vec<InspirationMessageSummary>, AppError> {
     state
-        .inspiration_application()
+        .inspiration_history_read_application()
         .history(user_id, input)
         .await
 }

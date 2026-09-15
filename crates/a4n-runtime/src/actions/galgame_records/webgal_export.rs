@@ -8,7 +8,7 @@ pub async fn export_galgame_webgal(
     input: GalgameProjectInput,
 ) -> Result<ExportFileData, String> {
     state
-        .export_application()
+        .galgame_export_application()
         .export_galgame_webgal(user_id, input.project_id)
         .await
         .map_err(crate::actions::app_error_message)

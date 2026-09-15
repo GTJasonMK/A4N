@@ -58,7 +58,7 @@ pub async fn resume_blueprint_generation_workflow(
         .await
     {
         let cleanup = state
-            .generation_application()
+            .generation_task_mutation_application()
             .request_generation_cancel(user_id, &start.handle.task_id, start.handle.attempt)
             .await;
         return Err(match cleanup {
@@ -104,7 +104,7 @@ pub async fn preview_generate_blueprint_request(
 ) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let stage = state
-        .blueprint_request_preview_application()
+        .blueprint_generation_preview_application()
         .preview_generation(user_id, input, prompt_renderer)
         .await?;
     chat_status_preview_for_state(

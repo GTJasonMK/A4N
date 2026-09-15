@@ -23,7 +23,7 @@ pub(super) async fn import_canvas_image(
     }
     let host_port = RuntimeCanvasImageImportHostPort { state, user_id };
     let result = state
-        .canvas_media_import_application()
+        .canvas_image_import_application()
         .import_image(
             &host_port,
             user_id,

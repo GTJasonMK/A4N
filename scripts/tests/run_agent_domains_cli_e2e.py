@@ -47,11 +47,13 @@ def main():
             checked(cli, ["config", "runtime", "set", "--input", f"@{work / 'runtime.json'}"], "runtime")
             described = set()
 
-            def call(name, value, failure=False):
+            def call(name, value, failure=False, destructive=False):
                 if name not in described:
                     checked(cli, ["capabilities", "describe", name], name + " contract")
                     described.add(name)
                 parts = ["call", name, "--args", json.dumps({"input": value}, ensure_ascii=False)]
+                if destructive:
+                    parts.append("--allow-destructive")
                 if failure:
                     result = cli.run(parts)
                     assert result["exit_code"] != 0, name + " unexpectedly succeeded"
@@ -147,6 +149,37 @@ def main():
             assert task["handle"]["status"] == "cancelled", task
             report["checks"].append("cancelling the owner cancels its actual Generation task")
 
+            session = call("ensure_content_optimization_session", {
+                "project_id": project["id"],
+                "chapter_id": chapter["id"],
+            })
+            patch_sets = call("list_optimize_patch_sets", {"session_id": session["id"]})
+            pending_patch = next(
+                patch_set
+                for patch_set in patch_sets
+                if patch_set["status"] == "pending" and patch_set["patches"]
+            )
+            call("apply_optimization_patches", {
+                "session_id": session["id"],
+                "base_content_hash": "stale-content-hash",
+                "patches": pending_patch["patches"],
+            }, failure=True, destructive=True)
+            assert data(checked(cli, ["chapter", "get", str(chapter["id"])], "stale apply chapter")[0], "chapter")["content"] == original
+            report["checks"].append("stale optimization PatchSet hash is rejected without changing chapter content")
+            applied = call("apply_optimization_patches", {
+                "session_id": session["id"],
+                "base_content_hash": pending_patch["base_content_hash"],
+                "patches": pending_patch["patches"],
+            }, destructive=True)
+            assert applied["chapter_id"] == chapter["id"]
+            assert applied["applied_count"] == len(pending_patch["patches"])
+            rewritten = data(
+                checked(cli, ["chapter", "get", str(chapter["id"])], "applied chapter")[0],
+                "chapter",
+            )["content"]
+            assert rewritten != original and "未请求的后文哨兵_" in rewritten
+            report["checks"].append("user approval applies the pending optimization PatchSet and persists the rewritten chapter")
+
             video = call("create_freeform_video_project", {"title": "Canvas 局部验证", "description": "isolated fixture"})
             checked(cli, ["context", "set", "--project-id", str(video["id"])], "canvas context")
             nodes = [{"client_id": str(i), "node_kind": "LlmTextNode", "ref_type": None, "ref_id": None,
@@ -158,16 +191,31 @@ def main():
             index = call("read_canvas_graph", {**resource, "limit": 2})
             assert index["projection"]["total"] == 3 and index["projection"]["next_offset"] == 2
             canvas_thread = data(checked(cli, ["agent", "thread", "create", "--kind", "subagent", "--capability", "canvas", "--project-id", str(video["id"]), "--resource-kind", "project", "--resource-id", str(video["id"])], "canvas thread")[0], "thread")
-            canvas_task = {"mode": "canvas_edit", **resource, "node_id": graph["nodes"][2]["id"], "config": {"prompt": "仅修改这一节点"}}
+            canvas_task = {"mode": "canvas_edit", **resource, "node_id": graph["nodes"][2]["id"], "config": {"prompt": "仅修改这一节点"}, "run": True}
             canvas_run = send(canvas_thread["id"], MARKER + json.dumps(canvas_task, ensure_ascii=False))
             approval = wait_state(canvas_thread["id"], canvas_run, "approval")
             pending_approval = next(row for row in approval["approvals"] if row["status"] == "pending")
             checked(cli, ["agent", "approve", pending_approval["id"], "approve"], "canvas approval")
-            finish(canvas_thread["id"], canvas_run)
+            _, canvas_completed = finish(canvas_thread["id"], canvas_run)
+            canvas_executions = [row for row in canvas_completed["executions"] if row["run_id"] == canvas_run]
+            run_execution = next(row for row in canvas_executions if row["tool_name"] == "run_canvas_node")
+            wait_execution = next(row for row in canvas_executions if row["tool_name"] == "wait_workflow_run")
+            assert run_execution["status"] == "succeeded" and any(ref["kind"] == "workflow_run" for ref in run_execution["result_refs"])
+            assert wait_execution["status"] == "succeeded" and any(ref["kind"] == "workflow_run" for ref in wait_execution["result_refs"])
             changed = call("get_canvas_graph", resource)
             assert changed["nodes"][:2] == graph["nodes"][:2] and changed["edges"] == graph["edges"]
             assert [row["id"] for row in changed["nodes"]] == [row["id"] for row in graph["nodes"]]
             assert changed["nodes"][2]["config_json"] == canvas_task["config"]
+            rejected_task = {**canvas_task, "config": {"prompt": "用户拒绝的执行"}}
+            rejected_run = send(canvas_thread["id"], MARKER + json.dumps(rejected_task, ensure_ascii=False))
+            rejected_approval = wait_state(canvas_thread["id"], rejected_run, "approval")
+            rejected_pending = next(row for row in rejected_approval["approvals"] if row["status"] == "pending")
+            checked(cli, ["agent", "approve", rejected_pending["id"], "reject"], "canvas rejection")
+            _, rejected_snapshot = finish(canvas_thread["id"], rejected_run)
+            rejected_execution = next(row for row in rejected_snapshot["executions"] if row["run_id"] == rejected_run and row["tool_name"] == "edit_canvas_graph")
+            assert rejected_execution["status"] == "rejected"
+            assert call("get_canvas_graph", resource) == changed
+            report["checks"].append("rejecting a Canvas write leaves graph state and workflow untouched")
             version = changed["graph"]["version"]
             edit = {**resource, "expected_version": version, "operations": [{"kind": "set_node_config", "node_id": canvas_task["node_id"], "config_json": canvas_task["config"]}]}
             noop = call("edit_canvas_graph", edit)
@@ -178,7 +226,7 @@ def main():
             invalid["operations"].append({"kind": "connect", "edge": {**edges[0], "source_client_id": str(graph["nodes"][0]["id"]), "target_client_id": str(graph["nodes"][2]["id"]), "source_port": "invalid"}})
             call("edit_canvas_graph", invalid, failure=True)
             assert call("get_canvas_graph", resource) == changed
-            report["checks"].append("Canvas index, approval, stable node/edge identities, noop, CAS and atomic rejection of invalid ports")
+            report["checks"].append("Canvas index, approval, stable node/edge identities, node execution, workflow wait, noop, CAS and atomic rejection of invalid ports")
             report["provider_requests"] = {"count": len(provider_log_entries(log_path)), "log": str(log_path)}
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration) as error:

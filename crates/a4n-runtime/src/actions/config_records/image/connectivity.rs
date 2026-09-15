@@ -104,7 +104,7 @@ async fn resolve_image_config_for_connectivity_test(
         return Ok(config);
     }
     state
-        .config_application()
+        .config_read_application()
         .image_config_for_connectivity_test(user_id, config_id)
         .await
         .map(image_provider_config_from_connectivity_config)

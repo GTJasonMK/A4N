@@ -83,6 +83,13 @@ export type {
   UpdateAgentThreadInput,
 } from "./generated/host";
 
+/** A thread remains usable until it is explicitly archived. */
+export function isAgentThreadOperational(
+  thread: { status: string },
+): boolean {
+  return thread.status !== "archived";
+}
+
 export function respondAgentEditor(input: RespondAgentEditorInput): Promise<AgentEditorReply> {
   return apiInvoke("respond_agent_editor", { input });
 }

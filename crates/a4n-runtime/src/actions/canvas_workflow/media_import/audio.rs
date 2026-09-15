@@ -9,7 +9,7 @@ pub(super) async fn import_canvas_audio(
     input: ImportCanvasMediaInput,
 ) -> Result<ImportedCanvasMedia, String> {
     let asset = state
-        .canvas_media_import_application()
+        .canvas_audio_import_application()
         .import_audio(
             user_id,
             CanvasAudioImportHostInput {

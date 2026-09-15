@@ -352,13 +352,13 @@ pub struct CanvasRunSummary {
     pub error_message: Option<String>,
 }
 
-/// Host-facing Canvas application boundary.
+/// Host-facing Canvas read boundary.
 ///
 /// Graph validation, project permissions, version checks and persistence stay
 /// with the implementing application. Runtime only routes API requests to
 /// this port and does not depend on the concrete orchestrator facade.
 #[async_trait::async_trait]
-pub trait CanvasApplicationPort: Send + Sync {
+pub trait CanvasReadApplicationPort: Send + Sync {
     async fn get_graph(
         &self,
         user_id: i64,
@@ -370,7 +370,11 @@ pub trait CanvasApplicationPort: Send + Sync {
         user_id: i64,
         input: ReadCanvasGraphInput,
     ) -> Result<CanvasGraphReadResult, a4n_error::AppError>;
+}
 
+/// Host-facing Canvas mutation boundary.
+#[async_trait::async_trait]
+pub trait CanvasMutationApplicationPort: Send + Sync {
     async fn save_graph(
         &self,
         user_id: i64,

@@ -1,5 +1,5 @@
+use a4n_api_contract::config::{PromptRow, SettingsAllHostPort};
 use a4n_error::AppError;
-use a4n_orchestrator::config::{PromptRow, SettingsAllHostPort};
 use async_trait::async_trait;
 use tera::Tera;
 

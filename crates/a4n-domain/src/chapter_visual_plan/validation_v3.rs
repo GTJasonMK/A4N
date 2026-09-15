@@ -75,7 +75,11 @@ impl ChapterVisualPlanV3 {
             points.insert(point.id.as_str(), point);
         }
         if self.segments.is_empty() {
-            return Err(invalid("segments", "镜头段必须完整覆盖时间线"));
+            return if confirmed {
+                Err(invalid("segments", "确认前至少需要一个镜头段"))
+            } else {
+                Ok(())
+            };
         }
         let mut previous_end = self.points[0].id.as_str();
         for (index, segment) in self.segments.iter().enumerate() {

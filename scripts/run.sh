@@ -97,6 +97,15 @@ if $RESTART_SERVER && [[ "$MODE" == "native" || "$MODE" == "remote" ]]; then
   die "--restart-server 不能与 native/remote 模式同时使用"
 fi
 
+if $HOT_RELOAD && [[ "$MODE" == "local-server" ]]; then
+  # Hot reload needs Cargo's warm incremental cache.  The artifact manager is
+  # intentionally used for one-shot builds, but it reclaims that cache after
+  # each invocation and turns the next worker rebuild into a cold build.
+  export CARGO_ARTIFACTS_DISABLED=1
+  export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}"
+  export A4N_RUNTIME_WORKER_RELOAD_MARKER="${A4N_RUNTIME_WORKER_RELOAD_MARKER:-${CARGO_TARGET_DIR:-$PROJECT_ROOT/target}/.runtime-workers.ready}"
+fi
+
 server_process_pids() {
   local database_url="${A4N_DATABASE_URL:-}"
   [[ -n "$database_url" ]] || return 0
@@ -396,6 +405,9 @@ preflight_runtime_dependencies() {
   require_command cargo
   require_command node
   require_command npm
+  if $HOT_RELOAD && [[ "$MODE" == "local-server" ]]; then
+    require_command inotifywait
+  fi
 
   if ! $REMOTE_API; then
     ensure_postgres
@@ -432,11 +444,40 @@ preflight_runtime_dependencies() {
 
 preflight_runtime_dependencies
 
+build_server_children() {
+  local -a child_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
+  $RELEASE && child_command+=(--release)
+  child_command+=(-p a4n-control -p a4n-agent-worker)
+  $FULL_HOST && child_command+=(--features embedded-capabilities)
+  "${child_command[@]}"
+}
+
+runtime_worker_watcher_pid=""
+start_runtime_worker_watcher() {
+  $HOT_RELOAD || return 0
+  [[ "$MODE" == "local-server" ]] || return 0
+
+  local -a watcher_args=()
+  $RELEASE && watcher_args+=(--release)
+  $FULL_HOST && watcher_args+=(--full)
+  "$SCRIPT_DIR/dev/watch-runtime-workers.sh" "${watcher_args[@]}" &
+  runtime_worker_watcher_pid=$!
+}
+
+stop_runtime_worker_watcher() {
+  [[ -n "$runtime_worker_watcher_pid" ]] || return 0
+  kill "$runtime_worker_watcher_pid" 2>/dev/null || true
+  wait "$runtime_worker_watcher_pid" 2>/dev/null || true
+  runtime_worker_watcher_pid=""
+}
+
 if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
   migration_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && migration_command+=(--release)
   migration_command+=(-p a4n-migration)
   "${migration_command[@]}"
+
+  build_server_children
 
   server_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && server_command+=(--release)
@@ -469,12 +510,16 @@ else
 fi
 
 if $SERVER; then
+  build_server_children
   npm --prefix frontend run build
   command=("$PROJECT_ROOT/scripts/cargo.sh" run)
   $RELEASE && command+=(--release)
   command+=(-p a4n-server)
   $FULL_HOST && command+=(--features embedded-capabilities)
-  exec "${command[@]}"
+  start_runtime_worker_watcher
+  trap stop_runtime_worker_watcher EXIT
+  "${command[@]}"
+  exit $?
 fi
 
 command=("$PROJECT_ROOT/scripts/cargo.sh" tauri dev)
@@ -484,4 +529,6 @@ if ! $HOT_RELOAD; then
   npm --prefix frontend run build
   command+=(--no-watch --config crates/a4n-tauri/tauri.no-hot.conf.json)
 fi
-exec "${command[@]}"
+start_runtime_worker_watcher
+trap stop_runtime_worker_watcher EXIT
+"${command[@]}"

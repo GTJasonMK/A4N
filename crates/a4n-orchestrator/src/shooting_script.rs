@@ -25,18 +25,14 @@ pub(in crate::shooting_script) use workflow_rules::chapter_shooting_script_workf
 
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-    ShootingScriptRecordApplicationPort,
+    ShootingScriptRecordMutationApplicationPort, ShootingScriptRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
-/// Host-facing boundary for chapter shooting-script generation.
-///
-/// Workflow state, persistence and API projection stay in this owner. Runtime
-/// only supplies progress, stream and cancellation callbacks for long-running
-/// generation.
+/// Host-facing boundary for complete chapter shooting-script generation.
 #[async_trait::async_trait]
-pub trait ShootingScriptGenerationApplicationPort: Send + Sync {
+pub trait ShootingScriptFullGenerationApplicationPort: Send + Sync {
     async fn generate(
         &self,
         user_id: i64,
@@ -46,7 +42,11 @@ pub trait ShootingScriptGenerationApplicationPort: Send + Sync {
         cancel_token: Option<&CancellationToken>,
         active_task_id: Option<&str>,
     ) -> Result<ChapterShootingScriptView, AppError>;
+}
 
+/// Host-facing boundary for generating the next shooting-script unit.
+#[async_trait::async_trait]
+pub trait ShootingScriptNextUnitGenerationApplicationPort: Send + Sync {
     async fn generate_next(
         &self,
         user_id: i64,
@@ -59,7 +59,7 @@ pub trait ShootingScriptGenerationApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-impl ShootingScriptRecordApplicationPort for crate::OrchestratorContext {
+impl ShootingScriptRecordReadApplicationPort for crate::OrchestratorContext {
     async fn current(
         &self,
         user_id: i64,
@@ -79,7 +79,10 @@ impl ShootingScriptRecordApplicationPort for crate::OrchestratorContext {
             .await
             .map(|progress| progress.map(chapter_shooting_script_unit_progress_view))
     }
+}
 
+#[async_trait::async_trait]
+impl ShootingScriptRecordMutationApplicationPort for crate::OrchestratorContext {
     async fn edit(
         &self,
         user_id: i64,
@@ -92,7 +95,7 @@ impl ShootingScriptRecordApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl ShootingScriptGenerationApplicationPort for crate::OrchestratorContext {
+impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext {
     async fn generate(
         &self,
         user_id: i64,
@@ -113,7 +116,10 @@ impl ShootingScriptGenerationApplicationPort for crate::OrchestratorContext {
         .await
         .map(chapter_shooting_script_view)
     }
+}
 
+#[async_trait::async_trait]
+impl ShootingScriptNextUnitGenerationApplicationPort for crate::OrchestratorContext {
     async fn generate_next(
         &self,
         user_id: i64,

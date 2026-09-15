@@ -40,14 +40,19 @@ use a4n_api_contract::{
     image::GeneratedImageSummary,
     video::{
         AssemblyClipRecord, AssemblyPostprocessEditRecordInput, AssemblyPostprocessPlan,
-        AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoRecords,
-        CanvasAssemblyPlan, CanvasFramePlan, CompleteVideoRecordInput, GeneratedVideoSummary,
-        PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
-        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportApplicationPort,
+        AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoImportApplicationPort,
+        AssemblyVideoRecords, CanvasAssemblyPlan, CanvasFramePlan,
+        CanvasVideoImportApplicationPort, ChapterVideoImportApplicationPort,
+        CompleteVideoRecordInput, GeneratedVideoSummary, PreparedAssemblyPostprocessEditRecord,
+        PreparedAssemblyPushRecord, ReferenceMediaVideoImportApplicationPort,
+        VideoAssemblyPlanningApplicationPort, VideoAssemblyPostprocessApplicationPort,
+        VideoAssemblyPushApplicationPort, VideoCanvasMediaApplicationPort,
         VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
-        VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
-        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
-        VideoTailFrameSummary, VideoTrimPlan,
+        VideoRecordCompletionApplicationPort, VideoRecordCompletionError,
+        VideoRecordFailureApplicationPort, VideoRecordLifecycleApplicationPort,
+        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort,
+        VideoTailFrameApplicationPort, VideoTailFrameInput, VideoTailFrameSummary,
+        VideoTrimApplicationPort, VideoTrimPlan,
     },
 };
 
@@ -1614,7 +1619,7 @@ impl VideoProviderExecutionApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoImportApplicationPort for crate::OrchestratorContext {
+impl ChapterVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_chapter_video_record(
         &self,
         project_id: i64,
@@ -1641,7 +1646,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             Some(prepared.prompt.id),
         ))
     }
+}
 
+#[async_trait]
+impl ReferenceMediaVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_reference_media_video_record(
         &self,
         project_id: i64,
@@ -1668,7 +1676,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             .await?;
         Ok(video_import_record_summary(&video, None))
     }
+}
 
+#[async_trait]
+impl AssemblyVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_assembly_insert_video_record(
         &self,
         project_id: i64,
@@ -1694,7 +1705,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             .await?;
         Ok(video_import_record_summary(&video, None))
     }
+}
 
+#[async_trait]
+impl CanvasVideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_canvas_video_record(
         &self,
         project_id: i64,
@@ -1714,7 +1728,10 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
             .await?;
         Ok(video_import_record_summary(&video, None))
     }
+}
 
+#[async_trait]
+impl VideoTrimApplicationPort for crate::OrchestratorContext {
     async fn prepare_trim(
         &self,
         user_id: i64,
@@ -1741,18 +1758,7 @@ impl VideoImportApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
-    async fn assembly_records(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        operation: &str,
-    ) -> Result<AssemblyVideoRecords, AppError> {
-        self.assembly_video_records_validated(project_id, chapter_id, workflow_mode, operation)
-            .await
-    }
-
+impl VideoAssemblyPostprocessApplicationPort for crate::OrchestratorContext {
     async fn prepare_assembly_postprocess_edit(
         &self,
         push_video_id: i64,
@@ -1784,7 +1790,24 @@ impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
         self.create_assembly_postprocess_edit_record_validated(plan, input)
             .await
     }
+}
 
+#[async_trait]
+impl VideoAssemblyPlanningApplicationPort for crate::OrchestratorContext {
+    async fn assembly_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        operation: &str,
+    ) -> Result<AssemblyVideoRecords, AppError> {
+        self.assembly_video_records_validated(project_id, chapter_id, workflow_mode, operation)
+            .await
+    }
+}
+
+#[async_trait]
+impl VideoAssemblyPushApplicationPort for crate::OrchestratorContext {
     async fn create_assembly_push_record(
         &self,
         project_id: i64,
@@ -1825,73 +1848,7 @@ impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
-    async fn mark_error_status_and_prompt(
-        &self,
-        video_id: i64,
-        prompt_id: Option<i64>,
-        status: &str,
-        message: &str,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        Ok(generated_video_summary(
-            &self
-                .mark_generated_video_error_status_and_prompt(video_id, prompt_id, status, message)
-                .await?,
-        ))
-    }
-
-    async fn create_video_tail_frame(
-        &self,
-        input: VideoTailFrameInput,
-    ) -> Result<VideoTailFrameSummary, AppError> {
-        let video = self.required_video_record(input.video_id).await?;
-        let chapter_id = video.chapter_id.ok_or_else(|| {
-            AppError::InvalidArgument(format!(
-                "视频 #{} 缺少 chapter_id，无法登记真实尾帧",
-                video.id
-            ))
-        })?;
-        let shot_number = video_shot_number(&video).map_err(AppError::InvalidArgument)?;
-        let image = self
-            .create_video_tail_frame_record_validated(
-                &video,
-                chapter_id,
-                input.file_path,
-                input.file_size,
-            )
-            .await?;
-        Ok(VideoTailFrameSummary {
-            image_id: image.id,
-            file_path: image.file_path,
-            shot_number,
-        })
-    }
-
-    async fn delete_video_tail_frame_assets(&self, video_id: i64) -> Result<(), AppError> {
-        let images = self
-            .video_tail_frame_images()
-            .await?
-            .into_iter()
-            .filter(|(_, image_type, metadata_json)| {
-                tail_frame_metadata_belongs_to_video(image_type, metadata_json.as_ref(), video_id)
-            })
-            .collect::<Vec<_>>();
-        let mut failures = Vec::new();
-        for (image_id, _, _) in images {
-            if let Err(error) = self
-                .delete_generated_image_record_with_cleanup(image_id)
-                .await
-            {
-                failures.push(format!("尾帧图片 #{image_id} 删除失败：{error}"));
-            }
-        }
-        if failures.is_empty() {
-            Ok(())
-        } else {
-            Err(AppError::Internal(anyhow::anyhow!(failures.join("；"))))
-        }
-    }
-
+impl VideoRecordCompletionApplicationPort for crate::OrchestratorContext {
     async fn complete(
         &self,
         input: CompleteVideoRecordInput,
@@ -1962,7 +1919,82 @@ impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
             adopted_authoritative: false,
         })
     }
+}
 
+#[async_trait]
+impl VideoTailFrameApplicationPort for crate::OrchestratorContext {
+    async fn create_video_tail_frame(
+        &self,
+        input: VideoTailFrameInput,
+    ) -> Result<VideoTailFrameSummary, AppError> {
+        let video = self.required_video_record(input.video_id).await?;
+        let chapter_id = video.chapter_id.ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "视频 #{} 缺少 chapter_id，无法登记真实尾帧",
+                video.id
+            ))
+        })?;
+        let shot_number = video_shot_number(&video).map_err(AppError::InvalidArgument)?;
+        let image = self
+            .create_video_tail_frame_record_validated(
+                &video,
+                chapter_id,
+                input.file_path,
+                input.file_size,
+            )
+            .await?;
+        Ok(VideoTailFrameSummary {
+            image_id: image.id,
+            file_path: image.file_path,
+            shot_number,
+        })
+    }
+
+    async fn delete_video_tail_frame_assets(&self, video_id: i64) -> Result<(), AppError> {
+        let images = self
+            .video_tail_frame_images()
+            .await?
+            .into_iter()
+            .filter(|(_, image_type, metadata_json)| {
+                tail_frame_metadata_belongs_to_video(image_type, metadata_json.as_ref(), video_id)
+            })
+            .collect::<Vec<_>>();
+        let mut failures = Vec::new();
+        for (image_id, _, _) in images {
+            if let Err(error) = self
+                .delete_generated_image_record_with_cleanup(image_id)
+                .await
+            {
+                failures.push(format!("尾帧图片 #{image_id} 删除失败：{error}"));
+            }
+        }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(AppError::Internal(anyhow::anyhow!(failures.join("；"))))
+        }
+    }
+}
+
+#[async_trait]
+impl VideoRecordFailureApplicationPort for crate::OrchestratorContext {
+    async fn mark_error_status_and_prompt(
+        &self,
+        video_id: i64,
+        prompt_id: Option<i64>,
+        status: &str,
+        message: &str,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        Ok(generated_video_summary(
+            &self
+                .mark_generated_video_error_status_and_prompt(video_id, prompt_id, status, message)
+                .await?,
+        ))
+    }
+}
+
+#[async_trait]
+impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError> {
         self.delete_generated_video_record_with_cleanup(video_id)
             .await

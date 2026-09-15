@@ -6,9 +6,13 @@ mod trace;
 
 pub use application::normalize_image_metadata;
 pub use contracts::{
-    ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
-    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-    ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
+    GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
+    ImageCanvasRequestPreviewApplicationPort, ImageGenerationExecutionInput,
+    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
+    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
+    ImageGenerationTaskApplicationPort, ImageGenerationWorkflowBinding,
+    ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
+    ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
     ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
     PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
     PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,

@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -25,6 +24,7 @@ import {
   type NovelProject,
 } from "../../api/project";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
+import { useFollowLatest } from "../../hooks/useFollowLatest";
 import {
   generationTaskKey,
   useGenerationTasksStore,
@@ -73,7 +73,6 @@ export const useInspirationChatController = () => {
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] = useState<ModelRequestPreview | null>(null);
 
-  const messagesViewportRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
@@ -85,7 +84,6 @@ export const useInspirationChatController = () => {
   const generationAssistantIdRef = useRef<string | null>(null);
   const handledTerminalRef = useRef<string | null>(null);
   const requestPreviewSeqRef = useRef(0);
-  const followMessagesRef = useRef(true);
 
   const generationTask = useGenerationTask({
     handle: generationHandle,
@@ -136,6 +134,15 @@ export const useInspirationChatController = () => {
     addToast,
   });
   const { stage } = blueprintWorkflow;
+  const {
+    viewportRef: messagesViewportRef,
+    isFollowingLatest,
+    hasNewContent,
+    scrollToLatest,
+  } = useFollowLatest(messages, {
+    enabled: stage === "conversation",
+    resetKey: `${projectId}:${stage}`,
+  });
 
   const applyParsedAssistant = useCallback((assistantId: string, rawResponse: string) => {
     const parsed = parseInspirationResponse(rawResponse);
@@ -182,8 +189,6 @@ export const useInspirationChatController = () => {
     setRequestPreviewData(null);
     sendSeqRef.current += 1;
     requestPreviewSeqRef.current += 1;
-    followMessagesRef.current = true;
-
     setMessages([]);
     setInputPlaceholder(t("inspiration.inputPlaceholder"));
 
@@ -263,24 +268,6 @@ export const useInspirationChatController = () => {
       cancelled = true;
     };
   }, [addToast, isCurrentProject, project, projectId, t]);
-
-  useEffect(() => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) return;
-    const updateFollowState = () => {
-      followMessagesRef.current =
-        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
-    };
-    viewport.addEventListener("scroll", updateFollowState, { passive: true });
-    return () => viewport.removeEventListener("scroll", updateFollowState);
-  }, [project, stage]);
-
-  useLayoutEffect(() => {
-    if (stage !== "conversation" || !followMessagesRef.current) return;
-    const viewport = messagesViewportRef.current;
-    if (!viewport) return;
-    viewport.scrollTop = viewport.scrollHeight;
-  }, [messages, stage]);
 
   const streamedText = generationTask.text("raw_json");
 
@@ -438,7 +425,6 @@ export const useInspirationChatController = () => {
   const handleSend = async (text?: string) => {
     const value = (text ?? input).trim();
     if (!value || sendingRef.current) return;
-    followMessagesRef.current = true;
     const requestProjectId = projectId;
     const requestSeq = sendSeqRef.current + 1;
     sendSeqRef.current = requestSeq;
@@ -581,6 +567,9 @@ export const useInspirationChatController = () => {
     blueprintRequestPreviewData: blueprintWorkflow.requestPreviewData,
     setBlueprintRequestPreviewOpen: blueprintWorkflow.setRequestPreviewOpen,
     messagesViewportRef,
+    isFollowingLatest,
+    hasNewContent,
+    scrollToLatest,
     inputRef,
     inputActive,
     requestPreviewOpen,

@@ -28,6 +28,7 @@ import { useOptimizeSessionState } from "./optimize/useOptimizeSessionState";
 import { useOptimizeStreamItems } from "./optimize/useOptimizeStreamItems";
 import { useI18n } from "../../i18n";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
+import { useFollowLatest } from "../../hooks/useFollowLatest";
 
 interface OptimizeTabProps {
   projectId: number;
@@ -64,8 +65,6 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
-  const streamRef = useRef<HTMLDivElement | null>(null);
-  const shouldStickToBottomRef = useRef(true);
   const mountedRef = useRef(false);
   const requestPreviewSeqRef = useRef(0);
   const requestPreviewBusySeqRef = useRef<number | null>(null);
@@ -125,6 +124,16 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
     turns,
   });
 
+  const {
+    viewportRef: streamRef,
+    isFollowingLatest,
+    hasNewContent,
+    scrollToLatest,
+  } = useFollowLatest(streamItems, {
+    enabled: viewMode === "session",
+    resetKey: `${viewMode}:${activeChapter?.id ?? ""}:${activeSessionId ?? ""}`,
+  });
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -141,15 +150,6 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
   }, [activeChapter?.id, activeSessionId, fixedChapterId, projectId]);
-
-  useEffect(() => {
-    if (!shouldStickToBottomRef.current) return;
-    const element = streamRef.current;
-    if (!element) return;
-    requestAnimationFrame(() => {
-      element.scrollTop = element.scrollHeight;
-    });
-  }, [streamItems]);
 
   const {
     applyPendingPatches,
@@ -264,9 +264,9 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
             <OptimizeStreamPane
               streamItems={streamItems}
               streamRef={streamRef}
-              onStickToBottomChange={(value) => {
-                shouldStickToBottomRef.current = value;
-              }}
+              isFollowingLatest={isFollowingLatest}
+              hasNewContent={hasNewContent}
+              onScrollToLatest={scrollToLatest}
               onStreamDrained={activityStream.clearLlmStreamPreview}
             />
 

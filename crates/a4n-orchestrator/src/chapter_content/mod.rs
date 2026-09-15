@@ -7,7 +7,7 @@ mod application;
 mod rules;
 mod sync;
 
-pub use application::{
+pub use a4n_api_contract::chapter::{
     ChapterContentMutationApplicationPort, ChapterContentSyncApplicationPort,
     ChapterDerivedCleanupHostPort,
 };

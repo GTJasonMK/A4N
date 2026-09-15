@@ -9,7 +9,7 @@ pub async fn accept_import_review(
 ) -> Result<ImportReviewSummary, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
-        .import_review_application()
+        .import_review_acceptance_application()
         .accept(user_id, input, &host_port)
         .await
 }
@@ -21,7 +21,7 @@ pub async fn batch_accept_import_reviews(
 ) -> Result<Vec<ImportReviewSummary>, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
-        .import_review_application()
+        .import_review_acceptance_application()
         .batch_accept(user_id, input, &host_port)
         .await
 }

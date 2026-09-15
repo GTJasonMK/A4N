@@ -1,7 +1,7 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_canvas_contract::{
     CanvasEditingNodeRun, CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput,
-    CanvasGraphNodeExecutionKind, CanvasNodeRun,
+    CanvasGraphNodeExecutionKind, CanvasGraphPreparationHostPort, CanvasNodeRun,
 };
 use async_trait::async_trait;
 
@@ -32,11 +32,14 @@ impl<'a> RuntimeCanvasGraphExecutionHostPort<'a> {
 }
 
 #[async_trait]
-impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
+impl CanvasGraphPreparationHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
     async fn verify_project_editor(&self, user_id: i64, project_id: i64) -> Result<(), String> {
         access::verify_project_editor_string(self.state, user_id, project_id).await
     }
+}
 
+#[async_trait]
+impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
     async fn execute_node(
         &self,
         input: CanvasGraphNodeExecutionInput,

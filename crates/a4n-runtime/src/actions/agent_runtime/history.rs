@@ -13,6 +13,7 @@ pub(super) struct ContextFit {
     pub omitted: Vec<ChatMessage>,
     pub input_tokens: usize,
     pub capacity: usize,
+    pub output_tokens: usize,
 }
 
 pub(super) fn bounded_observation(execution_id: i64, value: Value) -> Result<Value, AppError> {
@@ -31,6 +32,7 @@ pub(super) fn bounded_observation(execution_id: i64, value: Value) -> Result<Val
     }))
 }
 
+#[cfg(test)]
 pub(super) fn fit_context(
     messages: Vec<ChatMessage>,
     tools: &[Value],
@@ -55,9 +57,6 @@ pub(super) fn fit_context_projection(
     output_tokens: usize,
     pinned_user_contents: &[&str],
 ) -> Result<ContextFit, AppError> {
-    let capacity = ContextBudgetPlanner::default()
-        .plan_requirements(context_tokens, output_tokens, Vec::new(), 0)?
-        .available_input_tokens;
     let mut used = estimate_context_tokens(&serde_json::to_string(tools)?);
     let mut units = Vec::<Vec<ChatMessage>>::new();
     for message in messages {
@@ -86,11 +85,13 @@ pub(super) fn fit_context_projection(
             used = used.saturating_add(costs[index]);
         }
     }
-    if used > capacity {
-        return Err(AppError::InvalidArgument(format!(
-            "Agent 必要上下文超出模型输入预算：需要约 {used} tokens，可用 {capacity}；请缩小请求或使用更大上下文模型"
-        )));
-    }
+    let plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
+        context_tokens,
+        output_tokens,
+        Vec::new(),
+        used,
+    )?;
+    let capacity = plan.available_input_tokens;
     // Whole call/result units, newest first; no model-generated context pack.
     // ponytail: deterministic history projection; add semantic compaction only
     // if measured long-running tasks lose useful evidence with this policy.
@@ -123,6 +124,7 @@ pub(super) fn fit_context_projection(
                 "Agent 上下文预算不足以保留历史裁剪说明".into(),
             ));
         }
+        used = used.saturating_add(note_cost);
         selected.insert(1.min(selected.len()), omission_note);
     }
     Ok(ContextFit {
@@ -130,6 +132,7 @@ pub(super) fn fit_context_projection(
         omitted,
         input_tokens: used,
         capacity,
+        output_tokens: plan.output_token_reserve,
     })
 }
 
@@ -398,5 +401,56 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn context_projection_adapts_large_output_to_fit_required_input() {
+        let tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "read_chapter_visual_plan",
+                "parameters": {"type": "object", "properties": {"input": {"type": "object"}}}
+            }
+        })];
+        let projection = fit_context_projection(
+            vec![
+                ChatMessage::system("Agent system instructions"),
+                ChatMessage::user("当前目标：读取并核对时间线"),
+            ],
+            &tools,
+            131_072,
+            393_216,
+            &[],
+        )
+        .expect("required input should fit after adapting output reserve");
+
+        assert!(projection.output_tokens > 0);
+        assert!(projection.output_tokens < 393_216);
+        assert!(projection.input_tokens <= projection.capacity);
+    }
+
+    #[test]
+    fn context_projection_accounts_for_omission_note() {
+        let projection = fit_context_projection(
+            vec![
+                ChatMessage::system("system"),
+                ChatMessage::assistant("old observation ".repeat(6_000)),
+                ChatMessage::user("new request"),
+            ],
+            &[],
+            16_384,
+            8_000,
+            &[],
+        )
+        .expect("history should be projected");
+
+        assert!(!projection.omitted.is_empty());
+        assert!(
+            projection
+                .messages
+                .iter()
+                .any(|message| message.content.contains("部分较早历史"))
+        );
+        assert!(projection.input_tokens <= projection.capacity);
     }
 }

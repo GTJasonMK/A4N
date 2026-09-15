@@ -6,7 +6,7 @@ use crate::AppState;
 use a4n_error::AppError;
 
 pub async fn get_current_user(state: &AppState, user_id: i64) -> Result<UserSummary, AppError> {
-    state.auth_application().current_user(user_id).await
+    state.auth_read_application().current_user(user_id).await
 }
 
 pub async fn require_existing_user_or_bootstrap_admin(
@@ -14,7 +14,7 @@ pub async fn require_existing_user_or_bootstrap_admin(
     bootstrap: Option<(&str, &str, &str)>,
 ) -> Result<(), AppError> {
     state
-        .auth_application()
+        .auth_mutation_application()
         .require_existing_user_or_bootstrap_admin(bootstrap)
         .await
 }
@@ -24,7 +24,10 @@ pub async fn register_user(
     input: RegisterInput,
     user_agent: Option<&str>,
 ) -> Result<AuthResult, AppError> {
-    let user = state.auth_application().register_user(input).await?;
+    let user = state
+        .auth_mutation_application()
+        .register_user(input)
+        .await?;
     issue_auth_result(state, user, user_agent).await
 }
 
@@ -33,7 +36,7 @@ pub async fn login_user(
     input: LoginInput,
     user_agent: Option<&str>,
 ) -> Result<AuthResult, AppError> {
-    let user = state.auth_application().login_user(input).await?;
+    let user = state.auth_mutation_application().login_user(input).await?;
     issue_auth_result(state, user, user_agent).await
 }
 
@@ -64,7 +67,7 @@ pub async fn update_user_profile(
         ));
     }
     state
-        .auth_application()
+        .auth_mutation_application()
         .update_profile(user_id, input)
         .await
 }
@@ -75,7 +78,7 @@ pub async fn change_user_password(
     input: ChangePasswordInput,
 ) -> Result<(), AppError> {
     state
-        .auth_application()
+        .auth_mutation_application()
         .change_password(user_id, input)
         .await
 }

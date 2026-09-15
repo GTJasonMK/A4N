@@ -22,11 +22,6 @@ use a4n_db::generation::{
     PersistGenerationCheckpointInput, ReserveGenerationTaskInput, persist_generation_checkpoint,
     reserve_generation_task,
 };
-#[cfg(any(
-    feature = "embedded-capabilities",
-    feature = "embedded-media-providers"
-))]
-use a4n_db_models::models::ai::generated_video;
 use a4n_db_models::models::{
     ai::generated_image,
     asset::profile_primary_material,
@@ -3764,9 +3759,35 @@ fn server_command(
     frontend_dir: &Path,
     addr: SocketAddr,
 ) -> Command {
+    let server_binary = Path::new(env!("CARGO_BIN_EXE_a4n-server"));
+    let prompts_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts");
+    let binary_dir = server_binary
+        .parent()
+        .and_then(|path| {
+            (path.file_name().and_then(|name| name.to_str()) == Some("deps"))
+                .then(|| path.parent())
+                .flatten()
+        })
+        .or_else(|| server_binary.parent())
+        .expect("a4n-server test binary should have a parent directory");
+    let executable = |name: &str| {
+        #[cfg(windows)]
+        {
+            binary_dir.join(format!("{name}.exe"))
+        }
+        #[cfg(not(windows))]
+        {
+            binary_dir.join(name)
+        }
+    };
     let mut command = Command::new(env!("CARGO_BIN_EXE_a4n-server"));
     command
         .current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .env_remove("A4N_CONTROL_PROCESS")
+        .env_remove("A4N_AGENT_WORKER_PROCESS")
+        .env("A4N_CONTROL_BINARY", executable("a4n-control"))
+        .env("A4N_AGENT_WORKER_BINARY", executable("a4n-agent-worker"))
+        .env("A4N_AGENT_WORKER_TOKEN", "cleanup-process-worker-token")
         .env("A4N_DATABASE_URL", database_url)
         .env("A4N_JWT_SECRET", "cleanup-process-test-secret")
         .env(
@@ -3777,6 +3798,7 @@ fn server_command(
                 "minimal"
             },
         )
+        .env("A4N_PROMPT_SERVICE_PROMPTS_DIR", prompts_dir)
         .env("A4N_DATA_DIR", data_dir)
         .env("A4N_CACHE_DIR", data_dir.join("cache"))
         .env("A4N_TEMP_DIR", data_dir.join("tmp"))

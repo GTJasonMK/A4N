@@ -9,35 +9,64 @@ use crate::web_search::{WebSearchConfigSummary, WebSearchRuntimeConfig};
 
 pub use a4n_domain::{DiscoveredModel, ImageSize, ModelDiscoveryResult, VideoDurationMode};
 
-/// AI provider configuration application boundary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptRow {
+    pub name: String,
+    pub content: String,
+}
+
+/// Host adapter for settings import/export prompt side effects.
+#[async_trait::async_trait]
+pub trait SettingsAllHostPort: Send + Sync {
+    async fn modified_prompts(&self) -> Result<Vec<PromptRow>, a4n_error::AppError>;
+
+    async fn prepare_prompt_import(
+        &self,
+        rows: &[PromptRow],
+    ) -> Result<Vec<(String, String)>, a4n_error::AppError>;
+
+    async fn import_prompts(&self, rows: Vec<PromptRow>) -> Result<usize, a4n_error::AppError>;
+
+    async fn rollback_prompts(
+        &self,
+        snapshots: Vec<(String, String)>,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing settings export boundary.
+#[async_trait::async_trait]
+pub trait SettingsExportApplicationPort: Send + Sync {
+    async fn export_all_configs_to_json(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+    ) -> Result<String, a4n_error::AppError>;
+}
+
+/// Host-facing settings import boundary.
+#[async_trait::async_trait]
+pub trait SettingsImportApplicationPort: Send + Sync {
+    async fn import_all_configs(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+        input: ImportAllConfigsInput,
+    ) -> Result<Vec<String>, a4n_error::AppError>;
+}
+
+/// AI provider configuration read boundary.
 ///
 /// Persistence, validation, admin authorization and API projection stay in
 /// the configuration owner. Hosts only route typed requests through this
 /// port and never handle configuration ORM models.
 #[async_trait::async_trait]
-pub trait ConfigApplicationPort: Send + Sync {
+pub trait ConfigReadApplicationPort: Send + Sync {
     async fn llm_configs_exist(&self) -> Result<bool, a4n_error::AppError>;
 
     async fn image_configs_exist(&self) -> Result<bool, a4n_error::AppError>;
 
     async fn video_configs_exist(&self) -> Result<bool, a4n_error::AppError>;
-
-    async fn insert_baseline_embedding_if_empty(&self) -> Result<bool, a4n_error::AppError>;
-
-    async fn insert_baseline_llm_if_empty(
-        &self,
-        input: CreateLlmInput,
-    ) -> Result<bool, a4n_error::AppError>;
-
-    async fn insert_baseline_image_if_empty(
-        &self,
-        input: ImageConfigInput,
-    ) -> Result<bool, a4n_error::AppError>;
-
-    async fn insert_baseline_video_if_empty(
-        &self,
-        input: VideoConfigInput,
-    ) -> Result<bool, a4n_error::AppError>;
 
     async fn web_search_runtime_config(
         &self,
@@ -46,12 +75,6 @@ pub trait ConfigApplicationPort: Send + Sync {
     async fn web_search_config_summary(
         &self,
         caller_user_id: i64,
-    ) -> Result<WebSearchConfigSummary, a4n_error::AppError>;
-
-    async fn update_web_search_config(
-        &self,
-        caller_user_id: i64,
-        input: crate::web_search::UpdateWebSearchConfigInput,
     ) -> Result<WebSearchConfigSummary, a4n_error::AppError>;
 
     async fn saved_api_key(
@@ -81,6 +104,43 @@ pub trait ConfigApplicationPort: Send + Sync {
 
     async fn list_llm(&self) -> Result<Vec<LlmConfigSummary>, a4n_error::AppError>;
 
+    async fn list_image(&self) -> Result<Vec<ImageConfigSummary>, a4n_error::AppError>;
+
+    async fn list_video(&self) -> Result<Vec<VideoConfigSummary>, a4n_error::AppError>;
+
+    async fn list_embedding(&self) -> Result<Vec<EmbeddingConfigSummary>, a4n_error::AppError>;
+}
+
+/// AI provider configuration mutation boundary.
+///
+/// Persistence, validation, admin authorization and API projection stay in
+/// the configuration owner. Hosts only route typed requests through this
+/// port and never handle configuration ORM models.
+#[async_trait::async_trait]
+pub trait ConfigMutationApplicationPort: Send + Sync {
+    async fn insert_baseline_embedding_if_empty(&self) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_llm_if_empty(
+        &self,
+        input: CreateLlmInput,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_image_if_empty(
+        &self,
+        input: ImageConfigInput,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_video_if_empty(
+        &self,
+        input: VideoConfigInput,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn update_web_search_config(
+        &self,
+        caller_user_id: i64,
+        input: crate::web_search::UpdateWebSearchConfigInput,
+    ) -> Result<WebSearchConfigSummary, a4n_error::AppError>;
+
     async fn create_llm(
         &self,
         caller_user_id: i64,
@@ -105,8 +165,6 @@ pub trait ConfigApplicationPort: Send + Sync {
         caller_user_id: i64,
         config_id: i64,
     ) -> Result<(), a4n_error::AppError>;
-
-    async fn list_image(&self) -> Result<Vec<ImageConfigSummary>, a4n_error::AppError>;
 
     async fn create_image(
         &self,
@@ -133,8 +191,6 @@ pub trait ConfigApplicationPort: Send + Sync {
         config_id: i64,
     ) -> Result<(), a4n_error::AppError>;
 
-    async fn list_video(&self) -> Result<Vec<VideoConfigSummary>, a4n_error::AppError>;
-
     async fn create_video(
         &self,
         caller_user_id: i64,
@@ -159,8 +215,6 @@ pub trait ConfigApplicationPort: Send + Sync {
         caller_user_id: i64,
         config_id: i64,
     ) -> Result<(), a4n_error::AppError>;
-
-    async fn list_embedding(&self) -> Result<Vec<EmbeddingConfigSummary>, a4n_error::AppError>;
 
     async fn create_embedding(
         &self,

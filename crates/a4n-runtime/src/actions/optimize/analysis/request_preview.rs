@@ -11,7 +11,7 @@ pub async fn preview_create_optimization_analysis_session_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .optimize_application()
+        .optimize_analysis_preview_application()
         .preview_create_analysis(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
@@ -25,7 +25,7 @@ pub async fn preview_prepare_optimization_analysis_session_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .optimize_application()
+        .optimize_analysis_preview_application()
         .preview_prepare_analysis(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

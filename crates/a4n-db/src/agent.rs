@@ -99,6 +99,13 @@ fn is_run_terminal(status: &str) -> bool {
     )
 }
 
+/// Run status is the durable lifecycle authority.  `is_active` is retained as
+/// an index/lease optimization, but older rows may have a stale value after a
+/// process interruption.
+pub fn is_run_active(status: &str) -> bool {
+    !is_run_terminal(status)
+}
+
 pub fn validate_live_run_lease(
     row: &run::Model,
     lease_token: &str,
@@ -469,13 +476,15 @@ pub async fn turns_by_thread<C>(
 where
     C: ConnectionTrait,
 {
-    turn::Entity::find()
+    let mut rows = turn::Entity::find()
         .filter(turn::Column::ThreadId.eq(thread_id))
-        .order_by_asc(turn::Column::Sequence)
+        .order_by_desc(turn::Column::Sequence)
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map_err(AgentDbError::Database)?;
+    rows.reverse();
+    Ok(rows)
 }
 
 pub async fn runs_by_thread<C>(
@@ -486,14 +495,35 @@ pub async fn runs_by_thread<C>(
 where
     C: ConnectionTrait,
 {
-    run::Entity::find()
+    let mut rows = run::Entity::find()
         .filter(run::Column::ThreadId.eq(thread_id))
-        .order_by_asc(run::Column::CreatedAt)
-        .order_by_asc(run::Column::Id)
+        .order_by_desc(run::Column::CreatedAt)
+        .order_by_desc(run::Column::Id)
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map_err(AgentDbError::Database)?;
+    rows.reverse();
+    Ok(rows)
+}
+
+pub async fn active_runs_by_thread<C>(
+    db: &C,
+    thread_id: i64,
+) -> Result<Vec<run::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    Ok(run::Entity::find()
+        .filter(run::Column::ThreadId.eq(thread_id))
+        .order_by_desc(run::Column::UpdatedAt)
+        .order_by_desc(run::Column::Id)
+        .all(db)
+        .await
+        .map_err(AgentDbError::Database)?
+        .into_iter()
+        .filter(|row| is_run_active(&row.status))
+        .collect())
 }
 
 pub async fn run_by_id<C>(db: &C, id: i64) -> Result<Option<run::Model>, AgentDbError>
@@ -1407,17 +1437,24 @@ where
         }
         return Ok((existing_turn, existing_run, existing_message));
     }
-    if run::Entity::find()
+    let active_rows = run::Entity::find()
         .filter(run::Column::ThreadId.eq(input.thread_id))
         .filter(run::Column::IsActive.eq(true))
         .lock_exclusive()
-        .one(db)
-        .await?
-        .is_some()
-    {
+        .all(db)
+        .await?;
+    if active_rows.iter().any(|row| is_run_active(&row.status)) {
         return Err(AgentDbError::Conflict(
             "Agent thread 已有运行中的 turn".into(),
         ));
+    }
+    for row in active_rows {
+        let mut inactive: run::ActiveModel = row.into();
+        inactive.is_active = Set(false);
+        inactive.worker_id = Set(None);
+        inactive.lease_token = Set(None);
+        inactive.lease_expires_at = Set(None);
+        inactive.update(db).await?;
     }
 
     let mut message_input = input.message;
@@ -1637,6 +1674,25 @@ where
         .all(db)
         .await
         .map_err(AgentDbError::Database)
+}
+
+pub async fn latest_events_by_thread<C>(
+    db: &C,
+    thread_id: i64,
+    limit: u64,
+) -> Result<Vec<event::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    let mut rows = event::Entity::find()
+        .filter(event::Column::ThreadId.eq(thread_id))
+        .order_by_desc(event::Column::Sequence)
+        .limit(limit)
+        .all(db)
+        .await
+        .map_err(AgentDbError::Database)?;
+    rows.reverse();
+    Ok(rows)
 }
 
 pub async fn enqueue_inbox<C>(db: &C, input: AgentInboxInput) -> Result<inbox::Model, AgentDbError>
@@ -2121,18 +2177,16 @@ async fn resolve_editor_wait(
         ));
     }
     if expire {
+        let error_message = "原编辑器离线或未及时响应，请回到发起请求的视图后重试；未执行写入";
         let mut active: execution::ActiveModel = execution.into();
         active.status = Set("failed".into());
-        active.error_message = Set(Some(
-            "原编辑器离线或未及时响应，请回到发起请求的视图后重试；未执行写入".into(),
-        ));
+        active.error_message = Set(Some(error_message.into()));
         active.updated_at = Set(timestamp);
         active.completed_at = Set(Some(timestamp));
         active.update(&tx).await?;
-        let row = update_run_state_on(&tx, run_id, None, "queued", None, None).await?;
         append_run_event_on(
             &tx,
-            &row,
+            &run,
             "editor_request_expired",
             "failed",
             "原编辑器未及时响应，工具未执行",
@@ -2142,9 +2196,9 @@ async fn resolve_editor_wait(
             None,
         )
         .await?;
-        refresh_thread_status_on(&tx, row.thread_id).await?;
+        let failed = fail_run_on(&tx, run, Some(error_message.to_string()), timestamp).await?;
         tx.commit().await?;
-        return Ok(row);
+        return Ok(failed);
     }
     let mut active: run::ActiveModel = run.into();
     active.status = Set("running".into());
@@ -2170,13 +2224,7 @@ where
     if thread_row.archived_at.is_some() || thread_row.status == "archived" {
         return Ok(thread_row);
     }
-    let active_runs = run::Entity::find()
-        .filter(run::Column::ThreadId.eq(thread_id))
-        .filter(run::Column::IsActive.eq(true))
-        .order_by_desc(run::Column::UpdatedAt)
-        .order_by_desc(run::Column::Id)
-        .all(db)
-        .await?;
+    let active_runs = active_runs_by_thread(db, thread_id).await?;
     if active_runs.len() > 1 {
         return Err(AgentDbError::Conflict(format!(
             "Agent thread 存在多个 active run: {thread_id}"
@@ -2538,6 +2586,62 @@ pub async fn wake_waiting_run_for_reason(
 
 /// Fenced failure transition for a worker.  Keeping Turn and Run terminal
 /// updates in one transaction avoids an observable half-failed turn.
+async fn fail_run_on<C: ConnectionTrait>(
+    db: &C,
+    row: run::Model,
+    error_message: Option<String>,
+    timestamp: NaiveDateTime,
+) -> Result<run::Model, AgentDbError> {
+    let turn_row = turn::Entity::find_by_id(row.turn_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound(format!("Agent turn 不存在: {}", row.turn_id)))?;
+    let mut turn_active: turn::ActiveModel = turn_row.into();
+    turn_active.status = Set("failed".to_string());
+    turn_active.error_message = Set(error_message.clone());
+    turn_active.updated_at = Set(timestamp);
+    turn_active.completed_at = Set(Some(timestamp));
+    turn_active.update(db).await?;
+
+    let mut active: run::ActiveModel = row.into();
+    active.status = Set("failed".to_string());
+    active.waiting_reason = Set(None);
+    active.is_active = Set(false);
+    active.last_error = Set(error_message);
+    active.updated_at = Set(timestamp);
+    active.completed_at = Set(Some(timestamp));
+    active.worker_id = Set(None);
+    active.lease_token = Set(None);
+    active.lease_expires_at = Set(None);
+    let row = active.update(db).await?;
+    terminate_executions_on(
+        db,
+        [row.id],
+        ExecutionTermination::Failed,
+        row.last_error.as_deref(),
+        timestamp,
+    )
+    .await?;
+    interrupt_streaming_messages_on(db, [row.id], row.last_error.as_deref()).await?;
+    append_run_event_on(
+        db,
+        &row,
+        "run_failed",
+        "failed",
+        "Agent run 执行失败",
+        None,
+        None,
+        None,
+        row.last_error
+            .clone()
+            .map(|error| json!({ "error": error })),
+    )
+    .await?;
+    let _ = refresh_thread_status_on(db, row.thread_id).await?;
+    Ok(row)
+}
+
 pub async fn fail_run_for_lease(
     db: &DatabaseConnection,
     run_id: i64,
@@ -2563,54 +2667,7 @@ pub async fn fail_run_for_lease(
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {run_id}")))?;
     let timestamp = now();
     validate_live_run_lease(&row, lease_token, timestamp)?;
-    let turn_row = turn::Entity::find_by_id(row.turn_id)
-        .lock_exclusive()
-        .one(&tx)
-        .await?
-        .ok_or_else(|| AgentDbError::NotFound(format!("Agent turn 不存在: {}", row.turn_id)))?;
-    let error_for_turn = error_message.clone();
-    let mut turn_active: turn::ActiveModel = turn_row.into();
-    turn_active.status = Set("failed".to_string());
-    turn_active.error_message = Set(error_for_turn);
-    turn_active.updated_at = Set(timestamp);
-    turn_active.completed_at = Set(Some(timestamp));
-    turn_active.update(&tx).await?;
-
-    let mut active: run::ActiveModel = row.into();
-    active.status = Set("failed".to_string());
-    active.waiting_reason = Set(None);
-    active.is_active = Set(false);
-    active.last_error = Set(error_message);
-    active.updated_at = Set(timestamp);
-    active.completed_at = Set(Some(timestamp));
-    active.worker_id = Set(None);
-    active.lease_token = Set(None);
-    active.lease_expires_at = Set(None);
-    let row = active.update(&tx).await?;
-    terminate_executions_on(
-        &tx,
-        [row.id],
-        ExecutionTermination::Failed,
-        row.last_error.as_deref(),
-        timestamp,
-    )
-    .await?;
-    interrupt_streaming_messages_on(&tx, [row.id], row.last_error.as_deref()).await?;
-    append_run_event_on(
-        &tx,
-        &row,
-        "run_failed",
-        "failed",
-        "Agent run 执行失败",
-        None,
-        None,
-        None,
-        row.last_error
-            .clone()
-            .map(|error| json!({ "error": error })),
-    )
-    .await?;
-    let _ = refresh_thread_status_on(&tx, row.thread_id).await?;
+    let row = fail_run_on(&tx, row, error_message, timestamp).await?;
     tx.commit().await?;
     Ok(row)
 }

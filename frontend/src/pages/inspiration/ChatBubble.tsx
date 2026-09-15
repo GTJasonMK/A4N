@@ -85,7 +85,13 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   const displayedContent = message.rawContent != null
     ? streamingPreview?.content ?? ""
     : message.content;
-  const streamDisplaying = Boolean(message.streaming || pacedStream.hasPendingText);
+  const streamDisplaying = pacedStream.isStreamDisplayEnabled
+    && Boolean(message.streaming || pacedStream.hasPendingText);
+  const showThinking = Boolean(
+    message.streaming
+    && (pacedStream.isThinking || (!pacedStream.isStreamDisplayEnabled && !displayedContent)),
+  );
+  const showStreamStatus = streamDisplaying || showThinking;
 
   if (isSystem) {
     return (
@@ -99,7 +105,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   const displayOptions = streamDisplaying
     ? streamingPreview?.options
     : message.options;
-  const showPendingSkeleton = Boolean(message.streaming && streamingPreview?.optionsPending);
+  const showPendingSkeleton = pacedStream.isStreamDisplayEnabled
+    && Boolean(message.streaming && streamingPreview?.optionsPending);
 
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
@@ -117,7 +124,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
               ? "rounded-[18px] rounded-br-md bg-book-primary text-[rgb(var(--color-button-text))] shadow-sm"
               : "rounded-[18px] rounded-bl-md border border-book-border/45 bg-book-bg-paper/65 text-book-text-main"
           }`}
-          role={message.streaming ? "status" : undefined}
+          role={showStreamStatus ? "status" : undefined}
         >
           {message.consistencyWarning ? (
             <div className="mb-2 flex items-start gap-1.5 border-b border-book-border/50 pb-2 text-xs font-medium text-danger">
@@ -133,8 +140,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
               text={displayedContent}
             />
           )}
-          {streamDisplaying && (
-            pacedStream.isThinking ? (
+          {showStreamStatus && (
+            showThinking ? (
               <LoadingSpinner
                 size="sm"
                 text={!displayedContent ? t("inspiration.organizingInspiration") : undefined}

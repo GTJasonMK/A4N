@@ -8,7 +8,7 @@ pub async fn check_import_dedup(
     input: CheckImportDedupInput,
 ) -> Result<DedupResult, AppError> {
     state
-        .import_review_application()
+        .import_review_read_application()
         .dedup(user_id, input)
         .await
 }

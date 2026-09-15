@@ -12,7 +12,7 @@ pub async fn export_all_configs_to_json(
     caller_user_id: i64,
 ) -> Result<String, AppError> {
     state
-        .settings_all_application()
+        .settings_export_application()
         .export_all_configs_to_json(caller_user_id, &RuntimeSettingsAllHostPort { state })
         .await
 }
@@ -23,7 +23,7 @@ pub async fn import_all_configs(
     input: ImportAllConfigsInput,
 ) -> Result<Vec<String>, AppError> {
     state
-        .settings_all_application()
+        .settings_import_application()
         .import_all_configs(caller_user_id, &RuntimeSettingsAllHostPort { state }, input)
         .await
 }

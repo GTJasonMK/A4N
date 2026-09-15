@@ -77,12 +77,12 @@ pub struct EditedChapterShootingScriptView {
     pub invalidated_project_ids: Vec<i64>,
 }
 
-/// Host-facing boundary for persisted shooting-script records.
+/// Host-facing read boundary for persisted shooting-script records.
 ///
 /// Source resolution, visual-plan consistency and persistence stay with the
-/// shooting-script owner; hosts only route typed reads and edits.
+/// shooting-script owner; hosts only route typed reads.
 #[async_trait::async_trait]
-pub trait ShootingScriptRecordApplicationPort: Send + Sync {
+pub trait ShootingScriptRecordReadApplicationPort: Send + Sync {
     async fn current(
         &self,
         user_id: i64,
@@ -94,7 +94,11 @@ pub trait ShootingScriptRecordApplicationPort: Send + Sync {
         user_id: i64,
         input: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptUnitProgressView>, a4n_error::AppError>;
+}
 
+/// Host-facing mutation boundary for persisted shooting-script records.
+#[async_trait::async_trait]
+pub trait ShootingScriptRecordMutationApplicationPort: Send + Sync {
     async fn edit(
         &self,
         user_id: i64,

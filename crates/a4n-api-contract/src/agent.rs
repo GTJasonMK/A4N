@@ -89,6 +89,7 @@ pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
     "read_visual_plan_prompt_candidate",
     "start_visual_plan_prompt_generation",
     "start_image_generation",
+    "wait_generation_task",
     "inspect_editor_target",
     "read_editor_draft",
     "save_editor_draft",
@@ -191,6 +192,7 @@ pub fn synthetic_agent_tool_descriptor(
         | "ensure_content_optimization_session"
         | "send_content_optimization_message" => "optimize",
         "run_canvas_graph" | "run_canvas_node" => "canvas",
+        "start_visual_plan_prompt_generation" | "start_image_generation" => "director",
         "get_generation_task_summary" | "wait_generation_task" | "wait_workflow_run" => "task",
         "search_agent_tools"
         | "describe_agent_tool"
@@ -204,7 +206,11 @@ pub fn synthetic_agent_tool_descriptor(
         _ => return None,
     };
     let inherited_schema = match name {
-        "apply_optimization_patches" | "run_canvas_graph" | "run_canvas_node" => {
+        "apply_optimization_patches"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation" => {
             Some(crate::command_manifest::command_descriptor(name)?)
         }
         "wait_workflow_run" => Some(crate::command_manifest::command_descriptor(
@@ -280,6 +286,12 @@ pub fn synthetic_agent_tool_descriptor(
         "send_content_optimization_message" => {
             "Send a focused instruction to the content-optimization Agent and return its generation task handle".into()
         }
+        "start_visual_plan_prompt_generation" => {
+            "Start asynchronous Director prompt generation for one observed visual-plan segment".into()
+        }
+        "start_image_generation" => {
+            "Start asynchronous image generation for one observed visual-plan point".into()
+        }
         "get_generation_task_summary" => {
             "Read the real state and terminal result of an asynchronous generation task".into()
         }
@@ -301,7 +313,11 @@ pub fn synthetic_agent_tool_descriptor(
     descriptor.execution = match name {
         "delegate" => "agent".into(),
         "wait_generation_task" | "wait_workflow_run" => "wait".into(),
-        "send_content_optimization_message" | "run_canvas_graph" | "run_canvas_node" => {
+        "send_content_optimization_message"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation" => {
             "task".into()
         }
         _ => "immediate".into(),
@@ -310,6 +326,8 @@ pub fn synthetic_agent_tool_descriptor(
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation"
         | "wait_workflow_run" => descriptor.args_schema.clone(),
         "search_agent_tools" => json!({
             "type": "object",
@@ -392,6 +410,8 @@ pub fn synthetic_agent_tool_descriptor(
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation"
         | "wait_workflow_run" => descriptor.result_schema.clone(),
         "search_agent_tools" => typed_schema::<AgentToolSearchResult>(),
         "describe_agent_tool" => typed_schema::<AgentToolDescriptor>(),
@@ -489,6 +509,25 @@ pub fn synthetic_agent_tool_descriptor(
     Some(descriptor)
 }
 
+/// Resolve one command through the Agent exposure gate shared by workers and
+/// Host dispatch. Synthetic domain tools and ordinary manifest commands must
+/// use the same visibility rule.
+pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
+    if let Some(descriptor) = synthetic_agent_tool_descriptor(name) {
+        return Some(descriptor);
+    }
+    let descriptor = crate::command_manifest::command_descriptor(name)?;
+    if descriptor
+        .agent_policy
+        .as_ref()
+        .is_some_and(|policy| policy.exposure != AgentToolExposure::Hidden)
+    {
+        Some(descriptor)
+    } else {
+        None
+    }
+}
+
 fn typed_schema<T: JsonSchema>() -> Value {
     let mut schema = serde_json::to_value(schemars::schema_for!(T))
         .expect("Agent tool result schema must serialize");
@@ -524,7 +563,7 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
     .collect()
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentScope {
     #[serde(default)]
@@ -661,11 +700,19 @@ pub struct AgentRunView {
     pub model_calls_used: u32,
     pub tool_calls_used: u32,
     pub tokens_used: u64,
+    /// Estimated tokens in the latest fitted Agent model input.
+    #[serde(default)]
+    pub context_input_tokens: Option<u64>,
+    /// Safe input capacity used by the latest fitted Agent model request.
+    #[serde(default)]
+    pub context_capacity_tokens: Option<u64>,
     #[serde(default)]
     pub cost_micros: Option<u64>,
     #[serde(default)]
     pub error: Option<String>,
     pub created_at: String,
+    #[serde(default)]
+    pub started_at: Option<String>,
     pub updated_at: String,
 }
 
@@ -1329,13 +1376,9 @@ pub struct AgentMessageAccepted {
     pub created_run: bool,
 }
 
-/// Host-facing Agent application boundary.
-///
-/// The contract contains only API inputs/outputs and application errors.  It
-/// deliberately excludes worker lease types, ORM models and runtime state;
-/// those remain implementation details of the Agent persistence owner.
+/// Host-facing Agent thread mutation boundary.
 #[async_trait::async_trait]
-pub trait AgentApplicationPort: Send + Sync {
+pub trait AgentThreadMutationApplicationPort: Send + Sync {
     async fn ensure_main_thread(
         &self,
         user_id: i64,
@@ -1365,7 +1408,11 @@ pub trait AgentApplicationPort: Send + Sync {
         user_id: i64,
         input: ArchiveAgentThreadInput,
     ) -> Result<AgentThreadView, a4n_error::AppError>;
+}
 
+/// Host-facing Agent thread read boundary.
+#[async_trait::async_trait]
+pub trait AgentThreadReadApplicationPort: Send + Sync {
     async fn list_threads(
         &self,
         user_id: i64,
@@ -1383,13 +1430,11 @@ pub trait AgentApplicationPort: Send + Sync {
         user_id: i64,
         input: ListAgentMessagesInput,
     ) -> Result<Vec<AgentMessageView>, a4n_error::AppError>;
+}
 
-    async fn show_run(
-        &self,
-        user_id: i64,
-        run_id: &str,
-    ) -> Result<AgentRunView, a4n_error::AppError>;
-
+/// Host-facing Agent run mutation boundary.
+#[async_trait::async_trait]
+pub trait AgentRunMutationApplicationPort: Send + Sync {
     async fn send_message(
         &self,
         user_id: i64,
@@ -1417,19 +1462,48 @@ pub trait AgentApplicationPort: Send + Sync {
         user_id: i64,
         input: ControlChildAgentInput,
     ) -> Result<AgentRunView, a4n_error::AppError>;
+}
 
+/// Host-facing Agent run read boundary.
+#[async_trait::async_trait]
+pub trait AgentRunReadApplicationPort: Send + Sync {
+    async fn show_run(
+        &self,
+        user_id: i64,
+        run_id: &str,
+    ) -> Result<AgentRunView, a4n_error::AppError>;
+}
+
+/// Host-facing Agent delegation boundary.
+#[async_trait::async_trait]
+pub trait AgentDelegationApplicationPort: Send + Sync {
     async fn spawn_agent(
         &self,
         user_id: i64,
         input: SpawnAgentInput,
     ) -> Result<AgentDelegationView, a4n_error::AppError>;
 
+    async fn review_delegation(
+        &self,
+        user_id: i64,
+        input: ReviewAgentDelegationInput,
+        parent_run_id: Option<i64>,
+    ) -> Result<AgentDelegationView, a4n_error::AppError>;
+}
+
+/// Host-facing Agent event read boundary.
+#[async_trait::async_trait]
+pub trait AgentEventReadApplicationPort: Send + Sync {
     async fn events(
         &self,
         user_id: i64,
         input: AgentEventsInput,
     ) -> Result<Vec<AgentEvent>, a4n_error::AppError>;
+}
 
+/// Host-facing Agent tool discovery boundary.
+#[async_trait::async_trait]
+pub trait AgentToolReadApplicationPort: Send + Sync {
     fn search_tools(
         &self,
         input: SearchAgentToolsInput,
@@ -1439,14 +1513,22 @@ pub trait AgentApplicationPort: Send + Sync {
         &self,
         input: DescribeAgentToolInput,
     ) -> Result<AgentToolDescriptor, a4n_error::AppError>;
+}
 
+/// Host-facing Agent memory read boundary.
+#[async_trait::async_trait]
+pub trait AgentMemoryReadApplicationPort: Send + Sync {
     async fn list_memories(
         &self,
         user_id: i64,
         scope_kind: Option<AgentMemoryScopeKind>,
         scope_id: Option<String>,
     ) -> Result<Vec<AgentMemoryView>, a4n_error::AppError>;
+}
 
+/// Host-facing Agent memory mutation boundary.
+#[async_trait::async_trait]
+pub trait AgentMemoryMutationApplicationPort: Send + Sync {
     async fn create_memory(
         &self,
         user_id: i64,
@@ -1458,20 +1540,21 @@ pub trait AgentApplicationPort: Send + Sync {
         user_id: i64,
         input: RetractAgentMemoryInput,
     ) -> Result<AgentMemoryView, a4n_error::AppError>;
+}
 
-    async fn review_delegation(
-        &self,
-        user_id: i64,
-        input: ReviewAgentDelegationInput,
-        parent_run_id: Option<i64>,
-    ) -> Result<AgentDelegationView, a4n_error::AppError>;
-
+/// Host-facing Agent approval mutation boundary.
+#[async_trait::async_trait]
+pub trait AgentApprovalApplicationPort: Send + Sync {
     async fn resolve_approval(
         &self,
         user_id: i64,
         input: ResolveAgentApprovalInput,
     ) -> Result<AgentApprovalView, a4n_error::AppError>;
+}
 
+/// Host-facing Agent resource authorization boundary.
+#[async_trait::async_trait]
+pub trait AgentResourceAccessApplicationPort: Send + Sync {
     async fn verify_chapters_in_project(
         &self,
         user_id: i64,
@@ -1485,7 +1568,7 @@ mod tests {
     use super::{
         CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
         GENERAL_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
-        agent_tools_for_capability, synthetic_agent_tool_descriptor,
+        agent_tool_descriptor, agent_tools_for_capability, synthetic_agent_tool_descriptor,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1528,6 +1611,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn ordinary_manifest_agent_tools_use_the_shared_descriptor_gate() {
+        let descriptor = agent_tool_descriptor("read_chapter_visual_plan")
+            .expect("director manifest tool should be exposed to Agent");
+        assert_eq!(descriptor.name, "read_chapter_visual_plan");
+        assert_eq!(
+            descriptor.runtime_config_policy,
+            crate::command_manifest::RuntimeConfigPolicy::None
+        );
+        assert!(agent_tool_descriptor("create_llm_config").is_none());
     }
 
     #[test]

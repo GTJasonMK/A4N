@@ -11,7 +11,7 @@ pub async fn get_canvas_graph(
     input: GetCanvasGraphInput,
 ) -> Result<CanvasGraphDocument, String> {
     state
-        .canvas_application()
+        .canvas_read_application()
         .get_graph(user_id, input)
         .await
         .map_err(app_error_message)
@@ -31,7 +31,7 @@ pub async fn save_canvas_graph(
     input: SaveCanvasGraphInput,
 ) -> Result<CanvasGraphDocument, String> {
     state
-        .canvas_application()
+        .canvas_mutation_application()
         .save_graph(user_id, input)
         .await
         .map_err(app_error_message)
@@ -43,7 +43,7 @@ pub async fn read_canvas_graph(
     input: a4n_api_contract::canvas::ReadCanvasGraphInput,
 ) -> Result<a4n_api_contract::canvas::CanvasGraphReadResult, String> {
     state
-        .canvas_application()
+        .canvas_read_application()
         .read_graph(user_id, input)
         .await
         .map_err(app_error_message)
@@ -55,7 +55,7 @@ pub async fn edit_canvas_graph(
     input: a4n_api_contract::canvas::EditCanvasGraphInput,
 ) -> Result<a4n_api_contract::canvas::CanvasGraphEditResult, String> {
     state
-        .canvas_application()
+        .canvas_mutation_application()
         .edit_graph(user_id, input)
         .await
         .map_err(app_error_message)
@@ -67,7 +67,7 @@ pub async fn save_canvas_text_asset(
     input: SaveCanvasTextAssetInput,
 ) -> Result<CanvasTextAssetSummary, String> {
     state
-        .canvas_application()
+        .canvas_mutation_application()
         .save_text_asset(user_id, input)
         .await
         .map_err(app_error_message)

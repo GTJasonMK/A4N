@@ -242,15 +242,19 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
       keyframe_id: point?.id ?? null, entity_id: null };
   };
   const editorRequest = async (request: AgentEditorRequest, runId: string) => {
-    if (request.source.view_instance_id !== model.viewInstanceId.current) return;
     let submitted = false;
     const respond = async (response: AgentEditorResponse) => {
       submitted = true;
-      const reply = await respondAgentEditor({ run_id: runId, execution_id: request.execution_id, view_instance_id: model.viewInstanceId.current, response });
+      const reply = await respondAgentEditor({ run_id: runId, execution_id: request.execution_id, view_instance_id: request.source.view_instance_id, response });
       if (reply.status !== "succeeded") throw new Error(reply.error_message || "编辑器请求失败");
       return reply;
     };
     try {
+      const currentSource = getEditorSource();
+      if (!currentSource || currentSource.project_id !== request.source.project_id || currentSource.chapter_id !== request.source.chapter_id) {
+        await respond({ kind: "error", message: "当前时间线已切换，请回到原章节视图后重试" });
+        return;
+      }
       if (model.busy || model.saving || !model.planRef.current) throw new Error("编辑器正在保存，请稍后重试");
       const operation = request.operation;
       const expected = operation.kind === "prepare_write" ? operation.expected_editor_revision : operation.kind === "read" || operation.kind === "save" ? operation.input.expected_editor_revision : null;
@@ -268,7 +272,6 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
       } else {
         if (state.dirty || state.has_uncommitted_dialog) throw new Error("当前仍有未保存编辑，请先保存");
         await respond({ kind: "ready_to_write", state });
-        await model.reload();
       }
     } catch (failure) {
       if (!submitted) await respond({ kind: "error", message: String(failure) });

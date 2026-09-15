@@ -1,5 +1,7 @@
 use super::env::{any_env_present, env_i32_or, env_string_or, optional_env_json};
-use a4n_api_contract::config::{ConfigApplicationPort, VideoConfigInput, VideoDurationMode};
+use a4n_api_contract::config::{
+    ConfigMutationApplicationPort, ConfigReadApplicationPort, VideoConfigInput, VideoDurationMode,
+};
 use a4n_config::required_non_empty_env_string;
 use a4n_error::AppError;
 
@@ -21,15 +23,16 @@ const PUBLIC_VIDEO_ENV_KEYS: &[&str] = &[
 ];
 
 pub(super) async fn ensure_public_video_config(
-    config_application: &dyn ConfigApplicationPort,
+    config_read_application: &dyn ConfigReadApplicationPort,
+    config_mutation_application: &dyn ConfigMutationApplicationPort,
 ) -> Result<(), AppError> {
-    if config_application.video_configs_exist().await? {
+    if config_read_application.video_configs_exist().await? {
         return Ok(());
     }
     let Some(seed) = public_video_seed()? else {
         return Ok(());
     };
-    config_application
+    config_mutation_application
         .insert_baseline_video_if_empty(seed)
         .await?;
     Ok(())

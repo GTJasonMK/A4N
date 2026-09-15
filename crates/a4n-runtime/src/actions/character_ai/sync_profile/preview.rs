@@ -9,7 +9,7 @@ pub(crate) async fn character_sync_preview_step(
 ) -> Result<Option<CharacterProfileSyncPreviewStep>, String> {
     let prompt_renderer = state;
     state
-        .character_ai_application()
+        .character_profile_sync_application()
         .preview_profile_sync(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())

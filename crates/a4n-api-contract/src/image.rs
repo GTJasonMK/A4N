@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+
+use a4n_domain::media::ImagePublicationRecoveryRecord;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -20,6 +23,12 @@ pub trait ImageProviderConfigPort: Send + Sync {
 /// depend on the query surface they use.
 #[async_trait::async_trait]
 pub trait ImageRecordReadApplicationPort: Send + Sync {
+    async fn by_id(
+        &self,
+        user_id: i64,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageSummary>, a4n_error::AppError>;
+
     async fn reference_by_ids(
         &self,
         user_id: i64,
@@ -66,6 +75,62 @@ pub trait ImageRecordMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: DeleteImageInput,
     ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing media-reference queries used by cleanup and orphan scans.
+#[async_trait::async_trait]
+pub trait ImageMediaReferencePort: Send + Sync {
+    async fn unreferenced_media_paths(
+        &self,
+        paths: &[String],
+    ) -> Result<Vec<String>, a4n_error::AppError>;
+
+    async fn media_path_prefix_has_persisted_reference(
+        &self,
+        prefix: &str,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn project_has_active_image_publication(
+        &self,
+        project_id: i64,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn protected_image_publication_cleanup_paths(
+        &self,
+        project_id: i64,
+        paths: &[String],
+    ) -> Result<HashSet<String>, a4n_error::AppError>;
+}
+
+/// Host-facing read boundary for image publication recovery.
+///
+/// Runtime supplies file facts and cleanup side effects; persisted publication
+/// state remains owned by the media application.
+#[async_trait::async_trait]
+pub trait ImagePublicationRecoveryReadPort: Send + Sync {
+    async fn image_publications_for_recovery(
+        &self,
+        limit: usize,
+        published_after: Option<&str>,
+    ) -> Result<Vec<ImagePublicationRecoveryRecord>, a4n_error::AppError>;
+
+    async fn image_publication_by_id(
+        &self,
+        publication_id: &str,
+    ) -> Result<Option<ImagePublicationRecoveryRecord>, a4n_error::AppError>;
+
+    async fn generated_image_identity(
+        &self,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageIdentity>, a4n_error::AppError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedImageIdentity {
+    pub project_id: i64,
+    pub file_path: String,
+    pub image_type: String,
+    pub file_size: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

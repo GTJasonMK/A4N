@@ -12,7 +12,7 @@ pub async fn get_generation_call_analytics_for_admin(
 ) -> Result<GenerationCallAnalytics, AppError> {
     require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings).await?;
     state
-        .admin_application()
+        .admin_read_application()
         .generation_call_analytics(input)
         .await
 }

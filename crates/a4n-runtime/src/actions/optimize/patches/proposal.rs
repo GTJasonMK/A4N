@@ -14,7 +14,7 @@ pub async fn start_optimize_patch_generation_typed(
     input: StartOptimizePatchGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize_application()
+        .optimize_patch_generation_application()
         .start_patch_generation(user_id, &input)
         .await?;
     if !start.should_run {
@@ -27,7 +27,7 @@ pub async fn start_optimize_patch_generation_typed(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .optimize_application()
+                .optimize_patch_generation_application()
                 .run_patch_generation(prompt_renderer, user_id, input, handle)
                 .await
         },
@@ -42,7 +42,7 @@ pub async fn preview_propose_optimization_patches_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .optimize_application()
+        .optimize_patch_preview_application()
         .preview_propose_patches(user_id, input, prompt_renderer)
         .await
         .map_err(|err| err.to_string())?;

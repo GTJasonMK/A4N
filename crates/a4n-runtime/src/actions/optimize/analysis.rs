@@ -21,7 +21,7 @@ pub async fn start_optimize_analysis_generation_typed(
     input: StartOptimizeAnalysisGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize_application()
+        .optimize_analysis_generation_application()
         .start_analysis_generation(user_id, &input)
         .await?;
     if !start.should_run {
@@ -33,7 +33,7 @@ pub async fn start_optimize_analysis_generation_typed(
         "optimize_analysis",
         move |handle| async move {
             worker_state
-                .optimize_application()
+                .optimize_analysis_generation_application()
                 .run_analysis_generation(user_id, input, handle)
                 .await
         },
@@ -48,7 +48,7 @@ pub async fn create_optimization_analysis_session(
 ) -> Result<OptimizationSessionSummary, String> {
     let prompt_renderer = state;
     let session = state
-        .optimize_application()
+        .optimize_session_mutation_application()
         .create_analysis_session(user_id, input, prompt_renderer)
         .await
         .map_err(|err| err.to_string())?;
@@ -62,7 +62,7 @@ pub async fn prepare_optimization_analysis_session(
 ) -> Result<OptimizationSessionSummary, String> {
     let prompt_renderer = state;
     let session = state
-        .optimize_application()
+        .optimize_session_mutation_application()
         .prepare_analysis_session(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

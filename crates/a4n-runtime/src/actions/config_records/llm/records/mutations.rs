@@ -8,7 +8,7 @@ pub async fn create_llm_config(
     input: CreateLlmInput,
 ) -> Result<LlmConfigSummary, AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .create_llm(caller_user_id, input)
         .await
 }
@@ -20,7 +20,7 @@ pub async fn update_llm_config(
     input: UpdateLlmInput,
 ) -> Result<LlmConfigSummary, AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .update_llm(caller_user_id, config_id, input)
         .await
 }
@@ -31,7 +31,7 @@ pub async fn set_default_llm_config(
     config_id: i64,
 ) -> Result<(), AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .set_default_llm(caller_user_id, config_id)
         .await
 }
@@ -42,7 +42,7 @@ pub async fn delete_llm_config(
     config_id: i64,
 ) -> Result<(), AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .delete_llm(caller_user_id, config_id)
         .await
 }

@@ -58,6 +58,7 @@ import {
 import { useStatusBarPermanent } from "../components/ui/StatusBar";
 import { useSmartBack } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
+import { usePersistedTab } from "../hooks/usePersistedTab";
 import {
   getProjectHomeEntryRoute,
   getProjectPrimaryRoute,
@@ -92,6 +93,15 @@ const RequestPreviewModal = lazy(() =>
   })),
 );
 
+const WRITING_DESK_BOTTOM_TABS = [
+  "content",
+  "analysis",
+  "images",
+  "visual_plan",
+  "shooting_script",
+] as const satisfies readonly BottomTab[];
+const WRITING_DESK_RIGHT_PANELS = ["none", "rag", "optimize"] as const satisfies readonly RightPanel[];
+
 /**
  * 写作桌：章节列表、正文编辑、生成控制和辅助面板。
  */
@@ -104,6 +114,8 @@ export const WritingDesk: React.FC = () => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const agentRequested = searchParams.get("agent") === "1";
+  const projectIdKey =
+    Number.isFinite(projectId) && projectId > 0 ? String(projectId) : "";
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const lifecycleBlockedReason = project
@@ -163,8 +175,10 @@ export const WritingDesk: React.FC = () => {
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
-  const [rightPanel, setRightPanel] = useState<RightPanel>(() =>
+  const [rightPanel, setRightPanel] = usePersistedTab<RightPanel>(
+    projectIdKey ? `a4n:writing-desk:${projectIdKey}:right-panel` : null,
     agentRequested ? "optimize" : "none",
+    WRITING_DESK_RIGHT_PANELS,
   );
   const [optimizationPatchPreview, setOptimizationPatchPreview] =
     useState<OptimizationPatchPreviewController | null>(null);
@@ -178,7 +192,11 @@ export const WritingDesk: React.FC = () => {
     handleRightPanelResizeMove,
     finishRightPanelResize,
   } = useRightPanelLayout(rightPanel);
-  const [bottomTab, setBottomTab] = useState<BottomTab>("content");
+  const [bottomTab, setBottomTab] = usePersistedTab<BottomTab>(
+    projectIdKey ? `a4n:writing-desk:${projectIdKey}:bottom-tab` : null,
+    "content",
+    WRITING_DESK_BOTTOM_TABS,
+  );
   // 写作助手面板沿用 optimize 路由状态，内部可在生成与优化之间切换。
   const assistantOpen = rightPanel === "optimize";
   const rightPanelAvailable = bottomTab === "content" && !lifecycleBlockedReason;
@@ -200,9 +218,11 @@ export const WritingDesk: React.FC = () => {
   const resetGeneratedDataBusyRef = useRef(false);
   const derivedSyncBusyRef = useRef(false);
   const smartBack = useSmartBack("/");
-  const projectIdKey =
-    Number.isFinite(projectId) && projectId > 0 ? String(projectId) : "";
   projectIdRef.current = projectId;
+
+  useEffect(() => {
+    if (agentRequested && rightPanel === "none") setRightPanel("optimize");
+  }, [agentRequested, rightPanel, setRightPanel]);
 
   const handleRightPanelChange = useCallback(
     (panel: RightPanel) => {

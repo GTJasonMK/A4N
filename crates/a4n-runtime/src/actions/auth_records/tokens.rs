@@ -25,10 +25,10 @@ pub async fn user_from_access_token(
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::Unauthorized("访问令牌缺少会话绑定，请重新登录".into()))?;
     state
-        .auth_application()
+        .auth_read_application()
         .verify_active_session(user_id, session_id)
         .await?;
-    state.auth_application().current_user(user_id).await
+    state.auth_read_application().current_user(user_id).await
 }
 
 pub async fn verify_media_token_for_path(
@@ -54,7 +54,7 @@ pub async fn verify_media_token_for_path(
         .sub
         .parse::<i64>()
         .map_err(|_| AppError::Unauthorized("媒体令牌 subject 不是有效用户 ID".into()))?;
-    state.auth_application().current_user(user_id).await
+    state.auth_read_application().current_user(user_id).await
 }
 
 pub async fn authorize_media_file_for_user(
@@ -101,7 +101,7 @@ pub async fn authorize_media_file_for_user(
         }
         Some("themes") => {
             state
-                .theme_application()
+                .theme_read_application()
                 .export_theme(user_id, owner_id)
                 .await?;
         }
@@ -127,7 +127,7 @@ pub async fn issue_auth_result(
         secret,
     )?;
     let session = state
-        .auth_application()
+        .auth_mutation_application()
         .create_session(user.id, &pair.refresh_token, user_agent)
         .await?;
     let session_id = session.id.clone();
@@ -168,7 +168,7 @@ pub async fn refresh_token(
         .map_err(|_| AppError::Unauthorized("刷新令牌 subject 不是有效用户 ID".into()))?;
     let user_id = required_session_user_id(user_id, "刷新令牌")?;
 
-    let user = state.auth_application().current_user(user_id).await?;
+    let user = state.auth_read_application().current_user(user_id).await?;
     let pair = jwt::refresh_access_token_with_role(
         &input.refresh_token,
         Some(&user.username),
@@ -177,7 +177,7 @@ pub async fn refresh_token(
         secret,
     )?;
     state
-        .auth_application()
+        .auth_mutation_application()
         .rotate_session_refresh_token(
             user_id,
             &session_id,

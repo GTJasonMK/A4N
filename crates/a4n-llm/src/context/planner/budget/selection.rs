@@ -70,9 +70,24 @@ pub(super) fn select_requirement_variants(
                     .iter()
                     .min_by_key(|variant| variant.token_estimate)
                     .expect("variants checked non-empty");
+                let required_with_variant = checked_context_token_add(
+                    used,
+                    smallest.token_estimate,
+                    "当前已用 token 与必需上下文最小变体之和",
+                )?;
+                let required_total = checked_context_token_add(
+                    required_with_variant,
+                    later_required_min_tokens,
+                    "当前必需上下文与后续最小 token 之和",
+                )?;
                 return Err(AppError::InvalidArgument(format!(
-                    "必需上下文包 {} 的最小压缩变体约 {} tokens，加入后超过模型可用输入窗口 {}",
-                    requirement.pack_kind, smallest.token_estimate, available_input_tokens
+                    "必需上下文包 {} 无法放入输入窗口：当前已用约 {} tokens，最小压缩变体约 {} tokens，后续必需上下文至少 {} tokens，所需合计约 {} tokens，可用输入窗口 {}",
+                    requirement.pack_kind,
+                    used,
+                    smallest.token_estimate,
+                    later_required_min_tokens,
+                    required_total,
+                    available_input_tokens,
                 )));
             }
             None => dropped.extend(variants),

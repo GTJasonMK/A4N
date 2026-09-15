@@ -106,14 +106,34 @@ pub struct OAuth2CallbackInput {
     pub code: String,
 }
 
-/// Authentication application boundary used by Hosts and Runtime.
+/// Authentication read boundary used by Hosts and Runtime.
 ///
 /// The port exposes only host-safe projections. ORM users/sessions and their
 /// password or refresh-token fields stay inside the authentication owner.
 #[async_trait::async_trait]
-pub trait AuthApplicationPort: Send + Sync {
+pub trait AuthReadApplicationPort: Send + Sync {
     async fn current_user(&self, user_id: i64) -> Result<UserSummary, a4n_error::AppError>;
 
+    async fn list_sessions(&self, user_id: i64)
+    -> Result<Vec<SessionSummary>, a4n_error::AppError>;
+
+    async fn verify_session_refresh_token(
+        &self,
+        user_id: i64,
+        session_id: &str,
+        refresh_token: &str,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn verify_active_session(
+        &self,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Authentication mutation boundary used by Hosts and Runtime.
+#[async_trait::async_trait]
+pub trait AuthMutationApplicationPort: Send + Sync {
     async fn require_existing_user_or_bootstrap_admin(
         &self,
         bootstrap: Option<(&str, &str, &str)>,
@@ -131,9 +151,6 @@ pub trait AuthApplicationPort: Send + Sync {
         user_agent: Option<&str>,
     ) -> Result<SessionSummary, a4n_error::AppError>;
 
-    async fn list_sessions(&self, user_id: i64)
-    -> Result<Vec<SessionSummary>, a4n_error::AppError>;
-
     async fn revoke_session(
         &self,
         user_id: i64,
@@ -150,19 +167,6 @@ pub trait AuthApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         input: ChangePasswordInput,
-    ) -> Result<(), a4n_error::AppError>;
-
-    async fn verify_session_refresh_token(
-        &self,
-        user_id: i64,
-        session_id: &str,
-        refresh_token: &str,
-    ) -> Result<(), a4n_error::AppError>;
-
-    async fn verify_active_session(
-        &self,
-        user_id: i64,
-        session_id: &str,
     ) -> Result<(), a4n_error::AppError>;
 
     async fn rotate_session_refresh_token(

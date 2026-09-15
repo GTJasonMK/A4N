@@ -27,6 +27,7 @@ export interface PacedStreamText {
   hasPendingText: boolean;
   isThinking: boolean;
   isDrained: boolean;
+  isStreamDisplayEnabled: boolean;
 }
 
 const commonPrefix = (left: string, right: string): string => {
@@ -52,13 +53,16 @@ export const usePacedStreamText = (
   sourceText: string,
   active: boolean,
   drainWhenInactive = false,
+  wasStreamed = false,
 ): PacedStreamText => {
+  const initialSettings = getActiveThemeStreamDisplaySettings();
+  const initiallyPaced = initialSettings.enabled && (active || wasStreamed);
   const { enabled, rate, mode } = useThemeStreamDisplaySettings();
-  const [displayedText, setDisplayedText] = useState(() => (active ? "" : sourceText));
+  const [displayedText, setDisplayedText] = useState(() => (initiallyPaced ? "" : sourceText));
   const [drainRequested, setDrainRequested] = useState(0);
   const initialSourceChars = Array.from(sourceText);
-  const displayedTextRef = useRef(active ? "" : sourceText);
-  const displayedCharCountRef = useRef(active ? 0 : initialSourceChars.length);
+  const displayedTextRef = useRef(initiallyPaced ? "" : sourceText);
+  const displayedCharCountRef = useRef(initiallyPaced ? 0 : initialSourceChars.length);
   const targetTextRef = useRef(sourceText);
   const targetCharsRef = useRef(initialSourceChars);
   const sampleRef = useRef({
@@ -67,6 +71,7 @@ export const usePacedStreamText = (
     sampledAt: Date.now(),
     estimatedRate: null as number | null,
     active,
+    wasStreamed,
     enabled,
     mode,
     rate,
@@ -81,6 +86,7 @@ export const usePacedStreamText = (
       || previousSample.mode !== mode
       || previousSample.rate !== rate;
     const taskStarted = active && !previousSample.active;
+    const streamObserved = wasStreamed && !previousSample.wasStreamed;
     const sourceReplaced = sourceText !== previousSample.sourceText
       && !sourceText.startsWith(previousSample.sourceText);
 
@@ -99,11 +105,21 @@ export const usePacedStreamText = (
         sampledAt: now,
         estimatedRate: null,
         active,
+        wasStreamed,
         enabled,
         mode,
         rate,
       };
       return;
+    }
+
+    if (
+      (streamObserved || (settingsChanged && enabled && (active || wasStreamed)))
+      && displayedTextRef.current === sourceText
+    ) {
+      displayedTextRef.current = "";
+      displayedCharCountRef.current = 0;
+      setDisplayedText("");
     }
 
     if (
@@ -125,6 +141,7 @@ export const usePacedStreamText = (
         sampledAt: now,
         estimatedRate: null,
         active,
+        wasStreamed,
         enabled,
         mode,
         rate,
@@ -143,13 +160,14 @@ export const usePacedStreamText = (
         sampledAt: now,
         estimatedRate: nextRate,
         active,
+        wasStreamed,
         enabled,
         mode,
         rate,
       };
       adaptiveRateRef.current = nextRate;
     } else {
-      sampleRef.current = { ...previousSample, sourceText, active, mode, rate };
+      sampleRef.current = { ...previousSample, sourceText, active, wasStreamed, mode, rate };
     }
 
     if (!active) {
@@ -161,7 +179,7 @@ export const usePacedStreamText = (
         setDrainRequested((value) => value + 1);
       }
     }
-  }, [active, drainWhenInactive, enabled, mode, rate, sourceText]);
+  }, [active, drainWhenInactive, enabled, mode, rate, sourceText, wasStreamed]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -199,7 +217,8 @@ export const usePacedStreamText = (
   return {
     displayedText: effectiveDisplayedText,
     hasPendingText,
-    isThinking: active && (enabled ? !hasPendingText : sourceText.length === 0),
+    isThinking: active && enabled && !hasPendingText,
     isDrained,
+    isStreamDisplayEnabled: enabled,
   };
 };

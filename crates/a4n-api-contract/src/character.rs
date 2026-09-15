@@ -613,6 +613,19 @@ pub struct ImplicitReviewSummary {
     pub attributes: Vec<ImplicitAttributeReviewSummary>,
 }
 
+/// Host-facing read boundary for implicit character reviews.
+///
+/// Decision checks, request previews and application remain with the review
+/// workflow owner.
+#[async_trait::async_trait]
+pub trait CharacterImplicitReviewReadApplicationPort: Send + Sync {
+    async fn summary(
+        &self,
+        user_id: i64,
+        input: GetImplicitReviewInput,
+    ) -> Result<ImplicitReviewSummary, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ImplicitUpdateDecisionSummary {
     pub attribute_key: String,

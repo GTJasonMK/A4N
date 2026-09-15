@@ -117,6 +117,13 @@ pub enum VisualPlanEditOperationV3 {
     RemovePoint {
         point_id: String,
     },
+    Remove {
+        point_ids: Vec<String>,
+        segment_ids: Vec<String>,
+    },
+    RemovePoints {
+        point_ids: Vec<String>,
+    },
     UpdateSegment {
         segment: VisualSegmentV3,
     },

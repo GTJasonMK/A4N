@@ -1,16 +1,16 @@
-import { Bot, ChevronRight, CircleAlert, Wrench } from "lucide-react";
+import { ChevronRight, CircleAlert, Wrench } from "lucide-react";
 import type { AgentMessageView } from "../../api/agent";
 import { usePacedStreamText } from "../../hooks/usePacedStreamText";
 import type { Locale } from "../../i18n";
-import { formatDateTime } from "../../i18n/format";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { MarkdownText } from "../ui/MarkdownText";
 
 export interface AgentMessageRowProps {
   message: AgentMessageView;
   locale: Locale;
-  agentLabel?: string;
   toolResults?: AgentMessageView[];
+  wasStreamed?: boolean;
+  compactAssistantMessages?: boolean;
 }
 
 export function compactAgentValue(value: unknown, maxLength = 220): string {
@@ -88,17 +88,6 @@ function toolArguments(call: unknown): unknown {
     : functionValue && "arguments" in functionValue
       ? functionValue.arguments
       : undefined;
-}
-
-function messageLabel(
-  message: AgentMessageView,
-  locale: Locale,
-  agentLabel: string,
-): string {
-  if (message.role === "user") return locale === "zh-CN" ? "你" : "You";
-  if (message.role === "tool") return locale === "zh-CN" ? "工具结果" : "Tool result";
-  if (message.role === "system") return locale === "zh-CN" ? "系统" : "System";
-  return agentLabel;
 }
 
 function statusLabel(status: AgentMessageView["status"], locale: Locale): string {
@@ -201,11 +190,16 @@ function resultTrace(
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+function isPendingMessage(metadata: Record<string, unknown> | null): boolean {
+  return metadata?.pending === true;
+}
+
 export function AgentMessageRow({
   message,
   locale,
-  agentLabel = "Agent",
   toolResults = [],
+  wasStreamed = false,
+  compactAssistantMessages = false,
 }: AgentMessageRowProps) {
   const metadata = objectValue(message.metadata);
   const toolCalls = toolCallsFrom(metadata);
@@ -213,6 +207,7 @@ export function AgentMessageRow({
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
   const hasToolCalls = toolCalls.length > 0;
+  const pending = isPendingMessage(metadata);
   const relatedToolResults = message.role === "assistant" ? toolResults : [];
   const callResults = toolCalls.map((call) => ({
     call,
@@ -228,12 +223,11 @@ export function AgentMessageRow({
   const unpairedToolResults = relatedToolResults.filter(
     (result) => !pairedResultIds.has(result.id),
   );
-  const error = isTool ? toolError(metadata, locale) : null;
-  const label = hasToolCalls
-    ? locale === "zh-CN"
-      ? "工具调用"
-      : "Tool calls"
-    : messageLabel(message, locale, agentLabel);
+  const processState = relatedToolResults.some((result) => toolError(objectValue(result.metadata), locale))
+    ? "error"
+    : message.status !== "complete" || callResults.some(({ results }) => results.length === 0)
+      ? "running"
+      : "complete";
   const emptyLabel =
     message.role === "system"
       ? locale === "zh-CN"
@@ -246,6 +240,7 @@ export function AgentMessageRow({
   return (
     <article
       data-agent-message-role={message.role}
+      data-agent-message-pending={pending || undefined}
       data-agent-message-kind={
         hasToolCalls
           ? relatedToolResults.length > 0
@@ -255,70 +250,47 @@ export function AgentMessageRow({
             ? "tool-result"
             : message.role
       }
-      className={`flex min-w-0 ${isUser ? "justify-end" : "justify-start"}`}
+      className={`agent-message-row agent-message-row--${message.role}`}
     >
-      <div
-        className={`min-w-0 max-w-[min(94%,48rem)] rounded-2xl border px-2.5 py-2 ${
-          isUser
-            ? "border-book-primary/25 bg-book-primary/8"
-            : error
-              ? "border-error/35 bg-error-bg/45"
-              : hasToolCalls
-                ? "border-book-primary/25 bg-book-primary/5"
-                : isTool
-                  ? "border-book-border/45 bg-book-bg-tertiary/40"
-                  : "border-book-border/45 bg-book-bg-paper"
-        }`}
-      >
-        {!hasToolCalls ? (
-          <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-book-text-muted">
-            {isTool && error ? <CircleAlert size={12} className="shrink-0 text-error" aria-hidden="true" /> : null}
-            {!isUser && !isTool ? <Bot size={12} className="shrink-0 text-book-primary/70" aria-hidden="true" /> : null}
-            <span className="font-medium text-book-text-sub">{label}</span>
-            <time dateTime={message.created_at}>{formatDateTime(message.created_at, locale)}</time>
-            {message.status !== "complete" ? (
-              <span className="rounded-full bg-warning-bg px-1.5 py-0.5 text-warning">
-                {statusLabel(message.status, locale)}
-              </span>
-            ) : null}
+      <div className="agent-message-stack">
+        {isUser ? (
+          <div className="agent-message-bubble">
+            <p className="agent-message-user-text">{message.content || emptyLabel}</p>
           </div>
         ) : null}
-
         {hasToolCalls ? (
-          <div className="space-y-1.5">
+          <div className="agent-message-process-group" data-agent-process-state={processState}>
+            <div className="agent-message-process-heading">
+              <Wrench size={13} aria-hidden="true" />
+              <span>{locale === "zh-CN" ? "执行轨迹" : "Execution trace"}</span>
+              <span className="agent-message-process-count">{toolCalls.length}</span>
+              {message.status !== "complete" ? (
+                <span className="agent-message-process-state">{statusLabel(message.status, locale)}</span>
+              ) : null}
+            </div>
             {callResults.map(({ call, results }, index) => {
               const args = toolArguments(call);
               const id = toolCallId(call);
               return (
-                <details key={`${message.id}-tool-${index}`} className="group min-w-0 rounded-lg bg-book-bg/55">
-                  <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 text-[10px] [&::-webkit-details-marker]:hidden">
+                <details key={`${message.id}-tool-${index}`} className="agent-message-process">
+                  <summary className="agent-message-process-summary">
                     <Wrench size={11} className="shrink-0 text-book-primary" aria-hidden="true" />
-                    <span className="shrink-0 font-medium text-book-text-sub">{label}</span>
-                    <span aria-hidden="true" className="shrink-0 text-book-text-muted">·</span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-book-text-sub">{toolName(call, locale)}</span>
-                    <span className="min-w-0 max-w-[48%] shrink-0 truncate text-right text-[10px] text-book-text-muted">
-                      · {toolCallResultLabel(results, locale)}
-                    </span>
-                    {index === 0 ? <time className="shrink-0 text-[9px] text-book-text-muted" dateTime={message.created_at}>{formatDateTime(message.created_at, locale)}</time> : null}
-                    {message.status !== "complete" && index === 0 ? (
-                      <span className="shrink-0 rounded-full bg-warning-bg px-1.5 py-0.5 text-warning">
-                        {statusLabel(message.status, locale)}
-                      </span>
-                    ) : null}
-                    <ChevronRight size={12} className="shrink-0 text-book-text-muted transition-transform group-open:rotate-90" aria-hidden="true" />
+                    <span className="agent-message-process-name">{toolName(call, locale)}</span>
+                    <span className="agent-message-process-result">{toolCallResultLabel(results, locale)}</span>
+                    <ChevronRight size={13} className="agent-message-process-chevron" aria-hidden="true" />
                   </summary>
-                  <div className="min-w-0 px-2 pb-1.5">
+                  <div className="agent-message-process-body">
                     {id ? (
-                      <p className="break-all text-[10px] text-book-text-muted">
+                      <p className="agent-message-trace">
                         {locale === "zh-CN" ? "调用" : "Call"} <code>{id}</code>
                       </p>
                     ) : null}
                     {args !== undefined ? (
-                      <details className="mt-1 text-[10px] text-book-text-muted">
-                        <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+                      <details className="agent-message-arguments">
+                        <summary>
                           {locale === "zh-CN" ? "查看参数" : "View arguments"}
                         </summary>
-                        <pre className="mt-1.5 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-book-bg-tertiary/60 p-2 font-mono leading-relaxed text-book-text-main custom-scrollbar">
+                        <pre className="agent-message-json custom-scrollbar">
                           {formatJson(args)}
                         </pre>
                       </details>
@@ -336,7 +308,7 @@ export function AgentMessageRow({
               );
             })}
             {unpairedToolResults.length > 0 ? (
-              <div className="min-w-0 rounded-lg border border-book-border/35 bg-book-bg-paper/45 px-2 py-1.5">
+              <div className="agent-message-unpaired-results">
                 {unpairedToolResults.map((result) => (
                   <ToolResultBlock
                     key={`${message.id}-${result.id}`}
@@ -351,18 +323,33 @@ export function AgentMessageRow({
         ) : null}
 
         {isTool ? (
-          <ToolResultBlock message={message} locale={locale} />
+          <ToolResultBlock message={message} locale={locale} nested />
         ) : message.role === "assistant" &&
           (hasContent || message.status === "streaming") ? (
-          <AssistantMessageContent message={message} locale={locale} />
-        ) : hasContent ? (
+          <AssistantMessageContent
+            message={message}
+            locale={locale}
+            wasStreamed={wasStreamed}
+            compact={compactAssistantMessages}
+          />
+        ) : !isUser && hasContent ? (
           <MarkdownText
-            className="break-words text-xs leading-relaxed text-book-text-main"
+            className="agent-message-markdown"
             text={message.content}
           />
-        ) : hasToolCalls ? null : (
-          <p className="text-xs italic leading-relaxed text-book-text-muted">{emptyLabel}</p>
-        )}
+        ) : !isUser && !hasToolCalls ? (
+          <p className="agent-message-empty">{emptyLabel}</p>
+        ) : null}
+        {pending ? (
+          <span className="agent-message-pending-label" role="status">
+            {locale === "zh-CN" ? "已提交，等待 Agent 接管" : "Submitted, waiting for Agent"}
+          </span>
+        ) : null}
+        {message.status === "interrupted" ? (
+          <span className="agent-message-interrupted">
+            {locale === "zh-CN" ? "已中断" : "Interrupted"}
+          </span>
+        ) : null}
       </div>
     </article>
   );
@@ -371,21 +358,59 @@ export function AgentMessageRow({
 function AssistantMessageContent({
   message,
   locale,
+  wasStreamed,
+  compact,
 }: {
   message: AgentMessageView;
   locale: Locale;
+  wasStreamed: boolean;
+  compact: boolean;
+}) {
+  const canCollapse = compact && message.status !== "streaming" && isLongAssistantMessage(message.content);
+  if (canCollapse) {
+    return (
+      <details className="agent-message-collapsible">
+        <summary className="agent-message-collapsible__summary">
+          <span className="agent-message-collapsible__label">
+            {assistantMessageSummary(message.content, locale)}
+          </span>
+          <span className="agent-message-collapsible__action">
+            {locale === "zh-CN" ? "展开" : "Expand"}
+          </span>
+          <ChevronRight className="agent-message-collapsible__chevron" size={13} aria-hidden="true" />
+        </summary>
+        <div className="agent-message-collapsible__body">
+          <AssistantMessageBody message={message} locale={locale} wasStreamed={wasStreamed} />
+        </div>
+      </details>
+    );
+  }
+  return <AssistantMessageBody message={message} locale={locale} wasStreamed={wasStreamed} />;
+}
+
+function AssistantMessageBody({
+  message,
+  locale,
+  wasStreamed,
+}: {
+  message: AgentMessageView;
+  locale: Locale;
+  wasStreamed: boolean;
 }) {
   const pacedStream = usePacedStreamText(
     message.content,
     message.status === "streaming",
     true,
+    wasStreamed,
   );
-  const streamDisplaying = message.status === "streaming" || pacedStream.hasPendingText;
+  const streamDisplaying = pacedStream.isStreamDisplayEnabled
+    && (message.status === "streaming" || pacedStream.hasPendingText);
+  const showStreamStatus = streamDisplaying;
 
-  if (!streamDisplaying) {
+  if (!showStreamStatus) {
     return (
       <MarkdownText
-        className="break-words text-xs leading-relaxed text-book-text-main"
+        className="agent-message-markdown"
         text={pacedStream.displayedText}
       />
     );
@@ -396,26 +421,36 @@ function AssistantMessageContent({
       {pacedStream.displayedText ? (
         <div className="whitespace-pre-wrap">{pacedStream.displayedText}</div>
       ) : null}
-      {pacedStream.isThinking ? (
+      {pacedStream.displayedText ? null : (
         <LoadingSpinner
           size="sm"
-          text={
-            pacedStream.displayedText
-              ? undefined
-              : locale === "zh-CN"
-                ? "正在思考"
-                : "Thinking"
-          }
-          className="mt-1"
-        />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="ml-0.5 inline-block h-[14px] w-[7px] animate-pulse bg-book-accent align-text-bottom"
+          text={locale === "zh-CN" ? "正在思考" : "Thinking"}
+          className="agent-message-thinking"
         />
       )}
+      {pacedStream.displayedText ? (
+        <span
+          aria-hidden="true"
+          className="agent-message-caret"
+        />
+      ) : null}
     </div>
   );
+}
+
+function isLongAssistantMessage(content: string): boolean {
+  const nonEmptyLines = content.split(/\r?\n/).filter((line) => line.trim()).length;
+  return content.length > 420 || nonEmptyLines > 6;
+}
+
+function assistantMessageSummary(content: string, locale: Locale): string {
+  const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const heading = lines.find((line) => /^#{1,6}\s+/.test(line))?.replace(/^#{1,6}\s+/, "");
+  const numberedItems = lines.filter((line) => /^\d+[.)]\s+/.test(line)).length;
+  const subject = heading || lines[0] || (locale === "zh-CN" ? "Agent 回复" : "Agent reply");
+  return numberedItems > 0
+    ? `${subject} · ${numberedItems} ${locale === "zh-CN" ? "项" : numberedItems === 1 ? "item" : "items"}`
+    : subject;
 }
 
 function ToolResultBlock({
@@ -437,22 +472,22 @@ function ToolResultBlock({
     .join(" · ");
 
   return (
-    <div className={nested ? "mt-1.5 min-w-0 border-t border-book-border/35 pt-1.5" : "mt-1.5 min-w-0"}>
+    <div className={nested ? "agent-message-tool-result agent-message-tool-result--nested" : "agent-message-tool-result"}>
       {nested ? (
-        <div className="mb-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-book-text-muted">
+        <div className="agent-message-tool-result-heading">
           {error ? <CircleAlert size={11} className="shrink-0 text-error" aria-hidden="true" /> : null}
-          <span className="font-medium text-book-text-sub">
-            {locale === "zh-CN" ? "工具结果" : "Tool result"}
+          <span>
+            {locale === "zh-CN" ? "执行结果" : "Execution result"}
           </span>
         </div>
       ) : null}
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-        <p className={`min-w-0 flex-1 break-words text-xs leading-relaxed ${error ? "text-error" : "text-book-text-main"}`}>
+      <div className="agent-message-tool-result-line">
+        <p className={error ? "agent-message-tool-error" : "agent-message-tool-summary"}>
           {error ?? resultSummary(metadata, message.content, locale)}
         </p>
         {traceText ? (
           <span
-            className="min-w-0 max-w-[48%] shrink-0 truncate text-right text-[10px] text-book-text-muted"
+            className="agent-message-trace agent-message-trace--inline"
             title={traceText}
           >
             {traceText}
@@ -460,11 +495,11 @@ function ToolResultBlock({
         ) : null}
       </div>
       {raw ? (
-        <details className="mt-1.5 text-[10px] text-book-text-muted">
-          <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+        <details className="agent-message-arguments">
+          <summary>
             {locale === "zh-CN" ? "查看原始结果" : "View raw result"}
           </summary>
-          <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-book-bg/65 p-2 font-mono leading-relaxed text-book-text-main custom-scrollbar">
+          <pre className="agent-message-json agent-message-json--result custom-scrollbar">
             {raw}
           </pre>
         </details>

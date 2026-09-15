@@ -50,32 +50,15 @@ impl PromptRenderer for PromptRendererAdapter<'_> {
     }
 }
 
-/// Prompt record application boundary. The owner chooses embedded versus
-/// prompt-service execution and owns project override persistence; Runtime
-/// only supplies this execution context and routes typed calls.
+/// Prompt record read boundary. The owner chooses embedded versus
+/// prompt-service execution; Runtime only supplies this execution context and
+/// routes typed reads.
 #[async_trait]
-pub trait PromptApplicationPort: Send + Sync {
-    async fn hydrate_overrides(&self) -> Result<(), AppError>;
-
+pub trait PromptReadApplicationPort: Send + Sync {
     async fn list_records(
         &self,
         context: &PromptExecutionContext,
     ) -> Result<Vec<PromptEntrySummary>, AppError>;
-
-    async fn load_defaults(&self, context: &PromptExecutionContext) -> Result<usize, AppError>;
-
-    async fn update_record(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: UpdatePromptInput,
-    ) -> Result<PromptEntrySummary, AppError>;
-
-    async fn reset_record(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<(), AppError>;
 
     async fn version_history(
         &self,
@@ -104,20 +87,6 @@ pub trait PromptApplicationPort: Send + Sync {
         user_id: i64,
         input: RenderInput,
     ) -> Result<AbRenderResult, AppError>;
-
-    async fn set_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: SetOverrideInput,
-    ) -> Result<(), AppError>;
-
-    async fn remove_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RemoveOverrideInput,
-    ) -> Result<(), AppError>;
 
     async fn list_project_overrides(
         &self,
@@ -153,6 +122,42 @@ pub trait PromptApplicationPort: Send + Sync {
         &self,
         context: &PromptExecutionContext,
     ) -> Result<Vec<PromptEntry>, AppError>;
+}
+
+/// Prompt record mutation boundary. Project override persistence and prompt
+/// record writes remain owned by the prompt application.
+#[async_trait]
+pub trait PromptMutationApplicationPort: Send + Sync {
+    async fn hydrate_overrides(&self) -> Result<(), AppError>;
+
+    async fn load_defaults(&self, context: &PromptExecutionContext) -> Result<usize, AppError>;
+
+    async fn update_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: UpdatePromptInput,
+    ) -> Result<PromptEntrySummary, AppError>;
+
+    async fn reset_record(
+        &self,
+        context: &PromptExecutionContext,
+        name: &str,
+    ) -> Result<(), AppError>;
+
+    async fn set_project_override(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: SetOverrideInput,
+    ) -> Result<(), AppError>;
+
+    async fn remove_project_override(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: RemoveOverrideInput,
+    ) -> Result<(), AppError>;
 
     async fn update_many_runtime(
         &self,
@@ -788,38 +793,12 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl PromptApplicationPort for OrchestratorContext {
-    async fn hydrate_overrides(&self) -> Result<(), AppError> {
-        self.hydrate_prompt_overrides().await
-    }
-
+impl PromptReadApplicationPort for OrchestratorContext {
     async fn list_records(
         &self,
         context: &PromptExecutionContext,
     ) -> Result<Vec<PromptEntrySummary>, AppError> {
         self.list_prompt_records_validated(context).await
-    }
-
-    async fn load_defaults(&self, context: &PromptExecutionContext) -> Result<usize, AppError> {
-        self.load_default_prompt_records_validated(context).await
-    }
-
-    async fn update_record(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: UpdatePromptInput,
-    ) -> Result<PromptEntrySummary, AppError> {
-        self.update_prompt_record_validated(context, user_id, input)
-            .await
-    }
-
-    async fn reset_record(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<(), AppError> {
-        self.reset_prompt_record_validated(context, name).await
     }
 
     async fn version_history(
@@ -858,26 +837,6 @@ impl PromptApplicationPort for OrchestratorContext {
         input: RenderInput,
     ) -> Result<AbRenderResult, AppError> {
         self.render_prompt_record_ab_validated(context, user_id, input)
-            .await
-    }
-
-    async fn set_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: SetOverrideInput,
-    ) -> Result<(), AppError> {
-        self.set_prompt_project_override_validated(context, user_id, input)
-            .await
-    }
-
-    async fn remove_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RemoveOverrideInput,
-    ) -> Result<(), AppError> {
-        self.remove_prompt_project_override_validated(context, user_id, input)
             .await
     }
 
@@ -928,6 +887,55 @@ impl PromptApplicationPort for OrchestratorContext {
         context: &PromptExecutionContext,
     ) -> Result<Vec<PromptEntry>, AppError> {
         self.prompt_runtime_entries_validated(context).await
+    }
+}
+
+#[async_trait]
+impl PromptMutationApplicationPort for OrchestratorContext {
+    async fn hydrate_overrides(&self) -> Result<(), AppError> {
+        self.hydrate_prompt_overrides().await
+    }
+
+    async fn load_defaults(&self, context: &PromptExecutionContext) -> Result<usize, AppError> {
+        self.load_default_prompt_records_validated(context).await
+    }
+
+    async fn update_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: UpdatePromptInput,
+    ) -> Result<PromptEntrySummary, AppError> {
+        self.update_prompt_record_validated(context, user_id, input)
+            .await
+    }
+
+    async fn reset_record(
+        &self,
+        context: &PromptExecutionContext,
+        name: &str,
+    ) -> Result<(), AppError> {
+        self.reset_prompt_record_validated(context, name).await
+    }
+
+    async fn set_project_override(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: SetOverrideInput,
+    ) -> Result<(), AppError> {
+        self.set_prompt_project_override_validated(context, user_id, input)
+            .await
+    }
+
+    async fn remove_project_override(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: RemoveOverrideInput,
+    ) -> Result<(), AppError> {
+        self.remove_prompt_project_override_validated(context, user_id, input)
+            .await
     }
 
     async fn update_many_runtime(

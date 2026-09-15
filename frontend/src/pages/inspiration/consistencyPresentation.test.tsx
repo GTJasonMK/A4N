@@ -363,6 +363,9 @@ function renderConversation(messages: Message[]): string {
         onInputBlur={vi.fn()}
         sending={false}
         messagesViewportRef={{ current: null }}
+        isFollowingLatest
+        hasNewContent={false}
+        onScrollToLatest={vi.fn()}
         placeholder="输入灵感"
         inputActive={false}
       />

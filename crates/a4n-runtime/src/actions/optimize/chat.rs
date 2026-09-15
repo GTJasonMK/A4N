@@ -24,7 +24,7 @@ pub(crate) async fn start_optimize_chat_generation_with_output_limit(
     agent_max_output_tokens: Option<usize>,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize_application()
+        .optimize_chat_generation_application()
         .start_chat_generation(user_id, &input)
         .await?;
     if !start.should_run {
@@ -38,7 +38,7 @@ pub(crate) async fn start_optimize_chat_generation_with_output_limit(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .optimize_application()
+                .optimize_chat_generation_application()
                 .run_chat_generation(
                     prompt_renderer,
                     agent_max_output_tokens,
@@ -58,7 +58,7 @@ pub async fn create_optimization_chat_session(
     input: CreateOptimizationChatSessionInput,
 ) -> Result<OptimizationSessionSummary, String> {
     let session = state
-        .optimize_application()
+        .optimize_session_mutation_application()
         .create_chat_session(user_id, input)
         .await
         .map_err(|err| err.to_string())?;

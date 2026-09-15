@@ -30,7 +30,7 @@ pub(crate) async fn run_canvas_graph_with_origin(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     let prepared = state
-        .canvas_graph_execution_application()
+        .canvas_graph_preparation_application()
         .prepare_graph(
             CanvasGraphRunPreparationInput {
                 user_id,
@@ -60,7 +60,7 @@ pub(crate) async fn run_canvas_node_with_origin(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     let prepared = state
-        .canvas_graph_execution_application()
+        .canvas_graph_preparation_application()
         .prepare_single_node(
             CanvasSingleNodeRunPreparationInput {
                 user_id,
@@ -81,7 +81,7 @@ pub(crate) async fn resume_canvas_graph_run(
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     let prepared = state
-        .canvas_graph_execution_application()
+        .canvas_graph_preparation_application()
         .prepare_resume(
             CanvasGraphResumePreparationInput {
                 user_id,
@@ -108,7 +108,7 @@ async fn submit_prepared_canvas_graph_run(
             .await
     {
         state
-            .canvas_graph_execution_application()
+            .canvas_graph_failure_application()
             .fail_unsubmitted(prepared.workflow_run_id, &error.to_string())
             .await
             .map_err(|failure| format!("{error}；停止未派发的 Workflow 失败: {failure}"))?;

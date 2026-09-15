@@ -18,7 +18,7 @@ pub async fn preview_scene_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .image_generation_application()
+        .image_scene_request_preview_application()
         .prepare_scene_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
@@ -47,7 +47,7 @@ pub(crate) async fn preview_canvas_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .image_generation_application()
+        .image_canvas_request_preview_application()
         .prepare_canvas_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
@@ -76,7 +76,7 @@ pub(crate) async fn generate_galgame_image(
     let progress = ImageGenerationProgress::none();
     let host = RuntimeImageGenerationHostPort::new(state);
     state
-        .image_generation_application()
+        .galgame_image_generation_application()
         .generate_galgame_image(&host, user_id, input, &progress)
         .await
         .map_err(|error| error.to_string())

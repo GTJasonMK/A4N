@@ -1,18 +1,19 @@
 use a4n_db::agent::{
-    AgentDbError, AgentUserDelegationInput, append_message, bind_delegation_child, cancel_run_tree,
-    claim_inbox, claim_runnable_run, consume_inbox_with_message, create_delegation,
-    create_execution_for_run_lease, create_thread, create_turn_with_run, create_user_delegation,
-    delegation_by_parent_and_key, enqueue_inbox, expire_pending_approvals, expired_running_runs,
-    finish_run_with_message, mark_turn_active_for_run_lease, recover_expired_run,
-    release_inbox_claim, renew_run_lease, request_approval_for_run_lease, supersede_inbox,
-    update_delegation, update_execution_for_run_lease, update_run_state, update_run_usage,
+    AgentDbError, AgentUserDelegationInput, append_event, append_message, bind_delegation_child,
+    cancel_run_tree, claim_inbox, claim_runnable_run, consume_inbox_with_message,
+    create_delegation, create_execution_for_run_lease, create_thread, create_turn_with_run,
+    create_user_delegation, delegation_by_parent_and_key, enqueue_inbox, expire_pending_approvals,
+    expired_running_runs, finish_run_with_message, latest_events_by_thread,
+    mark_turn_active_for_run_lease, recover_expired_run, release_inbox_claim, renew_run_lease,
+    request_approval_for_run_lease, supersede_inbox, update_delegation,
+    update_execution_for_run_lease, update_run_state, update_run_usage,
 };
 use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, run, thread, turn,
 };
 use a4n_domain::agent::{
-    AgentApprovalInput, AgentDelegationInput, AgentExecutionInput, AgentInboxInput,
-    AgentMessageInput, AgentThreadCreateInput, AgentTurnInput,
+    AgentApprovalInput, AgentDelegationInput, AgentEventInput, AgentExecutionInput,
+    AgentInboxInput, AgentMessageInput, AgentThreadCreateInput, AgentTurnInput,
 };
 use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -739,8 +740,20 @@ async fn editor_wait_is_fenced_and_expires_without_dispatching() {
     assert_eq!(failed.status, "failed");
     assert!(failed.result_json.is_none());
     assert!(failed.error_message.unwrap().contains("未执行写入"));
-    let requeued = claim_runnable_run(&db, "resumed").await.unwrap().unwrap();
-    assert_eq!(requeued.id, run.id);
+    let failed_run = run::Entity::find_by_id(run.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(failed_run.status, "failed");
+    assert!(!failed_run.is_active);
+    assert!(claim_runnable_run(&db, "resumed").await.unwrap().is_none());
+    let failed_turn = turn::Entity::find_by_id(failed_run.turn_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(failed_turn.status, "failed");
 }
 
 #[tokio::test]
@@ -791,6 +804,41 @@ async fn assistant_tool_call_message_may_have_empty_content() {
     .await
     .expect_err("ordinary empty assistant messages must remain invalid");
     assert!(matches!(error, AgentDbError::InvalidArgument(_)));
+}
+
+#[tokio::test]
+async fn latest_agent_events_keep_newest_sequence_window() {
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+
+    for index in 0..=1_000 {
+        append_event(
+            &db,
+            AgentEventInput {
+                thread_id: thread.id,
+                turn_id: None,
+                run_id: None,
+                execution_id: None,
+                delegation_id: None,
+                message_id: None,
+                actor_kind: "test".into(),
+                actor_id: None,
+                kind: format!("test_{index}"),
+                status: "complete".into(),
+                public_text: String::new(),
+                payload_json: None,
+            },
+        )
+        .await
+        .expect("event should be appended");
+    }
+
+    let events = latest_events_by_thread(&db, thread.id, 1_000)
+        .await
+        .expect("latest events should load");
+    assert_eq!(events.len(), 1_000);
+    assert_eq!(events.first().map(|event| event.sequence), Some(2));
+    assert_eq!(events.last().map(|event| event.sequence), Some(1_001));
 }
 
 async fn enqueue_test_inbox(

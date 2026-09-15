@@ -109,6 +109,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::agent_runtime_checkpoint_cleanup::Migration),
             Box::new(crate::migrations::agent_runtime_status_canonicalization::Migration),
             Box::new(crate::migrations::agent_runtime_dead_fields_cleanup::Migration),
+            Box::new(crate::migrations::agent_runtime_run_activity_canonicalization::Migration),
             Box::new(crate::migrations::chapter_visual_plan_lineage_identity::Migration),
             Box::new(crate::migrations::chapter_visual_plan_authoring_mode_cleanup::Migration),
             Box::new(crate::migrations::image_publication::Migration),
@@ -166,7 +167,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(53)
+                .take(54)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -216,6 +217,7 @@ mod tests {
                 "agent_runtime_checkpoint_cleanup",
                 "agent_runtime_status_canonicalization",
                 "agent_runtime_dead_fields_cleanup",
+                "agent_runtime_run_activity_canonicalization",
                 "chapter_visual_plan_lineage_identity",
                 "chapter_visual_plan_authoring_mode_cleanup",
                 "image_publication",

@@ -53,3 +53,57 @@ pub struct CheckImportDedupInput {
     pub content: String,
     pub project_id: i64,
 }
+
+/// Host-facing read boundary for import reviews.
+///
+/// Review creation and state transitions remain with the import-review owner.
+#[async_trait::async_trait]
+pub trait ImportReviewReadApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ImportProjectReviewsInput,
+    ) -> Result<Vec<ImportReviewSummary>, a4n_error::AppError>;
+
+    async fn dedup(
+        &self,
+        user_id: i64,
+        input: CheckImportDedupInput,
+    ) -> Result<DedupResult, a4n_error::AppError>;
+}
+
+/// Host-facing import-review acceptance boundary.
+///
+/// Chapter-derived cleanup is supplied by the Host adapter.
+#[async_trait::async_trait]
+pub trait ImportReviewAcceptanceApplicationPort: Send + Sync {
+    async fn accept(
+        &self,
+        user_id: i64,
+        input: AcceptImportReviewInput,
+        host_port: &dyn crate::chapter::ChapterDerivedCleanupHostPort,
+    ) -> Result<ImportReviewSummary, a4n_error::AppError>;
+
+    async fn batch_accept(
+        &self,
+        user_id: i64,
+        input: BatchAcceptImportReviewsInput,
+        host_port: &dyn crate::chapter::ChapterDerivedCleanupHostPort,
+    ) -> Result<Vec<ImportReviewSummary>, a4n_error::AppError>;
+}
+
+/// Host-facing import-review state mutation boundary.
+#[async_trait::async_trait]
+pub trait ImportReviewMutationApplicationPort: Send + Sync {
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: ImportReviewIdInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn reject(
+        &self,
+        user_id: i64,
+        input: ImportReviewIdInput,
+    ) -> Result<ImportReviewSummary, a4n_error::AppError>;
+}

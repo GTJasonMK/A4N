@@ -18,7 +18,7 @@ pub(super) async fn import_canvas_video_media(
 ) -> Result<ImportedCanvasMedia, String> {
     let host_port = RuntimeCanvasVideoImportHostPort { state, user_id };
     let result = state
-        .canvas_media_import_application()
+        .canvas_video_import_application()
         .import_video(
             &host_port,
             user_id,

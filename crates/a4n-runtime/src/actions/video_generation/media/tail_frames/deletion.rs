@@ -5,7 +5,7 @@ pub(crate) async fn delete_video_tail_frame_assets(
     video_id: i64,
 ) -> Result<(), String> {
     state
-        .video_record_lifecycle_application()
+        .video_tail_frame_application()
         .delete_video_tail_frame_assets(video_id)
         .await
         .map_err(crate::actions::app_error_message)

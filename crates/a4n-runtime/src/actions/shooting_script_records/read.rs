@@ -10,7 +10,7 @@ pub async fn get_chapter_shooting_script(
     input: ChapterShootingScriptSourceInput,
 ) -> Result<Option<ChapterShootingScriptView>, String> {
     state
-        .shooting_script_record_application()
+        .shooting_script_record_read_application()
         .current(user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -22,7 +22,7 @@ pub async fn get_chapter_shooting_script_unit_progress(
     input: ChapterShootingScriptSourceInput,
 ) -> Result<Option<ChapterShootingScriptUnitProgressView>, String> {
     state
-        .shooting_script_record_application()
+        .shooting_script_record_read_application()
         .unit_progress(user_id, input)
         .await
         .map_err(|error| error.to_string())

@@ -71,7 +71,10 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     streaming && status === "running",
     streaming,
   );
-  const displayStatus = streaming && status !== "running" && !pacedStream.isDrained
+  const displayStatus = pacedStream.isStreamDisplayEnabled
+    && streaming
+    && status !== "running"
+    && !pacedStream.isDrained
     ? "running"
     : status;
   const [timing, setTiming] = useState<{ startedAt: number | null; now: number }>({
@@ -130,7 +133,8 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   const barDetail = display.detail ?? statusDetailLabel(displayStatus, t);
   const displayedStreamText = streamLineFromBuffer(pacedStream.displayedText);
   const hasStreamText = displayedStreamText.length > 0;
-  const showStreamPreview = hasStreamText || (streaming && pacedStream.isThinking);
+  const showStreamPreview = hasStreamText
+    || (pacedStream.isStreamDisplayEnabled && streaming && pacedStream.isThinking);
   const timeline = compactProgressEvents(events, 12);
 
   useEffect(() => {
@@ -246,7 +250,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
                       {displayedStreamText}
                     </span>
                   ) : null}
-                  {streaming && pacedStream.isThinking ? (
+                  {pacedStream.isStreamDisplayEnabled && streaming && pacedStream.isThinking ? (
                     <ThinkingDots label={t("feedback.progressThinking")} />
                   ) : null}
                 </div>

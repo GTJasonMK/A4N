@@ -11,6 +11,18 @@ export interface AgentEventReduction {
   needsReload: boolean;
 }
 
+export function streamedAgentMessageIds(events: AgentEvent[], runId?: string): string[] {
+  return [...new Set(
+    events
+      .filter((event) =>
+        event.kind === "message_delta"
+        && event.message_id != null
+        && (runId == null || event.run_id === runId),
+      )
+      .map((event) => event.message_id as string),
+  )];
+}
+
 const MESSAGE_EVENT_KINDS = new Set([
   "message_appended",
   "message_delta",
@@ -45,6 +57,13 @@ export function reduceAgentEvent(
   }
   if (event.sequence <= cursor) {
     return { snapshot, cursor, needsReload: false };
+  }
+
+  // An editor request carries a live UI operation and an execution that may
+  // have been created after this snapshot. Reload the authoritative snapshot
+  // before the page decides whether it can answer the request.
+  if (event.editor_request) {
+    return { snapshot, cursor, needsReload: true };
   }
 
   const payload = objectPayload(event.payload);

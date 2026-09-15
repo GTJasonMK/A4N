@@ -740,11 +740,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::package::PackageApplicationPort for OrchestratorContext {
-    async fn initialize_states(&self) -> Result<(), AppError> {
-        self.initialize_package_states().await
-    }
-
+impl a4n_api_contract::package::PackageReadApplicationPort for OrchestratorContext {
     async fn overview(&self) -> Result<Vec<a4n_api_contract::package::PackageOverview>, AppError> {
         self.package_overview().await
     }
@@ -770,18 +766,6 @@ impl a4n_api_contract::package::PackageApplicationPort for OrchestratorContext {
         self.package_execution_enabled(package_id).await
     }
 
-    async fn ensure_execution_enabled(&self, package_id: PackageId) -> Result<(), AppError> {
-        self.ensure_package_execution_enabled(package_id).await
-    }
-
-    async fn start_lifecycle(
-        &self,
-        user_id: i64,
-        input: StartPackageLifecycleInput,
-    ) -> Result<PackageLifecycleSummary, AppError> {
-        self.start_package_lifecycle(user_id, input).await
-    }
-
     fn owned_services(&self, package_id: PackageId) -> Vec<String> {
         self.package_service_names(package_id)
     }
@@ -799,19 +783,6 @@ impl a4n_api_contract::package::PackageApplicationPort for OrchestratorContext {
             .package_workload_snapshot(package_id.as_str())
             .await?
             .is_empty())
-    }
-
-    async fn advance_lifecycle(
-        &self,
-        operation_id: &str,
-    ) -> Result<PackageLifecycleSummary, AppError> {
-        package_lifecycle_summary(self.advance_package_lifecycle(operation_id).await?)
-    }
-
-    async fn finalize_disable(&self, operation_id: &str) -> Result<(), AppError> {
-        self.finalize_package_disable(operation_id)
-            .await
-            .map(|_| ())
     }
 
     async fn pending_lifecycle_operations(
@@ -845,6 +816,38 @@ impl a4n_api_contract::package::PackageApplicationPort for OrchestratorContext {
         user_id: i64,
     ) -> Result<a4n_api_contract::package::PackagePreferencesSummary, AppError> {
         self.package_preferences(user_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::package::PackageMutationApplicationPort for OrchestratorContext {
+    async fn initialize_states(&self) -> Result<(), AppError> {
+        self.initialize_package_states().await
+    }
+
+    async fn ensure_execution_enabled(&self, package_id: PackageId) -> Result<(), AppError> {
+        self.ensure_package_execution_enabled(package_id).await
+    }
+
+    async fn start_lifecycle(
+        &self,
+        user_id: i64,
+        input: StartPackageLifecycleInput,
+    ) -> Result<PackageLifecycleSummary, AppError> {
+        self.start_package_lifecycle(user_id, input).await
+    }
+
+    async fn advance_lifecycle(
+        &self,
+        operation_id: &str,
+    ) -> Result<PackageLifecycleSummary, AppError> {
+        package_lifecycle_summary(self.advance_package_lifecycle(operation_id).await?)
+    }
+
+    async fn finalize_disable(&self, operation_id: &str) -> Result<(), AppError> {
+        self.finalize_package_disable(operation_id)
+            .await
+            .map(|_| ())
     }
 
     async fn update_preferences(

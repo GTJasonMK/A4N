@@ -27,7 +27,14 @@ use crate::{
         GenerationProgressUpdate, generation_public_error, publish_step_progress,
         terminal::CompletionDescriptor,
     },
-    outline::{OutlineGenerationApplicationPort, OutlineRequestPreviewStep},
+    outline::{
+        OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
+        OutlineChapterCountGenerationPreviewApplicationPort,
+        OutlineChapterRegenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
+        OutlinePartChapterGenerationPreviewApplicationPort,
+        OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
+        OutlineRequestPreviewStep,
+    },
 };
 
 use super::{OutlineLlmStreamContext, ProgressReporter, with_outline_llm_stream};
@@ -487,7 +494,7 @@ impl OutlineGenerationApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+impl OutlinePartGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generate_parts(
         &self,
         input: GeneratePartsInput,
@@ -501,7 +508,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         self.preview_regenerate_parts_validated(input).await
     }
+}
 
+#[async_trait::async_trait]
+impl OutlinePartMutationPreviewApplicationPort for OrchestratorContext {
     async fn preview_regenerate_last_part(
         &self,
         input: RegenerateLastPartInput,
@@ -522,7 +532,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
     ) -> Result<ChatRequest, AppError> {
         self.preview_regenerate_part_outline_validated(input).await
     }
+}
 
+#[async_trait::async_trait]
+impl OutlinePartChapterGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generate_part_chapter_outlines(
         &self,
         input: GeneratePartChapterOutlinesInput,
@@ -530,7 +543,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
         self.preview_generate_part_chapter_outlines_validated(input)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl OutlineBatchPartGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_batch_generate_part_outlines(
         &self,
         input: BatchGeneratePartOutlinesInput,
@@ -538,7 +554,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
         self.preview_batch_generate_part_outlines_validated(input)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl OutlineChapterCountGenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_generate_chapter_outlines_by_count(
         &self,
         input: GenerateChapterOutlinesByCountInput,
@@ -546,7 +565,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
         self.preview_generate_chapter_outlines_by_count_validated(input)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl OutlineChapterRegenerationPreviewApplicationPort for OrchestratorContext {
     async fn preview_regenerate_chapter_outline(
         &self,
         input: RegenerateChapterOutlineInput,
@@ -554,7 +576,10 @@ impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
         self.preview_regenerate_chapter_outline_validated(input)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl OutlineBeatMappingPreviewApplicationPort for OrchestratorContext {
     async fn preview_apply_beat_mapping(
         &self,
         input: ApplyBeatMappingInput,

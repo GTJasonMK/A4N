@@ -10,7 +10,10 @@ pub async fn create_theme_for_user(
     user_id: i64,
     input: CreateThemeInput,
 ) -> Result<ThemeSummary, AppError> {
-    state.theme_application().create_theme(user_id, input).await
+    state
+        .theme_mutation_application()
+        .create_theme(user_id, input)
+        .await
 }
 
 pub async fn update_theme_for_user(
@@ -20,7 +23,7 @@ pub async fn update_theme_for_user(
     input: UpdateThemeInput,
 ) -> Result<ThemeSummary, AppError> {
     state
-        .theme_application()
+        .theme_mutation_application()
         .update_theme(user_id, theme_id, input)
         .await
 }
@@ -31,11 +34,11 @@ pub async fn delete_theme_for_user(
     theme_id: i64,
 ) -> Result<(), AppError> {
     let resources = state
-        .theme_application()
+        .theme_read_application()
         .list_resources(user_id, theme_id)
         .await?;
     state
-        .theme_application()
+        .theme_mutation_application()
         .delete_theme(user_id, theme_id)
         .await?;
 
@@ -64,7 +67,7 @@ pub async fn activate_theme_for_user(
     theme_id: i64,
 ) -> Result<ThemeSummary, AppError> {
     state
-        .theme_application()
+        .theme_mutation_application()
         .activate_theme(user_id, theme_id)
         .await
 }

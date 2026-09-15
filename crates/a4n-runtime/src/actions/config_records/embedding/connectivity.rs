@@ -92,7 +92,7 @@ async fn resolve_embedding_config_for_connectivity_test(
         return Ok(config);
     }
     state
-        .config_application()
+        .config_read_application()
         .embedding_config_for_connectivity_test(user_id, config_id)
         .await
         .map_err(app_error_message)

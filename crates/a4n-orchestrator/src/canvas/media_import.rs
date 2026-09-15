@@ -1,8 +1,9 @@
 use a4n_api_contract::canvas::CanvasMediaAssetSummary;
 use a4n_canvas_contract::{
-    CanvasAudioImportHostInput, CanvasImageImportApplicationResult, CanvasImageImportHostInput,
-    CanvasImageImportHostPort, CanvasMediaImportApplicationPort,
-    CanvasVideoImportApplicationResult, CanvasVideoImportHostInput, CanvasVideoImportHostPort,
+    CanvasAudioImportApplicationPort, CanvasAudioImportHostInput, CanvasImageImportApplicationPort,
+    CanvasImageImportApplicationResult, CanvasImageImportHostInput, CanvasImageImportHostPort,
+    CanvasVideoImportApplicationPort, CanvasVideoImportApplicationResult,
+    CanvasVideoImportHostInput, CanvasVideoImportHostPort,
 };
 use a4n_db_models::models::media::media_asset;
 use a4n_error::AppError;
@@ -138,7 +139,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl CanvasMediaImportApplicationPort for OrchestratorContext {
+impl CanvasImageImportApplicationPort for OrchestratorContext {
     async fn import_image(
         &self,
         host_port: &dyn CanvasImageImportHostPort,
@@ -148,7 +149,10 @@ impl CanvasMediaImportApplicationPort for OrchestratorContext {
         self.import_canvas_image_validated(host_port, user_id, input)
             .await
     }
+}
 
+#[async_trait]
+impl CanvasVideoImportApplicationPort for OrchestratorContext {
     async fn import_video(
         &self,
         host_port: &dyn CanvasVideoImportHostPort,
@@ -158,7 +162,10 @@ impl CanvasMediaImportApplicationPort for OrchestratorContext {
         self.import_canvas_video_validated(host_port, user_id, input)
             .await
     }
+}
 
+#[async_trait]
+impl CanvasAudioImportApplicationPort for OrchestratorContext {
     async fn import_audio(
         &self,
         user_id: i64,

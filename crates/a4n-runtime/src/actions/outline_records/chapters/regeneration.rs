@@ -18,7 +18,7 @@ pub async fn preview_regenerate_chapter_outline_request(
     .await?;
     let outline_id = input.outline_id;
     let request = state
-        .outline_preview_application()
+        .outline_chapter_regeneration_preview_application()
         .preview_regenerate_chapter_outline(input)
         .await?;
     single_request_preview(

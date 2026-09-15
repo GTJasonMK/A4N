@@ -8,14 +8,14 @@ pub(crate) async fn require_admin_permission(
     permission: AdminPermission,
 ) -> Result<(), AppError> {
     state
-        .admin_application()
+        .admin_read_application()
         .require_permission(caller_user_id, permission)
         .await
 }
 
 pub(crate) async fn is_active_admin_user(state: &AppState, user_id: i64) -> Result<bool, AppError> {
     state
-        .admin_application()
+        .admin_read_application()
         .is_active_admin_user(user_id)
         .await
 }

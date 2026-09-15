@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::import_review::{
     AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
     ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
@@ -16,10 +17,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::OrchestratorContext;
-use crate::{
-    chapter_content::ChapterDerivedCleanupHostPort, collaboration::ProjectAccessRole,
-    import_review::calculate_import_dedup,
-};
+use crate::{collaboration::ProjectAccessRole, import_review::calculate_import_dedup};
 
 #[derive(Clone)]
 pub(super) struct ImportReviewApplication {
@@ -304,7 +302,30 @@ fn import_review_summary(
 }
 
 #[async_trait]
-impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
+impl a4n_api_contract::import_review::ImportReviewReadApplicationPort for OrchestratorContext {
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ImportProjectReviewsInput,
+    ) -> Result<Vec<ImportReviewSummary>, AppError> {
+        let reviews = self
+            .import_reviews_for_user_validated(user_id, input.project_id)
+            .await?;
+        reviews.iter().map(import_review_summary).collect()
+    }
+
+    async fn dedup(
+        &self,
+        user_id: i64,
+        input: CheckImportDedupInput,
+    ) -> Result<DedupResult, AppError> {
+        self.check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
+            .await
+    }
+}
+
+#[async_trait]
+impl crate::import_review::ImportReviewIngestionApplicationPort for OrchestratorContext {
     async fn create_from_parsed(
         &self,
         user_id: i64,
@@ -318,18 +339,12 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
         .await?;
         reviews.iter().map(import_review_summary).collect()
     }
+}
 
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ImportProjectReviewsInput,
-    ) -> Result<Vec<ImportReviewSummary>, AppError> {
-        let reviews = self
-            .import_reviews_for_user_validated(user_id, input.project_id)
-            .await?;
-        reviews.iter().map(import_review_summary).collect()
-    }
-
+#[async_trait]
+impl a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort
+    for OrchestratorContext
+{
     async fn accept(
         &self,
         user_id: i64,
@@ -361,7 +376,10 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
             .map(|accepted| import_review_summary(&accepted.review))
             .collect()
     }
+}
 
+#[async_trait]
+impl a4n_api_contract::import_review::ImportReviewMutationApplicationPort for OrchestratorContext {
     async fn delete(&self, user_id: i64, input: ImportReviewIdInput) -> Result<(), AppError> {
         self.delete_import_review_for_user_validated(user_id, input.review_id)
             .await
@@ -376,14 +394,5 @@ impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
             .reject_import_review_for_user_validated(user_id, input.review_id)
             .await?;
         import_review_summary(&updated)
-    }
-
-    async fn dedup(
-        &self,
-        user_id: i64,
-        input: CheckImportDedupInput,
-    ) -> Result<DedupResult, AppError> {
-        self.check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
-            .await
     }
 }

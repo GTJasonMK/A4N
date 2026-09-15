@@ -16,7 +16,7 @@ pub async fn get_web_search_config(
     caller_user_id: i64,
 ) -> Result<WebSearchConfigSummary, String> {
     state
-        .config_application()
+        .config_read_application()
         .web_search_config_summary(caller_user_id)
         .await
         .map_err(app_error_message)
@@ -28,7 +28,7 @@ pub async fn update_web_search_config(
     input: a4n_api_contract::web_search::UpdateWebSearchConfigInput,
 ) -> Result<WebSearchConfigSummary, AppError> {
     state
-        .config_application()
+        .config_mutation_application()
         .update_web_search_config(caller_user_id, input)
         .await
 }
@@ -41,7 +41,7 @@ pub async fn web_search(
         .normalized_query()
         .map_err(AppError::InvalidArgument)?;
     let config = state
-        .config_application()
+        .config_read_application()
         .web_search_runtime_config()
         .await?;
     let api_key = config

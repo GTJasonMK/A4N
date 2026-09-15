@@ -4,6 +4,7 @@ pub mod agent_replay_policy_canonicalization;
 pub mod agent_runtime;
 pub mod agent_runtime_checkpoint_cleanup;
 pub mod agent_runtime_dead_fields_cleanup;
+pub mod agent_runtime_run_activity_canonicalization;
 pub mod agent_runtime_snapshot_canonicalization;
 pub mod agent_runtime_status_canonicalization;
 

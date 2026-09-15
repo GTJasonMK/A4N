@@ -4,7 +4,11 @@ import type {
   AgentMessageView,
   AgentThreadSnapshot,
 } from "../api/agent";
-import { reduceAgentEvent, snapshotCursor } from "./agentEventReducer";
+import {
+  reduceAgentEvent,
+  snapshotCursor,
+  streamedAgentMessageIds,
+} from "./agentEventReducer";
 
 const message = (content: string, status: string = "streaming"): AgentMessageView => ({
   id: "message-1",
@@ -70,6 +74,18 @@ const event = (sequence: number, payload: unknown): AgentEvent => ({
 });
 
 describe("agent event reducer", () => {
+  it("identifies streamed messages and can scope them to a run", () => {
+    const otherRun = { ...event(2, null), run_id: "run-2", message_id: "message-2" };
+    const completed = { ...event(3, null), kind: "message_completed" };
+    expect(streamedAgentMessageIds([event(1, null), otherRun, completed])).toEqual([
+      "message-1",
+      "message-2",
+    ]);
+    expect(streamedAgentMessageIds([event(1, null), otherRun], "run-2")).toEqual([
+      "message-2",
+    ]);
+  });
+
   it("uses the durable next sequence as the initial cursor", () => {
     const current = snapshot();
     current.events = [{ ...event(4, null), kind: "run_waiting", message_id: null }];
@@ -87,6 +103,34 @@ describe("agent event reducer", () => {
     expect(result.cursor).toBe(1);
     expect(result.snapshot.messages[0].content).toBe("new text");
     expect(result.snapshot.events).toHaveLength(1);
+  });
+
+  it("reloads before handling an editor request event", () => {
+    const result = reduceAgentEvent(
+      snapshot(),
+      {
+        ...event(1, { waiting_reason: "external" }),
+        kind: "run_waiting",
+        message_id: null,
+        editor_request: {
+          execution_id: "execution-1",
+          source: {
+            view_instance_id: "view-1",
+            project_id: 1,
+            chapter_id: 1,
+            editor_revision: "revision-1",
+            scene_id: null,
+            shot_id: null,
+            keyframe_id: null,
+            entity_id: null,
+          },
+          operation: { kind: "inspect" },
+        },
+      },
+      0,
+    );
+    expect(result.needsReload).toBe(true);
+    expect(result.snapshot.events).toHaveLength(0);
   });
 
   it("deduplicates events and detects sequence gaps or malformed projections", () => {

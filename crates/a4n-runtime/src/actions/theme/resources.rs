@@ -24,7 +24,7 @@ pub async fn upload_theme_resource_for_user(
         ));
     }
     let previous_file_path = state
-        .theme_application()
+        .theme_read_application()
         .list_resources(user_id, input.theme_id)
         .await?
         .into_iter()
@@ -49,7 +49,7 @@ pub async fn upload_theme_resource_for_user(
             .map_err(AppError::InvalidArgument)?;
     }
     let resource = match state
-        .theme_application()
+        .theme_mutation_application()
         .upsert_resource(
             user_id,
             PersistThemeResourceInput {
@@ -98,7 +98,7 @@ pub async fn delete_theme_resource_for_user(
     input: DeleteThemeResourceInput,
 ) -> Result<(), AppError> {
     let resource = state
-        .theme_application()
+        .theme_mutation_application()
         .delete_resource(user_id, input.resource_id)
         .await?;
     remove_theme_resource_file_if_unused(state, user_id, resource.theme_id, &resource.file_path)
@@ -112,7 +112,7 @@ async fn remove_theme_resource_file_if_unused(
     file_path: &str,
 ) -> Result<(), AppError> {
     let still_referenced = state
-        .theme_application()
+        .theme_read_application()
         .list_resources(user_id, theme_id)
         .await?
         .into_iter()
