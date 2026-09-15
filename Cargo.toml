@@ -47,6 +47,7 @@ members = [
     "crates/a4n-embedding-service",
     "crates/a4n-rag-core",
     "crates/a4n-rag-contract",
+    "crates/a4n-rag-value-contract",
     "crates/a4n-rag-index",
     "crates/a4n-rag-service",
     "crates/a4n-image-contract",

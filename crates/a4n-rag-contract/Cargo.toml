@@ -8,7 +8,7 @@ license.workspace = true
 a4n-domain = { path = "../a4n-domain" }
 a4n-embedding-contract = { path = "../a4n-embedding-contract" }
 a4n-error = { path = "../a4n-error" }
-a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-rag-value-contract = { path = "../a4n-rag-value-contract" }
 
 async-trait = { workspace = true }
 serde_json = { workspace = true }

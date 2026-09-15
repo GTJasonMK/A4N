@@ -907,7 +907,7 @@ dependencies = [
  "a4n-domain",
  "a4n-embedding-contract",
  "a4n-error",
- "a4n-rag-core",
+ "a4n-rag-value-contract",
  "async-trait",
  "serde_json",
 ]
@@ -918,6 +918,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-embedding",
+ "a4n-rag-value-contract",
  "async-trait",
  "dashmap",
  "parking_lot",
@@ -965,6 +966,15 @@ dependencies = [
 name = "a4n-rag-sidecar-contract"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-rag-value-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-embedding-contract",
  "serde",
  "serde_json",
 ]
