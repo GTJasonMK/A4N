@@ -19,6 +19,15 @@ pub struct LlmGatewayProviderConfig {
     pub extra_body_json: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LlmGatewayPayload<T> {
+    pub provider: LlmGatewayProviderConfig,
+    pub request: T,
+}
+
+pub type LlmProbePayload<T> = LlmGatewayPayload<T>;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LlmProbeOutput {
@@ -51,8 +60,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmGatewayProviderConfig, LlmProbeOutput, LlmProbeUsage};
-    use serde_json::json;
+    use super::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbeOutput, LlmProbeUsage};
+    use serde_json::{Value, json};
 
     fn usage() -> LlmProbeUsage {
         LlmProbeUsage {
@@ -102,6 +111,36 @@ mod tests {
             serde_json::from_value::<LlmGatewayProviderConfig>(config)
                 .expect_err("provider config must keep explicit nullable fields");
         }
+    }
+
+    #[test]
+    fn gateway_payload_requires_request_and_rejects_unknown_fields() {
+        let error = serde_json::from_value::<LlmGatewayPayload<Value>>(json!({
+            "provider": {
+                "provider": "openai",
+                "base_url": "https://example.invalid/v1",
+                "model": "test",
+                "api_key": null,
+                "timeout_secs": 30,
+                "extra_body_json": null
+            },
+            "request": {},
+            "legacy_field": true
+        }))
+        .expect_err("unknown gateway payload fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_field"));
+
+        serde_json::from_value::<LlmGatewayPayload<Value>>(json!({
+            "provider": {
+                "provider": "openai",
+                "base_url": "https://example.invalid/v1",
+                "model": "test",
+                "api_key": null,
+                "timeout_secs": 30,
+                "extra_body_json": null
+            }
+        }))
+        .expect_err("gateway payload must require request");
     }
 
     #[test]

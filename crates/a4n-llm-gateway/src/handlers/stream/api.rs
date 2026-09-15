@@ -1,4 +1,5 @@
-use a4n_llm::gateway::LlmGatewayPayload;
+use a4n_llm::provider::ChatRequest;
+use a4n_llm_sidecar_contract::LlmGatewayPayload;
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest};
 use a4n_sidecar_bootstrap::{failed_service_event_response, service_event_ndjson_response};
 use axum::{Json, response::Response};
@@ -6,7 +7,7 @@ use axum::{Json, response::Response};
 use super::execution::stream_with_provider;
 
 pub(crate) async fn stream_chat(
-    Json(request): Json<ServiceRequest<LlmGatewayPayload>>,
+    Json(request): Json<ServiceRequest<LlmGatewayPayload<ChatRequest>>>,
 ) -> Response {
     if let Err(error) = request.validate_known_provider_request(
         LLM_SERVICE_NAME,
