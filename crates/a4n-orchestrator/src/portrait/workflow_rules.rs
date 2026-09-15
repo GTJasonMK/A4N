@@ -3,8 +3,8 @@
 use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::provider::ChatRequest;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
 /// 完整立绘生成工作流输入指纹。
@@ -155,7 +155,7 @@ fn profile_fingerprint_fields(profile: &protagonist_profile::Model) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::provider::{ChatMessage, ChatRequest};
+    use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 
     fn empty_request() -> ChatRequest {
         ChatRequest::new(vec![ChatMessage::user("hi")], None, None)

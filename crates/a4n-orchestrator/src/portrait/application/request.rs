@@ -5,7 +5,7 @@ use a4n_api_contract::portrait::{
 };
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
