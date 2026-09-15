@@ -1,15 +1,15 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatMessage, ChatRequest, LlmTraceContext};
 use a4n_llm_context::LlmContextManifest;
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 
 use super::step::{agent_loop_rules, build_agent_loop_step_user_message};
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
 use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, context_aware_system_user_request,
 };
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 pub(in crate::optimize) fn build_first_agent_loop_chat_request(
     project_id: i64,
@@ -143,8 +143,8 @@ pub(in crate::optimize) fn agent_loop_request_payload(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::provider::{MessageRole, PromptCacheMode};
     use a4n_llm_context::preview_context_aware_chat_request;
+    use a4n_llm_provider_contract::provider::{MessageRole, PromptCacheMode};
 
     #[test]
     fn loop_appends_full_observations_after_a_frozen_base_and_budget_counts_them() {

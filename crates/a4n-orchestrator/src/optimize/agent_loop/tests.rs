@@ -121,7 +121,12 @@ fn agent_loop_request_moves_base_task_into_context_manifest() {
     let user_message = request
         .messages
         .iter()
-        .find(|message| matches!(message.role, a4n_llm::provider::MessageRole::User))
+        .find(|message| {
+            matches!(
+                message.role,
+                a4n_llm_provider_contract::provider::MessageRole::User
+            )
+        })
         .expect("user message should exist");
     assert!(user_message.content.contains("context_refs"));
     assert!(
