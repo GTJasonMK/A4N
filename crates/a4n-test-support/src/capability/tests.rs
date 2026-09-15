@@ -11,10 +11,12 @@ use a4n_image_client::{ImageClient, ImageProviderRequest};
 use a4n_image_contract::{
     IMAGE_PROVIDER_CAPABILITY_VERSION, ImageGenerationRequest, ImageProviderPayload,
 };
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
-use a4n_llm::provider::ChatRequest;
 use a4n_llm_client::LlmClient;
-use a4n_llm_sidecar_contract::LlmProbeOutput;
+use a4n_llm_provider_contract::ChatRequest;
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+    LlmProbeOutput,
+};
 use a4n_rag_client::RagClient;
 use a4n_rag_sidecar_contract::{EmbeddingRecordPayload, IngestPayload, QueryPayload};
 use a4n_service_client::ServiceClient;
@@ -35,6 +37,8 @@ use super::{
     PendingEmbeddingDownloadClient, RecordingEmbeddingClient, RecordingExportClient,
     RecordingImageClient, RecordingLlmClient, RecordingRagClient, RecordingVideoClient,
 };
+
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
 
 #[tokio::test]
 async fn recording_llm_probe_returns_configured_response_and_captures_request() {
