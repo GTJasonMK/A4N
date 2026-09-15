@@ -4,6 +4,7 @@ use a4n_service_protocol::{
     ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
     redact_sensitive_message,
 };
+use a4n_video_provider_contract::validate_video_provider_idempotency_key;
 
 pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,
@@ -24,7 +25,7 @@ pub(crate) fn validate_video_provider_request(
             ServiceError::non_retryable(ServiceErrorCode::ConfigurationError, error.to_string())
         })?;
     validate_project_scope(request.payload.project_id, request.project_id, "generation")?;
-    a4n_video::validate_video_provider_idempotency_key(
+    validate_video_provider_idempotency_key(
         request.payload.provider_idempotency_key_sha256.as_deref(),
     )
     .map_err(|error| {

@@ -1372,7 +1372,7 @@ dependencies = [
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
- "a4n-video",
+ "a4n-video-provider-contract",
  "a4n-video-providers",
  "a4n-video-sidecar-contract",
  "anyhow",

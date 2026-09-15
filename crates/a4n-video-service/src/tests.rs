@@ -4,7 +4,7 @@ use a4n_service_protocol::{
     PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
     VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
 };
-use a4n_video::VideoGenerationRequest;
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 #[test]
 fn rejects_incompatible_capability_version() {
@@ -190,7 +190,7 @@ fn video_payload(api_key: &str) -> VideoProviderPayload {
             duration_secs: 5,
             fps: 24,
             model: "test-model".to_string(),
-            media: a4n_video::VideoMediaInput::None,
+            media: a4n_video_sidecar_contract::VideoMediaInput::None,
         },
     }
 }

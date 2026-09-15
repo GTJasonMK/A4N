@@ -11,7 +11,7 @@ use a4n_model_discovery::discover_models_from_request;
 use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME};
 use a4n_sidecar_bootstrap::{failed_service_event_response, service_event_ndjson_response};
-use a4n_video::VideoProvider;
+use a4n_video_provider_contract::VideoProvider;
 use a4n_video_providers::{pick_video_provider, video_provider_request_body_preview};
 use axum::{Json, response::IntoResponse};
 use serde_json::Value;
