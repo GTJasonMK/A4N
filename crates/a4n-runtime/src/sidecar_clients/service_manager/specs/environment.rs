@@ -1,8 +1,7 @@
 use a4n_config::{env_flag_enabled, optional_non_empty_env_string};
-use a4n_process_catalog::{
-    ServiceCatalogEntry, parse_service_socket_addr, service_catalog_entry_for_capability_version,
-};
+use a4n_process_catalog::{ServiceCatalogEntry, service_catalog_entry_for_capability_version};
 use a4n_service_manager::normalize_remote_service_url;
+use a4n_service_protocol::parse_service_socket_addr;
 
 use super::catalog::{MANAGED_SIDECARS_ENV, sidecar_service_specs};
 

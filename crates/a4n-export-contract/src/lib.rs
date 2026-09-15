@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 pub const EXPORT_SERVICE_NAME: &str = "export";
 pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v3";
+pub const EXPORT_SERVICE_ADDR_ENV: &str = "A4N_EXPORT_SERVICE_ADDR";
+pub const EXPORT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47648";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExportContractError {

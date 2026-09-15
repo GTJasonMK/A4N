@@ -1,5 +1,6 @@
 use a4n_import_contract::{
-    IMPORT_SERVICE_NAME, ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput,
+    IMPORT_SERVICE_ADDR_ENV, IMPORT_SERVICE_DEFAULT_ADDR, IMPORT_SERVICE_NAME,
+    ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput,
 };
 use a4n_import_core::read_media_package_zip;
 use a4n_service_protocol::{
@@ -18,7 +19,8 @@ async fn main() -> anyhow::Result<()> {
         "A4N_IMPORT_SERVICE_LOG",
         "a4n_import_service=info,tower_http=warn",
     )?;
-    let addr = a4n_sidecar_bootstrap::service_socket_addr(IMPORT_SERVICE_NAME)?;
+    let addr =
+        a4n_sidecar_bootstrap::socket_addr(IMPORT_SERVICE_ADDR_ENV, IMPORT_SERVICE_DEFAULT_ADDR)?;
     let policy = a4n_service_protocol::sidecar_resource_policy(IMPORT_SERVICE_NAME)
         .expect("import sidecar must have a resource policy");
     let app = Router::new()

@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 pub const IMAGE_SERVICE_NAME: &str = "image";
 pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v4";
+pub const IMAGE_SERVICE_ADDR_ENV: &str = "A4N_IMAGE_SERVICE_ADDR";
+pub const IMAGE_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47645";
 
 /// 单次生成请求。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

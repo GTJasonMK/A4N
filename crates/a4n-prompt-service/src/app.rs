@@ -33,8 +33,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let state = PromptServiceState {
         engine: Arc::new(engine),
     };
-    let addr =
-        a4n_sidecar_bootstrap::service_socket_addr(a4n_service_protocol::PROMPT_SERVICE_NAME)?;
+    let addr = a4n_sidecar_bootstrap::socket_addr(
+        a4n_prompt_contract::PROMPT_SERVICE_ADDR_ENV,
+        a4n_prompt_contract::PROMPT_SERVICE_DEFAULT_ADDR,
+    )?;
 
     tracing::info!(%addr, prompts_dir = ?prompts_dir, git_dir = ?git_dir, "starting prompt sidecar");
     a4n_sidecar_bootstrap::serve_sidecar(

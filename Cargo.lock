@@ -1115,7 +1115,6 @@ dependencies = [
 name = "a4n-sidecar-bootstrap"
 version = "0.1.0"
 dependencies = [
- "a4n-process-catalog",
  "a4n-service-protocol",
  "anyhow",
  "axum 0.8.9",

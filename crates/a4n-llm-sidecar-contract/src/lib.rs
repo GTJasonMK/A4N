@@ -8,6 +8,8 @@ use serde_json::Value;
 
 pub const LLM_SERVICE_NAME: &str = "llm";
 pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v7";
+pub const LLM_SERVICE_ADDR_ENV: &str = "A4N_LLM_GATEWAY_ADDR";
+pub const LLM_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47642";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

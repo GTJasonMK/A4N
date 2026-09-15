@@ -8,6 +8,8 @@ use serde_json::Value;
 
 pub const PROMPT_SERVICE_NAME: &str = "prompt";
 pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v4";
+pub const PROMPT_SERVICE_ADDR_ENV: &str = "A4N_PROMPT_SERVICE_ADDR";
+pub const PROMPT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47641";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

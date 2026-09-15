@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 pub const EMBEDDING_SERVICE_NAME: &str = "embedding";
 pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v5";
+pub const EMBEDDING_SERVICE_ADDR_ENV: &str = "A4N_EMBEDDING_SERVICE_ADDR";
+pub const EMBEDDING_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47643";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
