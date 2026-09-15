@@ -89,6 +89,7 @@ pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
     "read_visual_plan_prompt_candidate",
     "start_visual_plan_prompt_generation",
     "start_image_generation",
+    "wait_generation_task",
     "inspect_editor_target",
     "read_editor_draft",
     "save_editor_draft",
