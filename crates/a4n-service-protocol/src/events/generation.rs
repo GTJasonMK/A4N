@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use a4n_generation_artifact_contract::GenerationArtifactRef;
 use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de};
@@ -303,26 +304,6 @@ pub struct CheckpointEvent {
     pub resumable: bool,
     #[schemars(length(max = MAX_MESSAGE_BYTES))]
     pub summary: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerationArtifactRef {
-    #[schemars(length(min = 1, max = MAX_KEY_BYTES))]
-    pub artifact_id: String,
-    #[schemars(length(min = 1, max = MAX_IDENTIFIER_BYTES))]
-    pub artifact_kind: String,
-    #[schemars(length(min = 1, max = MAX_KEY_BYTES))]
-    pub content_type: String,
-    #[schemars(length(equal = 64))]
-    pub sha256: String,
-    #[schemars(range(max = JS_SAFE_INTEGER_U64))]
-    pub byte_size: u64,
-    #[schemars(length(min = 1, max = MAX_KEY_BYTES))]
-    pub revision: String,
-    pub temporary: bool,
-    #[schemars(range(min = 0, max = JS_SAFE_INTEGER_I64))]
-    pub expires_at_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

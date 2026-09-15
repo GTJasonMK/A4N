@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-generation-artifact-contract = { path = "../a4n-generation-artifact-contract" }
 a4n-progress = { path = "../a4n-progress" }
 schemars = { workspace = true }
 serde = { workspace = true }

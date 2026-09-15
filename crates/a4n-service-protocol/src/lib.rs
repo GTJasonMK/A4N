@@ -59,6 +59,7 @@ pub fn parse_service_socket_addr(key: &str, value: &str) -> Result<std::net::Soc
         .map_err(|error| format!("{key} 必须是有效监听地址: {error}"))
 }
 
+pub use a4n_generation_artifact_contract::GenerationArtifactRef;
 pub use egress::{EgressAuditEvent, EgressDataType, validate_egress_scope};
 pub use events::{
     capability::{CapabilityTaskEvent, CapabilityTaskEventKind},
@@ -66,11 +67,11 @@ pub use events::{
         ArtifactEvent, ArtifactOperation, BatchCommitPolicy, BatchSummary, CancelRequestedEvent,
         CancellationReason, CancelledEvent, CheckpointEvent, CompletedEvent,
         DEFAULT_GENERATION_ACTIVE_SESSION_MAX, DraftDisposition, FailedEvent,
-        GENERATION_EVENT_SCHEMA_VERSION, GenerationArtifactRef, GenerationContractError,
-        GenerationDeliveryMode, GenerationError, GenerationErrorCode, GenerationEvent,
-        GenerationFinishReason, GenerationResultRef, GenerationTargetRef, GenerationTaskEvent,
-        GenerationTaskSnapshot, GenerationTaskStatus, GenerationUsage, InterruptedEvent,
-        InterruptionReason, JS_SAFE_INTEGER_I64, JS_SAFE_INTEGER_U64, MAX_GENERATION_EVENT_BYTES,
+        GENERATION_EVENT_SCHEMA_VERSION, GenerationContractError, GenerationDeliveryMode,
+        GenerationError, GenerationErrorCode, GenerationEvent, GenerationFinishReason,
+        GenerationResultRef, GenerationTargetRef, GenerationTaskEvent, GenerationTaskSnapshot,
+        GenerationTaskStatus, GenerationUsage, InterruptedEvent, InterruptionReason,
+        JS_SAFE_INTEGER_I64, JS_SAFE_INTEGER_U64, MAX_GENERATION_EVENT_BYTES,
         MAX_GENERATION_SNAPSHOT_BYTES, MAX_TEXT_DELTA_BYTES, ProgressEvent, StartedEvent,
         StatusChangedEvent, StreamTextHash, TextDeltaEvent, TextStreamSnapshot, UsageEvent,
     },

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_error::AppError;
+use a4n_generation_artifact_contract::GenerationArtifactRef;
 use a4n_provider_contract::VideoProviderConfig;
-use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{VideoGenerationResult, VideoJobState};
 use async_trait::async_trait;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};

@@ -441,6 +441,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-generation-artifact-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+]
+
+[[package]]
 name = "a4n-image"
 version = "0.1.0"
 dependencies = [
@@ -1102,6 +1110,7 @@ dependencies = [
 name = "a4n-service-protocol"
 version = "0.1.0"
 dependencies = [
+ "a4n-generation-artifact-contract",
  "a4n-progress",
  "schemars 1.2.1",
  "serde",
@@ -1258,8 +1267,8 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
+ "a4n-generation-artifact-contract",
  "a4n-provider-contract",
- "a4n-service-protocol",
  "a4n-video",
  "async-trait",
  "schemars 1.2.1",
