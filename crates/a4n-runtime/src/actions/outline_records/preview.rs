@@ -4,7 +4,7 @@ use crate::actions::request_preview::{
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_orchestrator::outline::OutlineRequestPreviewStep;
+use a4n_outline_contract::OutlineRequestPreviewStep;
 
 pub(super) async fn outline_preview(
     state: &AppState,

@@ -38,6 +38,7 @@ members = [
     "crates/a4n-provider-runtime-contract",
     "crates/a4n-cleanup-contract",
     "crates/a4n-canvas-contract",
+    "crates/a4n-outline-contract",
     "crates/a4n-llm-context",
     "crates/a4n-llm-structured-stream",
     "crates/a4n-llm-trace",

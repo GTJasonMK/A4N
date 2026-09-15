@@ -804,6 +804,7 @@ dependencies = [
  "a4n-llm-trace",
  "a4n-media",
  "a4n-migration",
+ "a4n-outline-contract",
  "a4n-progress",
  "a4n-prompt",
  "a4n-prompt-client",
@@ -839,6 +840,16 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "a4n-outline-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "async-trait",
 ]
 
 [[package]]
@@ -1095,6 +1106,7 @@ dependencies = [
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
  "a4n-orchestrator",
+ "a4n-outline-contract",
  "a4n-process-catalog",
  "a4n-prompt",
  "a4n-prompt-client",
