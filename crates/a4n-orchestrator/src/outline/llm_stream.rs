@@ -5,7 +5,7 @@
 use std::future::Future;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use tokio::task_local;
 
 use crate::OrchestratorContext;

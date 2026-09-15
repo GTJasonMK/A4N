@@ -12,7 +12,7 @@ use a4n_api_contract::{
     },
 };
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 mod application;
 mod chapter_contract;

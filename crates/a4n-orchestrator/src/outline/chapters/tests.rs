@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use a4n_db_models::models::chapter::part_outline;
-use a4n_llm::provider::MessageRole;
+use a4n_llm_provider_contract::provider::MessageRole;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use chrono::Utc;
 use serde_json::json;

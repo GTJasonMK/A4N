@@ -1,12 +1,12 @@
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_db_models::models::chapter::part_outline;
 use a4n_error::AppError;
-use a4n_llm::trace::{chat_request_messages_json, text_response_summary_json};
+use a4n_llm_trace::{chat_request_messages_json, text_response_summary_json};
 use sea_orm::DatabaseTransaction;
 use serde_json::json;
 
 use crate::{generation::generation_error, outline::OrchestratorContext};
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 use super::super::contracts::GeneratedPartOutline;
 

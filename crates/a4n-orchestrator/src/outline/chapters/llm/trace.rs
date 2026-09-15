@@ -1,14 +1,12 @@
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_db_models::models::chapter::chapter_outline;
 use a4n_error::AppError;
-use a4n_llm::{
-    provider::ChatRequest,
-    trace::{chat_request_messages_json, text_response_summary_json},
-};
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::{chat_request_messages_json, text_response_summary_json};
 use serde_json::json;
 
 use crate::outline::OrchestratorContext;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 impl OrchestratorContext {
     pub(in crate::outline::chapters) async fn record_chapter_outline_generation_run(

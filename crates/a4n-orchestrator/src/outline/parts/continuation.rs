@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db_models::models::chapter::part_outline;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use chrono::Utc;
 
 use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
