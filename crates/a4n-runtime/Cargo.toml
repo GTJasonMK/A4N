@@ -42,6 +42,7 @@ a4n-service-client = { path = "../a4n-service-client" }
 a4n-task-runtime = { path = "../a4n-task-runtime" }
 a4n-provider-contract = { path = "../a4n-provider-contract" }
 a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
+a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-prompt = { path = "../a4n-prompt" }

@@ -6,6 +6,7 @@ use a4n_domain::llm::{
     ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput,
 };
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::LlmTraceContext;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 use a4n_provider_runtime_contract::{ProviderRuntimePort, ProviderTaskPriority, TaskLease};
 use a4n_queue::{
@@ -170,7 +171,7 @@ impl DynamicProviderFacade {
         &self,
         limit: a4n_domain::task_queue::LlmConcurrencyLimit,
         priority: QueueTaskPriority,
-        trace: Option<&a4n_llm::provider::LlmTraceContext>,
+        trace: Option<&LlmTraceContext>,
     ) -> Result<Box<dyn TaskLease>, AppError> {
         self.port
             .start_task(

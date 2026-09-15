@@ -21,7 +21,7 @@ pub(super) use trace::sidecar_context_for_workflow_operation_with_root;
 #[cfg(test)]
 use crate::runtime_config;
 #[cfg(test)]
-use a4n_llm::provider::LlmTraceContext;
+use a4n_llm_provider_contract::provider::LlmTraceContext;
 #[cfg(test)]
 use a4n_service_protocol::{SecretForwardingPolicy, TraceContext};
 #[cfg(test)]
