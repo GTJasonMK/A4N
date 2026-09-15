@@ -4,6 +4,53 @@ import json
 
 
 MARKER = "A4N_SPECIALIZED "
+GENERAL_MARKER = "A4N_GENERAL "
+
+
+def general_fixture(body, messages):
+    start = next(
+        (
+            i
+            for i in range(len(messages) - 1, -1, -1)
+            if messages[i].get("role") == "user"
+            and str(messages[i].get("content", "")).startswith(GENERAL_MARKER)
+        ),
+        None,
+    )
+    if start is None:
+        return None
+    task = json.loads(messages[start]["content"][len(GENERAL_MARKER):])
+    observations = {}
+    pending = set()
+    for message in messages[start:]:
+        for call in message.get("tool_calls") or []:
+            if call["id"] in pending:
+                raise ValueError("duplicate pending tool call")
+            pending.add(call["id"])
+        if message.get("role") == "tool":
+            call_id = message["tool_call_id"]
+            if call_id not in pending:
+                raise ValueError("orphan tool observation")
+            pending.remove(call_id)
+            observations[call_id] = json.loads(message["content"])
+    if pending:
+        raise ValueError("model was called before its tool batch was resolved")
+    if any("error" in result for result in observations.values()):
+        return {"content": "通用 Agent 操作未完成。"}
+
+    def call(key, name, arguments):
+        return {"tool_call": {"id": key, "name": name, "arguments": arguments}}
+
+    def host(key, name, arguments):
+        return call(key, name, {"input": arguments})
+
+    if "search" not in observations:
+        return call("search", "search_agent_tools", {"query": "get_project"})
+    if "describe" not in observations:
+        return call("describe", "describe_agent_tool", {"name": "get_project"})
+    if "project" not in observations:
+        return host("project", "get_project", {"project_id": task["project_id"]})
+    return {"content": "已通过工具发现读取项目，并取得真实项目结果。"}
 
 
 def director_fixture(body, messages):

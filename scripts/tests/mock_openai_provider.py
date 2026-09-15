@@ -2226,6 +2226,13 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
     if capability is None:
         return None
 
+    if any(
+        str(message.get("content", "")).startswith("A4N_GENERAL ")
+        for message in current_messages
+        if message.get("role") == "user"
+    ):
+        from specialized_agent_fixture import general_fixture
+        return general_fixture(body, messages)
     if capability in {"director", "canvas"} or any(
         str(message.get("content", "")).startswith("A4N_SPECIALIZED ")
         for message in current_messages if message.get("role") == "user"
