@@ -3,7 +3,7 @@ mod checkpoint;
 
 use serde_json::{Value, json};
 
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use crate::{
     OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches,

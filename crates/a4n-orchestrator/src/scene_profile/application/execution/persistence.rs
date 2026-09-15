@@ -1,6 +1,6 @@
 use a4n_db::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::scene_profile::SceneProfileEvidenceRecordInput;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_progress::ProgressSpan;
 use serde_json::{Value, json};
 

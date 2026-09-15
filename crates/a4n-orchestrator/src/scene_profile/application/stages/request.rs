@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 
 use a4n_domain::source_spans::text_anchor_prompt_values;
-use a4n_llm::provider::ChatRequest;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT,
     context_aware_system_user_json_llm_request,
 };
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_message};
 
 use super::super::context::{
