@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::context::{
+use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
     LlmContextManifest,
 };

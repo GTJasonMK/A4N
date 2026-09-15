@@ -1,10 +1,8 @@
 use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
 use a4n_db_models::models::{agent::execution, ai::optimization_session};
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{LlmContextManifest, replace_request_user_content_from_manifest},
-    provider::ChatRequest,
-};
+use a4n_llm::provider::ChatRequest;
+use a4n_llm_context::{LlmContextManifest, replace_request_user_content_from_manifest};
 use serde_json::{Value, json};
 
 use crate::{OrchestratorContext, optimize::AgentLoopGenerationContext};

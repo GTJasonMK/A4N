@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use a4n_db::workflow;
 use a4n_error::AppError;
-use a4n_llm::context::{LlmContextManifest, context_aware_system_user_request};
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
+use a4n_llm_context::{LlmContextManifest, context_aware_system_user_request};
 use serde_json::{Value, json};
 
 use crate::workflow::workflow_checkpoint_contract_app_error;

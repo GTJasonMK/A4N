@@ -10,7 +10,7 @@ use a4n_llm::{
     trace::llm_usage_summary_text,
 };
 
-use a4n_llm::context::LlmContextManifest;
+use a4n_llm_context::LlmContextManifest;
 use a4n_progress::{ProgressSpan, StructuredJsonProgressSpec};
 use a4n_prompt::rendering::PromptRenderer;
 

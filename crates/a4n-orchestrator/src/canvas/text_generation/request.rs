@@ -1,12 +1,10 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db_models::models::canvas::canvas_node;
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::{
-    context::{
-        COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-        LlmContextLedgerPackDraft, context_aware_system_user_request,
-    },
-    provider::{ChatRequest, LlmTraceContext},
+use a4n_llm::provider::{ChatRequest, LlmTraceContext};
+use a4n_llm_context::{
+    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
+    LlmContextLedgerPackDraft, context_aware_system_user_request,
 };
 use serde_json::json;
 
@@ -59,7 +57,7 @@ pub(super) fn build_canvas_llm_text_request(
     });
     let mut ledger = LlmContextLedger::new();
     ledger
-        .add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+        .add_pack(a4n_llm_context::LlmContextLedgerPackInput {
             scope_kind: WORKFLOW_KIND_VIDEO_CANVAS_GRAPH.into(),
             pack_kind: "canvas_node_config:LlmTextNode".into(),
             source_refs_json: Some(json!({

@@ -27,7 +27,7 @@ pub(super) async fn add_builder_rules_pack(
             "视频 builder 规则模板必须渲染为合法 JSON 对象：{err}"
         ))
     })?;
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
         pack_kind: ("video_workflow_rules").into(),
         source_refs_json: Some(json!({"prompt_name": VIDEO_BUILDER_RULES_TEMPLATE})),
@@ -89,7 +89,7 @@ pub(super) async fn add_prompt_rule_hash_pack(
             "rendered_sha256": source_content_sha256(&rendered)
         }));
     }
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
         pack_kind: ("video_prompt_rule_hashes").into(),
         source_refs_json: Some(json!({
@@ -135,7 +135,7 @@ pub(super) async fn add_prompt_rule_packs(
             .await?;
         let rendered_sha256 = source_content_sha256(&rendered);
         let pack_kind = format!("video_prompt_rules:{prompt_name}");
-        ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+        ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
             scope_kind: (VIDEO_CONTEXT_SCOPE).into(),
             pack_kind,
             source_refs_json: Some(json!({"prompt_name": prompt_name})),

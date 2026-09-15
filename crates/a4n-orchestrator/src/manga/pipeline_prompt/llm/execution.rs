@@ -20,7 +20,7 @@ pub(in crate::manga) struct MangaRenderTraceInput<'a> {
     pub call_order: i32,
     pub restore_from_checkpoint: bool,
     pub variables: &'a HashMap<String, Value>,
-    pub user_content: a4n_llm::context::LlmContextManifest,
+    pub user_content: a4n_llm_context::LlmContextManifest,
     pub temperature: f32,
 }
 

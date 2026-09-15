@@ -5,7 +5,7 @@ use serde_json::json;
 
 use a4n_api_contract::import_reverse::ReverseEngineeringTarget;
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::context::{
+use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, LlmContextManifest,
 };
@@ -22,7 +22,7 @@ pub(super) fn build_reverse_engineer_context(
     let source_artifact = reverse_engineer_source_artifact(content_sample)?;
     let source_hash = source_content_sha256(&serde_json::to_string(&source_artifact)?);
     let mut ledger = LlmContextLedger::new();
-    ledger.add_pack(a4n_llm::context::LlmContextLedgerPackInput {
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: IMPORT_REVERSE_WORKFLOW_KIND.into(),
         pack_kind: ("source_artifact").into(),
         source_refs_json: Some(json!({

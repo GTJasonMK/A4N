@@ -5,12 +5,10 @@ use a4n_db_models::models::{
 };
 use a4n_domain::source_spans::text_anchor_prompt_values;
 use a4n_error::AppError;
-use a4n_llm::{
-    context::{
-        ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
-        context_aware_system_user_json_llm_request,
-    },
-    provider::ChatRequest,
+use a4n_llm::provider::ChatRequest;
+use a4n_llm_context::{
+    ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
+    context_aware_system_user_json_llm_request,
 };
 use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_message};
 use serde_json::{Value, json};

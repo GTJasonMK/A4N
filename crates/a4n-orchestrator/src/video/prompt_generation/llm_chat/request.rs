@@ -4,12 +4,12 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use a4n_error::AppError;
-use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{
     ChatRequest, ChatResponse, LlmProvider, LlmTraceContext, UsageInfo, is_truncated_finish_reason,
 };
+use a4n_llm_context::LlmContextManifest;
 
-use a4n_llm::context::context_aware_system_user_request;
+use a4n_llm_context::context_aware_system_user_request;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::contracts::VideoPromptLlmCallTraceContext;

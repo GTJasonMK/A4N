@@ -4,9 +4,8 @@ use a4n_api_contract::character::{
     DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
 };
 use a4n_error::AppError;
-use a4n_llm::{
-    context::chat_request_with_workflow_run_id, structured_stream::StructuredLlmProgress,
-};
+use a4n_llm::structured_stream::StructuredLlmProgress;
+use a4n_llm_context::chat_request_with_workflow_run_id;
 use a4n_progress::StructuredJsonProgressSpec;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;

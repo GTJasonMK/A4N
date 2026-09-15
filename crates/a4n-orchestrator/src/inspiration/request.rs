@@ -4,11 +4,11 @@ use a4n_db::inspiration::InspirationProjectContextRows;
 use a4n_db_models::models::user::message;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_error::AppError;
-use a4n_llm::context::{
+use a4n_llm::provider::{ChatRequest, LlmTraceContext};
+use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, LlmContextLedgerPackInput, context_aware_system_user_request,
 };
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 

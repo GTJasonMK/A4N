@@ -4,7 +4,7 @@ use a4n_error::AppError;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use a4n_llm::context::LlmContextManifest;
+use a4n_llm_context::LlmContextManifest;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::structured_llm::ensure_checkpoint_parsed_output_matches;

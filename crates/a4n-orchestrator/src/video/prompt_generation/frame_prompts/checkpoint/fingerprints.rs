@@ -3,7 +3,7 @@ use a4n_error::AppError;
 use a4n_video_contract::{VideoSegmentExecutionRecipeV1, video_segment_content_fingerprint};
 use serde_json::{Value, json};
 
-use a4n_llm::context::LlmContextManifest;
+use a4n_llm_context::LlmContextManifest;
 
 use super::super::ChapterVideoSourceContext;
 use super::super::{VideoSegmentPlan, VideoShootingScriptProjection, video_units_for_segment_plan};
