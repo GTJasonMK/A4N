@@ -65,7 +65,6 @@ end
 
 capability_contracts = %w[
   a4n-prompt-contract
-  a4n-llm-contract
   a4n-embedding-contract
   a4n-rag-contract
   a4n-rag-sidecar-contract
