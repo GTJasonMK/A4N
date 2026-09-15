@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatChunkStream;
+use a4n_llm_provider_contract::provider::ChatChunkStream;
 
 use super::super::{
     config::make_provider,

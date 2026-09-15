@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use a4n_error::AppError;
-use a4n_llm::provider::ChatChunkStream;
 use a4n_llm_client::LlmClient;
+use a4n_llm_provider_contract::provider::ChatChunkStream;
 
 use super::super::{
     config::{require_sidecar_business_trace, sidecar_chat_request},

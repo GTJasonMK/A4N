@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::{ChatRequest, LLM_CALL_TOTAL_TIMEOUT};
 use a4n_provider_contract::LlmProviderConfig;
 use a4n_queue::priority::TaskPriority;
 
@@ -27,7 +27,7 @@ impl DynamicLlmProvider {
             model_max_output_tokens,
             &model_name,
         )?);
-        let output = tokio::time::timeout(a4n_llm::provider::LLM_CALL_TOTAL_TIMEOUT, async {
+        let output = tokio::time::timeout(LLM_CALL_TOTAL_TIMEOUT, async {
             let task = self
                 .facade
                 .queue_start_llm_task(resolved_model.concurrency_limit(), TaskPriority::High, None)

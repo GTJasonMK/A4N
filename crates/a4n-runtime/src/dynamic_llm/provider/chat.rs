@@ -1,5 +1,7 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse, collect_chat_chunks, open_chat_stream};
+use a4n_llm_provider_contract::provider::{
+    ChatRequest, ChatResponse, collect_chat_chunks, open_chat_stream,
+};
 use a4n_provider_contract::LlmProviderConfig;
 
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
