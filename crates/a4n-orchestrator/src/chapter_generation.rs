@@ -16,7 +16,7 @@ use a4n_api_contract::{
     },
     generation_tasks::GenerationTaskHandle,
 };
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 
 pub use application::{ChapterGenerationApplicationContext, ChapterGenerationRequestPreview};
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;

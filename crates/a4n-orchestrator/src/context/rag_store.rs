@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_rag_core::vector_store::DeleteFilter;
 use serde_json::Value;
@@ -119,7 +119,7 @@ impl OrchestratorContext {
     pub(crate) async fn execute_prepared_chapter_generation_rag_search_with_vectors(
         &self,
         prepared: &crate::chapter_generation::PreparedGenerationRagSearch,
-        embedding_identity: &a4n_embedding::provider::EmbeddingModelIdentity,
+        embedding_identity: &a4n_embedding_provider_contract::EmbeddingModelIdentity,
         query_vectors: Vec<Vec<f32>>,
     ) -> Result<Option<String>, String> {
         crate::chapter_generation::rag_context::execute_prepared_chapter_generation_rag_search_with_vectors_in_store(
@@ -146,7 +146,7 @@ impl OrchestratorContext {
     pub(crate) async fn execute_prepared_enhanced_rag_search_with_vectors(
         &self,
         prepared: PreparedEnhancedRagSearch,
-        embedding_identity: &a4n_embedding::provider::EmbeddingModelIdentity,
+        embedding_identity: &a4n_embedding_provider_contract::EmbeddingModelIdentity,
         query_vectors: Vec<Vec<f32>>,
     ) -> Result<EnhancedRagSearchResult, a4n_error::AppError> {
         crate::rag::search::enhanced::execute_prepared_enhanced_rag_search_with_vectors_in_store(

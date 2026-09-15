@@ -740,7 +740,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-document-export-core",
  "a4n-domain",
- "a4n-embedding",
+ "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-event",
  "a4n-image-contract",

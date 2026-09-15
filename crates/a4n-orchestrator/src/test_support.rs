@@ -5,7 +5,7 @@ use a4n_config::app_config::AppConfig;
 use a4n_db::{
     DatabaseConnection, DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore,
 };
-use a4n_embedding::provider::EmbeddingProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_event::BroadcastEventBus;
 use a4n_llm::provider::LlmProvider;
 use a4n_prompt_client::PromptClient;

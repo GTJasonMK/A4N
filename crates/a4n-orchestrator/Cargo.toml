@@ -31,7 +31,7 @@ a4n-progress = { path = "../a4n-progress" }
 a4n-provider-contract = { path = "../a4n-provider-contract" }
 a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
 a4n-queue = { path = "../a4n-queue" }
-a4n-embedding = { path = "../a4n-embedding" }
+a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-rag-contract = { path = "../a4n-rag-contract" }
 a4n-import-core = { path = "../a4n-import-core" }

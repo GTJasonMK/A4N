@@ -1,5 +1,5 @@
 use a4n_domain::rag::RagDataType;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use serde_json::{Value, json};
 
 use super::{contracts::PreparedGenerationRagSearch, query::GenerationRagQuery};

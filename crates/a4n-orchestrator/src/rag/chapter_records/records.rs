@@ -1,7 +1,7 @@
 use a4n_chapter_analysis::analysis_rag_items;
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::rag::RagDataType;
-use a4n_embedding::provider::EmbeddingProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_rag_core::RagRecord;
 
 use super::chunks::chapter_rag_chunks_with_provider;

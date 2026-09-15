@@ -153,6 +153,6 @@ pub struct OrchestratorContext {
     task_queue: Arc<PersistentTaskQueue>,
     llm: Arc<dyn a4n_llm::provider::LlmProvider>,
     engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
-    embedding: Arc<dyn a4n_embedding::provider::EmbeddingProvider>,
+    embedding: Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
     snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
 }

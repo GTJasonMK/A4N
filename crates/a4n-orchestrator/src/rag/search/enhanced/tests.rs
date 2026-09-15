@@ -5,7 +5,7 @@ use std::sync::{
 
 use a4n_db::rag::PendingForeshadowingSearchRow;
 use a4n_domain::{ProviderError, rag::RagDataType};
-use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
+use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use a4n_rag_core::{
     EnhancedRagQuery, PreparedEnhancedRagSearch,
     memory_store::MemoryVectorStore,

@@ -14,7 +14,7 @@ use a4n_api_contract::{
 use a4n_db::workflow;
 use a4n_db_models::models::chapter::chapter_outline;
 use a4n_domain::progress::ProgressPhaseKind;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;

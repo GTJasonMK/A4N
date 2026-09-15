@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter_outline;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_rag_core::{
     contracts::sync::ensure_project_embedding_identity_matches,
     search::identity_scoped_search_filter, vector_store::SearchFilter,
