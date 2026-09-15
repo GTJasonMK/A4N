@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
 use a4n_domain::project::required_text;
 use a4n_error::AppError;
-use a4n_llm::provider::is_truncated_finish_reason;
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
@@ -39,7 +39,7 @@ impl OrchestratorContext {
         &self,
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
         let input = validated_character_conflict_input(&input)?;
         let prepared = self
             .prepare_character_conflict_check(input, prompt_renderer)
@@ -270,7 +270,7 @@ impl super::CharacterConflictApplicationPort for OrchestratorContext {
         &self,
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
         self.prepare_character_conflict_request_preview_validated(input, prompt_renderer)
             .await
     }

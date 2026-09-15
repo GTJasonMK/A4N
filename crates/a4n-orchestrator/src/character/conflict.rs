@@ -22,7 +22,7 @@ pub trait CharacterConflictApplicationPort: Send + Sync {
         &self,
         input: CharacterConflictCheckInput,
         prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, a4n_error::AppError>;
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, a4n_error::AppError>;
 
     async fn check(
         &self,

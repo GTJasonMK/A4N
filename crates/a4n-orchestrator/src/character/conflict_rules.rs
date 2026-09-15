@@ -2,8 +2,8 @@
 
 use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
 use crate::character::conflict::CHARACTER_CONFLICT_KIND;

@@ -1,5 +1,6 @@
 use a4n_error::AppError;
-use a4n_llm::{provider::is_truncated_finish_reason, trace::context_aware_chat_request_trace_json};
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
@@ -269,7 +270,7 @@ impl OrchestratorContext {
 
 struct CharacterProfileSyncStageCallResult {
     call_key: String,
-    request: a4n_llm::provider::ChatRequest,
+    request: a4n_llm_provider_contract::provider::ChatRequest,
     input_fingerprint_json: Value,
     response_content: String,
     response_usage_json: Option<Value>,
@@ -338,7 +339,7 @@ fn record_trace(
     trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     profile_name: &str,
     phase: String,
-    request: &a4n_llm::provider::ChatRequest,
+    request: &a4n_llm_provider_contract::provider::ChatRequest,
     response_content: &str,
     temperature: f32,
     parse_error: Option<String>,

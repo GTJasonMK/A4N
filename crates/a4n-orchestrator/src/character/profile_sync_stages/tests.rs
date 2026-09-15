@@ -13,7 +13,7 @@ use a4n_db::{
 use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::workflow::WORKFLOW_STATUS_RUNNING;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatMessage, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse};
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_test_support::llm::{CapturingSequenceLlmProvider, CountingLlmProvider};
 use async_trait::async_trait;
@@ -73,7 +73,7 @@ impl CharacterProfileSyncStageTracePort for TestTracePort {
 }
 
 async fn setup_context(
-    llm: Arc<dyn a4n_llm::provider::LlmProvider>,
+    llm: Arc<dyn a4n_llm_provider_contract::provider::LlmProvider>,
 ) -> (Arc<DatabaseConnection>, OrchestratorContext) {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))

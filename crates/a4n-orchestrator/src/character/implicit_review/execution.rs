@@ -1,6 +1,6 @@
 use a4n_domain::character::CharacterImplicitReviewDecisionRecordInput;
 use a4n_error::AppError;
-use a4n_llm::provider::is_truncated_finish_reason;
+use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
@@ -68,7 +68,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: CheckImplicitUpdateInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
         let prepared = self
             .prepare_implicit_update_review(user_id, input, prompt_renderer)
             .await?;
@@ -307,7 +307,7 @@ impl OrchestratorContext {
 
     async fn run_implicit_review_call(
         &self,
-        mut request: a4n_llm::provider::ChatRequest,
+        mut request: a4n_llm_provider_contract::provider::ChatRequest,
         stats: ImplicitAttributeReviewSummary,
         input: RunImplicitReviewCallInput,
     ) -> Result<ImplicitUpdateDecisionSummary, AppError> {

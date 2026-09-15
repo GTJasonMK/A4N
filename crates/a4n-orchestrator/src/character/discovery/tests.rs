@@ -128,8 +128,10 @@ fn input_contract_rejects_non_positive_project_and_chapter() {
 
 #[test]
 fn workflow_and_call_fingerprints_validate_input_contracts() {
-    let request = a4n_llm::provider::ChatRequest::new(
-        vec![a4n_llm::provider::ChatMessage::user("发现角色")],
+    let request = a4n_llm_provider_contract::provider::ChatRequest::new(
+        vec![a4n_llm_provider_contract::provider::ChatMessage::user(
+            "发现角色",
+        )],
         None,
         None,
     );

@@ -1,7 +1,7 @@
 //! 角色发现工作流指纹与 business key 纯规则（无 DB）。
 
 use a4n_db_models::models::{chapter::chapter, project::text_anchor};
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 use crate::discovery_workflow::{discovery_call_fingerprint_json, discovery_workflow_run_input};
@@ -48,7 +48,7 @@ pub(in crate::character) fn character_discovery_workflow_run_input(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_llm::provider::ChatMessage;
+    use a4n_llm_provider_contract::provider::ChatMessage;
 
     #[test]
     fn workflow_run_input_rejects_non_positive_project() {
