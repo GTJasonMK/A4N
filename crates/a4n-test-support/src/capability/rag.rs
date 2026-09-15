@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use a4n_rag_client::{JsonRequest, JsonResponse, RagClient};
+use a4n_rag_client::{
+    CompletenessByIdsRequest, CompletenessByIdsResponse, DeleteRequest, DeleteResponse,
+    DropCollectionRequest, DropCollectionResponse, IngestRequest, MetadataByFilterRequest,
+    MetadataByFilterResponse, MetadataByIdsRequest, MetadataByIdsResponse, QueryRequest,
+    QueryResponse, RagClient, SearchRequest, SearchResponse, SearchTextRequest, SearchTextResponse,
+};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
@@ -18,7 +23,7 @@ pub struct RecordingRagClient {
 
 #[derive(Default)]
 struct RecordingRagClientState {
-    ingest_event_requests: RequestLedger,
+    ingest_event_requests: RequestLedger<IngestRequest>,
 }
 
 impl RecordingRagClient {
@@ -35,7 +40,7 @@ impl RecordingRagClient {
         self.state.ingest_event_requests.count()
     }
 
-    pub fn last_ingest_events_request(&self) -> Option<JsonRequest> {
+    pub fn last_ingest_events_request(&self) -> Option<IngestRequest> {
         self.state.ingest_event_requests.last()
     }
 }
@@ -49,17 +54,20 @@ impl ServiceClient for RecordingRagClient {
 
 #[async_trait]
 impl RagClient for RecordingRagClient {
-    async fn query(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn query(&self, _request: QueryRequest) -> CapabilityResult<QueryResponse> {
         Err(unexpected_call("RecordingRagClient", "query"))
     }
 
-    async fn search_text(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn search_text(
+        &self,
+        _request: SearchTextRequest,
+    ) -> CapabilityResult<SearchTextResponse> {
         Err(unexpected_call("RecordingRagClient", "search_text"))
     }
 
     async fn ingest_events(
         &self,
-        request: JsonRequest,
+        request: IngestRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.ingest_event_requests.record(request.clone());
@@ -73,30 +81,39 @@ impl RagClient for RecordingRagClient {
         .await
     }
 
-    async fn search(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn search(&self, _request: SearchRequest) -> CapabilityResult<SearchResponse> {
         Err(unexpected_call("RecordingRagClient", "search"))
     }
 
-    async fn delete(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn delete(&self, _request: DeleteRequest) -> CapabilityResult<DeleteResponse> {
         Err(unexpected_call("RecordingRagClient", "delete"))
     }
 
-    async fn drop_collection(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn drop_collection(
+        &self,
+        _request: DropCollectionRequest,
+    ) -> CapabilityResult<DropCollectionResponse> {
         Err(unexpected_call("RecordingRagClient", "drop_collection"))
     }
 
-    async fn metadata_by_ids(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn metadata_by_ids(
+        &self,
+        _request: MetadataByIdsRequest,
+    ) -> CapabilityResult<MetadataByIdsResponse> {
         Err(unexpected_call("RecordingRagClient", "metadata_by_ids"))
     }
 
-    async fn metadata_by_filter(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn metadata_by_filter(
+        &self,
+        _request: MetadataByFilterRequest,
+    ) -> CapabilityResult<MetadataByFilterResponse> {
         Err(unexpected_call("RecordingRagClient", "metadata_by_filter"))
     }
 
     async fn completeness_report_by_ids(
         &self,
-        _request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        _request: CompletenessByIdsRequest,
+    ) -> CapabilityResult<CompletenessByIdsResponse> {
         Err(unexpected_call(
             "RecordingRagClient",
             "completeness_report_by_ids",

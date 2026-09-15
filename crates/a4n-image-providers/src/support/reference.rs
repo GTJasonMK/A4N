@@ -1,7 +1,7 @@
 use super::errors::internal_error;
 use super::format::{detect_format_from_bytes, format_from_content_type};
 use a4n_domain::ProviderError as AppError;
-use a4n_image::ImageReference;
+use a4n_image_contract::ImageReference;
 use base64::Engine as _;
 use image::GenericImageView;
 

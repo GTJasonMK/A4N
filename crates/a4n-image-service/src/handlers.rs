@@ -1,4 +1,5 @@
-use a4n_service_protocol::{HealthStatus, IMAGE_SERVICE_NAME, ServiceHealth, known_service_health};
+use a4n_image_contract::IMAGE_SERVICE_NAME;
+use a4n_service_protocol::{HealthStatus, ServiceHealth, known_service_health};
 use axum::Json;
 
 pub(crate) mod discovery;

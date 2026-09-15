@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use super::super::super::{
     SidecarRequestContext, missing_sidecar_capability_message, response_payload,
-    service_error_string, service_request_with_context_provider_secret_policy,
-    sidecar_context_for_workflow_operation_with_root,
+    service_error_string, sidecar_context_for_workflow_operation_with_root, typed_response_payload,
+    typed_service_request_with_context_provider_secret_policy,
 };
 use super::super::contracts::{
     VideoDeleteOutput, VideoJobOutput, VideoPollPayload, VideoStatusOutput, video_config_params,
@@ -25,7 +25,7 @@ pub(crate) async fn preview_video_provider_request(
     let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
     let payload = video_provider_payload(config, request, None, project_id)?;
     let response = client
-        .preview_request(service_request_with_context_provider_secret_policy(
+        .preview_request(typed_service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
@@ -55,7 +55,7 @@ pub(super) async fn poll_video_via_sidecar(
         job_id: job_id.to_string(),
     };
     let response = client
-        .poll(service_request_with_context_provider_secret_policy(
+        .poll(typed_service_request_with_context_provider_secret_policy(
             sidecar_context_for_workflow_operation_with_root(
                 project_id,
                 root_project_id,
@@ -67,7 +67,7 @@ pub(super) async fn poll_video_via_sidecar(
         )?)
         .await
         .map_err(service_error_string)?;
-    response_payload(response, "video").and_then(|output: VideoJobOutput| match output {
+    typed_response_payload(response, "video").and_then(|output: VideoJobOutput| match output {
         VideoJobOutput::Pending => Ok(VideoJobState::Pending),
         VideoJobOutput::Running => Ok(VideoJobState::Running),
         VideoJobOutput::Completed { result } => {
@@ -96,14 +96,14 @@ pub(super) async fn video_status_via_sidecar(
         job_id: job_id.to_string(),
     };
     let response = client
-        .status(service_request_with_context_provider_secret_policy(
+        .status(typed_service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)
         .await
         .map_err(service_error_string)?;
-    response_payload(response, "video").map(|output: VideoStatusOutput| match output {
+    typed_response_payload(response, "video").map(|output: VideoStatusOutput| match output {
         VideoStatusOutput::Pending => VideoJobStatus::Pending,
         VideoStatusOutput::Running => VideoJobStatus::Running,
         VideoStatusOutput::Completed => VideoJobStatus::Completed,
@@ -132,14 +132,14 @@ pub(super) async fn delete_video_via_sidecar(
         job_id: job_id.to_string(),
     };
     let response = client
-        .delete(service_request_with_context_provider_secret_policy(
+        .delete(typed_service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)
         .await
         .map_err(service_error_string)?;
-    response_payload(response, "video").map(|output: VideoDeleteOutput| match output {
+    typed_response_payload(response, "video").map(|output: VideoDeleteOutput| match output {
         VideoDeleteOutput::Deleted => VideoJobDeleteOutcome::Deleted,
         VideoDeleteOutput::NotFound => VideoJobDeleteOutcome::NotFound,
     })

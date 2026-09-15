@@ -1,5 +1,5 @@
 use a4n_domain::source_text_hash;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 use serde_json::{Value, json};
 

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_domain::embedding::EmbeddingModelDownloadInfoSummary;
+use a4n_embedding_contract::EmbeddingModelDownloadInfoSummary;
 
 use super::contracts::download_byte_totals;
 use super::metadata::collect_required_download_files;

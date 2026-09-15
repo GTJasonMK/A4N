@@ -5,12 +5,16 @@ mod secrets;
 mod trace;
 
 pub(crate) use context::SidecarRequestContext;
-pub(super) use requests::service_request_with_value_context;
+#[cfg(test)]
+pub(crate) use requests::global_service_request_without_secrets;
 pub(crate) use requests::{
-    global_service_request_without_secrets, pure_transform_typed_service_request,
+    global_typed_service_request_without_secrets, pure_transform_typed_service_request,
+    service_request_with_typed_context,
 };
 pub(crate) use secrets::{
-    global_provider_service_request, service_request_with_context_provider_secret_policy,
+    global_provider_service_request, global_typed_provider_service_request,
+    service_request_with_context_provider_secret_policy,
+    typed_service_request_with_context_provider_secret_policy,
 };
 pub(crate) use trace::sidecar_context_for_llm_trace;
 pub(super) use trace::sidecar_context_for_workflow_operation_with_root;

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use a4n_image_client::{ImageClient, JsonRequest, JsonResponse};
+use a4n_image_client::{ImageClient, ImageProviderRequest, JsonResponse};
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
 use super::{
@@ -19,8 +20,8 @@ pub struct RecordingImageClient {
 
 #[derive(Default)]
 struct RecordingImageClientState {
-    generate_requests: RequestLedger,
-    preview_requests: RequestLedger,
+    generate_requests: RequestLedger<ImageProviderRequest>,
+    preview_requests: RequestLedger<ImageProviderRequest>,
 }
 
 impl RecordingImageClient {
@@ -46,11 +47,11 @@ impl RecordingImageClient {
         self.state.preview_requests.count()
     }
 
-    pub fn last_generate_request(&self) -> Option<JsonRequest> {
+    pub fn last_generate_request(&self) -> Option<ImageProviderRequest> {
         self.state.generate_requests.last()
     }
 
-    pub fn last_preview_request(&self) -> Option<JsonRequest> {
+    pub fn last_preview_request(&self) -> Option<ImageProviderRequest> {
         self.state.preview_requests.last()
     }
 }
@@ -66,7 +67,7 @@ impl ServiceClient for RecordingImageClient {
 impl ImageClient for RecordingImageClient {
     async fn generate_events(
         &self,
-        request: JsonRequest,
+        request: ImageProviderRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.generate_requests.record(request.clone());
@@ -80,14 +81,20 @@ impl ImageClient for RecordingImageClient {
         .await
     }
 
-    async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn preview_request(
+        &self,
+        request: ImageProviderRequest,
+    ) -> CapabilityResult<JsonResponse> {
         self.state.preview_requests.record(request);
         self.preview_response
             .clone()
             .ok_or_else(|| unexpected_call("RecordingImageClient", "preview_request"))
     }
 
-    async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        _request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> CapabilityResult<ServiceResponse<ModelDiscoveryResult>> {
         Err(unexpected_call("RecordingImageClient", "discover_models"))
     }
 }

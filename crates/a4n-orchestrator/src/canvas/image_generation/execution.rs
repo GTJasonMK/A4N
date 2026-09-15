@@ -6,7 +6,7 @@ use a4n_db::{
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_error::AppError;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use serde_json::json;
 
 use crate::{

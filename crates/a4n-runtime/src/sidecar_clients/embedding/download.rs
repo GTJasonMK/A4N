@@ -1,6 +1,6 @@
-use a4n_api_contract::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
 use a4n_embedding::provider::DownloadProgress;
-use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonResponse};
+use a4n_embedding_client::EmbeddingClient;
+use a4n_embedding_contract::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{
@@ -11,60 +11,60 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 use super::super::{
-    global_provider_service_request, global_service_request_without_secrets,
-    missing_sidecar_capability_message, response_payload, service_app_error,
-    service_error_app_error,
+    global_typed_provider_service_request, global_typed_service_request_without_secrets,
+    missing_sidecar_capability_message, service_app_error, service_error_app_error,
+    typed_response_payload,
 };
 use super::contracts::{
     EmbedTextsOutput, embedding_connectivity_test_payload, embedding_model_payload,
     validate_embedding_connectivity_output,
 };
 
-async fn embedding_model_operation<P: serde::Serialize>(
-    client: Option<Arc<dyn EmbeddingClient>>,
-    operation: EmbeddingModelOperation,
-    payload: P,
-) -> Result<JsonResponse, AppError> {
-    let client = required_embedding_client(client)?;
-    let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
-        .map_err(service_app_error)?;
-    client
-        .model_operation(operation, request)
-        .await
-        .map_err(service_error_app_error)
-}
-
 pub(crate) async fn list_embedding_models(
     client: Option<Arc<dyn EmbeddingClient>>,
 ) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
-    let response = embedding_model_operation(client, EmbeddingModelOperation::List, ()).await?;
-    response_payload(response, "embedding").map_err(service_app_error)
+    let client = required_embedding_client(client)?;
+    let request = global_typed_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, ())
+        .map_err(service_app_error)?;
+    let response = client
+        .list_models(request)
+        .await
+        .map_err(service_error_app_error)?;
+    typed_response_payload(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn embedding_model_download_info(
     client: Option<Arc<dyn EmbeddingClient>>,
     model: &str,
 ) -> Result<EmbeddingModelDownloadInfoSummary, AppError> {
-    let response = embedding_model_operation(
-        client,
-        EmbeddingModelOperation::DownloadInfo,
+    let client = required_embedding_client(client)?;
+    let request = global_typed_service_request_without_secrets(
+        EMBEDDING_CAPABILITY_VERSION,
         embedding_model_payload(model),
     )
-    .await?;
-    response_payload(response, "embedding").map_err(service_app_error)
+    .map_err(service_app_error)?;
+    let response = client
+        .model_download_info(request)
+        .await
+        .map_err(service_error_app_error)?;
+    typed_response_payload(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn delete_embedding_model(
     client: Option<Arc<dyn EmbeddingClient>>,
     model: &str,
 ) -> Result<(), AppError> {
-    let response = embedding_model_operation(
-        client,
-        EmbeddingModelOperation::Delete,
+    let client = required_embedding_client(client)?;
+    let request = global_typed_service_request_without_secrets(
+        EMBEDDING_CAPABILITY_VERSION,
         embedding_model_payload(model),
     )
-    .await?;
-    response_payload(response, "embedding").map_err(service_app_error)
+    .map_err(service_app_error)?;
+    let response = client
+        .delete_model(request)
+        .await
+        .map_err(service_error_app_error)?;
+    typed_response_payload(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn test_embedding_config_via_sidecar(
@@ -74,14 +74,14 @@ pub(crate) async fn test_embedding_config_via_sidecar(
     let client = required_embedding_client(client)?;
     let payload = embedding_connectivity_test_payload(model)?;
     let expected_dimension = payload.dimension;
-    let request = global_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
+    let request = global_typed_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
     let response = client
         .embed(request)
         .await
         .map_err(service_error_app_error)?;
     let output: EmbedTextsOutput =
-        response_payload(response, "embedding").map_err(service_app_error)?;
+        typed_response_payload(response, "embedding").map_err(service_app_error)?;
     validate_embedding_connectivity_output(&output, expected_dimension)
 }
 
@@ -93,8 +93,9 @@ pub(crate) async fn download_embedding_model_events(
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let client = required_embedding_client(client)?;
     let payload = embedding_model_payload(model);
-    let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
-        .map_err(service_app_error)?;
+    let request =
+        global_typed_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
+            .map_err(service_app_error)?;
     let (event_tx, mut event_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let mut request_future = Box::pin(client.download_model_events(request, event_tx));

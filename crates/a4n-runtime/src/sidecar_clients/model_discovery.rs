@@ -1,6 +1,7 @@
 use a4n_image_client::ImageClient;
 use a4n_llm_client::LlmClient;
-use a4n_model_discovery::{ModelDiscoveryRequest, ModelDiscoveryResult};
+use a4n_model_discovery::discover_models as discover_provider_models;
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_protocol::{
     IMAGE_SERVICE_NAME, LLM_SERVICE_NAME, VIDEO_SERVICE_NAME,
     expected_capability_version_for_service,
@@ -10,7 +11,7 @@ use std::sync::Arc;
 
 use crate::state::RuntimeProfile;
 
-use super::{global_provider_service_request, response_payload, service_error_string};
+use super::{global_typed_provider_service_request, service_error_string, typed_response_payload};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ModelDiscoveryKind {
@@ -30,11 +31,11 @@ pub(crate) async fn discover_models(
     api_key: Option<&str>,
 ) -> Result<ModelDiscoveryResult, String> {
     if !profile.uses_sidecars() {
-        return a4n_model_discovery::discover_models(provider, base_url, api_key).await;
+        return discover_provider_models(provider, base_url, api_key).await;
     }
 
     let service_name = kind.service_name();
-    let request = global_provider_service_request(
+    let request = global_typed_provider_service_request(
         expected_capability_version_for_service(service_name)
             .expect("model discovery service must have a capability version"),
         ModelDiscoveryRequest {
@@ -64,7 +65,7 @@ pub(crate) async fn discover_models(
         }
     }
     .map_err(service_error_string)?;
-    response_payload(response, service_name)
+    typed_response_payload(response, service_name)
 }
 
 impl ModelDiscoveryKind {

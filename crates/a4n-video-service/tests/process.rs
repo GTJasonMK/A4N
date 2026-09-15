@@ -1,13 +1,14 @@
 use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
 use a4n_test_support::process::{
-    FakeJsonProvider, HangingJsonProvider, HttpVideoClient, JsonRequest,
-    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION,
-    VIDEO_SERVICE_NAME, VideoClient, assert_process_concurrency_saturation,
-    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
-    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
-    assert_route_rejects_version_mismatch, finish_sidecar, provider_request_context,
-    sidecar_base_url, sidecar_manager, start_sidecar, trusted_remote_request_context,
-    unused_local_addr,
+    FakeJsonProvider, HangingJsonProvider, HttpVideoClient, SIDECAR_PROCESS_TEST_TOKEN,
+    ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME, VideoClient,
+    VideoDeleteOutput, VideoGenerationRequest, VideoJobOutput, VideoMediaInput, VideoPollPayload,
+    VideoPollRequest, VideoProviderPayload, VideoProviderRequest, VideoStatusOutput,
+    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
+    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
+    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
+    finish_sidecar, provider_request_context, sidecar_base_url, sidecar_manager, start_sidecar,
+    trusted_remote_request_context, unused_local_addr,
 };
 use axum::http::StatusCode;
 use tokio::time::{Duration, timeout};
@@ -35,16 +36,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     assert_route_rejects_oversized_json(&base_url, "/video/generate/events", 8 * 1024 * 1024).await;
     let client = HttpVideoClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);
     let cancel_client = HttpVideoClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
-    let contract_request = provider_request_context(
+    let contract_request = video_generation_request(
         "video-process-contract",
         "video-process-contract-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": "http://127.0.0.1:1",
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "contract test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        "http://127.0.0.1:1".to_string(),
+        "process-provider-secret",
+        "contract test",
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
@@ -54,16 +53,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     .await;
     let (hanging_provider, provider_request_started, provider_body_dropped) =
         HangingJsonProvider::start().await;
-    let cancelled_request = provider_request_context(
+    let cancelled_request = video_generation_request(
         "video-process-cancel",
         "video-process-cancel-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": hanging_provider.base_url(),
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "cancel process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        hanging_provider.base_url(),
+        "process-provider-secret",
+        "cancel process test",
     );
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     let cancel_task = tokio::spawn(async move {
@@ -102,16 +99,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
                 Duration::from_millis(100),
                 Duration::from_secs(1),
             );
-    let idle_request = provider_request_context(
+    let idle_request = video_generation_request(
         "video-process-stream-idle",
         "video-process-stream-idle-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": idle_provider.base_url(),
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "stream idle process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        idle_provider.base_url(),
+        "process-provider-secret",
+        "stream idle process test",
     );
     let (idle_tx, mut idle_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     let idle_error = timeout(
@@ -140,16 +135,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     idle_provider.stop().await;
 
     let preview_provider = FakeJsonProvider::start(serde_json::json!({"id": "preview-job"})).await;
-    let preview_request = provider_request_context(
+    let preview_request = video_generation_request(
         "video-process-preview",
         "video-process-preview-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": preview_provider.base_url(),
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "preview test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        preview_provider.base_url(),
+        "process-provider-secret",
+        "preview test",
     );
     let backpressure_client =
         HttpVideoClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
@@ -199,12 +192,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "video-process-remote-secret",
             "video-process-remote-secret-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": "http://127.0.0.1:1",
-                "api_key": "process-provider-secret",
-                "request": {"prompt": "remote secret must stop", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-            }),
+            VideoProviderPayload {
+                backend: "openai-compatible-video".to_string(),
+                base_url: "http://127.0.0.1:1".to_string(),
+                api_key: "process-provider-secret".to_string(),
+                provider_idempotency_key_sha256: None,
+                project_id: None,
+                request: video_request("remote secret must stop"),
+            },
         ),
     )
     .await;
@@ -231,12 +226,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
             "video-process-remote-content",
             "video-process-remote-content-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": remote_provider.base_url(),
-                "api_key": "",
-                "request": {"prompt": "remote video content", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-            }),
+            VideoProviderPayload {
+                backend: "openai-compatible-video".to_string(),
+                base_url: remote_provider.base_url(),
+                api_key: String::new(),
+                provider_idempotency_key_sha256: None,
+                project_id: None,
+                request: video_request("remote video content"),
+            },
         ),
     )
     .await;
@@ -252,16 +249,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     remote_provider.stop().await;
 
     let failed_provider_addr = unused_local_addr();
-    let failed_events_request = provider_request_context(
+    let failed_events_request = video_generation_request(
         "video-process-provider-failure",
         "video-process-provider-failure-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": sidecar_base_url(failed_provider_addr),
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "failure test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        sidecar_base_url(failed_provider_addr),
+        "process-provider-secret",
+        "failure test",
     );
     let failed_events = video_generation_events(&client, failed_events_request).await;
     let failed_event = failed_events.last().expect("video failed terminal event");
@@ -282,16 +277,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
         "data": [{"b64_json": "bWVkaWE=", "format": "mp4"}]
     }))
     .await;
-    let bytes_request = provider_request_context(
+    let bytes_request = video_generation_request(
         "video-process-bytes",
         "video-process-bytes-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": bytes_provider.base_url(),
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "bytes test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        bytes_provider.base_url(),
+        "process-provider-secret",
+        "bytes test",
     );
     let bytes_events = video_generation_events(&client, bytes_request).await;
     assert_eq!(
@@ -306,16 +299,14 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     bytes_provider.stop().await;
 
     let provider = FakeJsonProvider::start(serde_json::json!({"id": "process-video-job"})).await;
-    let request = provider_request_context(
+    let request = video_generation_request(
         "video-process-generate",
         "video-process-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "openai-compatible-video",
-            "base_url": provider.base_url(),
-            "api_key": "process-provider-secret",
-            "request": {"prompt": "process test", "negative_prompt": null, "width": 16, "height": 16, "duration_secs": 1, "fps": 1, "model": "fake-video", "media": {"type": "none"}}
-        }),
+        "openai-compatible-video",
+        provider.base_url(),
+        "process-provider-secret",
+        "process test",
     );
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
@@ -337,24 +328,22 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
 
     let pending_provider = FakeJsonProvider::start(serde_json::json!({"status": "pending"})).await;
     let pending = client
-        .poll(provider_request_context(
+        .poll(video_poll_request(
             "video-process-poll-pending",
             "video-process-poll-pending-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": pending_provider.base_url(),
-                "api_key": "process-provider-secret",
-                "job_id": "process-video-job"
-            }),
+            "openai-compatible-video",
+            pending_provider.base_url(),
+            "process-provider-secret",
+            "process-video-job",
         ))
         .await
         .expect("video pending poll should cross the independent process");
     assert_eq!(pending.status, ServiceStatus::Ok);
-    assert_eq!(
-        pending.payload.expect("pending video payload")["state"],
-        "pending"
-    );
+    assert!(matches!(
+        pending.payload.as_ref(),
+        Some(VideoJobOutput::Pending)
+    ));
     pending_provider.stop().await;
 
     let failed_poll_provider = FakeJsonProvider::start(serde_json::json!({
@@ -363,33 +352,23 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     }))
     .await;
     let failed_poll = client
-        .poll(provider_request_context(
+        .poll(video_poll_request(
             "video-process-poll-failed",
             "video-process-poll-failed-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": failed_poll_provider.base_url(),
-                "api_key": "process-provider-secret",
-                "job_id": "process-video-job"
-            }),
+            "openai-compatible-video",
+            failed_poll_provider.base_url(),
+            "process-provider-secret",
+            "process-video-job",
         ))
         .await
         .expect("video failed poll should cross the independent process");
     assert_eq!(failed_poll.status, ServiceStatus::Ok);
-    let failed_poll_text = serde_json::to_string(
-        failed_poll
-            .payload
-            .as_ref()
-            .expect("failed video poll payload"),
-    )
-    .expect("failed poll payload should serialize");
-    assert_eq!(
-        failed_poll.payload.expect("failed video payload")["state"],
-        "failed"
-    );
-    assert!(!failed_poll_text.contains("process-upstream-secret"));
-    assert!(!failed_poll_text.contains("process-provider.invalid"));
+    let Some(VideoJobOutput::Failed { message }) = failed_poll.payload.as_ref() else {
+        panic!("failed video poll should return failed output");
+    };
+    assert!(!message.contains("process-upstream-secret"));
+    assert!(!message.contains("process-provider.invalid"));
     failed_poll_provider.stop().await;
 
     let completed_provider = FakeJsonProvider::start(serde_json::json!({
@@ -398,23 +377,22 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     }))
     .await;
     let completed = client
-        .poll(provider_request_context(
+        .poll(video_poll_request(
             "video-process-poll-completed",
             "video-process-poll-completed-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": completed_provider.base_url(),
-                "api_key": "process-provider-secret",
-                "job_id": "process-video-job"
-            }),
+            "openai-compatible-video",
+            completed_provider.base_url(),
+            "process-provider-secret",
+            "process-video-job",
         ))
         .await
         .expect("video completed poll should cross the independent process");
     assert_eq!(completed.status, ServiceStatus::Ok);
-    let completed_payload = completed.payload.expect("completed video payload");
-    assert_eq!(completed_payload["state"], "completed");
-    assert_eq!(completed_payload["result"]["format"], "mp4");
+    let Some(VideoJobOutput::Completed { result }) = completed.payload else {
+        panic!("completed video poll should return completed output");
+    };
+    assert_eq!(result.format, "mp4");
     completed_provider.stop().await;
 
     let status_provider = FakeJsonProvider::start(serde_json::json!({
@@ -423,23 +401,22 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     }))
     .await;
     let status = client
-        .status(provider_request_context(
+        .status(video_poll_request(
             "video-process-status-completed",
             "video-process-status-completed-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": status_provider.base_url(),
-                "api_key": "process-provider-secret",
-                "job_id": "process-video-job"
-            }),
+            "openai-compatible-video",
+            status_provider.base_url(),
+            "process-provider-secret",
+            "process-video-job",
         ))
         .await
         .expect("video status should not download completed artifact");
     assert_eq!(status.status, ServiceStatus::Ok);
-    let status_payload = status.payload.expect("completed status payload");
-    assert_eq!(status_payload["state"], "completed");
-    assert!(status_payload.get("result").is_none());
+    assert!(matches!(
+        status.payload.as_ref(),
+        Some(VideoStatusOutput::Completed)
+    ));
     status_provider.stop().await;
 
     let missing_provider = FakeJsonProvider::start_with_status(
@@ -448,37 +425,33 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     )
     .await;
     let missing = client
-        .status(provider_request_context(
+        .status(video_poll_request(
             "video-process-status-not-found",
             "video-process-status-not-found-trace",
             VIDEO_PROVIDER_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "openai-compatible-video",
-                "base_url": missing_provider.base_url(),
-                "api_key": "process-provider-secret",
-                "job_id": "missing-video-job"
-            }),
+            "openai-compatible-video",
+            missing_provider.base_url(),
+            "process-provider-secret",
+            "missing-video-job",
         ))
         .await
         .expect("404 status should be idempotent");
     assert_eq!(missing.status, ServiceStatus::Ok);
-    assert_eq!(
-        missing.payload.expect("not found status payload")["state"],
-        "not_found"
-    );
+    assert!(matches!(
+        missing.payload.as_ref(),
+        Some(VideoStatusOutput::NotFound)
+    ));
     missing_provider.stop().await;
 
     let delete_provider = FakeJsonProvider::start(serde_json::json!({})).await;
-    let delete_request = provider_request_context(
+    let delete_request = video_poll_request(
         "video-process-delete",
         "video-process-delete-trace",
         VIDEO_PROVIDER_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "cliproxy-openai-video",
-            "base_url": format!("{}/openai/v1", delete_provider.base_url()),
-            "api_key": "process-provider-secret",
-            "job_id": "process-video-job"
-        }),
+        "cliproxy-openai-video",
+        format!("{}/openai/v1", delete_provider.base_url()),
+        "process-provider-secret",
+        "process-video-job",
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
@@ -497,10 +470,10 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
         .await
         .expect("video delete should cross the independent process");
     assert_eq!(deleted.status, ServiceStatus::Ok);
-    assert_eq!(
-        deleted.payload.expect("video delete payload")["outcome"],
-        "deleted"
-    );
+    assert!(matches!(
+        deleted.payload.as_ref(),
+        Some(VideoDeleteOutput::Deleted)
+    ));
     delete_provider.stop().await;
 
     finish_sidecar(process, &manager, VIDEO_SERVICE_NAME, addr).await;
@@ -508,7 +481,7 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
 
 async fn video_generation_events(
     client: &HttpVideoClient,
-    request: JsonRequest,
+    request: VideoProviderRequest,
 ) -> Vec<CapabilityTaskEvent> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
@@ -520,4 +493,64 @@ async fn video_generation_events(
         events.push(event);
     }
     events
+}
+
+fn video_generation_request(
+    request_id: &str,
+    trace_id: &str,
+    capability_version: &str,
+    backend: &str,
+    base_url: String,
+    api_key: &str,
+    prompt: &str,
+) -> VideoProviderRequest {
+    provider_request_context(
+        request_id,
+        trace_id,
+        capability_version,
+        VideoProviderPayload {
+            backend: backend.to_string(),
+            base_url,
+            api_key: api_key.to_string(),
+            provider_idempotency_key_sha256: None,
+            project_id: None,
+            request: video_request(prompt),
+        },
+    )
+}
+
+fn video_request(prompt: &str) -> VideoGenerationRequest {
+    VideoGenerationRequest {
+        prompt: prompt.to_string(),
+        negative_prompt: None,
+        width: 16,
+        height: 16,
+        duration_secs: 1,
+        fps: 1,
+        model: "fake-video".to_string(),
+        media: VideoMediaInput::None,
+    }
+}
+
+fn video_poll_request(
+    request_id: &str,
+    trace_id: &str,
+    capability_version: &str,
+    backend: &str,
+    base_url: String,
+    api_key: &str,
+    job_id: &str,
+) -> VideoPollRequest {
+    provider_request_context(
+        request_id,
+        trace_id,
+        capability_version,
+        VideoPollPayload {
+            backend: backend.to_string(),
+            base_url,
+            api_key: api_key.to_string(),
+            project_id: None,
+            job_id: job_id.to_string(),
+        },
+    )
 }

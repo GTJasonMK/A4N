@@ -58,7 +58,7 @@ pub(crate) fn response_payload<T: DeserializeOwned>(
         .map_err(|err| format!("{service} sidecar 响应 payload 解析失败: {err}"))
 }
 
-pub(super) fn typed_response_payload<T>(
+pub(crate) fn typed_response_payload<T>(
     response: ServiceResponse<T>,
     service: &str,
 ) -> Result<T, String> {

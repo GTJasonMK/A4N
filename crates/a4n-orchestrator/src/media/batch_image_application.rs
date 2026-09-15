@@ -5,7 +5,7 @@ use std::sync::{
 
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_error::AppError;
-use a4n_image::ImageGenerationRequest;
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 use futures::stream::{self, StreamExt};
 use serde_json::{Value, json};

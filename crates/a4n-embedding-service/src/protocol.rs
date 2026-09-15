@@ -1,6 +1,7 @@
 use a4n_domain::ProviderError as AppError;
+use a4n_embedding_contract::EmbedTextsPayload;
 use a4n_service_protocol::{
-    EMBEDDING_SERVICE_NAME, EmbedTextsPayload, ServiceError, ServiceErrorCode, ServiceRequest,
+    EMBEDDING_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest,
     redact_sensitive_message,
 };
 

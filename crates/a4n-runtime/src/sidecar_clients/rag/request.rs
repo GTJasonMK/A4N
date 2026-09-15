@@ -1,18 +1,17 @@
-use a4n_rag_client::JsonRequest;
-use a4n_service_protocol::TraceContext;
+use a4n_service_protocol::{ServiceRequest, TraceContext};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::sidecar_clients::{SidecarRequestContext, service_request_with_value_context};
+use crate::sidecar_clients::{SidecarRequestContext, service_request_with_typed_context};
 
 use super::context::current_rag_operation_trace_id;
 
-pub(super) fn rag_service_request(
+pub(super) fn rag_service_request_typed<T: Serialize>(
     operation: &str,
-    payload: impl Serialize,
-) -> Result<JsonRequest, String> {
-    let payload = serde_json::to_value(payload).map_err(|err| err.to_string())?;
-    let project_id = payload
+    payload: T,
+) -> Result<ServiceRequest<T>, String> {
+    let payload_value = serde_json::to_value(&payload).map_err(|err| err.to_string())?;
+    let project_id = payload_value
         .get("collection")
         .and_then(Value::as_str)
         .ok_or_else(|| "RAG collection 必须是字符串项目 ID".to_string())?
@@ -29,7 +28,7 @@ pub(super) fn rag_service_request(
             parent_span_id: Some(operation.to_string()),
         });
     }
-    service_request_with_value_context(
+    service_request_with_typed_context(
         context,
         a4n_service_protocol::RAG_INDEX_CAPABILITY_VERSION,
         payload,

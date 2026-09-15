@@ -118,7 +118,7 @@ if $DRY_RUN; then
     log_info "prepare sidecars:"
     print_command "${prepare_command[@]}"
     log_info "build tauri:"
-    log_info "config: tauri.sidecars.conf.json + service-catalog.json + release-tools.json"
+    log_info "config: tauri.sidecars.conf.json + process-catalog/service-catalog.json + release-tools.json"
     print_command cargo tauri build --config '<generated>' "${TAURI_ARGS[@]}"
     exit 0
 fi

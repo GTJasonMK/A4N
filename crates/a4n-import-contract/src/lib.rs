@@ -8,6 +8,9 @@ use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 
+pub const IMPORT_SERVICE_NAME: &str = "import";
+pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v3";
+
 #[derive(Debug, thiserror::Error)]
 pub enum ImportContractError {
     #[error("{label} base64 解码失败：{source}")]

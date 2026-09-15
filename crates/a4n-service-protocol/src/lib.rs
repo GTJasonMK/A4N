@@ -4,13 +4,10 @@
 //! API DTOs stay in host/orchestrator-facing crates until they are stable.
 
 mod artifacts;
-mod catalog;
 mod egress;
-mod embedding;
 mod events;
 mod health;
 mod registry;
-mod release;
 mod request;
 mod resource;
 mod response;
@@ -51,11 +48,7 @@ pub const SIDECAR_BIN_DIR_ENV: &str = "A4N_SIDECAR_BIN_DIR";
 pub const EMBEDDING_CACHE_DIR_ENV: &str = "A4N_EMBEDDING_CACHE_DIR";
 pub const PROMPT_SERVICE_PROMPTS_DIR_ENV: &str = "A4N_PROMPT_SERVICE_PROMPTS_DIR";
 pub const RELEASE_MANIFEST_ENV: &str = "A4N_RELEASE_MANIFEST_PATH";
-pub use catalog::{
-    ServiceCatalogEntry, parse_service_socket_addr, service_catalog, service_catalog_entry,
-};
 pub use egress::{EgressAuditEvent, EgressDataType, validate_egress_scope};
-pub use embedding::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 pub use events::{
     capability::{CapabilityTaskEvent, CapabilityTaskEventKind},
     generation::{
@@ -83,10 +76,6 @@ pub use registry::{
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, VIDEO_PROVIDER_CAPABILITY_VERSION,
     VIDEO_SERVICE_NAME, egress_data_type_for_service, expected_capability_version_for_service,
     known_service_health, service_for_capability_version,
-};
-pub use release::{
-    RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
-    ReleaseRuntimeFileManifest, ReleaseToolCatalogEntry, ReleaseToolManifest, release_tool_catalog,
 };
 pub use request::{
     SchemaVersion, SecretForwardingPolicy, SecretMaterialScope, ServiceRequest,

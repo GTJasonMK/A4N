@@ -3,8 +3,9 @@ use std::sync::Arc;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_config::image_backend_api_key;
 use a4n_error::AppError;
-use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
+use a4n_image::{ImageGenerationResult, ImageProvider};
 use a4n_image_client::ImageClient;
+use a4n_image_contract::ImageGenerationRequest;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_image_providers::pick_image_provider;
 use a4n_provider_contract::ImageProviderConfig;

@@ -1,7 +1,7 @@
 use a4n_domain::ProviderError as AppError;
+use a4n_image_contract::IMAGE_SERVICE_NAME;
 use a4n_service_protocol::{
-    IMAGE_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
-    redact_sensitive_message,
+    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, redact_sensitive_message,
 };
 
 use crate::contracts::ImageProviderPayload;

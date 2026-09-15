@@ -8,7 +8,8 @@ use base64::Engine as _;
 use serde_json::{Map, Value, json};
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use crate::download::download_video_url;
 use crate::format::{detect_video_format_from_bytes, normalize_video_format_str};
@@ -50,7 +51,8 @@ impl NewApiVideoProvider {
     }
 
     pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {
-        req.validate_dimensions()?;
+        req.validate_dimensions()
+            .map_err(AppError::InvalidArgument)?;
         if req.media.last_frame().is_some() {
             return Err(AppError::InvalidArgument(
                 "New API 视频接口只有一个 image 输入槽，只能作为首帧使用，不支持尾帧输入"

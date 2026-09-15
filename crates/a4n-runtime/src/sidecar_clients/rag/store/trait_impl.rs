@@ -5,10 +5,9 @@ use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult, VectorStore,
 };
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::SidecarVectorStore;
-use super::transport::RagOperation;
 use crate::provider_error::from_app_error;
 
 #[async_trait]
@@ -30,17 +29,9 @@ impl VectorStore for SidecarVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, ProviderError> {
-        self.call(
-            RagOperation::Query,
-            json!({
-                "collection": collection,
-                "query_embedding": query_embedding,
-                "top_k": top_k,
-                "filters": filters
-            }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::query_typed(self, collection, query_embedding, top_k, filters)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn search_text(
@@ -50,17 +41,9 @@ impl VectorStore for SidecarVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, ProviderError> {
-        self.call(
-            RagOperation::SearchText,
-            json!({
-                "collection": collection,
-                "query_text": query_text,
-                "top_k": top_k,
-                "filters": filters
-            }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::search_text_typed(self, collection, query_text, top_k, filters)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn hybrid_search(
@@ -71,36 +54,28 @@ impl VectorStore for SidecarVectorStore {
         top_k: usize,
         filters: Option<SearchFilter>,
     ) -> Result<Vec<SearchResult>, ProviderError> {
-        self.call(
-            RagOperation::Search,
-            json!({
-                "collection": collection,
-                "query_text": query_text,
-                "query_embedding": query_embedding,
-                "top_k": top_k,
-                "filters": filters
-            }),
+        SidecarVectorStore::hybrid_search_typed(
+            self,
+            collection,
+            query_text,
+            query_embedding,
+            top_k,
+            filters,
         )
         .await
         .map_err(from_app_error)
     }
 
     async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, ProviderError> {
-        self.call(
-            RagOperation::Delete,
-            json!({ "collection": collection, "filter": filter }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::delete_typed(self, collection, filter)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn drop_collection(&self, collection: &str) -> Result<(), ProviderError> {
-        self.call(
-            RagOperation::DropCollection,
-            json!({ "collection": collection }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::drop_collection_typed(self, collection)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn metadata_by_ids(
@@ -108,12 +83,9 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         ids: &[String],
     ) -> Result<HashMap<String, Value>, ProviderError> {
-        self.call(
-            RagOperation::MetadataByIds,
-            json!({ "collection": collection, "ids": ids }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::metadata_by_ids_typed(self, collection, ids)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn metadata_by_filter(
@@ -121,12 +93,9 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         filter: DeleteFilter,
     ) -> Result<HashMap<String, Value>, ProviderError> {
-        self.call(
-            RagOperation::MetadataByFilter,
-            json!({ "collection": collection, "filter": filter }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::metadata_by_filter_typed(self, collection, filter)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn completeness_report_by_ids(
@@ -134,11 +103,8 @@ impl VectorStore for SidecarVectorStore {
         collection: &str,
         expected_ids: &[String],
     ) -> Result<CompletenessReport, ProviderError> {
-        self.call(
-            RagOperation::CompletenessReportByIds,
-            json!({ "collection": collection, "expected_ids": expected_ids }),
-        )
-        .await
-        .map_err(from_app_error)
+        SidecarVectorStore::completeness_report_by_ids_typed(self, collection, expected_ids)
+            .await
+            .map_err(from_app_error)
     }
 }

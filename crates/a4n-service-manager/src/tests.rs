@@ -6,14 +6,11 @@ use super::errors::ServiceManagerError;
 use super::health::validate_service_health;
 use super::manager::{HttpClientFactory, ServiceManager};
 use super::process::ManagedSidecarState;
+use a4n_process_catalog::service_catalog;
 use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EXPORT_RENDER_CAPABILITY_VERSION,
-    EXPORT_SERVICE_NAME, HealthStatus, IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME,
-    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, LLM_CHAT_CAPABILITY_VERSION,
-    LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PROTOCOL_VERSION,
-    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, SIDECAR_AUTH_TOKEN_ENV, ServiceErrorCode,
-    ServiceHealth, ServiceVersion, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME,
-    expected_capability_version_for_service,
+    HealthStatus, LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME,
+    PROTOCOL_VERSION, RAG_SERVICE_NAME, SIDECAR_AUTH_TOKEN_ENV, ServiceErrorCode, ServiceHealth,
+    ServiceVersion, expected_capability_version_for_service,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -553,38 +550,14 @@ fn unknown_embedded_config_requires_registered_capability_version() {
 
 #[test]
 fn known_services_have_expected_capability_versions() {
-    assert_eq!(
-        expected_capability_version_for_service(PROMPT_SERVICE_NAME),
-        Some(PROMPT_RENDER_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(LLM_SERVICE_NAME),
-        Some(LLM_CHAT_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(EMBEDDING_SERVICE_NAME),
-        Some(EMBEDDING_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(RAG_SERVICE_NAME),
-        Some(RAG_INDEX_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(IMAGE_SERVICE_NAME),
-        Some(IMAGE_PROVIDER_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(VIDEO_SERVICE_NAME),
-        Some(VIDEO_PROVIDER_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(IMPORT_SERVICE_NAME),
-        Some(IMPORT_TRANSFORM_CAPABILITY_VERSION)
-    );
-    assert_eq!(
-        expected_capability_version_for_service(EXPORT_SERVICE_NAME),
-        Some(EXPORT_RENDER_CAPABILITY_VERSION)
-    );
+    for entry in service_catalog().expect("embedded service catalog") {
+        assert_eq!(
+            expected_capability_version_for_service(&entry.name),
+            Some(entry.capability_version.as_str()),
+            "catalog capability version drifted for {}",
+            entry.name
+        );
+    }
     assert_eq!(expected_capability_version_for_service("demo"), None);
 }
 

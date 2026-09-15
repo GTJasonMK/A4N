@@ -1,6 +1,6 @@
 use serde_json::{Map, Value, json};
 
-use a4n_video::VideoGenerationRequest;
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use super::provider::HttpVideoProvider;
 

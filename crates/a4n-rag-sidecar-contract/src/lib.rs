@@ -1,0 +1,289 @@
+//! Serialized contracts for the RAG sidecar.
+//!
+//! The storage engine and host-side vector-store abstraction stay outside this
+//! crate so the capability client can depend on the wire shape alone.
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MetadataByIdsPayload {
+    pub collection: String,
+    pub ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DropCollectionPayload {
+    pub collection: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteFilterPayload {
+    #[serde(default)]
+    pub ids: Vec<String>,
+    #[serde(default)]
+    pub id_prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EmbeddingRecordPayload {
+    pub id: String,
+    pub embedding: Vec<f32>,
+    pub metadata: serde_json::Value,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct IngestPayload {
+    pub collection: String,
+    pub records: Vec<EmbeddingRecordPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteRecordsPayload {
+    pub collection: String,
+    pub filter: DeleteFilterPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MetadataByFilterPayload {
+    pub collection: String,
+    pub filter: DeleteFilterPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SearchFilterPayload {
+    pub equals: Option<HashMap<String, serde_json::Value>>,
+    pub chapter_range: Option<(u32, u32)>,
+    pub data_types: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct QueryPayload {
+    pub collection: String,
+    pub query_embedding: Vec<f32>,
+    pub top_k: usize,
+    pub filters: Option<SearchFilterPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SearchTextPayload {
+    pub collection: String,
+    pub query_text: String,
+    pub top_k: usize,
+    pub filters: Option<SearchFilterPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SearchPayload {
+    pub collection: String,
+    pub query_text: String,
+    pub query_embedding: Vec<f32>,
+    pub top_k: usize,
+    pub filters: Option<SearchFilterPayload>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SearchResultPayload {
+    pub id: String,
+    pub content: String,
+    pub score: f32,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CompletenessByIdsPayload {
+    pub collection: String,
+    pub expected_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CompletenessReport {
+    pub collection: String,
+    pub expected: usize,
+    pub actual_vector: usize,
+    pub actual_bm25: usize,
+    pub is_complete: bool,
+    pub missing_vector_ids: Vec<String>,
+    pub missing_bm25_ids: Vec<String>,
+    pub missing_ids: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CompletenessByIdsPayload, CompletenessReport, DeleteFilterPayload, DeleteRecordsPayload,
+        DropCollectionPayload, IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload,
+        QueryPayload, SearchPayload, SearchTextPayload,
+    };
+
+    #[test]
+    fn metadata_by_ids_rejects_unknown_fields() {
+        let error = serde_json::from_value::<MetadataByIdsPayload>(serde_json::json!({
+            "collection": "42",
+            "ids": [],
+            "include_embeddings": true
+        }))
+        .expect_err("unknown metadata fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("include_embeddings"));
+    }
+
+    #[test]
+    fn drop_collection_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<DropCollectionPayload>(serde_json::json!({
+            "collection": "42",
+            "create_if_missing": true
+        }))
+        .expect_err("unknown collection fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("create_if_missing"));
+    }
+
+    #[test]
+    fn delete_contract_rejects_unknown_filter_fields() {
+        let error = serde_json::from_value::<DeleteRecordsPayload>(serde_json::json!({
+            "collection": "42",
+            "filter": {
+                "ids": [],
+                "id_prefixes": [],
+                "legacy_filter": true
+            }
+        }))
+        .expect_err("unknown delete filter fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_filter"));
+
+        let filter = serde_json::from_value::<DeleteFilterPayload>(serde_json::json!({
+            "ids": ["doc-1"]
+        }))
+        .expect("delete filter fields remain independently defaultable");
+        assert!(filter.id_prefixes.is_empty());
+    }
+
+    #[test]
+    fn ingest_contract_rejects_unknown_record_fields() {
+        let error = serde_json::from_value::<IngestPayload>(serde_json::json!({
+            "collection": "42",
+            "records": [{
+                "id": "doc-1",
+                "embedding": [1.0, 0.0],
+                "metadata": {},
+                "content": "chapter",
+                "legacy_field": true
+            }]
+        }))
+        .expect_err("unknown ingest record fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_field"));
+    }
+
+    #[test]
+    fn ingest_contract_requires_string_content() {
+        for record in [
+            serde_json::json!({
+                "id": "doc-1",
+                "embedding": [1.0, 0.0],
+                "metadata": {}
+            }),
+            serde_json::json!({
+                "id": "doc-1",
+                "embedding": [1.0, 0.0],
+                "metadata": {},
+                "content": null
+            }),
+        ] {
+            serde_json::from_value::<IngestPayload>(serde_json::json!({
+                "collection": "42",
+                "records": [record]
+            }))
+            .expect_err("missing or null content must fail at the sidecar boundary");
+        }
+    }
+
+    #[test]
+    fn metadata_by_filter_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<MetadataByFilterPayload>(serde_json::json!({
+            "collection": "42",
+            "filter": {"ids": [], "id_prefixes": []},
+            "legacy_filter_mode": "all"
+        }))
+        .expect_err("unknown metadata filter fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_filter_mode"));
+    }
+
+    #[test]
+    fn query_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<QueryPayload>(serde_json::json!({
+            "collection": "42",
+            "query_embedding": [1.0, 0.0],
+            "top_k": 1,
+            "filters": null,
+            "legacy_query_mode": "vector"
+        }))
+        .expect_err("unknown query fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_query_mode"));
+    }
+
+    #[test]
+    fn search_text_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<SearchTextPayload>(serde_json::json!({
+            "collection": "42",
+            "query_text": "chapter",
+            "top_k": 1,
+            "filters": null,
+            "legacy_query_mode": "text"
+        }))
+        .expect_err("unknown text search fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_query_mode"));
+    }
+
+    #[test]
+    fn search_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<SearchPayload>(serde_json::json!({
+            "collection": "42",
+            "query_text": "chapter",
+            "query_embedding": [1.0, 0.0],
+            "top_k": 1,
+            "filters": null,
+            "legacy_search_mode": "hybrid"
+        }))
+        .expect_err("unknown hybrid search fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_search_mode"));
+    }
+
+    #[test]
+    fn completeness_contract_rejects_unknown_fields() {
+        let error = serde_json::from_value::<CompletenessByIdsPayload>(serde_json::json!({
+            "collection": "42",
+            "expected_ids": [],
+            "include_bm25": true
+        }))
+        .expect_err("unknown completeness fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("include_bm25"));
+
+        let error = serde_json::from_value::<CompletenessReport>(serde_json::json!({
+            "collection": "42",
+            "expected": 0,
+            "actual_vector": 0,
+            "actual_bm25": 0,
+            "is_complete": true,
+            "missing_vector_ids": [],
+            "missing_bm25_ids": [],
+            "missing_ids": [],
+            "legacy_field": true
+        }))
+        .expect_err("unknown completeness output fields must fail at the sidecar boundary");
+        assert!(error.to_string().contains("legacy_field"));
+    }
+}

@@ -1,11 +1,14 @@
+use a4n_embedding_contract::EmbedTextsPayload;
+#[cfg(feature = "fastembed")]
+use a4n_embedding_contract::EmbeddingModelPayload;
 #[cfg(feature = "fastembed")]
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
 use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH};
 #[cfg(feature = "fastembed")]
 use a4n_test_support::process::force_finish_sidecar;
 use a4n_test_support::process::{
-    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbeddingClient, EmbeddingModelOperation,
-    HttpEmbeddingClient, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbeddingClient, HttpEmbeddingClient,
+    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
     assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
     assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
@@ -37,6 +40,25 @@ fn embedding_process_env(cache_dir: &std::path::Path) -> Vec<(String, String)> {
         ));
     }
     env
+}
+
+fn embedding_payload(backend: &str, dimension: usize, text: &str) -> EmbedTextsPayload {
+    EmbedTextsPayload {
+        backend: backend.to_string(),
+        base_url: None,
+        api_key: None,
+        model: "local-sha256-hash".to_string(),
+        dimension,
+        batch_size: 8,
+        texts: vec![text.to_string()],
+    }
+}
+
+#[cfg(feature = "fastembed")]
+fn embedding_model_payload(model: &str) -> EmbeddingModelPayload {
+    EmbeddingModelPayload {
+        model: model.to_string(),
+    }
 }
 
 #[cfg(feature = "fastembed")]
@@ -163,7 +185,7 @@ async fn embedding_download_stream_idle_releases_huggingface_request() {
                     "embedding-process-stream-idle",
                     "embedding-process-stream-idle-trace",
                     EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::json!({"model": "BGESmallZHV15"}),
+                    embedding_model_payload("BGESmallZHV15"),
                 ),
                 event_tx,
             )
@@ -201,13 +223,7 @@ async fn embedding_download_stream_idle_releases_huggingface_request() {
             "embedding-process-after-stream-idle",
             "embedding-process-after-stream-idle-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "local_hash",
-                "model": "local-sha256-hash",
-                "dimension": 8,
-                "batch_size": 8,
-                "texts": ["still responsive after stream idle"]
-            }),
+            embedding_payload("local_hash", 8, "still responsive after stream idle"),
         ))
         .await
         .expect("embedding service should recover after stream idle cancellation");
@@ -249,13 +265,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         "embedding-process-embed",
         "embedding-process-trace",
         EMBEDDING_CAPABILITY_VERSION,
-        serde_json::json!({
-            "backend": "local_hash",
-            "model": "local-sha256-hash",
-            "dimension": 64,
-            "batch_size": 8,
-            "texts": ["process test"]
-        }),
+        embedding_payload("local_hash", 64, "process test"),
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
@@ -275,8 +285,11 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         .expect("local_hash embedding should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
     assert_eq!(
-        response.payload.expect("embedding payload")["embeddings"][0]
-            .as_array()
+        response
+            .payload
+            .expect("embedding payload")
+            .embeddings
+            .first()
             .map(Vec::len),
         Some(64)
     );
@@ -286,20 +299,17 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "embedding-process-remote-content",
             "embedding-process-remote-content-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "local_hash",
-                "model": "local-sha256-hash",
-                "dimension": 8,
-                "batch_size": 8,
-                "texts": ["trusted remote text egress"]
-            }),
+            embedding_payload("local_hash", 8, "trusted remote text egress"),
         ))
         .await
         .expect("secret-free remote embedding content should remain available");
     assert_eq!(remote_response.status, ServiceStatus::Ok);
     assert_eq!(
-        remote_response.payload.expect("remote embedding payload")["embeddings"][0]
-            .as_array()
+        remote_response
+            .payload
+            .expect("remote embedding payload")
+            .embeddings
+            .first()
             .map(Vec::len),
         Some(8)
     );
@@ -310,13 +320,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "embedding-process-failure",
             "embedding-process-failure-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "unsupported-process-backend",
-                "model": "local-sha256-hash",
-                "dimension": 64,
-                "batch_size": 8,
-                "texts": ["failure then recovery"]
-            }),
+            embedding_payload("unsupported-process-backend", 64, "failure then recovery"),
         ))
         .await
         .expect("embedding provider failure should return a typed response");
@@ -330,20 +334,17 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             "embedding-process-after-failure",
             "embedding-process-after-failure-trace",
             EMBEDDING_CAPABILITY_VERSION,
-            serde_json::json!({
-                "backend": "local_hash",
-                "model": "local-sha256-hash",
-                "dimension": 8,
-                "batch_size": 8,
-                "texts": ["still responsive"]
-            }),
+            embedding_payload("local_hash", 8, "still responsive"),
         ))
         .await
         .expect("embedding service should recover after a provider failure");
     assert_eq!(recovered.status, ServiceStatus::Ok);
     assert_eq!(
-        recovered.payload.expect("recovered embedding payload")["embeddings"][0]
-            .as_array()
+        recovered
+            .payload
+            .expect("recovered embedding payload")
+            .embeddings
+            .first()
             .map(Vec::len),
         Some(8)
     );
@@ -351,34 +352,21 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
     #[cfg(feature = "fastembed")]
     let cache_path = {
         let response = client
-            .model_operation(
-                EmbeddingModelOperation::List,
-                request_context(
-                    "embedding-process-model-list",
-                    "embedding-process-model-list-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::Value::Null,
-                ),
-            )
+            .list_models(request_context(
+                "embedding-process-model-list",
+                "embedding-process-model-list-trace",
+                EMBEDDING_CAPABILITY_VERSION,
+                (),
+            ))
             .await
             .expect("FastEmbed model list should cross the independent process");
         assert_eq!(response.status, ServiceStatus::Ok);
         let payload = response.payload.expect("FastEmbed model list payload");
         let model = payload
-            .as_array()
-            .and_then(|models| {
-                models
-                    .iter()
-                    .find(|model| model["name"] == serde_json::json!("BGESmallZHV15"))
-            })
+            .iter()
+            .find(|model| model.name == "BGESmallZHV15")
             .expect("default FastEmbed model should be listed");
-        assert!(model.get("cache_path").is_none());
-        model_cache_path(
-            temp_dir.path(),
-            model["model_code"]
-                .as_str()
-                .expect("FastEmbed model code should be text"),
-        )
+        model_cache_path(temp_dir.path(), &model.model_code)
     };
 
     #[cfg(feature = "fastembed")]
@@ -395,9 +383,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                         "embedding-process-download-backpressure",
                         "embedding-process-download-backpressure-trace",
                         EMBEDDING_CAPABILITY_VERSION,
-                        serde_json::json!({
-                            "model": "BGESmallZHV15"
-                        }),
+                        embedding_model_payload("BGESmallZHV15"),
                     ),
                     event_tx,
                 )
@@ -426,13 +412,7 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
                 "embedding-process-after-cancel",
                 "embedding-process-after-cancel-trace",
                 EMBEDDING_CAPABILITY_VERSION,
-                serde_json::json!({
-                    "backend": "local_hash",
-                    "model": "local-sha256-hash",
-                    "dimension": 8,
-                    "batch_size": 8,
-                    "texts": ["still responsive"]
-                }),
+                embedding_payload("local_hash", 8, "still responsive"),
             ))
             .await
             .expect("embedding service should remain responsive after download cancellation");
@@ -462,15 +442,12 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
         let complete = start_sidecar(&manager, EMBEDDING_SERVICE_NAME).await;
         assert!(cache_path.exists());
         let response = client
-            .model_operation(
-                EmbeddingModelOperation::List,
-                request_context(
-                    "embedding-process-complete-model-list",
-                    "embedding-process-complete-model-list-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::Value::Null,
-                ),
-            )
+            .list_models(request_context(
+                "embedding-process-complete-model-list",
+                "embedding-process-complete-model-list-trace",
+                EMBEDDING_CAPABILITY_VERSION,
+                (),
+            ))
             .await
             .expect("complete FastEmbed cache should remain readable");
         assert_eq!(response.status, ServiceStatus::Ok);
@@ -478,28 +455,20 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
             response
                 .payload
                 .expect("complete model list payload")
-                .as_array()
-                .unwrap()
                 .iter()
-                .any(|model| {
-                    model["name"] == serde_json::json!("BGESmallZHV15")
-                        && model["downloaded"] == serde_json::json!(true)
-                })
+                .any(|model| model.name == "BGESmallZHV15" && model.downloaded)
         );
         let deleted = client
-            .model_operation(
-                EmbeddingModelOperation::Delete,
-                request_context(
-                    "embedding-process-model-delete",
-                    "embedding-process-model-delete-trace",
-                    EMBEDDING_CAPABILITY_VERSION,
-                    serde_json::json!({"model": "BGESmallZHV15"}),
-                ),
-            )
+            .delete_model(request_context(
+                "embedding-process-model-delete",
+                "embedding-process-model-delete-trace",
+                EMBEDDING_CAPABILITY_VERSION,
+                embedding_model_payload("BGESmallZHV15"),
+            ))
             .await
             .expect("FastEmbed model delete should cross the independent process");
         assert_eq!(deleted.status, ServiceStatus::Ok);
-        assert_eq!(deleted.payload, Some(serde_json::Value::Null));
+        assert_eq!(deleted.payload, Some(()));
         assert!(!cache_path.exists());
         force_finish_sidecar(complete, &manager, EMBEDDING_SERVICE_NAME, addr).await;
 

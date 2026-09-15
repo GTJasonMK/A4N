@@ -34,6 +34,8 @@ a4n-db = { path = "../a4n-db" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }
+a4n-embedding-contract = { path = "../a4n-embedding-contract" }
+a4n-process-catalog = { path = "../a4n-process-catalog" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-service-client = { path = "../a4n-service-client" }
 a4n-task-runtime = { path = "../a4n-task-runtime" }
@@ -60,17 +62,21 @@ a4n-import-contract = { path = "../a4n-import-contract" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-rag-client = { path = "../a4n-rag-client" }
 a4n-rag-contract = { path = "../a4n-rag-contract" }
+a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-rag-index = { path = "../a4n-rag-index", optional = true }
 a4n-image = { path = "../a4n-image" }
+a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-image-client = { path = "../a4n-image-client" }
 a4n-import-core = { path = "../a4n-import-core" }
 a4n-image-providers = { path = "../a4n-image-providers", optional = true }
 a4n-model-discovery = { path = "../a4n-model-discovery" }
+a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-storage = { path = "../a4n-storage" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-client = { path = "../a4n-video-client" }
 a4n-video-contract = { path = "../a4n-video-contract" }
+a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
 a4n-video-providers = { path = "../a4n-video-providers", optional = true }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 a4n-migration = { path = "../a4n-migration", optional = true }

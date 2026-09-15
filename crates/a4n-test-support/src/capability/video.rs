@@ -1,8 +1,13 @@
 use std::sync::Arc;
 
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
-use a4n_video_client::{JsonRequest, JsonResponse, VideoClient};
+use a4n_service_protocol::{ServiceRequest, ServiceResponse};
+use a4n_video_client::{
+    JsonResponse, VideoClient, VideoDeleteResponse, VideoJobResponse, VideoPollRequest,
+    VideoProviderRequest, VideoStatusResponse,
+};
 use async_trait::async_trait;
 
 use super::{
@@ -14,19 +19,19 @@ use super::{
 pub struct RecordingVideoClient {
     state: Arc<RecordingVideoClientState>,
     generate_events: Option<Vec<CapabilityTaskEvent>>,
-    poll_response: Option<JsonResponse>,
-    status_response: Option<JsonResponse>,
-    delete_response: Option<JsonResponse>,
+    poll_response: Option<VideoJobResponse>,
+    status_response: Option<VideoStatusResponse>,
+    delete_response: Option<VideoDeleteResponse>,
     preview_response: Option<JsonResponse>,
 }
 
 #[derive(Default)]
 struct RecordingVideoClientState {
-    generate_requests: RequestLedger,
-    poll_requests: RequestLedger,
-    status_requests: RequestLedger,
-    delete_requests: RequestLedger,
-    preview_requests: RequestLedger,
+    generate_requests: RequestLedger<VideoProviderRequest>,
+    poll_requests: RequestLedger<VideoPollRequest>,
+    status_requests: RequestLedger<VideoPollRequest>,
+    delete_requests: RequestLedger<VideoPollRequest>,
+    preview_requests: RequestLedger<VideoProviderRequest>,
 }
 
 impl RecordingVideoClient {
@@ -39,17 +44,17 @@ impl RecordingVideoClient {
         self
     }
 
-    pub fn with_poll_response(mut self, response: JsonResponse) -> Self {
+    pub fn with_poll_response(mut self, response: VideoJobResponse) -> Self {
         self.poll_response = Some(response);
         self
     }
 
-    pub fn with_status_response(mut self, response: JsonResponse) -> Self {
+    pub fn with_status_response(mut self, response: VideoStatusResponse) -> Self {
         self.status_response = Some(response);
         self
     }
 
-    pub fn with_delete_response(mut self, response: JsonResponse) -> Self {
+    pub fn with_delete_response(mut self, response: VideoDeleteResponse) -> Self {
         self.delete_response = Some(response);
         self
     }
@@ -79,23 +84,23 @@ impl RecordingVideoClient {
         self.state.preview_requests.count()
     }
 
-    pub fn last_generate_request(&self) -> Option<JsonRequest> {
+    pub fn last_generate_request(&self) -> Option<VideoProviderRequest> {
         self.state.generate_requests.last()
     }
 
-    pub fn last_poll_request(&self) -> Option<JsonRequest> {
+    pub fn last_poll_request(&self) -> Option<VideoPollRequest> {
         self.state.poll_requests.last()
     }
 
-    pub fn last_status_request(&self) -> Option<JsonRequest> {
+    pub fn last_status_request(&self) -> Option<VideoPollRequest> {
         self.state.status_requests.last()
     }
 
-    pub fn last_delete_request(&self) -> Option<JsonRequest> {
+    pub fn last_delete_request(&self) -> Option<VideoPollRequest> {
         self.state.delete_requests.last()
     }
 
-    pub fn last_preview_request(&self) -> Option<JsonRequest> {
+    pub fn last_preview_request(&self) -> Option<VideoProviderRequest> {
         self.state.preview_requests.last()
     }
 }
@@ -111,7 +116,7 @@ impl ServiceClient for RecordingVideoClient {
 impl VideoClient for RecordingVideoClient {
     async fn generate_events(
         &self,
-        request: JsonRequest,
+        request: VideoProviderRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.generate_requests.record(request.clone());
@@ -125,35 +130,41 @@ impl VideoClient for RecordingVideoClient {
         .await
     }
 
-    async fn poll(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn poll(&self, request: VideoPollRequest) -> CapabilityResult<VideoJobResponse> {
         self.state.poll_requests.record(request);
         self.poll_response
             .clone()
             .ok_or_else(|| unexpected_call("RecordingVideoClient", "poll"))
     }
 
-    async fn status(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn status(&self, request: VideoPollRequest) -> CapabilityResult<VideoStatusResponse> {
         self.state.status_requests.record(request);
         self.status_response
             .clone()
             .ok_or_else(|| unexpected_call("RecordingVideoClient", "status"))
     }
 
-    async fn delete(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn delete(&self, request: VideoPollRequest) -> CapabilityResult<VideoDeleteResponse> {
         self.state.delete_requests.record(request);
         self.delete_response
             .clone()
             .ok_or_else(|| unexpected_call("RecordingVideoClient", "delete"))
     }
 
-    async fn preview_request(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn preview_request(
+        &self,
+        request: VideoProviderRequest,
+    ) -> CapabilityResult<JsonResponse> {
         self.state.preview_requests.record(request);
         self.preview_response
             .clone()
             .ok_or_else(|| unexpected_call("RecordingVideoClient", "preview_request"))
     }
 
-    async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        _request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> CapabilityResult<ServiceResponse<ModelDiscoveryResult>> {
         Err(unexpected_call("RecordingVideoClient", "discover_models"))
     }
 }

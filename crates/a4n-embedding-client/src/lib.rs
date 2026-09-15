@@ -1,5 +1,9 @@
 //! Typed client for the embedding sidecar service.
 
+use a4n_embedding_contract::{
+    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelDownloadInfoSummary, EmbeddingModelPayload,
+    LocalEmbeddingModelSummary,
+};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -12,16 +16,6 @@ use a4n_service_protocol::{
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
-
-pub type JsonRequest = ServiceRequest<serde_json::Value>;
-pub type JsonResponse = ServiceResponse<serde_json::Value>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EmbeddingModelOperation {
-    List,
-    DownloadInfo,
-    Delete,
-}
 
 pub struct HttpEmbeddingClient {
     transport: HttpSidecarTransport,
@@ -79,40 +73,68 @@ impl ServiceClient for HttpEmbeddingClient {
 
 #[async_trait]
 pub trait EmbeddingClient: ServiceClient {
-    async fn embed(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn model_operation(
+    async fn embed(
         &self,
-        operation: EmbeddingModelOperation,
-        request: JsonRequest,
-    ) -> ServiceClientResult<JsonResponse>;
+        request: ServiceRequest<EmbedTextsPayload>,
+    ) -> ServiceClientResult<ServiceResponse<EmbedTextsOutput>>;
+    async fn list_models(
+        &self,
+        request: ServiceRequest<()>,
+    ) -> ServiceClientResult<ServiceResponse<Vec<LocalEmbeddingModelSummary>>>;
+    async fn model_download_info(
+        &self,
+        request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> ServiceClientResult<ServiceResponse<EmbeddingModelDownloadInfoSummary>>;
+    async fn delete_model(
+        &self,
+        request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> ServiceClientResult<ServiceResponse<()>>;
     async fn download_model_events(
         &self,
-        request: JsonRequest,
+        request: ServiceRequest<EmbeddingModelPayload>,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
 }
 
 #[async_trait]
 impl EmbeddingClient for HttpEmbeddingClient {
-    async fn embed(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn embed(
+        &self,
+        request: ServiceRequest<EmbedTextsPayload>,
+    ) -> ServiceClientResult<ServiceResponse<EmbedTextsOutput>> {
         self.transport
             .post(EMBEDDING_EMBED_TEXTS_PATH, request)
             .await
     }
 
-    async fn model_operation(
+    async fn list_models(
         &self,
-        operation: EmbeddingModelOperation,
-        request: JsonRequest,
-    ) -> ServiceClientResult<JsonResponse> {
+        request: ServiceRequest<()>,
+    ) -> ServiceClientResult<ServiceResponse<Vec<LocalEmbeddingModelSummary>>> {
+        self.transport.post(EMBEDDING_MODELS_PATH, request).await
+    }
+
+    async fn model_download_info(
+        &self,
+        request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> ServiceClientResult<ServiceResponse<EmbeddingModelDownloadInfoSummary>> {
         self.transport
-            .post(embedding_model_operation_path(operation), request)
+            .post(EMBEDDING_MODEL_DOWNLOAD_INFO_PATH, request)
+            .await
+    }
+
+    async fn delete_model(
+        &self,
+        request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> ServiceClientResult<ServiceResponse<()>> {
+        self.transport
+            .post(EMBEDDING_MODEL_DELETE_PATH, request)
             .await
     }
 
     async fn download_model_events(
         &self,
-        request: JsonRequest,
+        request: ServiceRequest<EmbeddingModelPayload>,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport
@@ -121,32 +143,18 @@ impl EmbeddingClient for HttpEmbeddingClient {
     }
 }
 
-fn embedding_model_operation_path(operation: EmbeddingModelOperation) -> &'static str {
-    match operation {
-        EmbeddingModelOperation::List => EMBEDDING_MODELS_PATH,
-        EmbeddingModelOperation::DownloadInfo => EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
-        EmbeddingModelOperation::Delete => EMBEDDING_MODEL_DELETE_PATH,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn model_operation_paths_are_explicit() {
+    fn model_paths_are_explicit() {
+        assert_eq!(EMBEDDING_MODELS_PATH, "/embedding/models");
         assert_eq!(
-            embedding_model_operation_path(EmbeddingModelOperation::List),
-            "/embedding/models"
-        );
-        assert_eq!(
-            embedding_model_operation_path(EmbeddingModelOperation::DownloadInfo),
+            EMBEDDING_MODEL_DOWNLOAD_INFO_PATH,
             "/embedding/model/download_info"
         );
-        assert_eq!(
-            embedding_model_operation_path(EmbeddingModelOperation::Delete),
-            "/embedding/model/delete"
-        );
+        assert_eq!(EMBEDDING_MODEL_DELETE_PATH, "/embedding/model/delete");
         assert_eq!(
             EMBEDDING_MODEL_DOWNLOAD_EVENTS_PATH,
             "/embedding/model/download/events"

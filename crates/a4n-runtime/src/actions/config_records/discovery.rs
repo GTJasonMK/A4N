@@ -5,7 +5,7 @@ use crate::{
 };
 use a4n_api_contract::config::ConfigProviderKind;
 use a4n_api_contract::config::ModelDiscoveryInput;
-use a4n_model_discovery::ModelDiscoveryResult;
+use a4n_model_discovery_contract::ModelDiscoveryResult;
 
 pub async fn detect_llm_config_models(
     state: &AppState,

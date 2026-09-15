@@ -3,9 +3,13 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonRequest, JsonResponse};
+use a4n_embedding_client::EmbeddingClient;
+use a4n_embedding_contract::{
+    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelDownloadInfoSummary, EmbeddingModelPayload,
+    LocalEmbeddingModelSummary,
+};
 use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
 use super::{media::RequestLedger, unexpected_call};
@@ -22,7 +26,7 @@ pub struct PendingEmbeddingDownloadObserver {
 
 #[derive(Default)]
 struct PendingEmbeddingDownloadState {
-    requests: RequestLedger,
+    requests: RequestLedger<ServiceRequest<EmbeddingModelPayload>>,
     stream_started: AtomicBool,
     stream_dropped: AtomicBool,
     stream_started_notify: tokio::sync::Notify,
@@ -51,7 +55,9 @@ impl PendingEmbeddingDownloadClient {
         self.state.requests.count()
     }
 
-    pub fn last_download_model_events_request(&self) -> Option<JsonRequest> {
+    pub fn last_download_model_events_request(
+        &self,
+    ) -> Option<ServiceRequest<EmbeddingModelPayload>> {
         self.state.requests.last()
     }
 }
@@ -77,24 +83,46 @@ impl ServiceClient for PendingEmbeddingDownloadClient {
 
 #[async_trait]
 impl EmbeddingClient for PendingEmbeddingDownloadClient {
-    async fn embed(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn embed(
+        &self,
+        _request: ServiceRequest<EmbedTextsPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbedTextsOutput>> {
         Err(unexpected_call("PendingEmbeddingDownloadClient", "embed"))
     }
 
-    async fn model_operation(
+    async fn list_models(
         &self,
-        _operation: EmbeddingModelOperation,
-        _request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        _request: ServiceRequest<()>,
+    ) -> CapabilityResult<ServiceResponse<Vec<LocalEmbeddingModelSummary>>> {
         Err(unexpected_call(
             "PendingEmbeddingDownloadClient",
-            "model_operation",
+            "list_models",
+        ))
+    }
+
+    async fn model_download_info(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbeddingModelDownloadInfoSummary>> {
+        Err(unexpected_call(
+            "PendingEmbeddingDownloadClient",
+            "model_download_info",
+        ))
+    }
+
+    async fn delete_model(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
+        Err(unexpected_call(
+            "PendingEmbeddingDownloadClient",
+            "delete_model",
         ))
     }
 
     async fn download_model_events(
         &self,
-        request: JsonRequest,
+        request: ServiceRequest<EmbeddingModelPayload>,
         _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         self.state.requests.record(request);
@@ -108,16 +136,16 @@ impl EmbeddingClient for PendingEmbeddingDownloadClient {
 #[derive(Clone)]
 pub struct RecordingEmbeddingClient {
     state: Arc<RecordingEmbeddingClientState>,
-    embed_response: JsonResponse,
+    embed_response: ServiceResponse<EmbedTextsOutput>,
 }
 
 #[derive(Default)]
 struct RecordingEmbeddingClientState {
-    embed_requests: Mutex<Vec<JsonRequest>>,
+    embed_requests: Mutex<Vec<ServiceRequest<EmbedTextsPayload>>>,
 }
 
 impl RecordingEmbeddingClient {
-    pub fn new(embed_response: JsonResponse) -> Self {
+    pub fn new(embed_response: ServiceResponse<EmbedTextsOutput>) -> Self {
         Self {
             state: Arc::new(RecordingEmbeddingClientState::default()),
             embed_response,
@@ -132,7 +160,7 @@ impl RecordingEmbeddingClient {
             .len()
     }
 
-    pub fn embed_requests(&self) -> Vec<JsonRequest> {
+    pub fn embed_requests(&self) -> Vec<ServiceRequest<EmbedTextsPayload>> {
         self.state
             .embed_requests
             .lock()
@@ -140,7 +168,7 @@ impl RecordingEmbeddingClient {
             .clone()
     }
 
-    pub fn last_embed_request(&self) -> Option<JsonRequest> {
+    pub fn last_embed_request(&self) -> Option<ServiceRequest<EmbedTextsPayload>> {
         self.state
             .embed_requests
             .lock()
@@ -159,7 +187,10 @@ impl ServiceClient for RecordingEmbeddingClient {
 
 #[async_trait]
 impl EmbeddingClient for RecordingEmbeddingClient {
-    async fn embed(&self, request: JsonRequest) -> CapabilityResult<JsonResponse> {
+    async fn embed(
+        &self,
+        request: ServiceRequest<EmbedTextsPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbedTextsOutput>> {
         self.state
             .embed_requests
             .lock()
@@ -168,20 +199,33 @@ impl EmbeddingClient for RecordingEmbeddingClient {
         Ok(self.embed_response.clone())
     }
 
-    async fn model_operation(
+    async fn list_models(
         &self,
-        _operation: EmbeddingModelOperation,
-        _request: JsonRequest,
-    ) -> CapabilityResult<JsonResponse> {
+        _request: ServiceRequest<()>,
+    ) -> CapabilityResult<ServiceResponse<Vec<LocalEmbeddingModelSummary>>> {
+        Err(unexpected_call("RecordingEmbeddingClient", "list_models"))
+    }
+
+    async fn model_download_info(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<EmbeddingModelDownloadInfoSummary>> {
         Err(unexpected_call(
             "RecordingEmbeddingClient",
-            "model_operation",
+            "model_download_info",
         ))
+    }
+
+    async fn delete_model(
+        &self,
+        _request: ServiceRequest<EmbeddingModelPayload>,
+    ) -> CapabilityResult<ServiceResponse<()>> {
+        Err(unexpected_call("RecordingEmbeddingClient", "delete_model"))
     }
 
     async fn download_model_events(
         &self,
-        _request: JsonRequest,
+        _request: ServiceRequest<EmbeddingModelPayload>,
         _events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         Err(unexpected_call(

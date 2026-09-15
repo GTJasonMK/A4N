@@ -1,4 +1,4 @@
-use a4n_video::VideoGenerationRequest;
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 pub(super) fn size_from_request(req: &VideoGenerationRequest) -> String {
     format!("{}x{}", req.width, req.height)

@@ -1,9 +1,9 @@
 use a4n_domain::ProviderError as AppError;
+use a4n_image_contract::IMAGE_SERVICE_NAME;
 use a4n_image_providers::image_provider_request_body_preview;
-use a4n_model_discovery::{
-    ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
-};
-use a4n_service_protocol::{IMAGE_SERVICE_NAME, ServiceRequest, ServiceResponse};
+use a4n_model_discovery::discover_models_from_request;
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
+use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 use serde_json::Value;
 

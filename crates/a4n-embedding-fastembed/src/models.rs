@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_domain::embedding::LocalEmbeddingModelSummary;
+use a4n_embedding_contract::LocalEmbeddingModelSummary;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding};
 
 use crate::cache::{dir_size, model_cache_path, repo_folder_name, snapshot_with_required_files};

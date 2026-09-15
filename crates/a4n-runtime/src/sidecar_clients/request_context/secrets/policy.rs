@@ -25,6 +25,19 @@ pub(crate) fn global_provider_service_request(
     Ok(request)
 }
 
+pub(crate) fn global_typed_provider_service_request<T: Serialize>(
+    capability_version: impl Into<String>,
+    payload: T,
+) -> Result<ServiceRequest<T>, String> {
+    let request = typed_service_request_with_context_provider_secret_policy(
+        SidecarRequestContext::current_global(),
+        capability_version,
+        payload,
+    )?;
+    ensure_global_request_scope(&request)?;
+    Ok(request)
+}
+
 pub(crate) fn service_request_with_context_provider_secret_policy(
     context: SidecarRequestContext,
     capability_version: impl Into<String>,
@@ -38,6 +51,31 @@ pub(crate) fn service_request_with_context_provider_secret_policy(
         capability_version,
         payload,
     )
+}
+
+pub(crate) fn typed_service_request_with_context_provider_secret_policy<T: Serialize>(
+    context: SidecarRequestContext,
+    capability_version: impl Into<String>,
+    payload: T,
+) -> Result<ServiceRequest<T>, String> {
+    let payload_value = serde_json::to_value(&payload).map_err(|error| error.to_string())?;
+    let request = service_request_with_context_provider_secret_policy(
+        context,
+        capability_version,
+        payload_value,
+    )?;
+    Ok(ServiceRequest {
+        request_id: request.request_id,
+        trace_context: request.trace_context,
+        schema_version: request.schema_version,
+        user_id: request.user_id,
+        project_id: request.project_id,
+        root_project_id: request.root_project_id,
+        runtime_config_snapshot: request.runtime_config_snapshot,
+        secret_policy: request.secret_policy,
+        capability_version: request.capability_version,
+        payload,
+    })
 }
 
 #[cfg(test)]

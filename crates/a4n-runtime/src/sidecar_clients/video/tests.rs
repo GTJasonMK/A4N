@@ -2,7 +2,8 @@ use super::*;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingVideoClient;
-use a4n_video_client::JsonResponse;
+use a4n_video_client::{JsonResponse, VideoJobResponse};
+use a4n_video_sidecar_contract::{VideoDeleteOutput, VideoJobOutput, VideoStatusOutput};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -103,9 +104,9 @@ async fn video_provider_preview_uses_typed_capability_request() {
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(3));
     assert!(request.secret_policy.is_local_user_secret_only());
-    assert_eq!(request.payload["backend"], "openai-compatible-video");
-    assert_eq!(request.payload["api_key"], "test-key");
-    assert_eq!(request.payload["request"]["prompt"], "test video");
+    assert_eq!(request.payload.backend, "openai-compatible-video");
+    assert_eq!(request.payload.api_key, "test-key");
+    assert_eq!(request.payload.request.prompt, "test video");
 }
 
 #[tokio::test]
@@ -144,10 +145,10 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
         request.trace_context.parent_span_id.as_deref(),
         Some("video.generate")
     );
-    assert_eq!(request.payload["project_id"], 42);
+    assert_eq!(request.payload.project_id, Some(42));
     assert_eq!(
-        request.payload["provider_idempotency_key_sha256"],
-        "a".repeat(64)
+        request.payload.provider_idempotency_key_sha256.as_deref(),
+        Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     );
 }
 
@@ -188,16 +189,15 @@ async fn video_poll_carries_project_scope_in_context_and_payload() {
         Some("video.poll")
     );
     assert!(request.secret_policy.is_local_user_secret_only());
-    assert_eq!(request.payload["project_id"], 42);
-    assert_eq!(request.payload["job_id"], "job-42");
+    assert_eq!(request.payload.project_id, Some(42));
+    assert_eq!(request.payload.job_id, "job-42");
 }
 
 #[tokio::test]
 async fn video_status_uses_status_only_capability_without_polling() {
     let client = Arc::new(
-        RecordingVideoClient::new().with_status_response(video_response(json!({
-            "state": "completed"
-        }))),
+        RecordingVideoClient::new()
+            .with_status_response(video_response(VideoStatusOutput::Completed)),
     );
     let status = video_job_status(
         RuntimeProfile::Sidecar,
@@ -218,15 +218,14 @@ async fn video_status_uses_status_only_capability_without_polling() {
         .expect("recorded status request");
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(3));
-    assert_eq!(request.payload["job_id"], "job-42");
+    assert_eq!(request.payload.job_id, "job-42");
 }
 
 #[tokio::test]
 async fn video_delete_carries_project_scope_and_maps_outcome() {
     let client = Arc::new(
-        RecordingVideoClient::new().with_delete_response(video_response(json!({
-            "outcome": "deleted"
-        }))),
+        RecordingVideoClient::new()
+            .with_delete_response(video_response(VideoDeleteOutput::Deleted)),
     );
     let outcome = delete_video_job(
         RuntimeProfile::Sidecar,
@@ -246,7 +245,7 @@ async fn video_delete_carries_project_scope_and_maps_outcome() {
         .expect("recorded delete request");
     assert_eq!(request.project_id, Some(42));
     assert_eq!(request.root_project_id, Some(3));
-    assert_eq!(request.payload["job_id"], "job-42");
+    assert_eq!(request.payload.job_id, "job-42");
 }
 
 fn successful_video_generation_events() -> Vec<CapabilityTaskEvent> {
@@ -271,15 +270,15 @@ fn successful_video_generation_events() -> Vec<CapabilityTaskEvent> {
     ]
 }
 
-fn successful_video_poll_response() -> JsonResponse {
-    video_response(json!({"state": "pending"}))
+fn successful_video_poll_response() -> VideoJobResponse {
+    video_response(VideoJobOutput::Pending)
 }
 
 fn successful_video_preview_response() -> JsonResponse {
     video_response(json!({"model": "video-model", "prompt": "test video"}))
 }
 
-fn video_response(payload: serde_json::Value) -> JsonResponse {
+fn video_response<T>(payload: T) -> ServiceResponse<T> {
     ServiceResponse {
         status: ServiceStatus::Ok,
         trace_id: Some("trace".to_string()),

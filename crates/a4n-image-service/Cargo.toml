@@ -6,9 +6,10 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { path = "../a4n-domain" }
-a4n-image = { path = "../a4n-image" }
+a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-image-providers = { path = "../a4n-image-providers" }
 a4n-model-discovery = { path = "../a4n-model-discovery" }
+a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 
@@ -23,3 +24,4 @@ tracing = { workspace = true }
 [dev-dependencies]
 a4n-test-support = { path = "../a4n-test-support" }
 a4n-image-client = { path = "../a4n-image-client", features = ["test-support"] }
+a4n-image-contract = { path = "../a4n-image-contract" }

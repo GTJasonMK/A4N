@@ -1,4 +1,4 @@
-use a4n_video::{VideoGenerationRequest, VideoMediaInput};
+use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 use base64::Engine as _;
 use serde_json::json;
 

@@ -8,8 +8,10 @@ license.workspace = true
 test-support = ["a4n-service-client/test-support"]
 
 [dependencies]
+a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
 
 async-trait = { workspace = true }
 serde_json = { workspace = true }

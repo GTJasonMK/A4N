@@ -1,18 +1,25 @@
 //! Typed client for the video sidecar service.
 
+use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
 };
-use a4n_service_protocol::{
-    CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth, ServiceRequest, ServiceResponse};
+use a4n_video_sidecar_contract::{
+    VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME, VideoDeleteOutput, VideoJobOutput,
+    VideoPollPayload, VideoProviderPayload, VideoStatusOutput,
 };
 use async_trait::async_trait;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
-pub type JsonRequest = ServiceRequest<serde_json::Value>;
 pub type JsonResponse = ServiceResponse<serde_json::Value>;
+pub type VideoProviderRequest = ServiceRequest<VideoProviderPayload>;
+pub type VideoPollRequest = ServiceRequest<VideoPollPayload>;
+pub type VideoJobResponse = ServiceResponse<VideoJobOutput>;
+pub type VideoStatusResponse = ServiceResponse<VideoStatusOutput>;
+pub type VideoDeleteResponse = ServiceResponse<VideoDeleteOutput>;
 
 pub struct HttpVideoClient {
     transport: HttpSidecarTransport,
@@ -21,20 +28,14 @@ pub struct HttpVideoClient {
 impl HttpVideoClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(VIDEO_SERVICE_NAME),
-            ),
+            transport: HttpSidecarTransport::new(base_url, video_service_client_config()),
         }
     }
 
     pub fn new_with_auth_token(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self {
-            transport: HttpSidecarTransport::new(
-                base_url,
-                ServiceClientConfig::for_service(VIDEO_SERVICE_NAME),
-            )
-            .with_auth_token(token),
+            transport: HttpSidecarTransport::new(base_url, video_service_client_config())
+                .with_auth_token(token),
         }
     }
 
@@ -61,6 +62,15 @@ impl HttpVideoClient {
     }
 }
 
+fn video_service_client_config() -> ServiceClientConfig {
+    ServiceClientConfig::new(
+        VIDEO_SERVICE_NAME,
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        a4n_service_protocol::sidecar_resource_policy(VIDEO_SERVICE_NAME)
+            .expect("video service must have a resource policy"),
+    )
+}
+
 #[async_trait]
 impl ServiceClient for HttpVideoClient {
     async fn health(&self) -> ServiceClientResult<ServiceHealth> {
@@ -72,21 +82,27 @@ impl ServiceClient for HttpVideoClient {
 pub trait VideoClient: ServiceClient {
     async fn generate_events(
         &self,
-        request: JsonRequest,
+        request: VideoProviderRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
-    async fn poll(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn status(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn preview_request(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn poll(&self, request: VideoPollRequest) -> ServiceClientResult<VideoJobResponse>;
+    async fn status(&self, request: VideoPollRequest) -> ServiceClientResult<VideoStatusResponse>;
+    async fn delete(&self, request: VideoPollRequest) -> ServiceClientResult<VideoDeleteResponse>;
+    async fn preview_request(
+        &self,
+        request: VideoProviderRequest,
+    ) -> ServiceClientResult<JsonResponse>;
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>>;
 }
 
 #[async_trait]
 impl VideoClient for HttpVideoClient {
     async fn generate_events(
         &self,
-        request: JsonRequest,
+        request: VideoProviderRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport
@@ -94,23 +110,29 @@ impl VideoClient for HttpVideoClient {
             .await
     }
 
-    async fn poll(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn poll(&self, request: VideoPollRequest) -> ServiceClientResult<VideoJobResponse> {
         self.transport.post("/video/poll", request).await
     }
 
-    async fn status(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn status(&self, request: VideoPollRequest) -> ServiceClientResult<VideoStatusResponse> {
         self.transport.post("/video/status", request).await
     }
 
-    async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn delete(&self, request: VideoPollRequest) -> ServiceClientResult<VideoDeleteResponse> {
         self.transport.post("/video/delete", request).await
     }
 
-    async fn preview_request(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn preview_request(
+        &self,
+        request: VideoProviderRequest,
+    ) -> ServiceClientResult<JsonResponse> {
         self.transport.post("/video/request_preview", request).await
     }
 
-    async fn discover_models(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn discover_models(
+        &self,
+        request: ServiceRequest<ModelDiscoveryRequest>,
+    ) -> ServiceClientResult<ServiceResponse<ModelDiscoveryResult>> {
         self.transport.post("/video/models", request).await
     }
 }

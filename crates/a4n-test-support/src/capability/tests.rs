@@ -1,18 +1,31 @@
-use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation};
+use a4n_embedding_client::EmbeddingClient;
+use a4n_embedding_contract::{
+    EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelIdentity, EmbeddingModelPayload,
+};
 use a4n_export_client::ExportClient;
-use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
-use a4n_image_client::ImageClient;
+use a4n_export_contract::{
+    EXPORT_RENDER_CAPABILITY_VERSION, ExportRenderJsonInput, ExportRenderZipInput,
+    ExportRenderZipOutput,
+};
+use a4n_image_client::{ImageClient, ImageProviderRequest};
+use a4n_image_contract::{
+    IMAGE_PROVIDER_CAPABILITY_VERSION, ImageGenerationRequest, ImageProviderPayload,
+};
 use a4n_llm_client::LlmClient;
 use a4n_rag_client::RagClient;
+use a4n_rag_sidecar_contract::{EmbeddingRecordPayload, IngestPayload, QueryPayload};
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
-    EXPORT_RENDER_CAPABILITY_VERSION, IMAGE_PROVIDER_CAPABILITY_VERSION,
     LLM_CHAT_CAPABILITY_VERSION, RAG_INDEX_CAPABILITY_VERSION, ServiceErrorCode,
     ServiceRequestContext, ServiceResponse, ServiceStatus, TraceContext,
     VIDEO_PROVIDER_CAPABILITY_VERSION,
 };
-use a4n_video_client::VideoClient;
+use a4n_video_client::{VideoClient, VideoPollRequest, VideoProviderRequest};
+use a4n_video_sidecar_contract::{
+    VideoGenerationRequest, VideoJobOutput, VideoMediaInput, VideoPollPayload,
+    VideoProviderPayload, VideoStatusOutput,
+};
 use std::sync::Arc;
 
 use super::{
@@ -55,9 +68,16 @@ async fn recording_llm_unconfigured_operations_fail_explicitly() {
 
 #[tokio::test]
 async fn recording_embedding_returns_configured_response_and_captures_request() {
-    let response = response(serde_json::json!({"embeddings": [[1.0, 0.0]]}));
+    let response = response(EmbedTextsOutput {
+        identity: EmbeddingModelIdentity {
+            backend: "test".to_string(),
+            model: "test-model".to_string(),
+            dimension: 2,
+        },
+        embeddings: vec![vec![1.0, 0.0]],
+    });
     let client = RecordingEmbeddingClient::new(response.clone());
-    let request = request("embed-request", EMBEDDING_CAPABILITY_VERSION);
+    let request = embedding_request("embed-request");
 
     let actual = client
         .embed(request.clone())
@@ -72,19 +92,23 @@ async fn recording_embedding_returns_configured_response_and_captures_request() 
 
 #[tokio::test]
 async fn recording_embedding_unconfigured_operations_fail_explicitly() {
-    let client = RecordingEmbeddingClient::new(response(serde_json::Value::Null));
+    let client = RecordingEmbeddingClient::new(response(EmbedTextsOutput {
+        identity: EmbeddingModelIdentity {
+            backend: String::new(),
+            model: String::new(),
+            dimension: 0,
+        },
+        embeddings: Vec::new(),
+    }));
     let error = client
-        .model_operation(
-            EmbeddingModelOperation::List,
-            request("model-request", EMBEDDING_CAPABILITY_VERSION),
-        )
+        .list_models(embedding_list_request("model-request"))
         .await
-        .expect_err("unconfigured model operation must fail");
+        .expect_err("unconfigured model list must fail");
 
     assert_eq!(error.code, ServiceErrorCode::Internal);
     assert_eq!(
         error.message,
-        "unexpected RecordingEmbeddingClient model_operation call"
+        "unexpected RecordingEmbeddingClient list_models call"
     );
     assert_eq!(client.embed_call_count(), 0);
 }
@@ -93,7 +117,7 @@ async fn recording_embedding_unconfigured_operations_fail_explicitly() {
 async fn pending_embedding_download_observes_start_and_future_drop() {
     let client = Arc::new(PendingEmbeddingDownloadClient::new());
     let observer = client.observer();
-    let request = request("embedding-download", EMBEDDING_CAPABILITY_VERSION);
+    let request = embedding_model_request("embedding-download");
     let task_client = Arc::clone(&client);
     let task_request = request.clone();
     let (events_tx, _events_rx) =
@@ -125,7 +149,7 @@ async fn pending_embedding_download_observes_start_and_future_drop() {
 async fn pending_embedding_download_rejects_non_download_operations() {
     let client = PendingEmbeddingDownloadClient::new();
     let error = client
-        .embed(request("embedding-pending", EMBEDDING_CAPABILITY_VERSION))
+        .embed(embedding_request("embedding-pending"))
         .await
         .expect_err("pending download client must reject embed");
 
@@ -141,7 +165,7 @@ async fn pending_embedding_download_rejects_non_download_operations() {
 async fn recording_image_generate_events_capture_request_and_bind_task_id() {
     let client = RecordingImageClient::new()
         .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
-    let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let request = image_request("image-generate");
     let (events_tx, mut events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -161,7 +185,7 @@ async fn recording_image_generate_events_capture_request_and_bind_task_id() {
 async fn recording_image_responses_and_request_ledgers_are_operation_specific() {
     let preview_response = response(serde_json::json!({"operation": "preview"}));
     let client = RecordingImageClient::new().with_preview_response(preview_response.clone());
-    let preview_request = request("image-preview", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let preview_request = image_request("image-preview");
 
     assert_eq!(
         client
@@ -178,7 +202,7 @@ async fn recording_image_responses_and_request_ledgers_are_operation_specific() 
 #[tokio::test]
 async fn recording_image_unconfigured_operations_fail_explicitly() {
     let client = RecordingImageClient::new();
-    let request = request("image-generate", IMAGE_PROVIDER_CAPABILITY_VERSION);
+    let request = image_request("image-generate");
     let (events_tx, _events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let error = client
@@ -199,7 +223,7 @@ async fn recording_image_unconfigured_operations_fail_explicitly() {
 async fn recording_video_generate_events_capture_request_and_bind_task_id() {
     let client = RecordingVideoClient::new()
         .with_generate_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
-    let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let request = video_provider_request("video-generate");
     let (events_tx, mut events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -217,16 +241,16 @@ async fn recording_video_generate_events_capture_request_and_bind_task_id() {
 
 #[tokio::test]
 async fn recording_video_responses_and_request_ledgers_are_operation_specific() {
-    let poll_response = response(serde_json::json!({"operation": "poll"}));
-    let status_response = response(serde_json::json!({"operation": "status"}));
+    let poll_response = response(VideoJobOutput::Pending);
+    let status_response = response(VideoStatusOutput::Completed);
     let preview_response = response(serde_json::json!({"operation": "preview"}));
     let client = RecordingVideoClient::new()
         .with_poll_response(poll_response.clone())
         .with_status_response(status_response.clone())
         .with_preview_response(preview_response.clone());
-    let poll_request = request("video-poll", VIDEO_PROVIDER_CAPABILITY_VERSION);
-    let status_request = request("video-status", VIDEO_PROVIDER_CAPABILITY_VERSION);
-    let preview_request = request("video-preview", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let poll_request = video_poll_request("video-poll");
+    let status_request = video_poll_request("video-status");
+    let preview_request = video_provider_request("video-preview");
 
     assert_eq!(
         client
@@ -261,7 +285,7 @@ async fn recording_video_responses_and_request_ledgers_are_operation_specific() 
 #[tokio::test]
 async fn recording_video_unconfigured_operations_fail_explicitly() {
     let client = RecordingVideoClient::new();
-    let request = request("video-generate", VIDEO_PROVIDER_CAPABILITY_VERSION);
+    let request = video_provider_request("video-generate");
     let (events_tx, _events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
     let error = client
@@ -282,7 +306,7 @@ async fn recording_video_unconfigured_operations_fail_explicitly() {
 async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
     let client = RecordingRagClient::new()
         .with_ingest_events(vec![media_event(CapabilityTaskEventKind::Completed, 1)]);
-    let request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
+    let request = rag_ingest_request("rag-ingest");
     let (events_tx, mut events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -301,7 +325,7 @@ async fn recording_rag_ingest_events_capture_request_and_bind_task_id() {
 #[tokio::test]
 async fn recording_rag_unconfigured_operations_fail_explicitly() {
     let client = RecordingRagClient::new();
-    let ingest_request = request("rag-ingest", RAG_INDEX_CAPABILITY_VERSION);
+    let ingest_request = rag_ingest_request("rag-ingest");
     let (events_tx, _events_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -310,7 +334,7 @@ async fn recording_rag_unconfigured_operations_fail_explicitly() {
         .await
         .expect_err("unconfigured RAG ingest events must fail");
     let query_error = client
-        .query(request("rag-query", RAG_INDEX_CAPABILITY_VERSION))
+        .query(rag_query_request("rag-query"))
         .await
         .expect_err("unconfigured RAG query must fail");
 
@@ -417,6 +441,181 @@ fn request(
         serde_json::json!({"request_id": request_id}),
     )
     .expect("valid test capability request")
+}
+
+fn rag_query_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<QueryPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        RAG_INDEX_CAPABILITY_VERSION,
+        QueryPayload {
+            collection: "1".to_string(),
+            query_embedding: vec![1.0, 0.0],
+            top_k: 1,
+            filters: None,
+        },
+    )
+    .expect("valid typed RAG query request")
+}
+
+fn rag_ingest_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<IngestPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        RAG_INDEX_CAPABILITY_VERSION,
+        IngestPayload {
+            collection: "1".to_string(),
+            records: vec![EmbeddingRecordPayload {
+                id: "test-record".to_string(),
+                embedding: vec![1.0, 0.0],
+                metadata: serde_json::json!({}),
+                content: "test content".to_string(),
+            }],
+        },
+    )
+    .expect("valid typed RAG ingest request")
+}
+
+fn embedding_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<EmbedTextsPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        EMBEDDING_CAPABILITY_VERSION,
+        EmbedTextsPayload {
+            backend: "test".to_string(),
+            base_url: None,
+            api_key: None,
+            model: "test-model".to_string(),
+            dimension: 2,
+            batch_size: 1,
+            texts: vec!["test".to_string()],
+        },
+    )
+    .expect("valid embedding capability request")
+}
+
+fn embedding_model_request(
+    request_id: &str,
+) -> a4n_service_protocol::ServiceRequest<EmbeddingModelPayload> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        EMBEDDING_CAPABILITY_VERSION,
+        EmbeddingModelPayload {
+            model: "test-model".to_string(),
+        },
+    )
+    .expect("valid embedding model request")
+}
+
+fn embedding_list_request(request_id: &str) -> a4n_service_protocol::ServiceRequest<()> {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(EMBEDDING_CAPABILITY_VERSION, ())
+    .expect("valid embedding model list request")
+}
+
+fn video_provider_request(request_id: &str) -> VideoProviderRequest {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        VideoProviderPayload {
+            backend: "test-video".to_string(),
+            base_url: "https://video.example".to_string(),
+            api_key: String::new(),
+            provider_idempotency_key_sha256: None,
+            project_id: None,
+            request: VideoGenerationRequest {
+                prompt: "test video".to_string(),
+                negative_prompt: None,
+                width: 1,
+                height: 1,
+                duration_secs: 1,
+                fps: 1,
+                model: "test-model".to_string(),
+                media: VideoMediaInput::None,
+            },
+        },
+    )
+    .expect("valid typed video provider request")
+}
+
+fn video_poll_request(request_id: &str) -> VideoPollRequest {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        VideoPollPayload {
+            backend: "test-video".to_string(),
+            base_url: "https://video.example".to_string(),
+            api_key: String::new(),
+            project_id: None,
+            job_id: "job-1".to_string(),
+        },
+    )
+    .expect("valid typed video poll request")
+}
+
+fn image_request(request_id: &str) -> ImageProviderRequest {
+    ServiceRequestContext::deny_all(
+        request_id,
+        TraceContext {
+            trace_id: format!("trace-{request_id}"),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        IMAGE_PROVIDER_CAPABILITY_VERSION,
+        ImageProviderPayload {
+            backend: "test-image".to_string(),
+            base_url: "https://image.example".to_string(),
+            api_key: String::new(),
+            request: ImageGenerationRequest {
+                prompt: "test image".to_string(),
+                width: 1,
+                height: 1,
+                model: "test-model".to_string(),
+                reference_images: Vec::new(),
+            },
+        },
+    )
+    .expect("valid typed image capability request")
 }
 
 fn response<T>(payload: T) -> ServiceResponse<T> {

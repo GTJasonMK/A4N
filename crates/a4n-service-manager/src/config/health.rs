@@ -1,7 +1,5 @@
-use a4n_service_protocol::{
-    HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion,
-    expected_capability_version_for_service,
-};
+use a4n_process_catalog::service_catalog_entry;
+use a4n_service_protocol::{HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion};
 
 use super::contracts::ManagedServiceConfig;
 use crate::errors::ServiceManagerError;
@@ -15,8 +13,9 @@ impl ManagedServiceConfig {
     }
 
     pub(crate) fn embedded_health(&self) -> Result<ServiceHealth, ServiceManagerError> {
-        let capability_version =
-            expected_capability_version_for_service(&self.name).ok_or_else(|| {
+        let capability_version = service_catalog_entry(&self.name)
+            .map(|entry| entry.capability_version)
+            .ok_or_else(|| {
                 ServiceManagerError::InvalidConfig(format!(
                     "embedded service {} has no registered capability version",
                     self.name
@@ -28,7 +27,7 @@ impl ManagedServiceConfig {
             version: ServiceVersion {
                 service_version: env!("CARGO_PKG_VERSION").to_string(),
                 protocol_version: PROTOCOL_VERSION,
-                capability_version: capability_version.to_string(),
+                capability_version,
             },
         })
     }

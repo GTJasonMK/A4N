@@ -1,6 +1,6 @@
 use serde_json::{Map, Value, json};
 
-use a4n_video::VideoGenerationRequest;
+use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 pub(super) fn chat_request_body(req: &VideoGenerationRequest, user_content: String) -> Value {
     let mut body = Map::new();

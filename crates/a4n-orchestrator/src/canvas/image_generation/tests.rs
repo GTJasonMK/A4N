@@ -88,8 +88,8 @@ impl ImageGenerationHostPort for TestImageHost {
         &self,
         label: &str,
         _relative_path: &str,
-    ) -> Result<a4n_image::ImageReference, AppError> {
-        Ok(a4n_image::ImageReference {
+    ) -> Result<a4n_image_contract::ImageReference, AppError> {
+        Ok(a4n_image_contract::ImageReference {
             label: label.to_string(),
             data_uri: "data:image/png;base64,AQ==".to_string(),
         })

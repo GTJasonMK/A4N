@@ -11,7 +11,7 @@ use std::{
 use a4n_service_manager::{
     ManagedServiceConfig, ManagedSidecarProcess, ServiceManager, ServiceManagerError,
 };
-use a4n_service_protocol::{HealthStatus, SIDECAR_AUTH_TOKEN_ENV};
+use a4n_service_protocol::{HealthStatus, SIDECAR_AUTH_TOKEN_ENV, ServiceRequest};
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -27,30 +27,41 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 pub const SIDECAR_PROCESS_TEST_TOKEN: &str = "a4n-process-test-token";
 
-pub use a4n_embedding_client::{
-    EmbeddingClient, EmbeddingModelOperation, HttpEmbeddingClient, JsonRequest,
-};
+pub use a4n_embedding_client::{EmbeddingClient, HttpEmbeddingClient};
 pub use a4n_export_client::{ExportClient, HttpExportClient};
 pub use a4n_export_contract::{
-    ExportRenderJsonInput, ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderJsonInput,
+    ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
 };
 pub use a4n_image_client::{HttpImageClient, ImageClient};
 pub use a4n_import_client::{HttpImportClient, ImportClient};
-pub use a4n_import_contract::ImportReadMediaPackageZipInput;
+pub use a4n_import_contract::{
+    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportReadMediaPackageZipInput,
+};
 pub use a4n_llm_client::{HttpLlmClient, LlmClient};
 pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
+pub type JsonRequest = ServiceRequest<Value>;
+
 pub use a4n_rag_client::{HttpRagClient, RagClient};
+pub use a4n_rag_sidecar_contract::{
+    CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
+    EmbeddingRecordPayload, IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload,
+    QueryPayload, SearchPayload, SearchTextPayload,
+};
 pub use a4n_service_client::{
     ServiceClient as CapabilityClient, ServiceClientResult as CapabilityResult,
 };
 pub use a4n_service_protocol::{
-    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EXPORT_RENDER_CAPABILITY_VERSION,
-    EXPORT_SERVICE_NAME, IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME,
-    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, PROMPT_RENDER_CAPABILITY_VERSION,
-    PROMPT_SERVICE_NAME, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, ServiceRequestContext,
-    ServiceStatus, TraceContext, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME,
+    EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, IMAGE_PROVIDER_CAPABILITY_VERSION,
+    IMAGE_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME,
+    RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, ServiceRequestContext, ServiceStatus,
+    TraceContext, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME,
 };
-pub use a4n_video_client::{HttpVideoClient, VideoClient};
+pub use a4n_video_client::{HttpVideoClient, VideoClient, VideoPollRequest, VideoProviderRequest};
+pub use a4n_video_sidecar_contract::{
+    VideoDeleteOutput, VideoGenerationRequest, VideoJobOutput, VideoMediaInput, VideoPollPayload,
+    VideoProviderPayload, VideoStatusOutput,
+};
 
 pub fn sidecar_base_url(addr: SocketAddr) -> String {
     format!("http://{addr}")
@@ -625,12 +636,12 @@ impl FakeJsonProvider {
     }
 }
 
-pub fn request_context(
+pub fn request_context<T>(
     request_id: &str,
     trace_id: &str,
     capability_version: &str,
-    payload: Value,
-) -> JsonRequest {
+    payload: T,
+) -> ServiceRequest<T> {
     ServiceRequestContext::deny_all(
         request_id,
         TraceContext {
@@ -645,12 +656,12 @@ pub fn request_context(
 /// Build a secret-free request explicitly authorized for a trusted remote sidecar.
 /// Keep this in the shared process support so remote egress tests do not each
 /// invent their own envelope mutation.
-pub fn trusted_remote_request_context(
+pub fn trusted_remote_request_context<T>(
     request_id: &str,
     trace_id: &str,
     capability_version: &str,
-    payload: Value,
-) -> JsonRequest {
+    payload: T,
+) -> ServiceRequest<T> {
     ServiceRequestContext::new(
         request_id,
         TraceContext {
@@ -663,12 +674,12 @@ pub fn trusted_remote_request_context(
     .expect("trusted-remote process request context should be valid")
 }
 
-pub fn provider_request_context(
+pub fn provider_request_context<T>(
     request_id: &str,
     trace_id: &str,
     capability_version: &str,
-    payload: Value,
-) -> JsonRequest {
+    payload: T,
+) -> ServiceRequest<T> {
     ServiceRequestContext::local_user_secret(
         request_id,
         TraceContext {

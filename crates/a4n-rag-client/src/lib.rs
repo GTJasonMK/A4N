@@ -1,5 +1,10 @@
 //! Typed client for the RAG sidecar service.
 
+use a4n_rag_sidecar_contract::{
+    CompletenessByIdsPayload, CompletenessReport, DeleteRecordsPayload, DropCollectionPayload,
+    IngestPayload, MetadataByFilterPayload, MetadataByIdsPayload, QueryPayload, SearchPayload,
+    SearchResultPayload, SearchTextPayload,
+};
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
     ServiceClientResult,
@@ -11,11 +16,27 @@ use a4n_service_protocol::{
     RAG_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
 };
 use async_trait::async_trait;
+use std::collections::HashMap;
 #[cfg(any(test, feature = "test-support"))]
 use std::time::Duration;
 
-pub type JsonRequest = ServiceRequest<serde_json::Value>;
-pub type JsonResponse = ServiceResponse<serde_json::Value>;
+pub type IngestRequest = ServiceRequest<IngestPayload>;
+pub type MetadataByIdsRequest = ServiceRequest<MetadataByIdsPayload>;
+pub type MetadataByIdsResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
+pub type CompletenessByIdsRequest = ServiceRequest<CompletenessByIdsPayload>;
+pub type CompletenessByIdsResponse = ServiceResponse<CompletenessReport>;
+pub type DropCollectionRequest = ServiceRequest<DropCollectionPayload>;
+pub type DropCollectionResponse = ServiceResponse<()>;
+pub type DeleteRequest = ServiceRequest<DeleteRecordsPayload>;
+pub type DeleteResponse = ServiceResponse<usize>;
+pub type MetadataByFilterRequest = ServiceRequest<MetadataByFilterPayload>;
+pub type MetadataByFilterResponse = ServiceResponse<HashMap<String, serde_json::Value>>;
+pub type QueryRequest = ServiceRequest<QueryPayload>;
+pub type QueryResponse = ServiceResponse<Vec<SearchResultPayload>>;
+pub type SearchTextRequest = ServiceRequest<SearchTextPayload>;
+pub type SearchTextResponse = ServiceResponse<Vec<SearchResultPayload>>;
+pub type SearchRequest = ServiceRequest<SearchPayload>;
+pub type SearchResponse = ServiceResponse<Vec<SearchResultPayload>>;
 
 pub struct HttpRagClient {
     transport: HttpSidecarTransport,
@@ -73,37 +94,52 @@ impl ServiceClient for HttpRagClient {
 
 #[async_trait]
 pub trait RagClient: ServiceClient {
-    async fn query(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn search_text(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn query(&self, request: QueryRequest) -> ServiceClientResult<QueryResponse>;
+    async fn search_text(
+        &self,
+        request: SearchTextRequest,
+    ) -> ServiceClientResult<SearchTextResponse>;
     async fn ingest_events(
         &self,
-        request: JsonRequest,
+        request: IngestRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()>;
-    async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn drop_collection(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn metadata_by_ids(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
-    async fn metadata_by_filter(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse>;
+    async fn search(&self, request: SearchRequest) -> ServiceClientResult<SearchResponse>;
+    async fn delete(&self, request: DeleteRequest) -> ServiceClientResult<DeleteResponse>;
+    async fn drop_collection(
+        &self,
+        request: DropCollectionRequest,
+    ) -> ServiceClientResult<DropCollectionResponse>;
+    async fn metadata_by_ids(
+        &self,
+        request: MetadataByIdsRequest,
+    ) -> ServiceClientResult<MetadataByIdsResponse>;
+    async fn metadata_by_filter(
+        &self,
+        request: MetadataByFilterRequest,
+    ) -> ServiceClientResult<MetadataByFilterResponse>;
     async fn completeness_report_by_ids(
         &self,
-        request: JsonRequest,
-    ) -> ServiceClientResult<JsonResponse>;
+        request: CompletenessByIdsRequest,
+    ) -> ServiceClientResult<CompletenessByIdsResponse>;
 }
 
 #[async_trait]
 impl RagClient for HttpRagClient {
-    async fn query(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn query(&self, request: QueryRequest) -> ServiceClientResult<QueryResponse> {
         self.transport.post(RAG_QUERY_PATH, request).await
     }
 
-    async fn search_text(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn search_text(
+        &self,
+        request: SearchTextRequest,
+    ) -> ServiceClientResult<SearchTextResponse> {
         self.transport.post(RAG_SEARCH_TEXT_PATH, request).await
     }
 
     async fn ingest_events(
         &self,
-        request: JsonRequest,
+        request: IngestRequest,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
         self.transport
@@ -111,23 +147,32 @@ impl RagClient for HttpRagClient {
             .await
     }
 
-    async fn search(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn search(&self, request: SearchRequest) -> ServiceClientResult<SearchResponse> {
         self.transport.post(RAG_SEARCH_PATH, request).await
     }
 
-    async fn delete(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn delete(&self, request: DeleteRequest) -> ServiceClientResult<DeleteResponse> {
         self.transport.post(RAG_DELETE_PATH, request).await
     }
 
-    async fn drop_collection(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn drop_collection(
+        &self,
+        request: DropCollectionRequest,
+    ) -> ServiceClientResult<DropCollectionResponse> {
         self.transport.post(RAG_DROP_COLLECTION_PATH, request).await
     }
 
-    async fn metadata_by_ids(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn metadata_by_ids(
+        &self,
+        request: MetadataByIdsRequest,
+    ) -> ServiceClientResult<MetadataByIdsResponse> {
         self.transport.post(RAG_METADATA_BY_IDS_PATH, request).await
     }
 
-    async fn metadata_by_filter(&self, request: JsonRequest) -> ServiceClientResult<JsonResponse> {
+    async fn metadata_by_filter(
+        &self,
+        request: MetadataByFilterRequest,
+    ) -> ServiceClientResult<MetadataByFilterResponse> {
         self.transport
             .post(RAG_METADATA_BY_FILTER_PATH, request)
             .await
@@ -135,8 +180,8 @@ impl RagClient for HttpRagClient {
 
     async fn completeness_report_by_ids(
         &self,
-        request: JsonRequest,
-    ) -> ServiceClientResult<JsonResponse> {
+        request: CompletenessByIdsRequest,
+    ) -> ServiceClientResult<CompletenessByIdsResponse> {
         self.transport
             .post(RAG_COMPLETENESS_REPORT_BY_IDS_PATH, request)
             .await

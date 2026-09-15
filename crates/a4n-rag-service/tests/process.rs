@@ -1,16 +1,18 @@
 use a4n_service_protocol::{
     CapabilityTaskEventKind, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_IDS_PATH,
-    SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+    SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode, ServiceRequest,
 };
 use a4n_test_support::process::{
-    HttpRagClient, JsonRequest, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
-    SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
-    assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
-    assert_route_rejects_malformed_json, assert_route_rejects_oversized_json,
-    assert_route_rejects_unknown_payload_field, assert_route_rejects_version_mismatch,
-    assert_sidecar_rejects_non_loopback_without_auth, finish_sidecar, force_finish_sidecar,
-    request_context, sidecar_base_url, sidecar_manager_with_dir, start_sidecar,
-    trusted_remote_request_context, unused_local_addr,
+    CompletenessByIdsPayload, DeleteFilterPayload, DeleteRecordsPayload, DropCollectionPayload,
+    EmbeddingRecordPayload, HttpRagClient, IngestPayload, MetadataByFilterPayload,
+    MetadataByIdsPayload, QueryPayload, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, RagClient,
+    SIDECAR_PROCESS_TEST_TOKEN, SearchPayload, SearchTextPayload, ServiceStatus,
+    SidecarProcessTestDir, assert_process_concurrency_saturation,
+    assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
+    assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
+    assert_route_rejects_version_mismatch, assert_sidecar_rejects_non_loopback_without_auth,
+    finish_sidecar, force_finish_sidecar, request_context, sidecar_base_url,
+    sidecar_manager_with_dir, start_sidecar, trusted_remote_request_context, unused_local_addr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -18,7 +20,7 @@ use std::time::Duration;
 const COLLECTION: &str = "42";
 const MUTATION_MARKER: &str = ".a4n-rag-mutation-in-progress";
 
-fn rag_request(label: &str, payload: Value) -> a4n_test_support::process::JsonRequest {
+fn rag_request(label: &str, payload: IngestPayload) -> ServiceRequest<IngestPayload> {
     request_context(
         label,
         &format!("{label}-trace"),
@@ -27,7 +29,7 @@ fn rag_request(label: &str, payload: Value) -> a4n_test_support::process::JsonRe
     )
 }
 
-async fn ingest_records(client: &HttpRagClient, request: JsonRequest) -> usize {
+async fn ingest_records(client: &HttpRagClient, request: ServiceRequest<IngestPayload>) -> usize {
     let (events_tx, mut events_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     client
         .ingest_events(request, events_tx)
@@ -51,26 +53,26 @@ async fn ingest_records(client: &HttpRagClient, request: JsonRequest) -> usize {
     panic!("RAG ingest event stream ended without completion");
 }
 
-fn canonical_records() -> Vec<Value> {
+fn canonical_records() -> Vec<EmbeddingRecordPayload> {
     vec![
-        json!({
-            "id": "doc-1",
-            "embedding": [1.0, 0.0, 0.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 1},
-            "content": "第一条重建哨兵正文"
-        }),
-        json!({
-            "id": "doc-2",
-            "embedding": [0.0, 1.0, 0.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 2},
-            "content": "第二条删除哨兵正文"
-        }),
-        json!({
-            "id": "doc-3",
-            "embedding": [0.0, 0.0, 1.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 3},
-            "content": "第三条断连哨兵正文"
-        }),
+        EmbeddingRecordPayload {
+            id: "doc-1".to_string(),
+            embedding: vec![1.0, 0.0, 0.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 1}),
+            content: "第一条重建哨兵正文".to_string(),
+        },
+        EmbeddingRecordPayload {
+            id: "doc-2".to_string(),
+            embedding: vec![0.0, 1.0, 0.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 2}),
+            content: "第二条删除哨兵正文".to_string(),
+        },
+        EmbeddingRecordPayload {
+            id: "doc-3".to_string(),
+            embedding: vec![0.0, 0.0, 1.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 3}),
+            content: "第三条断连哨兵正文".to_string(),
+        },
     ]
 }
 
@@ -83,9 +85,14 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
     let payload = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let response = client
-                .completeness_report_by_ids(rag_request(
+                .completeness_report_by_ids(request_context(
                     "rag-process-completeness",
-                    json!({"collection": COLLECTION, "expected_ids": expected_ids.clone()}),
+                    "rag-process-completeness-trace",
+                    RAG_INDEX_CAPABILITY_VERSION,
+                    CompletenessByIdsPayload {
+                        collection: COLLECTION.to_string(),
+                        expected_ids: expected_ids.clone(),
+                    },
                 ))
                 .await
                 .expect("RAG completeness request should cross the independent process");
@@ -93,7 +100,7 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
                 && response
                     .payload
                     .as_ref()
-                    .is_some_and(|payload| payload["is_complete"] == json!(true))
+                    .is_some_and(|payload| payload.is_complete)
             {
                 return response.payload.expect("RAG completeness payload");
             }
@@ -102,15 +109,22 @@ async fn assert_complete<T: AsRef<str>>(client: &HttpRagClient, expected_ids: &[
     })
     .await
     .expect("RAG indexes should become complete before timeout");
-    assert_eq!(payload["actual_vector"], json!(expected_count));
-    assert_eq!(payload["actual_bm25"], json!(expected_count));
+    assert_eq!(payload.actual_vector, expected_count);
+    assert_eq!(payload.actual_bm25, expected_count);
 }
 
 async fn search_ids(client: &HttpRagClient, query: &str) -> Vec<String> {
     let response = client
-        .search_text(rag_request(
+        .search_text(request_context(
             "rag-process-search",
-            json!({"collection": COLLECTION, "query_text": query, "top_k": 10}),
+            "rag-process-search-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            SearchTextPayload {
+                collection: COLLECTION.to_string(),
+                query_text: query.to_string(),
+                top_k: 10,
+                filters: None,
+            },
         ))
         .await
         .expect("RAG text search should cross the independent process");
@@ -118,10 +132,8 @@ async fn search_ids(client: &HttpRagClient, query: &str) -> Vec<String> {
     response
         .payload
         .expect("RAG search payload")
-        .as_array()
-        .expect("RAG search payload should be an array")
         .iter()
-        .map(|row| row["id"].as_str().expect("RAG result id").to_string())
+        .map(|row| row.id.clone())
         .collect()
 }
 
@@ -170,7 +182,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         "rag-process-metadata",
         "rag-process-trace",
         RAG_INDEX_CAPABILITY_VERSION,
-        serde_json::json!({"collection": COLLECTION, "ids": []}),
+        MetadataByIdsPayload {
+            collection: COLLECTION.to_string(),
+            ids: Vec::new(),
+        },
     );
     assert_route_rejects_version_mismatch(
         &sidecar_base_url(addr),
@@ -183,14 +198,17 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         .await
         .expect("typed RAG metadata lookup should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
-    assert!(response.payload.expect("RAG metadata payload").is_object());
+    assert!(response.payload.expect("RAG metadata payload").is_empty());
 
     let records = canonical_records();
     let ingest_request = trusted_remote_request_context(
         "rag-process-ingest",
         "rag-process-ingest-trace",
         RAG_INDEX_CAPABILITY_VERSION,
-        json!({"collection": COLLECTION, "records": records[..2].to_vec()}),
+        IngestPayload {
+            collection: COLLECTION.to_string(),
+            records: records[..2].to_vec(),
+        },
     );
     assert_route_rejects_unknown_payload_field(
         &sidecar_base_url(addr),
@@ -200,6 +218,28 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     .await;
     assert_eq!(ingest_records(&client, ingest_request).await, 2);
     assert_complete(&client, &["doc-1", "doc-2"]).await;
+    let metadata = client
+        .metadata_by_filter(request_context(
+            "rag-process-metadata-filter",
+            "rag-process-metadata-filter-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            MetadataByFilterPayload {
+                collection: COLLECTION.to_string(),
+                filter: DeleteFilterPayload {
+                    ids: vec!["doc-1".to_string()],
+                    id_prefixes: Vec::new(),
+                },
+            },
+        ))
+        .await
+        .expect("typed RAG metadata filter should cross the independent process");
+    assert_eq!(metadata.status, ServiceStatus::Ok);
+    assert!(
+        metadata
+            .payload
+            .expect("RAG metadata filter payload")
+            .contains_key("doc-1")
+    );
     assert_eq!(search_ids(&client, "重建").await, vec!["doc-1"]);
 
     let backpressure_client =
@@ -210,15 +250,15 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .ingest_events(
                 rag_request(
                     "rag-process-backpressure",
-                    json!({
-                        "collection": COLLECTION,
-                        "records": [{
-                            "id": "doc-backpressure",
-                            "embedding": [1.0, 1.0, 0.0],
-                            "metadata": {"data_type": "chapter", "chapter_number": 4},
-                            "content": "背压完成后仍应持久化"
-                        }]
-                    }),
+                    IngestPayload {
+                        collection: COLLECTION.to_string(),
+                        records: vec![EmbeddingRecordPayload {
+                            id: "doc-backpressure".to_string(),
+                            embedding: vec![1.0, 1.0, 0.0],
+                            metadata: json!({"data_type": "chapter", "chapter_number": 4}),
+                            content: "背压完成后仍应持久化".to_string(),
+                        }],
+                    },
                 ),
                 backpressure_tx,
             )
@@ -257,13 +297,16 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     assert_complete(&client, &expected_ids).await;
 
     let failed_query = client
-        .query(rag_request(
+        .query(request_context(
             "rag-process-query-failure",
-            json!({
-                "collection": COLLECTION,
-                "query_embedding": [1.0, 0.0],
-                "top_k": 1
-            }),
+            "rag-process-query-failure-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            QueryPayload {
+                collection: COLLECTION.to_string(),
+                query_embedding: vec![1.0, 0.0],
+                top_k: 1,
+                filters: None,
+            },
         ))
         .await
         .expect("RAG dimension failure should return a typed response");
@@ -274,32 +317,53 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
 
     let queried = client
-        .query(rag_request(
+        .query(request_context(
             "rag-process-query",
-            json!({
-                "collection": COLLECTION,
-                "query_embedding": [1.0, 0.0, 0.0],
-                "top_k": 1
-            }),
+            "rag-process-query-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            QueryPayload {
+                collection: COLLECTION.to_string(),
+                query_embedding: vec![1.0, 0.0, 0.0],
+                top_k: 1,
+                filters: None,
+            },
         ))
         .await
         .expect("RAG vector query should cross the independent process");
     assert_eq!(queried.status, ServiceStatus::Ok);
+    assert_eq!(queried.payload.expect("RAG query payload")[0].id, "doc-1");
+
+    let hybrid = client
+        .search(request_context(
+            "rag-process-hybrid-search",
+            "rag-process-hybrid-search-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            SearchPayload {
+                collection: COLLECTION.to_string(),
+                query_text: "重建".to_string(),
+                query_embedding: vec![1.0, 0.0, 0.0],
+                top_k: 1,
+                filters: None,
+            },
+        ))
+        .await
+        .expect("RAG hybrid search should cross the independent process");
+    assert_eq!(hybrid.status, ServiceStatus::Ok);
     assert_eq!(
-        queried.payload.expect("RAG query payload")[0]["id"],
-        json!("doc-1")
+        hybrid.payload.expect("RAG hybrid search payload")[0].id,
+        "doc-1"
     );
 
     let mut idle_records = Vec::with_capacity(512);
     for index in 0..512 {
         let id = format!("stream-idle-{index}");
         expected_ids.push(id.clone());
-        idle_records.push(json!({
-            "id": id,
-            "embedding": [0.0, 0.0, 1.0],
-            "metadata": {"data_type": "chapter", "chapter_number": 3},
-            "content": format!("stream idle 索引一致性哨兵 {index}")
-        }));
+        idle_records.push(EmbeddingRecordPayload {
+            id,
+            embedding: vec![0.0, 0.0, 1.0],
+            metadata: json!({"data_type": "chapter", "chapter_number": 3}),
+            content: format!("stream idle 索引一致性哨兵 {index}"),
+        });
     }
     let idle_client =
         HttpRagClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN)
@@ -315,7 +379,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .ingest_events(
                 rag_request(
                     "rag-process-stream-idle",
-                    json!({"collection": COLLECTION, "records": idle_records}),
+                    IngestPayload {
+                        collection: COLLECTION.to_string(),
+                        records: idle_records,
+                    },
                 ),
                 idle_tx,
             )
@@ -346,7 +413,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
             .ingest_events(
                 rag_request(
                     "rag-process-disconnect",
-                    json!({"collection": COLLECTION, "records": [records[2].clone()]}),
+                    IngestPayload {
+                        collection: COLLECTION.to_string(),
+                        records: vec![records[2].clone()],
+                    },
                 ),
                 event_tx,
             )
@@ -385,20 +455,22 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
 
     let deleted = client
-        .delete(rag_request(
+        .delete(request_context(
             "rag-process-delete",
-            json!({
-                "collection": COLLECTION,
-                "filter": {
-                    "ids": ["doc-2"],
-                    "id_prefixes": []
-                }
-            }),
+            "rag-process-delete-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            DeleteRecordsPayload {
+                collection: COLLECTION.to_string(),
+                filter: DeleteFilterPayload {
+                    ids: vec!["doc-2".to_string()],
+                    id_prefixes: Vec::new(),
+                },
+            },
         ))
         .await
         .expect("RAG delete should cross the independent process");
     assert_eq!(deleted.status, ServiceStatus::Ok);
-    assert_eq!(deleted.payload.expect("RAG delete payload"), json!(1));
+    assert_eq!(deleted.payload.expect("RAG delete payload"), 1);
     let remaining_after_delete = search_ids(&client, "删除").await;
     assert!(
         remaining_after_delete.is_empty(),
@@ -406,18 +478,26 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     );
 
     let dropped = client
-        .drop_collection(rag_request(
+        .drop_collection(request_context(
             "rag-process-drop",
-            json!({"collection": COLLECTION}),
+            "rag-process-drop-trace",
+            RAG_INDEX_CAPABILITY_VERSION,
+            DropCollectionPayload {
+                collection: COLLECTION.to_string(),
+            },
         ))
         .await
         .expect("RAG collection drop should cross the independent process");
     assert_eq!(dropped.status, ServiceStatus::Ok);
+    assert!(dropped.payload.is_some());
     let rebuilt = ingest_records(
         &client,
         rag_request(
             "rag-process-rebuild",
-            json!({"collection": COLLECTION, "records": canonical_records()}),
+            IngestPayload {
+                collection: COLLECTION.to_string(),
+                records: canonical_records(),
+            },
         ),
     )
     .await;
@@ -439,7 +519,10 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
         &client,
         rag_request(
             "rag-process-explicit-rebuild",
-            json!({"collection": COLLECTION, "records": canonical_records()}),
+            IngestPayload {
+                collection: COLLECTION.to_string(),
+                records: canonical_records(),
+            },
         ),
     )
     .await;
