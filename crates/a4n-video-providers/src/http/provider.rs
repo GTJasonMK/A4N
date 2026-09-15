@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_provider_contract::{
+    VideoGenerationResult, VideoJobState, VideoJobStatus, VideoProvider,
+};
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use super::response::{decode_result, extract_job_id, required_string};
@@ -127,7 +129,7 @@ impl VideoProvider for HttpVideoProvider {
         Err(AppError::Internal(format!("未知视频任务 status={status}")))
     }
 
-    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+    async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
             return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
@@ -140,20 +142,20 @@ impl VideoProvider for HttpVideoProvider {
         )
         .await?;
         let Some(value) = value else {
-            return Ok(a4n_video::VideoJobStatus::NotFound);
+            return Ok(VideoJobStatus::NotFound);
         };
         let status = required_string(&value, "/status", "视频任务 status")?.to_ascii_lowercase();
         if matches!(
             status.as_str(),
             "pending" | "queued" | "submitted" | "starting"
         ) {
-            return Ok(a4n_video::VideoJobStatus::Pending);
+            return Ok(VideoJobStatus::Pending);
         }
         if matches!(status.as_str(), "running" | "processing" | "in_progress") {
-            return Ok(a4n_video::VideoJobStatus::Running);
+            return Ok(VideoJobStatus::Running);
         }
         if matches!(status.as_str(), "cancelled" | "canceled") {
-            return Ok(a4n_video::VideoJobStatus::Cancelled);
+            return Ok(VideoJobStatus::Cancelled);
         }
         if matches!(status.as_str(), "failed" | "failure" | "error" | "expired") {
             let message = value
@@ -165,13 +167,13 @@ impl VideoProvider for HttpVideoProvider {
                 .chars()
                 .take(500)
                 .collect();
-            return Ok(a4n_video::VideoJobStatus::Failed(message));
+            return Ok(VideoJobStatus::Failed(message));
         }
         if matches!(
             status.as_str(),
             "completed" | "complete" | "succeeded" | "success" | "done"
         ) {
-            return Ok(a4n_video::VideoJobStatus::Completed);
+            return Ok(VideoJobStatus::Completed);
         }
         Err(AppError::Internal(format!("未知视频任务 status={status}")))
     }

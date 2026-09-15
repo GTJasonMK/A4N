@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { path = "../a4n-domain" }
-a4n-video = { path = "../a4n-video" }
+a4n-video-provider-contract = { path = "../a4n-video-provider-contract" }
 a4n-video-sidecar-contract = { path = "../a4n-video-sidecar-contract" }
 
 async-trait = { workspace = true }

@@ -8,7 +8,9 @@ use base64::Engine as _;
 use serde_json::{Map, Value, json};
 
 use a4n_domain::ProviderError as AppError;
-use a4n_video::{VideoGenerationResult, VideoJobState, VideoProvider};
+use a4n_video_provider_contract::{
+    VideoGenerationResult, VideoJobState, VideoJobStatus, VideoProvider,
+};
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use crate::download::download_video_url_with_api_key;
@@ -258,7 +260,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
         Ok(VideoJobState::Completed(self.decode_completed(&v).await?))
     }
 
-    async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
+    async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError> {
         if self.api_key.is_empty() {
             return Err(AppError::Configuration(
                 "Gemini Veo 视频配置缺少 api_key".into(),
@@ -273,17 +275,17 @@ impl VideoProvider for GeminiVeoVideoProvider {
         )
         .await?;
         let Some(value) = value else {
-            return Ok(a4n_video::VideoJobStatus::NotFound);
+            return Ok(VideoJobStatus::NotFound);
         };
         if operation_is_cancelled(&value) {
-            return Ok(a4n_video::VideoJobStatus::Cancelled);
+            return Ok(VideoJobStatus::Cancelled);
         }
         if let Some(message) = operation_error_message(&value) {
-            return Ok(a4n_video::VideoJobStatus::Failed(message));
+            return Ok(VideoJobStatus::Failed(message));
         }
         if value.get("done").and_then(Value::as_bool) == Some(true) {
-            return Ok(a4n_video::VideoJobStatus::Completed);
+            return Ok(VideoJobStatus::Completed);
         }
-        Ok(a4n_video::VideoJobStatus::Running)
+        Ok(VideoJobStatus::Running)
     }
 }

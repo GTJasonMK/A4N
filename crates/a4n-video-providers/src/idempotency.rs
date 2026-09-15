@@ -4,7 +4,7 @@ pub(crate) fn with_provider_idempotency_key(
     request: reqwest::RequestBuilder,
     value: Option<&str>,
 ) -> Result<reqwest::RequestBuilder, AppError> {
-    a4n_video::validate_video_provider_idempotency_key(value)?;
+    a4n_video_provider_contract::validate_video_provider_idempotency_key(value)?;
     Ok(match value {
         Some(value) => request.header("Idempotency-Key", value),
         None => request,
