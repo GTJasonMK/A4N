@@ -41,7 +41,7 @@ impl OrchestratorContext {
         &self,
         input: ReverseEngineerInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
         let ReverseEngineerInput {
             project_id,
             content_sample: manual_sample,
@@ -191,7 +191,7 @@ impl super::ImportReversePreviewApplicationPort for OrchestratorContext {
         &self,
         input: ReverseEngineerInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
         self.prepare_reverse_engineer_request_validated(input, prompt_renderer)
             .await
     }

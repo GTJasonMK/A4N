@@ -21,7 +21,7 @@ pub trait ImportReversePreviewApplicationPort: Send + Sync {
         &self,
         input: a4n_api_contract::import_reverse::ReverseEngineerInput,
         prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, a4n_error::AppError>;
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, a4n_error::AppError>;
 }
 
 /// Runtime-facing reverse-engineering execution boundary.
