@@ -3,7 +3,7 @@ use a4n_domain::project::{
     BLUEPRINT_GENERATION_KIND, BLUEPRINT_GENERATION_PROMPTS, blueprint_stage_call_key,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::{Value, json};
 
 pub(in crate::blueprint::generation) fn blueprint_stage_call_fingerprint_json(
@@ -26,7 +26,7 @@ pub(in crate::blueprint::generation) fn blueprint_stage_call_fingerprint_json(
 #[cfg(test)]
 mod tests {
     use crate::blueprint::generation::contracts::BLUEPRINT_GENERATION_STAGES;
-    use a4n_llm::provider::{ChatMessage, ChatRequest};
+    use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 
     use super::*;
 

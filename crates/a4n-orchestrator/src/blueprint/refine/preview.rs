@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db::blueprint_context::blueprint_llm_context;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::build_blueprint_refine_request;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;

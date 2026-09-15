@@ -9,7 +9,7 @@ use a4n_domain::project::{
 };
 use a4n_domain::workflow::WORKFLOW_STATUS_RUNNING;
 use a4n_error::AppError;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::blueprint_generation::build_blueprint_refine_request;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
