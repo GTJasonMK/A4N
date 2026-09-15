@@ -8,7 +8,7 @@ use super::download::{
     test_embedding_config_via_sidecar,
 };
 use crate::state::RuntimeProfile;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{

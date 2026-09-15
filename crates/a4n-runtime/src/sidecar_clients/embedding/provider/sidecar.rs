@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use a4n_domain::ProviderError;
-use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
 use a4n_embedding_client::EmbeddingClient;
+use a4n_embedding_provider_contract::{
+    EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider,
+};
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_queue::priority::{TaskKind, TaskPriority};
