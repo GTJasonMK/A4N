@@ -4,10 +4,10 @@ use a4n_domain::{
 };
 use a4n_embedding::http::HttpEmbeddingProvider;
 use a4n_embedding::local::LocalEmbeddingProvider;
-use a4n_embedding::provider::EmbeddingProvider;
 use a4n_embedding_contract::{EmbedTextsOutput, EmbedTextsPayload};
 #[cfg(feature = "fastembed")]
 use a4n_embedding_fastembed::FastEmbedProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 

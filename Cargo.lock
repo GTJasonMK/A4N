@@ -370,6 +370,7 @@ dependencies = [
  "a4n-embedding",
  "a4n-embedding-contract",
  "a4n-embedding-fastembed",
+ "a4n-embedding-provider-contract",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
