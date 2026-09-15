@@ -447,7 +447,6 @@ dependencies = [
  "a4n-domain",
  "a4n-image-contract",
  "async-trait",
- "serde",
 ]
 
 [[package]]
@@ -674,7 +673,6 @@ dependencies = [
  "a4n-domain",
  "a4n-model-discovery-contract",
  "reqwest 0.12.28",
- "serde",
  "serde_json",
 ]
 
@@ -728,7 +726,6 @@ dependencies = [
  "a4n-test-support",
  "a4n-video",
  "a4n-video-contract",
- "a4n-worker-contract",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -931,7 +928,6 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "futures",
- "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -1198,7 +1194,6 @@ dependencies = [
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
- "a4n-task-runtime",
  "a4n-video-client",
  "a4n-video-sidecar-contract",
  "anyhow",
@@ -1286,7 +1281,6 @@ dependencies = [
  "axum 0.8.9",
  "base64 0.22.1",
  "futures",
- "serde",
  "serde_json",
  "tokio",
  "tracing",

@@ -9,4 +9,3 @@ a4n-domain = { path = "../a4n-domain" }
 a4n-image-contract = { path = "../a4n-image-contract" }
 
 async-trait = { workspace = true }
-serde = { workspace = true }

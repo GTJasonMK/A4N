@@ -2,7 +2,7 @@ use super::*;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingVideoClient;
-use a4n_video_client::{JsonResponse, VideoDeleteResponse, VideoJobResponse, VideoStatusResponse};
+use a4n_video_client::{JsonResponse, VideoJobResponse};
 use a4n_video_sidecar_contract::{VideoDeleteOutput, VideoJobOutput, VideoStatusOutput};
 use serde_json::json;
 use std::sync::Arc;
