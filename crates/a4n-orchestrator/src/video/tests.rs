@@ -7,7 +7,7 @@ use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
 };
-use a4n_llm::provider::LlmProvider;
+use a4n_llm_provider_contract::provider::LlmProvider;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,

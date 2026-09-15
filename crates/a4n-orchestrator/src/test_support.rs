@@ -7,7 +7,7 @@ use a4n_db::{
 };
 use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_event::BroadcastEventBus;
-use a4n_llm::provider::LlmProvider;
+use a4n_llm_provider_contract::provider::LlmProvider;
 use a4n_prompt_client::PromptClient;
 use a4n_rag_core::{memory_store::MemoryVectorStore, vector_store::VectorStore};
 use a4n_service_manager::ServiceManager;
