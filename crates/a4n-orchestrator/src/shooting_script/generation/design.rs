@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use a4n_domain::shooting_script::{ShootingSceneV1, ShootingShotV1};
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;

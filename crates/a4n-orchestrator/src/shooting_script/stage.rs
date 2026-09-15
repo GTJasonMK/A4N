@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde::{Serialize, de::DeserializeOwned};
 use tokio_util::sync::CancellationToken;
 
@@ -29,7 +29,7 @@ impl OrchestratorContext {
     where
         T: Serialize + DeserializeOwned,
     {
-        let fingerprint_json = a4n_llm::trace::context_aware_chat_request_trace_json(request)?;
+        let fingerprint_json = a4n_llm_trace::context_aware_chat_request_trace_json(request)?;
         let Some(checkpoint) = self
             .load_completed_llm_call_checkpoint(workflow_run_id, step_key, &fingerprint_json)
             .await?
@@ -64,7 +64,7 @@ impl OrchestratorContext {
         T: Serialize + DeserializeOwned,
     {
         self.ensure_shooting_script_running(workflow_run_id).await?;
-        let fingerprint_json = a4n_llm::trace::context_aware_chat_request_trace_json(&request)?;
+        let fingerprint_json = a4n_llm_trace::context_aware_chat_request_trace_json(&request)?;
         let fingerprint_sha256 = llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)
             .map_err(workflow_checkpoint_contract_app_error)?;
         if let Some(trace) = request.trace_context.as_mut() {
