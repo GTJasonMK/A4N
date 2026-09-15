@@ -329,6 +329,7 @@ dependencies = [
 name = "a4n-embedding-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-embedding-value-contract",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -356,7 +357,7 @@ name = "a4n-embedding-provider-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding-contract",
+ "a4n-embedding-value-contract",
  "async-trait",
  "serde",
  "tokio",
@@ -381,6 +382,15 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "a4n-embedding-value-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -925,7 +935,7 @@ name = "a4n-rag-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding-contract",
+ "a4n-embedding-value-contract",
  "a4n-error",
  "a4n-rag-value-contract",
  "async-trait",
@@ -994,7 +1004,7 @@ dependencies = [
 name = "a4n-rag-value-contract"
 version = "0.1.0"
 dependencies = [
- "a4n-embedding-contract",
+ "a4n-embedding-value-contract",
  "serde",
  "serde_json",
 ]

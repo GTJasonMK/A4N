@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use a4n_domain::ProviderError as AppError;
 pub use a4n_domain::ProviderError;
-pub use a4n_embedding_contract::EmbeddingModelIdentity;
+pub use a4n_embedding_value_contract::EmbeddingModelIdentity;
 
 pub const EMBEDDING_CONNECTIVITY_TEST_TEXT: &str = "test";
 

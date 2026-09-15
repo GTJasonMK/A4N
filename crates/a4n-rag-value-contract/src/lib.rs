@@ -12,7 +12,7 @@ pub mod chapter {
 }
 
 pub mod search {
-    use a4n_embedding_contract::EmbeddingModelIdentity;
+    use a4n_embedding_value_contract::EmbeddingModelIdentity;
 
     use crate::vector_store::{SearchFilter, SearchResult};
 

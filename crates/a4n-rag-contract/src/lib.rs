@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use a4n_domain::rag::RagDataType;
-use a4n_embedding_contract::EmbeddingModelIdentity;
+use a4n_embedding_value_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use async_trait::async_trait;
 use serde_json::Value;

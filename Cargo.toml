@@ -42,6 +42,7 @@ members = [
     "crates/a4n-llm-http",
     "crates/a4n-llm-gateway",
     "crates/a4n-embedding-contract",
+    "crates/a4n-embedding-value-contract",
     "crates/a4n-embedding-provider-contract",
     "crates/a4n-embedding",
     "crates/a4n-embedding-fastembed",
