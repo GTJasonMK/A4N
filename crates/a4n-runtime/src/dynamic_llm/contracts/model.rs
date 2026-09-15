@@ -2,6 +2,7 @@ use crate::dynamic_llm::config::{model_capabilities, validated_timeout_secs};
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use a4n_llm_config::LlmConfigSnapshot;
+use a4n_llm_sidecar_contract::LlmChatRequest;
 use a4n_llm_sidecar_contract::{LlmGatewayPayload, LlmGatewayProviderConfig, LlmProbePayload};
 use a4n_provider_contract::LlmProviderConfig;
 use async_trait::async_trait;
@@ -59,20 +60,20 @@ impl ResolvedLlmModel {
     pub(in crate::dynamic_llm) fn sidecar_payload(
         self,
         request: ChatRequest,
-    ) -> LlmGatewayPayload<ChatRequest> {
+    ) -> LlmGatewayPayload<LlmChatRequest> {
         LlmGatewayPayload {
             provider: self.provider_config(),
-            request,
+            request: request.into(),
         }
     }
 
     pub(in crate::dynamic_llm) fn probe_payload(
         self,
         request: ChatRequest,
-    ) -> LlmProbePayload<ChatRequest> {
+    ) -> LlmProbePayload<LlmChatRequest> {
         LlmProbePayload {
             provider: self.provider_config(),
-            request,
+            request: request.into(),
         }
     }
 

@@ -115,7 +115,7 @@ async fn models_reject_api_key_when_user_secret_forwarding_is_denied() {
 async fn stream_rejects_api_key_when_user_secret_forwarding_is_denied() {
     let mut request = service_request(LlmGatewayPayload {
         provider: test_provider_config_with_api_key(),
-        request: ChatRequest::system_user("system", "ping", None, None),
+        request: ChatRequest::system_user("system", "ping", None, None).into(),
     });
     request.secret_policy = SecretForwardingPolicy::deny_all();
 
@@ -152,7 +152,7 @@ async fn stream_response_headers_do_not_wait_for_provider_connection() {
     config.base_url = format!("http://{addr}");
     let request = service_request(LlmGatewayPayload {
         provider: config,
-        request: ChatRequest::system_user("system", "ping", None, None),
+        request: ChatRequest::system_user("system", "ping", None, None).into(),
     });
 
     let response = tokio::time::timeout(Duration::from_millis(50), stream_chat(Json(request)))
@@ -167,7 +167,7 @@ async fn stream_response_headers_do_not_wait_for_provider_connection() {
 async fn stream_rejects_incompatible_protocol_version_as_failed_event() {
     let mut request = service_request(LlmGatewayPayload {
         provider: test_provider_config(),
-        request: ChatRequest::system_user("system", "ping", None, None),
+        request: ChatRequest::system_user("system", "ping", None, None).into(),
     });
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
 

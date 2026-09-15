@@ -110,7 +110,7 @@ fn invalid_provider_payload() -> LlmGatewayPayload {
             api_key: Some("payload-provider-secret".to_string()),
             ..test_provider_config()
         },
-        request: ChatRequest::system_user("system", "ping", None, None),
+        request: ChatRequest::system_user("system", "ping", None, None).into(),
     }
 }
 
@@ -358,7 +358,8 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks() {
             extra_body_json: None,
         },
         request: ChatRequest::system_user("system", "stream ping", None, Some(16))
-            .with_stream_usage(),
+            .with_stream_usage()
+            .into(),
     });
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
 
@@ -440,7 +441,7 @@ async fn closed_receiver_cancels_before_and_during_provider_streams() {
             timeout_secs: 5,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "cancel ping", None, Some(16)),
+        request: ChatRequest::system_user("system", "cancel ping", None, Some(16)).into(),
     });
     let (closed_tx, closed_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
     drop(closed_rx);
@@ -552,7 +553,7 @@ async fn run_stream_baseline(
             timeout_secs: 30,
             extra_body_json: None,
         },
-        request: ChatRequest::system_user("system", "baseline", None, None),
+        request: ChatRequest::system_user("system", "baseline", None, None).into(),
     });
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(event_capacity);
     let started_at = Instant::now();

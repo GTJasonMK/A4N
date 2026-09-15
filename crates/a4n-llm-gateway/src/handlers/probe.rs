@@ -1,7 +1,6 @@
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, ChatResponse, LlmProvider, collect_chat_stream};
-use a4n_llm_sidecar_contract::LlmProbeOutput;
-use a4n_llm_sidecar_contract::LlmProbePayload;
+use a4n_llm_sidecar_contract::{LlmChatRequest, LlmProbeOutput, LlmProbePayload};
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::Json;
 
@@ -9,7 +8,7 @@ use super::{provider_from_config, stream_usage};
 use crate::protocol::{error_response, service_error};
 
 pub(crate) async fn probe(
-    Json(request): Json<ServiceRequest<LlmProbePayload<ChatRequest>>>,
+    Json(request): Json<ServiceRequest<LlmProbePayload<LlmChatRequest>>>,
 ) -> Json<ServiceResponse<LlmProbeOutput>> {
     if let Err(error) = request.validate_known_provider_request(
         LLM_SERVICE_NAME,
@@ -21,7 +20,7 @@ pub(crate) async fn probe(
     let result = async {
         let LlmProbePayload { provider, request } = request.payload;
         let provider = provider_from_config(provider)?;
-        probe_existing_provider(provider.as_ref(), request).await
+        probe_existing_provider(provider.as_ref(), request.into()).await
     }
     .await;
     Json(ServiceResponse::from_result(

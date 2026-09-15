@@ -9,8 +9,8 @@ use a4n_llm_sidecar_contract::{
     LlmResponseFormat, LlmToolCall,
 };
 
-pub type LlmGatewayPayload = a4n_llm_sidecar_contract::LlmGatewayPayload<ChatRequest>;
-pub type LlmProbePayload = a4n_llm_sidecar_contract::LlmProbePayload<ChatRequest>;
+pub type LlmGatewayPayload = a4n_llm_sidecar_contract::LlmGatewayPayload<LlmChatRequest>;
+pub type LlmProbePayload = a4n_llm_sidecar_contract::LlmProbePayload<LlmChatRequest>;
 
 impl From<ChatRequest> for LlmChatRequest {
     fn from(request: ChatRequest) -> Self {

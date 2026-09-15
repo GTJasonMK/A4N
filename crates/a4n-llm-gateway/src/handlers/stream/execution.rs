@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, ToolCall};
-use a4n_llm_sidecar_contract::{LlmGatewayPayload, LlmStreamChunk, LlmStreamToolCall};
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload, LlmStreamChunk, LlmStreamToolCall,
+};
 use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_STREAM_IDLE_TIMEOUT, ServiceRequest};
 use a4n_sidecar_bootstrap::service_event_line;
 use axum::body::Bytes;
@@ -19,13 +21,14 @@ type ChatChunkStream = Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + 
 type ProviderStreamFuture = Pin<Box<dyn Future<Output = Result<ChatChunkStream, AppError>> + Send>>;
 
 pub(super) fn stream_with_provider(
-    request: ServiceRequest<LlmGatewayPayload<ChatRequest>>,
+    request: ServiceRequest<LlmGatewayPayload<LlmChatRequest>>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> + Send {
     let task_id = request.request_id.clone();
     let provider_stream = Box::pin(async move {
-        let provider = provider_from_config(request.payload.provider)?;
+        let LlmGatewayPayload { provider, request } = request.payload;
+        let provider = provider_from_config(provider)?;
         a4n_llm::provider::open_chat_stream(
-            provider.chat_stream(request.payload.request),
+            provider.chat_stream(ChatRequest::from(request)),
             Default::default(),
         )
         .await
