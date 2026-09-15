@@ -1232,9 +1232,9 @@ version = "0.1.0"
 dependencies = [
  "a4n-db-models",
  "a4n-domain",
- "a4n-embedding",
  "a4n-embedding-client",
  "a4n-embedding-contract",
+ "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-export-client",
  "a4n-export-contract",
