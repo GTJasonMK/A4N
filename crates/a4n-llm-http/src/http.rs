@@ -15,7 +15,7 @@ use anthropic::AnthropicLlmProvider;
 use provider::HttpLlmProvider;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::{
     LlmProtocolKind, LlmProvider, ModelCapabilities, validate_prompt_cache_options,
 };
 use serde_json::Value;

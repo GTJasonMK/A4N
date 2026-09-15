@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::time::Instant;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProtocolKind};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest, LlmProtocolKind};
 use futures::Stream;
 
 use crate::http::errors::{request_error, response_text};

@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::ChatRequest;
 use serde_json::{Map, Value, json};
 
 pub(super) fn openai_text_content(

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, pin::Pin, time::Instant};
 
 use a4n_error::AppError;
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::{
     ChatChunk, ChatRequest, LlmProvider, MessageRole, ModelCapabilities, ToolCall, UsageInfo,
 };
 use async_trait::async_trait;
@@ -43,7 +43,7 @@ impl AnthropicLlmProvider {
             model: model.into(),
             timeout_secs,
             connect_timeout_secs,
-            extra_body: a4n_llm::provider::normalize_extra_body(extra_body)?,
+            extra_body: a4n_llm_provider_contract::normalize_extra_body(extra_body)?,
             caps,
         })
     }

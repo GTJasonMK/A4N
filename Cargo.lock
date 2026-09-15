@@ -678,7 +678,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "anyhow",
  "async-trait",
  "futures",

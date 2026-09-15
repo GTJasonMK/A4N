@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::{
     ChatMessage, ChatRequest, ChatResponse, LlmProtocolKind, MessageRole, collect_chat_chunks,
 };
 use futures::{executor::block_on, stream};
