@@ -6,7 +6,7 @@ impl AgentApplication {
     pub async fn bound_model_request(
         &self,
         run_id: i64,
-        request: &mut a4n_llm::provider::ChatRequest,
+        request: &mut a4n_llm_provider_contract::ChatRequest,
         max_output: usize,
     ) -> Result<(), AppError> {
         let output = request.max_tokens.unwrap_or(max_output).min(max_output);

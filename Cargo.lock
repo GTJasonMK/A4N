@@ -12,7 +12,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
- "a4n-llm",
+ "a4n-llm-provider-contract",
  "a4n-migration",
  "a4n-worker-contract",
  "anyhow",
