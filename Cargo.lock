@@ -819,6 +819,7 @@ dependencies = [
  "a4n-llm",
  "a4n-llm-config",
  "a4n-llm-context",
+ "a4n-llm-structured-stream",
  "a4n-media",
  "a4n-migration",
  "a4n-progress",

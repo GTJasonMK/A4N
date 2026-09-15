@@ -49,8 +49,8 @@ impl OrchestratorContext {
             cancel_token,
             cancelled_message,
         } = input;
-        a4n_llm::structured_stream::chat_json_stream_result_with_sink(
-            a4n_llm::structured_stream::ChatJsonStreamInput {
+        a4n_llm_structured_stream::chat_json_stream_result_with_sink(
+            a4n_llm_structured_stream::ChatJsonStreamInput {
                 llm: self.llm.as_ref(),
                 request,
                 prompt_name,
