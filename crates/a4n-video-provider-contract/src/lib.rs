@@ -1,8 +1,12 @@
 //! In-memory contracts shared by video providers and their Host adapters.
 //!
 //! Wire request payloads stay in `a4n-video-sidecar-contract`; provider
-//! implementations and routing rules stay in `a4n-video`.
+//! implementations stay in `a4n-video-providers`, while this crate owns the
+//! provider trait and backend-independent routing metadata.
 
+use a4n_domain::ProviderError as AppError;
+use a4n_video_sidecar_contract::VideoGenerationRequest;
+use async_trait::async_trait;
 use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,4 +48,174 @@ pub enum VideoJobStatus {
 pub enum VideoJobDeleteOutcome {
     Deleted,
     NotFound,
+}
+
+pub const OPENAI_COMPATIBLE_VIDEO_BACKEND: &str = "openai-compatible-video";
+pub const NEWAPI_VIDEO_BACKEND: &str = "newapi-video";
+pub const GEMINI_VEO_VIDEO_BACKEND: &str = "gemini-veo-video";
+pub const SEEDANCE2_VIDEO_BACKEND: &str = "seedance2-video";
+pub const CLIPROXY_OPENAI_VIDEO_BACKEND: &str = "cliproxy-openai-video";
+pub const OPENAI_CHAT_VIDEO_BACKEND: &str = "openai-chat-video";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VideoProviderCapabilities {
+    pub backend: &'static str,
+    pub display_name: &'static str,
+    pub min_duration_secs: i32,
+    pub max_duration_secs: i32,
+    pub asynchronous: bool,
+    pub status_query: bool,
+    pub delete: bool,
+}
+
+const fn async_video_provider(
+    backend: &'static str,
+    display_name: &'static str,
+    min_duration_secs: i32,
+    max_duration_secs: i32,
+) -> VideoProviderCapabilities {
+    VideoProviderCapabilities {
+        backend,
+        display_name,
+        min_duration_secs,
+        max_duration_secs,
+        asynchronous: true,
+        status_query: true,
+        delete: false,
+    }
+}
+
+pub const VIDEO_PROVIDER_CAPABILITIES: &[VideoProviderCapabilities] = &[
+    async_video_provider(OPENAI_COMPATIBLE_VIDEO_BACKEND, "OpenAI 兼容视频", 1, 60),
+    async_video_provider(NEWAPI_VIDEO_BACKEND, "New API 视频", 1, 60),
+    async_video_provider(GEMINI_VEO_VIDEO_BACKEND, "Gemini Veo 视频", 1, 60),
+    async_video_provider(SEEDANCE2_VIDEO_BACKEND, "Seedance 2.0 参考媒体", 4, 15),
+    VideoProviderCapabilities {
+        delete: true,
+        ..async_video_provider(CLIPROXY_OPENAI_VIDEO_BACKEND, "CLIProxy / Grok 视频", 1, 15)
+    },
+    VideoProviderCapabilities {
+        backend: OPENAI_CHAT_VIDEO_BACKEND,
+        display_name: "Chat Completions 视频",
+        min_duration_secs: 1,
+        max_duration_secs: 60,
+        asynchronous: false,
+        status_query: false,
+        delete: false,
+    },
+];
+
+/// The single backend registry used by config validation, provider routing,
+/// capability discovery, and cleanup. Unknown backends intentionally return `None`.
+pub fn video_provider_capabilities(backend: &str) -> Option<VideoProviderCapabilities> {
+    VIDEO_PROVIDER_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capabilities| capabilities.backend == backend)
+}
+
+pub fn validate_video_provider_duration(backend: &str, duration_secs: i32) -> Result<(), String> {
+    let capabilities = video_provider_capabilities(backend)
+        .ok_or_else(|| format!("未知视频生成后端: {backend}"))?;
+    if duration_secs < capabilities.min_duration_secs
+        || duration_secs > capabilities.max_duration_secs
+    {
+        return Err(format!(
+            "{}支持时长必须在 {}-{} 秒之间，当前为 {} 秒",
+            capabilities.display_name,
+            capabilities.min_duration_secs,
+            capabilities.max_duration_secs,
+            duration_secs
+        ));
+    }
+    Ok(())
+}
+
+#[async_trait]
+pub trait VideoProvider: Send + Sync {
+    async fn generate(
+        &self,
+        req: VideoGenerationRequest,
+        provider_idempotency_key_sha256: Option<&str>,
+    ) -> Result<VideoGenerationResult, AppError>;
+
+    async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError>;
+
+    /// Query only remote state. Implementations must not download a completed
+    /// artifact from this method.
+    async fn status(&self, job_id: &str) -> Result<VideoJobStatus, AppError>;
+
+    async fn delete(&self, _job_id: &str) -> Result<VideoJobDeleteOutcome, AppError> {
+        Err(AppError::InvalidArgument(
+            "视频 provider 不支持删除远端任务".to_string(),
+        ))
+    }
+}
+
+pub fn validate_video_provider_idempotency_key(value: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(AppError::InvalidArgument(
+            "视频 provider idempotency key 必须是小写 SHA-256".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_covers_all_supported_backends_once() {
+        assert_eq!(VIDEO_PROVIDER_CAPABILITIES.len(), 6);
+        for backend in [
+            OPENAI_COMPATIBLE_VIDEO_BACKEND,
+            NEWAPI_VIDEO_BACKEND,
+            GEMINI_VEO_VIDEO_BACKEND,
+        ] {
+            let capabilities = video_provider_capabilities(backend).unwrap();
+            assert!(capabilities.asynchronous);
+            assert!(capabilities.status_query);
+            assert!(!capabilities.delete);
+        }
+        let seedance = video_provider_capabilities(SEEDANCE2_VIDEO_BACKEND).unwrap();
+        assert_eq!(seedance.min_duration_secs, 4);
+        assert_eq!(seedance.max_duration_secs, 15);
+        let openai = video_provider_capabilities(CLIPROXY_OPENAI_VIDEO_BACKEND).unwrap();
+        assert!(openai.asynchronous);
+        assert!(openai.status_query);
+        assert!(openai.delete);
+        assert_eq!(openai.min_duration_secs, 1);
+        assert_eq!(openai.max_duration_secs, 15);
+        let chat = video_provider_capabilities(OPENAI_CHAT_VIDEO_BACKEND).unwrap();
+        assert!(!chat.asynchronous);
+        assert!(!chat.status_query);
+        assert!(video_provider_capabilities("unknown").is_none());
+    }
+
+    #[test]
+    fn provider_duration_uses_registry_bounds() {
+        assert!(validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, 4).is_ok());
+        assert!(validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, 15).is_ok());
+        assert!(
+            validate_video_provider_duration(SEEDANCE2_VIDEO_BACKEND, 3)
+                .unwrap_err()
+                .contains("4-15 秒")
+        );
+    }
+
+    #[test]
+    fn provider_idempotency_key_is_optional_lowercase_sha256() {
+        assert!(validate_video_provider_idempotency_key(None).is_ok());
+        assert!(validate_video_provider_idempotency_key(Some(&"a".repeat(64))).is_ok());
+        assert!(validate_video_provider_idempotency_key(Some(&"A".repeat(64))).is_err());
+        assert!(validate_video_provider_idempotency_key(Some("short")).is_err());
+    }
 }

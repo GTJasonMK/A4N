@@ -1341,6 +1341,9 @@ dependencies = [
 name = "a4n-video-provider-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-domain",
+ "a4n-video-sidecar-contract",
+ "async-trait",
  "serde_json",
 ]
 
