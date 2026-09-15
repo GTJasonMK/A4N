@@ -12,10 +12,14 @@ use a4n_api_contract::agent::{
     ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV3, VisualPlanReadView};
+use a4n_api_contract::command_manifest::{RuntimeConfigPolicy, command_runtime_config_policy};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use chrono::NaiveDateTime;
 
-pub const WORKER_SCHEMA_VERSION: u32 = 1;
+// Bump this whenever the Control/worker HTTP payload changes.  The server
+// rejects a mixed pair before a stale worker can reach a stricter command
+// route with an incompatible payload.
+pub const WORKER_SCHEMA_VERSION: u32 = 5;
 pub const AGENT_RUN_OPERATION: &str = "agent.run";
 pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
 pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
@@ -1221,8 +1225,13 @@ pub struct AgentWorkerInboxPersistSnapshotWire {
 #[serde(deny_unknown_fields)]
 pub struct AgentHostCommandPayload {
     pub run_id: i64,
+    pub scope: AgentScope,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_id: Option<i64>,
     pub command: String,
     pub arguments: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_start_request_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_config_snapshot: Option<serde_json::Value>,
 }
@@ -1235,7 +1244,11 @@ impl AgentHostCommandPayload {
                 reason: "must be positive",
             });
         }
+        validate_positive_optional_id("execution_id", self.execution_id)?;
         validate_non_blank("command", &self.command)?;
+        if let Some(request_id) = &self.generation_start_request_id {
+            validate_non_blank("generation_start_request_id", request_id)?;
+        }
         if !self.arguments.is_object() {
             return Err(WorkerContractError::InvalidValue {
                 field: "arguments",
@@ -1245,14 +1258,35 @@ impl AgentHostCommandPayload {
         Ok(())
     }
 
-    pub fn arguments_with_runtime_snapshot(&self) -> serde_json::Value {
+    pub fn arguments_with_runtime_snapshot(
+        &self,
+    ) -> Result<serde_json::Value, WorkerContractError> {
         let mut arguments = self.arguments.clone();
-        if let Some(snapshot) = &self.runtime_config_snapshot
-            && let serde_json::Value::Object(fields) = &mut arguments
-        {
-            fields.insert("runtime_config_snapshot".into(), snapshot.clone());
-        }
-        arguments
+        let fields = arguments
+            .as_object_mut()
+            .ok_or(WorkerContractError::InvalidValue {
+                field: "arguments",
+                reason: "must be an object",
+            })?;
+        fields.remove("runtime_config_snapshot");
+        let Some(snapshot) = &self.runtime_config_snapshot else {
+            return Ok(arguments);
+        };
+        let snapshot = match command_runtime_config_policy(&self.command) {
+            RuntimeConfigPolicy::None => return Ok(arguments),
+            RuntimeConfigPolicy::WithoutSecrets => {
+                let snapshot: RuntimeConfigSnapshot = serde_json::from_value(snapshot.clone())
+                    .map_err(|_| WorkerContractError::InvalidValue {
+                        field: "runtime_config_snapshot",
+                        reason: "must be a valid runtime config snapshot",
+                    })?;
+                serde_json::to_value(snapshot.without_secrets())
+                    .expect("runtime config snapshot must serialize")
+            }
+            RuntimeConfigPolicy::Full => snapshot.clone(),
+        };
+        fields.insert("runtime_config_snapshot".into(), snapshot);
+        Ok(arguments)
     }
 }
 
@@ -1294,18 +1328,42 @@ pub struct AgentWorkerCancelWorkflowRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentWorkerLlmCapabilitiesRequest {
+    pub schema_version: u32,
     pub user_id: i64,
     pub snapshot: Option<RuntimeConfigSnapshot>,
     pub config_id: Option<i64>,
 }
 
+impl AgentWorkerLlmCapabilitiesRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        validate_worker_schema_version(self.schema_version)?;
+        validate_positive_id("user_id", self.user_id)?;
+        validate_positive_optional_id("config_id", self.config_id)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentWorkerChatRequest {
+    pub schema_version: u32,
     pub user_id: i64,
     pub snapshot: Option<RuntimeConfigSnapshot>,
     pub config_id: Option<i64>,
     pub request: serde_json::Value,
+}
+
+impl AgentWorkerChatRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        validate_worker_schema_version(self.schema_version)?;
+        validate_positive_id("user_id", self.user_id)?;
+        if !self.request.is_object() {
+            return Err(WorkerContractError::InvalidValue {
+                field: "request",
+                reason: "must be an object",
+            });
+        }
+        validate_positive_optional_id("config_id", self.config_id)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1316,12 +1374,7 @@ pub struct AgentWorkerPackageExecutionResponse {
 
 impl<T> WorkerRequest<T> {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
-        if self.schema_version != WORKER_SCHEMA_VERSION {
-            return Err(WorkerContractError::SchemaVersion {
-                expected: WORKER_SCHEMA_VERSION,
-                actual: self.schema_version,
-            });
-        }
+        validate_worker_schema_version(self.schema_version)?;
         validate_non_blank("request_id", &self.request_id)?;
         validate_non_blank("trace_id", &self.trace_id)?;
         validate_non_blank("operation_id", &self.operation_id)?;
@@ -1409,6 +1462,16 @@ pub enum WorkerContractError {
 fn validate_non_blank(field: &'static str, value: &str) -> Result<(), WorkerContractError> {
     if value.trim().is_empty() {
         return Err(WorkerContractError::BlankField { field });
+    }
+    Ok(())
+}
+
+fn validate_worker_schema_version(actual: u32) -> Result<(), WorkerContractError> {
+    if actual != WORKER_SCHEMA_VERSION {
+        return Err(WorkerContractError::SchemaVersion {
+            expected: WORKER_SCHEMA_VERSION,
+            actual,
+        });
     }
     Ok(())
 }
@@ -1520,11 +1583,14 @@ mod tests {
     }
 
     #[test]
-    fn host_command_arguments_require_an_object_for_snapshot_injection() {
+    fn host_command_arguments_follow_runtime_snapshot_policy() {
         let payload = AgentHostCommandPayload {
             run_id: 7,
-            command: "save_project".into(),
+            scope: AgentScope::default(),
+            execution_id: None,
+            command: "read_chapter_visual_plan".into(),
             arguments: serde_json::json!([]),
+            generation_start_request_id: None,
             runtime_config_snapshot: None,
         };
         assert!(matches!(
@@ -1536,14 +1602,123 @@ mod tests {
         ));
 
         let payload = AgentHostCommandPayload {
+            command: "send_content_optimization_message".into(),
+            arguments: serde_json::json!({"sessionId": 7, "message": "建议"}),
+            generation_start_request_id: Some("request-1".into()),
+            ..payload
+        };
+        assert!(payload.validate().is_ok());
+        let encoded = serde_json::to_value(&payload).expect("payload should serialize");
+        assert_eq!(
+            encoded["generation_start_request_id"],
+            serde_json::json!("request-1")
+        );
+
+        let payload = AgentHostCommandPayload {
+            command: "start_image_generation".into(),
             arguments: serde_json::json!({"projectId": 7}),
             runtime_config_snapshot: Some(serde_json::json!({"llm": {}})),
             ..payload
         };
         assert_eq!(
-            payload.arguments_with_runtime_snapshot()["runtime_config_snapshot"],
+            payload
+                .arguments_with_runtime_snapshot()
+                .expect("full runtime snapshot should be forwarded")["runtime_config_snapshot"],
             serde_json::json!({"llm": {}})
         );
+
+        let mut without_secrets = payload;
+        without_secrets.command = "preview_chapter_prompt".into();
+        without_secrets.runtime_config_snapshot = Some(serde_json::json!({
+            "schema_version": 2,
+            "llm": {
+                "id": 1,
+                "name": "test",
+                "provider": "openai",
+                "base_url": "https://example.test/v1",
+                "api_key_encrypted": "secret",
+                "model": "test-model",
+                "max_concurrent": 1,
+                "timeout_secs": 30,
+                "max_context_tokens": 4096,
+                "max_output_tokens": 1024
+            }
+        }));
+        assert_eq!(
+            without_secrets
+                .arguments_with_runtime_snapshot()
+                .expect("redacted runtime snapshot should be forwarded")["runtime_config_snapshot"]
+                ["llm"]
+                .get("api_key_encrypted"),
+            None
+        );
+
+        let none = without_secrets;
+        assert!(
+            AgentHostCommandPayload {
+                command: "read_chapter_visual_plan".into(),
+                ..none.clone()
+            }
+            .arguments_with_runtime_snapshot()
+            .expect("runtime snapshot should be ignored for None commands")
+            .get("runtime_config_snapshot")
+            .is_none()
+        );
+
+        let stale = AgentHostCommandPayload {
+            command: "read_chapter_visual_plan".into(),
+            arguments: serde_json::json!({
+                "chapterId": 11,
+                "runtime_config_snapshot": {"llm": {"api_key_encrypted": "stale"}}
+            }),
+            runtime_config_snapshot: None,
+            ..none
+        };
+        assert_eq!(
+            stale
+                .arguments_with_runtime_snapshot()
+                .expect("stale runtime snapshot should be removed")
+                .get("runtime_config_snapshot"),
+            None
+        );
+    }
+
+    #[test]
+    fn direct_llm_requests_require_the_current_worker_schema() {
+        let capabilities = AgentWorkerLlmCapabilitiesRequest {
+            schema_version: WORKER_SCHEMA_VERSION,
+            user_id: 7,
+            snapshot: None,
+            config_id: None,
+        };
+        capabilities
+            .validate()
+            .expect("capabilities request should validate");
+
+        let chat = AgentWorkerChatRequest {
+            schema_version: WORKER_SCHEMA_VERSION,
+            user_id: 7,
+            snapshot: None,
+            config_id: None,
+            request: serde_json::json!({"messages": []}),
+        };
+        chat.validate().expect("chat request should validate");
+
+        let mut stale = serde_json::to_value(chat).expect("chat request should serialize");
+        stale["schema_version"] = serde_json::json!(WORKER_SCHEMA_VERSION - 1);
+        let stale: AgentWorkerChatRequest =
+            serde_json::from_value(stale).expect("stale request remains well-formed JSON");
+        assert!(matches!(
+            stale.validate(),
+            Err(WorkerContractError::SchemaVersion { .. })
+        ));
+
+        let mut missing = serde_json::to_value(capabilities).expect("request should serialize");
+        missing
+            .as_object_mut()
+            .expect("request should be an object")
+            .remove("schema_version");
+        assert!(serde_json::from_value::<AgentWorkerLlmCapabilitiesRequest>(missing).is_err());
     }
 
     #[test]

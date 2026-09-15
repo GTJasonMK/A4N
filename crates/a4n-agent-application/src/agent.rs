@@ -369,12 +369,10 @@ impl AgentApplication {
                     "修改工具权限必须提供 expected_revision".into(),
                 ));
             }
-            if run::Entity::find()
-                .filter(run::Column::ThreadId.eq(thread_id))
-                .filter(run::Column::IsActive.eq(true))
-                .one(&tx)
-                .await?
-                .is_some()
+            if !agent::active_runs_by_thread(&tx, thread_id)
+                .await
+                .map_err(agent_db_error_to_app)?
+                .is_empty()
             {
                 return Err(AppError::InvalidArgument(
                     "Agent thread 存在活动 Run，不能修改工具权限".into(),
@@ -416,17 +414,26 @@ impl AgentApplication {
         input: ArchiveAgentThreadInput,
     ) -> Result<AgentThreadView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
-        let row = self.owned_thread(user_id, thread_id).await?;
+        validate_user_id(user_id)?;
+        let tx = self.connection().begin().await?;
+        let row = thread::Entity::find_by_id(thread_id)
+            .lock_exclusive()
+            .one(&tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {thread_id}")))?;
+        if row.owner_user_id != user_id {
+            return Err(AppError::Forbidden("无权访问此 Agent thread".into()));
+        }
         if row.is_default {
             return Err(AppError::InvalidState {
                 current: "default".into(),
                 operation: "归档 Agent thread".into(),
             });
         }
-        let runs = agent::runs_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let runs = agent::active_runs_by_thread(&tx, thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
-        if runs.iter().any(|run| run.is_active) {
+        if !runs.is_empty() {
             return Err(AppError::InvalidState {
                 current: "running".into(),
                 operation: "归档 Agent thread".into(),
@@ -440,10 +447,8 @@ impl AgentApplication {
             .checked_add(1)
             .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?);
         active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active
-            .update(self.connection())
-            .await
-            .map_err(AppError::Database)?;
+        let updated = active.update(&tx).await.map_err(AppError::Database)?;
+        tx.commit().await?;
         thread_view(updated)
     }
 
@@ -614,7 +619,7 @@ impl AgentApplication {
         )
         .await
         .map_err(agent_db_error_to_app)?;
-        let events = agent::events_after(self.connection(), thread_id, 0, SNAPSHOT_LIMIT)
+        let events = agent::latest_events_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
         for run in &mut runs {
@@ -762,10 +767,10 @@ impl AgentApplication {
             .one(&tx)
             .await?
             .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
-        let runs = agent::runs_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
+        let runs = agent::active_runs_by_thread(&tx, thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
-        if let Some(active) = runs.iter().rev().find(|row| row.is_active) {
+        if let Some(active) = runs.first() {
             if let Some(source) = &input.editor_source {
                 let turn = turn::Entity::find_by_id(active.turn_id)
                     .one(self.connection())
@@ -1005,7 +1010,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)?
         .into_iter()
         .rev()
-        .find(|row| row.is_active)
+        .find(|row| agent::is_run_active(&row.status))
         .map(|row| row.id)
         .or(delegation.child_run_id)
         .ok_or_else(|| AppError::InvalidState {
@@ -1037,12 +1042,7 @@ impl AgentApplication {
                 AppError::NotFound(format!("Agent parent run 不存在: {parent_run_id}"))
             })?;
         let parent_thread = self.owned_thread(user_id, parent_run.thread_id).await?;
-        if !parent_run.is_active
-            || matches!(
-                parent_run.status.as_str(),
-                "completed" | "failed" | "cancelled" | "interrupted" | "recovery_required"
-            )
-        {
+        if !agent::is_run_active(&parent_run.status) {
             return Err(AppError::InvalidState {
                 current: parent_run.status,
                 operation: "创建 Agent child delegation".into(),
@@ -2248,6 +2248,27 @@ impl AgentApplication {
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
+        if let Some(execution_id) = request.payload.execution_id {
+            let execution = execution::Entity::find_by_id(execution_id)
+                .one(self.connection())
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("Agent execution 不存在: {execution_id}"))
+                })?;
+            if execution.run_id != run.id {
+                return Err(AppError::Forbidden(
+                    "Agent Host command 的 execution 不属于当前 Run".into(),
+                ));
+            }
+        }
+        let stored_scope: AgentScope =
+            from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+        let expected_scope = effective_agent_scope(&thread.profile_id, stored_scope)?;
+        if request.payload.scope != expected_scope {
+            return Err(AppError::Forbidden(
+                "Agent Host command 的 scope 与当前 Run 不一致".into(),
+            ));
+        }
         let user_id = request
             .principal
             .subject
@@ -2394,20 +2415,10 @@ impl AgentApplication {
         let delegations = agent::delegations_by_thread(self.connection(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
-        let mut scope: AgentScope =
-            from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?;
-        apply_subagent_tool_policy(&thread_row.profile_id, &mut scope)?;
-        if scope.allowed_tools.is_empty()
-            && a4n_api_contract::agent::capability_has_restricted_tool_catalog(
-                &thread_row.profile_id,
-            )
-        {
-            scope.allowed_tools =
-                a4n_api_contract::agent::agent_tools_for_capability(&thread_row.profile_id)
-                    .iter()
-                    .map(|tool| (*tool).to_string())
-                    .collect();
-        }
+        let scope = effective_agent_scope(
+            &thread_row.profile_id,
+            from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?,
+        )?;
         let executions = agent::executions_by_runs(self.connection(), vec![run_row.id])
             .await
             .map_err(agent_db_error_to_app)?;
@@ -4577,6 +4588,19 @@ fn apply_subagent_tool_policy(capability: &str, scope: &mut AgentScope) -> Resul
     Ok(())
 }
 
+fn effective_agent_scope(capability: &str, mut scope: AgentScope) -> Result<AgentScope, AppError> {
+    apply_subagent_tool_policy(capability, &mut scope)?;
+    if scope.allowed_tools.is_empty()
+        && a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability)
+    {
+        scope.allowed_tools = a4n_api_contract::agent::agent_tools_for_capability(capability)
+            .iter()
+            .map(|tool| (*tool).to_string())
+            .collect();
+    }
+    Ok(scope)
+}
+
 /// Capability allowlists describe which profiles a run may delegate to. An
 /// empty list is intentionally open; registered domain children are the only
 /// profiles forced into a single-capability boundary.
@@ -4812,12 +4836,22 @@ fn thread_view(row: thread::Model) -> Result<AgentThreadView, AppError> {
             AgentThreadStatus::Active
         },
         revision: non_negative_u64(row.revision, "agent_thread.revision")?,
-        next_turn_sequence: non_negative_u64(row.next_turn_sequence, "next_turn_sequence")?,
-        next_event_sequence: non_negative_u64(row.next_event_sequence, "next_event_sequence")?,
+        // Persistence stores the latest allocated sequence; the public contract exposes the next one.
+        next_turn_sequence: next_sequence_view(row.next_turn_sequence, "next_turn_sequence")?,
+        next_event_sequence: next_sequence_view(row.next_event_sequence, "next_event_sequence")?,
         context_summary,
         created_at: row.created_at.to_string(),
         updated_at: row.updated_at.to_string(),
     })
+}
+
+fn next_sequence_view(value: i64, field: &str) -> Result<u64, AppError> {
+    non_negative_u64(value, field)?
+        .checked_add(1)
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("{field} 超出范围"),
+            operation: "读取 Agent thread 序列".into(),
+        })
 }
 
 fn message_view(row: message::Model) -> Result<AgentMessageView, AppError> {
@@ -4879,9 +4913,12 @@ fn run_view(row: run::Model) -> Result<AgentRunView, AppError> {
         model_calls_used: json_u32(usage, "model_calls_used")?,
         tool_calls_used: json_u32(usage, "tool_calls_used")?,
         tokens_used: json_u64(usage, "tokens_used")?,
+        context_input_tokens: json_optional_u64(usage, "context_input_tokens")?,
+        context_capacity_tokens: json_optional_u64(usage, "context_capacity_tokens")?,
         cost_micros: json_optional_u64(usage, "cost_micros")?,
         error: row.last_error,
         created_at: row.created_at.to_string(),
+        started_at: row.started_at.map(|value| value.to_string()),
         updated_at: row.updated_at.to_string(),
     })
 }
@@ -5265,6 +5302,16 @@ mod tests {
             covered_through_sequence: 1,
         };
         assert!(summary.validate().is_err());
+    }
+
+    #[test]
+    fn thread_sequence_view_exposes_next_sequence_after_latest_value() {
+        assert_eq!(next_sequence_view(0, "next_event_sequence").unwrap(), 1);
+        assert_eq!(
+            next_sequence_view(1443, "next_event_sequence").unwrap(),
+            1444
+        );
+        assert!(next_sequence_view(-1, "next_event_sequence").is_err());
     }
 
     #[test]

@@ -1,6 +1,7 @@
 import React, { useId } from "react";
 import { Eye, Send } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
+import { FollowLatestButton } from "../../components/ui/FollowLatestButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { ChatBubble } from "./ChatBubble";
 import type { Message } from "./shared";
@@ -20,7 +21,10 @@ interface ConversationPaneProps {
   onInputFocus: () => void;
   onInputBlur: () => void;
   sending: boolean;
-  messagesViewportRef: React.RefObject<HTMLDivElement>;
+  messagesViewportRef: React.Ref<HTMLDivElement>;
+  isFollowingLatest: boolean;
+  hasNewContent: boolean;
+  onScrollToLatest: () => void;
   placeholder: string;
   inputActive: boolean;
 }
@@ -43,6 +47,9 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   onInputBlur,
   sending,
   messagesViewportRef,
+  isFollowingLatest,
+  hasNewContent,
+  onScrollToLatest,
   placeholder,
   inputActive,
 }) => {
@@ -53,27 +60,37 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
 
   return (
     <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto]">
-      <div
-        ref={messagesViewportRef}
-        className="min-h-0 min-w-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5"
-        style={{ overflowAnchor: "none" }}
-      >
-        <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col justify-start gap-3.5">
-          {messages.map((m) => (
-            <ChatBubble
-              key={m.id}
-              message={m}
-              onSendOption={onSendOption}
-              canSelectOptions={
-                !sending
-                && latestMessageId === m.id
-                && m.role === "assistant"
-                && !m.streaming
-                && !m.consistencyWarning
-              }
-            />
-          ))}
+      <div className="relative min-h-0 min-w-0">
+        <div
+          ref={messagesViewportRef}
+          className="h-full min-h-0 min-w-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5"
+          style={{ overflowAnchor: "none" }}
+        >
+          <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col justify-start gap-3.5">
+            {messages.map((m) => (
+              <ChatBubble
+                key={m.id}
+                message={m}
+                onSendOption={onSendOption}
+                canSelectOptions={
+                  !sending
+                  && latestMessageId === m.id
+                  && m.role === "assistant"
+                  && !m.streaming
+                  && !m.consistencyWarning
+                }
+              />
+            ))}
+          </div>
         </div>
+        <FollowLatestButton
+          isFollowingLatest={isFollowingLatest}
+          hasNewContent={hasNewContent}
+          newContentLabel={t("agent.domain.newMessages")}
+          latestLabel={t("agent.domain.backToLatest")}
+          onClick={onScrollToLatest}
+          className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
+        />
       </div>
 
       <footer

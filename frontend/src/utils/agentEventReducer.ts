@@ -11,6 +11,18 @@ export interface AgentEventReduction {
   needsReload: boolean;
 }
 
+export function streamedAgentMessageIds(events: AgentEvent[], runId?: string): string[] {
+  return [...new Set(
+    events
+      .filter((event) =>
+        event.kind === "message_delta"
+        && event.message_id != null
+        && (runId == null || event.run_id === runId),
+      )
+      .map((event) => event.message_id as string),
+  )];
+}
+
 const MESSAGE_EVENT_KINDS = new Set([
   "message_appended",
   "message_delta",

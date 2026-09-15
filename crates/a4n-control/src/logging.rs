@@ -3,7 +3,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 static FILTER_RELOADER: LogFilterReloader = LogFilterReloader::new();
 
-const DEFAULT_LOG_FILTER: &str = "info";
+const DEFAULT_LOG_FILTER: &str = "info,sqlx=warn,hyper=warn";
 
 pub fn init_tracing() -> anyhow::Result<()> {
     let filter = a4n_runtime::host_api::logging::build_log_filter_from_env(DEFAULT_LOG_FILTER)

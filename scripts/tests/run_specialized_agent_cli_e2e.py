@@ -220,7 +220,9 @@ def main():
             call("respond_agent_editor", reply, failure=True)
             report["checks"].append("editor response is bound to the original view and execution; duplicates are rejected")
             run_id = send({"mode": "inspect_only"}, source=source)
-            offline = finish(run_id)
+            offline_run = wait_for_run(cli, run_id, 60, 0.1)
+            offline = thread_snapshot(cli, thread_id)
+            assert offline_run["status"] == "failed", offline_run
             assert any(row["run_id"] == run_id and row["status"] == "failed" and "原编辑器" in (row["error"] or "") for row in offline["executions"])
             report["checks"].append("offline editor fails explicitly and releases the worker")
 

@@ -9,7 +9,10 @@ mod meta;
 pub(crate) mod page_sessions;
 mod temp_media;
 
-pub use commands::{dispatch_runtime_command, dispatch_runtime_command_value};
+pub use commands::{
+    dispatch_agent_host_command, dispatch_agent_host_command_value, dispatch_runtime_command,
+    dispatch_runtime_command_value,
+};
 pub use generation::dispatch_generation_start;
 
 use crate::state::ServerState;

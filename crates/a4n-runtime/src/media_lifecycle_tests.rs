@@ -1,7 +1,9 @@
 use std::{path::Path, time::Duration};
 
 use a4n_config::app_config::{AppConfig, SecurityConfig};
-use a4n_db_models::models::project::project_member;
+use a4n_db_models::models::{
+    ai::generated_image, media::image_publication, project::project_member,
+};
 use a4n_error::AppError;
 use a4n_orchestrator::media::PreparedImportedImageUpload;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
@@ -351,4 +353,126 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
         image.id
     );
     assert_eq!(std::fs::read(&path).unwrap(), b"drift");
+}
+
+#[tokio::test]
+async fn media_recovery_reclaims_legacy_published_orphan_without_file_or_record() {
+    let (_directory, state, db, user_id, project_id) = state().await;
+    let prepared = prepared_image_upload(project_id);
+    let bytes = prepared.decoded.bytes.clone();
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let final_path = format!("projects/{project_id}/images/legacy-orphan.png");
+    let (publication, guard) = state
+        .image_import_publication_application()
+        .create_imported_publication_intent(
+            user_id,
+            &prepared,
+            "legacy-orphan-publication".to_string(),
+            format!("projects/{project_id}/images/legacy-orphan.part"),
+            final_path.clone(),
+            sha256.clone(),
+        )
+        .await
+        .unwrap();
+    let path = state.data_dir().join(&final_path);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
+    let image = state
+        .image_import_publication_application()
+        .publish_imported_image(
+            user_id,
+            project_id,
+            &publication.publication_id,
+            bytes.len() as i64,
+            sha256,
+        )
+        .await
+        .unwrap();
+    drop(guard);
+
+    std::fs::remove_file(&path).unwrap();
+    generated_image::Entity::delete_by_id(image.id)
+        .exec(&db)
+        .await
+        .unwrap();
+
+    crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
+
+    let recovered = state
+        .image_publication_recovery_read_application()
+        .image_publication_by_id(&publication.publication_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(recovered.status, "reclaimed");
+    assert!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn media_recovery_reclaims_published_publication_without_image_id() {
+    let (_directory, state, db, user_id, project_id) = state().await;
+    let prepared = prepared_image_upload(project_id);
+    let bytes = prepared.decoded.bytes.clone();
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let final_path = format!("projects/{project_id}/images/missing-identity.png");
+    let (publication, guard) = state
+        .image_import_publication_application()
+        .create_imported_publication_intent(
+            user_id,
+            &prepared,
+            "missing-identity-publication".to_string(),
+            format!("projects/{project_id}/images/missing-identity.part"),
+            final_path.clone(),
+            sha256.clone(),
+        )
+        .await
+        .unwrap();
+    let path = state.data_dir().join(&final_path);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
+    let image = state
+        .image_import_publication_application()
+        .publish_imported_image(
+            user_id,
+            project_id,
+            &publication.publication_id,
+            bytes.len() as i64,
+            sha256,
+        )
+        .await
+        .unwrap();
+    drop(guard);
+    std::fs::remove_file(&path).unwrap();
+
+    let row = image_publication::Entity::find_by_id(&publication.publication_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut legacy: image_publication::ActiveModel = row.into();
+    legacy.image_id = Set(None);
+    legacy.update(&db).await.unwrap();
+    generated_image::Entity::delete_by_id(image.id)
+        .exec(&db)
+        .await
+        .unwrap();
+
+    crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
+
+    assert_eq!(
+        state
+            .image_publication_recovery_read_application()
+            .image_publication_by_id(&publication.publication_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "reclaimed"
+    );
 }

@@ -509,6 +509,25 @@ pub fn synthetic_agent_tool_descriptor(
     Some(descriptor)
 }
 
+/// Resolve one command through the Agent exposure gate shared by workers and
+/// Host dispatch. Synthetic domain tools and ordinary manifest commands must
+/// use the same visibility rule.
+pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
+    if let Some(descriptor) = synthetic_agent_tool_descriptor(name) {
+        return Some(descriptor);
+    }
+    let descriptor = crate::command_manifest::command_descriptor(name)?;
+    if descriptor
+        .agent_policy
+        .as_ref()
+        .is_some_and(|policy| policy.exposure != AgentToolExposure::Hidden)
+    {
+        Some(descriptor)
+    } else {
+        None
+    }
+}
+
 fn typed_schema<T: JsonSchema>() -> Value {
     let mut schema = serde_json::to_value(schemars::schema_for!(T))
         .expect("Agent tool result schema must serialize");
@@ -544,7 +563,7 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
     .collect()
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentScope {
     #[serde(default)]
@@ -681,11 +700,19 @@ pub struct AgentRunView {
     pub model_calls_used: u32,
     pub tool_calls_used: u32,
     pub tokens_used: u64,
+    /// Estimated tokens in the latest fitted Agent model input.
+    #[serde(default)]
+    pub context_input_tokens: Option<u64>,
+    /// Safe input capacity used by the latest fitted Agent model request.
+    #[serde(default)]
+    pub context_capacity_tokens: Option<u64>,
     #[serde(default)]
     pub cost_micros: Option<u64>,
     #[serde(default)]
     pub error: Option<String>,
     pub created_at: String,
+    #[serde(default)]
+    pub started_at: Option<String>,
     pub updated_at: String,
 }
 
@@ -1541,7 +1568,7 @@ mod tests {
     use super::{
         CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
         GENERAL_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
-        agent_tools_for_capability, synthetic_agent_tool_descriptor,
+        agent_tool_descriptor, agent_tools_for_capability, synthetic_agent_tool_descriptor,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1584,6 +1611,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn ordinary_manifest_agent_tools_use_the_shared_descriptor_gate() {
+        let descriptor = agent_tool_descriptor("read_chapter_visual_plan")
+            .expect("director manifest tool should be exposed to Agent");
+        assert_eq!(descriptor.name, "read_chapter_visual_plan");
+        assert_eq!(
+            descriptor.runtime_config_policy,
+            crate::command_manifest::RuntimeConfigPolicy::None
+        );
+        assert!(agent_tool_descriptor("create_llm_config").is_none());
     }
 
     #[test]

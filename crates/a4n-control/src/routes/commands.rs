@@ -284,6 +284,7 @@ use a4n_runtime::host_api::theme as theme_actions;
 use a4n_runtime::host_api::video_generation as video_generation_actions;
 use a4n_runtime::host_api::video_prompts as video_prompt_actions;
 use a4n_runtime::host_api::video_records as video_records_actions;
+use a4n_worker_contract::{AgentHostCommandPayload, WorkerRequest};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
@@ -309,7 +310,7 @@ pub async fn invoke(
     }
 
     let user = authenticated_user(&state, &headers).await?;
-    let result = dispatch_runtime_command_inner(state.runtime(), user.id, args, cmd).await?;
+    let result = dispatch_runtime_command_inner(state.runtime(), user.id, args, cmd, None).await?;
 
     Ok(Json(result).into_response())
 }
@@ -320,7 +321,7 @@ pub async fn dispatch_runtime_command(
     args: Value,
     cmd: String,
 ) -> Result<Value, String> {
-    dispatch_runtime_command_inner(runtime, user_id, args, cmd)
+    dispatch_runtime_command_inner(runtime, user_id, args, cmd, None)
         .await
         .map_err(|error| error.to_string())
 }
@@ -331,9 +332,93 @@ pub async fn dispatch_runtime_command_value(
     args: Value,
     cmd: String,
 ) -> Result<Value, Value> {
-    dispatch_runtime_command_inner(runtime, user_id, args, cmd)
+    dispatch_runtime_command_inner(runtime, user_id, args, cmd, None)
         .await
         .map_err(ApiError::into_value)
+}
+
+pub async fn dispatch_agent_host_command(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    request: WorkerRequest<AgentHostCommandPayload>,
+) -> Result<Value, String> {
+    dispatch_agent_host_command_inner(runtime, user_id, request)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+pub async fn dispatch_agent_host_command_value(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    request: WorkerRequest<AgentHostCommandPayload>,
+) -> Result<Value, Value> {
+    dispatch_agent_host_command_inner(runtime, user_id, request)
+        .await
+        .map_err(ApiError::into_value)
+}
+
+async fn dispatch_agent_host_command_inner(
+    runtime: &a4n_runtime::AppState,
+    user_id: i64,
+    request: WorkerRequest<AgentHostCommandPayload>,
+) -> Result<Value, ApiError> {
+    request
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    request
+        .payload
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let command = request.payload.command.clone();
+    let arguments = request
+        .payload
+        .arguments_with_runtime_snapshot()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let generation_start_request_id = if command == "send_content_optimization_message" {
+        let value = request
+            .payload
+            .generation_start_request_id
+            .as_deref()
+            .ok_or_else(|| ApiError::bad_request("内容优化启动缺少持久幂等 ID".to_string()))?;
+        let parsed = uuid::Uuid::parse_str(value).map_err(|_| {
+            ApiError::bad_request("generation_start_request_id 必须是 UUID".to_string())
+        })?;
+        if parsed.get_version() != Some(uuid::Version::Random) {
+            return Err(ApiError::bad_request(
+                "generation_start_request_id 必须是 UUID v4".to_string(),
+            ));
+        }
+        Some(parsed.to_string())
+    } else {
+        None
+    };
+    // The manifest is the exposure gate for both kinds of Agent tools. Only
+    // synthetic tools belong to the Agent-native dispatcher; ordinary
+    // manifest tools must retain their existing command dispatch path.
+    a4n_api_contract::agent::agent_tool_descriptor(&command).ok_or_else(|| {
+        ApiError::bad_request(format!(
+            "Host command manifest 禁止 Agent 使用工具或工具不存在: {command}"
+        ))
+    })?;
+    let agent_context =
+        a4n_api_contract::agent::synthetic_agent_tool_descriptor(&command).map(|_| {
+            AgentHostDispatchContext {
+                scope: request.payload.scope.clone(),
+                run_id: request.payload.run_id,
+                execution_id: request.payload.execution_id,
+                lease_token: request.lease.fence_token.clone(),
+                start_request_id: generation_start_request_id,
+            }
+        });
+    dispatch_runtime_command_inner(runtime, user_id, arguments, command, agent_context).await
+}
+
+struct AgentHostDispatchContext {
+    scope: a4n_api_contract::agent::AgentScope,
+    run_id: i64,
+    execution_id: Option<i64>,
+    lease_token: String,
+    start_request_id: Option<String>,
 }
 
 async fn dispatch_runtime_command_inner(
@@ -341,24 +426,66 @@ async fn dispatch_runtime_command_inner(
     user_id: i64,
     args: Value,
     cmd: String,
+    agent_context: Option<AgentHostDispatchContext>,
 ) -> Result<Value, ApiError> {
     let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::snapshot_from_args(&args)
         .map_err(ApiError::bad_request)?;
-    let state = ServerState::from_runtime(runtime.clone());
-    let availability = package_actions::command_availability(runtime, user_id, &cmd)
-        .await
-        .map_err(ApiError::from)?;
-    if !availability.available {
-        return Err(ApiError::package_unavailable(availability));
+    let mut command_args = args;
+    if agent_context.is_some()
+        && let Value::Object(fields) = &mut command_args
+    {
+        fields.remove("runtime_config_snapshot");
     }
+    let state = ServerState::from_runtime(runtime.clone());
+    if agent_context.is_none() {
+        let availability = package_actions::command_availability(runtime, user_id, &cmd)
+            .await
+            .map_err(ApiError::from)?;
+        if !availability.available {
+            return Err(ApiError::package_unavailable(availability));
+        }
+    }
+
     run_with_runtime_context(user_id, runtime_config_snapshot, async move {
+        if let Some(context) = agent_context {
+            return a4n_runtime::host_api::agent_runtime::dispatch_agent_host_command(
+                state.runtime(),
+                user_id,
+                context.scope,
+                context.run_id,
+                context.execution_id,
+                context.lease_token,
+                context.start_request_id,
+                cmd,
+                command_args,
+            )
+            .await
+            .map_err(ApiError::from);
+        }
         if is_reverse_engineer_web_command(&cmd) {
-            return run_reverse_engineer_web_command(&state, user_id, &args, &cmd).await;
+            return run_reverse_engineer_web_command(&state, user_id, &command_args, &cmd).await;
         }
         if is_canvas_web_command(&cmd) {
-            return run_canvas_web_command(&state, user_id, &args, &cmd).await;
+            return run_canvas_web_command(&state, user_id, &command_args, &cmd).await;
         }
-        dispatch::dispatch(&state, user_id, &args, &cmd).await
+        dispatch::dispatch(&state, user_id, &command_args, &cmd).await
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use a4n_api_contract::agent;
+
+    #[test]
+    fn agent_host_route_keeps_manifest_and_synthetic_tools_separate() {
+        assert!(agent::agent_tool_descriptor("read_chapter_visual_plan").is_some());
+        assert!(
+            agent::synthetic_agent_tool_descriptor("read_chapter_visual_plan").is_none(),
+            "ordinary manifest tools must use the regular command dispatcher"
+        );
+        assert!(agent::synthetic_agent_tool_descriptor("read_agent_memory").is_some());
+        assert!(agent::agent_tool_descriptor("create_llm_config").is_none());
+        assert!(agent::agent_tool_descriptor("missing_agent_tool").is_none());
+    }
 }

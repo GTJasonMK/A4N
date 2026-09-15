@@ -16,6 +16,7 @@ mod references;
 pub use create::{
     create_generated_image_record, create_generated_image_record_with_generation_run_checkpoint,
 };
+pub(crate) use publication::reclaim_image_publications_for_deleted_images;
 pub use publication::{
     CreateImagePublicationIntentInput, ImagePublicationFileFacts, create_image_publication_intent,
     image_publication_by_id, image_publications_for_recovery, mark_image_publication_reclaimed,

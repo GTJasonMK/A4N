@@ -8,10 +8,10 @@ use a4n_agent_runtime_contract::{
 use a4n_api_contract::agent::{
     AgentApprovalView, AgentBudget, AgentEvent, AgentEventsInput, AgentMemoryInput,
     AgentMemoryScopeKind, AgentMemoryView, AgentMessageAccepted, AgentRunView, AgentScope,
-    AgentThreadSnapshot, AgentThreadView, AgentToolDescriptor, AgentToolExposure,
-    AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput,
-    CreateAgentThreadInput, DescribeAgentToolInput, EnsureMainAgentThreadInput,
-    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, LocateWritingTargetInput,
+    AgentThreadSnapshot, AgentThreadView, AgentToolDescriptor, AgentToolSearchResult,
+    ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput,
+    DescribeAgentToolInput, EnsureMainAgentThreadInput, ForkAgentThreadInput,
+    ListAgentMessagesInput, ListAgentThreadsInput, LocateWritingTargetInput,
     ResolveAgentApprovalInput, RetractAgentMemoryInput, SearchAgentToolsInput,
     SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput, UpdateAgentThreadInput,
     WritingTargetView,
@@ -21,7 +21,9 @@ use a4n_api_contract::canvas::{
 };
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanAuthoringMode, SaveChapterVisualPlanDraftInput,
+    StartVisualPlanPromptGenerationInput,
 };
+use a4n_api_contract::image_generation::StartImageGenerationInput;
 use a4n_api_contract::package::PackageId;
 use a4n_api_contract::web_search::WebSearchInput;
 use a4n_domain::agent::AgentWorkflowOrigin;
@@ -75,6 +77,183 @@ mod optimization;
 mod task_wait;
 pub use editor::respond_agent_editor;
 
+/// Execute Agent-native domain commands on the Control-owned Runtime.
+///
+/// External workers use this boundary for commands that are intentionally not
+/// ordinary Web manifest routes. The domain adapters below remain the single
+/// owner of resource checks and business behavior.
+pub async fn dispatch_agent_host_command(
+    state: &AppState,
+    user_id: i64,
+    scope: AgentScope,
+    run_id: i64,
+    execution_id: Option<i64>,
+    lease_token: String,
+    start_request_id: Option<String>,
+    command: String,
+    arguments: Value,
+) -> Result<Value, AppError> {
+    if !scope.allowed_tools.is_empty()
+        && !scope
+            .allowed_tools
+            .iter()
+            .any(|allowed| allowed == &command)
+    {
+        return Err(AppError::Forbidden(format!(
+            "Agent scope 不允许使用工具: {command}"
+        )));
+    }
+    match command.as_str() {
+        "ensure_content_optimization_session" => {
+            let input = parse_arguments::<
+                crate::actions::agent_domains::content_optimization::
+                    EnsureContentOptimizationSessionInput,
+            >(arguments, &command)?;
+            serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::ensure_session(
+                    state, user_id, &scope, input,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "send_content_optimization_message" => {
+            let start_request_id = start_request_id
+                .ok_or_else(|| AppError::InvalidArgument("内容优化启动缺少持久幂等 ID".into()))?;
+            let input = parse_arguments::<
+                crate::actions::agent_domains::content_optimization::SendContentOptimizationMessageInput,
+            >(arguments, &command)?;
+            let capabilities = state
+                .dynamic_llm_provider_for_profile()?
+                .capabilities_for_config_id(None)
+                .await?;
+            let max_output_tokens =
+                a4n_llm::provider::validated_model_output_tokens(&capabilities)?;
+            serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::send_message(
+                    state,
+                    user_id,
+                    &scope,
+                    input,
+                    start_request_id,
+                    max_output_tokens,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "apply_optimization_patches" => {
+            let input = parse_arguments::<
+                HostInput<a4n_api_contract::optimize::ApplyOptimizationPatchesInput>,
+            >(arguments, &command)?
+            .input;
+            serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::apply_patches(
+                    state, user_id, &scope, input,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "get_generation_task_summary" | "wait_generation_task" => {
+            let input = parse_arguments::<
+                crate::actions::agent_domains::content_optimization::GenerationTaskSummaryInput,
+            >(arguments, &command)?;
+            serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::generation_task_summary(
+                    state, user_id, &scope, input,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "start_visual_plan_prompt_generation" => {
+            let input = parse_arguments::<HostInput<StartVisualPlanPromptGenerationInput>>(
+                arguments,
+                &command,
+            )?
+            .input;
+            serde_json::to_value(
+                crate::actions::chapter_visual_plan_records::start_visual_plan_prompt_generation(
+                    state, user_id, input,
+                )
+                .await
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
+            )
+            .map_err(AppError::from)
+        }
+        "start_image_generation" => {
+            let input = parse_arguments::<HostInput<StartImageGenerationInput>>(
+                arguments,
+                &command,
+            )?
+            .input;
+            serde_json::to_value(
+                crate::actions::image_generation::start_image_generation_typed(
+                    state, user_id, input,
+                )
+                .await
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
+            )
+            .map_err(AppError::from)
+        }
+        "run_canvas_graph" => {
+            let input =
+                parse_arguments::<HostInput<RunCanvasGraphInput>>(arguments, &command)?.input;
+            let origin = host_workflow_origin(run_id, execution_id, lease_token)?;
+            serde_json::to_value(
+                crate::actions::agent_domains::canvas::run_graph(
+                    state, user_id, &scope, input, &origin,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "run_canvas_node" => {
+            let input =
+                parse_arguments::<HostInput<RunCanvasNodeInput>>(arguments, &command)?.input;
+            let origin = host_workflow_origin(run_id, execution_id, lease_token)?;
+            serde_json::to_value(
+                crate::actions::agent_domains::canvas::run_node(
+                    state, user_id, &scope, input, &origin,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "wait_workflow_run" => {
+            let input = parse_arguments::<
+                HostInput<a4n_api_contract::workflow::GetWorkflowRunInput>,
+            >(arguments, &command)?
+            .input;
+            serde_json::to_value(
+                crate::actions::agent_domains::canvas::get_workflow_run(
+                    state, user_id, &scope, input,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        _ => Err(AppError::NotFound(format!(
+            "未知 Agent synthetic Host command: {command}"
+        ))),
+    }
+}
+
+fn host_workflow_origin(
+    run_id: i64,
+    execution_id: Option<i64>,
+    lease_token: String,
+) -> Result<AgentWorkflowOrigin, AppError> {
+    Ok(AgentWorkflowOrigin {
+        run_id,
+        execution_id: execution_id.ok_or_else(|| {
+            AppError::InvalidArgument("Canvas Agent command 缺少 execution_id".into())
+        })?,
+        lease_token,
+    })
+}
+
 /// Agent 宿主 worker 的轮询间隔。
 ///
 /// Run 的真正领取/执行由 `AgentApplication` 持久编排边界负责；本模块只持有
@@ -83,7 +262,6 @@ const WORKER_POLL_INTERVAL: Duration = Duration::from_secs(2);
 const WORKER_RENEW_INTERVAL: Duration = Duration::from_secs(10);
 const WORKER_MAX_CLAIMS_PER_WAKEUP: usize = 8;
 const WORKER_MAX_STEPS: u32 = a4n_api_contract::agent::AGENT_DEFAULT_MAX_STEPS;
-const WORKER_MAX_OUTPUT_TOKENS: usize = 8_192;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_TOOL_PROJECT_PAGE_SIZE: u64 = 100;
 const MAX_BASE_AGENT_TOOLS: usize = 6;
@@ -573,9 +751,12 @@ impl RuntimeAgentToolExecutor {
                 .state
                 .dispatch_agent_host_command(
                     user_id,
+                    scope,
                     name.to_string(),
                     arguments,
                     &self.worker_request,
+                    execution.map(|execution| execution.id),
+                    execution,
                 )
                 .await
                 .map_err(|error| serde_json::Error::io(std::io::Error::other(error.to_string()))),
@@ -609,23 +790,13 @@ struct HostInput<T> {
 fn tool_descriptor(
     name: &str,
 ) -> Result<a4n_api_contract::command_manifest::CommandDescriptor, AppError> {
-    if let Some(descriptor) = a4n_api_contract::agent::synthetic_agent_tool_descriptor(name) {
-        return Ok(descriptor);
-    }
-    let descriptor = a4n_api_contract::command_manifest::command_descriptor(name)
-        .ok_or_else(|| AppError::NotFound(format!("Host command manifest 中不存在工具: {name}")))?;
-    let manifest_allows = descriptor
-        .agent_policy
-        .as_ref()
-        .is_some_and(|policy| policy.exposure != AgentToolExposure::Hidden);
-    // Synthetic domain tools are handled above; every Host command must be
-    // explicitly exposed by the manifest.
-    if !manifest_allows {
-        return Err(AppError::Forbidden(format!(
-            "Host command manifest 禁止 Agent 使用工具: {name}"
-        )));
-    }
-    Ok(descriptor)
+    a4n_api_contract::agent::agent_tool_descriptor(name).ok_or_else(|| {
+        if a4n_api_contract::command_manifest::command_descriptor(name).is_some() {
+            AppError::Forbidden(format!("Host command manifest 禁止 Agent 使用工具: {name}"))
+        } else {
+            AppError::NotFound(format!("Host command manifest 中不存在工具: {name}"))
+        }
+    })
 }
 
 fn ensure_scope_allows_tool(scope: &AgentScope, name: &str) -> Result<(), AppError> {
@@ -2174,14 +2345,15 @@ async fn process_claimed_run_inner(
             }
             None => provider.capabilities_for_config_id(config_id).await?,
         };
-        let output_tokens = WORKER_MAX_OUTPUT_TOKENS.min(capabilities.max_output_tokens);
+        let requested_output_tokens =
+            a4n_llm::provider::validated_model_output_tokens(&capabilities)?;
         let base_messages =
             with_agent_system_prompt(history::pair_tool_messages(&messages)?, &context);
         let projection = history::fit_context_projection(
             base_messages.clone(),
             &tools,
             capabilities.max_context_tokens,
-            output_tokens,
+            requested_output_tokens,
             &pinned_user_contents
                 .iter()
                 .map(String::as_str)
@@ -2199,6 +2371,7 @@ async fn process_claimed_run_inner(
             && budget
                 .max_model_calls
                 .is_none_or(|limit| model_calls < limit);
+        let mut output_tokens = projection.output_tokens;
         let mut request_messages = projection.messages;
         if projection.input_tokens.saturating_mul(100) >= projection.capacity.saturating_mul(80)
             && !projection.omitted.is_empty()
@@ -2231,16 +2404,18 @@ async fn process_claimed_run_inner(
                     usage["model_calls_used"] = json!(model_calls);
                     usage["tokens_used"] = json!(tokens);
                 }
-                request_messages = history::fit_context(
+                let post_compaction = history::fit_context_projection(
                     with_agent_system_prompt(history::pair_tool_messages(&messages)?, &context),
                     &tools,
                     capabilities.max_context_tokens,
-                    output_tokens,
+                    requested_output_tokens,
                     &pinned_user_contents
                         .iter()
                         .map(String::as_str)
                         .collect::<Vec<_>>(),
                 )?;
+                output_tokens = post_compaction.output_tokens;
+                request_messages = post_compaction.messages;
                 persist_usage(
                     usage_application,
                     claimed,
@@ -3874,6 +4049,7 @@ fn should_request_approval(
         return Ok(false);
     }
     match context.execution_mode.as_str() {
+        "advice_only" if advice_only_allows_tool(tool_name) => Ok(false),
         "advice_only" => Err(AppError::Forbidden(format!(
             "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
         ))),
@@ -3884,6 +4060,15 @@ fn should_request_approval(
             operation: "执行 Agent 写工具".into(),
         }),
     }
+}
+
+// Advice-only optimization still needs to create/reuse its session and run a
+// read-only generation task; it must not apply the resulting patches.
+fn advice_only_allows_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "ensure_content_optimization_session" | "send_content_optimization_message"
+    )
 }
 
 async fn persist_usage(
@@ -4792,6 +4977,17 @@ mod tests {
             0,
             Duration::from_secs(1),
         ));
+    }
+
+    #[test]
+    fn advice_only_allows_optimization_advice_but_not_content_writes() {
+        assert!(advice_only_allows_tool(
+            "ensure_content_optimization_session"
+        ));
+        assert!(advice_only_allows_tool("send_content_optimization_message"));
+        assert!(!advice_only_allows_tool("apply_optimization_patches"));
+        assert!(!advice_only_allows_tool("save_editor_draft"));
+        assert!(!advice_only_allows_tool("delegate"));
     }
 
     #[test]

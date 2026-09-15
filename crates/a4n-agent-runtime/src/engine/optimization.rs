@@ -144,9 +144,12 @@ pub(super) async fn process(
     let turns = state
         .dispatch_agent_host_command(
             context.owner_user_id,
+            &context.scope,
             "list_optimize_turns".into(),
             json!({"sessionId": session_id}),
             worker_request,
+            None,
+            None,
         )
         .await?;
     let turns: Vec<OptimizationTurnSummary> = serde_json::from_value(turns)?;

@@ -47,6 +47,26 @@ pub fn model_request_snapshot(request: &ChatRequest) -> Result<Value, AppError> 
     request.snapshot_value()
 }
 
+/// Serialize the Agent worker-to-Control request without exposing durable-only
+/// context, while preserving the trace required by the Control LLM runtime.
+pub fn model_request_wire_value(request: &ChatRequest) -> Result<Value, AppError> {
+    let mut value = serde_json::to_value(request)?;
+    if let Some(trace_context) = request.trace_context.as_ref() {
+        value["trace_context"] = serde_json::to_value(trace_context)?;
+    }
+    Ok(value)
+}
+
+pub fn restore_model_request_wire(mut value: Value) -> Result<ChatRequest, AppError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| AppError::InvalidArgument("模型请求 wire 必须是对象".into()))?;
+    let trace = object.remove("trace_context");
+    let mut request: ChatRequest = serde_json::from_value(value)?;
+    request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
+    Ok(request)
+}
+
 pub fn restore_model_request_snapshot(mut value: Value) -> Result<ChatRequest, AppError> {
     let object = value
         .as_object_mut()
@@ -1001,6 +1021,39 @@ mod tests {
             restored.context_manifest_json,
             Some(json!({"packs": ["thread"]}))
         );
+    }
+
+    #[test]
+    fn model_request_wire_round_trips_trace_without_durable_context() {
+        let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
+        request.trace_context = Some(LlmTraceContext {
+            project_id: Some(7),
+            root_project_id: Some(3),
+            workflow: "agent".into(),
+            step_key: "model".into(),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: Some("call-1".into()),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        });
+        request.context_manifest_json = Some(json!({"packs": ["durable-only"]}));
+
+        let wire = model_request_wire_value(&request).expect("request must serialize");
+        assert_eq!(wire["trace_context"]["project_id"], 7);
+        assert!(wire.get("context_manifest_json").is_none());
+        assert!(restore_model_request_wire(request.snapshot_value().unwrap()).is_err());
+
+        let restored = restore_model_request_wire(wire).expect("wire must restore");
+        assert_eq!(
+            restored
+                .trace_context
+                .as_ref()
+                .map(|trace| trace.project_id),
+            Some(Some(7))
+        );
+        assert!(restored.context_manifest_json.is_none());
     }
 }
 

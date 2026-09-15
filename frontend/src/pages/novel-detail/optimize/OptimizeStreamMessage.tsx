@@ -34,7 +34,9 @@ export function StreamMessage({
   const pacedPreview = hasStreamSource && pacedStream.displayedText
     ? previewModelStream(pacedStream.displayedText, t)
     : null;
-  const displayStatus = hasStreamSource && !pacedStream.isDrained
+  const displayStatus = pacedStream.isStreamDisplayEnabled
+    && hasStreamSource
+    && !pacedStream.isDrained
     ? "running"
     : item.status;
   const displayItem = hasStreamSource
@@ -113,7 +115,7 @@ export function StreamMessage({
             steps={processSteps}
             currentItem={hasStreamSource ? displayItem : null}
             finalReply={isAssistantReplyItem(displayItem) ? content : null}
-            showThinking={pacedStream.isThinking && live}
+            showThinking={pacedStream.isStreamDisplayEnabled && pacedStream.isThinking && live}
             t={t}
           />
         ) : (

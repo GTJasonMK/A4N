@@ -45,6 +45,72 @@ impl ChapterVisualPlanV3 {
                 }
                 next.points.remove(index);
             }
+            VisualPlanEditOperationV3::Remove {
+                point_ids,
+                segment_ids,
+            } => {
+                if point_ids.is_empty() && segment_ids.is_empty() {
+                    return Err(invalid("remove", "批量删除至少需要一个图片点或镜头段"));
+                }
+                let mut segment_indices = Vec::with_capacity(segment_ids.len());
+                for segment_id in segment_ids {
+                    let index = self.segment_index(segment_id)?;
+                    if segment_indices.contains(&index) {
+                        return Err(invalid("segment_ids", "批量删除不能包含重复的镜头段"));
+                    }
+                    segment_indices.push(index);
+                }
+                segment_indices.sort_unstable_by(|left, right| right.cmp(left));
+                for index in segment_indices {
+                    next.segments.remove(index);
+                }
+
+                let mut point_indices = Vec::with_capacity(point_ids.len());
+                for point_id in point_ids {
+                    let index = self.internal_point_index(point_id)?;
+                    if point_indices.contains(&index) {
+                        return Err(invalid("point_ids", "批量删除不能包含重复的图片点"));
+                    }
+                    if next.segments.iter().any(|segment| {
+                        &segment.start_point_id == point_id || &segment.end_point_id == point_id
+                    }) {
+                        return Err(invalid(
+                            "point_ids",
+                            "镜头仍引用该点，不能删除；请同时删除镜头或先合并",
+                        ));
+                    }
+                    point_indices.push(index);
+                }
+                point_indices.sort_unstable_by(|left, right| right.cmp(left));
+                for index in point_indices {
+                    next.points.remove(index);
+                }
+            }
+            VisualPlanEditOperationV3::RemovePoints { point_ids } => {
+                if point_ids.is_empty() {
+                    return Err(invalid("point_ids", "批量删除至少需要一个图片点"));
+                }
+                let mut indices = Vec::with_capacity(point_ids.len());
+                for point_id in point_ids {
+                    let index = self.internal_point_index(point_id)?;
+                    if indices.contains(&index) {
+                        return Err(invalid("point_ids", "批量删除不能包含重复的图片点"));
+                    }
+                    if self.segments.iter().any(|segment| {
+                        &segment.start_point_id == point_id || &segment.end_point_id == point_id
+                    }) {
+                        return Err(invalid(
+                            "point_ids",
+                            "镜头边界不能直接批量删除，请先合并相邻镜头",
+                        ));
+                    }
+                    indices.push(index);
+                }
+                indices.sort_unstable_by(|left, right| right.cmp(left));
+                for index in indices {
+                    next.points.remove(index);
+                }
+            }
             VisualPlanEditOperationV3::UpdateSegment { segment } => {
                 let index = self.segment_index(&segment.id)?;
                 if segment.start_point_id != self.segments[index].start_point_id
@@ -214,6 +280,60 @@ mod tests {
                 .image_id,
             Some(99)
         );
+    }
+
+    #[test]
+    fn batch_remove_points_is_atomic_and_keeps_structural_points() {
+        let plan = fixture();
+        let removed = plan
+            .edited(&VisualPlanEditOperationV3::RemovePoints {
+                point_ids: vec![
+                    "point-2000".into(),
+                    "point-4000".into(),
+                    "point-6000".into(),
+                ],
+            })
+            .unwrap();
+
+        assert_eq!(
+            removed
+                .points
+                .iter()
+                .map(|point| point.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["start", "point-8000", "point-10000", "end"]
+        );
+        assert!(removed.validate_draft().is_ok());
+        assert!(
+            plan.edited(&VisualPlanEditOperationV3::RemovePoints {
+                point_ids: vec!["point-2000".into(), "point-2000".into()],
+            })
+            .is_err()
+        );
+        assert_eq!(plan.points.len(), 7);
+    }
+
+    #[test]
+    fn batch_remove_can_empty_a_draft_but_not_a_confirmed_plan() {
+        let plan = fixture();
+        let removed = plan
+            .edited(&VisualPlanEditOperationV3::Remove {
+                point_ids: plan.points[1..plan.points.len() - 1]
+                    .iter()
+                    .map(|point| point.id.clone())
+                    .collect(),
+                segment_ids: plan
+                    .segments
+                    .iter()
+                    .map(|segment| segment.id.clone())
+                    .collect(),
+            })
+            .unwrap();
+
+        assert_eq!(removed.points.len(), 2);
+        assert!(removed.segments.is_empty());
+        assert!(removed.validate_draft().is_ok());
+        assert!(removed.validate_confirmed().is_err());
     }
 
     #[test]

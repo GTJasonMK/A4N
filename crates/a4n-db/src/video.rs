@@ -24,8 +24,6 @@ pub(crate) use prompt_records::{
 };
 
 mod generated_images;
-pub(crate) use generated_images::clear_generated_image_references_record;
-pub(crate) use generated_images::generated_images_for_chapter_by_id_desc;
 pub(crate) use generated_images::validated_video_reference_image_records_batch;
 pub(crate) use generated_images::video_project_record;
 pub use generated_images::{
@@ -49,6 +47,10 @@ pub use generated_images::{
     video_library_explicit_image_records, video_profile_material_read_model,
     video_project_context_read_model, video_reference_candidate_image_records,
     video_tail_frame_images,
+};
+pub(crate) use generated_images::{
+    clear_generated_image_references_record, generated_images_for_chapter_by_id_desc,
+    reclaim_image_publications_for_deleted_images,
 };
 
 mod generated_videos;
@@ -165,6 +167,23 @@ where
         .await
         .map_err(VideoDbError::Database)?
         .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))?;
+    Ok(())
+}
+
+/// Reclaiming is the finalization path of a durable publication audit record.
+/// Project deletion deliberately removes the project row only after leaving
+/// that record behind, so a missing project must not strand the audit state.
+async fn lock_image_publication_reclaim_project_for_update<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<(), VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    let project_id = validate_positive_video_i64(project_id, "project_id")?;
+    crate::project::project_write_identity_for_update(db, project_id)
+        .await
+        .map_err(VideoDbError::Database)?;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChapterVisualPlanV3 } from "../../../api/chapterVisualPlan";
-import { pointAt, scaledPreview, sceneColor, segmentAt, segmentBackground } from "./timeline";
+import { pointAt, scaledPreview, sceneColor, segmentAt, segmentBackground, timelineTrackWidth } from "./timeline";
 
 const plan: ChapterVisualPlanV3 = {
   schema_version: "chapter_visual_plan_v3", frame: { width: 1920, height: 1080 },
@@ -13,6 +13,12 @@ const plan: ChapterVisualPlanV3 = {
 };
 
 describe("director timeline projections", () => {
+  it("keeps a scrollable track width independent of the viewport", () => {
+    expect(timelineTrackWidth(plan, 1, true)).toBe(640);
+    expect(timelineTrackWidth({ ...plan, segments: [...plan.segments, ...plan.segments, ...plan.segments] }, 1, true)).toBe(864);
+    expect(timelineTrackWidth(plan, 2, false)).toBe(640 * 2);
+  });
+
   it("switches images at points independently of shot segments", () => {
     expect(pointAt(plan, 3000).at_ms).toBe(2000);
     expect(pointAt(plan, 5000).at_ms).toBe(4000);

@@ -727,10 +727,16 @@ impl AppState {
     /// dispatcher.  Keeping startup outside `new_with_profile` prevents a
     /// recovered Run from reaching a dynamic tool while the Host is still
     /// wiring its command registry.
-    pub async fn spawn_agent_worker(&self) {
+    pub async fn spawn_agent_worker(&self) -> Result<(), a4n_error::AppError> {
+        if self.agent_host_dispatcher.read().await.is_none() {
+            return Err(a4n_error::AppError::InvalidState {
+                current: "当前 Host 未注册 Agent 动态命令 dispatch".into(),
+                operation: "启动 Agent worker".into(),
+            });
+        }
         let mut slot = self.agent_worker_handle.lock().await;
         if slot.is_some() {
-            return;
+            return Ok(());
         }
         let state = self.clone();
         let cancel = self.agent_worker_cancel.clone();
@@ -738,6 +744,7 @@ impl AppState {
         *slot = Some(tokio::spawn(crate::actions::agent_runtime::run_worker(
             state, cancel, notify,
         )));
+        Ok(())
     }
 
     /// 通知 Agent worker 立即扫描可运行 Run。通知是 best-effort 的，worker 同时
@@ -774,9 +781,12 @@ impl AppState {
     pub(crate) async fn dispatch_agent_host_command(
         &self,
         user_id: i64,
+        scope: &a4n_api_contract::agent::AgentScope,
         command: String,
         args: Value,
         worker_request: &WorkerRequest<AgentRunPayload>,
+        execution_id: Option<i64>,
+        execution: Option<&a4n_agent_runtime_contract::AgentExecutionSnapshot>,
     ) -> Result<Value, a4n_error::AppError> {
         let run_id = worker_request.payload.run_id;
         let runtime_config_snapshot = self
@@ -784,10 +794,22 @@ impl AppState {
             .await
             .map(serde_json::to_value)
             .transpose()?;
+        let generation_start_request_id = if command == "send_content_optimization_message" {
+            execution
+                .and_then(|execution| execution.resource_preconditions_json.as_ref())
+                .and_then(|preconditions| preconditions.get("generation_start_request_id"))
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            None
+        };
         let payload = AgentHostCommandPayload {
             run_id,
+            scope: scope.clone(),
+            execution_id,
             command: command.clone(),
             arguments: args,
+            generation_start_request_id,
             runtime_config_snapshot,
         };
         payload
@@ -796,18 +818,17 @@ impl AppState {
                 current: format!("Agent Host command payload 无效: {error}"),
                 operation: "构造 Agent Host command request".into(),
             })?;
-        let request_id = format!(
-            "{}:host:{}",
-            worker_request.request_id,
-            uuid::Uuid::new_v4()
-        );
+        let host_key = execution_id
+            .map(|id| format!("execution:{id}"))
+            .unwrap_or_else(|| format!("command:{command}"));
+        let request_id = format!("{}:host:{host_key}", worker_request.request_id);
         let request = WorkerRequest {
             schema_version: worker_request.schema_version,
             request_id: request_id.clone(),
             trace_id: worker_request.trace_id.clone(),
             principal: worker_request.principal.clone(),
             operation_id: AGENT_HOST_COMMAND_OPERATION.into(),
-            idempotency_key: format!("{}:host:{request_id}", worker_request.idempotency_key),
+            idempotency_key: format!("{}:host:{host_key}", worker_request.idempotency_key),
             project_id: worker_request.project_id,
             root_project_id: worker_request.root_project_id,
             target_revision: worker_request.target_revision,

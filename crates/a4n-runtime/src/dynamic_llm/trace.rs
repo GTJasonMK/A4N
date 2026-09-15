@@ -39,6 +39,9 @@ pub(super) async fn complete_llm_trace_project_scope(
     facade: &DynamicProviderFacade,
     trace_context: &mut LlmTraceContext,
 ) -> Result<(), AppError> {
+    trace_context
+        .validate_business_trace()
+        .map_err(AppError::InvalidArgument)?;
     let Some(project_id) = trace_context.project_id else {
         if trace_context.root_project_id.is_some() {
             return Err(AppError::InvalidArgument(format!(

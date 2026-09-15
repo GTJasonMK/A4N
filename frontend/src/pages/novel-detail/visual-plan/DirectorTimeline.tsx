@@ -4,7 +4,7 @@ import { Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
 import type { ChapterVisualPlanV3, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
-import { durationMs, formatTime, segmentBackground, sceneLabel, segmentTimes, type DirectorSelection } from "./timeline";
+import { durationMs, formatTime, segmentBackground, sceneLabel, segmentTimes, timelineTrackWidth, type DirectorSelection } from "./timeline";
 import type { DirectorPlayback } from "./playback";
 
 interface Props {
@@ -100,7 +100,11 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
       </div>
     </div>
     <div className="director-timeline-scroll">
-      <div className="director-timeline-track" style={{ width: fit ? "100%" : `max(${zoom * 100}%, ${Math.max(640, plan.segments.length * 96) * zoom}px)` }} ref={rail}>
+      <div
+        className="director-timeline-track"
+        style={{ width: `max(100%, ${timelineTrackWidth(plan, zoom, fit)}px)` }}
+        ref={rail}
+      >
         <div className="director-ruler" onPointerDown={seek} role="presentation">
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <span key={ratio} style={{ left: `${ratio * 100}%` }}>{formatTime(total * ratio)}</span>)}
         </div>

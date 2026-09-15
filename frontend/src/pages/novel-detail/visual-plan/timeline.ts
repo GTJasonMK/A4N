@@ -2,6 +2,21 @@ import type { ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV
 
 export type DirectorSelection = { kind: "point" | "segment"; id: string };
 
+export const DIRECTOR_TIMELINE_MIN_WIDTH = 640;
+export const DIRECTOR_TIMELINE_SEGMENT_WIDTH = 96;
+
+export function timelineTrackWidth(
+  plan: ChapterVisualPlanV3,
+  zoom: number,
+  fit: boolean,
+): number {
+  const base = Math.max(
+    DIRECTOR_TIMELINE_MIN_WIDTH,
+    plan.segments.length * DIRECTOR_TIMELINE_SEGMENT_WIDTH,
+  );
+  return Math.round(fit ? base : base * zoom);
+}
+
 export const durationMs = (plan: ChapterVisualPlanV3): number => plan.points.at(-1)?.at_ms ?? 0;
 
 export function pointAt(plan: ChapterVisualPlanV3, time: number): VisualPointV3 {

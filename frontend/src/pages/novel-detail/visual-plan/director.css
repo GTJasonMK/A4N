@@ -123,8 +123,8 @@
 .director-timeline-summary > span { font-size: 11px; color: rgb(var(--color-text-tertiary)); }
 .director-timeline .director-inline-actions > button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 5px 8px; border-radius: 7px; font-size: 11px; color: rgb(var(--color-text-secondary)); }
 .director-timeline .director-inline-actions > button:hover:not(:disabled) { background: rgb(var(--color-primary) / .08); color: rgb(var(--color-primary)); }
-.director-timeline-scroll { overflow-x: auto; overflow-y: hidden; padding: 0 28px 4px; min-width: 0; scrollbar-width: thin; }
-.director-timeline-track { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.director-timeline-scroll { overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; padding: 0 28px 4px; min-width: 0; scrollbar-width: thin; }
+.director-timeline-track { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 28px 52px; min-width: 0; }
 .director-ruler { grid-area: 1 / 1; position: relative; height: 28px; cursor: crosshair; }
 .director-ruler span { position: absolute; top: 0; color: rgb(var(--color-text-tertiary)); font: 10px ui-monospace, monospace; transform: translateX(-50%); white-space: nowrap; }
 .director-ruler span:first-child { transform: none; }
@@ -136,14 +136,12 @@
 .director-point.is-fixed { cursor: pointer; }
 .director-point.is-fixed span { width: 11px; height: 11px; border-radius: 3px; }
 .director-point.is-selected span { outline: 2px solid rgb(var(--color-primary)); outline-offset: 5px; }
-.director-segments { grid-area: 2 / 1; position: relative; padding-bottom: 4px; }
+.director-segments { grid-area: 2 / 1; position: relative; height: 52px; padding-bottom: 4px; }
 .director-segment { position: absolute; top: 0; height: 48px; display: flex; align-items: flex-end; padding: 6px 8px; min-width: 0; overflow: hidden; border: 1px solid rgb(var(--color-bg-primary)); text-align: left; isolation: isolate; }
 .director-segment::before { content: ""; position: absolute; z-index: -1; inset: 0; background: rgb(0 0 0 / .48); }
 .director-segment.is-selected { outline: 2px solid rgb(var(--color-primary)); outline-offset: 2px; z-index: 2; }
 .director-segment strong { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #fff; }
 .director-segment strong { font-size: 12px; font-weight: 650; }
-/* Points sit on the clip edge; the lower half remains available for clip/boundary editing. */
-.director-segment:first-child { position: relative; }
 .director-segment-boundary { position: absolute; top: 0; z-index: 4; width: 24px; height: calc(100% - 4px); transform: translateX(-50%); cursor: ew-resize; touch-action: none; }
 .director-segment-boundary::after { content: ""; position: absolute; width: 3px; height: 16px; border-radius: 2px; top: calc(50% - 8px); left: 10px; background: rgb(255 255 255 / .85); box-shadow: 0 0 3px #333; }
 .director-playhead { position: absolute; pointer-events: none; top: 12px; bottom: 4px; width: 1px; background: rgb(var(--color-primary)); z-index: 5; }

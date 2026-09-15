@@ -83,6 +83,7 @@ impl ServerState {
         let runtime_profile = runtime_profile_for_server_host()?;
         let runtime =
             Arc::new(a4n_runtime::AppState::new_with_profile(app_config, runtime_profile).await?);
+        crate::install_agent_host_dispatcher(&runtime)?;
         let bootstrap = bootstrap_admin.as_ref().map(|input| {
             (
                 input.username.as_str(),

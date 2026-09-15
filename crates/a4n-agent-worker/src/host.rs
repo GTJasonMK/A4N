@@ -1,4 +1,5 @@
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
+use a4n_agent_runtime_contract::model_request_wire_value;
 use a4n_api_contract::agent::AgentExecutionResultPage;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV3, VisualPlanProjection, VisualPlanReadView,
@@ -34,7 +35,7 @@ use a4n_worker_contract::{
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
     AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
     AgentWorkerUsageRequest, AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -580,6 +581,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             Method::POST,
             "/internal/agent/llm/capabilities",
             &AgentWorkerLlmCapabilitiesRequest {
+                schema_version: WORKER_SCHEMA_VERSION,
                 user_id,
                 snapshot: snapshot.cloned(),
                 config_id,
@@ -595,8 +597,9 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         config_id: Option<i64>,
         request: ChatRequest,
     ) -> Result<AgentChatStream, AppError> {
-        let request = request.snapshot_value()?;
+        let request = model_request_wire_value(&request)?;
         self.request_stream(&AgentWorkerChatRequest {
+            schema_version: WORKER_SCHEMA_VERSION,
             user_id,
             snapshot: snapshot.cloned(),
             config_id,
@@ -619,6 +622,42 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             },
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_llm::provider::LlmTraceContext;
+    use serde_json::json;
+
+    #[test]
+    fn agent_chat_wire_request_omits_internal_context() {
+        let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
+        request.trace_context = Some(LlmTraceContext {
+            project_id: Some(7),
+            root_project_id: Some(3),
+            workflow: "agent".into(),
+            step_key: "model".into(),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: Some("call-1".into()),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        });
+        request.context_manifest_json = Some(json!({"packs": []}));
+
+        let wire = model_request_wire_value(&request).expect("wire request serializes");
+        assert_eq!(wire["trace_context"]["project_id"], 7);
+        assert!(wire.get("context_manifest_json").is_none());
+        assert!(
+            request
+                .snapshot_value()
+                .expect("request snapshot serializes")
+                .get("context_manifest_json")
+                .is_some()
+        );
     }
 }
 

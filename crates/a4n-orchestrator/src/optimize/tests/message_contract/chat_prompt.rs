@@ -64,8 +64,8 @@ fn content_optimization_chat_user_message_uses_session_context() {
 #[test]
 fn content_optimization_chat_system_prompt_includes_runtime_tool_schema() {
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
-    let tools_prompt = serde_json::to_string_pretty(
-        &super::super::runtime_tools::optimization_runtime_tool_specs(),
+    let tools_prompt = serde_json::to_string(
+        &super::super::runtime_tools::optimization_runtime_tool_specs_for_prompt(),
     )
     .unwrap();
     let variables = std::collections::HashMap::from([
@@ -88,6 +88,7 @@ fn content_optimization_chat_system_prompt_includes_runtime_tool_schema() {
     assert!(prompt.contains(r#""read""#));
     assert!(prompt.contains(r#""search""#));
     assert!(prompt.contains("edit_article"));
-    assert!(prompt.contains("工具名，不是顶层 `action`"));
-    assert!(prompt.contains(r#"{"action":"run_tool","arguments":{"tool":"edit_article""#));
+    assert!(prompt.contains("tool"));
+    assert!(prompt.contains("action"));
+    assert!(prompt.len() < 6_000);
 }

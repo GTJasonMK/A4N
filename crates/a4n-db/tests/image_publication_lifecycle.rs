@@ -11,9 +11,11 @@ use a4n_db::cleanup_outbox::{
 use a4n_db::media::filter_unreferenced_media_paths;
 use a4n_db::profile_material::upsert_profile_primary_material;
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
+use a4n_db::project_delete::delete_project_cascade_record;
 use a4n_db::video::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
-    ImagePublicationFileFacts, create_image_publication_intent, image_publications_for_recovery,
+    ImagePublicationFileFacts, create_image_publication_intent,
+    delete_generated_image_record_with_cleanup, image_publications_for_recovery,
     mark_image_publication_reclaimed, mark_image_publication_reclaiming, publish_image_publication,
 };
 use a4n_db_models::models::{
@@ -310,6 +312,34 @@ async fn published_replay_returns_same_image_and_keeps_published_identity_recove
 }
 
 #[tokio::test]
+async fn deleting_published_image_moves_publication_into_recovery() {
+    let fixture = fixture().await;
+    create_image_publication_intent(&fixture.db, fixture.intent_input())
+        .await
+        .expect("发布意图必须创建成功");
+    let image =
+        publish_image_publication(&fixture.db, &fixture.publication_id, fixture.file_facts())
+            .await
+            .expect("图片必须先成功发布");
+
+    delete_generated_image_record_with_cleanup(&fixture.db, image.id)
+        .await
+        .expect("删除图片必须成功");
+
+    let publication = image_publication::Entity::find_by_id(&fixture.publication_id)
+        .one(&fixture.db)
+        .await
+        .expect("发布意图查询必须成功")
+        .expect("发布意图必须保留");
+    assert_eq!(publication.status, IMAGE_PUBLICATION_STATUS_RECLAIMING);
+    assert_eq!(publication.version, 3);
+    assert_eq!(
+        publication.last_error.as_deref(),
+        Some("generated_image 记录已删除")
+    );
+}
+
+#[tokio::test]
 async fn published_replay_rejects_drifted_image_identity_instead_of_acknowledging() {
     let fixture = fixture().await;
     create_image_publication_intent(&fixture.db, fixture.intent_input())
@@ -551,6 +581,49 @@ async fn reclaim_transitions_remain_available_while_project_is_draining() {
     )
     .await
     .expect("项目排空期间仍必须能完成回收状态");
+    assert_eq!(reclaimed.status, IMAGE_PUBLICATION_STATUS_RECLAIMED);
+}
+
+#[tokio::test]
+async fn reclaim_transitions_remain_available_after_project_is_deleted() {
+    let fixture = fixture().await;
+    let pending = create_image_publication_intent(&fixture.db, fixture.intent_input())
+        .await
+        .expect("发布意图必须创建成功");
+
+    let project = novel_project::Entity::find_by_id(fixture.project_id)
+        .one(&fixture.db)
+        .await
+        .expect("项目查询必须成功")
+        .expect("项目必须存在");
+    let mut deleting: novel_project::ActiveModel = project.into();
+    deleting.lifecycle_gate = Set("deleting".to_string());
+    deleting
+        .update(&fixture.db)
+        .await
+        .expect("测试必须把项目置为排空状态");
+    delete_project_cascade_record(&fixture.db, fixture.project_id)
+        .await
+        .expect("项目必须完成级联删除");
+
+    let reclaiming = mark_image_publication_reclaiming(
+        &fixture.db,
+        &fixture.publication_id,
+        pending.version,
+        "项目已删除，回收孤儿发布意图".to_string(),
+    )
+    .await
+    .expect("项目删除后仍必须能取得回收权");
+    assert_eq!(reclaiming.status, IMAGE_PUBLICATION_STATUS_RECLAIMING);
+
+    let reclaimed = mark_image_publication_reclaimed(
+        &fixture.db,
+        &fixture.publication_id,
+        reclaiming.version,
+        None,
+    )
+    .await
+    .expect("项目删除后仍必须能完成回收状态");
     assert_eq!(reclaimed.status, IMAGE_PUBLICATION_STATUS_RECLAIMED);
 }
 

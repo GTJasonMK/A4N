@@ -112,3 +112,47 @@ pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
         }),
     ]
 }
+
+/// The chat loop only needs the callable shape in its stable prompt. Keep the
+/// full schema as the execution contract and derive this smaller projection so
+/// prompt size does not grow with descriptive text.
+pub(crate) fn optimization_runtime_tool_specs_for_prompt() -> Vec<Value> {
+    optimization_runtime_tool_specs()
+        .into_iter()
+        .filter_map(|spec| {
+            let function = spec.get("function")?;
+            Some(json!({
+                "name": function.get("name"),
+                "description": function.get("description"),
+                "parameters": compact_schema(function.get("parameters")?),
+            }))
+        })
+        .collect()
+}
+
+fn compact_schema(schema: &Value) -> Value {
+    let Some(object) = schema.as_object() else {
+        return Value::Null;
+    };
+    let mut compact = serde_json::Map::new();
+    for key in ["type", "enum", "minimum", "maximum", "required"] {
+        if let Some(value) = object.get(key) {
+            compact.insert(key.to_string(), value.clone());
+        }
+    }
+    if let Some(properties) = object.get("properties").and_then(Value::as_object) {
+        compact.insert(
+            "properties".to_string(),
+            Value::Object(
+                properties
+                    .iter()
+                    .map(|(name, value)| (name.clone(), compact_schema(value)))
+                    .collect(),
+            ),
+        );
+    }
+    if let Some(items) = object.get("items") {
+        compact.insert("items".to_string(), compact_schema(items));
+    }
+    Value::Object(compact)
+}

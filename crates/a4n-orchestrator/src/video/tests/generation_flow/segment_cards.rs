@@ -64,7 +64,15 @@ async fn boundary_frame_card_and_final_prompt_share_one_explicit_segment_identit
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
-    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine).await;
+    generate_shared_segment_plan_stage_with_explicit_end_frame(
+        db.as_ref(),
+        &service,
+        &llm_switch,
+        project.id,
+        chapter.id,
+        &engine,
+    )
+    .await;
     set_segment_recipe_mode(
         &service,
         project.id,

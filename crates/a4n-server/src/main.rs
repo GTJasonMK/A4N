@@ -17,6 +17,7 @@ use std::os::unix::process::CommandExt;
 const CONTROL_PROCESS_ENV: &str = "A4N_CONTROL_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
+const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
 const CONTROL_READY_RETRY_INTERVAL: Duration = Duration::from_millis(50);
@@ -34,8 +35,7 @@ struct BinaryFingerprint {
 enum ChildWatchEvent {
     ControlExited(ExitStatus),
     WorkerExited(ExitStatus),
-    ControlBinaryChanged,
-    WorkerBinaryChanged,
+    RuntimeWorkersChanged,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -55,6 +55,8 @@ fn main() -> anyhow::Result<()> {
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
     let mut worker_fingerprint = binary_fingerprint(&worker_binary)?;
+    let reload_marker = reload_marker_path();
+    let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut control = spawn_control(&control_binary, control_addr, &worker_token)?;
     if let Err(error) = wait_for_control(&mut control, control_addr) {
         let cleanup_result = stop_control(&mut control);
@@ -87,6 +89,8 @@ fn main() -> anyhow::Result<()> {
         &mut control_fingerprint,
         &worker_binary,
         &mut worker_fingerprint,
+        reload_marker.as_deref(),
+        &mut reload_marker_fingerprint,
     );
     edge_stop.store(true, Ordering::Release);
     let edge_result = match edge_thread.join() {
@@ -109,6 +113,8 @@ fn supervise_agent_worker(
     control_fingerprint: &mut BinaryFingerprint,
     worker_binary: &Path,
     worker_fingerprint: &mut BinaryFingerprint,
+    reload_marker: Option<&Path>,
+    reload_marker_fingerprint: &mut Option<BinaryFingerprint>,
 ) -> anyhow::Result<Option<String>> {
     loop {
         let Some(event) = wait_for_edge_or_child(
@@ -119,6 +125,8 @@ fn supervise_agent_worker(
             *control_fingerprint,
             worker_binary,
             *worker_fingerprint,
+            reload_marker,
+            *reload_marker_fingerprint,
         )?
         else {
             return Ok(None);
@@ -135,11 +143,14 @@ fn supervise_agent_worker(
                 *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
-            ChildWatchEvent::ControlBinaryChanged => {
-                eprintln!(
-                    "检测到 A4N Control 二进制更新: {}；执行热替换",
-                    control_binary.display()
-                );
+            ChildWatchEvent::WorkerExited(status) => {
+                eprintln!("A4N Agent worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
+                *worker_fingerprint = binary_fingerprint(worker_binary)?;
+            }
+            ChildWatchEvent::RuntimeWorkersChanged => {
+                eprintln!("检测到 A4N Control/Agent worker 成对构建完成；执行热替换");
                 stop_agent_worker(agent_worker)?;
                 stop_control(control)?;
                 *control = spawn_control(control_binary, control_addr, worker_token)?;
@@ -147,21 +158,7 @@ fn supervise_agent_worker(
                 *control_fingerprint = binary_fingerprint(control_binary)?;
                 *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
-            }
-            ChildWatchEvent::WorkerExited(status) => {
-                eprintln!("A4N Agent worker 意外退出: {status}；准备重启");
-                std::thread::sleep(WORKER_RESTART_DELAY);
-                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
-                *worker_fingerprint = binary_fingerprint(worker_binary)?;
-            }
-            ChildWatchEvent::WorkerBinaryChanged => {
-                eprintln!(
-                    "检测到 A4N Agent worker 二进制更新: {}；执行热替换",
-                    worker_binary.display()
-                );
-                stop_agent_worker(agent_worker)?;
-                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
-                *worker_fingerprint = binary_fingerprint(worker_binary)?;
+                *reload_marker_fingerprint = optional_binary_fingerprint(reload_marker)?;
             }
         }
     }
@@ -175,6 +172,8 @@ fn wait_for_edge_or_child(
     control_fingerprint: BinaryFingerprint,
     worker_binary: &Path,
     worker_fingerprint: BinaryFingerprint,
+    reload_marker: Option<&Path>,
+    reload_marker_fingerprint: Option<BinaryFingerprint>,
 ) -> anyhow::Result<Option<ChildWatchEvent>> {
     loop {
         if edge_thread.is_finished() {
@@ -186,11 +185,16 @@ fn wait_for_edge_or_child(
         if let Some(status) = agent_worker.try_wait()? {
             return Ok(Some(ChildWatchEvent::WorkerExited(status)));
         }
-        if binary_fingerprint(control_binary)? != control_fingerprint {
-            return Ok(Some(ChildWatchEvent::ControlBinaryChanged));
-        }
-        if binary_fingerprint(worker_binary)? != worker_fingerprint {
-            return Ok(Some(ChildWatchEvent::WorkerBinaryChanged));
+        if reload_marker.is_some() {
+            if optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint {
+                return Ok(Some(ChildWatchEvent::RuntimeWorkersChanged));
+            }
+        } else {
+            if binary_fingerprint(control_binary)? != control_fingerprint
+                || binary_fingerprint(worker_binary)? != worker_fingerprint
+            {
+                return Ok(Some(ChildWatchEvent::RuntimeWorkersChanged));
+            }
         }
         std::thread::sleep(CHILD_MONITOR_INTERVAL);
     }
@@ -209,6 +213,34 @@ fn binary_fingerprint(path: &Path) -> anyhow::Result<BinaryFingerprint> {
         modified,
         length: metadata.len(),
     })
+}
+
+fn optional_binary_fingerprint(path: Option<&Path>) -> anyhow::Result<Option<BinaryFingerprint>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(Some(BinaryFingerprint {
+            modified: metadata.modified().map_err(|error| {
+                anyhow::anyhow!(
+                    "读取 reload marker {} 修改时间失败: {error}",
+                    path.display()
+                )
+            })?,
+            length: metadata.len(),
+        })),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(anyhow::anyhow!(
+            "读取 reload marker {} 失败: {error}",
+            path.display()
+        )),
+    }
+}
+
+fn reload_marker_path() -> Option<PathBuf> {
+    env::var_os(RUNTIME_WORKER_RELOAD_MARKER_ENV)
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
 }
 
 fn merge_watch_result(
@@ -533,6 +565,8 @@ mod tests {
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            None,
+            None,
         )
         .expect("child polling should succeed");
 
@@ -558,5 +592,26 @@ mod tests {
         let new = super::binary_fingerprint(&worker_binary).expect("new fingerprint should work");
 
         assert_ne!(old, new);
+    }
+
+    #[test]
+    fn reload_marker_is_optional_and_detects_publication() {
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let marker = tempdir.path().join("runtime-workers.ready");
+
+        assert_eq!(
+            super::optional_binary_fingerprint(Some(&marker)).expect("missing marker is valid"),
+            None
+        );
+        std::fs::write(&marker, b"1\n").expect("marker should be published");
+        let first = super::optional_binary_fingerprint(Some(&marker))
+            .expect("published marker should be fingerprinted")
+            .expect("published marker should exist");
+        std::fs::write(&marker, b"2\n").expect("marker should be republished");
+        let second = super::optional_binary_fingerprint(Some(&marker))
+            .expect("republished marker should be fingerprinted")
+            .expect("republished marker should exist");
+
+        assert_ne!(first, second);
     }
 }

@@ -796,14 +796,36 @@ fn profile_material_publication_details(
         a4n_db::profile_material::PROFILE_KIND_OBJECT => ProfileMaterialKind::Object,
         _ => unreachable!("profile_material_identity only returns known profile kinds"),
     };
-    let set_primary = metadata
-        .get("set_primary")
-        .and_then(Value::as_bool)
-        .ok_or_else(|| AppError::InvalidState {
-            current: image_type.to_string(),
-            operation: "读取档案素材 publication set_primary".to_string(),
-        })?;
+    let set_primary = parse_profile_material_set_primary(image_type, metadata.get("set_primary"))?;
     Ok((kind, profile_id, set_primary))
+}
+
+fn parse_profile_material_set_primary(
+    image_type: &str,
+    value: Option<&Value>,
+) -> Result<bool, AppError> {
+    let invalid = || AppError::InvalidState {
+        current: image_type.to_string(),
+        operation: "读取档案素材 publication set_primary".to_string(),
+    };
+    let Some(value) = value else {
+        return Ok(false);
+    };
+    match value {
+        Value::Null => Ok(false),
+        Value::Bool(value) => Ok(*value),
+        Value::String(value) => match value.trim() {
+            "true" | "1" => Ok(true),
+            "false" | "0" => Ok(false),
+            _ => Err(invalid()),
+        },
+        Value::Number(value) => match value.as_i64() {
+            Some(1) => Ok(true),
+            Some(0) => Ok(false),
+            _ => Err(invalid()),
+        },
+        _ => Err(invalid()),
+    }
 }
 
 fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterialSource {
@@ -1197,7 +1219,7 @@ mod tests {
         .expect("有效档案素材 publication 元数据必须可解析");
         assert_eq!(details, (ProfileMaterialKind::Scene, 9, true));
 
-        assert!(
+        assert_eq!(
             profile_material_publication_details(
                 IMAGE_TYPE_OBJECT_MATERIAL,
                 Some(&json!({
@@ -1205,8 +1227,48 @@ mod tests {
                     "profile_id": 10,
                 })),
             )
-            .is_err()
+            .expect("旧档案素材 publication 缺少 set_primary 时应默认为 false"),
+            (ProfileMaterialKind::Object, 10, false)
         );
+
+        for value in [json!(null), json!("false"), json!("0"), json!(0)] {
+            let mut metadata = json!({
+                "profile_kind": "scene",
+                "profile_id": 9,
+            });
+            metadata["set_primary"] = value;
+            assert_eq!(
+                profile_material_publication_details(IMAGE_TYPE_SCENE_MATERIAL, Some(&metadata),)
+                    .expect("历史 false 形态必须可兼容读取"),
+                (ProfileMaterialKind::Scene, 9, false)
+            );
+        }
+
+        for value in [json!("true"), json!("1"), json!(1)] {
+            let mut metadata = json!({
+                "profile_kind": "scene",
+                "profile_id": 9,
+            });
+            metadata["set_primary"] = value;
+            assert_eq!(
+                profile_material_publication_details(IMAGE_TYPE_SCENE_MATERIAL, Some(&metadata),)
+                    .expect("历史 true 形态必须可兼容读取"),
+                (ProfileMaterialKind::Scene, 9, true)
+            );
+        }
+
+        for value in [json!("yes"), json!(2), json!([]), json!({})] {
+            let mut metadata = json!({
+                "profile_kind": "scene",
+                "profile_id": 9,
+            });
+            metadata["set_primary"] = value;
+            assert!(
+                profile_material_publication_details(IMAGE_TYPE_SCENE_MATERIAL, Some(&metadata),)
+                    .is_err(),
+                "不明确的 set_primary 形态必须显式失败"
+            );
+        }
 
         assert!(
             profile_material_publication_details(

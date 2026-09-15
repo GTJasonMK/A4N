@@ -13,6 +13,17 @@ pub struct ModelCapabilities {
     pub max_output_tokens: usize,
 }
 
+pub fn validated_model_output_tokens(
+    capabilities: &ModelCapabilities,
+) -> Result<usize, a4n_error::AppError> {
+    if capabilities.max_output_tokens == 0 {
+        return Err(a4n_error::AppError::InvalidArgument(
+            "模型没有可用输出预算".into(),
+        ));
+    }
+    Ok(capabilities.max_output_tokens)
+}
+
 /// 消息角色
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -97,6 +108,49 @@ pub struct LlmTraceContext {
     pub context_plan_json: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_pack_refs_json: Option<Value>,
+}
+
+impl LlmTraceContext {
+    /// Validate the application trace before it crosses into a business
+    /// sidecar request. A global Agent trace may omit project scope, but it
+    /// still needs a usable workflow and step identity.
+    pub fn validate_business_trace(&self) -> Result<(), String> {
+        validate_trace_text("workflow", &self.workflow)?;
+        validate_trace_text("step_key", &self.step_key)?;
+        if let Some(project_id) = self.project_id {
+            validate_positive_trace_id("project_id", project_id)?;
+        }
+        if let Some(root_project_id) = self.root_project_id {
+            validate_positive_trace_id("root_project_id", root_project_id)?;
+            if self.project_id.is_none() {
+                return Err("root_project_id 不能脱离 project_id".to_string());
+            }
+        }
+        if let Some(generation_run_id) = self.generation_run_id {
+            validate_positive_trace_id("generation_run_id", generation_run_id)?;
+        }
+        if let Some(workflow_run_id) = self.workflow_run_id {
+            validate_positive_trace_id("workflow_run_id", workflow_run_id)?;
+        }
+        if let Some(call_key) = self.call_key.as_deref() {
+            validate_trace_text("call_key", call_key)?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_trace_text(field: &str, value: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{field} 不能为空"));
+    }
+    Ok(())
+}
+
+fn validate_positive_trace_id(field: &str, value: i64) -> Result<(), String> {
+    if value <= 0 {
+        return Err(format!("{field} 必须是正整数，实际为 {value}"));
+    }
+    Ok(())
 }
 
 /// 聊天流式块

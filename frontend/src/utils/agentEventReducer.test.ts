@@ -4,7 +4,11 @@ import type {
   AgentMessageView,
   AgentThreadSnapshot,
 } from "../api/agent";
-import { reduceAgentEvent, snapshotCursor } from "./agentEventReducer";
+import {
+  reduceAgentEvent,
+  snapshotCursor,
+  streamedAgentMessageIds,
+} from "./agentEventReducer";
 
 const message = (content: string, status: string = "streaming"): AgentMessageView => ({
   id: "message-1",
@@ -70,6 +74,18 @@ const event = (sequence: number, payload: unknown): AgentEvent => ({
 });
 
 describe("agent event reducer", () => {
+  it("identifies streamed messages and can scope them to a run", () => {
+    const otherRun = { ...event(2, null), run_id: "run-2", message_id: "message-2" };
+    const completed = { ...event(3, null), kind: "message_completed" };
+    expect(streamedAgentMessageIds([event(1, null), otherRun, completed])).toEqual([
+      "message-1",
+      "message-2",
+    ]);
+    expect(streamedAgentMessageIds([event(1, null), otherRun], "run-2")).toEqual([
+      "message-2",
+    ]);
+  });
+
   it("uses the durable next sequence as the initial cursor", () => {
     const current = snapshot();
     current.events = [{ ...event(4, null), kind: "run_waiting", message_id: null }];

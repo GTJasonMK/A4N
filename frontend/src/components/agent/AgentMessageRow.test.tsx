@@ -1,8 +1,20 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AgentMessageView } from "../../api/agent";
-import { AgentMessageList } from "./AgentMessageList";
+import { AgentMessageList, createPendingAgentMessage } from "./AgentMessageList";
 import { AgentMessageRow } from "./AgentMessageRow";
+
+vi.mock("../../theme/activeTheme", async () => {
+  const actual = await vi.importActual<typeof import("../../theme/activeTheme")>("../../theme/activeTheme");
+  return {
+    ...actual,
+    getActiveThemeStreamDisplaySettings: () => ({
+      enabled: true,
+      rate: 30,
+      mode: "fixed" as const,
+    }),
+  };
+});
 
 const timestamp = "2026-08-28T00:00:00Z";
 
@@ -43,10 +55,11 @@ describe("AgentMessageRow", () => {
       />,
     );
 
-    expect(html).toContain("工具调用");
-    expect((html.match(/工具调用/g) ?? []).length).toBe(1);
+    expect(html).toContain("执行轨迹");
+    expect((html.match(/执行轨迹/g) ?? []).length).toBe(1);
     expect(html).toContain("list_projects");
     expect(html).toContain("查看参数");
+    expect(html).toContain('data-agent-process-state="running"');
     expect(html).not.toContain("空消息");
   });
 
@@ -67,7 +80,7 @@ describe("AgentMessageRow", () => {
       />,
     );
 
-    expect(html).toContain("工具结果");
+    expect(html).toContain("执行结果");
     expect(html).toContain("返回 projects 2 项");
     expect(html).toContain("调用 call-1");
     expect(html).toContain("执行 #42");
@@ -110,9 +123,10 @@ describe("AgentMessageRow", () => {
 
     expect((html.match(/<article/g) ?? []).length).toBe(1);
     expect(html).toContain("list_projects");
-    expect(html).toContain("工具结果");
+    expect(html).toContain("执行结果");
     expect(html).toContain("返回 projects 2 项");
     expect(html).toContain("执行 #42");
+    expect(html).toContain('data-agent-process-state="complete"');
     expect(html).not.toContain("<details open");
   });
 
@@ -192,6 +206,19 @@ describe("AgentMessageRow", () => {
     expect(html).not.toContain("Agent 未返回文本");
   });
 
+  it("starts a completed message from its stream prefix", () => {
+    const html = renderToStaticMarkup(
+      <AgentMessageRow
+        message={message({ content: "streamed reply" })}
+        locale="zh-CN"
+        wasStreamed
+      />,
+    );
+
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain("streamed reply");
+  });
+
   it("summarizes a generic object by fields instead of exposing inline JSON", () => {
     const html = renderToStaticMarkup(
       <AgentMessageRow
@@ -211,5 +238,83 @@ describe("AgentMessageRow", () => {
     expect(html.indexOf("返回 2 个字段")).toBeLessThan(
       html.indexOf("&quot;status&quot;"),
     );
+  });
+
+  it("shows the submitted command and current run state in the feed", () => {
+    const html = renderToStaticMarkup(
+      <AgentMessageList
+        messages={[]}
+        pendingMessages={[createPendingAgentMessage("thread-1", "继续处理", "client-1")]}
+        activeRun={{ status: "waiting", created_at: timestamp, started_at: null }}
+        locale="zh-CN"
+      />,
+    );
+
+    expect(html).toContain("继续处理");
+    expect((html.match(/继续处理/g) ?? []).length).toBe(1);
+    expect(html).toContain("已提交，等待 Agent 接管");
+    expect(html).toContain("等待你的确认");
+  });
+
+  it("times only an active run from started_at, never from its old created_at", () => {
+    const html = renderToStaticMarkup(
+      <AgentMessageList
+        messages={[]}
+        activeRun={{
+          status: "running",
+          created_at: "2020-01-01T00:00:00Z",
+          started_at: new Date(Date.now() - 16_000).toISOString(),
+        }}
+        locale="zh-CN"
+      />,
+    );
+    expect(html).toMatch(/1[5-7]s/);
+
+    const long = renderToStaticMarkup(
+      <AgentMessageList
+        messages={[]}
+        activeRun={{
+          status: "running",
+          created_at: "2020-01-01T00:00:00Z",
+          started_at: new Date(Date.now() - (8 * 3_600 + 1 * 60 + 2) * 1_000).toISOString(),
+        }}
+        locale="zh-CN"
+      />,
+    );
+    expect(long).toMatch(/8:01:0[1-3]/);
+
+    const waiting = renderToStaticMarkup(
+      <AgentMessageList
+        messages={[]}
+        activeRun={{
+          status: "waiting",
+          created_at: "2020-01-01T00:00:00Z",
+          started_at: "2020-01-01T00:00:00Z",
+        }}
+        locale="zh-CN"
+      />,
+    );
+    expect(waiting).not.toMatch(/\d+:\d{2}/);
+  });
+
+  it("collapses long assistant replies for the compact domain console", () => {
+    const html = renderToStaticMarkup(
+      <AgentMessageList
+        messages={[
+          message({
+            content: `# 需要注意：\n\n${Array.from(
+              { length: 7 },
+              (_, index) => `${index + 1}. 第 ${index + 1} 项需要在编辑器中确认后再继续。`,
+            ).join("\n")}`,
+          }),
+        ]}
+        locale="zh-CN"
+        compactAssistantMessages
+      />,
+    );
+
+    expect(html).toContain("需要注意： · 7 项");
+    expect(html).toContain('class="agent-message-collapsible"');
+    expect(html).not.toContain("<details open");
   });
 });

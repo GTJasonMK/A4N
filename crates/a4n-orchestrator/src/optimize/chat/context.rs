@@ -8,6 +8,7 @@ use crate::optimize::context::{build_content_optimization_context, optimization_
 use crate::optimize::messages::{
     build_content_optimization_chat_user_message, optimization_chat_history,
 };
+use crate::optimize::runtime_tools::optimization_runtime_tool_specs_for_prompt;
 use crate::optimize::{OptimizeAgentPermissions, OrchestratorContext};
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -54,12 +55,8 @@ impl OrchestratorContext {
     ) -> Result<(String, String), AppError> {
         let mut prompt_vars = HashMap::new();
         prompt_vars.insert(
-            "agent_instruction".to_string(),
-            user_text.to_string().into(),
-        );
-        prompt_vars.insert(
             "tools_prompt".to_string(),
-            serde_json::to_string_pretty(&self.tool_specs())?.into(),
+            serde_json::to_string(&optimization_runtime_tool_specs_for_prompt())?.into(),
         );
         let system_prompt = prompt_renderer
             .render_prompt(

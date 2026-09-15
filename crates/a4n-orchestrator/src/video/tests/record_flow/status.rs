@@ -459,7 +459,7 @@ async fn video_record_application_completion_projects_duration_and_adopts_duplic
     let thumbnail_path = format!("projects/{}/videos/chapter_1/thumb.jpg", project.id);
 
     let completed =
-        <crate::OrchestratorContext as a4n_api_contract::video::VideoRecordLifecycleApplicationPort>::complete(
+        <crate::OrchestratorContext as a4n_api_contract::video::VideoRecordCompletionApplicationPort>::complete(
             &service,
             a4n_api_contract::video::CompleteVideoRecordInput {
                 record_id: video.id,
@@ -481,7 +481,7 @@ async fn video_record_application_completion_projects_duration_and_adopts_duplic
     assert_eq!(completed.summary.file_size, Some(2048));
 
     let duplicate =
-        <crate::OrchestratorContext as a4n_api_contract::video::VideoRecordLifecycleApplicationPort>::complete(
+        <crate::OrchestratorContext as a4n_api_contract::video::VideoRecordCompletionApplicationPort>::complete(
             &service,
             a4n_api_contract::video::CompleteVideoRecordInput {
                 record_id: video.id,

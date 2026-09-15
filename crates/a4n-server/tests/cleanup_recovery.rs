@@ -3760,6 +3760,7 @@ fn server_command(
     addr: SocketAddr,
 ) -> Command {
     let server_binary = Path::new(env!("CARGO_BIN_EXE_a4n-server"));
+    let prompts_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts");
     let binary_dir = server_binary
         .parent()
         .and_then(|path| {
@@ -3797,6 +3798,7 @@ fn server_command(
                 "minimal"
             },
         )
+        .env("A4N_PROMPT_SERVICE_PROMPTS_DIR", prompts_dir)
         .env("A4N_DATA_DIR", data_dir)
         .env("A4N_CACHE_DIR", data_dir.join("cache"))
         .env("A4N_TEMP_DIR", data_dir.join("tmp"))

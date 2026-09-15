@@ -49,7 +49,6 @@ const WORKER_POLL_INTERVAL: Duration = Duration::from_secs(2);
 const WORKER_RENEW_INTERVAL: Duration = Duration::from_secs(10);
 const WORKER_MAX_CLAIMS_PER_WAKEUP: usize = 8;
 const WORKER_MAX_STEPS: u32 = a4n_api_contract::agent::AGENT_DEFAULT_MAX_STEPS;
-const WORKER_MAX_OUTPUT_TOKENS: usize = 8_192;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_BASE_AGENT_TOOLS: usize = 6;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
@@ -202,7 +201,6 @@ impl RuntimeAgentToolExecutor {
         approved_write: bool,
         execution: Option<&AgentExecutionSnapshot>,
     ) -> Result<Value, AppError> {
-        let _ = execution;
         let descriptor = tool_descriptor(name)?;
         ensure_scope_allows_tool(&context.scope, name)?;
         ensure_argument_scope(&context.scope, &descriptor, &arguments)?;
@@ -296,9 +294,12 @@ impl RuntimeAgentToolExecutor {
                 self.state
                     .dispatch_agent_host_command(
                         context.owner_user_id,
+                        &context.scope,
                         name.to_string(),
                         arguments,
                         &self.worker_request,
+                        execution.map(|execution| execution.id),
+                        execution,
                     )
                     .await
             }
@@ -1018,19 +1019,22 @@ async fn process_claimed_run_inner(
             .host()
             .llm_capabilities(context.owner_user_id, snapshot.as_ref(), config_id)
             .await?;
-        let output_tokens = WORKER_MAX_OUTPUT_TOKENS.min(capabilities.max_output_tokens);
+        let requested_output_tokens =
+            a4n_llm::provider::validated_model_output_tokens(&capabilities)?;
         let base_messages =
             with_agent_system_prompt(history::pair_tool_messages(&messages)?, &context);
         let projection = history::fit_context_projection(
             base_messages.clone(),
             &tools,
             capabilities.max_context_tokens,
-            output_tokens,
+            requested_output_tokens,
             &pinned_user_contents
                 .iter()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
         )?;
+        let mut context_input_tokens = projection.input_tokens;
+        let mut context_capacity_tokens = projection.capacity;
         let latest_message_sequence = loaded_message_ids.iter().copied().max().unwrap_or(0);
         let summary_covered_sequence = context
             .thread
@@ -1043,6 +1047,7 @@ async fn process_claimed_run_inner(
             && budget
                 .max_model_calls
                 .is_none_or(|limit| model_calls < limit);
+        let mut output_tokens = projection.output_tokens;
         let mut request_messages = projection.messages;
         if projection.input_tokens.saturating_mul(100) >= projection.capacity.saturating_mul(80)
             && !projection.omitted.is_empty()
@@ -1075,28 +1080,34 @@ async fn process_claimed_run_inner(
                     usage["model_calls_used"] = json!(model_calls);
                     usage["tokens_used"] = json!(tokens);
                 }
-                request_messages = history::fit_context(
+                let post_compaction = history::fit_context_projection(
                     with_agent_system_prompt(history::pair_tool_messages(&messages)?, &context),
                     &tools,
                     capabilities.max_context_tokens,
-                    output_tokens,
+                    requested_output_tokens,
                     &pinned_user_contents
                         .iter()
                         .map(String::as_str)
                         .collect::<Vec<_>>(),
                 )?;
-                persist_usage(
-                    state,
-                    claimed,
-                    &usage,
-                    steps,
-                    model_calls,
-                    tool_calls,
-                    tokens,
-                )
-                .await?;
+                context_input_tokens = post_compaction.input_tokens;
+                context_capacity_tokens = post_compaction.capacity;
+                output_tokens = post_compaction.output_tokens;
+                request_messages = post_compaction.messages;
             }
         }
+        usage["context_input_tokens"] = json!(context_input_tokens);
+        usage["context_capacity_tokens"] = json!(context_capacity_tokens);
+        persist_usage(
+            state,
+            claimed,
+            &usage,
+            steps,
+            model_calls,
+            tool_calls,
+            tokens,
+        )
+        .await?;
         let mut request = ChatRequest {
             messages: request_messages,
             temperature: Some(0.2),
@@ -2646,6 +2657,7 @@ fn should_request_approval(
         return Ok(false);
     }
     match context.execution_mode.as_str() {
+        "advice_only" if advice_only_allows_tool(tool_name) => Ok(false),
         "advice_only" => Err(AppError::Forbidden(format!(
             "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
         ))),
@@ -2656,6 +2668,15 @@ fn should_request_approval(
             operation: "执行 Agent 写工具".into(),
         }),
     }
+}
+
+// Advice-only optimization still needs to create/reuse its session and run a
+// read-only generation task; it must not apply the resulting patches.
+fn advice_only_allows_tool(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "ensure_content_optimization_session" | "send_content_optimization_message"
+    )
 }
 
 async fn persist_usage(
@@ -2959,6 +2980,17 @@ fn enum_string<T: serde::Serialize>(value: T) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn advice_only_allows_optimization_advice_but_not_content_writes() {
+        assert!(advice_only_allows_tool(
+            "ensure_content_optimization_session"
+        ));
+        assert!(advice_only_allows_tool("send_content_optimization_message"));
+        assert!(!advice_only_allows_tool("apply_optimization_patches"));
+        assert!(!advice_only_allows_tool("save_editor_draft"));
+        assert!(!advice_only_allows_tool("delegate"));
+    }
 
     #[test]
     fn stream_projection_starts_on_first_delta_and_throttles_followup_writes() {

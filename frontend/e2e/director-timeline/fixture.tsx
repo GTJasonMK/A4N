@@ -34,6 +34,41 @@ const chapter: ChapterSummary = {
   derived_sync_status: "completed", derived_sync_error: null, derived_sync_can_resume: false, derived_sync_workflow_run_id: null, material_updates: [],
   material_sync: { characters: "completed", objects: "completed", scenes: "completed", content_index: "completed", outline_and_foreshadowing: "completed" },
 };
+const agentThread = {
+  protocol_version: 1, id: "director-agent-thread", owner_user_id: 1, kind: "subagent", capability: "director",
+  title: "导演编辑 Agent", status: "active", default_model_config_id: null, revision: 1,
+  next_event_sequence: 1, next_turn_sequence: 2, created_at: "2026-09-15T00:00:00Z", updated_at: "2026-09-15T00:00:00Z",
+  bound_resource: { kind: "chapter", id: "1", label: chapter.title, revision: null, hash: null },
+  scope: { resource_kind: "chapter", resource_id: "1", project_id: 1, chapter_id: 1, allowed_capabilities: ["director"], allowed_tools: [] },
+  context_summary: null,
+};
+const agentSnapshot = {
+  protocol_version: 1,
+  thread: agentThread,
+  messages: [{
+    id: "director-agent-message", thread_id: agentThread.id, role: "assistant", status: "complete",
+    content: `# 需要注意：\n\n${Array.from({ length: 7 }, (_, index) => `${index + 1}. 第 ${index + 1} 项需要在编辑器中确认后再继续，避免覆盖当前草稿。`).join("\n")}`,
+    source_kind: "agent", source_id: null, metadata: null, run_id: "director-agent-run", turn_id: "director-agent-turn",
+    created_at: "2026-09-15T00:00:00Z", updated_at: "2026-09-15T00:00:00Z",
+  }],
+  turns: [],
+  runs: [{
+    id: "director-agent-run", thread_id: agentThread.id, turn_id: "director-agent-turn", attempt: 1,
+    status: "running", waiting_reason: null, lease_owner: null, lease_expires_at: null,
+    budget: { max_children: null, max_cost_micros: null, max_delegation_depth: null, max_duration_seconds: null, max_model_calls: null, max_parallel_tools: null, max_steps: null, max_tokens: null, max_tool_calls: null },
+    steps_used: 1, model_calls_used: 1, tool_calls_used: 7, tokens_used: 900,
+    context_input_tokens: 420, context_capacity_tokens: 3000, cost_micros: null, error: null,
+    created_at: "2026-09-15T00:00:00Z", started_at: "2026-09-15T15:00:00Z", updated_at: "2026-09-15T15:00:00Z",
+  }],
+  executions: Array.from({ length: 7 }, (_, index) => ({
+    id: `director-agent-execution-${index}`, run_id: "director-agent-run", sequence: index + 1,
+    kind: "tool_call", tool_name: index === 0 ? "inspect_editor_target" : "read_editor_draft",
+    status: "succeeded", effect: "read", replay_policy: "safe", request_digest: null,
+    resource_refs: [], result_refs: [], result_summary: null, error: null,
+    created_at: "2026-09-15T00:00:00Z", updated_at: "2026-09-15T00:00:00Z",
+  })),
+  delegations: [], approvals: [], inbox: [], memories: [], events: [],
+};
 const view = () => ({ record: { id: 10, plan_version: 1, revision, status: "draft", authoring_mode: "collaborative", source_content_sha256: "a".repeat(64), plan_sha256: "b".repeat(64), confirmed_at: null }, plan });
 const secondPlan = structuredClone(plan);
 let holdEdit = false;
@@ -44,6 +79,19 @@ Object.assign(window, { holdDirectorEdit: () => { holdEdit = true; }, releaseDir
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (resource, options) => {
   const url = new URL(typeof resource === "string" ? resource : resource instanceof URL ? resource.href : resource.url, location.href);
+  if (url.pathname === "/api/agent-threads" && options?.method !== "POST") {
+    return new Response(JSON.stringify([agentThread]), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  const agentPath = url.pathname.match(/^\/api\/agent-threads\/(director-agent-thread)(?:\/(messages|events))?$/);
+  if (agentPath) {
+    if (agentPath[2] === "events") {
+      return new Response(new ReadableStream({ start(controller) { controller.close(); } }), { headers: { "content-type": "text/event-stream" } });
+    }
+    if (agentPath[2] === "messages" && options?.method === "POST") {
+      return new Response(JSON.stringify({ created_run: false, message_id: "director-agent-message", run_id: "director-agent-run", turn_id: "director-agent-turn", thread_id: agentThread.id, status: "completed" }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify(agentSnapshot), { status: 200, headers: { "content-type": "application/json" } });
+  }
   if (url.pathname.endsWith("/generation-tasks/image")) {
     const input = JSON.parse(String(options?.body ?? "{}"));
     commands.push({ command: "start_image_generation", input });

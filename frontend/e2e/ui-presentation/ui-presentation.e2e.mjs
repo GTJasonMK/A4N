@@ -40,7 +40,19 @@ const agentSnapshots = ["主 Agent", "分镜 Agent"].map((title, index) => ({
     next_event_sequence: 1, next_turn_sequence: 1, owner_user_id: 1, protocol_version: 1, revision: 1,
     scope: { allowed_capabilities: [], allowed_tools: [], chapter_id: null, project_id: null, resource_id: null, resource_kind: null },
   },
-  approvals: [], delegations: [], events: [], executions: [], inbox: [], memories: [], runs: [], turns: [],
+  approvals: [], delegations: [], events: [], executions: [], inbox: [], memories: [], turns: [],
+  runs: [{
+    id: `run-${index}`, thread_id: `thread-${index}`, turn_id: `turn-${index}`, attempt: 1,
+    status: "running", waiting_reason: null, lease_owner: null, lease_expires_at: null,
+    budget: {
+      max_children: null, max_cost_micros: null, max_delegation_depth: null,
+      max_duration_seconds: null, max_model_calls: null, max_parallel_tools: null,
+      max_steps: null, max_tokens: null, max_tool_calls: null,
+    },
+    steps_used: 1, model_calls_used: 1, tool_calls_used: 0, tokens_used: 500,
+    context_input_tokens: 420, context_capacity_tokens: 1000,
+    cost_micros: null, error: null, created_at: "2026-09-11T12:00:00Z", started_at: "2026-09-15T12:00:00Z", updated_at: "2026-09-15T12:00:00Z",
+  }],
   messages: [{
     id: `reply-${index}`, thread_id: `thread-${index}`, role: "assistant", status: "complete",
     content: index === 0 ? Array.from({ length: 18 }, (_, paragraph) => `第 ${paragraph + 1} 段审阅：人物的行动应与前文保持一致。保留旧书店和信件的线索，让转场来自角色的选择。`).join("\n\n") : "分镜方案已准备好，可以继续讨论角色的行动。",
@@ -367,7 +379,7 @@ describe("UI presentation and workspace continuity", () => {
     const detect = await $('button[title="检测模型列表"]');
     await detect.click();
     await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.modelRequests.length)) === 1);
-    await $('//label[./span[contains(.,"服务商")]]//button[@role="combobox"]').click();
+    await $('button[aria-label="厂商预设"]').click();
     await $('//div[@role="option" and normalize-space()="OpenAI"]').click();
     await detect.waitForEnabled();
     await detect.click();
@@ -375,7 +387,7 @@ describe("UI presentation and workspace continuity", () => {
     await finishModelDiscovery(0, "old-provider-model");
     await finishModelDiscovery(1, "new-provider-model");
     await detect.waitForEnabled();
-    assert.match(await $('//label[./span[contains(.,"服务商")]]//button[@role="combobox"]').getText(), /OpenAI/);
+    assert.match(await $('button[aria-label="厂商预设"]').getText(), /OpenAI/);
     assert.equal(await $('input[role="combobox"]').getValue(), "new-provider-model");
   });
 
@@ -574,6 +586,16 @@ describe("UI presentation and workspace continuity", () => {
     assert.equal(await input.getValue(), "分镜 Agent 的未发送消息");
   });
 
+  it("shows the latest fitted Agent context usage", async () => {
+    await browser.url("/agents");
+    const meter = await $(".agent-context-meter");
+    await meter.waitForDisplayed();
+    assert.match(await meter.getText(), /上下文/);
+    assert.match(await meter.getText(), /42%/);
+    assert.equal(await $(".agent-monitor-activity-pane").isExisting(), false);
+    assert.equal(await $(".agent-monitor-activity-toggle").getAttribute("aria-pressed"), "false");
+  });
+
   it("keeps a late Agent send from replacing the selected thread", async () => {
     await browser.url("/agents");
     const input = await $('textarea[aria-label="Agent 消息"]');
@@ -607,6 +629,12 @@ describe("UI presentation and workspace continuity", () => {
     assert.equal(await agentMessageCount(), 0);
     await browser.keys(["Control", "Enter"]);
     await browser.waitUntil(async () => (await agentMessageCount()) === 1);
+    await browser.waitUntil(async () => browser.execute(() => (
+      document.querySelector('[data-agent-message-pending="true"]')?.textContent?.includes("正在输入的中文") ?? false
+    )));
+    assert.equal(await browser.execute(() => (
+      document.querySelector('[data-agent-message-pending="true"]')?.textContent?.match(/正在输入的中文/g)?.length ?? 0
+    )), 1);
     await finishAgentSend();
     await input.waitForEnabled();
     assert.equal(await input.getValue(), "");
@@ -652,7 +680,28 @@ describe("UI presentation and workspace continuity", () => {
         if (route === "/agents") {
           const log = await $('[role="log"]');
           await log.waitForDisplayed();
+          const transcriptPresentation = await browser.execute(() => {
+            const row = document.querySelector('[data-agent-message-role="assistant"]');
+            const stack = row?.querySelector(':scope > .agent-message-stack');
+            const style = stack ? getComputedStyle(stack) : null;
+            return {
+              rowClass: row?.className ?? null,
+              stackClass: stack?.className ?? null,
+              border: style?.borderTopWidth ?? null,
+              background: style?.backgroundColor ?? null,
+              backToLatest: document.querySelector('[aria-label="回到最新"]') !== null,
+            };
+          });
+          assert.match(String(transcriptPresentation.rowClass), /agent-message-row/);
+          assert.match(String(transcriptPresentation.stackClass), /agent-message-stack/);
+          assert.equal(transcriptPresentation.border, "0px");
+          assert.equal(transcriptPresentation.backToLatest, false);
           assert.ok((await log.getSize()).height >= 180, "Message history needs enough room to read several lines");
+          await browser.waitUntil(async () => (await log.execute((element) => element.scrollTop)) > 0, {
+            timeout: 5_000,
+            interval: 50,
+            timeoutMsg: "Message history should follow the latest message on load",
+          });
           await log.execute((element) => element.focus());
           await browser.keys("End");
           await browser.waitUntil(async () => (await log.execute((element) => element.scrollTop)) > 0);

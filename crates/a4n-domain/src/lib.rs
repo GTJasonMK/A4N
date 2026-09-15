@@ -744,6 +744,7 @@ mod tests {
             document.stream_display,
             ThemeStreamDisplaySettings::default()
         );
+        assert!(!document.stream_display.enabled);
 
         document.stream_display.rate = 0;
         assert!(validate_theme_document(&document).is_err());

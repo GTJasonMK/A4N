@@ -20,17 +20,25 @@ import {
   Send,
   ShieldCheck,
   Square,
+  Trash2,
   Workflow,
   X,
 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import { compactAgentValue } from "./AgentMessageRow";
-import { AgentMessageList } from "./AgentMessageList";
+import {
+  AgentMessageList,
+  createPendingAgentMessage,
+  type PendingAgentMessage,
+} from "./AgentMessageList";
+import { AgentContextMeter } from "./AgentContextMeter";
 import {
   controlAgentRun,
   createAgentThread,
   getAgentThread,
+  isAgentThreadOperational,
   listAgentThreads,
+  archiveAgentThread,
   resolveAgentApproval,
   sendAgentMessage,
   subscribeAgentThreadEvents,
@@ -46,13 +54,32 @@ import {
   type AgentThreadView,
 } from "../../api/agent";
 import { BookButton, BookIconButton } from "../ui/BookButton";
+import { FollowLatestButton } from "../ui/FollowLatestButton";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { confirmDialog } from "../feedback/ConfirmDialog";
 import { useToast } from "../feedback/Toast";
+import { useFollowLatest } from "../../hooks/useFollowLatest";
 import { isImeCompositionActive } from "../../utils/ime";
 import { useI18n, type Locale } from "../../i18n";
-import { reduceAgentEvent, snapshotCursor } from "../../utils/agentEventReducer";
+import {
+  reduceAgentEvent,
+  snapshotCursor,
+  streamedAgentMessageIds,
+} from "../../utils/agentEventReducer";
+
+export { isAgentThreadOperational };
 
 export type DomainAgentCapability = "content_optimization" | "canvas" | "director";
+
+export function matchesEditorSourceScope(
+  source: import("../../api/agent").AgentEditorSource,
+  projectId: number,
+  chapterId: number | null | undefined,
+): boolean {
+  return chapterId != null
+    && source.project_id === projectId
+    && source.chapter_id === chapterId;
+}
 
 export interface DomainAgentConsoleProps {
   capability: DomainAgentCapability;
@@ -84,20 +111,8 @@ const ACTIVE_RUN_STATUSES = new Set<AgentRunView["status"]>([
   "paused",
   "cancelling",
 ]);
-
-const RUN_STATUS_TONES: Record<string, string> = {
-  queued: "text-info bg-info-bg",
-  running: "text-book-primary bg-book-primary/10",
-  waiting: "text-warning bg-warning-bg",
-  pausing: "text-warning bg-warning-bg",
-  paused: "text-warning bg-warning-bg",
-  cancelling: "text-warning bg-warning-bg",
-  cancelled: "text-book-text-muted bg-book-bg-tertiary/70",
-  completed: "text-success bg-success-bg",
-  failed: "text-error bg-error-bg",
-  interrupted: "text-warning bg-warning-bg",
-  recovery_required: "text-error bg-error-bg",
-};
+const CLEAR_CONTEXT_WAIT_TIMEOUT_MS = 30_000;
+const CLEAR_CONTEXT_POLL_INTERVAL_MS = 200;
 
 const RUN_STATUS_LABELS: Record<
   string,
@@ -213,9 +228,7 @@ export function findDomainAgentThread(
   const matches = threads.filter((thread) =>
     matchesDomainAgentThread(thread, binding),
   );
-  return (
-    matches.find((thread) => thread.status === "active") ?? matches[0] ?? null
-  );
+  return matches.find(isAgentThreadOperational) ?? null;
 }
 
 function scopeForBinding(binding: DomainAgentBinding): AgentScope {
@@ -270,9 +283,13 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const inputId = useId();
   const [thread, setThread] = useState<AgentThreadView | null>(null);
   const [snapshot, setSnapshot] = useState<AgentThreadSnapshot | null>(null);
+  const [streamedMessageIds, setStreamedMessageIds] = useState<Set<string>>(() => new Set());
+  const [pendingSubmission, setPendingSubmission] = useState<PendingAgentMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const pendingEditorRequests = useRef(new Set<string>());
   const [draft, setDraft] = useState("");
   const [deliveryMode, setDeliveryMode] =
@@ -288,13 +305,26 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [reloadNonce, setReloadNonce] = useState(0);
   const [activityOpen, setActivityOpen] = useState(false);
   const snapshotRequestRef = useRef(0);
+  const snapshotRef = useRef<AgentThreadSnapshot | null>(null);
   const eventCursorRef = useRef(0);
+  const reloadInFlightRef = useRef(false);
+  const clearingRef = useRef(false);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
   const mutationBaselineRef = useRef<{
     bindingKey: string;
     executionId: string | null;
   } | null>(null);
+
+  const rememberStreamedMessages = useCallback((events: AgentEvent[], runId?: string) => {
+    const ids = streamedAgentMessageIds(events, runId);
+    if (ids.length === 0) return;
+    setStreamedMessageIds((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => next.add(id));
+      return next.size === current.size ? current : next;
+    });
+  }, []);
 
   const binding = useMemo(
     () => domainAgentBinding(capability, projectId, chapterId),
@@ -326,6 +356,13 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       : t("agent.domain.canvasSubtitle", { resource: displayResourceLabel });
   const icon = isOptimization ? <Bot size={15} /> : isDirector ? <Film size={15} /> : <Workflow size={15} />;
 
+  const commitSnapshot = useCallback((next: AgentThreadSnapshot) => {
+    snapshotRef.current = next;
+    setSnapshot(next);
+    setThread(next.thread);
+    eventCursorRef.current = snapshotCursor(next);
+  }, []);
+
   const loadSnapshot = useCallback(
     async (threadId: string, quiet = false): Promise<AgentThreadSnapshot | null> => {
       const requestId = snapshotRequestRef.current + 1;
@@ -334,9 +371,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       try {
         const next = await getAgentThread(threadId);
         if (snapshotRequestRef.current !== requestId) return null;
-        setSnapshot(next);
-        setThread(next.thread);
-        eventCursorRef.current = snapshotCursor(next);
+        commitSnapshot(next);
         setError(null);
         return next;
       } catch (err) {
@@ -350,16 +385,19 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         }
       }
     },
-    [t],
+    [commitSnapshot, t],
   );
 
   const ensureThread = useCallback(async () => {
     if (!binding) {
+      snapshotRef.current = null;
+      eventCursorRef.current = 0;
+      reloadInFlightRef.current = false;
       setThread(null);
       setSnapshot(null);
       setLoading(false);
       setError(t("agent.domain.invalidContext"));
-      return;
+      return null;
     }
     setLoading(true);
     setError(null);
@@ -397,17 +435,23 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
           if (!match) throw createError;
         }
       }
-      setThread(match);
-      await loadSnapshot(match.id);
+      const loaded = await loadSnapshot(match.id);
+      return loaded ? loaded.thread : null;
     } catch (err) {
       setError(extractErrorMessage(err, t("agent.domain.loadFailed")));
       setLoading(false);
+      return null;
     }
   }, [binding, displayResourceLabel, loadSnapshot, t, title]);
 
   useEffect(() => {
+    snapshotRef.current = null;
+    eventCursorRef.current = 0;
+    reloadInFlightRef.current = false;
     setThread(null);
     setSnapshot(null);
+    setStreamedMessageIds(new Set());
+    setPendingSubmission(null);
     setDraft("");
     setConnectionError(null);
     setConnected(false);
@@ -415,49 +459,62 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [bindingKey, ensureThread]);
 
   const threadId = thread?.id;
+  const {
+    viewportRef: messageViewportRef,
+    isFollowingLatest,
+    hasNewContent,
+    scrollToLatest,
+  } = useFollowLatest(snapshot?.messages, {
+    resetKey: threadId ?? bindingKey,
+  });
+
+  useEffect(() => {
+    const acceptedMessageId = pendingSubmission?.acceptedMessageId;
+    if (
+      acceptedMessageId
+      && snapshot?.messages.some((message) => message.id === acceptedMessageId)
+    ) {
+      setPendingSubmission(null);
+    }
+  }, [pendingSubmission?.acceptedMessageId, snapshot]);
 
   useEffect(() => {
     if (!threadId) return undefined;
     const controller = new AbortController();
     let stopped = false;
-    let cursor = 0;
-    const initial = snapshot;
-    cursor = initial ? snapshotCursor(initial) : eventCursorRef.current;
-    const refreshTimer = window.setInterval(
-      () => void loadSnapshot(threadId, true).then((next) => {
-        if (next) cursor = snapshotCursor(next);
-      }),
-      7000,
-    );
+    const initial = snapshotRef.current;
+    const refreshTimer = window.setInterval(() => {
+      if (!clearingRef.current) void loadSnapshot(threadId, true);
+    }, 7000);
 
     const connect = async () => {
       if (!initial) {
         const loaded = await loadSnapshot(threadId, true);
         if (!loaded || stopped) return;
-        cursor = snapshotCursor(loaded);
       }
       while (!stopped) {
         try {
           setConnected(true);
           setConnectionError(null);
           await subscribeAgentThreadEvents(
-            { thread_id: threadId, after_sequence: cursor, limit: 200 },
+            { thread_id: threadId, after_sequence: eventCursorRef.current, limit: 200 },
             (event) => {
               if (event.thread_id !== threadId) return;
-              let needsReload = false;
-              setSnapshot((current) => {
-                if (!current || current.thread.id !== threadId) return current;
-                const reduction = reduceAgentEvent(current, event, cursor);
-                needsReload = reduction.needsReload;
-                if (reduction.needsReload) return current;
-                cursor = reduction.cursor;
-                return reduction.snapshot;
-              });
-              if (needsReload) {
-                void loadSnapshot(threadId, true).then((next) => {
-                  if (next) cursor = snapshotCursor(next);
+              rememberStreamedMessages([event]);
+              if (reloadInFlightRef.current || clearingRef.current) return;
+              const current = snapshotRef.current;
+              if (!current || current.thread.id !== threadId) return;
+              const reduction = reduceAgentEvent(current, event, eventCursorRef.current);
+              if (reduction.needsReload) {
+                reloadInFlightRef.current = true;
+                void loadSnapshot(threadId, true).finally(() => {
+                  reloadInFlightRef.current = false;
                 });
+                return;
               }
+              snapshotRef.current = reduction.snapshot;
+              eventCursorRef.current = reduction.cursor;
+              setSnapshot(reduction.snapshot);
             },
             controller.signal,
           );
@@ -481,7 +538,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       window.clearInterval(refreshTimer);
       setConnected(false);
     };
-  }, [loadSnapshot, t, threadId]);
+  }, [loadSnapshot, rememberStreamedMessages, t, threadId]);
 
   useEffect(() => {
     if (reloadNonce === 0) return;
@@ -489,6 +546,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [ensureThread, reloadNonce]);
 
   const currentRun = useMemo(() => activeRun(snapshot), [snapshot]);
+  const contextRun = currentRun ?? (
+    snapshot && snapshot.runs.length > 0
+      ? snapshot.runs[snapshot.runs.length - 1]
+      : null
+  );
   const pendingApprovals = useMemo(
     () =>
       snapshot?.approvals.filter((approval) => approval.status === "pending") ??
@@ -520,11 +582,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [capability, snapshot]);
 
   useEffect(() => {
-    const source = getEditorSource?.();
-    if (!source || !onEditorRequest || !snapshot || pendingEditorRequests.current.size > 0) return;
+    if (!onEditorRequest || !snapshot || pendingEditorRequests.current.size > 0) return;
     for (const event of snapshot.events) {
       const request = event.editor_request;
-      if (!request || !event.run_id || request.source.view_instance_id !== source.view_instance_id) continue;
+      if (!request || !event.run_id || !matchesEditorSourceScope(request.source, projectId, chapterId)) continue;
       const execution = snapshot.executions.find((item) => item.id === request.execution_id);
       const run = snapshot.runs.find((item) => item.id === event.run_id);
       if (!execution || !["prepared", "awaiting_user", "dispatching"].includes(execution.status)
@@ -538,16 +599,17 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         void loadSnapshot(snapshot.thread.id, true);
       });
     }
-  }, [addToast, getEditorSource, loadSnapshot, onEditorRequest, snapshot, t]);
+  }, [addToast, chapterId, loadSnapshot, onEditorRequest, projectId, snapshot, t]);
   const latestEvent = useMemo<AgentEvent | null>(
     () => snapshot?.events[snapshot.events.length - 1] ?? null,
     [snapshot],
   );
   const canSend =
     Boolean(thread) &&
-    thread?.status === "active" &&
+    (thread ? isAgentThreadOperational(thread) : false) &&
     draft.trim().length > 0 &&
-    !sending;
+    !sending &&
+    !clearing;
 
   useEffect(() => {
     if (!snapshot) return;
@@ -583,7 +645,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   ]);
 
   const refresh = async () => {
-    if (refreshing) return;
+    if (refreshing || clearingRef.current) return;
     setRefreshing(true);
     try {
       await ensureThread();
@@ -592,32 +654,145 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     }
   };
 
+  const clearContext = async () => {
+    if (!thread || !isAgentThreadOperational(thread) || clearingRef.current) return;
+    const confirmed = await confirmDialog({
+      title: t("agent.domain.clearContextTitle"),
+      message: t("agent.domain.clearContextMessage"),
+      confirmText: t("agent.domain.clearContextConfirm"),
+      cancelText: t("common.cancel"),
+      dialogType: "warning",
+    });
+    if (!confirmed) return;
+    if (clearingRef.current) return;
+
+    const threadId = thread.id;
+    setClearing(true);
+    clearingRef.current = true;
+    snapshotRequestRef.current += 1;
+    try {
+      const deadline = Date.now() + CLEAR_CONTEXT_WAIT_TIMEOUT_MS;
+      while (sendingRef.current && Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS));
+      }
+      if (sendingRef.current) throw new Error(t("agent.domain.clearContextTimeout"));
+      const readForCleanup = async () => {
+        const next = await getAgentThread(threadId);
+        commitSnapshot(next);
+        return next;
+      };
+      const waitForRunsToStop = async () => {
+        let next = await readForCleanup();
+        const cancellationRequested = new Set<string>();
+        while (Date.now() < deadline) {
+          const run = activeRun(next);
+          if (!run) return next;
+          if (!cancellationRequested.has(run.id)) {
+            try {
+              await controlAgentRun({
+                thread_id: threadId,
+                run_id: run.id,
+                action: "cancel",
+              });
+            } catch (error) {
+              next = await readForCleanup();
+              if (!activeRun(next)) return next;
+              throw error;
+            }
+            cancellationRequested.add(run.id);
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS));
+          next = await readForCleanup();
+        }
+        throw new Error(t("agent.domain.clearContextTimeout"));
+      };
+
+      let next = await waitForRunsToStop();
+      let archived = false;
+      let archiveError: unknown = null;
+      while (Date.now() < deadline) {
+        try {
+          await archiveAgentThread({ thread_id: threadId });
+          archived = true;
+          archiveError = null;
+          break;
+        } catch (err) {
+          archiveError = err;
+          next = await readForCleanup();
+          if (activeRun(next)) {
+            next = await waitForRunsToStop();
+          } else {
+            await new Promise((resolve) => window.setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS));
+          }
+        }
+      }
+      if (!archived) throw archiveError ?? new Error(t("agent.domain.clearContextTimeout"));
+      next = await readForCleanup();
+      if (activeRun(next) || next.thread.status !== "archived") {
+        throw new Error(t("agent.domain.clearContextTimeout"));
+      }
+      setThread(null);
+      setSnapshot(null);
+      snapshotRef.current = null;
+      eventCursorRef.current = 0;
+      setStreamedMessageIds(new Set());
+      setPendingSubmission(null);
+      if (!await ensureThread()) {
+        throw new Error(t("agent.domain.clearContextFailed"));
+      }
+      setDraft("");
+      addToast(t("agent.domain.clearContextSuccess"), "success");
+    } catch (err) {
+      const message = extractErrorMessage(err, t("agent.domain.clearContextFailed"));
+      setError(message);
+      addToast(message, "error");
+    } finally {
+      clearingRef.current = false;
+      setClearing(false);
+    }
+  };
+
   const send = async () => {
     const content = draft.trim();
-    if (!thread || !content || !canSend) return;
+    if (!thread || !content || !canSend || sendingRef.current || clearingRef.current) return;
+    const clientMessageId = randomClientMessageId();
+    const pendingMessage = createPendingAgentMessage(thread.id, content, clientMessageId);
+    setPendingSubmission({ message: pendingMessage, acceptedMessageId: null });
+    setDraft("");
+    sendingRef.current = true;
     setSending(true);
     try {
-      await sendAgentMessage({
+      const accepted = await sendAgentMessage({
         thread_id: thread.id,
-        client_message_id: randomClientMessageId(),
+        client_message_id: clientMessageId,
         content,
         delivery_mode: deliveryMode,
         execution_mode: executionMode,
         editor_source: getEditorSource?.() ?? undefined,
       });
-      setDraft("");
-      await loadSnapshot(thread.id, true);
+      if (clearingRef.current) return;
+      setPendingSubmission((current) => current?.message.id === pendingMessage.id
+        ? { ...current, acceptedMessageId: accepted.message_id }
+        : current);
+      const next = await loadSnapshot(thread.id, true);
+      if (next?.messages.some((message) => message.id === accepted.message_id)) {
+        setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
+      }
+      if (next && !clearingRef.current) rememberStreamedMessages(next.events, accepted.run_id);
     } catch (err) {
+      setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
+      setDraft(content);
       const message = extractErrorMessage(err, t("agent.domain.sendFailed"));
       setError(message);
       addToast(message, "error");
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
 
   const control = async (action: AgentControlAction) => {
-    if (!thread || !currentRun || controlBusy) return;
+    if (!thread || !currentRun || controlBusy || clearing) return;
     setControlBusy(action);
     try {
       await controlAgentRun({
@@ -712,9 +887,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
           <p className="agent-console-subtitle mt-0.5 min-w-0 truncate text-caption text-book-text-muted">
             {subtitle}
           </p>
-          <p className="agent-console-shared-control mt-0.5 min-w-0 truncate text-[10px] text-book-text-muted">
-            {t("agent.domain.sharedControl")}
-          </p>
         </div>
         <div className="agent-console-actions flex shrink-0 items-center gap-1">
           <span
@@ -732,6 +904,19 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             />
             {connected ? t("agent.domain.live") : t("agent.domain.polling")}
           </span>
+          {executions.length > 0 || latestEvent ? (
+            <BookButton
+              size="sm"
+              variant={activityOpen ? "secondary" : "ghost"}
+              aria-pressed={activityOpen}
+              aria-label={t("agent.domain.activity")}
+              title={t("agent.domain.activity")}
+              onClick={() => setActivityOpen((open) => !open)}
+            >
+              <CircleDot size={12} />
+              <span>{executions.length}</span>
+            </BookButton>
+          ) : null}
           <BookIconButton
             label={t("agent.domain.refresh")}
             variant="secondary"
@@ -744,6 +929,16 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               className={loading || refreshing ? "animate-spin" : undefined}
             />
           </BookIconButton>
+          <BookIconButton
+            label={t("agent.domain.clearContext")}
+            variant="ghost"
+            size="sm"
+            className="text-error hover:bg-error-bg hover:text-error"
+            onClick={() => void clearContext()}
+            disabled={!thread || clearing || !isAgentThreadOperational(thread)}
+          >
+            {clearing ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
+          </BookIconButton>
           {onClose ? (
             <BookIconButton
               label={t("common.close")}
@@ -755,6 +950,24 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
           ) : null}
         </div>
       </header>
+
+      {activityOpen && (executions.length > 0 || latestEvent) ? (
+        <div className="agent-console-activity-panel">
+          <div className="agent-console-activity-panel__heading">
+            <span>{t("agent.domain.activity")}</span>
+            {latestEvent ? <span className="truncate">{latestEvent.kind.replace(/_/g, " ")}</span> : null}
+          </div>
+          <div className="agent-console-activity-panel__list custom-scrollbar">
+            {executions.map((execution) => (
+              <ExecutionRow
+                key={execution.id}
+                execution={execution}
+                locale={locale}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <Notice onRetry={() => setReloadNonce((value) => value + 1)}>
@@ -778,60 +991,44 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         </div>
       ) : snapshot ? (
         <>
-          <div
-            className="agent-console-message-scroll custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2.5"
-            aria-live="polite"
-          >
-            {snapshot.messages.length === 0 ? error ? (
+          <div className="relative min-h-0 min-w-0 flex-1">
+            <div
+              ref={messageViewportRef}
+              className="agent-console-message-scroll custom-scrollbar h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-2.5 py-2.5"
+              aria-live="polite"
+              style={{ overflowAnchor: "none" }}
+            >
+            {snapshot.messages.length === 0 && !pendingSubmission && !currentRun ? error ? (
               <div className="agent-console-error-state" role="status">
                 <CircleAlert size={16} aria-hidden="true" />
                 <span>{t("agent.domain.loadFailed")}</span>
-              </div>
-            ) : (
-              <div className="a4n-empty-state a4n-empty-state--compact min-h-0 py-8 text-xs">
-                <Bot size={20} />
-                <p>{t("agent.domain.empty")}</p>
-              </div>
-            ) : (
+                </div>
+              ) : (
+                <div className="a4n-empty-state a4n-empty-state--compact min-h-0 py-8 text-xs">
+                  <Bot size={20} />
+                  <p>{t("agent.domain.empty")}</p>
+                </div>
+              ) : null}
+            {snapshot.messages.length > 0 || pendingSubmission || currentRun ? (
               <AgentMessageList
                 messages={snapshot.messages}
                 locale={locale}
-                agentLabel={t("agent.domain.domainAgent")}
+                streamedMessageIds={streamedMessageIds}
+                pendingMessages={pendingSubmission ? [pendingSubmission.message] : []}
+                activeRun={currentRun}
+                compactAssistantMessages
               />
-            )}
+            ) : null}
+            </div>
+            <FollowLatestButton
+              isFollowingLatest={isFollowingLatest}
+              hasNewContent={hasNewContent}
+              newContentLabel={t("agent.domain.newMessages")}
+              latestLabel={t("agent.domain.backToLatest")}
+              onClick={scrollToLatest}
+              className="absolute bottom-3 right-3 z-10"
+            />
           </div>
-
-          {executions.length > 0 || latestEvent ? (
-            <details
-              className="shrink-0 border-t border-book-border/45 bg-book-bg-paper/35"
-              open={activityOpen}
-              onToggle={(event) =>
-                setActivityOpen(event.currentTarget.open)
-              }
-            >
-              <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-2 text-[10px] text-book-text-muted [&::-webkit-details-marker]:hidden">
-                <CircleDot size={11} className="text-book-primary" />
-                <span>{t("agent.domain.activity")}</span>
-                <span className="rounded-full bg-book-bg-tertiary px-1.5 py-0.5 tabular-nums">
-                  {executions.length}
-                </span>
-                {latestEvent ? (
-                  <span className="min-w-0 flex-1 truncate text-book-text-muted/80">
-                    {latestEvent.kind.replace(/_/g, " ")}
-                  </span>
-                ) : null}
-              </summary>
-              <div className="max-h-32 space-y-1.5 overflow-y-auto border-t border-book-border/35 px-3 py-2 custom-scrollbar">
-                {executions.map((execution) => (
-                  <ExecutionRow
-                    key={execution.id}
-                    execution={execution}
-                    locale={locale}
-                  />
-                ))}
-              </div>
-            </details>
-          ) : null}
 
           {pendingApprovals.length > 0 ? (
             <div className="shrink-0 space-y-1.5 border-t border-warning/30 bg-warning-bg/30 px-2.5 py-2">
@@ -848,58 +1045,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
           ) : null}
 
           <div className="shrink-0 border-t border-book-border/50 bg-book-bg-paper/70 p-2.5">
-            {currentRun ? (
-              <div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-book-text-muted">
-                  {t("agent.domain.runStatus")}
-                </span>
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                    RUN_STATUS_TONES[currentRun.status] ??
-                    "bg-book-bg-tertiary text-book-text-muted"
-                  }`}
-                >
-                  {labelFor(currentRun.status, locale)}
-                </span>
-                <div className="ml-auto flex gap-1.5">
-                  {["queued", "running", "waiting"].includes(
-                    currentRun.status,
-                  ) ? (
-                    <BookButton
-                      size="sm"
-                      variant="warning"
-                      onClick={() => void control("pause")}
-                      disabled={controlBusy != null}
-                    >
-                      <Pause size={12} />
-                      {t("agent.domain.pause")}
-                    </BookButton>
-                  ) : null}
-                  {["paused", "pausing"].includes(currentRun.status) ? (
-                    <BookButton
-                      size="sm"
-                      onClick={() => void control("resume")}
-                      disabled={controlBusy != null}
-                    >
-                      <Play size={12} />
-                      {t("agent.domain.resume")}
-                    </BookButton>
-                  ) : null}
-                  {ACTIVE_RUN_STATUSES.has(currentRun.status) ? (
-                    <BookButton
-                      size="sm"
-                      variant="danger"
-                      onClick={() => void control("cancel")}
-                      disabled={controlBusy != null}
-                    >
-                      <Square size={11} />
-                      {t("agent.domain.cancel")}
-                    </BookButton>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            <div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
+            <div className="agent-console-control-row mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
               <label className="min-w-0 flex-1 sm:flex-none">
                 <span className="sr-only">{t("agent.domain.deliveryMode")}</span>
                 <ThemedSelect
@@ -909,7 +1055,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   }
                   className="pyqt-input h-8 min-h-8 w-full !py-1 text-[10px] sm:w-auto"
                   aria-label={t("agent.domain.deliveryMode")}
-                  disabled={thread?.status !== "active" || sending}
+                  disabled={!thread || !isAgentThreadOperational(thread) || sending || clearing}
                 >
                   <option value="followup">{t("agent.domain.followup")}</option>
                   <option value="steer">{t("agent.domain.steer")}</option>
@@ -925,13 +1071,14 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   }
                   className="pyqt-input h-8 min-h-8 w-full !py-1 text-[10px] sm:w-auto"
                   aria-label={t("agent.domain.executionMode")}
-                  disabled={thread?.status !== "active" || sending}
+                  disabled={!thread || !isAgentThreadOperational(thread) || sending || clearing}
                 >
                   <option value="autonomous">{t("agent.domain.autonomous")}</option>
                   <option value="review_writes">{t("agent.domain.reviewWrites")}</option>
                   <option value="advice_only">{t("agent.domain.adviceOnly")}</option>
                 </ThemedSelect>
               </label>
+              <AgentContextMeter run={contextRun} locale={locale} />
             </div>
             <form
               className="flex min-w-0 items-end gap-2"
@@ -975,17 +1122,62 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 maxLength={8000}
                 placeholder={t("agent.domain.messagePlaceholder")}
                 className="pyqt-input min-h-10 min-w-0 flex-1 resize-y text-xs leading-relaxed sm:min-h-8"
-                disabled={thread?.status !== "active" || sending}
+                disabled={!thread || !isAgentThreadOperational(thread) || sending || clearing}
               />
-              <BookIconButton
-                label={t("agent.domain.send")}
-                variant="secondary"
-                size="md"
-                onClick={() => void send()}
-                disabled={!canSend}
-              >
-                {sending ? <LoadingSpinner size="sm" /> : <Send size={14} />}
-              </BookIconButton>
+              {currentRun ? (
+                <div className="agent-console-run-actions">
+                  {["queued", "running", "waiting"].includes(currentRun.status) ? (
+                    <BookButton
+                      size="sm"
+                      variant="warning"
+                      className="agent-console-run-action"
+                      aria-label={t("agent.domain.pause")}
+                      title={t("agent.domain.pause")}
+                      onClick={() => void control("pause")}
+                      disabled={controlBusy != null || clearing}
+                    >
+                      <Pause size={13} />
+                    </BookButton>
+                  ) : null}
+                  {["paused", "pausing"].includes(currentRun.status) ? (
+                    <BookButton
+                      size="sm"
+                      variant="secondary"
+                      className="agent-console-run-action"
+                      aria-label={t("agent.domain.resume")}
+                      title={t("agent.domain.resume")}
+                      onClick={() => void control("resume")}
+                      disabled={controlBusy != null || clearing}
+                    >
+                      <Play size={13} />
+                    </BookButton>
+                  ) : null}
+                  {controlBusy ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : null}
+                </div>
+              ) : null}
+              {currentRun && ACTIVE_RUN_STATUSES.has(currentRun.status) ? (
+                <BookButton
+                  size="md"
+                  variant="danger"
+                  className="agent-console-stop-action"
+                  aria-label={t("agent.domain.cancel")}
+                  title={t("agent.domain.cancel")}
+                  onClick={() => void control("cancel")}
+                  disabled={controlBusy != null || clearing || currentRun.status === "cancelling"}
+                >
+                  {controlBusy === "cancel" ? <LoadingSpinner size="sm" /> : <Square size={13} />}
+                </BookButton>
+              ) : (
+                <BookIconButton
+                  label={t("agent.domain.send")}
+                  variant="secondary"
+                  size="md"
+                  onClick={() => void send()}
+                  disabled={!canSend}
+                >
+                  {sending ? <LoadingSpinner size="sm" /> : <Send size={14} />}
+                </BookIconButton>
+              )}
             </form>
             {thread?.status === "archived" ? (
               <p className="mt-1.5 text-[10px] text-warning">

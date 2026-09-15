@@ -6,6 +6,7 @@ use super::context::SidecarRequestContext;
 pub(crate) fn sidecar_context_for_llm_trace(
     trace_context: &LlmTraceContext,
 ) -> Result<SidecarRequestContext, String> {
+    trace_context.validate_business_trace()?;
     Ok(SidecarRequestContext::current_global()
         .with_project_scope(trace_context.project_id, trace_context.root_project_id)
         .with_trace_context(TraceContext {

@@ -766,6 +766,8 @@ export interface AgentTurnView {
 export interface AgentRunView {
   attempt: number;
   budget: AgentBudget;
+  context_capacity_tokens: number | null;
+  context_input_tokens: number | null;
   cost_micros: number | null;
   created_at: string;
   error: string | null;
@@ -773,6 +775,7 @@ export interface AgentRunView {
   lease_expires_at: string | null;
   lease_owner: string | null;
   model_calls_used: number;
+  started_at: string | null;
   status: AgentRunStatus;
   steps_used: number;
   thread_id: string;
@@ -4737,7 +4740,7 @@ export interface ChapterVisualPlanReadResult {
   source_hash: string;
 }
 
-export type VisualPlanEditOperation = { kind: "insert_point"; point: VisualPointV3 } | { kind: "update_point"; point: VisualPointV3 } | { at_ms: number; kind: "move_point"; point_id: string } | { kind: "remove_point"; point_id: string } | { kind: "update_segment"; segment: VisualSegmentV3 } | { kind: "split_segment"; left_prompt: string; left_scene_binding?: SceneBindingV3 | null; point_id: string; right_prompt: string; right_scene_binding?: SceneBindingV3 | null; right_segment_id: string; segment_id: string } | { kind: "merge_segments"; left_segment_id: string; prompt: string; right_segment_id: string; scene_binding?: SceneBindingV3 | null } | { kind: "move_segment_boundary"; left_segment_id: string; point_id: string } | { duration_ms: number; kind: "scale_timeline" } | { frame: VisualFrameV3; kind: "set_frame" };
+export type VisualPlanEditOperation = { kind: "insert_point"; point: VisualPointV3 } | { kind: "update_point"; point: VisualPointV3 } | { at_ms: number; kind: "move_point"; point_id: string } | { kind: "remove_point"; point_id: string } | { kind: "remove"; point_ids: string[]; segment_ids: string[] } | { kind: "remove_points"; point_ids: string[] } | { kind: "update_segment"; segment: VisualSegmentV3 } | { kind: "split_segment"; left_prompt: string; left_scene_binding?: SceneBindingV3 | null; point_id: string; right_prompt: string; right_scene_binding?: SceneBindingV3 | null; right_segment_id: string; segment_id: string } | { kind: "merge_segments"; left_segment_id: string; prompt: string; right_segment_id: string; scene_binding?: SceneBindingV3 | null } | { kind: "move_segment_boundary"; left_segment_id: string; point_id: string } | { duration_ms: number; kind: "scale_timeline" } | { frame: VisualFrameV3; kind: "set_frame" };
 
 export interface EditChapterVisualPlanDraftInput {
   editor_revision?: string | null;

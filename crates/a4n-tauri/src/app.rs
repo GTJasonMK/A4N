@@ -93,8 +93,8 @@ fn setup_http_mode(
 fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let app_state = tauri::async_runtime::block_on(crate::setup::initialize(app.handle()))?;
     let app_state = std::sync::Arc::new(app_state);
-    crate::setup::install_agent_host_dispatcher(&app_state)?;
-    tauri::async_runtime::block_on(app_state.spawn_agent_worker());
+    a4n_control::install_agent_host_dispatcher(&app_state)?;
+    tauri::async_runtime::block_on(app_state.spawn_agent_worker())?;
     app.manage(commands::frontend_state::FrontendStatePath(
         app_paths(app_state.host_app_config()).frontend_state_file(),
     ));

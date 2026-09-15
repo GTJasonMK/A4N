@@ -81,7 +81,7 @@ try {
   const vite = launch(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]);
   const driver = launch(process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver", [`--port=${driverPort}`, "--verbose", `--log-path=${path.join(artifacts, "driver.log")}`]);
   await Promise.all([ready(vite, `http://127.0.0.1:${port}/e2e/director-timeline/`), ready(driver, `http://127.0.0.1:${driverPort}/status`)]);
-  browser = await remote({ hostname: "127.0.0.1", port: driverPort, path: "/", logLevel: "error", capabilities: {
+  browser = await remote({ hostname: "127.0.0.1", port: driverPort, logLevel: "error", capabilities: {
     browserName: "chrome", "goog:chromeOptions": { binary: process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromium", args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", `--user-data-dir=${path.join(artifacts, "chrome")}`, "--window-size=1440,1000"] },
   } });
   await setViewport(1440, 900);
@@ -96,6 +96,12 @@ try {
   await browser.saveScreenshot(path.join(artifacts, "initial.png"));
   await browser.$('[aria-label="导演 Agent"]').click();
   await browser.$(".director-agent-inspector").waitForDisplayed();
+  await browser.$(".agent-message-collapsible").waitForDisplayed();
+  assert.equal(await browser.$(".agent-message-collapsible").getAttribute("open"), null, "long Agent replies stay collapsed until requested");
+  await browser.$(".agent-console-stop-action").waitForDisplayed();
+  assert.equal(await browser.$(".agent-console-stop-action").getAttribute("aria-label"), "取消");
+  assert.equal(await browser.$("[aria-label=\"发送给领域 Agent 的消息\"]").isExisting(), false, "an active Run uses the send slot for stop");
+  await browser.saveScreenshot(path.join(artifacts, "agent-compact.png"));
   const agentPanel = await browser.execute(() => ({
     dialogs: document.querySelectorAll('[role="dialog"]').length,
     inspector: document.querySelector(".director-agent-inspector")?.getBoundingClientRect().toJSON() ?? null,

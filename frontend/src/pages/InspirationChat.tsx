@@ -66,6 +66,9 @@ export const InspirationChat: React.FC = () => {
                   onInputBlur={chat.handleConversationBlur}
                   sending={chat.sending}
                   messagesViewportRef={chat.messagesViewportRef}
+                  isFollowingLatest={chat.isFollowingLatest}
+                  hasNewContent={chat.hasNewContent}
+                  onScrollToLatest={chat.scrollToLatest}
                   placeholder={chat.inputPlaceholder}
                   inputActive={chat.inputActive}
                 />

@@ -6,6 +6,7 @@ use a4n_agent_runtime_contract::{
     AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort, AgentWorkerRun,
     WorkerExecutionInput, WorkerExecutionUpdate,
 };
+use a4n_api_contract::agent::AgentScope;
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
@@ -741,31 +742,45 @@ impl AgentRuntimeState {
     pub async fn dispatch_agent_host_command(
         &self,
         user_id: i64,
+        scope: &AgentScope,
         command: String,
         arguments: Value,
         worker_request: &WorkerRequest<AgentRunPayload>,
+        execution_id: Option<i64>,
+        execution: Option<&AgentExecutionSnapshot>,
     ) -> Result<Value, AppError> {
+        let generation_start_request_id = if command == "send_content_optimization_message" {
+            execution
+                .and_then(|execution| execution.resource_preconditions_json.as_ref())
+                .and_then(|preconditions| preconditions.get("generation_start_request_id"))
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            None
+        };
         let payload = AgentHostCommandPayload {
             run_id: worker_request.payload.run_id,
+            scope: scope.clone(),
+            execution_id,
             command: command.clone(),
             arguments,
+            generation_start_request_id,
             runtime_config_snapshot: worker_request.payload.runtime_config_snapshot.clone(),
         };
         payload.validate().map_err(|error| AppError::InvalidState {
             current: format!("Agent Host command payload 无效: {error}"),
             operation: "构造 Agent Host command request".into(),
         })?;
+        let host_key = execution_id
+            .map(|id| format!("execution:{id}"))
+            .unwrap_or_else(|| format!("command:{command}"));
         let request = WorkerRequest {
             schema_version: worker_request.schema_version,
-            request_id: format!(
-                "{}:host:{}",
-                worker_request.request_id,
-                uuid::Uuid::new_v4()
-            ),
+            request_id: format!("{}:host:{host_key}", worker_request.request_id),
             trace_id: worker_request.trace_id.clone(),
             principal: worker_request.principal.clone(),
             operation_id: a4n_worker_contract::AGENT_HOST_COMMAND_OPERATION.into(),
-            idempotency_key: format!("{}:host:{}", worker_request.idempotency_key, command),
+            idempotency_key: format!("{}:host:{host_key}", worker_request.idempotency_key),
             project_id: worker_request.project_id,
             root_project_id: worker_request.root_project_id,
             target_revision: worker_request.target_revision,

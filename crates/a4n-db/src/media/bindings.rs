@@ -10,6 +10,7 @@ pub(crate) async fn delete_generated_image_target_media_bindings<C>(
 where
     C: ConnectionTrait,
 {
+    crate::video::reclaim_image_publications_for_deleted_images(db, image_ids).await?;
     delete_generated_target_media_bindings(
         db,
         CanvasNodeRefKind::GeneratedImage.as_str(),

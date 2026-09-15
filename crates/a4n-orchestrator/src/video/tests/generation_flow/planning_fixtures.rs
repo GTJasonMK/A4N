@@ -98,6 +98,30 @@ pub(in crate::video) fn segment_plan_json_for_shot(
     json!({ "segments": segments }).to_string()
 }
 
+fn explicit_director_end_frame_for_test() -> Value {
+    use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3, VisualPointV3};
+
+    let mut plan = ChapterVisualPlanV3::starter();
+    plan.points[1].at_ms = 4_000;
+    plan.segments[0].prompt = "小宦官进入殿内并停在暗廊入口前".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
+    let mut projection = plan
+        .project()
+        .expect("test director plan should project")
+        .remove(0);
+    projection.end_frame = Some(VisualPointV3 {
+        id: "end".into(),
+        at_ms: 4_000,
+        label: "明确尾帧".into(),
+        image_id: None,
+        description: "小宦官停在暗廊入口前".into(),
+        reference_image_ids: Vec::new(),
+    });
+    serde_json::to_value(projection).expect("test director projection should serialize")
+}
+
 fn frame_prompt_json(frame_number: usize) -> String {
     let value: serde_json::Value = serde_json::from_str(FRAME_PROMPTS_JSON).unwrap();
     let mut frame = value["frames"][frame_number - 1].clone();

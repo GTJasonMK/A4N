@@ -54,7 +54,7 @@ pub(super) async fn start(
             &context.scope,
             input,
             request_id,
-            capabilities.max_output_tokens.min(WORKER_MAX_OUTPUT_TOKENS),
+            a4n_llm::provider::validated_model_output_tokens(&capabilities)?,
         )
         .await
     })

@@ -532,7 +532,7 @@ export const useChapterStreamGeneration = ({
     streamTaskChapterNumber,
     streamBusy,
     streamMessage,
-    streamThinking: pacedStream.isThinking,
+    streamThinking: pacedStream.isStreamDisplayEnabled && pacedStream.isThinking,
     streamingActiveChapter,
     activeChapterBusy,
     activeChapterGeneratingMessage,

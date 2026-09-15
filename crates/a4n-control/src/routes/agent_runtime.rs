@@ -1,7 +1,7 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_agent_runtime_contract::AgentExternalTaskWaitSnapshot;
+use a4n_agent_runtime_contract::{AgentExternalTaskWaitSnapshot, restore_model_request_wire};
 use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
@@ -16,7 +16,7 @@ use a4n_api_contract::agent::{
 };
 use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
+use a4n_llm::provider::{ChatChunk, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
@@ -647,9 +647,7 @@ pub(super) async fn command(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     let user_id = agent_actions::authorize_agent_host_command(state.runtime(), &request).await?;
-    let command = request.payload.command.clone();
-    let arguments = request.payload.arguments_with_runtime_snapshot();
-    super::commands::dispatch_runtime_command_value(state.runtime(), user_id, arguments, command)
+    super::commands::dispatch_agent_host_command_value(state.runtime(), user_id, request)
         .await
         .map(Json)
         .map_err(|error| {
@@ -761,6 +759,9 @@ pub(super) async fn agent_llm_capabilities(
     Json(input): Json<AgentWorkerLlmCapabilitiesRequest>,
 ) -> Result<Json<ModelCapabilities>, ApiError> {
     authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::agent_llm_capabilities(
         state.runtime(),
         input.user_id,
@@ -778,7 +779,10 @@ pub(super) async fn agent_chat(
     Json(input): Json<AgentWorkerChatRequest>,
 ) -> Result<Response, ApiError> {
     authorize_worker_request(&state, &headers)?;
-    let request = serde_json::from_value::<ChatRequest>(input.request)
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let request = restore_model_request_wire(input.request)
         .map_err(|error| ApiError::bad_request(format!("Agent LLM request 无效: {error}")))?;
     let chunks = agent_actions::agent_chat_stream(
         state.runtime(),
@@ -1445,6 +1449,7 @@ fn validate_event_batch(
 mod tests {
     use super::*;
     use a4n_api_contract::agent::AGENT_API_PROTOCOL_VERSION;
+    use a4n_llm::provider::{ChatRequest, LlmTraceContext};
     use serde_json::json;
 
     fn event(thread_id: &str, sequence: u64) -> AgentEvent {
@@ -1524,17 +1529,33 @@ mod tests {
     }
 
     #[test]
-    fn agent_chat_payload_accepts_worker_snapshot() {
+    fn agent_chat_payload_accepts_worker_request() {
         let request = ChatRequest::system_user("system", "user", Some(0.2), Some(128))
             .with_json_response_format()
-            .with_stream_usage();
-        let value = request.snapshot_value().unwrap();
-        let parsed: ChatRequest = serde_json::from_value(value).unwrap();
+            .with_stream_usage()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(7),
+                root_project_id: Some(3),
+                workflow: "agent".into(),
+                step_key: "model".into(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some("call-1".into()),
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            });
+        let value = a4n_agent_runtime_contract::model_request_wire_value(&request).unwrap();
+        let parsed = restore_model_request_wire(value).unwrap();
 
         assert_eq!(parsed.messages.len(), 2);
         assert_eq!(parsed.temperature, Some(0.2));
         assert_eq!(parsed.max_tokens, Some(128));
         assert!(parsed.stream_include_usage);
         assert!(parsed.response_format.is_some());
+        assert_eq!(
+            parsed.trace_context.as_ref().map(|trace| trace.project_id),
+            Some(Some(7))
+        );
     }
 }
