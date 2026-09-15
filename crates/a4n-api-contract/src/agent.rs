@@ -191,6 +191,7 @@ pub fn synthetic_agent_tool_descriptor(
         | "ensure_content_optimization_session"
         | "send_content_optimization_message" => "optimize",
         "run_canvas_graph" | "run_canvas_node" => "canvas",
+        "start_visual_plan_prompt_generation" | "start_image_generation" => "director",
         "get_generation_task_summary" | "wait_generation_task" | "wait_workflow_run" => "task",
         "search_agent_tools"
         | "describe_agent_tool"
@@ -204,7 +205,11 @@ pub fn synthetic_agent_tool_descriptor(
         _ => return None,
     };
     let inherited_schema = match name {
-        "apply_optimization_patches" | "run_canvas_graph" | "run_canvas_node" => {
+        "apply_optimization_patches"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation" => {
             Some(crate::command_manifest::command_descriptor(name)?)
         }
         "wait_workflow_run" => Some(crate::command_manifest::command_descriptor(
@@ -280,6 +285,12 @@ pub fn synthetic_agent_tool_descriptor(
         "send_content_optimization_message" => {
             "Send a focused instruction to the content-optimization Agent and return its generation task handle".into()
         }
+        "start_visual_plan_prompt_generation" => {
+            "Start asynchronous Director prompt generation for one observed visual-plan segment".into()
+        }
+        "start_image_generation" => {
+            "Start asynchronous image generation for one observed visual-plan point".into()
+        }
         "get_generation_task_summary" => {
             "Read the real state and terminal result of an asynchronous generation task".into()
         }
@@ -301,7 +312,11 @@ pub fn synthetic_agent_tool_descriptor(
     descriptor.execution = match name {
         "delegate" => "agent".into(),
         "wait_generation_task" | "wait_workflow_run" => "wait".into(),
-        "send_content_optimization_message" | "run_canvas_graph" | "run_canvas_node" => {
+        "send_content_optimization_message"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation" => {
             "task".into()
         }
         _ => "immediate".into(),
@@ -310,6 +325,8 @@ pub fn synthetic_agent_tool_descriptor(
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation"
         | "wait_workflow_run" => descriptor.args_schema.clone(),
         "search_agent_tools" => json!({
             "type": "object",
@@ -392,6 +409,8 @@ pub fn synthetic_agent_tool_descriptor(
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
+        | "start_visual_plan_prompt_generation"
+        | "start_image_generation"
         | "wait_workflow_run" => descriptor.result_schema.clone(),
         "search_agent_tools" => typed_schema::<AgentToolSearchResult>(),
         "describe_agent_tool" => typed_schema::<AgentToolDescriptor>(),
