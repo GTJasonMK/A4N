@@ -8,6 +8,7 @@
 //!   - `FastEmbedProvider`：使用当前支持的本地 ONNX 嵌入模型
 
 use a4n_domain::ProviderError as AppError;
+use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 
@@ -66,7 +67,7 @@ impl LocalEmbeddingProvider {
 }
 
 #[async_trait]
-impl crate::provider::EmbeddingProvider for LocalEmbeddingProvider {
+impl EmbeddingProvider for LocalEmbeddingProvider {
     async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
         Ok(texts.iter().map(|t| self.hash_embedding(t)).collect())
     }
@@ -79,15 +80,14 @@ impl crate::provider::EmbeddingProvider for LocalEmbeddingProvider {
         "local-sha256-hash"
     }
 
-    fn backend(&self) -> crate::provider::EmbeddingBackend {
-        crate::provider::EmbeddingBackend::LocalHash
+    fn backend(&self) -> EmbeddingBackend {
+        EmbeddingBackend::LocalHash
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider::EmbeddingProvider;
 
     #[tokio::test]
     async fn test_local_embedding_dimension_and_norm() {

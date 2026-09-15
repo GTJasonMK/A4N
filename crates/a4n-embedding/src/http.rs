@@ -7,8 +7,8 @@ use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 
-use super::provider::{EmbeddingBackend, EmbeddingProvider};
 use a4n_domain::ProviderError as AppError;
+use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 
 fn internal_error(message: impl Into<String>) -> AppError {
     AppError::Internal(message.into())
