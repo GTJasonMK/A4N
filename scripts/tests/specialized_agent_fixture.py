@@ -180,6 +180,60 @@ def director_fixture(body, messages):
             raise ValueError("visual prompt candidate is not bound to the observed plan")
         return {"content": "已读取镜头提示词候选，候选仍等待用户采用。"}
 
+    if mode == "image_generate":
+        resource = {
+            "project_id": task["project_id"],
+            "source_chapter_id": task["chapter_id"],
+        }
+        if "point" not in observations:
+            return host(
+                "point",
+                "read_chapter_visual_plan",
+                {**resource, "view": {"kind": "point", "point_id": task["point_id"]}},
+            )
+        plan_resource = observations["point"]["resource"]
+        options = {
+            "source_chapter_id": task["chapter_id"],
+            "record_id": int(plan_resource["id"]),
+            "expected_revision": int(plan_resource["revision"]),
+            "point_id": task["point_id"],
+            "user_description": task.get("prompt", "沿用当前构图，保留人物和冷光方向。"),
+            "config_id": None,
+        }
+        if "preview" not in observations:
+            return host("preview", "preview_visual_plan_point_generation", {**resource, "options": options})
+        preview = observations["preview"]
+        if not preview.get("aspect_ratio") or not isinstance(preview.get("reference_image_ids"), list):
+            raise ValueError("image generation preview is incomplete")
+        if "start" not in observations:
+            return host(
+                "start",
+                "start_image_generation",
+                {
+                    "project_id": task["project_id"],
+                    "meta": {"start_request_id": task.get("start_request_id", "director-agent-image")},
+                    "operation": {"kind": "visual_plan_point", "options": options},
+                },
+            )
+        handle = observations["start"]
+        if "wait" not in observations:
+            return call("wait", "wait_generation_task", {"taskId": handle["task_id"], "attempt": handle["attempt"]})
+        if "images" not in observations:
+            return host("images", "list_images_by_projects", {"project_ids": [task["project_id"]]})
+        image = next(
+            (
+                item
+                for item in observations["images"]
+                if isinstance(item, dict)
+                and isinstance(item.get("metadata_json"), dict)
+                and item["metadata_json"].get("director_candidate", {}).get("point_id") == task["point_id"]
+            ),
+            None,
+        )
+        if image is None:
+            raise ValueError("image generation did not publish a director candidate")
+        return {"content": "已读取图片生成候选，图片点仍等待用户显式绑定。"}
+
     if mode == "compose":
         project_id, chapter_id = task["project_id"], task["chapter_id"]
         resource = {"project_id": project_id, "source_chapter_id": chapter_id}

@@ -417,6 +417,25 @@ def main():
             ], generated_tools
             report["checks"].append("Director Agent starts an async prompt generation task, waits for its terminal result and reads a plan-bound candidate without auto-adoption")
 
+            image_run = send({
+                **task,
+                "mode": "image_generate",
+                "point_id": "point-1",
+                "start_request_id": uuid.uuid4().hex,
+                "prompt": "沿用当前构图，保留人物和冷光方向。",
+            })
+            image_snapshot = finish(image_run)
+            image_executions = [row for row in image_snapshot["executions"] if row["run_id"] == image_run]
+            image_tools = [row["tool_name"] for row in image_executions if row["status"] == "succeeded"]
+            assert image_tools == [
+                "read_chapter_visual_plan",
+                "preview_visual_plan_point_generation",
+                "start_image_generation",
+                "wait_generation_task",
+                "list_images_by_projects",
+            ], image_tools
+            report["checks"].append("Director Agent previews and runs image generation, waits for completion and reads the persisted point candidate without auto-binding it")
+
             if args.fault_database_url_env:
                 database = urlparse(os.environ[args.fault_database_url_env])
                 database_name = unquote(database.path.removeprefix("/"))
