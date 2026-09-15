@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::{Stream, stream};
 use tokio_util::sync::CancellationToken;
 
-use crate::provider::{
+use a4n_llm_provider_contract::provider::{
     ChatChunk, ChatMessage, ChatRequest, LlmProvider, ModelCapabilities, UsageInfo,
 };
 

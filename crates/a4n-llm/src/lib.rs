@@ -3,5 +3,5 @@
 pub use a4n_llm_context as context;
 pub mod provider;
 pub mod response_json;
-pub mod structured_stream;
+pub use a4n_llm_structured_stream as structured_stream;
 pub use a4n_llm_trace as trace;

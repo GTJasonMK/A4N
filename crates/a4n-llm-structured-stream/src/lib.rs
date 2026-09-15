@@ -5,7 +5,9 @@ use a4n_progress::{ProgressSpan, StructuredJsonProgressSpec, StructuredJsonProgr
 use futures::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 
-use crate::provider::{ChatChunk, ChatRequest, LlmProvider, UsageInfo, is_truncated_finish_reason};
+use a4n_llm_provider_contract::provider::{
+    ChatChunk, ChatRequest, LlmProvider, UsageInfo, is_truncated_finish_reason,
+};
 
 const STREAM_PROGRESS_HEARTBEAT_CHARS: usize = 1_024;
 
@@ -73,7 +75,7 @@ pub async fn chat_json_stream_result_with_sink(
         .unwrap_or(0);
     report_progress(start, &format!("正在连接模型：{prompt_name}"))?;
     check_cancelled(cancel_token, cancelled_message)?;
-    let mut stream = crate::provider::open_chat_stream(
+    let mut stream = a4n_llm_provider_contract::provider::open_chat_stream(
         llm.chat_stream(request),
         cancel_token.cloned().unwrap_or_default(),
     )
@@ -154,7 +156,7 @@ pub async fn chat_json_stream_result_with_sink(
     if is_truncated_finish_reason(finish_reason.as_deref()) {
         return Err(truncated_message.to_string());
     }
-    crate::provider::validate_finish_reason(finish_reason.as_deref())
+    a4n_llm_provider_contract::provider::validate_finish_reason(finish_reason.as_deref())
         .map_err(|error| error.to_string())?;
     if let Some((span, _)) = tracker {
         report_progress(

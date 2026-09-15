@@ -614,6 +614,7 @@ dependencies = [
  "a4n-error",
  "a4n-llm-context",
  "a4n-llm-provider-contract",
+ "a4n-llm-structured-stream",
  "a4n-llm-trace",
  "a4n-progress",
  "async-trait",
@@ -722,6 +723,19 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-llm-structured-stream"
+version = "0.1.0"
+dependencies = [
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-progress",
+ "async-trait",
+ "futures",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
