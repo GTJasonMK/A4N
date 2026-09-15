@@ -9,6 +9,7 @@ a4n-agent-application = { path = "../a4n-agent-application" }
 a4n-archive-core = { path = "../a4n-archive-core" }
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-blueprint-contract = { path = "../a4n-blueprint-contract" }
+a4n-chapter-generation-contract = { path = "../a4n-chapter-generation-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-chapter-analysis = { path = "../a4n-chapter-analysis" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }

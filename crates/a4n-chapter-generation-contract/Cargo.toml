@@ -1,0 +1,13 @@
+[package]
+name = "a4n-chapter-generation-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
+a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" }
+a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
+a4n-prompt = { path = "../a4n-prompt" }
+
+async-trait = { workspace = true }

@@ -197,7 +197,7 @@ async fn start_generation(
             a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
             a4n_runtime::host_api::chapter_visual_plan_records::start_visual_plan_prompt_generation
         ),
-        "start_chapter_generation" => start!(
+        "start_chapter_generation" => start_stable!(
             StartChapterGenerationInput,
             a4n_runtime::host_api::chapter_generation::start_chapter_generation_typed
         ),

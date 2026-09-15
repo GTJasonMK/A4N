@@ -4,10 +4,9 @@ use a4n_api_contract::chapter::StartChapterGenerationInput;
 pub use a4n_api_contract::chapter::{
     PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
 };
-use a4n_api_contract::generation_tasks::GenerationTaskHandle;
+use a4n_api_contract::generation_tasks::{GenerationTaskHandle, GenerationTaskStartError};
+use a4n_chapter_generation_contract::ChapterGenerationApplicationContext;
 use a4n_embedding_provider_contract::EmbeddingModelIdentity;
-use a4n_orchestrator::GenerationTaskAccessError;
-use a4n_orchestrator::chapter_generation::ChapterGenerationApplicationContext;
 
 use crate::{
     AppState,
@@ -21,12 +20,14 @@ pub async fn start_chapter_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartChapterGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let has_client_rag_payload = input.client_rag_embedding_identity.is_some()
         || input.client_rag_query_fingerprint.is_some()
         || input.client_rag_query_vectors.is_some();
     let runtime_embedding_identity = if input.chapter_number > 1 && !has_client_rag_payload {
-        runtime_embedding_identity().map_err(GenerationTaskAccessError::InvalidArgument)?
+        runtime_embedding_identity().map_err(|error| {
+            GenerationTaskStartError::new("generation_request_invalid", error, false)
+        })?
     } else {
         None
     };

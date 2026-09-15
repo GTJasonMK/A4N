@@ -7,18 +7,11 @@ pub(crate) mod rag_context;
 #[path = "chapter_generation/service/mod.rs"]
 mod service;
 
-use std::sync::Arc;
-
-use a4n_api_contract::{
-    chapter::{
-        ChapterDerivedCleanupHostPort, PreparedGenerationRagEmbeddingRequest,
-        PreviewChapterPromptInput, StartChapterGenerationInput,
-    },
-    generation_tasks::GenerationTaskHandle,
+pub use a4n_chapter_generation_contract::{
+    ChapterGenerationApplicationContext, ChapterGenerationApplicationPort,
+    ChapterGenerationRagPreparationApplicationPort, ChapterGenerationRequestPreview,
+    ChapterGenerationRequestPreviewApplicationPort,
 };
-use a4n_embedding_provider_contract::EmbeddingModelIdentity;
-
-pub use application::{ChapterGenerationApplicationContext, ChapterGenerationRequestPreview};
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;
 use preparation::{
     ChapterGenerationWordCountRange, compact_json_text, generation_chapter_title,
@@ -31,46 +24,3 @@ pub(crate) use rag_context::{
     validate_generation_rag_query_fingerprint,
 };
 pub use service::ChapterGenerationService;
-
-/// Host-facing boundary for chapter request previews.
-#[async_trait::async_trait]
-pub trait ChapterGenerationRequestPreviewApplicationPort: Send + Sync {
-    async fn preview_request(
-        &self,
-        user_id: i64,
-        context: ChapterGenerationApplicationContext<'_>,
-        input: PreviewChapterPromptInput,
-    ) -> Result<ChapterGenerationRequestPreview, String>;
-}
-
-/// Host-facing boundary for chapter-generation RAG embedding preparation.
-#[async_trait::async_trait]
-pub trait ChapterGenerationRagPreparationApplicationPort: Send + Sync {
-    async fn prepare_rag_embedding(
-        &self,
-        user_id: i64,
-        input: PreviewChapterPromptInput,
-        runtime_embedding_identity: Option<EmbeddingModelIdentity>,
-    ) -> Result<PreparedGenerationRagEmbeddingRequest, String>;
-}
-
-/// Host-facing boundary for chapter generation workers.
-///
-/// Runtime supplies prompt, embedding and cleanup adapters; chapter
-/// workflow state and persistence stay in this owner.
-#[async_trait::async_trait]
-pub trait ChapterGenerationApplicationPort: Send + Sync {
-    async fn start_task(
-        &self,
-        user_id: i64,
-        input: &StartChapterGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn run_task(
-        &self,
-        context: ChapterGenerationApplicationContext<'_>,
-        input: StartChapterGenerationInput,
-        handle: GenerationTaskHandle,
-        host_port: Arc<dyn ChapterDerivedCleanupHostPort>,
-    ) -> Result<(), String>;
-}

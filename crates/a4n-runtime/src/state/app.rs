@@ -259,17 +259,15 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
     /// Chapter request preview owner. Runtime supplies prompt and embedding
     /// inputs.
-    chapter_generation_request_preview_application: Arc<
-        dyn a4n_orchestrator::chapter_generation::ChapterGenerationRequestPreviewApplicationPort,
-    >,
+    chapter_generation_request_preview_application:
+        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationRequestPreviewApplicationPort>,
     /// Chapter-generation RAG preparation owner.
-    chapter_generation_rag_preparation_application: Arc<
-        dyn a4n_orchestrator::chapter_generation::ChapterGenerationRagPreparationApplicationPort,
-    >,
+    chapter_generation_rag_preparation_application:
+        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationRagPreparationApplicationPort>,
     /// Chapter generation task owner. Runtime supplies prompt, embedding and
     /// cleanup adapters when a worker is started.
     chapter_generation_application:
-        Arc<dyn a4n_orchestrator::chapter_generation::ChapterGenerationApplicationPort>,
+        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationApplicationPort>,
     /// Host-facing outline read boundary.
     outline_read_application: Arc<dyn a4n_api_contract::outline::OutlineReadApplicationPort>,
     /// Host-facing outline mutation boundary.
@@ -1593,21 +1591,19 @@ impl AppState {
 
     pub(crate) fn chapter_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationApplicationPort {
+    ) -> &dyn a4n_chapter_generation_contract::ChapterGenerationApplicationPort {
         self.chapter_generation_application.as_ref()
     }
 
     pub(crate) fn chapter_generation_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationRequestPreviewApplicationPort
-    {
+    ) -> &dyn a4n_chapter_generation_contract::ChapterGenerationRequestPreviewApplicationPort {
         self.chapter_generation_request_preview_application.as_ref()
     }
 
     pub(crate) fn chapter_generation_rag_preparation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_generation::ChapterGenerationRagPreparationApplicationPort
-    {
+    ) -> &dyn a4n_chapter_generation_contract::ChapterGenerationRagPreparationApplicationPort {
         self.chapter_generation_rag_preparation_application.as_ref()
     }
 
