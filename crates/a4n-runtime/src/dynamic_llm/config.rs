@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use a4n_error::AppError;
-#[cfg(feature = "embedded-llm-provider")]
-use a4n_llm::provider::LlmProvider;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext, ModelCapabilities};
 use a4n_llm_client::{LlmClient, LlmGatewayRequest};
+#[cfg(feature = "embedded-llm-provider")]
+use a4n_llm_provider_contract::provider::LlmProvider;
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext, ModelCapabilities};
 use a4n_provider_contract::LlmProviderConfig;
 
 use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
