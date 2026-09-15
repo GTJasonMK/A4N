@@ -7,10 +7,10 @@ use a4n_db::{
     },
 };
 use a4n_error::AppError;
-use a4n_llm::{
-    provider::{ChatMessage, ChatRequest, ChatResponse, UsageInfo, is_truncated_finish_reason},
-    trace::context_aware_chat_request_trace_json,
+use a4n_llm_provider_contract::provider::{
+    ChatMessage, ChatRequest, ChatResponse, UsageInfo, is_truncated_finish_reason,
 };
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
 use crate::{
