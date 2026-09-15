@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
+use a4n_llm::gateway::LlmGatewayPayload;
 use a4n_llm::provider::ChatRequest;
+use a4n_llm_sidecar_contract::LlmGatewayProviderConfig;
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use axum::{
     Json, Router,

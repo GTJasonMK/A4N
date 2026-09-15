@@ -5,9 +5,10 @@ use std::{
     time::Instant,
 };
 
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
+use a4n_llm::gateway::LlmGatewayPayload;
 use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_llm_client::{HttpLlmClient, JsonRequest, LlmClient};
+use a4n_llm_sidecar_contract::LlmGatewayProviderConfig;
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, HealthStatus, LLM_CHAT_CAPABILITY_VERSION,

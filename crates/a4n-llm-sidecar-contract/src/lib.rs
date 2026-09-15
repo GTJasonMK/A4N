@@ -4,6 +4,20 @@
 //! this crate so clients can depend on the wire shape alone.
 
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LlmGatewayProviderConfig {
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub api_key: Option<String>,
+    pub timeout_secs: u64,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub extra_body_json: Option<Value>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -37,7 +51,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmProbeOutput, LlmProbeUsage};
+    use super::{LlmGatewayProviderConfig, LlmProbeOutput, LlmProbeUsage};
     use serde_json::json;
 
     fn usage() -> LlmProbeUsage {
@@ -48,6 +62,45 @@ mod tests {
             prompt_cache_hit_tokens: None,
             prompt_cache_miss_tokens: None,
             prompt_cache_write_tokens: None,
+        }
+    }
+
+    #[test]
+    fn gateway_provider_config_rejects_unknown_fields() {
+        let error = serde_json::from_value::<LlmGatewayProviderConfig>(json!({
+            "provider": "openai",
+            "base_url": "https://example.invalid/v1",
+            "model": "test",
+            "api_key": null,
+            "timeout_secs": 30,
+            "extra_body_json": null,
+            "legacy_field": true
+        }))
+        .expect_err("unknown provider config fields must fail at the sidecar boundary");
+
+        assert!(error.to_string().contains("legacy_field"));
+    }
+
+    #[test]
+    fn gateway_provider_config_requires_nullable_fields_to_be_present() {
+        for config in [
+            json!({
+                "provider": "openai",
+                "base_url": "https://example.invalid/v1",
+                "model": "test",
+                "timeout_secs": 30,
+                "extra_body_json": null
+            }),
+            json!({
+                "provider": "openai",
+                "base_url": "https://example.invalid/v1",
+                "model": "test",
+                "api_key": null,
+                "timeout_secs": 30
+            }),
+        ] {
+            serde_json::from_value::<LlmGatewayProviderConfig>(config)
+                .expect_err("provider config must keep explicit nullable fields");
         }
     }
 

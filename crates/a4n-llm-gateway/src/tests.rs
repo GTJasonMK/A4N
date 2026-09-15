@@ -1,6 +1,7 @@
 use a4n_error::AppError;
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
+use a4n_llm::gateway::LlmGatewayPayload;
 use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, ChatResponse, UsageInfo};
+use a4n_llm_sidecar_contract::LlmGatewayProviderConfig;
 use a4n_model_discovery_contract::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind,

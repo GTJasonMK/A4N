@@ -50,5 +50,6 @@ client-dependency	a4n-import-client	a4n-service-client	normal
 client-dependency	a4n-export-client	a4n-export-contract	normal
 client-dependency	a4n-export-client	a4n-service-client	normal
 client-dependency	a4n-llm-client	a4n-model-discovery-contract	normal
+client-dependency	a4n-llm-client	a4n-llm-sidecar-contract	normal
 transport-dependency	a4n-service-client	a4n-service-protocol	normal
 transport-dependency	a4n-service-client	a4n-process-catalog	normal
