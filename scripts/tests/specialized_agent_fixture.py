@@ -90,6 +90,209 @@ def director_fixture(body, messages):
             })
         return {"content": "已按需读取大结果片段：" + observations["slice"]["text"]}
 
+    if mode == "compose":
+        project_id, chapter_id = task["project_id"], task["chapter_id"]
+        resource = {"project_id": project_id, "source_chapter_id": chapter_id}
+
+        # Full-plan reads and draft saves are intentionally activated through
+        # discovery before the Agent can compose a timeline from the starter.
+        if "get_chapter_visual_plan" not in visible:
+            if "search" not in observations:
+                return call("search", "search_agent_tools", {"query": "visual_plan"})
+            if "describe_get" not in observations:
+                return call("describe_get", "describe_agent_tool", {"name": "get_chapter_visual_plan"})
+        if "plan" not in observations:
+            return host("plan", "get_chapter_visual_plan", resource)
+
+        if "save_chapter_visual_plan_draft" not in visible:
+            if "describe_save" not in observations:
+                return call(
+                    "describe_save",
+                    "describe_agent_tool",
+                    {"name": "save_chapter_visual_plan_draft"},
+                )
+        starter = observations["plan"].get("starter_plan")
+        if not isinstance(starter, dict):
+            raise ValueError("get_chapter_visual_plan did not return starter_plan")
+        if "save" not in observations:
+            return host(
+                "save",
+                "save_chapter_visual_plan_draft",
+                {
+                    **resource,
+                    "authoring_mode": "collaborative",
+                    "record_id": None,
+                    "expected_revision": None,
+                    "plan": starter,
+                },
+            )
+
+        def current_resource(key):
+            value = observations[key]
+            resource_value = value.get("resource")
+            if resource_value:
+                return resource_value
+            record = value.get("record")
+            if not isinstance(record, dict):
+                raise ValueError(f"{key} did not return a plan record")
+            return {"id": str(record["id"]), "revision": str(record["revision"])}
+
+        if "outline" not in observations:
+            saved = current_resource("save")
+            return host(
+                "outline",
+                "read_chapter_visual_plan",
+                {
+                    **resource,
+                    "record_id": int(saved["id"]),
+                    "expected_revision": int(saved["revision"]),
+                    "view": {"kind": "outline", "offset": 0, "limit": 20},
+                },
+            )
+
+        def edit(key, previous, operation):
+            if key in observations:
+                return None
+            current = current_resource(previous)
+            return host(
+                key,
+                "edit_chapter_visual_plan_draft",
+                {
+                    **resource,
+                    "record_id": int(current["id"]),
+                    "expected_revision": int(current["revision"]),
+                    "operation": operation,
+                },
+            )
+
+        insert = edit(
+            "insert_door",
+            "outline",
+            {
+                "kind": "insert_point",
+                "point": {
+                    "id": "door",
+                    "at_ms": 2500,
+                    "label": "门把手",
+                    "image_id": None,
+                    "description": "手停在旧门把手上",
+                    "reference_image_ids": [],
+                },
+            },
+        )
+        if insert:
+            return insert
+
+        inserted_plan = observations["insert_door"]["visual_plan"]["plan"]
+        door = next(point for point in inserted_plan["points"] if point["id"] == "door")
+        update = edit(
+            "update_door",
+            "insert_door",
+            {
+                "kind": "update_point",
+                "point": {
+                    **door,
+                    "image_id": task["image_id"],
+                    "reference_image_ids": [task["image_id"]],
+                    "description": "手停在旧门把手上，画面保留雨水反光",
+                },
+            },
+        )
+        if update:
+            return update
+
+        split_first = edit(
+            "split_first",
+            "update_door",
+            {
+                "kind": "split_segment",
+                "segment_id": "shot-1",
+                "point_id": "door",
+                "right_segment_id": "shot-2",
+                "left_prompt": "林岚在旧车站通道观察挂钟，手停在门把手上。",
+                "right_prompt": "门被推开，林岚准备进入地下机房。",
+                "left_scene_binding": {"kind": "scene", "scene_profile_id": task["scene_a_id"]},
+                "right_scene_binding": {"kind": "scene", "scene_profile_id": task["scene_a_id"]},
+            },
+        )
+        if split_first:
+            return split_first
+
+        insert_enter = edit(
+            "insert_enter",
+            "split_first",
+            {
+                "kind": "insert_point",
+                "point": {
+                    "id": "enter",
+                    "at_ms": 7500,
+                    "label": "进入机房",
+                    "image_id": None,
+                    "description": "门后显出地下机房的冷光",
+                    "reference_image_ids": [],
+                },
+            },
+        )
+        if insert_enter:
+            return insert_enter
+
+        split_second = edit(
+            "split_second",
+            "insert_enter",
+            {
+                "kind": "split_segment",
+                "segment_id": "shot-2",
+                "point_id": "enter",
+                "right_segment_id": "shot-3",
+                "left_prompt": "门从旧车站通道打开，视线从门外过渡到地下机房。",
+                "right_prompt": "林岚停在地下机房内，回头确认门外动静。",
+                "left_scene_binding": {
+                    "kind": "transition",
+                    "from_scene_profile_id": task["scene_a_id"],
+                    "to_scene_profile_id": task["scene_b_id"],
+                },
+                "right_scene_binding": {"kind": "scene", "scene_profile_id": task["scene_b_id"]},
+            },
+        )
+        if split_second:
+            return split_second
+
+        scale = edit("scale", "split_second", {"kind": "scale_timeline", "duration_ms": 12000})
+        if scale:
+            return scale
+
+        if "final_read" not in observations:
+            current = current_resource("scale")
+            return host(
+                "final_read",
+                "read_chapter_visual_plan",
+                {
+                    **resource,
+                    "record_id": int(current["id"]),
+                    "expected_revision": int(current["revision"]),
+                    "view": {"kind": "outline", "offset": 0, "limit": 20},
+                },
+            )
+
+        if "validate" not in observations:
+            current = current_resource("final_read")
+            return host(
+                "validate",
+                "validate_chapter_visual_plan",
+                {
+                    **resource,
+                    "record_id": int(current["id"]),
+                    "expected_revision": int(current["revision"]),
+                    "mode": "confirmed",
+                },
+            )
+        if not observations["validate"]["validation"]["valid"]:
+            raise ValueError("composed director timeline failed confirmed validation")
+        outline = observations["final_read"]["projection"]
+        if outline.get("kind") != "outline" or outline.get("total") != 3:
+            raise ValueError("composed director timeline did not persist three segments")
+        return {"content": "已从 starter 方案完成三段导演时间线，确认前等待用户审阅。"}
+
     editor = mode in {"editor", "read_editor", "inspect_only"}
     state = None
     if editor:

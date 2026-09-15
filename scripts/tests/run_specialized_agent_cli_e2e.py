@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from mock_openai_provider import PNG_1X1_BASE64
 from run_agent_cli_e2e import data, thread_snapshot, wait_for_run
 from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json, start_provider
 from specialized_agent_fixture import MARKER
@@ -69,11 +70,13 @@ def main():
             checked(cli, ["config", "runtime", "set", "--input", f"@{work / 'runtime.json'}"], "runtime")
             described = set()
 
-            def call(name, value, failure=False):
+            def call(name, value, failure=False, destructive=False):
                 if name not in described:
                     checked(cli, ["capabilities", "describe", name], name + " contract")
                     described.add(name)
                 parts = ["call", name, "--args", json.dumps({"input": value}, ensure_ascii=False)]
+                if destructive:
+                    parts.append("--allow-destructive")
                 if failure:
                     result = cli.run(parts)
                     assert result["exit_code"] != 0, name + " unexpectedly succeeded"
@@ -220,6 +223,182 @@ def main():
             offline = finish(run_id)
             assert any(row["run_id"] == run_id and row["status"] == "failed" and "原编辑器" in (row["error"] or "") for row in offline["executions"])
             report["checks"].append("offline editor fails explicitly and releases the worker")
+
+            # Exercise the user-facing Director journey from a clean starter
+            # plan. Every write is an Agent tool call and must pass the real
+            # approval gate before the next revision is observed.
+            compose_chapter = data(
+                checked(
+                    cli,
+                    [
+                        "chapter",
+                        "import",
+                        "--number",
+                        "2",
+                        "--title",
+                        "门后的机房",
+                        "--content",
+                        "林岚停在旧车站通道入口，观察挂钟后推开门，冷光从地下机房涌出。",
+                    ],
+                    "compose chapter",
+                )[0],
+                "compose chapter",
+            )
+            compose_resource = {"project_id": project["id"], "source_chapter_id": compose_chapter["id"]}
+
+            def create_scene(name):
+                return call(
+                    "create_scene_profile",
+                    {
+                        "project_id": project["id"],
+                        "profile": {
+                            "name": name,
+                            "scene_type": "room",
+                            "importance": "primary",
+                            "base_description": name,
+                            "visual_description": "木门、挂钟与通道纵深",
+                            "spatial_layout": "通道通向门口",
+                            "atmosphere": "冷静",
+                            "first_seen_chapter": 2,
+                            "last_seen_chapter": 2,
+                            "image_prompt_seed": name,
+                        },
+                    },
+                )["profile"]["id"]
+
+            scene_a_id, scene_b_id = create_scene("旧车站通道"), create_scene("地下机房")
+            compose_image = call(
+                "upload_image",
+                {
+                    "project_id": project["id"],
+                    "file_name": "compose-reference.png",
+                    "mime_type": "image/png",
+                    "data_base64": PNG_1X1_BASE64,
+                    "image_type": "chapter_reference",
+                    "prompt": "门把手与机房冷光参考",
+                    "chapter_id": compose_chapter["id"],
+                    "panel_id": None,
+                    "metadata_json": None,
+                },
+            )
+            compose_thread = data(
+                checked(
+                    cli,
+                    [
+                        "agent",
+                        "thread",
+                        "create",
+                        "--kind",
+                        "subagent",
+                        "--capability",
+                        "director",
+                        "--project-id",
+                        str(project["id"]),
+                        "--chapter-id",
+                        str(compose_chapter["id"]),
+                        "--resource-kind",
+                        "chapter",
+                        "--resource-id",
+                        str(compose_chapter["id"]),
+                    ],
+                    "compose thread",
+                )[0],
+                "compose thread",
+            )
+            compose_thread = data(
+                checked(
+                    cli,
+                    [
+                        "agent",
+                        "thread",
+                        "update",
+                        compose_thread["id"],
+                        "--use-capability-tools",
+                        "--expected-revision",
+                        str(compose_thread["revision"]),
+                    ],
+                    "compose thread catalog",
+                )[0],
+                "compose thread catalog",
+            )
+            report.update(compose_chapter_id=compose_chapter["id"], compose_thread_id=compose_thread["id"])
+            compose_task = {
+                "mode": "compose",
+                "project_id": project["id"],
+                "chapter_id": compose_chapter["id"],
+                "scene_a_id": scene_a_id,
+                "scene_b_id": scene_b_id,
+                "image_id": compose_image["id"],
+            }
+            compose_run = data(
+                checked(
+                    cli,
+                    [
+                        "agent",
+                        "chat",
+                        compose_thread["id"],
+                        MARKER + json.dumps(compose_task, ensure_ascii=False),
+                    ],
+                    "compose Agent chat",
+                )[0],
+                "compose Agent chat",
+            )["run_id"]
+
+            def finish_with_approvals(run_id):
+                deadline = time.monotonic() + 120
+                while time.monotonic() < deadline:
+                    snapshot = thread_snapshot(cli, compose_thread["id"])
+                    run = next(row for row in snapshot["runs"] if row["id"] == run_id)
+                    if run["status"] == "waiting" and run["waiting_reason"] == "approval":
+                        approve(snapshot)
+                        continue
+                    if run["status"] == "completed":
+                        return snapshot
+                    assert run["status"] not in {"failed", "cancelled", "recovery_required"}, run
+                    time.sleep(0.1)
+                raise RunnerError("compose Agent 未在期限内完成审批链")
+
+            composed = finish_with_approvals(compose_run)
+            composed_executions = [row for row in composed["executions"] if row["run_id"] == compose_run]
+            write_tools = [
+                row
+                for row in composed_executions
+                if row["tool_name"] in {"save_chapter_visual_plan_draft", "edit_chapter_visual_plan_draft"}
+                and row["status"] == "succeeded"
+            ]
+            assert len(write_tools) == 7, [row["tool_name"] for row in write_tools]
+            composed_draft = call("get_chapter_visual_plan", compose_resource)["draft"]
+            plan = composed_draft["plan"]
+            assert composed_draft["record"]["revision"] == 7
+            assert [point["id"] for point in plan["points"]] == ["start", "door", "enter", "end"]
+            assert [point["at_ms"] for point in plan["points"]] == [0, 3000, 9000, 12000]
+            door = next(point for point in plan["points"] if point["id"] == "door")
+            assert door["image_id"] == compose_image["id"] and door["reference_image_ids"] == [compose_image["id"]]
+            assert [segment["id"] for segment in plan["segments"]] == ["shot-1", "shot-2", "shot-3"]
+            assert [(segment["start_point_id"], segment["end_point_id"]) for segment in plan["segments"]] == [
+                ("start", "door"),
+                ("door", "enter"),
+                ("enter", "end"),
+            ]
+            assert plan["segments"][1]["scene_binding"] == {
+                "kind": "transition",
+                "from_scene_profile_id": scene_a_id,
+                "to_scene_profile_id": scene_b_id,
+            }
+            confirmed = call("confirm_chapter_visual_plan", {
+                **compose_resource,
+                "record_id": composed_draft["record"]["id"],
+                "expected_revision": composed_draft["record"]["revision"],
+            }, destructive=True)["visual_plan"]
+            assert confirmed["record"]["status"] == "confirmed"
+            script = call("generate_chapter_shooting_script", {
+                **compose_resource,
+                "visual_plan_id": confirmed["record"]["id"],
+            })
+            shots = [shot for scene in script["script"]["scenes"] for shot in scene["shots"]]
+            assert [shot["shot_id"] for shot in shots] == ["shot-1", "shot-2", "shot-3"]
+            assert [shot["estimated_natural_seconds"] for shot in shots] == [3, 6, 3]
+            report["checks"].append("Director Agent composes a starter into a persisted three-shot timeline; approvals, image binding, scene transition, confirmation and shooting-script projection are covered")
 
             if args.fault_database_url_env:
                 database = urlparse(os.environ[args.fault_database_url_env])
