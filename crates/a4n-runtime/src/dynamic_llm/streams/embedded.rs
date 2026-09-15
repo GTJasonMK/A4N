@@ -5,7 +5,7 @@ use std::{
 };
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, LlmTraceContext};
+use a4n_llm_provider_contract::provider::{ChatChunk, LlmTraceContext};
 use futures::Stream;
 
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};

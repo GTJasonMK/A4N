@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ToolCall};
+use a4n_llm_provider_contract::provider::{ChatChunk, ToolCall, UsageInfo};
 use a4n_llm_sidecar_contract::LlmStreamChunk;
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 
@@ -51,7 +51,7 @@ fn parse_stream_chunk(payload: serde_json::Value) -> Result<ChatChunk, AppError>
         }),
         finish_reason: chunk.finish_reason,
         index: chunk.index,
-        usage: chunk.usage.map(|usage| a4n_llm::provider::UsageInfo {
+        usage: chunk.usage.map(|usage| UsageInfo {
             prompt_tokens: usage.prompt_tokens,
             completion_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,

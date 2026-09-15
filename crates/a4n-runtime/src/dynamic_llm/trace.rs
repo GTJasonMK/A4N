@@ -3,7 +3,7 @@ mod recording;
 
 use crate::provider_runtime::DynamicProviderFacade;
 use a4n_error::AppError;
-use a4n_llm::provider::LlmTraceContext;
+use a4n_llm_provider_contract::provider::LlmTraceContext;
 
 pub(in crate::dynamic_llm) use preparation::prepare_dynamic_llm_trace_context;
 pub(in crate::dynamic_llm) use recording::record_dynamic_llm_trace;
