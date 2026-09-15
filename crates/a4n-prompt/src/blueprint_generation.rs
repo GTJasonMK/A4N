@@ -1,7 +1,7 @@
 //! Blueprint generation prompt request contracts.
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
+use a4n_llm_provider_contract::provider::{ChatRequest, is_truncated_finish_reason};
 
 mod refine;
 mod stage_request;

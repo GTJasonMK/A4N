@@ -33,7 +33,7 @@ fn blueprint_generation_source_hash(value: &Value) -> Result<String, AppError> {
 mod tests {
     use std::path::Path;
 
-    use a4n_llm::provider::MessageRole;
+    use a4n_llm_provider_contract::provider::MessageRole;
     use serde_json::json;
 
     use crate::tera_engine::TeraPromptEngine;

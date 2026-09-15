@@ -1,5 +1,6 @@
 use a4n_error::AppError;
-use a4n_llm::{provider::ChatRequest, trace::context_aware_chat_request_trace_json};
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone)]
@@ -23,7 +24,7 @@ pub fn chapter_analysis_stage_fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use a4n_llm::provider::ChatRequest;
+    use a4n_llm_provider_contract::provider::ChatRequest;
 
     use super::chapter_analysis_stage_fingerprint;
 
