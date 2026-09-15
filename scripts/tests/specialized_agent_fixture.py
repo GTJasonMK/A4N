@@ -137,6 +137,49 @@ def director_fixture(body, messages):
             })
         return {"content": "已按需读取大结果片段：" + observations["slice"]["text"]}
 
+    if mode == "generate":
+        resource = {
+            "project_id": task["project_id"],
+            "source_chapter_id": task["chapter_id"],
+        }
+        if "shot" not in observations:
+            return host(
+                "shot",
+                "read_chapter_visual_plan",
+                {**resource, "view": {"kind": "segment", "segment_id": task["shot_id"]}},
+            )
+        plan_resource = observations["shot"]["resource"]
+        if "start" not in observations:
+            return host(
+                "start",
+                "start_visual_plan_prompt_generation",
+                {
+                    **resource,
+                    "record_id": int(plan_resource["id"]),
+                    "expected_revision": int(plan_resource["revision"]),
+                    "meta": {"start_request_id": task.get("start_request_id", "director-agent-generate")},
+                    "segment_id": task["shot_id"],
+                    "user_description": task.get("prompt", "镜头缓慢推近，保留门把手停顿和冷光转场。"),
+                },
+            )
+        handle = observations["start"]
+        if "wait" not in observations:
+            return call("wait", "wait_generation_task", {"taskId": handle["task_id"], "attempt": handle["attempt"]})
+        summary = observations["wait"]
+        result_ref = summary.get("result_ref")
+        if not isinstance(result_ref, dict) or not result_ref.get("id"):
+            raise ValueError("visual prompt generation did not return a result reference")
+        if "candidate" not in observations:
+            return host(
+                "candidate",
+                "read_visual_plan_prompt_candidate",
+                {**resource, "generation_run_id": int(result_ref["id"])},
+            )
+        candidate = observations["candidate"]
+        if not candidate.get("prompt") or candidate.get("plan_sha256") != plan_resource.get("hash"):
+            raise ValueError("visual prompt candidate is not bound to the observed plan")
+        return {"content": "已读取镜头提示词候选，候选仍等待用户采用。"}
+
     if mode == "compose":
         project_id, chapter_id = task["project_id"], task["chapter_id"]
         resource = {"project_id": project_id, "source_chapter_id": chapter_id}

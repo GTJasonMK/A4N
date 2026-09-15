@@ -400,6 +400,23 @@ def main():
             assert [shot["estimated_natural_seconds"] for shot in shots] == [3, 6, 3]
             report["checks"].append("Director Agent composes a starter into a persisted three-shot timeline; approvals, image binding, scene transition, confirmation and shooting-script projection are covered")
 
+            generation_run = send({
+                **task,
+                "mode": "generate",
+                "start_request_id": uuid.uuid4().hex,
+                "prompt": "镜头缓慢推近，保留门把手停顿和冷光转场。",
+            })
+            generated_snapshot = finish(generation_run)
+            generated_executions = [row for row in generated_snapshot["executions"] if row["run_id"] == generation_run]
+            generated_tools = [row["tool_name"] for row in generated_executions if row["status"] == "succeeded"]
+            assert generated_tools == [
+                "read_chapter_visual_plan",
+                "start_visual_plan_prompt_generation",
+                "wait_generation_task",
+                "read_visual_plan_prompt_candidate",
+            ], generated_tools
+            report["checks"].append("Director Agent starts an async prompt generation task, waits for its terminal result and reads a plan-bound candidate without auto-adoption")
+
             if args.fault_database_url_env:
                 database = urlparse(os.environ[args.fault_database_url_env])
                 database_name = unquote(database.path.removeprefix("/"))
