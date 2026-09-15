@@ -1,6 +1,6 @@
 use super::super::super::*;
 use super::super::support::{manifest_with_pack, pack_ref};
-use crate::provider::{ChatMessage, ChatRequest};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 
 #[test]
 fn context_aware_request_attaches_manifest_without_serializing_it() {

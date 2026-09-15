@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 a4n-error = { path = "../a4n-error", default-features = false }
 a4n-domain = { path = "../a4n-domain" }
+a4n-llm-context = { path = "../a4n-llm-context" }
 a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-progress = { path = "../a4n-progress" }
 

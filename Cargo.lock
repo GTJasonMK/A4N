@@ -612,6 +612,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
+ "a4n-llm-context",
  "a4n-llm-provider-contract",
  "a4n-progress",
  "async-trait",
@@ -643,6 +644,17 @@ dependencies = [
  "a4n-llm-provider-contract",
  "serde_json",
  "url",
+]
+
+[[package]]
+name = "a4n-llm-context"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

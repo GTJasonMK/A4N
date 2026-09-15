@@ -1,7 +1,7 @@
 use super::super::contracts::LlmContextManifest;
 use super::super::manifest::{render_context_manifest_user_content, validate_context_manifest};
-use crate::provider::ChatRequest;
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 pub fn context_aware_system_user_request(
     system_prompt: impl Into<String>,

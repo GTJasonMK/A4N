@@ -1,7 +1,7 @@
 use super::super::contracts::{LlmContextManifest, PlannedContextPack};
 use super::super::manifest::render_context_manifest_user_content_with_cache_boundary;
-use crate::provider::{ChatMessage, ChatRequest, MessageRole};
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, MessageRole};
 
 pub fn replace_request_user_content_from_manifest(
     request: &mut ChatRequest,

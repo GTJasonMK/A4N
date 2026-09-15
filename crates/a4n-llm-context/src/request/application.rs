@@ -6,7 +6,7 @@ use super::super::{
     LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
 };
 use super::context_aware_system_user_request;
-use crate::provider::{ChatRequest, LlmTraceContext};
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 
 #[derive(Debug, Clone)]
 pub struct ContextAwareJsonLlmRequestInput {

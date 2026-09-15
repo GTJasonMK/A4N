@@ -5,8 +5,8 @@ use super::super::contracts::{LlmContextManifest, LlmContextRequestPreview};
 use super::super::manifest::validate_context_manifest;
 use super::super::planner::{ContextBudgetPlanner, estimate_context_tokens};
 use super::{context_manifest_dynamic_messages, replace_request_user_content_from_manifest};
-use crate::provider::{ChatRequest, MessageRole};
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::{ChatRequest, MessageRole};
 use hydration::hydrate_selected_pack_content;
 use requirements::preview_requirement_inputs;
 

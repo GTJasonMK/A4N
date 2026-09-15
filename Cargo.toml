@@ -39,6 +39,7 @@ members = [
     "crates/a4n-cleanup-contract",
     "crates/a4n-canvas-contract",
     "crates/a4n-llm",
+    "crates/a4n-llm-context",
     "crates/a4n-llm-config",
     "crates/a4n-llm-http",
     "crates/a4n-llm-gateway",

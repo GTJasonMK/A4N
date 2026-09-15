@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::super::super::contracts::{LlmContextManifest, LlmContextPackRequirement};
-use crate::provider::ChatMessage;
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::ChatMessage;
 
 mod manifest;
 mod system;

@@ -1,5 +1,5 @@
 use super::super::rules::compression_rank;
-use crate::context::LlmContextPackRef;
+use crate::LlmContextPackRef;
 
 pub(super) fn select_variant(
     variants: &[LlmContextPackRef],

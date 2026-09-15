@@ -1,5 +1,5 @@
-use crate::provider::ChatMessage;
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::ChatMessage;
 
 use super::super::super::super::contracts::{
     COMPRESSION_FULL_RAW, LlmContextPackRef, LlmContextPackRequirement,
