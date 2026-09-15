@@ -1,7 +1,8 @@
 //! 章节生成 ChatRequest 合同测试。
 
 use super::build_chapter_generation_request;
-use a4n_llm::{context::preview_context_aware_chat_request, provider::MessageRole};
+use a4n_llm::provider::MessageRole;
+use a4n_llm_context::preview_context_aware_chat_request;
 
 #[test]
 fn moves_outline_and_context_into_manifest() {

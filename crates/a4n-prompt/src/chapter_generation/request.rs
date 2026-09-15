@@ -5,7 +5,7 @@ use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;
 
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::context::context_aware_system_user_request;
+use a4n_llm_context::context_aware_system_user_request;
 
 use super::manifest::build_chapter_generation_context_manifest;
 use super::message::{

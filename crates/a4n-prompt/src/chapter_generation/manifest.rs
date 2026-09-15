@@ -1,7 +1,7 @@
 //! 章节生成上下文 manifest。
 
 use a4n_error::AppError;
-use a4n_llm::context::{LlmContextLedger, LlmContextManifest};
+use a4n_llm_context::{LlmContextLedger, LlmContextManifest};
 
 use super::message::{normalize_context_before_section, required_generation_outline_text};
 
