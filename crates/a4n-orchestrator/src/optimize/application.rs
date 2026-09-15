@@ -15,6 +15,7 @@ use a4n_db_models::models::ai::{
     optimization_turn_event,
 };
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -130,7 +131,7 @@ pub trait OptimizePatchPreviewApplicationPort: Send + Sync {
         user_id: i64,
         input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+    ) -> Result<ChatRequest, AppError>;
 }
 
 /// Runtime-facing optimization chat request-preview boundary.
@@ -141,7 +142,7 @@ pub trait OptimizeChatPreviewApplicationPort: Send + Sync {
         user_id: i64,
         input: SendOptimizationMessageInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+    ) -> Result<ChatRequest, AppError>;
 }
 
 /// Runtime-facing optimization analysis request-preview boundary.
@@ -152,14 +153,14 @@ pub trait OptimizeAnalysisPreviewApplicationPort: Send + Sync {
         user_id: i64,
         input: AnalyzeChapterInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+    ) -> Result<ChatRequest, AppError>;
 
     async fn preview_prepare_analysis(
         &self,
         user_id: i64,
         input: PrepareOptimizationAnalysisSessionInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+    ) -> Result<ChatRequest, AppError>;
 }
 
 /// Runtime-facing content-optimization chat generation boundary.
@@ -301,7 +302,7 @@ impl OrchestratorContext {
         chapter_number: i32,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, serde_json::Value>,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         let chapter = self
             .optimize_chapter_for_user(user_id, project_id, chapter_number)
             .await?;
@@ -321,7 +322,7 @@ impl OrchestratorContext {
         session_id: i64,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, serde_json::Value>,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         let session = self.optimize_session_for_user(user_id, session_id).await?;
         let chapter = self
             .optimization_chapter_by_id(session.chapter_id)
@@ -344,7 +345,7 @@ impl OrchestratorContext {
         message: &str,
         permissions: &OptimizeAgentPermissions,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
         self.build_send_user_message_preview_request(
             session_id,
@@ -362,7 +363,7 @@ impl OrchestratorContext {
         issue_ids: Option<Vec<String>>,
         prompt_renderer: &dyn PromptRenderer,
         agent_instruction_override: Option<&str>,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
         self.build_propose_patches_preview_request(
             session_id,
@@ -746,7 +747,7 @@ impl OptimizeAnalysisPreviewApplicationPort for OrchestratorContext {
         user_id: i64,
         input: AnalyzeChapterInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         let variables = optimization_analysis_variables(
             &input.mode,
             input.scope.as_deref(),
@@ -769,7 +770,7 @@ impl OptimizeAnalysisPreviewApplicationPort for OrchestratorContext {
         user_id: i64,
         input: PrepareOptimizationAnalysisSessionInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         let variables = optimization_analysis_variables(
             &input.mode,
             input.scope.as_deref(),
@@ -794,7 +795,7 @@ impl OptimizeChatPreviewApplicationPort for OrchestratorContext {
         user_id: i64,
         input: SendOptimizationMessageInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         OrchestratorContext::build_send_user_message_preview_request_for_user_validated(
             self,
             user_id,
@@ -814,7 +815,7 @@ impl OptimizePatchPreviewApplicationPort for OrchestratorContext {
         user_id: i64,
         input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         OrchestratorContext::build_propose_patches_preview_request_for_user_validated(
             self,
             user_id,
