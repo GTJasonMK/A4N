@@ -5,7 +5,7 @@ pub use a4n_api_contract::chapter::{
     PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
 };
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_orchestrator::GenerationTaskAccessError;
 use a4n_orchestrator::chapter_generation::ChapterGenerationApplicationContext;
 

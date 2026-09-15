@@ -4,9 +4,9 @@ use std::sync::Arc;
 use a4n_domain::embedding::{EmbeddingBackendKind, embedding_provider_capabilities};
 use a4n_embedding::http::HttpEmbeddingProvider;
 use a4n_embedding::local::LocalEmbeddingProvider;
-use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::FastEmbedProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 

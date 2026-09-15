@@ -35,6 +35,7 @@ a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }
 a4n-embedding-contract = { path = "../a4n-embedding-contract" }
+a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" }
 a4n-process-catalog = { path = "../a4n-process-catalog" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-service-client = { path = "../a4n-service-client" }

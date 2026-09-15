@@ -1016,6 +1016,7 @@ dependencies = [
  "a4n-embedding-client",
  "a4n-embedding-contract",
  "a4n-embedding-fastembed",
+ "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-event",
  "a4n-export-client",

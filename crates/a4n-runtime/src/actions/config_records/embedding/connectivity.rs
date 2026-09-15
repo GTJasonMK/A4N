@@ -3,7 +3,7 @@ use crate::actions::request_preview::{
     ModelRequestPreview, model_request_preview, provider_request_step,
 };
 use crate::{AppState, actions::app_error_message};
-use a4n_embedding::provider::EMBEDDING_CONNECTIVITY_TEST_TEXT;
+use a4n_embedding_provider_contract::EMBEDDING_CONNECTIVITY_TEST_TEXT;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use serde::Serialize;
