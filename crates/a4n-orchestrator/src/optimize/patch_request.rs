@@ -1,15 +1,15 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use a4n_llm_context::LlmContextManifest;
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;
 
 use super::context::optimization_context_manifest;
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_llm::trace::context_aware_chat_request_trace_json;
 use a4n_llm_context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, context_aware_system_user_request,
 };
+use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 pub(in crate::optimize) fn build_content_optimization_patch_request(
     project_id: i64,

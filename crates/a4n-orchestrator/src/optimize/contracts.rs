@@ -1,5 +1,5 @@
 use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::OptimizeAgentPermissions;
 use a4n_prompt::rendering::PromptRenderer;
