@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatRequest, ChatResponse, LlmProvider, collect_chat_stream};
+use a4n_llm_provider_contract::{ChatRequest, ChatResponse, LlmProvider, collect_chat_stream};
 use a4n_llm_sidecar_contract::{LlmChatRequest, LlmProbeOutput, LlmProbePayload};
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest, ServiceResponse};
 use axum::Json;

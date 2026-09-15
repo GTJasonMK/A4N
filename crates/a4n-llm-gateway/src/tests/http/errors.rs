@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_llm::gateway::LlmGatewayPayload;
-use a4n_llm::provider::ChatRequest;
-use a4n_llm_sidecar_contract::LlmGatewayProviderConfig;
+use a4n_llm_provider_contract::ChatRequest;
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+};
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode};
 use axum::{
     Json, Router,
@@ -19,6 +20,8 @@ use super::{
     FakeProviderObservation, TestHttpServer, build_router, collect_stream_events, event_chunk,
     observe_fake_provider_request, service_request,
 };
+
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
 fn malformed_fake_provider_router(observation: FakeProviderObservation) -> Router {
     Router::new()
         .route("/chat/completions", post(malformed_fake_chat_completions))

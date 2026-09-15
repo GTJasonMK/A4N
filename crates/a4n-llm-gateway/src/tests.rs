@@ -1,7 +1,8 @@
 use a4n_error::AppError;
-use a4n_llm::gateway::LlmGatewayPayload;
-use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, ChatResponse, UsageInfo};
-use a4n_llm_sidecar_contract::LlmGatewayProviderConfig;
+use a4n_llm_provider_contract::{ChatChunk, ChatMessage, ChatRequest, ChatResponse, UsageInfo};
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+};
 use a4n_model_discovery_contract::ModelDiscoveryRequest;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind,
@@ -18,6 +19,8 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 mod http;
+
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
 
 fn test_provider_config() -> LlmGatewayProviderConfig {
     LlmGatewayProviderConfig {

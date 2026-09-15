@@ -5,9 +5,11 @@ use std::{
     time::Duration,
 };
 
-use a4n_llm::gateway::{LlmGatewayPayload, LlmGatewayProviderConfig};
-use a4n_llm::provider::ChatRequest;
 use a4n_llm_client::{HttpLlmClient, LlmClient, LlmGatewayRequest};
+use a4n_llm_provider_contract::ChatRequest;
+use a4n_llm_sidecar_contract::{
+    LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
+};
 use a4n_model_discovery_contract::ModelDiscoveryRequest;
 use a4n_service_client::ServiceClient;
 use a4n_service_manager::{
@@ -28,6 +30,8 @@ use axum::{
 };
 use serde_json::{Value, json};
 use tokio::{sync::oneshot, task::JoinHandle, time::timeout};
+
+type LlmGatewayPayload = WireGatewayPayload<LlmChatRequest>;
 
 pub(crate) fn unused_local_addr() -> SocketAddr {
     let listener = std::net::TcpListener::bind("127.0.0.1:0")

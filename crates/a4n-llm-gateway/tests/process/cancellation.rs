@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use a4n_llm::provider::ChatRequest;
 use a4n_llm_client::LlmClient;
+use a4n_llm_provider_contract::ChatRequest;
 use a4n_service_protocol::{
     CapabilityTaskEventKind, LLM_SERVICE_NAME, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };

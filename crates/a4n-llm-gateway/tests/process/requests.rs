@@ -1,5 +1,5 @@
-use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_llm_client::LlmClient;
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, LLM_SERVICE_NAME, PROTOCOL_VERSION,

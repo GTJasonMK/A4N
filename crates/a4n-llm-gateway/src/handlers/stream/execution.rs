@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ToolCall};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest, ToolCall, open_chat_stream};
 use a4n_llm_sidecar_contract::{
     LlmChatRequest, LlmGatewayPayload, LlmStreamChunk, LlmStreamToolCall,
 };
@@ -27,7 +27,7 @@ pub(super) fn stream_with_provider(
     let provider_stream = Box::pin(async move {
         let LlmGatewayPayload { provider, request } = request.payload;
         let provider = provider_from_config(provider)?;
-        a4n_llm::provider::open_chat_stream(
+        open_chat_stream(
             provider.chat_stream(ChatRequest::from(request)),
             Default::default(),
         )
