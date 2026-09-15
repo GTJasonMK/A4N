@@ -3,7 +3,7 @@ use a4n_error::AppError;
 use serde_json::Value;
 use url::{Host, Url};
 
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::{
     LlmProtocolKind, normalize_extra_body_json, validate_prompt_cache_options,
 };
 

@@ -1,6 +1,6 @@
 use a4n_domain::config::{normalize_config_name, positive_i32, required_config_value};
 use a4n_error::AppError;
-use a4n_llm::provider::LlmProtocolKind;
+use a4n_llm_provider_contract::LlmProtocolKind;
 
 use super::{
     contracts::{CreateLlmConfigInput, NormalizedLlmConfig},
