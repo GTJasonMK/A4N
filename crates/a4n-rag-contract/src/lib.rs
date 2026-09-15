@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use a4n_domain::rag::RagDataType;
-use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_rag_core::vector_store::SearchFilter;
 use a4n_rag_core::{

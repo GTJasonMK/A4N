@@ -903,7 +903,7 @@ name = "a4n-rag-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding",
+ "a4n-embedding-contract",
  "a4n-error",
  "a4n-rag-core",
  "async-trait",
