@@ -1,6 +1,7 @@
 use a4n_config::{env_flag_enabled, optional_non_empty_env_string};
 use a4n_process_catalog::{
-    ServiceCatalogEntry, parse_service_socket_addr, service_catalog_entry_for_capability_version,
+    ServiceCatalogEntry, parse_service_socket_addr,
+    service_catalog_entry_for_capability_version_ref,
 };
 use a4n_service_manager::normalize_remote_service_url;
 
@@ -8,11 +9,11 @@ use super::catalog::{MANAGED_SIDECARS_ENV, sidecar_service_specs};
 
 pub(in crate::sidecar_clients) fn sidecar_service_and_url_for_capability(
     capability_version: &str,
-) -> Result<(String, String), String> {
-    let service = service_catalog_entry_for_capability_version(capability_version)
-        .map(|entry| entry.name)
+) -> Result<(&'static str, String), String> {
+    let service = service_catalog_entry_for_capability_version_ref(capability_version)
+        .map(|entry| entry.name.as_str())
         .ok_or_else(|| format!("未注册的 sidecar capability_version: {capability_version}"))?;
-    let url = sidecar_url_for_service(&service)?;
+    let url = sidecar_url_for_service(service)?;
     Ok((service, url))
 }
 

@@ -11,7 +11,9 @@ use a4n_video::{
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
     VideoProvider, video_provider_capabilities,
 };
-use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
+use a4n_video_sidecar_contract::VideoGenerationRequest;
+#[cfg(test)]
+use a4n_video_sidecar_contract::VideoMediaInput;
 use serde_json::Value;
 
 pub fn pick_video_provider(

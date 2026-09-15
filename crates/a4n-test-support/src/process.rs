@@ -57,7 +57,11 @@ pub use a4n_service_protocol::{
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, ServiceRequestContext, ServiceStatus,
     TraceContext, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME,
 };
-pub use a4n_video_client::{HttpVideoClient, VideoClient};
+pub use a4n_video_client::{HttpVideoClient, VideoClient, VideoPollRequest, VideoProviderRequest};
+pub use a4n_video_sidecar_contract::{
+    VideoDeleteOutput, VideoGenerationRequest, VideoJobOutput, VideoMediaInput, VideoPollPayload,
+    VideoProviderPayload, VideoStatusOutput,
+};
 
 pub fn sidecar_base_url(addr: SocketAddr) -> String {
     format!("http://{addr}")
