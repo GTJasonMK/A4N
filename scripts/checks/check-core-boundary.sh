@@ -107,6 +107,12 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|runtime|orchestrator|server|tauri)|sea-or
     exit 1
 fi
 
+rag_core_tree="$(cargo tree --locked -e normal,build -p a4n-rag-core)"
+if rg -n '(^|[[:space:]])a4n-embedding([[:space:]]|v|$)' <<<"$rag_core_tree"; then
+    printf 'a4n-rag-core must consume a4n-embedding-provider-contract instead of embedding implementations\n' >&2
+    exit 1
+fi
+
 rag_contract_tree="$(cargo tree --locked -e normal,build -p a4n-rag-contract)"
 if rg -n '(^|[[:space:]])(a4n-(core|db|runtime|orchestrator)|sea-orm|sqlx)([[:space:]]|v|$)' \
     <<<"$rag_contract_tree"; then

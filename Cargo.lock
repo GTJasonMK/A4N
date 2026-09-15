@@ -305,6 +305,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-embedding-contract",
+ "a4n-embedding-provider-contract",
  "async-trait",
  "reqwest 0.12.28",
  "serde",
@@ -348,6 +349,17 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "a4n-embedding-provider-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-embedding-contract",
+ "async-trait",
+ "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -924,7 +936,7 @@ name = "a4n-rag-core"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
- "a4n-embedding",
+ "a4n-embedding-provider-contract",
  "a4n-rag-value-contract",
  "async-trait",
  "dashmap",

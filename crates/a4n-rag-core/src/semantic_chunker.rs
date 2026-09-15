@@ -7,7 +7,7 @@ mod tests;
 
 use a4n_domain::ProviderError as AppError;
 
-use a4n_embedding::provider::EmbeddingProvider;
+use a4n_embedding_provider_contract::EmbeddingProvider;
 
 use super::{
     chunk_strategy::{CHAPTER_RAG_MAX_CHUNK_CHARS, CHAPTER_RAG_MIN_CHUNK_CHARS},

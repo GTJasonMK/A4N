@@ -1,5 +1,5 @@
 use super::*;
-use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
+use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use async_trait::async_trait;
 
 struct TopicEmbeddingProvider;

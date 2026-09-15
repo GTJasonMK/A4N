@@ -16,7 +16,7 @@ pub mod search {
 pub mod sync {
     use std::collections::HashMap;
 
-    use a4n_embedding::provider::EmbeddingModelIdentity;
+    use a4n_embedding_provider_contract::EmbeddingModelIdentity;
     use serde_json::Value;
 
     use crate::{
