@@ -1,4 +1,4 @@
-use a4n_llm::provider::{ChatMessage, ChatResponse};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse};
 
 use crate::{
     generation::{
