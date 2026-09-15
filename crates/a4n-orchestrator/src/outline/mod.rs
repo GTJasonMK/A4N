@@ -2,10 +2,6 @@
 //!
 //! 对应文档 04-大纲系统
 
-use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle, outline::StartOutlineGenerationInput,
-};
-
 mod application;
 mod chapter_contract;
 mod chapters;
@@ -22,7 +18,7 @@ mod workflow_rules;
 pub use a4n_outline_contract::{
     OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
     OutlineChapterCountGenerationPreviewApplicationPort,
-    OutlineChapterRegenerationPreviewApplicationPort,
+    OutlineChapterRegenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
     OutlinePartChapterGenerationPreviewApplicationPort,
     OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
     OutlineRequestPreviewStep,
@@ -52,22 +48,3 @@ mod tests;
 
 pub(in crate::outline) use chapter_contract::outline_db_error;
 pub(crate) use context::{chapter_outline_context_json, outline_formal_materials_context_json};
-
-/// Host-facing boundary for outline generation workers.
-///
-/// Runtime owns task scheduling; outline validation, LLM workflow state and
-/// persistence remain in the outline owner.
-#[async_trait::async_trait]
-pub trait OutlineGenerationApplicationPort: Send + Sync {
-    async fn start_task(
-        &self,
-        user_id: i64,
-        input: &StartOutlineGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn run_task(
-        &self,
-        input: StartOutlineGenerationInput,
-        handle: GenerationTaskHandle,
-    ) -> Result<(), String>;
-}

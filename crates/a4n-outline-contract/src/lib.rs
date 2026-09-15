@@ -3,11 +3,14 @@
 //! The outline owner implements these ports. Runtime only performs Host-side
 //! adaptation and consumes the typed preview result.
 
-use a4n_api_contract::outline::{
-    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
-    GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
-    RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
-    RegeneratePartsInput,
+use a4n_api_contract::{
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStart, GenerationTaskStartError},
+    outline::{
+        ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
+        GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
+        RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
+        RegeneratePartsInput, StartOutlineGenerationInput,
+    },
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -21,6 +24,25 @@ pub struct OutlineRequestPreviewStep {
     pub state: String,
     pub note: Option<String>,
     pub request: Option<ChatRequest>,
+}
+
+/// Host-facing boundary for outline generation workers.
+///
+/// Runtime owns task scheduling; outline validation, LLM workflow state and
+/// persistence remain in the outline owner.
+#[async_trait::async_trait]
+pub trait OutlineGenerationApplicationPort: Send + Sync {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartOutlineGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskStartError>;
+
+    async fn run_task(
+        &self,
+        input: StartOutlineGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
 }
 
 /// Host-facing boundary for outline part-generation previews.

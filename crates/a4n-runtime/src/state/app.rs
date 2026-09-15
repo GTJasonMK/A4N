@@ -274,8 +274,7 @@ pub struct AppState {
     outline_mutation_application:
         Arc<dyn a4n_api_contract::outline::OutlineMutationApplicationPort>,
     /// Outline generation task owner. Runtime only schedules the worker.
-    outline_generation_application:
-        Arc<dyn a4n_orchestrator::outline::OutlineGenerationApplicationPort>,
+    outline_generation_application: Arc<dyn a4n_outline_contract::OutlineGenerationApplicationPort>,
     /// Part outline generation preview owner.
     outline_part_generation_preview_application:
         Arc<dyn a4n_outline_contract::OutlinePartGenerationPreviewApplicationPort>,
@@ -1624,7 +1623,7 @@ impl AppState {
 
     pub(crate) fn outline_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::outline::OutlineGenerationApplicationPort {
+    ) -> &dyn a4n_outline_contract::OutlineGenerationApplicationPort {
         self.outline_generation_application.as_ref()
     }
 
