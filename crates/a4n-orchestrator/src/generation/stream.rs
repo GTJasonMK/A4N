@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
-use a4n_llm::provider::{
+use a4n_llm_provider_contract::provider::{
     ChatMessage, ChatRequest, ChatResponse, LlmProvider, UsageInfo, is_truncated_finish_reason,
 };
 use a4n_service_protocol::{
@@ -191,25 +191,27 @@ pub(crate) async fn execute_llm_generation(
         "正在连接模型",
     )
     .await?;
-    let mut stream =
-        a4n_llm::provider::open_chat_stream(llm.chat_stream(request), cancellation.clone())
-            .await
-            .map_err(|error| {
-                if matches!(error, AppError::Cancelled) {
-                    return cancelled_error();
-                }
-                tracing::error!(stage_code = "provider_connect", error = %error, "模型流建立失败");
-                let retryable = matches!(error, AppError::Timeout(_) | AppError::LlmError(_));
-                public_error(
-                    "provider_job_failed",
-                    &format!(
-                        "模型调用准备或建流失败：{}",
-                        a4n_config::app_error_plain_message(error)
-                    ),
-                    retryable,
-                    "provider_connect",
-                )
-            })?;
+    let mut stream = a4n_llm_provider_contract::provider::open_chat_stream(
+        llm.chat_stream(request),
+        cancellation.clone(),
+    )
+    .await
+    .map_err(|error| {
+        if matches!(error, AppError::Cancelled) {
+            return cancelled_error();
+        }
+        tracing::error!(stage_code = "provider_connect", error = %error, "模型流建立失败");
+        let retryable = matches!(error, AppError::Timeout(_) | AppError::LlmError(_));
+        public_error(
+            "provider_job_failed",
+            &format!(
+                "模型调用准备或建流失败：{}",
+                a4n_config::app_error_plain_message(error)
+            ),
+            retryable,
+            "provider_connect",
+        )
+    })?;
     publish_progress(
         publisher,
         "provider_wait",
@@ -630,7 +632,9 @@ mod tests {
     use std::{pin::Pin, sync::Mutex};
 
     use a4n_error::AppError;
-    use a4n_llm::provider::{ChatChunk, ChatMessage, ModelCapabilities, UsageInfo};
+    use a4n_llm_provider_contract::provider::{
+        ChatChunk, ChatMessage, ModelCapabilities, UsageInfo,
+    };
     use async_trait::async_trait;
     use futures::{Stream, stream};
 

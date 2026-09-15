@@ -15,7 +15,7 @@ use a4n_domain::project::{
     validate_blueprint_chapter_count,
 };
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;

@@ -52,7 +52,7 @@ impl OrchestratorContext {
             Arc<dyn ProviderRuntimePort>,
         ) -> Result<
             (
-                Arc<dyn a4n_llm::provider::LlmProvider>,
+                Arc<dyn a4n_llm_provider_contract::provider::LlmProvider>,
                 Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
             ),
             AppError,

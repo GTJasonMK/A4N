@@ -1108,7 +1108,7 @@ impl crate::character::CharacterImplicitReviewPreviewApplicationPort for Orchest
         user_id: i64,
         input: CheckImplicitUpdateInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
         self.prepare_implicit_update_review_request_preview_validated(
             user_id,
             input,
