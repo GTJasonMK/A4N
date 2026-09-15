@@ -44,6 +44,7 @@ members = [
     "crates/a4n-embedding-contract",
     "crates/a4n-embedding-value-contract",
     "crates/a4n-embedding-provider-contract",
+    "crates/a4n-embedding-providers",
     "crates/a4n-embedding",
     "crates/a4n-embedding-fastembed",
     "crates/a4n-embedding-service",
