@@ -35,6 +35,7 @@ pub struct ImportedVideoProperties {
 
 #[derive(Debug, Clone)]
 pub struct VideoProviderRequestInput {
+    pub user_id: i64,
     pub project_id: i64,
     pub config: VideoProviderConfig,
     pub request: VideoGenerationRequest,

@@ -8,9 +8,9 @@ use a4n_api_contract::{
     image::GeneratedImageSummary,
     image_generation::{
         GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
-        GenerateSceneImageInput, ImageGenerationOperation, ObjectProfileImageInput,
-        ObjectProfileImagePromptOutput, SceneProfileImageInput, SceneProfileImagePromptOutput,
-        StartImageGenerationInput,
+        GenerateSceneImageInput, ImageGenerationOperation, ImageProfilePromptApplicationPort,
+        ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
+        SceneProfileImagePromptOutput, StartImageGenerationInput,
     },
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
@@ -33,8 +33,7 @@ use crate::{
         ImageBatchRequestPreviewApplicationPort, ImageCanvasRequestPreviewApplicationPort,
         ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationTaskApplicationPort,
         ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
-        ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
-        PreparedImageGenerationRequest,
+        ImageSceneRequestPreviewApplicationPort, PreparedImageGenerationRequest,
     },
 };
 
@@ -510,8 +509,13 @@ impl ImageGenerationTaskApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &StartImageGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_image_generation_task(self, user_id, input).await
+    ) -> Result<
+        crate::GenerationTaskStart,
+        a4n_api_contract::generation_tasks::GenerationTaskStartError,
+    > {
+        OrchestratorContext::start_image_generation_task(self, user_id, input)
+            .await
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(

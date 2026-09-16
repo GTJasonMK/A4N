@@ -1,6 +1,6 @@
 use a4n_api_contract::profile::SyncSceneProfilesInput;
 use a4n_error::AppError;
-use a4n_orchestrator::scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress};
+use a4n_scene_host_contract::{SceneProfileSyncHostPort, SceneProfileSyncProgress};
 use async_trait::async_trait;
 
 use crate::{rag_ingest::SceneRagSyncTraceSource, state::AppState};

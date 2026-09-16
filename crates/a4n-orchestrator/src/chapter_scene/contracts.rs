@@ -2,15 +2,12 @@ use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 
+pub(crate) use a4n_novel_host_contract::ChapterSceneRequestPreview;
+
 pub(super) struct ChapterSceneGenerationInput {
     pub(super) chapter: chapter::Model,
     pub(super) scene_number: i32,
     pub(super) scene_prompt: String,
-}
-
-pub struct ChapterSceneRequestPreview {
-    pub chapter_number: i32,
-    pub request: ChatRequest,
 }
 
 #[derive(Debug)]

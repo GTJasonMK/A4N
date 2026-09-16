@@ -4,15 +4,15 @@ use crate::{
     actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state},
 };
 use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle, optimize::StartOptimizePatchGenerationInput,
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
+    optimize::StartOptimizePatchGenerationInput,
 };
-use a4n_orchestrator::GenerationTaskAccessError;
 
 pub async fn start_optimize_patch_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartOptimizePatchGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .optimize_patch_generation_application()
         .start_patch_generation(user_id, &input)

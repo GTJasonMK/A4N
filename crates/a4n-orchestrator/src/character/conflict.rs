@@ -7,31 +7,12 @@ mod execution;
 mod request;
 mod workflow;
 
-use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
+pub(crate) use a4n_character_host_contract::CharacterConflictApplicationPort;
+pub(crate) use a4n_character_host_contract::{
+    CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL,
+};
 
-pub const CHARACTER_CONFLICT_KIND: &str = "character_conflict_check";
-pub const CHARACTER_CONFLICT_PROGRESS_TOTAL: u32 = 4;
-
-pub use contracts::CharacterConflictProgressReporter;
 pub use execution::validate_character_conflict_input;
-
-/// Runtime-facing character-consistency boundary.
-#[async_trait::async_trait]
-pub trait CharacterConflictApplicationPort: Send + Sync {
-    async fn preview(
-        &self,
-        input: CharacterConflictCheckInput,
-        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
-    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, a4n_error::AppError>;
-
-    async fn check(
-        &self,
-        input: CharacterConflictCheckInput,
-        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
-        progress: CharacterConflictProgressReporter<'_>,
-        active_task_id: Option<&str>,
-    ) -> Result<Vec<CharacterConflictSummary>, a4n_error::AppError>;
-}
 
 #[cfg(test)]
 mod tests;

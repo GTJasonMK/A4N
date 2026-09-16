@@ -48,7 +48,7 @@ pub async fn preview_resume_chapter_analysis_sync_request(
 }
 
 fn preview_step(
-    step: a4n_prompt::chapter_analysis::ChapterAnalysisRequestStep,
+    step: a4n_chapter_analysis_host_contract::ChapterAnalysisRequestStep,
 ) -> ChatStatusPreviewStep {
     ChatStatusPreviewStep::llm(
         step.key,

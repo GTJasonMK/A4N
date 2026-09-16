@@ -5,8 +5,7 @@ mod request;
 
 pub use contracts::{
     CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
-    CharacterProfileSyncPreviewStep, CharacterProfileSyncStageInput,
-    CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
+    CharacterProfileSyncStageInput,
 };
 
 #[cfg(test)]

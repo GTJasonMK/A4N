@@ -1,7 +1,7 @@
-use a4n_llm_provider_contract::provider::ChatMessage;
-use a4n_orchestrator::character::{
+use a4n_character_host_contract::{
     CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
 };
+use a4n_llm_provider_contract::provider::ChatMessage;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 

@@ -10,8 +10,9 @@ mod stats;
 
 pub(crate) use contracts::CharacterSyncImplicitReviewInput;
 
-pub const IMPLICIT_UPDATE_PROMPT_NAME: &str = "implicit_update";
-pub const IMPLICIT_UPDATE_WORKFLOW_KIND: &str = "implicit_update_review";
+pub(crate) use a4n_character_host_contract::{
+    IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND,
+};
 const IMPLICIT_UPDATE_STEP_KEY: &str = "implicit_update_decision";
 
 #[cfg(test)]

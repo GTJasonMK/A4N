@@ -1,7 +1,6 @@
 use crate::AppState;
-use a4n_api_contract::generation_tasks::GenerationTaskHandle;
+use a4n_api_contract::generation_tasks::{GenerationTaskHandle, GenerationTaskStartError};
 use a4n_api_contract::optimize::StartOptimizeChatGenerationInput;
-use a4n_orchestrator::GenerationTaskAccessError;
 
 use super::{CreateOptimizationChatSessionInput, OptimizationSessionSummary};
 
@@ -13,7 +12,7 @@ pub async fn start_optimize_chat_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartOptimizeChatGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     start_optimize_chat_generation_with_output_limit(state, user_id, input, None).await
 }
 
@@ -22,7 +21,7 @@ pub(crate) async fn start_optimize_chat_generation_with_output_limit(
     user_id: i64,
     input: StartOptimizeChatGenerationInput,
     agent_max_output_tokens: Option<usize>,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .optimize_chat_generation_application()
         .start_chat_generation(user_id, &input)

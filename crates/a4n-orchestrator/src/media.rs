@@ -8,26 +8,23 @@ mod image_record_lifecycle;
 mod image_workflow_rules;
 
 pub use a4n_api_contract::image::{GeneratedImageIdentity, ImageMediaReferencePort};
+pub(crate) use a4n_image_host_contract::{
+    GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
+    ImageCanvasRequestPreviewApplicationPort, ImageGenerationHostPort, ImageGenerationProgress,
+    ImageGenerationTaskApplicationPort, ImageObjectProfileRequestPreviewApplicationPort,
+    ImagePageRequestPreviewApplicationPort, ImageSceneRequestPreviewApplicationPort,
+    PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput, PreparedImageGenerationRequest,
+};
+#[cfg(test)]
+pub(crate) use a4n_image_host_contract::{PersistedGeneratedImageFile, PreparedGeneratedImageFile};
 pub(crate) use batch_image_application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
 pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
-pub use image_generation::{
-    GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
-    ImageCanvasRequestPreviewApplicationPort, ImageGenerationExecutionInput,
-    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationTaskApplicationPort, ImageGenerationWorkflowBinding,
-    ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
-    ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
-    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
-    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
-    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
-    generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
-};
-pub use image_record_lifecycle::{
-    ImageImportPreparationApplicationPort, ImageImportPublicationApplicationPort,
-    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
+pub(crate) use image_generation::generated_image_summary;
+pub(crate) use image_generation::{
+    ImageGenerationExecutionInput, ImageGenerationPostCommitAction, ImageGenerationWorkflowBinding,
+    image_generation_request_trace_json,
 };
 
 pub(crate) use image_workflow_rules::{

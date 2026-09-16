@@ -16,7 +16,6 @@ use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use a4n_test_support::llm::UnavailableLlmProvider;
 
 use crate::OrchestratorContext;
-use crate::chapter_generation::ChapterGenerationService;
 use crate::task_queue::PersistentTaskQueue;
 
 const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM 流响应";
@@ -80,7 +79,6 @@ impl TestOrchestratorBuilder {
         let db_handle = DbHandle::new(self.db.clone());
         let event_bus = Arc::new(BroadcastEventBus::new(64));
         let task_manager = Arc::new(TaskManager::new());
-        let chapter = ChapterGenerationService::new(self.db.clone());
         let rag_store: Arc<dyn VectorStore> = Arc::new(MemoryVectorStore::new());
         let task_queue = Arc::new(
             PersistentTaskQueue::new(self.db.clone())
@@ -104,7 +102,6 @@ impl TestOrchestratorBuilder {
             self.config,
             event_bus,
             task_manager,
-            chapter,
             rag_store,
             task_queue,
             engine,

@@ -42,7 +42,7 @@ pub(super) async fn chat_scene_profile_stage(
                     spec: stage_progress.structured,
                     span: stage_progress.span,
                 }),
-                cancel_token: progress.and_then(|progress| progress.cancel_token),
+                cancel_token: progress.and_then(SceneProfileSyncProgress::cancel_token),
                 cancelled_message: "场景档案同步已停止",
             },
             |current, message| {

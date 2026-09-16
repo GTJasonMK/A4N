@@ -205,6 +205,25 @@ pub struct SceneProfileImagePromptOutput {
     pub prompt: String,
 }
 
+/// Host-facing boundary for profile image prompt generation.
+///
+/// Prompt construction only consumes API inputs and returns API outputs; it
+/// does not require provider, file, task, or runtime state.
+#[async_trait::async_trait]
+pub trait ImageProfilePromptApplicationPort: Send + Sync {
+    async fn object_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &ObjectProfileImageInput,
+    ) -> Result<ObjectProfileImagePromptOutput, a4n_error::AppError>;
+
+    async fn scene_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &SceneProfileImageInput,
+    ) -> Result<SceneProfileImagePromptOutput, a4n_error::AppError>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::ObjectProfileImageInput;

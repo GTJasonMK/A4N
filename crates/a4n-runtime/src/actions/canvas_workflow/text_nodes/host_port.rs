@@ -1,6 +1,6 @@
+use a4n_canvas_host_contract::{CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatResponse;
-use a4n_orchestrator::canvas::{CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort};
 use async_trait::async_trait;
 
 use crate::AppState;

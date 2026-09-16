@@ -8,7 +8,6 @@ mod input_rules;
 mod media_import;
 mod node_execution;
 mod output_nodes;
-mod preview;
 mod probe_nodes;
 mod source_checkpoint;
 mod source_text;
@@ -17,6 +16,14 @@ mod tools;
 mod video_generation;
 mod workflow_rules;
 
+pub(crate) use a4n_canvas_host_contract::CanvasImageNodeApplicationPort;
+pub(crate) use a4n_canvas_host_contract::{
+    CanvasLlmTextNodeApplicationPort, CanvasTextGenerationLlmPort,
+};
+pub(crate) use a4n_canvas_host_contract::{CanvasNodeRequestPreview, CanvasPreviewApplicationPort};
+pub(crate) use a4n_canvas_host_contract::{
+    CanvasVideoGenerationHostPort, CanvasVideoNodeApplicationPort,
+};
 pub(crate) use a4n_db::canvas::{
     CanvasGraphRecordDocument, CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
     validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
@@ -24,7 +31,6 @@ pub(crate) use a4n_db::canvas::{
 };
 pub(crate) use editing_nodes::CanvasEditingNodeExecutionInput;
 pub(crate) use errors::{canvas_db_error, video_studio_project_import_error};
-pub use image_generation::CanvasImageNodeApplicationPort;
 pub(crate) use image_generation::{
     CanvasImageNodeExecutionInput, build_canvas_image_node_input_for_preview,
 };
@@ -38,21 +44,13 @@ pub(crate) use node_execution::CanvasNodeRunHandle;
 pub(crate) use output_nodes::{
     CanvasOutputDataType, CanvasOutputNodeExecutionInput, CanvasOutputValue,
 };
-pub use preview::{CanvasNodeRequestPreview, CanvasPreviewApplicationPort};
 pub(crate) use probe_nodes::CanvasProbeNodeExecutionInput;
 pub(crate) use source_checkpoint::source_node_output_id;
 pub(crate) use source_text::{
     first_canvas_text_asset_id, source_canvas_text_asset_id, source_text_value,
 };
-pub use text_generation::{
-    CanvasLlmTextNodeApplicationPort, CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort,
-};
 pub(crate) use text_generation::{
     CanvasTextNodeExecutionInput, build_canvas_llm_text_request_for_preview,
-};
-pub use video_generation::{
-    CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoNodeApplicationPort,
-    CanvasVideoPersistedFile, CanvasVideoProviderInput,
 };
 pub(crate) use video_generation::{
     CanvasVideoNodeExecutionInput, build_canvas_video_node_input_for_preview,

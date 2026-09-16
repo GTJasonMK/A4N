@@ -5,8 +5,9 @@ use std::{
 
 use a4n_api_contract::prompt::{
     AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
-    PromptExecutionContext, PromptVersionSummary, RemoveOverrideInput, RenderInput,
-    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
+    PromptExecutionContext, PromptMutationApplicationPort, PromptReadApplicationPort,
+    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
+    ValidateVarsInput, VersionDiffInput,
 };
 use a4n_error::AppError;
 use a4n_prompt::engine::PromptVersion;
@@ -48,123 +49,6 @@ impl PromptRenderer for PromptRendererAdapter<'_> {
             .render_prompt(template_name, variables, project_id)
             .await
     }
-}
-
-/// Prompt record read boundary. The owner chooses embedded versus
-/// prompt-service execution; Runtime only supplies this execution context and
-/// routes typed reads.
-#[async_trait]
-pub trait PromptReadApplicationPort: Send + Sync {
-    async fn list_records(
-        &self,
-        context: &PromptExecutionContext,
-    ) -> Result<Vec<PromptEntrySummary>, AppError>;
-
-    async fn version_history(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<Vec<PromptVersionSummary>, AppError>;
-
-    async fn render_record(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RenderInput,
-    ) -> Result<String, AppError>;
-
-    async fn render_template(
-        &self,
-        context: &PromptExecutionContext,
-        template_name: &str,
-        variables: HashMap<String, Value>,
-        project_id: Option<i64>,
-    ) -> Result<String, AppError>;
-
-    async fn render_ab(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RenderInput,
-    ) -> Result<AbRenderResult, AppError>;
-
-    async fn list_project_overrides(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ProjectPromptOverrideSummary>, AppError>;
-
-    async fn version_diff(
-        &self,
-        context: &PromptExecutionContext,
-        input: VersionDiffInput,
-    ) -> Result<String, AppError>;
-
-    async fn validate_variables(
-        &self,
-        context: &PromptExecutionContext,
-        input: ValidateVarsInput,
-    ) -> Result<Vec<String>, AppError>;
-
-    async fn list_categories(
-        &self,
-        context: &PromptExecutionContext,
-    ) -> Result<Vec<CategoryInfo>, AppError>;
-
-    async fn runtime_entry(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<PromptEntry, AppError>;
-
-    async fn runtime_entries(
-        &self,
-        context: &PromptExecutionContext,
-    ) -> Result<Vec<PromptEntry>, AppError>;
-}
-
-/// Prompt record mutation boundary. Project override persistence and prompt
-/// record writes remain owned by the prompt application.
-#[async_trait]
-pub trait PromptMutationApplicationPort: Send + Sync {
-    async fn hydrate_overrides(&self) -> Result<(), AppError>;
-
-    async fn load_defaults(&self, context: &PromptExecutionContext) -> Result<usize, AppError>;
-
-    async fn update_record(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: UpdatePromptInput,
-    ) -> Result<PromptEntrySummary, AppError>;
-
-    async fn reset_record(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<(), AppError>;
-
-    async fn set_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: SetOverrideInput,
-    ) -> Result<(), AppError>;
-
-    async fn remove_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RemoveOverrideInput,
-    ) -> Result<(), AppError>;
-
-    async fn update_many_runtime(
-        &self,
-        context: &PromptExecutionContext,
-        updates: Vec<(String, String)>,
-        author: &str,
-    ) -> Result<Vec<PromptEntry>, AppError>;
 }
 
 impl OrchestratorContext {

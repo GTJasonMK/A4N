@@ -1,8 +1,8 @@
 use a4n_api_contract::character::{
     DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
 };
+use a4n_character_host_contract::CharacterDiscoveryProgress;
 use a4n_error::AppError;
-use a4n_orchestrator::character::CharacterDiscoveryProgress;
 
 use crate::{AppState, actions::character_ai::CharacterAiProgress};
 

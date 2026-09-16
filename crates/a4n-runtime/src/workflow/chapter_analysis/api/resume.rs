@@ -1,6 +1,6 @@
 use a4n_api_contract::chapter::ChapterSummary;
+use a4n_chapter_analysis_host_contract::ChapterAnalysisApplicationProgress;
 use a4n_error::AppError;
-use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
 use crate::{actions::character_ai::RuntimeCharacterProfileSyncStageTracePort, state::AppState};

@@ -4,7 +4,7 @@ use crate::{
 };
 use a4n_api_contract::workflow::{ResumeWorkflowRunInput, WorkflowRunSummary};
 use a4n_domain::workflow::require_positive_workflow_run_id;
-use a4n_orchestrator::workflow::{UnifiedResumeDispatch, plan_unified_resume};
+use a4n_domain::workflow::{UnifiedResumeDispatch, plan_unified_resume};
 
 use super::super::access::verify_workflow_run_access;
 

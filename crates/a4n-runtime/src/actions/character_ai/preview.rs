@@ -9,7 +9,7 @@ use crate::{
         ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
     },
 };
-use a4n_orchestrator::character::{CHARACTER_DISCOVERY_KIND, CharacterProfileSyncPreviewStep};
+use a4n_character_host_contract::{CHARACTER_DISCOVERY_KIND, CharacterProfileSyncPreviewStep};
 
 pub async fn preview_discover_character_profiles_request(
     state: &AppState,

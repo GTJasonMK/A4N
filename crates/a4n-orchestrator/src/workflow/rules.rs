@@ -2,30 +2,13 @@
 
 use super::{
     UpsertWorkflowRunInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
+    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING,
 };
 
 pub use a4n_domain::workflow::{
-    is_video_status_final_for_cancel_interrupt, require_positive_workflow_run_id,
-    validate_optional_project_id,
+    UnifiedResumeDispatch, is_video_status_final_for_cancel_interrupt,
+    require_positive_workflow_run_id, validate_optional_project_id,
 };
-
-/// 统一恢复入口可分发的目标（不含 Host 访问与领域执行）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum UnifiedResumeDispatch {
-    /// 视频 provider 任务：按 generated_video 续轮询。
-    VideoProviderJob { video_id: i64 },
-    /// 画布图工作流续跑。
-    VideoCanvasGraph,
-    /// 章节分析工作流续跑。
-    ChapterAnalysis,
-    /// 章节正文保存后的派生资料同步续跑。
-    ChapterContentSync { chapter_id: i64 },
-    /// 蓝图生成任务：通过 generation task 重新挂载已有阶段 checkpoint。
-    BlueprintGeneration,
-    /// 蓝图优化任务：通过 generation task 重新挂载已有 LLM checkpoint。
-    BlueprintRefinement,
-}
 
 /// 工作流终态结果（纯规则）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,53 +68,7 @@ pub(crate) fn require_workflow_can_resume(
     can_resume: bool,
     resume_block_reason: Option<&str>,
 ) -> Result<(), String> {
-    match status {
-        WORKFLOW_STATUS_RUNNING => return Err("工作流正在运行，不能重复恢复".to_string()),
-        WORKFLOW_STATUS_COMPLETED => return Err("工作流已完成，不能恢复".to_string()),
-        _ => {}
-    }
-    if can_resume {
-        return if matches!(
-            status,
-            WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED | WORKFLOW_STATUS_INTERRUPTED
-        ) {
-            Ok(())
-        } else {
-            Err(format!("工作流状态 {status} 不支持恢复"))
-        };
-    }
-    let reason = resume_block_reason
-        .filter(|reason| !reason.trim().is_empty())
-        .ok_or_else(|| format!("工作流状态 {status} 缺少不可恢复原因"))?;
-    Err(reason.to_string())
-}
-
-/// 解析统一恢复入口的分发目标（权限校验与领域执行由调用方完成）。
-pub fn resolve_unified_resume_dispatch(
-    workflow_kind: &str,
-    scope_table: Option<&str>,
-    scope_id: Option<i64>,
-) -> Result<UnifiedResumeDispatch, String> {
-    match workflow_kind {
-        "video_provider_job" => Ok(UnifiedResumeDispatch::VideoProviderJob {
-            video_id: video_provider_job_target_id(scope_table, scope_id)?,
-        }),
-        "video_canvas_graph" => Ok(UnifiedResumeDispatch::VideoCanvasGraph),
-        "chapter_analysis" => Ok(UnifiedResumeDispatch::ChapterAnalysis),
-        "chapter_content_sync" => Ok(UnifiedResumeDispatch::ChapterContentSync {
-            chapter_id: chapter_scope_target_id(scope_table, scope_id)?,
-        }),
-        "blueprint_generation" => {
-            project_scope_target_id(scope_table, scope_id)?;
-            Ok(UnifiedResumeDispatch::BlueprintGeneration)
-        }
-        "blueprint_refine" => {
-            blueprint_scope_target_id(scope_table, scope_id)?;
-            Ok(UnifiedResumeDispatch::BlueprintRefinement)
-        }
-        "manga_pipeline" => Err("漫画流水线请在漫画章节页使用“续传流水线”入口恢复".to_string()),
-        other => Err(format!("工作流类型 {other} 暂未接入统一恢复入口")),
-    }
+    a4n_domain::workflow::require_workflow_can_resume(status, can_resume, resume_block_reason)
 }
 
 /// 可恢复校验 + kind 分发的单一规划入口（Host 访问校验仍在调用方）。
@@ -143,45 +80,14 @@ pub fn plan_unified_resume(
     scope_table: Option<&str>,
     scope_id: Option<i64>,
 ) -> Result<UnifiedResumeDispatch, String> {
-    require_workflow_can_resume(status, can_resume, resume_block_reason)?;
-    resolve_unified_resume_dispatch(workflow_kind, scope_table, scope_id)
-}
-
-/// video_provider_job 必须绑定 generated_video 作用域。
-fn video_provider_job_target_id(
-    scope_table: Option<&str>,
-    scope_id: Option<i64>,
-) -> Result<i64, String> {
-    scope_id
-        .filter(|_| scope_table == Some("generated_video"))
-        .ok_or_else(|| "视频 provider 工作流缺少 generated_video 目标".to_string())
-}
-
-fn chapter_scope_target_id(
-    scope_table: Option<&str>,
-    scope_id: Option<i64>,
-) -> Result<i64, String> {
-    scope_id
-        .filter(|id| *id > 0 && scope_table == Some("chapter"))
-        .ok_or_else(|| "章节资料同步工作流缺少 chapter 目标".to_string())
-}
-
-fn project_scope_target_id(
-    scope_table: Option<&str>,
-    scope_id: Option<i64>,
-) -> Result<i64, String> {
-    scope_id
-        .filter(|id| *id > 0 && scope_table == Some("project"))
-        .ok_or_else(|| "蓝图生成工作流缺少 project 目标".to_string())
-}
-
-fn blueprint_scope_target_id(
-    scope_table: Option<&str>,
-    scope_id: Option<i64>,
-) -> Result<i64, String> {
-    scope_id
-        .filter(|id| *id > 0 && scope_table == Some("novel_blueprint"))
-        .ok_or_else(|| "蓝图优化工作流缺少 novel_blueprint 目标".to_string())
+    a4n_domain::workflow::plan_unified_resume(
+        status,
+        can_resume,
+        resume_block_reason,
+        workflow_kind,
+        scope_table,
+        scope_id,
+    )
 }
 
 #[cfg(test)]

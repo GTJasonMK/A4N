@@ -523,8 +523,13 @@ impl PortraitGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &StartPortraitGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
-        OrchestratorContext::start_portrait_generation_task(self, user_id, input).await
+    ) -> Result<
+        crate::GenerationTaskStart,
+        a4n_api_contract::generation_tasks::GenerationTaskStartError,
+    > {
+        OrchestratorContext::start_portrait_generation_task(self, user_id, input)
+            .await
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
     async fn run_task(

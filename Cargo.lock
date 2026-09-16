@@ -136,6 +136,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-canvas-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-canvas-contract",
+ "a4n-error",
+ "a4n-image-host-contract",
+ "a4n-llm-provider-contract",
+ "a4n-provider-contract",
+ "a4n-video-host-contract",
+ "a4n-video-provider-contract",
+ "a4n-video-sidecar-contract",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-chapter-analysis"
 version = "0.1.0"
 dependencies = [
@@ -143,6 +160,20 @@ dependencies = [
  "a4n-error",
  "a4n-progress",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-chapter-analysis-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-character-host-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "a4n-scene-host-contract",
+ "async-trait",
+ "tokio-util",
 ]
 
 [[package]]
@@ -154,6 +185,18 @@ dependencies = [
  "a4n-llm-provider-contract",
  "a4n-prompt-contract",
  "async-trait",
+]
+
+[[package]]
+name = "a4n-character-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+ "tokio-util",
 ]
 
 [[package]]
@@ -488,11 +531,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-galgame-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-generation-artifact-contract"
 version = "0.1.0"
 dependencies = [
  "schemars 1.2.1",
  "serde",
+]
+
+[[package]]
+name = "a4n-generation-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-service-protocol",
+ "async-trait",
+ "tokio",
 ]
 
 [[package]]
@@ -514,6 +579,23 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-image-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-canvas-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-image-contract",
+ "a4n-media",
+ "a4n-provider-contract",
+ "async-trait",
+ "serde_json",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -561,6 +643,18 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "a4n-import-analysis-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-chapter-analysis-host-contract",
+ "a4n-character-host-contract",
+ "a4n-error",
+ "a4n-prompt-contract",
+ "async-trait",
 ]
 
 [[package]]
@@ -612,6 +706,17 @@ dependencies = [
  "base64 0.22.1",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "a4n-inspiration-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
 ]
 
 [[package]]
@@ -784,6 +889,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-novel-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+ "tokio-util",
+]
+
+[[package]]
+name = "a4n-optimize-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-orchestrator"
 version = "0.1.0"
 dependencies = [
@@ -792,8 +921,11 @@ dependencies = [
  "a4n-archive-core",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
+ "a4n-canvas-host-contract",
  "a4n-chapter-analysis",
+ "a4n-chapter-analysis-host-contract",
  "a4n-chapter-generation-contract",
+ "a4n-character-host-contract",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
@@ -803,8 +935,13 @@ dependencies = [
  "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-event",
+ "a4n-galgame-host-contract",
+ "a4n-generation-host-contract",
  "a4n-image-contract",
+ "a4n-image-host-contract",
+ "a4n-import-analysis-host-contract",
  "a4n-import-core",
+ "a4n-inspiration-host-contract",
  "a4n-llm-config",
  "a4n-llm-context",
  "a4n-llm-provider-contract",
@@ -812,7 +949,10 @@ dependencies = [
  "a4n-llm-trace",
  "a4n-media",
  "a4n-migration",
+ "a4n-novel-host-contract",
+ "a4n-optimize-host-contract",
  "a4n-outline-contract",
+ "a4n-portrait-host-contract",
  "a4n-progress",
  "a4n-prompt",
  "a4n-prompt-client",
@@ -822,6 +962,7 @@ dependencies = [
  "a4n-queue",
  "a4n-rag-contract",
  "a4n-rag-core",
+ "a4n-scene-host-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
@@ -857,6 +998,21 @@ dependencies = [
  "a4n-error",
  "a4n-llm-provider-contract",
  "async-trait",
+]
+
+[[package]]
+name = "a4n-portrait-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-image-host-contract",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+ "serde_json",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1084,7 +1240,10 @@ dependencies = [
  "a4n-archive-core",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
+ "a4n-canvas-host-contract",
+ "a4n-chapter-analysis-host-contract",
  "a4n-chapter-generation-contract",
+ "a4n-character-host-contract",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
@@ -1099,13 +1258,18 @@ dependencies = [
  "a4n-event",
  "a4n-export-client",
  "a4n-export-contract",
+ "a4n-galgame-host-contract",
+ "a4n-generation-host-contract",
  "a4n-image-client",
  "a4n-image-contract",
+ "a4n-image-host-contract",
  "a4n-image-provider-contract",
  "a4n-image-providers",
+ "a4n-import-analysis-host-contract",
  "a4n-import-client",
  "a4n-import-contract",
  "a4n-import-core",
+ "a4n-inspiration-host-contract",
  "a4n-llm-client",
  "a4n-llm-config",
  "a4n-llm-context",
@@ -1116,8 +1280,11 @@ dependencies = [
  "a4n-migration",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
+ "a4n-novel-host-contract",
+ "a4n-optimize-host-contract",
  "a4n-orchestrator",
  "a4n-outline-contract",
+ "a4n-portrait-host-contract",
  "a4n-process-catalog",
  "a4n-prompt",
  "a4n-prompt-client",
@@ -1130,6 +1297,7 @@ dependencies = [
  "a4n-rag-core",
  "a4n-rag-index",
  "a4n-rag-sidecar-contract",
+ "a4n-scene-host-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
@@ -1165,6 +1333,17 @@ dependencies = [
  "url",
  "uuid",
  "zip",
+]
+
+[[package]]
+name = "a4n-scene-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-prompt-contract",
+ "async-trait",
+ "tokio-util",
 ]
 
 [[package]]

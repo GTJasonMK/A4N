@@ -1,5 +1,5 @@
 use a4n_canvas_contract::{CanvasImageNodeApplicationInput, CanvasNodeRun};
-use a4n_orchestrator::media::ImageGenerationProgress;
+use a4n_image_host_contract::ImageGenerationProgress;
 
 use crate::{AppState, actions::image_generation::RuntimeImageGenerationHostPort};
 

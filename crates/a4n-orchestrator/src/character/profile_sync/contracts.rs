@@ -1,34 +1,8 @@
 use a4n_db_models::models::character::protagonist_profile;
-use a4n_error::AppError;
 
-use super::super::{CHARACTER_PROFILE_SYNC_STEPS, CharacterSyncRangeMode};
+use super::super::CharacterSyncRangeMode;
 
-pub type CharacterProfileSyncProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-
-#[derive(Clone, Copy, Default)]
-pub struct CharacterProfileSyncProgress<'a> {
-    pub reporter: Option<CharacterProfileSyncProgressReporter<'a>>,
-    pub active_task_id: Option<&'a str>,
-}
-
-impl CharacterProfileSyncProgress<'_> {
-    pub(crate) fn report(&self, current: u32, message: &str) -> Result<(), AppError> {
-        self.report_with_total(current, CHARACTER_PROFILE_SYNC_STEPS, message)
-    }
-
-    pub(crate) fn report_with_total(
-        &self,
-        current: u32,
-        total: u32,
-        message: &str,
-    ) -> Result<(), AppError> {
-        if let Some(reporter) = self.reporter {
-            reporter(current, total, message)?;
-        }
-        Ok(())
-    }
-}
+pub use a4n_character_host_contract::CharacterProfileSyncProgress;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CharacterProfileSyncAnchorMode {

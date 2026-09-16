@@ -39,6 +39,22 @@ use a4n_domain::project::{
 };
 use a4n_domain::video_timeline::{TimelineError, VideoTimelineGap};
 use a4n_error::AppError;
+use a4n_generation_host_contract::{
+    AuthorizedGenerationTask as HostAuthorizedGenerationTask,
+    AuthorizedGenerationTaskPort as HostAuthorizedGenerationTaskPort,
+    GenerationCleanupApplicationPort as HostGenerationCleanupApplicationPort,
+    GenerationLifecycleApplicationPort as HostGenerationLifecycleApplicationPort,
+    GenerationLifecycleError as HostGenerationLifecycleError,
+    GenerationReplay as HostGenerationReplay, GenerationSubscription as HostGenerationSubscription,
+    GenerationSubscriptionPort as HostGenerationSubscriptionPort,
+    GenerationTaskAccessError as HostGenerationTaskAccessError,
+    GenerationTaskHistorySummaries as HostGenerationTaskHistorySummaries,
+    GenerationTaskMutationApplicationPort as HostGenerationTaskMutationApplicationPort,
+    GenerationTaskReadApplicationPort as HostGenerationTaskReadApplicationPort,
+    GenerationTerminalError as HostGenerationTerminalError,
+    GenerationTerminalWriteOutcome as HostGenerationTerminalWriteOutcome,
+    ProjectGeneratedDataResetApplicationResult as HostResetApplicationResult,
+};
 use a4n_queue::priority::{TaskKind, TaskPermit, TaskPriority, TaskStatus};
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GENERATION_EVENT_SCHEMA_VERSION, GenerationDeliveryMode,
@@ -56,8 +72,9 @@ use crate::generation::{
     artifacts::PreparedArtifactEvent,
     checkpoint::{DatabaseGenerationSequenceLeaseReplenisher, GenerationCheckpointWriter},
     events::{
-        GenerationSessionConfig, GenerationSessionError, GenerationSessionRegistry,
-        GenerationSubscription, GenerationTaskSession, SessionGenerationEventPublisher,
+        GenerationReplay as OwnerGenerationReplay, GenerationSessionConfig, GenerationSessionError,
+        GenerationSessionRegistry, GenerationSubscription as OwnerGenerationSubscription,
+        GenerationTaskSession, SessionGenerationEventPublisher,
     },
     generation_error, generation_failure_is_cancelled_or_interrupted,
     terminal::{
@@ -68,144 +85,6 @@ use crate::generation::{
 use crate::task_queue::PersistentTaskQueue;
 use crate::video::validate_reference_media_start_input;
 pub(crate) use a4n_api_contract::generation_tasks::GenerationTaskStart;
-
-/// Runtime-facing generation task read boundary.
-#[async_trait::async_trait]
-pub trait GenerationTaskReadApplicationPort: Send + Sync {
-    async fn authorize_generation_task(
-        &self,
-        user_id: i64,
-        task_id: &str,
-        attempt: u32,
-    ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError>;
-
-    async fn generation_task_summary_for_user(
-        &self,
-        user_id: i64,
-        task_id: &str,
-        attempt: u32,
-    ) -> Result<GenerationTaskSummary, GenerationTaskAccessError>;
-
-    async fn list_active_generation_task_summaries(
-        &self,
-        user_id: i64,
-        project_id: Option<i64>,
-    ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError>;
-
-    async fn list_generation_task_history_summaries(
-        &self,
-        user_id: i64,
-        project_id: Option<i64>,
-        limit: u32,
-        cursor: Option<GenerationTaskListCursor>,
-    ) -> Result<GenerationTaskHistorySummaries, GenerationTaskAccessError>;
-
-    fn subscribe_generation_task(
-        &self,
-        task: &AuthorizedGenerationTask,
-        after_sequence: Option<u64>,
-    ) -> Result<GenerationSubscription, GenerationTaskAccessError>;
-}
-
-/// Runtime-facing generation task mutation boundary.
-#[async_trait::async_trait]
-pub trait GenerationTaskMutationApplicationPort: Send + Sync {
-    async fn request_generation_cancel(
-        &self,
-        requested_by_user_id: i64,
-        task_id: &str,
-        attempt: u32,
-    ) -> Result<GenerationTaskHandle, GenerationTerminalError>;
-}
-
-/// Runtime-facing generation lifecycle boundary.
-#[async_trait::async_trait]
-pub trait GenerationLifecycleApplicationPort: Send + Sync {
-    async fn begin_generation_project_lifecycle_gate(
-        &self,
-        project_id: i64,
-        user_id: i64,
-        operation: ProjectLifecycleOperation,
-    ) -> Result<ProjectLifecycleGateClaim, GenerationLifecycleGateError>;
-
-    async fn begin_generation_user_disable_gate(
-        &self,
-        caller_user_id: i64,
-        user_id: i64,
-    ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError>;
-
-    async fn active_generation_tasks_for_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
-
-    async fn active_generation_tasks_for_user(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
-
-    async fn active_generation_tasks(
-        &self,
-    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
-
-    async fn pending_generation_lifecycle_operations(
-        &self,
-    ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError>;
-
-    async fn request_generation_destructive_cancel(
-        &self,
-        task: &GenerationLifecycleTask,
-    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>;
-
-    async fn interrupt_generation_destructive_task(
-        &self,
-        task: &GenerationLifecycleTask,
-        reason: InterruptionReason,
-        summary: String,
-    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>;
-
-    async fn restore_generation_project_lifecycle_gate(
-        &self,
-        project_id: i64,
-        operation: ProjectLifecycleOperation,
-    ) -> Result<(), GenerationLifecycleGateError>;
-
-    async fn restore_generation_user_lifecycle_gate(
-        &self,
-        user_id: i64,
-    ) -> Result<(), GenerationLifecycleGateError>;
-
-    async fn complete_generation_project_reset_gate(
-        &self,
-        project_id: i64,
-    ) -> Result<(), GenerationLifecycleGateError>;
-
-    async fn complete_generation_user_disable_gate(
-        &self,
-        user_id: i64,
-    ) -> Result<(), GenerationLifecycleGateError>;
-
-    async fn delete_project_cascade_validated(&self, project_id: i64) -> Result<(), AppError>;
-
-    async fn reset_project_generated_data_validated(
-        &self,
-        project_id: i64,
-    ) -> Result<crate::project::ProjectGeneratedDataResetApplicationResult, AppError>;
-}
-
-/// Runtime-facing generation retention and cleanup boundary.
-#[async_trait::async_trait]
-pub trait GenerationCleanupApplicationPort: Send + Sync {
-    async fn expire_generation_snapshot_bodies(
-        &self,
-        limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError>;
-
-    async fn purge_expired_generation_task_trees(
-        &self,
-        limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError>;
-}
 
 /// 生成运行账本 owner；章节生成服务可持有克隆以写 generation run。
 #[derive(Clone)]
@@ -2112,7 +1991,7 @@ impl OrchestratorContext {
         &self,
         task: &AuthorizedGenerationTask,
         after_sequence: Option<u64>,
-    ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
+    ) -> Result<OwnerGenerationSubscription, GenerationTaskAccessError> {
         let session = self
             .generation
             .session_for_authorized_task(&task.persisted)?
@@ -2296,15 +2175,175 @@ impl OrchestratorContext {
     }
 }
 
+struct OwnerAuthorizedGenerationTaskAdapter {
+    context: OrchestratorContext,
+    task: AuthorizedGenerationTask,
+}
+
+impl HostAuthorizedGenerationTaskPort for OwnerAuthorizedGenerationTaskAdapter {
+    fn public_snapshot(&self) -> Option<&GenerationTaskSnapshot> {
+        self.task.public_snapshot()
+    }
+
+    fn snapshot_expired(&self) -> bool {
+        self.task.snapshot_expired()
+    }
+
+    fn covers_through_sequence(&self) -> i64 {
+        self.task.covers_through_sequence()
+    }
+
+    fn subscribe(
+        &self,
+        after_sequence: Option<u64>,
+    ) -> Result<HostGenerationSubscription, HostGenerationTaskAccessError> {
+        let subscription = self
+            .context
+            .subscribe_generation_task(&self.task, after_sequence)
+            .map_err(owner_access_error)?;
+        Ok(HostGenerationSubscription::new(Box::new(
+            OwnerGenerationSubscriptionAdapter {
+                inner: subscription,
+            },
+        )))
+    }
+}
+
+struct OwnerGenerationSubscriptionAdapter {
+    inner: OwnerGenerationSubscription,
+}
+
+impl HostGenerationSubscriptionPort for OwnerGenerationSubscriptionAdapter {
+    fn take_initial(&mut self) -> Option<HostGenerationReplay> {
+        self.inner.take_initial().map(owner_replay)
+    }
+
+    fn receiver(&mut self) -> &mut tokio::sync::watch::Receiver<u64> {
+        self.inner.receiver()
+    }
+
+    fn replay_after(&self, after_sequence: Option<u64>) -> HostGenerationReplay {
+        owner_replay(self.inner.replay_after(after_sequence))
+    }
+
+    fn snapshot(&self) -> GenerationTaskSnapshot {
+        self.inner.snapshot()
+    }
+}
+
+fn owner_replay(replay: OwnerGenerationReplay) -> HostGenerationReplay {
+    match replay {
+        OwnerGenerationReplay::Events {
+            events,
+            latest_sequence,
+            replay_floor,
+        } => HostGenerationReplay::Events {
+            events,
+            latest_sequence,
+            replay_floor,
+        },
+        OwnerGenerationReplay::SnapshotRequired {
+            snapshot,
+            latest_sequence,
+            replay_floor,
+        } => HostGenerationReplay::SnapshotRequired {
+            snapshot,
+            latest_sequence,
+            replay_floor,
+        },
+    }
+}
+
+fn owner_access_error(error: GenerationTaskAccessError) -> HostGenerationTaskAccessError {
+    let code = error.code();
+    let retryable = !matches!(
+        code,
+        "generation_request_invalid"
+            | "generation_task_forbidden"
+            | "generation_task_unauthenticated"
+            | "generation_task_not_found"
+    );
+    HostGenerationTaskAccessError::new(code, error.to_string(), retryable)
+}
+
+fn owner_terminal_error(error: GenerationTerminalError) -> HostGenerationTerminalError {
+    let code = error.code();
+    let retryable = !matches!(
+        code,
+        "generation_attempt_mismatch"
+            | "generation_event_invalid"
+            | "generation_terminal_already_set"
+    );
+    HostGenerationTerminalError::new(code, error.to_string(), retryable)
+}
+
+fn owner_lifecycle_error(error: GenerationLifecycleGateError) -> HostGenerationLifecycleError {
+    let code = error.code();
+    let retryable = !matches!(
+        code,
+        "generation_request_invalid" | "generation_task_not_found"
+    );
+    HostGenerationLifecycleError::new(code, error.to_string(), retryable)
+}
+
+fn owner_cleanup_error(error: GenerationTaskLifecycleError) -> HostGenerationLifecycleError {
+    let code = error.code();
+    let retryable = !matches!(
+        code,
+        "generation_task_forbidden"
+            | "generation_attempt_mismatch"
+            | "generation_checkpoint_corrupt"
+    );
+    HostGenerationLifecycleError::new(code, error.to_string(), retryable)
+}
+
+fn owner_terminal_outcome(
+    outcome: GenerationTerminalWriteOutcome,
+) -> HostGenerationTerminalWriteOutcome {
+    match outcome {
+        GenerationTerminalWriteOutcome::Persisted => HostGenerationTerminalWriteOutcome::Persisted,
+        GenerationTerminalWriteOutcome::RebuiltFromPersistedSnapshot => {
+            HostGenerationTerminalWriteOutcome::RebuiltFromPersistedSnapshot
+        }
+        GenerationTerminalWriteOutcome::AlreadyTerminal => {
+            HostGenerationTerminalWriteOutcome::AlreadyTerminal
+        }
+        GenerationTerminalWriteOutcome::NoLiveSession => {
+            HostGenerationTerminalWriteOutcome::NoLiveSession
+        }
+    }
+}
+
+fn owner_reset_result(
+    result: crate::project::ProjectGeneratedDataResetApplicationResult,
+) -> HostResetApplicationResult {
+    match result {
+        crate::project::ProjectGeneratedDataResetApplicationResult::Standard(outcome) => {
+            HostResetApplicationResult::Standard(outcome)
+        }
+        crate::project::ProjectGeneratedDataResetApplicationResult::Freeform { result } => {
+            HostResetApplicationResult::Freeform { result }
+        }
+    }
+}
+
 #[async_trait::async_trait]
-impl GenerationTaskReadApplicationPort for OrchestratorContext {
+impl HostGenerationTaskReadApplicationPort for OrchestratorContext {
     async fn authorize_generation_task(
         &self,
         user_id: i64,
         task_id: &str,
         attempt: u32,
-    ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError> {
-        OrchestratorContext::authorize_generation_task(self, user_id, task_id, attempt).await
+    ) -> Result<HostAuthorizedGenerationTask, HostGenerationTaskAccessError> {
+        OrchestratorContext::authorize_generation_task(self, user_id, task_id, attempt)
+            .await
+            .map(|task| {
+                HostAuthorizedGenerationTask::new(Box::new(OwnerAuthorizedGenerationTaskAdapter {
+                    context: self.clone(),
+                    task,
+                }))
+            })
+            .map_err(owner_access_error)
     }
 
     async fn generation_task_summary_for_user(
@@ -2312,16 +2351,20 @@ impl GenerationTaskReadApplicationPort for OrchestratorContext {
         user_id: i64,
         task_id: &str,
         attempt: u32,
-    ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
-        OrchestratorContext::generation_task_summary_for_user(self, user_id, task_id, attempt).await
+    ) -> Result<GenerationTaskSummary, HostGenerationTaskAccessError> {
+        OrchestratorContext::generation_task_summary_for_user(self, user_id, task_id, attempt)
+            .await
+            .map_err(owner_access_error)
     }
 
     async fn list_active_generation_task_summaries(
         &self,
         user_id: i64,
         project_id: Option<i64>,
-    ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
-        OrchestratorContext::list_active_generation_task_summaries(self, user_id, project_id).await
+    ) -> Result<Vec<GenerationTaskSummary>, HostGenerationTaskAccessError> {
+        OrchestratorContext::list_active_generation_task_summaries(self, user_id, project_id)
+            .await
+            .map_err(owner_access_error)
     }
 
     async fn list_generation_task_history_summaries(
@@ -2330,88 +2373,108 @@ impl GenerationTaskReadApplicationPort for OrchestratorContext {
         project_id: Option<i64>,
         limit: u32,
         cursor: Option<GenerationTaskListCursor>,
-    ) -> Result<GenerationTaskHistorySummaries, GenerationTaskAccessError> {
+    ) -> Result<HostGenerationTaskHistorySummaries, HostGenerationTaskAccessError> {
         OrchestratorContext::list_generation_task_history_summaries(
             self, user_id, project_id, limit, cursor,
         )
         .await
+        .map(|result| HostGenerationTaskHistorySummaries {
+            items: result.items,
+            next_cursor: result.next_cursor,
+        })
+        .map_err(owner_access_error)
     }
 
     fn subscribe_generation_task(
         &self,
-        task: &AuthorizedGenerationTask,
+        task: &HostAuthorizedGenerationTask,
         after_sequence: Option<u64>,
-    ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
-        OrchestratorContext::subscribe_generation_task(self, task, after_sequence)
+    ) -> Result<HostGenerationSubscription, HostGenerationTaskAccessError> {
+        task.subscribe(after_sequence)
     }
 }
 
 #[async_trait::async_trait]
-impl GenerationTaskMutationApplicationPort for OrchestratorContext {
+impl HostGenerationTaskMutationApplicationPort for OrchestratorContext {
     async fn request_generation_cancel(
         &self,
         requested_by_user_id: i64,
         task_id: &str,
         attempt: u32,
-    ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
+    ) -> Result<GenerationTaskHandle, HostGenerationTerminalError> {
         OrchestratorContext::request_generation_cancel(self, requested_by_user_id, task_id, attempt)
             .await
+            .map_err(owner_terminal_error)
     }
 }
 
 #[async_trait::async_trait]
-impl GenerationLifecycleApplicationPort for OrchestratorContext {
+impl HostGenerationLifecycleApplicationPort for OrchestratorContext {
     async fn begin_generation_project_lifecycle_gate(
         &self,
         project_id: i64,
         user_id: i64,
         operation: ProjectLifecycleOperation,
-    ) -> Result<ProjectLifecycleGateClaim, GenerationLifecycleGateError> {
+    ) -> Result<ProjectLifecycleGateClaim, HostGenerationLifecycleError> {
         OrchestratorContext::begin_generation_project_lifecycle_gate(
             self, project_id, user_id, operation,
         )
         .await
+        .map_err(owner_lifecycle_error)
     }
 
     async fn begin_generation_user_disable_gate(
         &self,
         caller_user_id: i64,
         user_id: i64,
-    ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError> {
-        OrchestratorContext::begin_generation_user_disable_gate(self, caller_user_id, user_id).await
+    ) -> Result<UserLifecycleGateClaim, HostGenerationLifecycleError> {
+        OrchestratorContext::begin_generation_user_disable_gate(self, caller_user_id, user_id)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn active_generation_tasks_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
-        OrchestratorContext::active_generation_tasks_for_project(self, project_id).await
+    ) -> Result<Vec<GenerationLifecycleTask>, HostGenerationLifecycleError> {
+        OrchestratorContext::active_generation_tasks_for_project(self, project_id)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn active_generation_tasks_for_user(
         &self,
         user_id: i64,
-    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
-        OrchestratorContext::active_generation_tasks_for_user(self, user_id).await
+    ) -> Result<Vec<GenerationLifecycleTask>, HostGenerationLifecycleError> {
+        OrchestratorContext::active_generation_tasks_for_user(self, user_id)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn active_generation_tasks(
         &self,
-    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
-        OrchestratorContext::active_generation_tasks(self).await
+    ) -> Result<Vec<GenerationLifecycleTask>, HostGenerationLifecycleError> {
+        OrchestratorContext::active_generation_tasks(self)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn pending_generation_lifecycle_operations(
         &self,
-    ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError> {
-        OrchestratorContext::pending_generation_lifecycle_operations(self).await
+    ) -> Result<Vec<PendingLifecycleOperation>, HostGenerationLifecycleError> {
+        OrchestratorContext::pending_generation_lifecycle_operations(self)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn request_generation_destructive_cancel(
         &self,
         task: &GenerationLifecycleTask,
-    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
-        OrchestratorContext::request_generation_destructive_cancel(self, task).await
+    ) -> Result<HostGenerationTerminalWriteOutcome, HostGenerationTerminalError> {
+        OrchestratorContext::request_generation_destructive_cancel(self, task)
+            .await
+            .map(owner_terminal_outcome)
+            .map_err(owner_terminal_error)
     }
 
     async fn interrupt_generation_destructive_task(
@@ -2419,39 +2482,48 @@ impl GenerationLifecycleApplicationPort for OrchestratorContext {
         task: &GenerationLifecycleTask,
         reason: InterruptionReason,
         summary: String,
-    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+    ) -> Result<HostGenerationTerminalWriteOutcome, HostGenerationTerminalError> {
         OrchestratorContext::interrupt_generation_destructive_task(self, task, reason, summary)
             .await
+            .map(owner_terminal_outcome)
+            .map_err(owner_terminal_error)
     }
 
     async fn restore_generation_project_lifecycle_gate(
         &self,
         project_id: i64,
         operation: ProjectLifecycleOperation,
-    ) -> Result<(), GenerationLifecycleGateError> {
+    ) -> Result<(), HostGenerationLifecycleError> {
         OrchestratorContext::restore_generation_project_lifecycle_gate(self, project_id, operation)
             .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn restore_generation_user_lifecycle_gate(
         &self,
         user_id: i64,
-    ) -> Result<(), GenerationLifecycleGateError> {
-        OrchestratorContext::restore_generation_user_lifecycle_gate(self, user_id).await
+    ) -> Result<(), HostGenerationLifecycleError> {
+        OrchestratorContext::restore_generation_user_lifecycle_gate(self, user_id)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn complete_generation_project_reset_gate(
         &self,
         project_id: i64,
-    ) -> Result<(), GenerationLifecycleGateError> {
-        OrchestratorContext::complete_generation_project_reset_gate(self, project_id).await
+    ) -> Result<(), HostGenerationLifecycleError> {
+        OrchestratorContext::complete_generation_project_reset_gate(self, project_id)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn complete_generation_user_disable_gate(
         &self,
         user_id: i64,
-    ) -> Result<(), GenerationLifecycleGateError> {
-        OrchestratorContext::complete_generation_user_disable_gate(self, user_id).await
+    ) -> Result<(), HostGenerationLifecycleError> {
+        OrchestratorContext::complete_generation_user_disable_gate(self, user_id)
+            .await
+            .map_err(owner_lifecycle_error)
     }
 
     async fn delete_project_cascade_validated(&self, project_id: i64) -> Result<(), AppError> {
@@ -2461,25 +2533,31 @@ impl GenerationLifecycleApplicationPort for OrchestratorContext {
     async fn reset_project_generated_data_validated(
         &self,
         project_id: i64,
-    ) -> Result<crate::project::ProjectGeneratedDataResetApplicationResult, AppError> {
-        OrchestratorContext::reset_project_generated_data_validated(self, project_id).await
+    ) -> Result<HostResetApplicationResult, AppError> {
+        OrchestratorContext::reset_project_generated_data_validated(self, project_id)
+            .await
+            .map(owner_reset_result)
     }
 }
 
 #[async_trait::async_trait]
-impl GenerationCleanupApplicationPort for OrchestratorContext {
+impl HostGenerationCleanupApplicationPort for OrchestratorContext {
     async fn expire_generation_snapshot_bodies(
         &self,
         limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError> {
-        OrchestratorContext::expire_generation_snapshot_bodies(self, limit).await
+    ) -> Result<u64, HostGenerationLifecycleError> {
+        OrchestratorContext::expire_generation_snapshot_bodies(self, limit)
+            .await
+            .map_err(owner_cleanup_error)
     }
 
     async fn purge_expired_generation_task_trees(
         &self,
         limit: usize,
-    ) -> Result<u64, GenerationTaskLifecycleError> {
-        OrchestratorContext::purge_expired_generation_task_trees(self, limit).await
+    ) -> Result<u64, HostGenerationLifecycleError> {
+        OrchestratorContext::purge_expired_generation_task_trees(self, limit)
+            .await
+            .map_err(owner_cleanup_error)
     }
 }
 

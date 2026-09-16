@@ -6,10 +6,9 @@ use a4n_api_contract::generation_tasks::{
     GenerationTaskHistoryQuery, GenerationTaskSummary,
 };
 use a4n_domain::generation::GenerationTaskListCursor;
-pub use a4n_orchestrator::AuthorizedGenerationTask;
-pub use a4n_orchestrator::GenerationTaskAccessError;
-pub use a4n_orchestrator::generation::{
-    GenerationReplay, GenerationSubscription, GenerationTerminalError,
+pub use a4n_generation_host_contract::{
+    AuthorizedGenerationTask, GenerationReplay, GenerationSubscription, GenerationTaskAccessError,
+    GenerationTerminalError,
 };
 pub(crate) use cursor::encode_generation_history_cursor;
 pub use cursor::{GenerationCursorError, decode_generation_history_cursor};
@@ -78,9 +77,11 @@ pub async fn list_generation_task_history(
         .map(encode_generation_history_cursor)
         .transpose()
         .map_err(|error| {
-            GenerationTaskAccessError::InvalidArgument(format!(
-                "生成任务历史 cursor 编码失败: {error}"
-            ))
+            GenerationTaskAccessError::new(
+                "generation_request_invalid",
+                format!("生成任务历史 cursor 编码失败: {error}"),
+                false,
+            )
         })?;
     Ok(GenerationTaskHistoryPage {
         items: result.items,

@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_orchestrator::optimize::OptimizePatchApplyHostPort;
+use a4n_optimize_host_contract::OptimizePatchApplyHostPort;
 use async_trait::async_trait;
 
 use crate::AppState;

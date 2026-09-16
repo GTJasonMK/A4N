@@ -1,5 +1,6 @@
+use a4n_chapter_analysis_host_contract::ChapterAnalysisRequestStep;
 use a4n_error::AppError;
-use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
+use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;
 use std::sync::Arc;
 

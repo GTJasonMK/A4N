@@ -1,5 +1,5 @@
 use crate::file_utils::promote_data_file;
-use a4n_orchestrator::media::{
+use a4n_image_host_contract::{
     PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
     PreparedGeneratedImageFile,
 };

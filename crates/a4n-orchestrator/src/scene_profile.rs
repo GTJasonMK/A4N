@@ -1,28 +1,15 @@
 use crate::OrchestratorContext;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
+pub(crate) use a4n_scene_host_contract::{
+    SceneProfileSyncApplicationPort, SceneProfileSyncHostPort, SceneProfileSyncProgress,
+};
 mod application;
 mod contracts;
 mod mapping;
 mod rules;
 mod workflow_rules;
 
-pub use application::{
-    SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncHostPort, SceneProfileSyncProgress,
-};
-
-/// Runtime-facing scene-profile synchronization boundary.
-#[async_trait::async_trait]
-pub trait SceneProfileSyncApplicationPort: Send + Sync {
-    async fn sync(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::profile::SyncSceneProfilesInput,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn SceneProfileSyncHostPort,
-        progress: Option<&SceneProfileSyncProgress<'_>>,
-    ) -> Result<(), AppError>;
-}
 pub(crate) use contracts::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SCENE_TRANSITION_MOVEMENT_TYPES, SCENE_TYPES,
     SceneEntityStateDraft, SceneOccurrenceDraft, SceneProfileDraft, SceneSyncInput,
