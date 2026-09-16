@@ -18,9 +18,10 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::video::{self, VideoDbError};
 use crate::video_prompt::{
-    ChapterVideoPromptSyncDraft, PromptIdentity, ensure_chapter_video_prompt_stages_mutable,
+    PromptIdentity, ensure_chapter_video_prompt_stages_mutable,
     ensure_chapter_video_prompt_stages_mutable_ignoring, lock_chapter_video_prompt_scope,
 };
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
 pub(super) struct PlannedPromptSyncRow {
     pub(super) existing: Option<chapter_video_prompt::Model>,

@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
 mod identity;
 mod orchestration;

@@ -3,6 +3,7 @@ use super::*;
 use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
 #[cfg(test)]
 use a4n_domain::video_prompt::ChapterVideoPromptRecordFields;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 use a4n_domain::video_prompt::ChapterVideoPromptSyncPolicy;
 use a4n_video_contract::{VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2};
 use std::collections::BTreeSet;

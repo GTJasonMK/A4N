@@ -6,9 +6,6 @@ use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
 
 use crate::video::VideoDbError;
-use a4n_domain::video_prompt::{
-    ChapterVideoPromptRecordFields, PreparedVideoPromptGenerationTrace,
-};
 
 async fn lock_chapter_video_prompt_scope<C>(db: &C, chapter_id: i64) -> Result<String, VideoDbError>
 where
@@ -28,12 +25,6 @@ where
         .await
         .map_err(VideoDbError::Database)?
         .ok_or_else(|| VideoDbError::NotFound(format!("章节不存在: {chapter_id}")))
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterVideoPromptSyncDraft {
-    pub fields: ChapterVideoPromptRecordFields,
-    pub generation_trace: Option<PreparedVideoPromptGenerationTrace>,
 }
 
 type PromptExecutionIdentity = (i64, String, i32, String, String);

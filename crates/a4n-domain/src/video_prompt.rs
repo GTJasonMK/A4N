@@ -67,3 +67,9 @@ pub struct UpdateChapterVideoPromptRecordInput {
     pub metadata_json: Option<Value>,
     pub reset_video_binding_to_pending: bool,
 }
+
+#[derive(Debug, Clone)]
+pub struct ChapterVideoPromptSyncDraft {
+    pub fields: ChapterVideoPromptRecordFields,
+    pub generation_trace: Option<PreparedVideoPromptGenerationTrace>,
+}

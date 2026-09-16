@@ -5,8 +5,8 @@ use a4n_db_models::models::{
     generation::{generation_run, generation_run_target},
 };
 use a4n_domain::video_prompt::{
-    ChapterVideoPromptPatch, ChapterVideoPromptRecordFields, ChapterVideoPromptSyncPolicy,
-    PreparedVideoPromptGenerationTrace,
+    ChapterVideoPromptPatch, ChapterVideoPromptRecordFields, ChapterVideoPromptSyncDraft,
+    ChapterVideoPromptSyncPolicy, PreparedVideoPromptGenerationTrace,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,

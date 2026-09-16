@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
 pub(super) fn prompt_identity_for_sync_draft(
     draft: &ChapterVideoPromptSyncDraft,
