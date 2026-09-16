@@ -67,7 +67,7 @@ a4n-llm-http = { path = "../a4n-llm-http", optional = true }
 a4n-media = { path = "../a4n-media" }
 a4n-media-client = { path = "../a4n-media-client" }
 a4n-media-contract = { path = "../a4n-media-contract" }
-a4n-media-render-core = { path = "../a4n-media-render-core" }
+a4n-media-processing-core = { path = "../a4n-media-processing-core" }
 a4n-embedding-providers = { path = "../a4n-embedding-providers" }
 a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }
 a4n-archive-core = { path = "../a4n-archive-core" }
