@@ -115,30 +115,30 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort>,
     /// Content-optimization session mutations stay in the optimize owner.
     optimize_session_mutation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeSessionMutationApplicationPort>,
     /// Content-optimization patch application and chapter writeback stay in
     /// the optimize owner.
-    optimize_patch_application: Arc<dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort>,
+    optimize_patch_application: Arc<dyn a4n_optimize_host_contract::OptimizePatchApplicationPort>,
     /// Content-optimization patch request previews stay behind the patch
     /// boundary.
     optimize_patch_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizePatchPreviewApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizePatchPreviewApplicationPort>,
     /// Content-optimization analysis request previews stay behind the
     /// analysis-specific boundary.
     optimize_analysis_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeAnalysisPreviewApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeAnalysisPreviewApplicationPort>,
     /// Content-optimization chat request previews stay behind the chat
     /// boundary.
     optimize_chat_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeChatPreviewApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeChatPreviewApplicationPort>,
     /// Each content-optimization worker has its own runtime boundary so a
     /// worker-specific change does not widen the injected contract.
     optimize_chat_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeChatGenerationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeChatGenerationApplicationPort>,
     optimize_analysis_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeAnalysisGenerationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeAnalysisGenerationApplicationPort>,
     optimize_patch_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizePatchGenerationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizePatchGenerationApplicationPort>,
     /// Scene-profile synchronization remains owned by the scene-profile
     /// application; Runtime supplies only the RAG host adapter.
     scene_profile_sync_application:
@@ -1271,19 +1271,19 @@ impl AppState {
 
     pub(crate) fn optimize_chat_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeChatGenerationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeChatGenerationApplicationPort {
         self.optimize_chat_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeAnalysisGenerationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeAnalysisGenerationApplicationPort {
         self.optimize_analysis_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_patch_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchGenerationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizePatchGenerationApplicationPort {
         self.optimize_patch_generation_application.as_ref()
     }
 
@@ -1295,31 +1295,31 @@ impl AppState {
 
     pub(crate) fn optimize_session_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeSessionMutationApplicationPort {
         self.optimize_session_mutation_application.as_ref()
     }
 
     pub(crate) fn optimize_patch_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizePatchApplicationPort {
         self.optimize_patch_application.as_ref()
     }
 
     pub(crate) fn optimize_patch_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchPreviewApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizePatchPreviewApplicationPort {
         self.optimize_patch_preview_application.as_ref()
     }
 
     pub(crate) fn optimize_analysis_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeAnalysisPreviewApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeAnalysisPreviewApplicationPort {
         self.optimize_analysis_preview_application.as_ref()
     }
 
     pub(crate) fn optimize_chat_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeChatPreviewApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeChatPreviewApplicationPort {
         self.optimize_chat_preview_application.as_ref()
     }
 

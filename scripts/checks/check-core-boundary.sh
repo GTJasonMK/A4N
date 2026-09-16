@@ -3174,6 +3174,16 @@ if rg -n 'a4n_orchestrator::scene_profile::(SceneProfileSyncApplicationPort|Scen
     printf 'Runtime scene profile sync must use a4n-scene-host-contract\n' >&2
     exit 1
 fi
+
+if ! rg -q "pub trait OptimizeChatGenerationApplicationPort" crates/a4n-optimize-host-contract/src/lib.rs; then
+    printf 'Optimize host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::optimize::(Optimize|GenerationTaskAccessError)' crates/a4n-runtime/src; then
+    printf 'Runtime optimize actions must use a4n-optimize-host-contract\n' >&2
+    exit 1
+fi
 if ! rg -n 'character_discovery_application\(\)' \
     crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/request.rs \
     crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/execution.rs || \
