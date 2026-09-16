@@ -9,6 +9,7 @@ use a4n_db_models::models::{
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
+    GeneratedVideoErrorStatusBatchInput,
 };
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;

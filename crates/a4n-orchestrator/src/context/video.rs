@@ -16,8 +16,8 @@ use a4n_db_models::models::{
 };
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
-    CreateImagePublicationIntentInput, ImagePublicationFileFacts, UpdateGeneratedImageRecordInput,
-    UpdateGeneratedVideoRecordInput,
+    CreateImagePublicationIntentInput, GeneratedVideoErrorStatusBatchInput,
+    ImagePublicationFileFacts, UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
 };
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap};
@@ -531,7 +531,7 @@ impl VideoApplication {
 
     pub(super) async fn mark_generated_videos_error_status_and_prompt_records(
         &self,
-        inputs: &[a4n_db::video::GeneratedVideoErrorStatusBatchInput],
+        inputs: &[GeneratedVideoErrorStatusBatchInput],
         message: &str,
     ) -> Result<Vec<i64>, AppError> {
         a4n_db::video::mark_generated_videos_error_status_and_prompt_records(

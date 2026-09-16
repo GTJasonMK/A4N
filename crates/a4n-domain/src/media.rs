@@ -120,6 +120,15 @@ pub struct ImagePublicationFileFacts {
     pub sha256: String,
 }
 
+/// One video transition in a batch terminal-status update. The database owns
+/// status validation, prompt linkage and the transaction.
+#[derive(Debug, Clone)]
+pub struct GeneratedVideoErrorStatusBatchInput {
+    pub video_id: i64,
+    pub prompt_id: Option<i64>,
+    pub status: String,
+}
+
 /// Durable facts needed to recover an image publication without exposing ORM
 /// rows to the Runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]
