@@ -1452,7 +1452,6 @@ dependencies = [
  "parking_lot",
  "serde",
  "serde_json",
- "tokio",
  "tokio-util",
 ]
 
@@ -1473,7 +1472,6 @@ dependencies = [
  "a4n-task-runtime",
  "a4n-test-support",
  "base64 0.22.1",
- "chrono",
  "parking_lot",
  "reqwest 0.12.28",
  "sea-orm",
