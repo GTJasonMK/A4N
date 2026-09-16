@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/a4n-cli",
     "crates/a4n-api-contract",
+    "crates/a4n-canvas-host-contract",
     "crates/a4n-test-support",
     "crates/a4n-queue",
     "crates/a4n-generation-artifact-contract",
@@ -20,6 +21,7 @@ members = [
     "crates/a4n-llm-client",
     "crates/a4n-llm-sidecar-contract",
     "crates/a4n-llm-provider-contract",
+    "crates/a4n-novel-host-contract",
     "crates/a4n-embedding-client",
     "crates/a4n-rag-client",
     "crates/a4n-rag-sidecar-contract",

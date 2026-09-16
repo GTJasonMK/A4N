@@ -11,7 +11,6 @@ use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_config::app_config::AppConfig;
 use a4n_db::character::Sha256SnapshotStore;
 use a4n_event::{BroadcastEventBus, InternalEvent};
-use a4n_orchestrator::chapter_generation::ChapterGenerationService;
 use a4n_orchestrator::task_queue::PersistentTaskQueue;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AgentHostCommandPayload, AgentRunPayload, WorkerRequest,
@@ -60,9 +59,9 @@ pub struct AppState {
     shooting_script_record_mutation_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
     shooting_script_full_generation_application:
-        Arc<dyn a4n_orchestrator::ShootingScriptFullGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort>,
     shooting_script_next_unit_generation_application:
-        Arc<dyn a4n_orchestrator::ShootingScriptNextUnitGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort>,
     /// Host-facing authentication read boundary. Passwords, sessions and ORM
     /// models remain owned by the authentication application.
     auth_read_application: Arc<dyn a4n_api_contract::auth::AuthReadApplicationPort>,
@@ -112,7 +111,7 @@ pub struct AppState {
     /// Chapter-scene generation and request construction remain in the scene
     /// owner; Runtime only supplies prompt and progress adapters.
     chapter_scene_generation_application:
-        Arc<dyn a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ChapterSceneGenerationApplicationPort>,
     /// Content-optimization session reads stay behind the API contract.
     optimize_session_read_application:
         Arc<dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort>,
@@ -348,16 +347,16 @@ pub struct AppState {
     /// Canvas LLM text owner. Runtime supplies the LLM HostPort and only node
     /// identity plus the shared workflow snapshot.
     canvas_llm_text_application:
-        Arc<dyn a4n_orchestrator::canvas::CanvasLlmTextNodeApplicationPort>,
+        Arc<dyn a4n_canvas_host_contract::CanvasLlmTextNodeApplicationPort>,
     /// Canvas image-generation owner. Runtime supplies only the image HostPort
     /// and a shared workflow snapshot.
-    canvas_image_application: Arc<dyn a4n_orchestrator::canvas::CanvasImageNodeApplicationPort>,
+    canvas_image_application: Arc<dyn a4n_canvas_host_contract::CanvasImageNodeApplicationPort>,
     /// Canvas video-generation owner. Runtime supplies only the video HostPort
     /// and a shared workflow snapshot.
-    canvas_video_application: Arc<dyn a4n_orchestrator::canvas::CanvasVideoNodeApplicationPort>,
+    canvas_video_application: Arc<dyn a4n_canvas_host_contract::CanvasVideoNodeApplicationPort>,
     /// Canvas request-preview owner. Runtime receives prepared pure requests
     /// and renders provider-specific preview steps.
-    canvas_preview_application: Arc<dyn a4n_orchestrator::canvas::CanvasPreviewApplicationPort>,
+    canvas_preview_application: Arc<dyn a4n_canvas_host_contract::CanvasPreviewApplicationPort>,
     /// Canvas editing node owner. Runtime supplies only media editing HostPort
     /// and a shared workflow snapshot.
     canvas_editing_application: Arc<dyn a4n_canvas_contract::CanvasEditingNodeApplicationPort>,
@@ -400,10 +399,10 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort>,
     /// Host-facing reverse-engineering request-preview boundary.
     import_reverse_preview_application:
-        Arc<dyn a4n_orchestrator::import_reverse::ImportReversePreviewApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ImportReversePreviewApplicationPort>,
     /// Host-facing reverse-engineering execution boundary.
     import_reverse_generation_application:
-        Arc<dyn a4n_orchestrator::import_reverse::ImportReverseGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ImportReverseGenerationApplicationPort>,
     /// Host-facing reverse-engineering confirmation boundary.
     import_reverse_confirmation_application:
         Arc<dyn a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort>,
@@ -429,7 +428,7 @@ pub struct AppState {
     /// Host-facing import-review ingestion boundary. Parsing stays in Runtime;
     /// queue persistence and projection stay in the import-review owner.
     import_review_ingestion_application:
-        Arc<dyn a4n_orchestrator::import_review::ImportReviewIngestionApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ImportReviewIngestionApplicationPort>,
     /// Host-facing import-review acceptance boundary.
     import_review_acceptance_application:
         Arc<dyn a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort>,
@@ -1268,7 +1267,7 @@ impl AppState {
 
     pub(crate) fn chapter_scene_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ChapterSceneGenerationApplicationPort {
         self.chapter_scene_generation_application.as_ref()
     }
 
@@ -1984,25 +1983,25 @@ impl AppState {
 
     pub(crate) fn canvas_llm_text_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasLlmTextNodeApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasLlmTextNodeApplicationPort {
         self.canvas_llm_text_application.as_ref()
     }
 
     pub(crate) fn canvas_image_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasImageNodeApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasImageNodeApplicationPort {
         self.canvas_image_application.as_ref()
     }
 
     pub(crate) fn canvas_video_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasVideoNodeApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasVideoNodeApplicationPort {
         self.canvas_video_application.as_ref()
     }
 
     pub(crate) fn canvas_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasPreviewApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasPreviewApplicationPort {
         self.canvas_preview_application.as_ref()
     }
 
@@ -2098,13 +2097,13 @@ impl AppState {
 
     pub(crate) fn import_reverse_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_reverse::ImportReversePreviewApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ImportReversePreviewApplicationPort {
         self.import_reverse_preview_application.as_ref()
     }
 
     pub(crate) fn import_reverse_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_reverse::ImportReverseGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ImportReverseGenerationApplicationPort {
         self.import_reverse_generation_application.as_ref()
     }
 
@@ -2148,7 +2147,7 @@ impl AppState {
 
     pub(crate) fn import_review_ingestion_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_review::ImportReviewIngestionApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ImportReviewIngestionApplicationPort {
         self.import_review_ingestion_application.as_ref()
     }
 
@@ -2603,13 +2602,13 @@ impl AppState {
 
     pub(crate) fn shooting_script_full_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ShootingScriptFullGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort {
         self.shooting_script_full_generation_application.as_ref()
     }
 
     pub(crate) fn shooting_script_next_unit_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ShootingScriptNextUnitGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort {
         self.shooting_script_next_unit_generation_application
             .as_ref()
     }
@@ -2789,7 +2788,6 @@ impl AppState {
             create_rag_store(runtime_profile, capabilities.rag.clone()),
         );
         let prompt_engine = prompt_engine_result?;
-        let chapter = ChapterGenerationService::new(db.clone());
         let rag_store = rag_store_result?;
         let snapshot_store = Arc::new(Sha256SnapshotStore::new(db.clone()));
         let managed_sidecars = Arc::new(tokio::sync::Mutex::new(Vec::new()));
@@ -2801,7 +2799,6 @@ impl AppState {
             config.clone(),
             event_bus.clone(),
             task_manager.clone(),
-            chapter,
             rag_store,
             task_queue.clone(),
             Arc::new(prompt_engine),

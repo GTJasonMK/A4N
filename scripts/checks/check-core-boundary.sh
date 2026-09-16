@@ -143,7 +143,6 @@ fi
 if ! rg -n 'pub struct GenerateCanvasImageInput' crates/a4n-canvas-contract/src/lib.rs || \
    ! rg -n 'pub struct GenerateCanvasVideoInput' crates/a4n-api-contract/src/canvas.rs || \
    ! rg -n 'a4n_canvas_contract::GenerateCanvasImageInput|a4n_api_contract::canvas::GenerateCanvasVideoInput|GenerateCanvas(Image|Video)Input' \
-    crates/a4n-orchestrator/src/canvas/preview.rs \
     crates/a4n-orchestrator/src/canvas/video_generation.rs \
     crates/a4n-orchestrator/src/context/canvas.rs \
     crates/a4n-orchestrator/src/media/image_generation/contracts.rs \
@@ -648,7 +647,7 @@ if ! rg -n 'canvas_preview_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/preview.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasPreviewApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -720,7 +719,7 @@ if ! rg -n 'canvas_llm_text_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasLlmTextNodeApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/text_generation.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasLlmTextNodeApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -738,7 +737,7 @@ if ! rg -n 'canvas_image_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasImageNodeApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/image_generation.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasImageNodeApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -756,7 +755,7 @@ if ! rg -n 'canvas_video_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasVideoNodeApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/video_generation.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasVideoNodeApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -2441,7 +2440,7 @@ if ! rg -n 'shooting_script_full_generation_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ShootingScript(FullGeneration|NextUnitGeneration)ApplicationPort' \
-    crates/a4n-orchestrator/src/shooting_script.rs || \
+    crates/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ShootingScriptRecord(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/shooting_script.rs; then
     printf 'ShootingScriptRecord read/mutation contracts are missing\n' >&2
@@ -3176,6 +3175,16 @@ if ! rg -q "pub trait SceneProfileSyncApplicationPort" crates/a4n-scene-host-con
     exit 1
 fi
 
+if ! rg -q "pub trait CanvasPreviewApplicationPort" crates/a4n-canvas-host-contract/src/lib.rs; then
+    printf 'Canvas host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::canvas::(CanvasNodeRequestPreview|CanvasTextGeneration|Canvas(LlmText|Image|Video|Preview))' crates/a4n-runtime/src; then
+    printf 'Runtime Canvas node actions must use a4n-canvas-host-contract\n' >&2
+    exit 1
+fi
+
 if rg -n 'a4n_orchestrator::scene_profile::(SceneProfileSyncApplicationPort|SceneProfileSyncHostPort|SceneProfileSyncProgress)' crates/a4n-runtime/src; then
     printf 'Runtime scene profile sync must use a4n-scene-host-contract\n' >&2
     exit 1
@@ -3530,9 +3539,9 @@ if ! rg -n 'import_reverse_preview_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait ImportReversePreviewApplicationPort' \
-    crates/a4n-orchestrator/src/import_reverse.rs || \
+    crates/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportReverseGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/import_reverse.rs || \
+    crates/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportReverseConfirmationApplicationPort' \
     crates/a4n-api-contract/src/import_reverse.rs; then
     printf 'Import-reverse application ports are missing\n' >&2
@@ -3611,7 +3620,7 @@ if rg -n 'a4n_orchestrator::import_analysis::ImportAnalysisProgressApplicationPo
 fi
 
 if ! rg -n 'pub trait ImportReviewIngestionApplicationPort' \
-    crates/a4n-orchestrator/src/import_review/mod.rs; then
+    crates/a4n-novel-host-contract/src/lib.rs; then
     printf 'ImportReviewIngestionApplicationPort contract is missing\n' >&2
     exit 1
 fi

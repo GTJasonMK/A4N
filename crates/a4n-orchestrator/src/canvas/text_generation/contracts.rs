@@ -1,10 +1,6 @@
+use crate::canvas::CanvasNodeRunHandle;
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db_models::models::canvas::canvas_node;
-use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
-use async_trait::async_trait;
-
-use crate::canvas::CanvasNodeRunHandle;
 
 #[derive(Debug, Clone)]
 pub(super) struct CanvasRenderedPrompt {
@@ -37,20 +33,6 @@ pub struct CanvasTextNodeExecutionInput<'a> {
     pub mode: &'a str,
 }
 
-#[derive(Debug)]
-pub struct CanvasTextGenerationLlmCall {
-    pub project_id: i64,
-    pub workflow_run_id: i64,
-    pub config_id: Option<i64>,
-    pub request: ChatRequest,
-}
-
-#[async_trait]
-pub trait CanvasTextGenerationLlmPort: Send + Sync {
-    async fn max_output_tokens(&self, config_id: Option<i64>) -> Result<usize, AppError>;
-    /// 通过统一 stream 收集完整文本结果（禁止完整响应 chat）。
-    async fn stream_complete(
-        &self,
-        input: CanvasTextGenerationLlmCall,
-    ) -> Result<ChatResponse, AppError>;
-}
+pub(crate) use a4n_canvas_host_contract::{
+    CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort,
+};

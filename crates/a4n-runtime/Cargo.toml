@@ -35,6 +35,7 @@ a4n-portrait-host-contract = { path = "../a4n-portrait-host-contract" }
 a4n-scene-host-contract = { path = "../a4n-scene-host-contract" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-canvas-contract = { path = "../a4n-canvas-contract" }
+a4n-canvas-host-contract = { path = "../a4n-canvas-host-contract" }
 a4n-outline-contract = { path = "../a4n-outline-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-db-models = { path = "../a4n-db-models" }
@@ -53,6 +54,7 @@ a4n-task-runtime = { path = "../a4n-task-runtime" }
 a4n-provider-contract = { path = "../a4n-provider-contract" }
 a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
 a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
+a4n-novel-host-contract = { path = "../a4n-novel-host-contract" }
 a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-prompt = { path = "../a4n-prompt" }

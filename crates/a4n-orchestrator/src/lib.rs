@@ -52,6 +52,9 @@ mod errors;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub use a4n_novel_host_contract::{
+    ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
+};
 pub use blueprint::BlueprintGenerationApplicationPort;
 pub use blueprint::BlueprintGenerationPreviewApplicationPort;
 pub use blueprint::BlueprintRefinementApplicationPort;
@@ -60,9 +63,6 @@ pub use cleanup_outbox::CleanupOutboxApplicationPort;
 pub use context::OrchestratorContext;
 pub(crate) use context::generation::GenerationTaskAccessError;
 pub(crate) use context::generation::GenerationTaskStart;
-pub use shooting_script::{
-    ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
-};
 
 pub(crate) use errors::{
     chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,

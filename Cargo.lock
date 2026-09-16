@@ -136,6 +136,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-canvas-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-canvas-contract",
+ "a4n-error",
+ "a4n-image-host-contract",
+ "a4n-llm-provider-contract",
+ "a4n-provider-contract",
+ "a4n-video-host-contract",
+ "a4n-video-provider-contract",
+ "a4n-video-sidecar-contract",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-chapter-analysis"
 version = "0.1.0"
 dependencies = [
@@ -872,6 +889,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-novel-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+ "tokio-util",
+]
+
+[[package]]
 name = "a4n-optimize-host-contract"
 version = "0.1.0"
 dependencies = [
@@ -891,6 +921,7 @@ dependencies = [
  "a4n-archive-core",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
+ "a4n-canvas-host-contract",
  "a4n-chapter-analysis",
  "a4n-chapter-analysis-host-contract",
  "a4n-chapter-generation-contract",
@@ -918,6 +949,7 @@ dependencies = [
  "a4n-llm-trace",
  "a4n-media",
  "a4n-migration",
+ "a4n-novel-host-contract",
  "a4n-optimize-host-contract",
  "a4n-outline-contract",
  "a4n-portrait-host-contract",
@@ -1207,6 +1239,7 @@ dependencies = [
  "a4n-archive-core",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
+ "a4n-canvas-host-contract",
  "a4n-chapter-analysis-host-contract",
  "a4n-chapter-generation-contract",
  "a4n-character-host-contract",
@@ -1246,6 +1279,7 @@ dependencies = [
  "a4n-migration",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
+ "a4n-novel-host-contract",
  "a4n-optimize-host-contract",
  "a4n-orchestrator",
  "a4n-outline-contract",

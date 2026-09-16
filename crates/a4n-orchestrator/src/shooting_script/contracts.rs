@@ -16,13 +16,10 @@ pub(super) const CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT: &str =
     "chapter_screenplay_unit_adaptation";
 pub(super) const CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT: &str = "chapter_shooting_design_unit";
 pub(super) const CHAPTER_SHOOTING_SCRIPT_WORKFLOW: &str = "chapter_shooting_script";
-pub const CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL: u32 = 100;
-
-pub type ShootingScriptProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-
-/// 活体信号出口：与字段级里程碑取自同一个 token 流。
-pub type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
+pub(in crate::shooting_script) use a4n_novel_host_contract::{
+    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ShootingScriptProgressReporter,
+    ShootingScriptStreamReporter,
+};
 
 pub(super) struct ShootingScriptStageResult<T> {
     pub(super) output: T,

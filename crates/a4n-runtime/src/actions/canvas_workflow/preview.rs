@@ -5,7 +5,7 @@ mod video;
 use crate::actions::request_preview::ModelRequestPreview;
 use a4n_api_contract::canvas::PreviewCanvasNodeRequestInput;
 use a4n_canvas_contract::CanvasPreviewNodeApplicationInput;
-use a4n_orchestrator::canvas::CanvasNodeRequestPreview;
+use a4n_canvas_host_contract::CanvasNodeRequestPreview;
 
 use crate::AppState;
 

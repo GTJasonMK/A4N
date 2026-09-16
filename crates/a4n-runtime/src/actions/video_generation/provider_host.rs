@@ -1,10 +1,10 @@
-use a4n_config::optional_non_empty_env_string;
-use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
-use a4n_error::AppError;
-use a4n_orchestrator::canvas::{
+use a4n_canvas_host_contract::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
     CanvasVideoProviderInput,
 };
+use a4n_config::optional_non_empty_env_string;
+use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
+use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_service_protocol::GenerationArtifactRef;
