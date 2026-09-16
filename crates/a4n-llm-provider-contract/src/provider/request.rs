@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::contracts::{ChatMessage, LlmTraceContext};
+use super::contracts::{ChatImage, ChatMessage, LlmTraceContext};
 use super::{PromptCacheBreakpoint, PromptCacheMode};
 
 /// 聊天请求
@@ -9,6 +9,8 @@ use super::{PromptCacheBreakpoint, PromptCacheMode};
 #[serde(deny_unknown_fields)]
 pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vision_images: Vec<ChatImage>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,6 +46,7 @@ impl ChatRequest {
     ) -> Self {
         Self {
             messages,
+            vision_images: Vec::new(),
             temperature,
             max_tokens,
             response_format: None,

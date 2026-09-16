@@ -217,7 +217,7 @@ use self::media::{
     preview_object_profile_image_request, preview_page_image_request,
     preview_reference_media_video_request, preview_resume_manga_pipeline_request,
     preview_scene_image_request, preview_start_manga_pipeline_request,
-    preview_video_provider_request_by_video_id, push_assembled_chapter_video,
+    preview_video_provider_request_by_video_id, push_assembled_chapter_video, read_image,
     resume_manga_pipeline, select_segment_video, set_profile_primary_material,
     start_manga_pipeline, sync_scene_profiles, trim_video, update_assembly_push_status,
     update_chapter_video_prompt, update_chapter_video_segment_recipe, update_foreshadowing,

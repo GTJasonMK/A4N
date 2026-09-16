@@ -22,6 +22,7 @@ pub mod galgame;
 pub mod generation_tasks;
 pub mod image;
 pub mod image_generation;
+pub mod image_read;
 pub mod import;
 pub mod import_reverse;
 pub mod import_review;

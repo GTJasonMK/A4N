@@ -14,7 +14,11 @@ pub(in crate::http) fn request_body(
     let mut contents = Vec::<Value>::new();
     let mut system = Vec::new();
     let mut call_names = HashMap::new();
-    for message in &request.messages {
+    let vision_message_index = request
+        .messages
+        .iter()
+        .rposition(|message| matches!(message.role, MessageRole::User));
+    for (index, message) in request.messages.iter().enumerate() {
         if matches!(message.role, MessageRole::System) {
             system.push(json!({"text": message.content}));
             continue;
@@ -36,6 +40,19 @@ pub(in crate::http) fn request_body(
         } else {
             if !message.content.is_empty() {
                 parts.push(json!({"text": message.content}));
+            }
+            if Some(index) == vision_message_index {
+                for image in &request.vision_images {
+                    if !image.media_type.starts_with("image/") || image.data_base64.is_empty() {
+                        return Err(AppError::InvalidArgument("视觉输入图片数据无效".into()));
+                    }
+                    parts.push(json!({
+                        "inlineData": {
+                            "mimeType": image.media_type,
+                            "data": image.data_base64
+                        }
+                    }));
+                }
             }
             for call in message.tool_calls.as_deref().unwrap_or_default() {
                 let meta = call

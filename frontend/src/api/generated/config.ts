@@ -258,6 +258,19 @@ export interface WebFetchResult {
   url: string;
 }
 
+export interface ReadImageInput {
+  chapterId?: number | null;
+  imageIds: number[];
+  instruction?: string | null;
+  projectId: number;
+}
+
+export interface ReadImageResult {
+  analysis: string;
+  image_ids: number[];
+  project_id: number;
+}
+
 export interface LlmProviderDescriptor {
   default_base_url: string;
   display_name: string;

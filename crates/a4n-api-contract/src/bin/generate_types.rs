@@ -153,6 +153,7 @@ use a4n_api_contract::{
         ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
         SceneProfileImagePromptOutput,
     },
+    image_read::{ReadImageInput, ReadImageResult},
     import::{
         ImportAnalysisStageKey, ImportAnalysisStageProgress, ImportAnalysisStageStatus,
         ImportAnalysisStages, ImportAnalysisStatus, ImportProjectAnalysisSummary,
@@ -467,6 +468,8 @@ fn main() {
         &typescript_interface::<WebSearchSource>("WebSearchSource"),
         &typescript_interface::<WebFetchInput>("WebFetchInput"),
         &typescript_interface::<WebFetchResult>("WebFetchResult"),
+        &typescript_interface::<ReadImageInput>("ReadImageInput"),
+        &typescript_interface::<ReadImageResult>("ReadImageResult"),
         &typescript_interface::<LlmProviderDescriptor>("LlmProviderDescriptor"),
         &typescript_interface::<ImageProviderDescriptor>("ImageProviderDescriptor"),
         &typescript_interface::<VideoProviderDescriptor>("VideoProviderDescriptor"),

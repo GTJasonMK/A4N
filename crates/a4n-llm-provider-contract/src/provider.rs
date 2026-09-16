@@ -14,7 +14,7 @@ mod tests;
 
 pub use cache::{PromptCacheBreakpoint, PromptCacheMode, validate_prompt_cache_options};
 pub use contracts::{
-    ChatChunk, ChatMessage, ChatResponse, LLM_PROVIDER_CAPABILITIES, LlmFinishReason,
+    ChatChunk, ChatImage, ChatMessage, ChatResponse, LLM_PROVIDER_CAPABILITIES, LlmFinishReason,
     LlmProtocolKind, LlmProviderCapabilities, LlmTraceContext, MessageRole, ModelCapabilities,
     ToolCall, UsageInfo, classify_finish_reason, is_truncated_finish_reason,
     validate_finish_reason, validated_model_output_tokens,

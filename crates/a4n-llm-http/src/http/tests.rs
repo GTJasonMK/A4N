@@ -4,7 +4,7 @@ use super::response::*;
 use super::sse::*;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::{
-    ChatChunk, ChatMessage, ChatRequest, ModelCapabilities, normalize_extra_body,
+    ChatChunk, ChatImage, ChatMessage, ChatRequest, ModelCapabilities, normalize_extra_body,
 };
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -39,6 +39,23 @@ fn native_agent_initial_request_keeps_implicit_cache_on_the_wire() {
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
     assert_eq!(body["messages"][1]["content"], "initial task");
+}
+
+#[test]
+fn openai_compatible_request_encodes_vision_images_as_image_url_parts() {
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test/v1", "vision-model", None, 30);
+    let mut request = ChatRequest::system_user("system", "检查这张图", None, Some(100));
+    request.vision_images = vec![ChatImage {
+        media_type: "image/png".into(),
+        data_base64: "aGVsbG8".into(),
+    }];
+    let body = request_body_json(provider.build_request(&request, true));
+    assert_eq!(body["messages"][1]["content"][0]["type"], "text");
+    assert_eq!(
+        body["messages"][1]["content"][1]["image_url"]["url"],
+        "data:image/png;base64,aGVsbG8"
+    );
 }
 
 #[test]

@@ -46,6 +46,13 @@ pub struct ChatMessage {
     pub tool_call_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ChatImage {
+    pub media_type: String,
+    pub data_base64: String,
+}
+
 impl ChatMessage {
     pub fn system(content: impl Into<String>) -> Self {
         Self::new(MessageRole::System, content)

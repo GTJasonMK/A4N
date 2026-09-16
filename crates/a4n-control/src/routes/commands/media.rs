@@ -8,8 +8,8 @@ mod video_records;
 pub(super) use image::{
     delete_image, list_images_by_chapter, list_images_by_project, list_images_by_projects,
     list_profile_materials, list_video_reference_images, preview_batch_images_request,
-    preview_page_image_request, preview_scene_image_request, set_profile_primary_material,
-    update_image, upload_image, upload_profile_material_image,
+    preview_page_image_request, preview_scene_image_request, read_image,
+    set_profile_primary_material, update_image, upload_image, upload_profile_material_image,
 };
 pub(super) use manga::{
     bind_manga_reference_image, cancel_manga_pipeline, delete_manga_by_chapter,

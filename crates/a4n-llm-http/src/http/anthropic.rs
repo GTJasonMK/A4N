@@ -165,8 +165,10 @@ fn anthropic_messages(request: &ChatRequest) -> Result<Value, AppError> {
             continue;
         }
         match message.role {
-            MessageRole::User => output
-                .push(json!({"role": "user", "content": anthropic_text_blocks(request, index)?})),
+            MessageRole::User => output.push(json!({
+                "role": "user",
+                "content": anthropic_content_blocks(request, index)?
+            })),
             MessageRole::Assistant => {
                 let mut blocks = Vec::new();
                 if !message.content.is_empty() {
@@ -200,6 +202,32 @@ fn anthropic_messages(request: &ChatRequest) -> Result<Value, AppError> {
         }
     }
     Ok(Value::Array(output))
+}
+
+fn anthropic_content_blocks(request: &ChatRequest, index: usize) -> Result<Vec<Value>, AppError> {
+    let mut blocks = anthropic_text_blocks(request, index)?;
+    let is_last_user = request
+        .messages
+        .iter()
+        .rposition(|message| matches!(message.role, MessageRole::User))
+        == Some(index);
+    if !is_last_user {
+        return Ok(blocks);
+    }
+    for image in &request.vision_images {
+        if !image.media_type.starts_with("image/") || image.data_base64.is_empty() {
+            return Err(AppError::InvalidArgument("视觉输入图片数据无效".into()));
+        }
+        blocks.push(json!({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image.media_type,
+                "data": image.data_base64
+            }
+        }));
+    }
+    Ok(blocks)
 }
 
 fn anthropic_tools(tools: &[Value]) -> Result<Value, AppError> {
@@ -503,6 +531,7 @@ fn map_stop_reason(reason: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_llm_provider_contract::ChatImage;
 
     #[test]
     fn projects_text_tool_usage_and_finish_reason() {
@@ -557,6 +586,33 @@ mod tests {
                 .unwrap()
                 .get("system")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn request_encodes_vision_images_as_anthropic_base64_blocks() {
+        let provider = AnthropicLlmProvider::new(
+            "https://example.test",
+            "claude-test",
+            None,
+            30,
+            None,
+            ModelCapabilities {
+                max_context_tokens: 4096,
+                max_output_tokens: 1024,
+            },
+        )
+        .unwrap();
+        let mut request = ChatRequest::system_user("system", "检查这张图", None, Some(100));
+        request.vision_images = vec![ChatImage {
+            media_type: "image/png".into(),
+            data_base64: "aGVsbG8".into(),
+        }];
+        let body = provider.request_body(&request).unwrap();
+        assert_eq!(body["messages"][0]["content"][1]["type"], "image");
+        assert_eq!(
+            body["messages"][0]["content"][1]["source"]["data"],
+            "aGVsbG8"
         );
     }
 

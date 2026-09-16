@@ -3,7 +3,7 @@ use a4n_llm_provider_contract::{ChatChunk, ChatRequest, MessageRole, ToolCall, U
 use serde_json::{Map, Value, json};
 
 use super::{empty_chunk, function_definition, required_string};
-use crate::http::cache::{apply_openai_cache_options, openai_text_content};
+use crate::http::cache::{apply_openai_cache_options, openai_content_with_images};
 use crate::http::response::{optional_nested_usize, required_usize};
 
 pub(in crate::http) fn request_body(
@@ -28,7 +28,7 @@ pub(in crate::http) fn request_body(
                 .as_deref()
                 .filter(|id| !id.is_empty())
                 .ok_or_else(|| AppError::InvalidArgument("工具结果缺少 tool_call_id".into()))?;
-            input.push(json!({"type": "function_call_output", "call_id": call_id, "output": openai_text_content(request, index, "input_text")?}));
+            input.push(json!({"type": "function_call_output", "call_id": call_id, "output": openai_content_with_images(request, index, "input_text", "input_image")?}));
             continue;
         }
         let calls = message.tool_calls.as_deref().unwrap_or_default();
@@ -55,7 +55,7 @@ pub(in crate::http) fn request_body(
             } else {
                 "input_text"
             };
-            input.push(json!({"role": message.role, "content": openai_text_content(request, index, kind)?}));
+            input.push(json!({"role": message.role, "content": openai_content_with_images(request, index, kind, "input_image")?}));
         }
         for call in calls {
             input.push(

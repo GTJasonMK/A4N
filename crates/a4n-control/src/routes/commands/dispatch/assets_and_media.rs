@@ -14,7 +14,7 @@ use super::super::{
     preview_generate_portrait_request, preview_object_profile_image_request,
     preview_page_image_request, preview_regenerate_portrait_request, preview_scene_image_request,
     preview_sync_all_character_profiles_request, preview_sync_character_from_chapters_request,
-    preview_test_image_config_request, remove_image_config, set_default_image_config,
+    preview_test_image_config_request, read_image, remove_image_config, set_default_image_config,
     set_primary_portrait, sync_all_character_profiles, sync_character_from_chapters,
     sync_scene_profiles, test_image_config, update_foreshadowing, update_image,
     update_image_config, update_object_profile, update_scene_profile, upload_image,
@@ -47,6 +47,7 @@ pub(super) async fn try_dispatch(
         "list_images_by_project" => list_images_by_project(state, user_id, args).await?,
         "list_images_by_projects" => list_images_by_projects(state, user_id, args).await?,
         "list_images_by_chapter" => list_images_by_chapter(state, user_id, args).await?,
+        "read_image" => read_image(state, user_id, args).await?,
         "list_profile_materials" => list_profile_materials(state, user_id, args).await?,
         "upload_profile_material_image" => {
             upload_profile_material_image(state, user_id, args).await?

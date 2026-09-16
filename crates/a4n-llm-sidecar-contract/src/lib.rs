@@ -80,6 +80,8 @@ pub struct LlmResponseFormat {
 #[serde(deny_unknown_fields)]
 pub struct LlmChatRequest {
     pub messages: Vec<LlmChatMessage>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vision_images: Vec<LlmChatImage>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,6 +101,13 @@ pub struct LlmChatRequest {
     pub tools: Option<Vec<Value>>,
     pub tool_choice: Option<String>,
     pub stop_sequences: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LlmChatImage {
+    pub media_type: String,
+    pub data_base64: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -302,6 +311,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: Some("call-1".to_string()),
             }],
+            vision_images: Vec::new(),
             temperature: Some(0.2),
             max_tokens: Some(256),
             response_format: Some(LlmResponseFormat {

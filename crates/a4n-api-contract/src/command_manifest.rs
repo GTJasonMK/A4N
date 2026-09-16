@@ -630,6 +630,7 @@ command_specs! {
     "rag_upload_ingest_embeddings" => args_rag_upload_ingest_embeddings, result_rag_ingest, "rag", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
     "read_canvas_graph" => args_read_canvas_graph, result_read_canvas_graph, "canvas", effect(READ_EFFECT), context(NO_CONTEXT);
     "read_chapter_visual_plan" => args_read_chapter_visual_plan, result_read_chapter_visual_plan, "chapter", effect(READ_EFFECT);
+    "read_image" => args_read_image, result_read_image, "image", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "read_recent_logs" => args_read_recent_logs, result_read_recent_logs, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "read_visual_plan_prompt_candidate" => args_read_visual_plan_prompt_candidate, result_visual_plan_prompt_candidate, "chapter", effect(READ_EFFECT);
     "record_optimize_agent_event" => args_record_optimize_agent_event, result_unit, "optimize", context(NO_CONTEXT);
@@ -888,6 +889,7 @@ fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
             "edit_canvas_graph" => "Apply 1..20 typed node-config or connection edits at expected_version. Reuses graph/port/reference validation and transactional CAS. Unrelated nodes and edges keep their IDs; returns actual changed records and the saved version. Does not run the graph.".into(),
             "edit_chapter_visual_plan_draft" => "Edit a saved director timeline with typed operations: image points, shot segments, shared boundaries, proportional retiming, image bindings, scene/prompt fields, single-point removal, remove_points batches and a combined remove operation for point_ids plus segment_ids. Combined removal preserves fixed endpoints; a draft may temporarily contain zero segments, while confirmed plans still require a complete timeline. Partial segment removal must leave a valid contiguous timeline or be handled by merge operations. Inserting a point does not split a shot. End images are opt-in. Requires record_id and expected_revision; returns the updated plan and actual changes. Does not confirm the plan.".into(),
             "validate_chapter_visual_plan" => "Check a saved plan at the specified revision with draft or confirmed structure rules. Returns the first diagnostic with its path; never confirms the plan or assesses visual quality.".into(),
+            "read_image" => "Read one to four persisted project images or video frames with the current vision-capable LLM. Use this to inspect composition, continuity, artifacts and whether a frame should be regenerated; this command only returns an assessment and never writes or regenerates an image.".into(),
             _ => spec.name.replace('_', " "),
         },
         auth: spec.auth.into(),
@@ -984,12 +986,12 @@ fn package_policy(spec: &CommandSpec) -> (PackageId, PackageCommandCategory) {
 fn default_agent_policy(spec: &CommandSpec) -> Option<AgentPolicySpec> {
     // Existing manifest auth/secret metadata remains the single visibility gate.
     // Commands that need runtime secrets or an admin identity are not model tools.
-    // Web tools are the intentional exception: their provider credentials and
-    // limits arrive through the per-run runtime snapshot, while the command
-    // itself remains a read-only, user-scoped operation.
-    let is_web_tool = matches!(spec.name, "web_search" | "web_fetch");
+    // Read-only web/image inspection tools are the intentional exception: their
+    // provider credentials and limits arrive through the per-run runtime
+    // snapshot, while the command itself remains user-scoped and non-mutating.
+    let is_runtime_read_tool = matches!(spec.name, "read_image" | "web_search" | "web_fetch");
     if spec.auth != "user"
-        || (!is_web_tool
+        || (!is_runtime_read_tool
             && (!spec.secret_pointers.is_empty()
                 || spec.runtime_config_policy != RuntimeConfigPolicy::None))
         || matches!(spec.domain, "auth" | "settings" | "system")
@@ -2466,6 +2468,10 @@ fn args_web_fetch() -> Value {
     typed_schema::<crate::web_fetch::WebFetchInput>()
 }
 
+fn args_read_image() -> Value {
+    typed_schema::<crate::image_read::ReadImageInput>()
+}
+
 fn args_update_manga_prompt() -> Value {
     strict_typed_input_schema::<crate::manga::UpdateMangaPromptInput>()
 }
@@ -3000,6 +3006,10 @@ fn result_web_search() -> Value {
 
 fn result_web_fetch() -> Value {
     typed_schema::<crate::web_fetch::WebFetchResult>()
+}
+
+fn result_read_image() -> Value {
+    typed_schema::<crate::image_read::ReadImageResult>()
 }
 
 fn result_get_manga_pipeline_status() -> Value {
@@ -3702,6 +3712,9 @@ mod tests {
                 .secret_pointers
                 .contains(&"/runtime_config_snapshot/web_search/api_key_encrypted".to_string())
         );
+        let read_image = command_descriptor("read_image").unwrap();
+        assert_eq!(read_image.runtime_config_policy, RuntimeConfigPolicy::Full);
+        assert!(read_image.agent_policy.is_some());
         let web_fetch = command_descriptor("web_fetch").unwrap();
         assert_eq!(
             web_fetch.runtime_config_policy,

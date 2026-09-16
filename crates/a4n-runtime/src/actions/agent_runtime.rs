@@ -26,6 +26,7 @@ use a4n_api_contract::chapter_visual_plan::{
     StartVisualPlanPromptGenerationInput,
 };
 use a4n_api_contract::image_generation::StartImageGenerationInput;
+use a4n_api_contract::image_read::ReadImageInput;
 use a4n_api_contract::package::PackageId;
 use a4n_api_contract::web_fetch::WebFetchInput;
 use a4n_api_contract::web_search::WebSearchInput;
@@ -485,6 +486,12 @@ impl RuntimeAgentToolExecutor {
             "web_fetch" => {
                 let input = parse_arguments::<WebFetchInput>(arguments, name)?;
                 serde_json::to_value(crate::actions::config_records::web_fetch(input).await?)
+            }
+            "read_image" => {
+                let input = parse_arguments::<ReadImageInput>(arguments, name)?;
+                serde_json::to_value(
+                    crate::actions::image_records::read_image(&self.state, user_id, input).await?,
+                )
             }
             "get_canvas_graph" => {
                 let input =
@@ -2467,6 +2474,7 @@ async fn process_claimed_run_inner(
         }
         let mut request = ChatRequest {
             messages: request_messages,
+            vision_images: Vec::new(),
             temperature: Some(0.2),
             max_tokens: Some(output_tokens),
             response_format: None,
@@ -2777,6 +2785,7 @@ async fn compact_context(
             ),
             ChatMessage::user(source),
         ],
+        vision_images: Vec::new(),
         temperature: Some(0.0),
         max_tokens: Some(output_tokens),
         response_format: Some(ResponseFormat::json_object()),
@@ -4266,7 +4275,7 @@ fn available_runtime_tools(
         .map(|name| (*name).to_string())
         .take(MAX_BASE_AGENT_TOOLS)
         .collect::<Vec<_>>();
-    for tool in ["web_search", "web_fetch"] {
+    for tool in ["read_image", "web_search", "web_fetch"] {
         if a4n_api_contract::agent::initial_agent_tools(capability).contains(&tool)
             && !names.iter().any(|name| name == tool)
         {

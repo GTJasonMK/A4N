@@ -1,7 +1,8 @@
 use std::time::Instant;
 
 use a4n_llm_provider_contract::{
-    ChatMessage, ChatRequest, ChatResponse, LlmProtocolKind, MessageRole, collect_chat_chunks,
+    ChatImage, ChatMessage, ChatRequest, ChatResponse, LlmProtocolKind, MessageRole,
+    collect_chat_chunks,
 };
 use futures::{executor::block_on, stream};
 use serde_json::{Value, json};
@@ -163,6 +164,30 @@ fn native_json_requests_map_owned_fields_and_reject_unsupported_options() {
     );
     request.stop_sequences = Some(vec!["STOP".into()]);
     assert!(responses::request_body(&request, "model", Default::default()).is_err());
+}
+
+#[test]
+fn native_vision_requests_encode_images_for_responses_and_gemini() {
+    let mut request = ChatRequest::system_user("system", "检查这张图", None, Some(100));
+    request.vision_images = vec![ChatImage {
+        media_type: "image/jpeg".into(),
+        data_base64: "aGVsbG8".into(),
+    }];
+    let responses = responses::request_body(&request, "model", Default::default()).unwrap();
+    assert_eq!(responses["input"][1]["content"][1]["type"], "input_image");
+    assert_eq!(
+        responses["input"][1]["content"][1]["image_url"],
+        "data:image/jpeg;base64,aGVsbG8"
+    );
+    let gemini = gemini::request_body(&request, Default::default()).unwrap();
+    assert_eq!(
+        gemini["contents"][0]["parts"][1]["inlineData"]["mimeType"],
+        "image/jpeg"
+    );
+    assert_eq!(
+        gemini["contents"][0]["parts"][1]["inlineData"]["data"],
+        "aGVsbG8"
+    );
 }
 
 #[test]

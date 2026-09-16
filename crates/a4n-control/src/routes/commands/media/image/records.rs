@@ -57,6 +57,20 @@ pub(in crate::routes::commands) async fn list_video_reference_images(
     to_value(images)
 }
 
+pub(in crate::routes::commands) async fn read_image(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: a4n_api_contract::image_read::ReadImageInput =
+        strict_command_input(args, "read_image")?;
+    to_value(
+        image_records_actions::read_image(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::from)?,
+    )
+}
+
 pub(in crate::routes::commands) async fn update_image(
     state: &ServerState,
     user_id: i64,

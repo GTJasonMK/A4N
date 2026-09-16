@@ -1,6 +1,6 @@
 use a4n_llm_sidecar_contract::{
-    LlmChatMessage, LlmChatRequest, LlmMessageRole, LlmPromptCacheBreakpoint, LlmPromptCacheMode,
-    LlmResponseFormat, LlmToolCall,
+    LlmChatImage, LlmChatMessage, LlmChatRequest, LlmMessageRole, LlmPromptCacheBreakpoint,
+    LlmPromptCacheMode, LlmResponseFormat, LlmToolCall,
 };
 
 use super::{
@@ -12,6 +12,7 @@ impl From<ChatRequest> for LlmChatRequest {
     fn from(request: ChatRequest) -> Self {
         Self {
             messages: request.messages.into_iter().map(Into::into).collect(),
+            vision_images: request.vision_images.into_iter().map(Into::into).collect(),
             temperature: request.temperature,
             max_tokens: request.max_tokens,
             response_format: request.response_format.map(Into::into),
@@ -36,6 +37,7 @@ impl From<LlmChatRequest> for ChatRequest {
     fn from(request: LlmChatRequest) -> Self {
         Self {
             messages: request.messages.into_iter().map(Into::into).collect(),
+            vision_images: request.vision_images.into_iter().map(Into::into).collect(),
             temperature: request.temperature,
             max_tokens: request.max_tokens,
             response_format: request.response_format.map(Into::into),
@@ -54,6 +56,24 @@ impl From<LlmChatRequest> for ChatRequest {
             tools: request.tools,
             tool_choice: request.tool_choice,
             stop_sequences: request.stop_sequences,
+        }
+    }
+}
+
+impl From<super::ChatImage> for LlmChatImage {
+    fn from(image: super::ChatImage) -> Self {
+        Self {
+            media_type: image.media_type,
+            data_base64: image.data_base64,
+        }
+    }
+}
+
+impl From<LlmChatImage> for super::ChatImage {
+    fn from(image: LlmChatImage) -> Self {
+        Self {
+            media_type: image.media_type,
+            data_base64: image.data_base64,
         }
     }
 }
@@ -204,6 +224,7 @@ mod tests {
                 }]),
                 tool_call_id: None,
             }],
+            vision_images: Vec::new(),
             temperature: Some(0.2),
             max_tokens: Some(256),
             response_format: Some(ResponseFormat::json_object()),

@@ -389,6 +389,7 @@ fn test_chat_request() -> ChatRequest {
             tool_calls: None,
             tool_call_id: None,
         }],
+        vision_images: Vec::new(),
         temperature: Some(0.0),
         max_tokens: Some(8),
         response_format: None,

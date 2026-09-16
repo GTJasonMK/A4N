@@ -54,6 +54,7 @@ pub const MAIN_AGENT_TOOLS: &[&str] = &[
     "list_projects",
     "get_project",
     "list_chapters",
+    "read_image",
     "web_search",
     "web_fetch",
     "delegate",
@@ -70,6 +71,7 @@ pub const CONTENT_OPTIMIZATION_AGENT_TOOLS: &[&str] = &[
     "read_agent_execution_result",
     "get_project",
     "list_chapters",
+    "read_image",
     "web_search",
     "web_fetch",
     "ensure_content_optimization_session",
@@ -89,6 +91,7 @@ pub const CANVAS_AGENT_TOOLS: &[&str] = &[
     "read_agent_memory",
     "read_agent_execution_result",
     "get_project",
+    "read_image",
     "web_search",
     "web_fetch",
     "get_canvas_graph",
@@ -119,6 +122,7 @@ pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
     "read_agent_execution_result",
     "get_project",
     "list_chapters",
+    "read_image",
     "web_search",
     "web_fetch",
     "get_blueprint",
@@ -186,6 +190,7 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "load_agent_skill",
             "read_agent_execution_result",
             "read_chapter_visual_plan",
+            "read_image",
             "web_search",
             "web_fetch",
             "edit_chapter_visual_plan_draft",
@@ -198,6 +203,7 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "load_agent_skill",
             "read_agent_execution_result",
             "read_canvas_graph",
+            "read_image",
             "web_search",
             "web_fetch",
             "edit_canvas_graph",
@@ -1764,7 +1770,7 @@ mod tests {
             crate::command_manifest::RuntimeConfigPolicy::None
         );
         assert!(agent_tool_descriptor("create_llm_config").is_none());
-        for name in ["web_search", "web_fetch"] {
+        for name in ["read_image", "web_search", "web_fetch"] {
             let descriptor = agent_tool_descriptor(name)
                 .unwrap_or_else(|| panic!("{name} web tool should be exposed to Agent"));
             assert_eq!(

@@ -4,7 +4,7 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::{ChatRequest, MessageRole};
 use serde_json::{Map, Value, json};
 
-use crate::http::cache::{apply_openai_cache_options, openai_text_content};
+use crate::http::cache::{apply_openai_cache_options, openai_content_with_images};
 use crate::http::sse::enable_stream_usage;
 
 use super::HttpLlmProvider;
@@ -52,7 +52,7 @@ impl HttpLlmProvider {
                         MessageRole::Assistant => "assistant".into(),
                         MessageRole::Tool => "tool".into(),
                     },
-                    content: openai_text_content(request, index, "text")?,
+                    content: openai_content_with_images(request, index, "text", "image_url")?,
                     tool_calls: message.tool_calls.as_ref().map(|tool_calls| {
                         tool_calls
                             .iter()

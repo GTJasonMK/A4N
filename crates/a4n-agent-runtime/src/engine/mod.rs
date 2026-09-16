@@ -1149,6 +1149,7 @@ async fn process_claimed_run_inner(
         .await?;
         let mut request = ChatRequest {
             messages: request_messages,
+            vision_images: Vec::new(),
             temperature: Some(0.2),
             max_tokens: Some(output_tokens),
             response_format: None,
@@ -1440,6 +1441,7 @@ async fn compact_context(
             ),
             ChatMessage::user(source),
         ],
+        vision_images: Vec::new(),
         temperature: Some(0.0),
         max_tokens: Some(output_tokens),
         response_format: Some(a4n_llm_provider_contract::ResponseFormat::json_object()),
@@ -2875,7 +2877,7 @@ fn available_runtime_tools(
         .map(|name| (*name).to_string())
         .take(MAX_BASE_AGENT_TOOLS)
         .collect::<Vec<_>>();
-    for tool in ["web_search", "web_fetch"] {
+    for tool in ["read_image", "web_search", "web_fetch"] {
         if a4n_api_contract::agent::initial_agent_tools(capability).contains(&tool)
             && !names.iter().any(|name| name == tool)
         {
