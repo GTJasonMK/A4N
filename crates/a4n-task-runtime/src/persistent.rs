@@ -16,7 +16,7 @@ mod submitted_guard;
 mod test_support;
 
 pub use contracts::PersistentTaskQueue;
-pub(in crate::task_queue) use contracts::RunTrackedTaskInput;
-pub(in crate::task_queue) use errors::queue_db_error;
-pub(crate) use running_task::RunningTask;
-pub(in crate::task_queue) use submitted_guard::SubmittedTaskGuard;
+pub(in crate::persistent) use contracts::RunTrackedTaskInput;
+pub(in crate::persistent) use errors::queue_db_error;
+pub use running_task::RunningTask;
+pub(in crate::persistent) use submitted_guard::SubmittedTaskGuard;

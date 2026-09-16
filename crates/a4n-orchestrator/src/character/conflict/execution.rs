@@ -287,12 +287,6 @@ impl super::CharacterConflictApplicationPort for OrchestratorContext {
     }
 }
 
-pub fn validate_character_conflict_input(
-    input: &CharacterConflictCheckInput,
-) -> Result<(), AppError> {
-    validated_character_conflict_input(input).map(drop)
-}
-
 pub(super) fn validated_character_conflict_input(
     input: &CharacterConflictCheckInput,
 ) -> Result<ValidatedCharacterConflictInput, AppError> {

@@ -17,7 +17,7 @@ impl RunningTask {
             .cancellation_token()
     }
 
-    pub(in crate::task_queue) fn new(db: SharedDatabaseConnection, permit: TaskPermit) -> Self {
+    pub(in crate::persistent) fn new(db: SharedDatabaseConnection, permit: TaskPermit) -> Self {
         Self {
             db,
             permit: Some(permit),
@@ -51,7 +51,7 @@ impl RunningTask {
             .map_err(queue_db_error)
     }
 
-    pub(in crate::task_queue) async fn finish<T>(
+    pub(in crate::persistent) async fn finish<T>(
         self,
         result: Result<T, AppError>,
     ) -> Result<T, AppError> {

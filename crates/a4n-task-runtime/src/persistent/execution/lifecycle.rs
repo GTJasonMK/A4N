@@ -19,7 +19,7 @@ impl PersistentTaskQueue {
             .await
     }
 
-    pub(in crate::task_queue) async fn acquire_task_with_cancel(
+    pub(in crate::persistent) async fn acquire_task_with_cancel(
         &self,
         task_id: &str,
         cancel_token: CancellationToken,
@@ -53,7 +53,7 @@ impl PersistentTaskQueue {
         .await
     }
 
-    pub(crate) async fn start_task_with_limit(
+    pub async fn start_task_with_limit(
         &self,
         task_type: a4n_queue::priority::TaskKind,
         priority: a4n_queue::priority::TaskPriority,
@@ -86,11 +86,11 @@ impl PersistentTaskQueue {
         Ok(RunningTask::new(self.db.clone(), permit))
     }
 
-    pub(crate) fn signal_generation_cancel(&self, task_id: &str) -> Result<bool, AppError> {
+    pub fn signal_generation_cancel(&self, task_id: &str) -> Result<bool, AppError> {
         self.inner.signal_task_cancel(task_id)
     }
 
-    pub(crate) fn project_generation_terminal(
+    pub fn project_generation_terminal(
         &self,
         task_id: &str,
         status: TaskStatus,
@@ -98,7 +98,7 @@ impl PersistentTaskQueue {
         self.inner.project_task_terminal(task_id, status)
     }
 
-    pub(in crate::task_queue) fn submitted_task_guard(
+    pub(in crate::persistent) fn submitted_task_guard(
         &self,
         task_id: String,
     ) -> SubmittedTaskGuard {

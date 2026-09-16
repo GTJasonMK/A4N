@@ -7,7 +7,7 @@ use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
 use crate::chapter_generation::ChapterGenerationService;
-use crate::task_queue::PersistentTaskQueue;
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 mod admin;
 mod asset;

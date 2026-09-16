@@ -8,7 +8,7 @@ mod cleanup;
 mod tests;
 
 use cleanup::cleanup_dropped_task;
-pub(in crate::task_queue) use cleanup::persist_dropped_status;
+pub(in crate::persistent) use cleanup::persist_dropped_status;
 
 pub struct SubmittedTaskGuard {
     inner: Arc<MemoryTaskQueue>,

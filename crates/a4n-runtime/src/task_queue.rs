@@ -4,7 +4,7 @@ use a4n_api_contract::task::{
     QueueSlotStatsSummary, QueueStatsSummary, TaskCancellationPort, TaskQueueStatsApplicationPort,
 };
 use a4n_error::AppError;
-use a4n_orchestrator::task_queue::PersistentTaskQueue;
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 /// Runtime owns queue cancellation and scheduler observation at the Host
 /// boundary; business applications only use the queue for their own work.

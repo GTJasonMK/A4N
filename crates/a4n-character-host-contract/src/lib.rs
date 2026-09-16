@@ -11,6 +11,7 @@ use a4n_api_contract::character::{
     SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult, SyncCharacterProfileInput,
     SyncCharacterProfileResult,
 };
+use a4n_domain::project::required_text;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 use a4n_prompt_contract::rendering::PromptRenderer;
@@ -25,6 +26,50 @@ pub const CHARACTER_CONFLICT_KIND: &str = "character_conflict_check";
 pub const CHARACTER_CONFLICT_PROGRESS_TOTAL: u32 = 4;
 pub const IMPLICIT_UPDATE_PROMPT_NAME: &str = "implicit_update";
 pub const IMPLICIT_UPDATE_WORKFLOW_KIND: &str = "implicit_update_review";
+
+pub fn validate_character_discovery_input(
+    input: &DiscoverCharacterProfilesInput,
+) -> Result<(), AppError> {
+    if input.project_id <= 0 {
+        return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
+    }
+    if input
+        .chapter_number
+        .is_some_and(|chapter_number| chapter_number <= 0)
+    {
+        return Err(AppError::InvalidArgument(
+            "角色发现章节号必须大于 0".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_character_conflict_input(
+    input: &CharacterConflictCheckInput,
+) -> Result<(), AppError> {
+    if input.project_id <= 0 {
+        return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
+    }
+    required_text(&input.name, "角色姓名").map_err(AppError::InvalidArgument)?;
+    if input.start_chapter.is_some_and(|chapter| chapter <= 0) {
+        return Err(AppError::InvalidArgument(
+            "角色一致性检查起始章节必须大于 0".to_string(),
+        ));
+    }
+    if input.end_chapter.is_some_and(|chapter| chapter <= 0) {
+        return Err(AppError::InvalidArgument(
+            "角色一致性检查结束章节必须大于 0".to_string(),
+        ));
+    }
+    if let (Some(start), Some(end)) = (input.start_chapter, input.end_chapter)
+        && start > end
+    {
+        return Err(AppError::InvalidArgument(
+            "角色一致性检查起始章节不能大于结束章节".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 pub type CharacterDiscoveryProgressReporter<'a> =
     &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);

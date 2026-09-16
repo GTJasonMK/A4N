@@ -9,10 +9,7 @@ mod llm_tests;
 mod tests;
 
 impl PersistentTaskQueue {
-    pub(crate) async fn cancel_workflow_llm_calls(
-        &self,
-        workflow_run_id: i64,
-    ) -> Result<(), AppError> {
+    pub async fn cancel_workflow_llm_calls(&self, workflow_run_id: i64) -> Result<(), AppError> {
         let ids = a4n_db::queue::active_workflow_llm_task_ids(self.db.as_ref(), workflow_run_id)
             .await
             .map_err(queue_db_error)?;

@@ -193,6 +193,7 @@ name = "a4n-character-host-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-domain",
  "a4n-error",
  "a4n-llm-provider-contract",
  "a4n-prompt-contract",
@@ -1448,15 +1449,24 @@ dependencies = [
 name = "a4n-task-runtime"
 version = "0.1.0"
 dependencies = [
+ "a4n-api-contract",
+ "a4n-db",
+ "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "a4n-progress",
+ "a4n-migration",
+ "a4n-queue",
+ "anyhow",
  "chrono",
  "dashmap",
  "parking_lot",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio-util",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

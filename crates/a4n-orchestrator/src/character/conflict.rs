@@ -12,7 +12,5 @@ pub(crate) use a4n_character_host_contract::{
     CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL,
 };
 
-pub use execution::validate_character_conflict_input;
-
 #[cfg(test)]
 mod tests;

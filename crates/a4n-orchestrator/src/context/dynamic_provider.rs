@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 use super::{
     ConfigApplication, GenerationApplication, LlmContextApplication, ProjectReadApplication,
 };
-use crate::task_queue::{PersistentTaskQueue, RunningTask};
+use a4n_task_runtime::persistent::{PersistentTaskQueue, RunningTask};
 
 /// Orchestrator 侧的 provider port 实现。
 pub(super) struct ProviderRuntimeAdapter {

@@ -5,7 +5,7 @@ use a4n_error::AppError;
 mod tests;
 
 impl PersistentTaskQueue {
-    pub(in crate::task_queue) async fn update_status(
+    pub(in crate::persistent) async fn update_status(
         &self,
         task_id: &str,
         status: &str,

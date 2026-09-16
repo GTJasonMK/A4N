@@ -5,3 +5,4 @@
 //! `a4n-queue`.
 
 pub mod channel;
+pub mod persistent;

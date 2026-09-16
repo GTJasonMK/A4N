@@ -73,7 +73,7 @@ impl PersistentTaskQueue {
                 return self.cancel_submitted_task(&task_id, guard).await;
             };
             guard.disarm();
-            crate::task_queue::RunningTask::new(self.db.clone(), permit)
+            crate::persistent::RunningTask::new(self.db.clone(), permit)
         } else {
             self.start_task_with_cancel(task_type, priority, project_id, workflow, cancel_token)
                 .await?

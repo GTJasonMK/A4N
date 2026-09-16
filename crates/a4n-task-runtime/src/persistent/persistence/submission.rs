@@ -18,7 +18,7 @@ impl PersistentTaskQueue {
         self.inner.submit_persisted(task)
     }
 
-    pub(in crate::task_queue) async fn submit_internal(
+    pub(in crate::persistent) async fn submit_internal(
         &self,
         task_type: TaskKind,
         priority: TaskPriority,

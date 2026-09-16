@@ -24,7 +24,7 @@ pub(super) fn cleanup_dropped_task(
     persist_dropped_statuses(db.clone(), cancelled_ids, "cancelled", None);
 }
 
-pub(in crate::task_queue) fn persist_dropped_status(
+pub(in crate::persistent) fn persist_dropped_status(
     db: SharedDatabaseConnection,
     task_id: String,
     status: &'static str,
