@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{File, OpenOptions, TryLockError},
     future::Future,
+    ops::Deref,
     path::Path,
     pin::Pin,
     sync::Arc,
@@ -17,6 +18,7 @@ use a4n_worker_contract::{
 };
 use serde_json::Value;
 
+use super::application_ports::ApplicationPorts;
 use super::database::{
     acquire_generation_owner_lock, run_startup_migrations, validate_runtime_config,
 };
@@ -32,628 +34,15 @@ pub struct AppState {
     /// Runtime-owned configuration view used by Host paths and adapters.
     config: AppConfig,
     /// Process-local task handles and snapshots are owned by a4n-task-runtime.
-    /// The same instance is injected into the orchestrator for workflow code.
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
-    /// Generation task queries and subscriptions stay behind a narrow read
-    /// boundary.
-    generation_task_read_application:
-        Arc<dyn a4n_generation_host_contract::GenerationTaskReadApplicationPort>,
-    generation_task_mutation_application:
-        Arc<dyn a4n_generation_host_contract::GenerationTaskMutationApplicationPort>,
-    generation_lifecycle_application:
-        Arc<dyn a4n_generation_host_contract::GenerationLifecycleApplicationPort>,
-    generation_cleanup_application:
-        Arc<dyn a4n_generation_host_contract::GenerationCleanupApplicationPort>,
-    /// Source-sync preview authorization and projection stay in the
-    /// source-sync owner.
-    source_sync_read_application:
-        Arc<dyn a4n_api_contract::source_sync::SourceSyncReadApplicationPort>,
-    /// Source-sync decisions and detach state transitions stay in the
-    /// source-sync owner.
-    source_sync_mutation_application:
-        Arc<dyn a4n_api_contract::source_sync::SourceSyncMutationApplicationPort>,
-    /// Persisted shooting-script reads stay behind the API contract;
-    /// generation workers use a separate execution boundary.
-    shooting_script_record_read_application:
-        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort>,
-    shooting_script_record_mutation_application:
-        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
-    shooting_script_full_generation_application:
-        Arc<dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort>,
-    shooting_script_next_unit_generation_application:
-        Arc<dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort>,
-    /// Host-facing authentication read boundary. Passwords, sessions and ORM
-    /// models remain owned by the authentication application.
-    auth_read_application: Arc<dyn a4n_api_contract::auth::AuthReadApplicationPort>,
-    auth_mutation_application: Arc<dyn a4n_api_contract::auth::AuthMutationApplicationPort>,
-    /// Host-facing administrative read and authorization boundary. Admin
-    /// projections stay in the orchestrator owner.
-    admin_read_application: Arc<dyn a4n_api_contract::admin::AdminReadApplicationPort>,
-    model_usage_read_application: Arc<dyn a4n_api_contract::cost::ModelUsageReadApplicationPort>,
-    admin_mutation_application: Arc<dyn a4n_api_contract::admin::AdminMutationApplicationPort>,
-    /// Host-facing project status boundary. Status transitions and family
-    /// projections stay in the project owner and return API DTOs only.
-    project_status_application: Arc<dyn a4n_api_contract::project::ProjectStatusApplicationPort>,
-    /// Host-facing project collaboration boundary. Membership and invitation
-    /// state transitions stay in the project collaboration owner.
-    project_collaboration_application:
-        Arc<dyn a4n_api_contract::collaboration::ProjectCollaborationApplicationPort>,
-    /// Host-facing project access boundary. Permission checks and root
-    /// identity stay with the project owner.
-    project_access_application:
-        Arc<dyn a4n_api_contract::collaboration::ProjectAccessApplicationPort>,
-    /// Host-facing project read boundary. Runtime receives complete API
-    /// summaries and does not assemble them from ORM projections.
-    project_read_application: Arc<dyn a4n_api_contract::project::ProjectReadApplicationPort>,
-    /// Host-facing project mutation boundary. Project validation and summary
-    /// projection remain in the project owner.
-    project_mutation_application:
-        Arc<dyn a4n_api_contract::project::ProjectMutationApplicationPort>,
-    /// Host-facing project asset graph boundary.
-    project_asset_graph_application:
-        Arc<dyn a4n_api_contract::project::ProjectAssetGraphApplicationPort>,
-    /// Project duplication owner. Runtime supplies only media copy/rollback
-    /// adapters and receives the final API summary.
-    project_duplication_application:
-        Arc<dyn a4n_api_contract::project::ProjectDuplicationApplicationPort>,
-    /// Project-family package transfer owner. Runtime supplies archive/file
-    /// adapters and receives summaries rather than ORM records.
-    project_family_transfer_application:
-        Arc<dyn a4n_api_contract::project_transfer::ProjectFamilyTransferApplicationPort>,
-    /// Video-studio package transfer owner. Runtime supplies archive/file
-    /// adapters and receives summaries rather than ORM records.
-    video_studio_transfer_application:
-        Arc<dyn a4n_api_contract::project_transfer::VideoStudioProjectTransferApplicationPort>,
-    /// Host-facing chapter scene boundary.
-    chapter_scene_read_application:
-        Arc<dyn a4n_api_contract::chapter::ChapterSceneReadApplicationPort>,
-    chapter_scene_mutation_application:
-        Arc<dyn a4n_api_contract::chapter::ChapterSceneMutationApplicationPort>,
-    /// Chapter-scene generation and request construction remain in the scene
-    /// owner; Runtime only supplies prompt and progress adapters.
-    chapter_scene_generation_application:
-        Arc<dyn a4n_novel_host_contract::ChapterSceneGenerationApplicationPort>,
-    /// Content-optimization session reads stay behind the API contract.
-    optimize_session_read_application:
-        Arc<dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort>,
-    /// Content-optimization session mutations stay in the optimize owner.
-    optimize_session_mutation_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizeSessionMutationApplicationPort>,
-    /// Content-optimization patch application and chapter writeback stay in
-    /// the optimize owner.
-    optimize_patch_application: Arc<dyn a4n_optimize_host_contract::OptimizePatchApplicationPort>,
-    /// Content-optimization patch request previews stay behind the patch
-    /// boundary.
-    optimize_patch_preview_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizePatchPreviewApplicationPort>,
-    /// Content-optimization analysis request previews stay behind the
-    /// analysis-specific boundary.
-    optimize_analysis_preview_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizeAnalysisPreviewApplicationPort>,
-    /// Content-optimization chat request previews stay behind the chat
-    /// boundary.
-    optimize_chat_preview_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizeChatPreviewApplicationPort>,
-    /// Each content-optimization worker has its own runtime boundary so a
-    /// worker-specific change does not widen the injected contract.
-    optimize_chat_generation_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizeChatGenerationApplicationPort>,
-    optimize_analysis_generation_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizeAnalysisGenerationApplicationPort>,
-    optimize_patch_generation_application:
-        Arc<dyn a4n_optimize_host_contract::OptimizePatchGenerationApplicationPort>,
-    /// Scene-profile synchronization remains owned by the scene-profile
-    /// application; Runtime supplies only the RAG host adapter.
-    scene_profile_sync_application:
-        Arc<dyn a4n_scene_host_contract::SceneProfileSyncApplicationPort>,
     /// Managed service health queries stay with the service manager owner.
     service_health_application:
         Arc<dyn a4n_api_contract::service_health::ServiceHealthApplicationPort>,
-    /// Cleanup claiming, leasing and audit transitions stay with the cleanup owner.
-    cleanup_outbox_application: Arc<dyn a4n_cleanup_contract::CleanupOutboxApplicationPort>,
-    /// Character discovery and profile synchronization use separate worker
-    /// boundaries; Runtime only adapts progress and RAG tracing.
-    character_discovery_application:
-        Arc<dyn a4n_character_host_contract::CharacterDiscoveryApplicationPort>,
-    character_profile_sync_application:
-        Arc<dyn a4n_character_host_contract::CharacterProfileSyncApplicationPort>,
-    /// Host-facing workflow read boundary. Runtime keeps only live handles
-    /// and cancellation coordination outside this port.
-    workflow_read_application: Arc<dyn a4n_api_contract::workflow::WorkflowReadApplicationPort>,
-    /// Runtime task/workflow lookup boundary. ORM records remain owned by the
-    /// workflow application and are projected to narrow records here.
-    workflow_task_lookup_application:
-        Arc<dyn a4n_api_contract::workflow::WorkflowTaskLookupApplicationPort>,
-    /// Host-facing task history read boundary. Task access checks remain in
-    /// Runtime; persistence and summary projection stay with the task owner.
-    task_read_application: Arc<dyn a4n_api_contract::task::TaskReadApplicationPort>,
     /// Standalone queue cancellation boundary for tasks without a workflow.
     task_cancellation_application: Arc<dyn a4n_api_contract::task::TaskCancellationPort>,
-    /// Host-facing scheduler statistics boundary. Queue facts and API
-    /// projection stay with the task queue owner.
+    /// Host-facing scheduler statistics boundary.
     task_queue_stats_application: Arc<dyn a4n_api_contract::task::TaskQueueStatsApplicationPort>,
-    /// Workflow cancellation remains owned by Orchestrator; workers receive
-    /// only the narrow side-effecting operation.
-    workflow_cancellation_application:
-        Arc<dyn a4n_api_contract::workflow::WorkflowCancellationPort>,
-    /// Host-facing object profile read boundary.
-    object_profile_read_application:
-        Arc<dyn a4n_api_contract::profile::ObjectProfileReadApplicationPort>,
-    /// Host-facing object profile mutation boundary.
-    object_profile_mutation_application:
-        Arc<dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort>,
-    /// Host-facing scene profile read boundary.
-    scene_profile_read_application:
-        Arc<dyn a4n_api_contract::profile::SceneProfileReadApplicationPort>,
-    /// Host-facing character profile read boundary.
-    character_profile_read_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileReadApplicationPort>,
-    /// Host-facing character profile mutation boundary. Runtime keeps only
-    /// post-commit RAG warning handling outside the character owner.
-    character_profile_mutation_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileMutationApplicationPort>,
-    /// Host-facing character timeline mutation boundary. Runtime only scopes
-    /// the RAG trace and forwards rollback commands.
-    character_profile_timeline_mutation_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileTimelineMutationApplicationPort>,
-    /// Host-facing explicit character attribute mutation boundary.
-    character_profile_attribute_mutation_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileAttributeMutationApplicationPort>,
-    /// Host-facing attribute deletion-mark mutation boundary.
-    character_profile_attribute_deletion_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileAttributeDeletionApplicationPort>,
-    /// Character implicit-review checks, previews, and applies use separate
-    /// worker boundaries; Runtime only supplies prompt rendering.
-    character_implicit_review_check_application:
-        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewCheckApplicationPort>,
-    character_implicit_review_preview_application:
-        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewPreviewApplicationPort>,
-    character_implicit_review_apply_application:
-        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewApplyApplicationPort>,
-    /// Host-facing implicit-review read boundary. Summary queries stay in the
-    /// API contract rather than the LLM decision workflow boundary.
-    character_implicit_review_read_application:
-        Arc<dyn a4n_api_contract::character::CharacterImplicitReviewReadApplicationPort>,
-    /// Host-facing character profile deletion boundary.
-    character_profile_deletion_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileDeletionApplicationPort>,
-    /// Character-consistency workflow owner. Runtime supplies only prompt,
-    /// progress, and task lifecycle adapters.
-    character_conflict_application:
-        Arc<dyn a4n_character_host_contract::CharacterConflictApplicationPort>,
-    /// Host-facing scene profile mutation boundary.
-    scene_profile_mutation_application:
-        Arc<dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort>,
-    /// Host-facing foreshadowing read boundary. Authorization and DTO
-    /// projection stay in the owner.
-    foreshadowing_read_application:
-        Arc<dyn a4n_api_contract::profile::ForeshadowingReadApplicationPort>,
-    foreshadowing_mutation_application:
-        Arc<dyn a4n_api_contract::profile::ForeshadowingMutationApplicationPort>,
-    /// Host-facing blueprint read boundary.
-    blueprint_read_application: Arc<dyn a4n_api_contract::blueprint::BlueprintReadApplicationPort>,
-    /// Blueprint generation request preview owner.
-    blueprint_generation_preview_application:
-        Arc<dyn a4n_blueprint_contract::BlueprintGenerationPreviewApplicationPort>,
-    /// Blueprint refinement request preview owner.
-    blueprint_refinement_preview_application:
-        Arc<dyn a4n_blueprint_contract::BlueprintRefinementPreviewApplicationPort>,
-    /// Blueprint generation owner. Runtime supplies task workers and prompt
-    /// rendering; workflow persistence stays with the blueprint owner.
-    blueprint_generation_application:
-        Arc<dyn a4n_blueprint_contract::BlueprintGenerationApplicationPort>,
-    /// Blueprint refinement worker boundary.
-    blueprint_refinement_application:
-        Arc<dyn a4n_blueprint_contract::BlueprintRefinementApplicationPort>,
-    /// Host-facing blueprint mutation boundary. Durable version writes remain
-    /// owned by the blueprint application.
-    blueprint_mutation_application:
-        Arc<dyn a4n_api_contract::blueprint::BlueprintMutationApplicationPort>,
-    /// Host-facing chapter content read boundary.
-    chapter_content_read_application:
-        Arc<dyn a4n_api_contract::chapter::ChapterContentReadApplicationPort>,
-    /// Host-facing chapter content mutation boundary. Workflow side effects
-    /// are supplied through the explicit cleanup host port at call time.
-    chapter_content_mutation_application:
-        Arc<dyn a4n_api_contract::chapter::ChapterContentMutationApplicationPort>,
-    /// Host-facing chapter-content derived-data synchronization and recovery
-    /// boundary.
-    chapter_content_sync_application:
-        Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
-    /// Chapter request preview owner. Runtime supplies prompt and embedding
-    /// inputs.
-    chapter_generation_request_preview_application:
-        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationRequestPreviewApplicationPort>,
-    /// Chapter-generation RAG preparation owner.
-    chapter_generation_rag_preparation_application:
-        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationRagPreparationApplicationPort>,
-    /// Chapter generation task owner. Runtime supplies prompt, embedding and
-    /// cleanup adapters when a worker is started.
-    chapter_generation_application:
-        Arc<dyn a4n_chapter_generation_contract::ChapterGenerationApplicationPort>,
-    /// Host-facing outline read boundary.
-    outline_read_application: Arc<dyn a4n_api_contract::outline::OutlineReadApplicationPort>,
-    /// Host-facing outline mutation boundary.
-    outline_mutation_application:
-        Arc<dyn a4n_api_contract::outline::OutlineMutationApplicationPort>,
-    /// Outline generation task owner. Runtime only schedules the worker.
-    outline_generation_application: Arc<dyn a4n_outline_contract::OutlineGenerationApplicationPort>,
-    /// Part outline generation preview owner.
-    outline_part_generation_preview_application:
-        Arc<dyn a4n_outline_contract::OutlinePartGenerationPreviewApplicationPort>,
-    /// Part outline mutation preview owner.
-    outline_part_mutation_preview_application:
-        Arc<dyn a4n_outline_contract::OutlinePartMutationPreviewApplicationPort>,
-    /// Part chapter generation preview owner.
-    outline_part_chapter_generation_preview_application:
-        Arc<dyn a4n_outline_contract::OutlinePartChapterGenerationPreviewApplicationPort>,
-    /// Batch part/chapter outline generation preview owner.
-    outline_batch_part_generation_preview_application:
-        Arc<dyn a4n_outline_contract::OutlineBatchPartGenerationPreviewApplicationPort>,
-    /// Chapter-count generation preview owner.
-    outline_chapter_count_generation_preview_application:
-        Arc<dyn a4n_outline_contract::OutlineChapterCountGenerationPreviewApplicationPort>,
-    /// Chapter outline regeneration preview owner.
-    outline_chapter_regeneration_preview_application:
-        Arc<dyn a4n_outline_contract::OutlineChapterRegenerationPreviewApplicationPort>,
-    /// Outline beat-mapping preview owner.
-    outline_beat_mapping_preview_application:
-        Arc<dyn a4n_outline_contract::OutlineBeatMappingPreviewApplicationPort>,
-    /// Host-facing theme/settings read boundary. Theme ownership and metadata
-    /// stay in the settings application; Runtime handles only protected files.
-    theme_read_application: Arc<dyn a4n_api_contract::theme::ThemeReadApplicationPort>,
-    theme_mutation_application: Arc<dyn a4n_api_contract::theme::ThemeMutationApplicationPort>,
-    /// Host-facing AI configuration read boundary. Validation, authorization
-    /// and DTO projection stay in the configuration owner.
-    config_read_application: Arc<dyn a4n_api_contract::config::ConfigReadApplicationPort>,
-    config_mutation_application: Arc<dyn a4n_api_contract::config::ConfigMutationApplicationPort>,
-    /// Host-facing settings export boundary. Authorization and projection
-    /// stay in the settings owner.
-    settings_export_application: Arc<dyn a4n_api_contract::config::SettingsExportApplicationPort>,
-    /// Host-facing settings import boundary. Authorization and rollback
-    /// semantics stay in the settings owner.
-    settings_import_application: Arc<dyn a4n_api_contract::config::SettingsImportApplicationPort>,
-    /// Host-facing prompt record read boundary. Prompt service selection stays
-    /// with the prompt owner.
-    prompt_read_application: Arc<dyn a4n_api_contract::prompt::PromptReadApplicationPort>,
-    prompt_mutation_application: Arc<dyn a4n_api_contract::prompt::PromptMutationApplicationPort>,
-    /// Host-facing Agent operations are injected through focused contracts;
-    /// worker-only lease operations stay on the worker aggregate below.
-    agent_thread_mutation_application:
-        Arc<dyn a4n_api_contract::agent::AgentThreadMutationApplicationPort>,
-    agent_thread_read_application: Arc<dyn a4n_api_contract::agent::AgentThreadReadApplicationPort>,
-    agent_run_mutation_application:
-        Arc<dyn a4n_api_contract::agent::AgentRunMutationApplicationPort>,
-    agent_run_read_application: Arc<dyn a4n_api_contract::agent::AgentRunReadApplicationPort>,
-    agent_delegation_application: Arc<dyn a4n_api_contract::agent::AgentDelegationApplicationPort>,
-    agent_tool_read_application: Arc<dyn a4n_api_contract::agent::AgentToolReadApplicationPort>,
-    agent_skill_application: Arc<dyn a4n_api_contract::agent::AgentSkillApplicationPort>,
-    agent_event_read_application: Arc<dyn a4n_api_contract::agent::AgentEventReadApplicationPort>,
-    agent_memory_read_application: Arc<dyn a4n_api_contract::agent::AgentMemoryReadApplicationPort>,
-    agent_memory_mutation_application:
-        Arc<dyn a4n_api_contract::agent::AgentMemoryMutationApplicationPort>,
-    agent_approval_application: Arc<dyn a4n_api_contract::agent::AgentApprovalApplicationPort>,
-    agent_resource_access_application:
-        Arc<dyn a4n_api_contract::agent::AgentResourceAccessApplicationPort>,
-    /// Agent worker ports used only by the durable Runtime worker. Keeping the
-    /// aggregate behind its contract avoids coupling Runtime to the owner.
-    agent_worker_application: Arc<dyn a4n_agent_runtime_contract::AgentWorkerApplicationPort>,
-    /// Host-facing Canvas read port. Graph permissions, versioning and
-    /// persistence stay with the Canvas owner; Runtime only routes actions.
-    canvas_read_application: Arc<dyn a4n_api_contract::canvas::CanvasReadApplicationPort>,
-    canvas_mutation_application: Arc<dyn a4n_api_contract::canvas::CanvasMutationApplicationPort>,
-    /// Canvas RenderText owner. Runtime supplies only node identity and the
-    /// shared workflow snapshot.
-    canvas_render_text_application:
-        Arc<dyn a4n_canvas_contract::CanvasRenderTextNodeApplicationPort>,
-    /// Canvas LLM text owner. Runtime supplies the LLM HostPort and only node
-    /// identity plus the shared workflow snapshot.
-    canvas_llm_text_application:
-        Arc<dyn a4n_canvas_host_contract::CanvasLlmTextNodeApplicationPort>,
-    /// Canvas image-generation owner. Runtime supplies only the image HostPort
-    /// and a shared workflow snapshot.
-    canvas_image_application: Arc<dyn a4n_canvas_host_contract::CanvasImageNodeApplicationPort>,
-    /// Canvas video-generation owner. Runtime supplies only the video HostPort
-    /// and a shared workflow snapshot.
-    canvas_video_application: Arc<dyn a4n_canvas_host_contract::CanvasVideoNodeApplicationPort>,
-    /// Canvas request-preview owner. Runtime receives prepared pure requests
-    /// and renders provider-specific preview steps.
-    canvas_preview_application: Arc<dyn a4n_canvas_host_contract::CanvasPreviewApplicationPort>,
-    /// Canvas editing node owner. Runtime supplies only media editing HostPort
-    /// and a shared workflow snapshot.
-    canvas_editing_application: Arc<dyn a4n_canvas_contract::CanvasEditingNodeApplicationPort>,
-    /// Canvas probe node owner. Runtime supplies only node identity and the
-    /// shared workflow snapshot.
-    canvas_probe_application: Arc<dyn a4n_canvas_contract::CanvasProbeNodeApplicationPort>,
-    /// Canvas output node owner. Runtime supplies only node identity and the
-    /// shared workflow snapshot.
-    canvas_output_application: Arc<dyn a4n_canvas_contract::CanvasOutputNodeApplicationPort>,
-    /// Canvas media import workers own one media kind each. Runtime supplies
-    /// upload/file adapters and receives API summaries only.
-    canvas_image_import_application: Arc<dyn a4n_canvas_contract::CanvasImageImportApplicationPort>,
-    canvas_video_import_application: Arc<dyn a4n_canvas_contract::CanvasVideoImportApplicationPort>,
-    canvas_audio_import_application: Arc<dyn a4n_canvas_contract::CanvasAudioImportApplicationPort>,
-    /// Canvas graph preparation, execution and failure compensation use
-    /// separate worker boundaries.
-    canvas_graph_preparation_application:
-        Arc<dyn a4n_canvas_contract::CanvasGraphPreparationApplicationPort>,
-    canvas_graph_execution_application:
-        Arc<dyn a4n_canvas_contract::CanvasGraphExecutionApplicationPort>,
-    canvas_graph_failure_application:
-        Arc<dyn a4n_canvas_contract::CanvasGraphFailureApplicationPort>,
-    /// Host-facing package state read port. Lifecycle workers keep package
-    /// ownership behind the narrow read/mutation contracts.
-    package_read_application: Arc<dyn a4n_api_contract::package::PackageReadApplicationPort>,
-    package_mutation_application:
-        Arc<dyn a4n_api_contract::package::PackageMutationApplicationPort>,
-    /// Host-facing import-analysis progress boundary.
-    import_analysis_progress_application:
-        Arc<dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort>,
-    /// Host-facing import-analysis request-preview boundary.
-    import_analysis_preview_application:
-        Arc<dyn a4n_import_analysis_host_contract::ImportAnalysisPreviewApplicationPort>,
-    /// Host-facing import-analysis execution boundary. Runtime supplies only
-    /// prompt and cleanup adapters for the long-running analysis workflow.
-    import_analysis_generation_application:
-        Arc<dyn a4n_import_analysis_host_contract::ImportAnalysisGenerationApplicationPort>,
-    /// Host-facing import-analysis cancellation boundary.
-    import_analysis_cancellation_application:
-        Arc<dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort>,
-    /// Host-facing reverse-engineering request-preview boundary.
-    import_reverse_preview_application:
-        Arc<dyn a4n_novel_host_contract::ImportReversePreviewApplicationPort>,
-    /// Host-facing reverse-engineering execution boundary.
-    import_reverse_generation_application:
-        Arc<dyn a4n_novel_host_contract::ImportReverseGenerationApplicationPort>,
-    /// Host-facing reverse-engineering confirmation boundary.
-    import_reverse_confirmation_application:
-        Arc<dyn a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort>,
-    /// Reverse-engineering candidate reads stay behind the API contract;
-    /// generation and confirmation remain in the owner boundary.
-    import_reverse_read_application:
-        Arc<dyn a4n_api_contract::import_reverse::ImportReverseReadApplicationPort>,
-    /// Host-facing chapter-analysis generation boundary. Analysis
-    /// authorization, workflow state and summaries stay in the chapter owner.
-    chapter_analysis_generation_application:
-        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort>,
-    /// Host-facing chapter-analysis synchronization and workflow-recovery
-    /// boundary.
-    chapter_analysis_resume_application:
-        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort>,
-    /// Host-facing new chapter-analysis request-preview boundary.
-    chapter_analysis_generation_preview_application: Arc<
-        dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationPreviewApplicationPort,
-    >,
-    /// Host-facing chapter-analysis resume request-preview boundary.
-    chapter_analysis_resume_preview_application:
-        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumePreviewApplicationPort>,
-    /// Host-facing import-review ingestion boundary. Parsing stays in Runtime;
-    /// queue persistence and projection stay in the import-review owner.
-    import_review_ingestion_application:
-        Arc<dyn a4n_novel_host_contract::ImportReviewIngestionApplicationPort>,
-    /// Host-facing import-review acceptance boundary.
-    import_review_acceptance_application:
-        Arc<dyn a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort>,
-    /// Host-facing import-review delete/reject boundary.
-    import_review_mutation_application:
-        Arc<dyn a4n_api_contract::import_review::ImportReviewMutationApplicationPort>,
-    /// Host-facing import-review read boundary. Review reads and deduplication
-    /// stay in the API contract rather than the mixed mutation boundary.
-    import_review_read_application:
-        Arc<dyn a4n_api_contract::import_review::ImportReviewReadApplicationPort>,
-    /// Host-facing project export boundary. Authorization and format
-    /// rendering remain in the export owner; Runtime only adapts progress.
-    project_export_application: Arc<dyn a4n_api_contract::export::ProjectExportApplicationPort>,
-    galgame_export_application: Arc<dyn a4n_api_contract::export::GalgameExportApplicationPort>,
-    /// Host-facing video-record read boundary.
-    video_record_read_application: Arc<dyn a4n_api_contract::video::VideoRecordReadApplicationPort>,
-    /// Host-facing ordinary video-record mutation boundary.
-    video_record_mutation_application:
-        Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
-    /// Focused video import and trim worker boundaries.
-    video_chapter_import_application:
-        Arc<dyn a4n_api_contract::video::ChapterVideoImportApplicationPort>,
-    video_reference_media_import_application:
-        Arc<dyn a4n_api_contract::video::ReferenceMediaVideoImportApplicationPort>,
-    video_assembly_import_application:
-        Arc<dyn a4n_api_contract::video::AssemblyVideoImportApplicationPort>,
-    video_canvas_import_application:
-        Arc<dyn a4n_api_contract::video::CanvasVideoImportApplicationPort>,
-    video_trim_application: Arc<dyn a4n_api_contract::video::VideoTrimApplicationPort>,
-    /// Host-facing Assembly clip planning boundary.
-    video_assembly_planning_application:
-        Arc<dyn a4n_api_contract::video::VideoAssemblyPlanningApplicationPort>,
-    /// Host-facing Assembly push boundary.
-    video_assembly_push_application:
-        Arc<dyn a4n_api_contract::video::VideoAssemblyPushApplicationPort>,
-    video_assembly_postprocess_application:
-        Arc<dyn a4n_api_contract::video::VideoAssemblyPostprocessApplicationPort>,
-    /// Host-facing video completion boundary.
-    video_record_completion_application:
-        Arc<dyn a4n_api_contract::video::VideoRecordCompletionApplicationPort>,
-    video_tail_frame_application: Arc<dyn a4n_api_contract::video::VideoTailFrameApplicationPort>,
-    video_record_failure_application:
-        Arc<dyn a4n_api_contract::video::VideoRecordFailureApplicationPort>,
-    /// Host-facing media-cleanup lifecycle boundary.
-    video_record_lifecycle_application:
-        Arc<dyn a4n_api_contract::video::VideoRecordLifecycleApplicationPort>,
-    /// Host-facing canvas-media preparation and persistence boundary.
-    video_canvas_media_application:
-        Arc<dyn a4n_api_contract::video::VideoCanvasMediaApplicationPort>,
-    /// Host-facing chapter visual-plan read boundary. Visual-plan ownership
-    /// and DTO projection stay outside Runtime.
-    chapter_visual_plan_read_application:
-        Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadApplicationPort>,
-    chapter_visual_plan_mutation_application:
-        Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort>,
-    /// Host-facing video-prompt read boundary. Prompt authorization and DTO
-    /// projection stay in the video owner.
-    video_prompt_read_application: Arc<dyn a4n_api_contract::video::VideoPromptReadApplicationPort>,
-    /// Host-facing video-prompt mutation boundary. Downstream cleanup and
-    /// prompt rendering are supplied by Runtime through explicit ports.
-    video_prompt_mutation_application:
-        Arc<dyn a4n_api_contract::video::VideoPromptMutationApplicationPort>,
-    /// Host-facing video timeline boundary. Timeline revision and ordering
-    /// rules stay in the video owner.
-    video_prompt_timeline_application:
-        Arc<dyn a4n_api_contract::video::VideoPromptTimelineApplicationPort>,
-    /// Host-facing segment-plan draft boundary. Workflow/checkpoint
-    /// validation stays in the video owner.
-    video_prompt_draft_application:
-        Arc<dyn a4n_api_contract::video::VideoPromptDraftApplicationPort>,
-    /// Host-facing generated-image read boundary. Authorization and DTO
-    /// projection stay in the media owner.
-    image_record_read_application: Arc<dyn a4n_api_contract::image::ImageRecordReadApplicationPort>,
-    /// Host-facing generated-image mutation boundary.
-    image_record_mutation_application:
-        Arc<dyn a4n_api_contract::image::ImageRecordMutationApplicationPort>,
-    /// Imported-image file and publication transaction owner.
-    image_import_preparation_application:
-        Arc<dyn a4n_image_host_contract::ImageImportPreparationApplicationPort>,
-    image_import_publication_application:
-        Arc<dyn a4n_image_host_contract::ImageImportPublicationApplicationPort>,
-    /// Image publication recovery and state-transition owner.
-    image_publication_recovery_application:
-        Arc<dyn a4n_image_host_contract::ImagePublicationRecoveryPort>,
-    /// Image publication recovery reads stay behind the API contract; Runtime
-    /// supplies file facts and cleanup side effects separately.
-    image_publication_recovery_read_application:
-        Arc<dyn a4n_api_contract::image::ImagePublicationRecoveryReadPort>,
-    /// Persisted media-reference queries used by cleanup and orphan scans.
-    image_media_reference_application: Arc<dyn a4n_api_contract::image::ImageMediaReferencePort>,
-    /// Image provider config lookup stays in the settings owner.
-    image_provider_config: Arc<dyn a4n_api_contract::image::ImageProviderConfigPort>,
-    /// Galgame image generation owner. Runtime supplies only provider and
-    /// file adapters when a worker is started.
-    galgame_image_generation_application:
-        Arc<dyn a4n_image_host_contract::GalgameImageGenerationApplicationPort>,
-    /// Canvas image request preview owner.
-    image_canvas_request_preview_application:
-        Arc<dyn a4n_image_host_contract::ImageCanvasRequestPreviewApplicationPort>,
-    /// Batch image request preview owner.
-    image_batch_request_preview_application:
-        Arc<dyn a4n_image_host_contract::ImageBatchRequestPreviewApplicationPort>,
-    /// Object profile image request preview owner.
-    image_object_profile_request_preview_application:
-        Arc<dyn a4n_image_host_contract::ImageObjectProfileRequestPreviewApplicationPort>,
-    /// Manga page image request preview owner.
-    image_page_request_preview_application:
-        Arc<dyn a4n_image_host_contract::ImagePageRequestPreviewApplicationPort>,
-    /// Scene image request preview owner.
-    image_scene_request_preview_application:
-        Arc<dyn a4n_image_host_contract::ImageSceneRequestPreviewApplicationPort>,
-    /// Queued image generation lifecycle owner.
-    image_generation_task_application:
-        Arc<dyn a4n_image_host_contract::ImageGenerationTaskApplicationPort>,
-    /// Profile image prompt generation has no provider/file task dependency.
-    image_profile_prompt_application:
-        Arc<dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort>,
-    /// Host-facing profile-material read boundary. Authorization and group
-    /// projection stay in the media owner.
-    profile_material_read_application:
-        Arc<dyn a4n_api_contract::profile::ProfileMaterialReadApplicationPort>,
-    profile_material_mutation_application:
-        Arc<dyn a4n_api_contract::profile::ProfileMaterialMutationApplicationPort>,
-    /// Upload publication uses a separate media/file adapter boundary.
-    profile_material_upload_application:
-        Arc<dyn a4n_image_host_contract::ProfileMaterialUploadApplicationPort>,
-    /// Host-facing portrait-record read boundary. Portrait authorization and
-    /// DTO projection stay in the character/portrait owner.
-    portrait_record_read_application:
-        Arc<dyn a4n_api_contract::portrait::PortraitRecordReadApplicationPort>,
-    portrait_record_mutation_application:
-        Arc<dyn a4n_api_contract::portrait::PortraitRecordMutationApplicationPort>,
-    /// Portrait prompt request preview owner.
-    portrait_prompt_request_preview_application:
-        Arc<dyn a4n_portrait_host_contract::PortraitPromptRequestPreviewApplicationPort>,
-    /// Portrait image request preview owner.
-    portrait_image_request_preview_application:
-        Arc<dyn a4n_portrait_host_contract::PortraitImageRequestPreviewApplicationPort>,
-    /// Portrait prompt generation owner. Runtime supplies prompt rendering.
-    portrait_prompt_application: Arc<dyn a4n_portrait_host_contract::PortraitPromptApplicationPort>,
-    /// Portrait upload owner. Runtime supplies image/file adapters.
-    portrait_upload_application: Arc<dyn a4n_portrait_host_contract::PortraitUploadApplicationPort>,
-    /// Portrait generation task owner. Runtime supplies prompt and media
-    /// adapters when a worker is started.
-    portrait_generation_application:
-        Arc<dyn a4n_portrait_host_contract::PortraitGenerationApplicationPort>,
-    /// Persisted video provider configuration lookup. Runtime snapshot and
-    /// user-scope policy stay outside this port.
-    video_provider_config: Arc<dyn a4n_api_contract::video::VideoProviderConfigPort>,
-    /// Video owner boundary for provider-job recovery and status transitions.
-    video_provider_execution:
-        Arc<dyn a4n_api_contract::video::VideoProviderExecutionApplicationPort>,
-    /// Video generation task owner. Runtime supplies only provider adapters
-    /// when a worker is started.
-    video_generation_application: Arc<dyn a4n_api_contract::video::VideoGenerationApplicationPort>,
-    /// Video request-preview workers are separated by request source.
-    canvas_video_request_preview_application:
-        Arc<dyn a4n_api_contract::video::CanvasVideoRequestPreviewApplicationPort>,
-    chapter_video_request_preview_application:
-        Arc<dyn a4n_api_contract::video::ChapterVideoRequestPreviewApplicationPort>,
-    reference_media_video_request_preview_application:
-        Arc<dyn a4n_api_contract::video::ReferenceMediaVideoRequestPreviewApplicationPort>,
-    /// Host-facing Galgame pipeline execution boundary. Workflow
-    /// authorization and persistence stay in the Galgame owner.
-    galgame_pipeline_execution_application:
-        Arc<dyn a4n_api_contract::galgame::GalgamePipelineExecutionApplicationPort>,
-    /// Host-facing Galgame pipeline request-preview boundary.
-    galgame_pipeline_preview_application:
-        Arc<dyn a4n_api_contract::galgame::GalgamePipelinePreviewApplicationPort>,
-    /// Host-facing Galgame pipeline status-read boundary.
-    galgame_pipeline_read_application:
-        Arc<dyn a4n_api_contract::galgame::GalgamePipelineReadApplicationPort>,
-    /// Host-facing Galgame pipeline cancellation boundary.
-    galgame_pipeline_cancellation_application:
-        Arc<dyn a4n_api_contract::galgame::GalgamePipelineCancellationApplicationPort>,
-    /// Galgame asset planning owner. Runtime receives only the stable plan.
-    galgame_asset_plan_application:
-        Arc<dyn a4n_api_contract::galgame::GalgameAssetPlanApplicationPort>,
-    /// Galgame asset-generation owner. Runtime supplies visual/file adapters.
-    galgame_asset_generation_application:
-        Arc<dyn a4n_galgame_host_contract::GalgameAssetGenerationApplicationPort>,
-    /// Host-facing Galgame script-record mutation boundary. Persistence and
-    /// DTO projection remain in the Galgame owner.
-    galgame_record_mutation_application:
-        Arc<dyn a4n_api_contract::galgame::GalgameRecordMutationApplicationPort>,
-    /// Host-facing Galgame media-binding mutation boundary.
-    galgame_media_mutation_application:
-        Arc<dyn a4n_api_contract::galgame::GalgameMediaMutationApplicationPort>,
-    /// Host-facing Manga pipeline execution boundary. Workflow persistence
-    /// remains in the Manga owner; Runtime only schedules and routes results.
-    manga_pipeline_execution_application:
-        Arc<dyn a4n_api_contract::manga::MangaPipelineExecutionApplicationPort>,
-    /// Host-facing Manga pipeline request-preview boundary.
-    manga_pipeline_preview_application:
-        Arc<dyn a4n_api_contract::manga::MangaPipelinePreviewApplicationPort>,
-    /// Host-facing Manga pipeline status-read boundary.
-    manga_pipeline_read_application:
-        Arc<dyn a4n_api_contract::manga::MangaPipelineReadApplicationPort>,
-    /// Host-facing Manga pipeline cancellation boundary.
-    manga_pipeline_cancellation_application:
-        Arc<dyn a4n_api_contract::manga::MangaPipelineCancellationApplicationPort>,
-    /// Host-facing Manga prompt read boundary. Prompt projection remains in
-    /// the Manga owner.
-    manga_record_read_application: Arc<dyn a4n_api_contract::manga::MangaRecordReadApplicationPort>,
-    /// Host-facing Manga prompt mutation boundary. Persistence and cleanup
-    /// decisions remain in the Manga owner.
-    manga_record_mutation_application:
-        Arc<dyn a4n_api_contract::manga::MangaRecordMutationApplicationPort>,
-    /// Host-facing Galgame read boundary. Script authorization and projection
-    /// stay in the Galgame owner.
-    galgame_read_application: Arc<dyn a4n_api_contract::galgame::GalgameReadApplicationPort>,
-    /// Host-facing inspiration history read boundary. Authorization and
-    /// message projection stay in the inspiration owner.
-    inspiration_history_read_application:
-        Arc<dyn a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort>,
-    /// Inspiration generation owner. Runtime only schedules the worker and
-    /// supplies the prompt-rendering adapter.
-    inspiration_generation_application:
-        Arc<dyn a4n_inspiration_host_contract::InspirationGenerationApplicationPort>,
-    /// Inspiration request construction boundary. Runtime supplies prompt
-    /// rendering and provider preview budgeting after this call returns.
-    inspiration_request_application:
-        Arc<dyn a4n_inspiration_host_contract::InspirationRequestPreviewApplicationPort>,
+    application_ports: ApplicationPorts,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
     capabilities: RuntimeCapabilities,
     /// Runtime-owned event bus used by Host bridges.
@@ -698,6 +87,14 @@ pub struct AppState {
     agent_host_dispatcher: Arc<tokio::sync::RwLock<Option<AgentHostCommandDispatcher>>>,
 }
 
+impl Deref for AppState {
+    type Target = ApplicationPorts;
+
+    fn deref(&self) -> &Self::Target {
+        &self.application_ports
+    }
+}
+
 pub type AgentHostCommandFuture = Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>;
 pub type AgentHostCommandDispatcher = Arc<
     dyn Fn(
@@ -726,7 +123,7 @@ impl AppState {
     /// 启动唯一的 Agent durable-run worker；重复调用不会创建第二个 worker。
     ///
     /// Hosts must call this after installing their Agent Host-command
-    /// dispatcher.  Keeping startup outside `new_with_profile` prevents a
+    /// dispatcher. Keeping startup outside `RuntimeBootstrap::finish` prevents a
     /// recovered Run from reaching a dynamic tool while the Host is still
     /// wiring its command registry.
     pub async fn spawn_agent_worker(&self) -> Result<(), a4n_error::AppError> {
@@ -1001,6 +398,10 @@ impl AppState {
                 failures.join("; ")
             ))
         }
+    }
+
+    pub async fn recover_cleanup_outbox(&self) {
+        crate::cleanup_outbox::recover_cleanup_outbox(self).await;
     }
 
     pub(crate) async fn stop_managed_sidecars_for_services(
@@ -2321,7 +1722,7 @@ impl AppState {
         self.video_prompt_draft_application.as_ref()
     }
 
-    pub(crate) fn image_record_read_application(
+    pub fn image_record_read_application(
         &self,
     ) -> &dyn a4n_api_contract::image::ImageRecordReadApplicationPort {
         self.image_record_read_application.as_ref()
@@ -2339,7 +1740,7 @@ impl AppState {
         self.image_import_preparation_application.as_ref()
     }
 
-    pub(crate) fn image_import_publication_application(
+    pub fn image_import_publication_application(
         &self,
     ) -> &dyn a4n_image_host_contract::ImageImportPublicationApplicationPort {
         self.image_import_publication_application.as_ref()
@@ -2351,7 +1752,7 @@ impl AppState {
         self.image_publication_recovery_application.as_ref()
     }
 
-    pub(crate) fn image_publication_recovery_read_application(
+    pub fn image_publication_recovery_read_application(
         &self,
     ) -> &dyn a4n_api_contract::image::ImagePublicationRecoveryReadPort {
         self.image_publication_recovery_read_application.as_ref()
@@ -2742,26 +2143,28 @@ impl AppState {
         }
         Ok(crate::dynamic_llm::DynamicLlmProvider::new(facade))
     }
+}
 
-    pub async fn new_with_profile(
-        config: AppConfig,
-        runtime_profile: RuntimeProfile,
-    ) -> Result<Self, a4n_error::AppError> {
-        Self::new_with_profile_and_role(config, runtime_profile, RuntimeRole::Host).await
-    }
+/// Runtime-owned resources prepared before a Host binds application behavior.
+pub struct RuntimeBootstrap {
+    config: AppConfig,
+    runtime_profile: RuntimeProfile,
+    runtime_role: RuntimeRole,
+    db: Arc<sea_orm::DatabaseConnection>,
+    capabilities: RuntimeCapabilities,
+    service_manager: Arc<a4n_service_manager::ServiceManager>,
+    event_bus: Arc<BroadcastEventBus>,
+    task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
+    task_queue: Arc<PersistentTaskQueue>,
+    prompt_engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
+    rag_store: Arc<dyn a4n_rag_core::vector_store::VectorStore>,
+    snapshot_store: Arc<Sha256SnapshotStore>,
+    generation_owner_lock: Option<Arc<sea_orm::DatabaseConnection>>,
+    data_dir_lock: Option<Arc<File>>,
+}
 
-    /// Builds the reduced Runtime instance used by the external Agent worker.
-    /// It shares the database and configured capability endpoints with the
-    /// Control host but does not claim Host-wide file/generation ownership or
-    /// start background workers owned by Control.
-    pub async fn new_agent_worker_with_profile(
-        config: AppConfig,
-        runtime_profile: RuntimeProfile,
-    ) -> Result<Self, a4n_error::AppError> {
-        Self::new_with_profile_and_role(config, runtime_profile, RuntimeRole::AgentWorker).await
-    }
-
-    async fn new_with_profile_and_role(
+impl RuntimeBootstrap {
+    pub async fn prepare(
         config: AppConfig,
         runtime_profile: RuntimeProfile,
         runtime_role: RuntimeRole,
@@ -2787,6 +2190,7 @@ impl AppState {
         if runtime_role == RuntimeRole::Host {
             run_startup_migrations(db.as_ref()).await?;
         }
+
         let service_manager = Arc::new(
             crate::sidecar_clients::runtime_service_manager(runtime_profile, &config)
                 .map_err(a4n_error::AppError::ConfigError)?,
@@ -2801,296 +2205,143 @@ impl AppState {
             async { create_prompt_engine(&config) },
             create_rag_store(runtime_profile, capabilities.rag.clone()),
         );
-        let prompt_engine = prompt_engine_result?;
-        let rag_store = rag_store_result?;
-        let snapshot_store = Arc::new(Sha256SnapshotStore::new(db.clone()));
-        let managed_sidecars = Arc::new(tokio::sync::Mutex::new(Vec::new()));
-        let mut provider_runtime = None;
-        let orchestrator = a4n_orchestrator::OrchestratorContext::bootstrap(
-            a4n_db::DbHandle::new(db.clone()),
-            capabilities.prompt.clone(),
-            service_manager.clone(),
-            config.clone(),
-            event_bus.clone(),
-            task_manager.clone(),
-            rag_store,
-            task_queue.clone(),
-            Arc::new(prompt_engine),
-            snapshot_store,
-            |provider_port| {
-                let provider_facade =
-                    crate::provider_runtime::DynamicProviderFacade::new(provider_port);
-                provider_runtime = Some(provider_facade.clone());
-                let embedding = crate::sidecar_clients::create_embedding_provider(
-                    provider_facade.clone(),
-                    &config,
-                    runtime_profile,
-                    capabilities.embedding.clone(),
-                )?;
-                let llm = crate::sidecar_clients::create_llm_provider(
-                    provider_facade,
-                    runtime_profile,
-                    &capabilities,
-                )?;
-                Ok((llm, embedding))
-            },
+
+        Ok(Self {
+            config,
+            runtime_profile,
+            runtime_role,
+            db: db.clone(),
+            capabilities,
+            service_manager,
+            event_bus,
+            task_manager,
+            task_queue,
+            prompt_engine: Arc::new(prompt_engine_result?),
+            rag_store: rag_store_result?,
+            snapshot_store: Arc::new(Sha256SnapshotStore::new(db)),
+            generation_owner_lock,
+            data_dir_lock,
+        })
+    }
+
+    pub fn database(&self) -> a4n_db::DbHandle {
+        a4n_db::DbHandle::new(self.db.clone())
+    }
+
+    pub fn config(&self) -> &AppConfig {
+        &self.config
+    }
+
+    pub fn prompt_client(&self) -> Option<Arc<dyn a4n_prompt_client::PromptClient>> {
+        self.capabilities.prompt.clone()
+    }
+
+    pub fn service_manager(&self) -> Arc<a4n_service_manager::ServiceManager> {
+        self.service_manager.clone()
+    }
+
+    pub fn event_bus(&self) -> Arc<BroadcastEventBus> {
+        self.event_bus.clone()
+    }
+
+    pub fn task_manager(&self) -> Arc<a4n_task_runtime::channel::TaskManager> {
+        self.task_manager.clone()
+    }
+
+    pub fn rag_store(&self) -> Arc<dyn a4n_rag_core::vector_store::VectorStore> {
+        self.rag_store.clone()
+    }
+
+    pub fn task_queue(&self) -> Arc<PersistentTaskQueue> {
+        self.task_queue.clone()
+    }
+
+    pub fn prompt_engine(&self) -> Arc<a4n_prompt::tera_engine::TeraPromptEngine> {
+        self.prompt_engine.clone()
+    }
+
+    pub fn snapshot_store(&self) -> Arc<Sha256SnapshotStore> {
+        self.snapshot_store.clone()
+    }
+
+    pub fn create_provider(
+        &self,
+        provider_port: Arc<dyn a4n_provider_runtime_contract::ProviderRuntimePort>,
+    ) -> Result<
+        (
+            crate::DynamicProviderFacade,
+            Arc<dyn a4n_llm_provider_contract::provider::LlmProvider>,
+            Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
+        ),
+        a4n_error::AppError,
+    > {
+        let provider_facade = crate::provider_runtime::DynamicProviderFacade::new(provider_port);
+        let embedding = crate::sidecar_clients::create_embedding_provider(
+            provider_facade.clone(),
+            &self.config,
+            self.runtime_profile,
+            self.capabilities.embedding.clone(),
         )?;
-        let prompt_read_application: Arc<dyn a4n_api_contract::prompt::PromptReadApplicationPort> =
-            Arc::new(orchestrator.clone());
-        let prompt_mutation_application: Arc<
-            dyn a4n_api_contract::prompt::PromptMutationApplicationPort,
-        > = Arc::new(orchestrator.clone());
-        prompt_mutation_application.hydrate_overrides().await?;
-        let provider_runtime =
-            provider_runtime.ok_or_else(|| a4n_error::AppError::InvalidState {
-                current: "provider runtime port 未初始化".to_string(),
-                operation: "构造 Runtime provider".to_string(),
-            })?;
-        let task_queue_application = Arc::new(crate::task_queue::TaskQueueApplication::new(
-            task_queue.clone(),
-        ));
-        let rag_search: Arc<dyn a4n_rag_contract::RagSearchPort> = Arc::new(orchestrator.clone());
-        let rag_ingest: Arc<dyn a4n_rag_contract::RagIngestPort> = Arc::new(orchestrator.clone());
-        let config_read_application: Arc<dyn a4n_api_contract::config::ConfigReadApplicationPort> =
-            Arc::new(orchestrator.clone());
-        let config_mutation_application: Arc<
-            dyn a4n_api_contract::config::ConfigMutationApplicationPort,
-        > = Arc::new(orchestrator.clone());
-        let package_read_application: Arc<
-            dyn a4n_api_contract::package::PackageReadApplicationPort,
-        > = Arc::new(orchestrator.clone());
-        let package_mutation_application: Arc<
-            dyn a4n_api_contract::package::PackageMutationApplicationPort,
-        > = Arc::new(orchestrator.clone());
+        let llm = crate::sidecar_clients::create_llm_provider(
+            provider_facade.clone(),
+            self.runtime_profile,
+            &self.capabilities,
+        )?;
+        Ok((provider_facade, llm, embedding))
+    }
+
+    pub async fn finish(
+        self,
+        application_ports: ApplicationPorts,
+        provider_runtime: crate::DynamicProviderFacade,
+        rag_search: Arc<dyn a4n_rag_contract::RagSearchPort>,
+        rag_ingest: Arc<dyn a4n_rag_contract::RagIngestPort>,
+    ) -> Result<AppState, a4n_error::AppError> {
+        let RuntimeBootstrap {
+            config,
+            runtime_profile,
+            runtime_role,
+            capabilities,
+            service_manager,
+            event_bus,
+            task_manager,
+            task_queue,
+            generation_owner_lock,
+            data_dir_lock,
+            ..
+        } = self;
+
+        application_ports
+            .prompt_mutation_application
+            .hydrate_overrides()
+            .await?;
+
         if runtime_role == RuntimeRole::Host {
-            package_mutation_application.initialize_states().await?;
+            application_ports
+                .package_mutation_application
+                .initialize_states()
+                .await?;
             crate::baseline_configs::ensure_baseline_model_configs(
-                config_read_application.as_ref(),
-                config_mutation_application.as_ref(),
+                application_ports.config_read_application.as_ref(),
+                application_ports.config_mutation_application.as_ref(),
                 &config,
             )
             .await?;
         }
 
-        let state = Self {
-            config: config.clone(),
-            task_manager: task_manager.clone(),
-            generation_task_read_application: Arc::new(orchestrator.clone()),
-            generation_task_mutation_application: Arc::new(orchestrator.clone()),
-            generation_lifecycle_application: Arc::new(orchestrator.clone()),
-            generation_cleanup_application: Arc::new(orchestrator.clone()),
-            source_sync_read_application: Arc::new(orchestrator.clone()),
-            source_sync_mutation_application: Arc::new(orchestrator.clone()),
-            shooting_script_record_read_application: Arc::new(orchestrator.clone()),
-            shooting_script_record_mutation_application: Arc::new(orchestrator.clone()),
-            shooting_script_full_generation_application: Arc::new(orchestrator.clone()),
-            shooting_script_next_unit_generation_application: Arc::new(orchestrator.clone()),
-            auth_read_application: Arc::new(orchestrator.clone()),
-            auth_mutation_application: Arc::new(orchestrator.clone()),
-            admin_read_application: Arc::new(orchestrator.clone()),
-            model_usage_read_application: Arc::new(orchestrator.clone()),
-            admin_mutation_application: Arc::new(orchestrator.clone()),
-            project_status_application: Arc::new(orchestrator.clone()),
-            project_collaboration_application: Arc::new(orchestrator.clone()),
-            project_access_application: Arc::new(orchestrator.clone()),
-            project_read_application: Arc::new(orchestrator.clone()),
-            project_mutation_application: Arc::new(orchestrator.clone()),
-            project_asset_graph_application: Arc::new(orchestrator.clone()),
-            project_duplication_application: Arc::new(orchestrator.clone()),
-            project_family_transfer_application: Arc::new(orchestrator.clone()),
-            video_studio_transfer_application: Arc::new(orchestrator.clone()),
-            chapter_scene_read_application: Arc::new(orchestrator.clone()),
-            chapter_scene_mutation_application: Arc::new(orchestrator.clone()),
-            chapter_scene_generation_application: Arc::new(orchestrator.clone()),
-            optimize_session_read_application: Arc::new(orchestrator.clone()),
-            optimize_session_mutation_application: Arc::new(orchestrator.clone()),
-            optimize_patch_application: Arc::new(orchestrator.clone()),
-            optimize_patch_preview_application: Arc::new(orchestrator.clone()),
-            optimize_analysis_preview_application: Arc::new(orchestrator.clone()),
-            optimize_chat_preview_application: Arc::new(orchestrator.clone()),
-            optimize_chat_generation_application: Arc::new(orchestrator.clone()),
-            optimize_analysis_generation_application: Arc::new(orchestrator.clone()),
-            optimize_patch_generation_application: Arc::new(orchestrator.clone()),
-            scene_profile_sync_application: Arc::new(orchestrator.clone()),
-            service_health_application: Arc::new(crate::service_health::ServiceHealthApplication::new(
-                service_manager.clone(),
-            )),
-            cleanup_outbox_application: Arc::new(orchestrator.clone()),
-            character_discovery_application: Arc::new(orchestrator.clone()),
-            character_profile_sync_application: Arc::new(orchestrator.clone()),
-            workflow_read_application: Arc::new(orchestrator.clone()),
-            workflow_task_lookup_application: Arc::new(orchestrator.clone()),
-            task_read_application: Arc::new(orchestrator.clone()),
+        let task_queue_application = Arc::new(crate::task_queue::TaskQueueApplication::new(
+            task_queue.clone(),
+        ));
+        let managed_sidecars = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let state = AppState {
+            config,
+            task_manager,
+            service_health_application: Arc::new(
+                crate::service_health::ServiceHealthApplication::new(service_manager.clone()),
+            ),
             task_cancellation_application: task_queue_application.clone(),
             task_queue_stats_application: task_queue_application,
-            workflow_cancellation_application: Arc::new(orchestrator.clone()),
-            object_profile_read_application: Arc::new(orchestrator.clone()),
-            object_profile_mutation_application: Arc::new(orchestrator.clone()),
-            scene_profile_read_application: Arc::new(orchestrator.clone()),
-            character_profile_read_application: Arc::new(orchestrator.clone()),
-            character_profile_mutation_application: Arc::new(orchestrator.clone()),
-            character_profile_timeline_mutation_application: Arc::new(orchestrator.clone()),
-            character_profile_attribute_mutation_application: Arc::new(orchestrator.clone()),
-            character_profile_attribute_deletion_application: Arc::new(orchestrator.clone()),
-            character_implicit_review_check_application: Arc::new(orchestrator.clone()),
-            character_implicit_review_preview_application: Arc::new(orchestrator.clone()),
-            character_implicit_review_apply_application: Arc::new(orchestrator.clone()),
-            character_implicit_review_read_application: Arc::new(orchestrator.clone()),
-            character_profile_deletion_application: Arc::new(orchestrator.clone()),
-            character_conflict_application: Arc::new(orchestrator.clone()),
-            scene_profile_mutation_application: Arc::new(orchestrator.clone()),
-            foreshadowing_read_application: Arc::new(orchestrator.clone()),
-            foreshadowing_mutation_application: Arc::new(orchestrator.clone()),
-            blueprint_read_application: Arc::new(orchestrator.clone()),
-            blueprint_generation_preview_application: Arc::new(orchestrator.clone()),
-            blueprint_refinement_preview_application: Arc::new(orchestrator.clone()),
-            blueprint_generation_application: Arc::new(orchestrator.clone()),
-            blueprint_refinement_application: Arc::new(orchestrator.clone()),
-            blueprint_mutation_application: Arc::new(orchestrator.clone()),
-            chapter_content_read_application: Arc::new(orchestrator.clone()),
-            chapter_content_mutation_application: Arc::new(orchestrator.clone()),
-            chapter_content_sync_application: Arc::new(orchestrator.clone()),
-            chapter_generation_request_preview_application: Arc::new(orchestrator.clone()),
-            chapter_generation_rag_preparation_application: Arc::new(orchestrator.clone()),
-            chapter_generation_application: Arc::new(orchestrator.clone()),
-            outline_read_application: Arc::new(orchestrator.clone()),
-            outline_mutation_application: Arc::new(orchestrator.clone()),
-            outline_generation_application: Arc::new(orchestrator.clone()),
-            outline_part_generation_preview_application: Arc::new(orchestrator.clone()),
-            outline_part_mutation_preview_application: Arc::new(orchestrator.clone()),
-            outline_part_chapter_generation_preview_application: Arc::new(orchestrator.clone()),
-            outline_batch_part_generation_preview_application: Arc::new(orchestrator.clone()),
-            outline_chapter_count_generation_preview_application: Arc::new(orchestrator.clone()),
-            outline_chapter_regeneration_preview_application: Arc::new(orchestrator.clone()),
-            outline_beat_mapping_preview_application: Arc::new(orchestrator.clone()),
-            theme_read_application: Arc::new(orchestrator.clone()),
-            theme_mutation_application: Arc::new(orchestrator.clone()),
-            config_read_application,
-            config_mutation_application,
-            settings_export_application: Arc::new(orchestrator.clone()),
-            settings_import_application: Arc::new(orchestrator.clone()),
-            prompt_read_application,
-            prompt_mutation_application,
-            agent_thread_mutation_application: Arc::new(orchestrator.agent().clone()),
-            agent_thread_read_application: Arc::new(orchestrator.agent().clone()),
-            agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
-            agent_run_read_application: Arc::new(orchestrator.agent().clone()),
-            agent_delegation_application: Arc::new(orchestrator.agent().clone()),
-            agent_tool_read_application: Arc::new(orchestrator.agent().clone()),
-            agent_skill_application: Arc::new(orchestrator.agent().clone()),
-            agent_event_read_application: Arc::new(orchestrator.agent().clone()),
-            agent_memory_read_application: Arc::new(orchestrator.agent().clone()),
-            agent_memory_mutation_application: Arc::new(orchestrator.agent().clone()),
-            agent_approval_application: Arc::new(orchestrator.agent().clone()),
-            agent_resource_access_application: Arc::new(orchestrator.agent().clone()),
-            agent_worker_application: Arc::new(orchestrator.agent().clone()),
-            canvas_read_application: Arc::new(orchestrator.clone()),
-            canvas_mutation_application: Arc::new(orchestrator.clone()),
-            canvas_render_text_application: Arc::new(orchestrator.clone()),
-            canvas_llm_text_application: Arc::new(orchestrator.clone()),
-            canvas_image_application: Arc::new(orchestrator.clone()),
-            canvas_video_application: Arc::new(orchestrator.clone()),
-            canvas_preview_application: Arc::new(orchestrator.clone()),
-            canvas_editing_application: Arc::new(orchestrator.clone()),
-            canvas_probe_application: Arc::new(orchestrator.clone()),
-            canvas_output_application: Arc::new(orchestrator.clone()),
-            canvas_image_import_application: Arc::new(orchestrator.clone()),
-            canvas_video_import_application: Arc::new(orchestrator.clone()),
-            canvas_audio_import_application: Arc::new(orchestrator.clone()),
-            canvas_graph_preparation_application: Arc::new(orchestrator.clone()),
-            canvas_graph_execution_application: Arc::new(orchestrator.clone()),
-            canvas_graph_failure_application: Arc::new(orchestrator.clone()),
-            package_read_application,
-            package_mutation_application,
-            import_analysis_progress_application: Arc::new(orchestrator.clone()),
-            import_analysis_preview_application: Arc::new(orchestrator.clone()),
-            import_analysis_generation_application: Arc::new(orchestrator.clone()),
-            import_analysis_cancellation_application: Arc::new(orchestrator.clone()),
-            import_reverse_preview_application: Arc::new(orchestrator.clone()),
-            import_reverse_generation_application: Arc::new(orchestrator.clone()),
-            import_reverse_confirmation_application: Arc::new(orchestrator.clone()),
-            import_reverse_read_application: Arc::new(orchestrator.clone()),
-            chapter_analysis_generation_application: Arc::new(orchestrator.clone()),
-            chapter_analysis_resume_application: Arc::new(orchestrator.clone()),
-            chapter_analysis_generation_preview_application: Arc::new(orchestrator.clone()),
-            chapter_analysis_resume_preview_application: Arc::new(orchestrator.clone()),
-            import_review_ingestion_application: Arc::new(orchestrator.clone()),
-            import_review_acceptance_application: Arc::new(orchestrator.clone()),
-            import_review_mutation_application: Arc::new(orchestrator.clone()),
-            import_review_read_application: Arc::new(orchestrator.clone()),
-            project_export_application: Arc::new(orchestrator.clone()),
-            galgame_export_application: Arc::new(orchestrator.clone()),
-            video_record_read_application: Arc::new(orchestrator.clone()),
-            video_record_mutation_application: Arc::new(orchestrator.clone()),
-            video_chapter_import_application: Arc::new(orchestrator.clone()),
-            video_reference_media_import_application: Arc::new(orchestrator.clone()),
-            video_assembly_import_application: Arc::new(orchestrator.clone()),
-            video_canvas_import_application: Arc::new(orchestrator.clone()),
-            video_trim_application: Arc::new(orchestrator.clone()),
-            video_assembly_planning_application: Arc::new(orchestrator.clone()),
-            video_assembly_push_application: Arc::new(orchestrator.clone()),
-            video_assembly_postprocess_application: Arc::new(orchestrator.clone()),
-            video_record_completion_application: Arc::new(orchestrator.clone()),
-            video_tail_frame_application: Arc::new(orchestrator.clone()),
-            video_record_failure_application: Arc::new(orchestrator.clone()),
-            video_record_lifecycle_application: Arc::new(orchestrator.clone()),
-            video_canvas_media_application: Arc::new(orchestrator.clone()),
-            chapter_visual_plan_read_application: Arc::new(orchestrator.clone()),
-            chapter_visual_plan_mutation_application: Arc::new(orchestrator.clone()),
-            video_prompt_read_application: Arc::new(orchestrator.clone()),
-            video_prompt_mutation_application: Arc::new(orchestrator.clone()),
-            video_prompt_timeline_application: Arc::new(orchestrator.clone()),
-            video_prompt_draft_application: Arc::new(orchestrator.clone()),
-            image_record_read_application: Arc::new(orchestrator.clone()),
-            image_record_mutation_application: Arc::new(orchestrator.clone()),
-            image_import_preparation_application: Arc::new(orchestrator.clone()),
-            image_import_publication_application: Arc::new(orchestrator.clone()),
-            image_publication_recovery_application: Arc::new(orchestrator.clone()),
-            image_publication_recovery_read_application: Arc::new(orchestrator.clone()),
-            image_media_reference_application: Arc::new(orchestrator.clone()),
-            image_provider_config: Arc::new(orchestrator.clone()),
-            galgame_image_generation_application: Arc::new(orchestrator.clone()),
-            image_canvas_request_preview_application: Arc::new(orchestrator.clone()),
-            image_batch_request_preview_application: Arc::new(orchestrator.clone()),
-            image_object_profile_request_preview_application: Arc::new(orchestrator.clone()),
-            image_page_request_preview_application: Arc::new(orchestrator.clone()),
-            image_scene_request_preview_application: Arc::new(orchestrator.clone()),
-            image_generation_task_application: Arc::new(orchestrator.clone()),
-            image_profile_prompt_application: Arc::new(orchestrator.clone()),
-            profile_material_read_application: Arc::new(orchestrator.clone()),
-            profile_material_mutation_application: Arc::new(orchestrator.clone()),
-            profile_material_upload_application: Arc::new(orchestrator.clone()),
-            portrait_record_read_application: Arc::new(orchestrator.clone()),
-            portrait_record_mutation_application: Arc::new(orchestrator.clone()),
-            portrait_prompt_request_preview_application: Arc::new(orchestrator.clone()),
-            portrait_image_request_preview_application: Arc::new(orchestrator.clone()),
-            portrait_prompt_application: Arc::new(orchestrator.clone()),
-            portrait_upload_application: Arc::new(orchestrator.clone()),
-            portrait_generation_application: Arc::new(orchestrator.clone()),
-            video_provider_config: Arc::new(orchestrator.clone()),
-            video_provider_execution: Arc::new(orchestrator.clone()),
-            video_generation_application: Arc::new(orchestrator.clone()),
-            canvas_video_request_preview_application: Arc::new(orchestrator.clone()),
-            chapter_video_request_preview_application: Arc::new(orchestrator.clone()),
-            reference_media_video_request_preview_application: Arc::new(orchestrator.clone()),
-            galgame_pipeline_execution_application: Arc::new(orchestrator.clone()),
-            galgame_pipeline_preview_application: Arc::new(orchestrator.clone()),
-            galgame_pipeline_read_application: Arc::new(orchestrator.clone()),
-            galgame_pipeline_cancellation_application: Arc::new(orchestrator.clone()),
-            galgame_asset_plan_application: Arc::new(orchestrator.clone()),
-            galgame_asset_generation_application: Arc::new(orchestrator.clone()),
-            galgame_record_mutation_application: Arc::new(orchestrator.clone()),
-            galgame_media_mutation_application: Arc::new(orchestrator.clone()),
-            manga_pipeline_execution_application: Arc::new(orchestrator.clone()),
-            manga_pipeline_preview_application: Arc::new(orchestrator.clone()),
-            manga_pipeline_read_application: Arc::new(orchestrator.clone()),
-            manga_pipeline_cancellation_application: Arc::new(orchestrator.clone()),
-            manga_record_read_application: Arc::new(orchestrator.clone()),
-            manga_record_mutation_application: Arc::new(orchestrator.clone()),
-            galgame_read_application: Arc::new(orchestrator.clone()),
-            inspiration_history_read_application: Arc::new(orchestrator.clone()),
-            inspiration_generation_application: Arc::new(orchestrator.clone()),
-            inspiration_request_application: Arc::new(orchestrator.clone()),
+            application_ports,
             capabilities,
             event_bus,
             provider_runtime,
@@ -3113,6 +2364,7 @@ impl AppState {
             agent_runtime_snapshots: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             agent_host_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
         };
+
         if runtime_role == RuntimeRole::Host {
             let enabled_services = state.package_read_application().enabled_services().await?;
             state
@@ -3133,6 +2385,7 @@ impl AppState {
             crate::cleanup_outbox::spawn_cleanup_worker(state.clone());
             crate::actions::package::spawn_package_lifecycle_worker(state.clone());
         }
+
         Ok(state)
     }
 }

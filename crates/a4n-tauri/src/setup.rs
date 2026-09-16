@@ -6,7 +6,7 @@ mod config;
 mod event_logger;
 
 use a4n_error::AppError;
-use a4n_runtime::{AppState, RuntimeProfile};
+use a4n_runtime::{AppState, RuntimeProfile, RuntimeRole};
 #[cfg(not(feature = "embedded-capabilities"))]
 use a4n_service_protocol::MANAGED_SIDECARS_ENV;
 use a4n_storage::paths::AppPaths;
@@ -31,7 +31,7 @@ pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
     app_paths.ensure_dirs().map_err(AppError::Io)?;
 
     let runtime_profile = runtime_profile_for_tauri_host()?;
-    let state = AppState::new_with_profile(config, runtime_profile).await?;
+    let state = a4n_control::initialize_runtime(config, runtime_profile, RuntimeRole::Host).await?;
     event_logger::spawn_event_logger(&state);
 
     Ok(state)

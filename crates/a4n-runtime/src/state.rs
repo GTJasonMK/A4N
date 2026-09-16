@@ -4,13 +4,15 @@
 //! services、engine、队列和存储初始化逻辑。
 
 mod app;
+mod application_ports;
 mod database;
 mod profile;
 mod prompt_engine;
 mod rag;
 
-pub use app::AppState;
-pub use profile::RuntimeProfile;
+pub use app::{AppState, RuntimeBootstrap};
+pub use application_ports::ApplicationPorts;
+pub use profile::{RuntimeProfile, RuntimeRole};
 
 #[cfg(test)]
 mod tests;

@@ -50,12 +50,11 @@ a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" 
 a4n-process-catalog = { path = "../a4n-process-catalog" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-service-client = { path = "../a4n-service-client" }
-a4n-task-runtime = { path = "../a4n-task-runtime" }
+a4n-task-runtime = { path = "../a4n-task-runtime", features = ["persistent"] }
 a4n-provider-contract = { path = "../a4n-provider-contract" }
 a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
 a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-novel-host-contract = { path = "../a4n-novel-host-contract" }
-a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-prompt = { path = "../a4n-prompt" }
 a4n-prompt-client = { path = "../a4n-prompt-client" }
@@ -123,6 +122,7 @@ uuid = { workspace = true }
 zip = { workspace = true, features = ["deflate"] }
 
 [dev-dependencies]
+a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-migration = { path = "../a4n-migration" }
 a4n-prompt = { path = "../a4n-prompt", features = ["test-support"] }
 a4n-test-support = { path = "../a4n-test-support" }

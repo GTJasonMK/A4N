@@ -1,6 +1,10 @@
 mod logging;
 mod routes;
+mod runtime;
 mod state;
+
+#[cfg(test)]
+mod media_lifecycle_tests;
 
 use a4n_error::AppError;
 use a4n_runtime::AppState;
@@ -12,6 +16,7 @@ pub use routes::{
     api_router, dispatch_agent_host_command, dispatch_agent_host_command_value,
     dispatch_generation_start, dispatch_runtime_command, dispatch_runtime_command_value,
 };
+pub use runtime::initialize_runtime;
 pub use state::{ServerConfig, ServerState};
 
 /// Installs the Control-owned dispatcher for dynamically discovered Agent tools.

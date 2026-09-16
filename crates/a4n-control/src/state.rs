@@ -5,8 +5,8 @@ use a4n_config::{
     validate_postgres_database_url,
 };
 use a4n_error::AppError;
-use a4n_runtime::RuntimeProfile;
 use a4n_runtime::host_api::auth_records;
+use a4n_runtime::{RuntimeProfile, RuntimeRole};
 use a4n_storage::paths::AppPaths;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -81,8 +81,9 @@ impl ServerState {
         .ensure_dirs()
         .map_err(AppError::Io)?;
         let runtime_profile = runtime_profile_for_server_host()?;
-        let runtime =
-            Arc::new(a4n_runtime::AppState::new_with_profile(app_config, runtime_profile).await?);
+        let runtime = Arc::new(
+            crate::initialize_runtime(app_config, runtime_profile, RuntimeRole::Host).await?,
+        );
         crate::install_agent_host_dispatcher(&runtime)?;
         let bootstrap = bootstrap_admin.as_ref().map(|input| {
             (

@@ -8,7 +8,7 @@ use a4n_api_contract::{
 };
 use a4n_config::app_config::AppConfig;
 use a4n_db_models::models::{ai::generated_image, user::role::ROLE_USER};
-use a4n_runtime::RuntimeProfile;
+use a4n_runtime::{RuntimeProfile, RuntimeRole};
 use a4n_service_protocol::{GenerationEvent, GenerationTaskStatus};
 use a4n_storage::paths::AppPaths;
 use a4n_test_support::process::FakeJsonProvider;
@@ -117,7 +117,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     .ensure_dirs()
     .unwrap();
     let data_dir = config.data_dir.clone();
-    let state = AppState::new_with_profile(config, RuntimeProfile::Minimal)
+    let state = a4n_control::initialize_runtime(config, RuntimeProfile::Minimal, RuntimeRole::Host)
         .await
         .unwrap();
 

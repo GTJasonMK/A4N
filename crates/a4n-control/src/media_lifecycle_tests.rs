@@ -9,8 +9,8 @@ use a4n_image_host_contract::PreparedImportedImageUpload;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 
-use crate::{
-    AppState, host_api::auth_records::authorize_media_file_for_user, state::RuntimeProfile,
+use a4n_runtime::{
+    AppState, RuntimeProfile, RuntimeRole, host_api::auth_records::authorize_media_file_for_user,
 };
 
 async fn state() -> (
@@ -38,7 +38,7 @@ async fn state() -> (
         },
         ..Default::default()
     };
-    let state = AppState::new_with_profile(config, RuntimeProfile::Minimal)
+    let state = crate::initialize_runtime(config, RuntimeProfile::Minimal, RuntimeRole::Host)
         .await
         .unwrap();
     let owner = a4n_db::auth::create_user(
@@ -217,7 +217,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     let (started, waiting) = tokio::sync::oneshot::channel();
     let mut recovery = tokio::spawn(async move {
         started.send(()).unwrap();
-        crate::cleanup_outbox::recover_cleanup_outbox(&recovery_state).await;
+        recovery_state.recover_cleanup_outbox().await;
     });
     waiting.await.unwrap();
     assert!(
@@ -278,12 +278,9 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     writing.await.unwrap();
     writer.abort();
     assert!(writer.await.unwrap_err().is_cancelled());
-    tokio::time::timeout(
-        Duration::from_secs(5),
-        crate::cleanup_outbox::recover_cleanup_outbox(&state),
-    )
-    .await
-    .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), state.recover_cleanup_outbox())
+        .await
+        .unwrap();
     assert_eq!(
         state
             .image_publication_recovery_read_application()
@@ -332,7 +329,7 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     drop(guard);
 
     std::fs::write(&path, b"drift").unwrap();
-    crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
+    state.recover_cleanup_outbox().await;
 
     let recovered = state
         .image_publication_recovery_read_application()
@@ -396,7 +393,7 @@ async fn media_recovery_reclaims_legacy_published_orphan_without_file_or_record(
         .await
         .unwrap();
 
-    crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
+    state.recover_cleanup_outbox().await;
 
     let recovered = state
         .image_publication_recovery_read_application()
@@ -463,7 +460,7 @@ async fn media_recovery_reclaims_published_publication_without_image_id() {
         .await
         .unwrap();
 
-    crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
+    state.recover_cleanup_outbox().await;
 
     assert_eq!(
         state
