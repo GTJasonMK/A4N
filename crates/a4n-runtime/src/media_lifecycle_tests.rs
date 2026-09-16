@@ -5,7 +5,7 @@ use a4n_db_models::models::{
     ai::generated_image, media::image_publication, project::project_member,
 };
 use a4n_error::AppError;
-use a4n_orchestrator::media::PreparedImportedImageUpload;
+use a4n_image_host_contract::PreparedImportedImageUpload;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 

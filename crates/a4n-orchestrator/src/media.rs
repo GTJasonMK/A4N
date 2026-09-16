@@ -27,10 +27,6 @@ pub use image_generation::{
     SceneProfileImageInput, SceneProfileImagePromptOutput, generated_image_summary,
     image_generation_request_trace_json, normalize_image_metadata,
 };
-pub use image_record_lifecycle::{
-    ImageImportPreparationApplicationPort, ImageImportPublicationApplicationPort,
-    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
-};
 
 pub(crate) use image_workflow_rules::{
     batch_image_item_step_key, batch_image_workflow_run_input, image_generation_step_key,

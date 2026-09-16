@@ -4,18 +4,21 @@
 //! behind this boundary so Runtime consumers do not depend on the
 //! Orchestrator media facade.
 
+use a4n_api_contract::image::{GeneratedImageSummary, UploadImageInput};
 use a4n_api_contract::image_generation::{
     GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
     GenerateSceneImageInput, ObjectProfileImageInput,
 };
 use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
 use a4n_canvas_contract::GenerateCanvasImageInput;
-use a4n_domain::media::GeneratedMediaArtifactFile;
+use a4n_domain::media::{GeneratedMediaArtifactFile, ImagePublicationRecoveryRecord};
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
+use a4n_media::DecodedUploadedImage;
 use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use serde_json::Value;
+use tokio::sync::OwnedMutexGuard;
 use tokio_util::sync::CancellationToken;
 
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";
@@ -122,6 +125,17 @@ pub struct PersistedGeneratedImageFile {
     pub file_size: i64,
 }
 
+pub struct PreparedImportedImageUpload {
+    pub project_id: i64,
+    pub image_type: String,
+    pub prompt: String,
+    pub model: String,
+    pub chapter_id: Option<i64>,
+    pub panel_id: Option<String>,
+    pub metadata_json: Option<serde_json::Map<String, Value>>,
+    pub decoded: DecodedUploadedImage,
+}
+
 /// Host-facing boundary for Galgame image generation.
 #[async_trait]
 pub trait GalgameImageGenerationApplicationPort: Send + Sync {
@@ -194,6 +208,71 @@ pub trait ProfileMaterialUploadApplicationPort: Send + Sync {
         host: &dyn ImageGenerationHostPort,
         input: UploadProfileMaterialImageInput,
     ) -> Result<ProfileMaterialGroup, AppError>;
+}
+
+#[async_trait]
+pub trait ImageImportPreparationApplicationPort: Send + Sync {
+    async fn prepare_imported_upload(
+        &self,
+        user_id: i64,
+        input: UploadImageInput,
+    ) -> Result<PreparedImportedImageUpload, AppError>;
+}
+
+#[async_trait]
+pub trait ImageImportPublicationApplicationPort: Send + Sync {
+    async fn create_imported_publication_intent(
+        &self,
+        user_id: i64,
+        prepared: &PreparedImportedImageUpload,
+        publication_id: String,
+        staging_path: String,
+        final_path: String,
+        expected_sha256: String,
+    ) -> Result<(ImagePublicationRecoveryRecord, OwnedMutexGuard<()>), AppError>;
+
+    async fn publish_imported_image(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        publication_id: &str,
+        file_size: i64,
+        sha256: String,
+    ) -> Result<GeneratedImageSummary, AppError>;
+}
+
+#[async_trait]
+pub trait ImagePublicationRecoveryPort: Send + Sync {
+    async fn lock_image_publications(&self) -> OwnedMutexGuard<()>;
+
+    async fn publish_recovered_image(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        publication_id: &str,
+        file_size: i64,
+        sha256: String,
+    ) -> Result<(), AppError>;
+
+    async fn ensure_image_publication_identity(
+        &self,
+        user_id: i64,
+        publication_id: &str,
+    ) -> Result<(), AppError>;
+
+    async fn mark_image_publication_reclaiming(
+        &self,
+        publication_id: &str,
+        version: i64,
+        reason: String,
+    ) -> Result<ImagePublicationRecoveryRecord, AppError>;
+
+    async fn mark_image_publication_reclaimed(
+        &self,
+        publication_id: &str,
+        version: i64,
+        reason: Option<String>,
+    ) -> Result<(), AppError>;
 }
 
 #[async_trait]

@@ -525,9 +525,11 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "a4n-image-contract",
+ "a4n-media",
  "a4n-provider-contract",
  "async-trait",
  "serde_json",
+ "tokio",
  "tokio-util",
 ]
 

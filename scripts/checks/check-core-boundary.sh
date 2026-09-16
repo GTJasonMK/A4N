@@ -1044,7 +1044,7 @@ if rg -n 'imported_image_summary' crates/a4n-runtime/src; then
 fi
 
 if ! rg -n 'pub trait ImageImport(Preparation|Publication)ApplicationPort|pub trait ImagePublicationRecoveryPort' \
-    crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then
+    crates/a4n-image-host-contract/src/lib.rs; then
     printf 'image import preparation/publication and recovery contracts are missing\n' >&2
     exit 1
 fi

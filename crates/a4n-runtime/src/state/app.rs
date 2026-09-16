@@ -506,12 +506,12 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::image::ImageRecordMutationApplicationPort>,
     /// Imported-image file and publication transaction owner.
     image_import_preparation_application:
-        Arc<dyn a4n_orchestrator::media::ImageImportPreparationApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageImportPreparationApplicationPort>,
     image_import_publication_application:
-        Arc<dyn a4n_orchestrator::media::ImageImportPublicationApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageImportPublicationApplicationPort>,
     /// Image publication recovery and state-transition owner.
     image_publication_recovery_application:
-        Arc<dyn a4n_orchestrator::media::ImagePublicationRecoveryPort>,
+        Arc<dyn a4n_image_host_contract::ImagePublicationRecoveryPort>,
     /// Image publication recovery reads stay behind the API contract; Runtime
     /// supplies file facts and cleanup side effects separately.
     image_publication_recovery_read_application:
@@ -2320,19 +2320,19 @@ impl AppState {
 
     pub(crate) fn image_import_preparation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageImportPreparationApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageImportPreparationApplicationPort {
         self.image_import_preparation_application.as_ref()
     }
 
     pub(crate) fn image_import_publication_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageImportPublicationApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageImportPublicationApplicationPort {
         self.image_import_publication_application.as_ref()
     }
 
     pub(crate) fn image_publication_recovery_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImagePublicationRecoveryPort {
+    ) -> &dyn a4n_image_host_contract::ImagePublicationRecoveryPort {
         self.image_publication_recovery_application.as_ref()
     }
 

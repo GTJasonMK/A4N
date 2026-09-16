@@ -6,7 +6,7 @@ use crate::{
 };
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
-use a4n_orchestrator::media::PreparedImportedImageUpload;
+use a4n_image_host_contract::PreparedImportedImageUpload;
 use sha2::{Digest, Sha256};
 use std::{
     fs::OpenOptions,
