@@ -2,9 +2,8 @@ use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::novel_project;
 use a4n_error::AppError;
+use a4n_export_contract::{ExportChapter, ExportDocument};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
-
-pub use a4n_export_contract::{ExportChapter, ExportDocument};
 
 #[cfg(test)]
 mod tests;
