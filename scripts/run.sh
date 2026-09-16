@@ -444,12 +444,22 @@ preflight_runtime_dependencies() {
 
 preflight_runtime_dependencies
 
-build_server_children() {
-  local -a child_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  $RELEASE && child_command+=(--release)
-  child_command+=(-p a4n-control -p a4n-agent-worker)
-  $FULL_HOST && child_command+=(--features embedded-capabilities)
-  "${child_command[@]}"
+build_local_server_targets() {
+  local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
+  local sidecar_package_lines package
+  local -a sidecar_packages=()
+  $RELEASE && build_command+=(--release)
+  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-server)
+  $SERVER && build_command+=(-p a4n-cli)
+  if $MANAGED_SIDECARS && ! $FULL_HOST; then
+    sidecar_package_lines="$(sidecar_catalog_binaries)"
+    mapfile -t sidecar_packages <<<"$sidecar_package_lines"
+    for package in "${sidecar_packages[@]}"; do
+      [[ -n "$package" ]] && build_command+=(-p "$package")
+    done
+  fi
+  $FULL_HOST && build_command+=(--features a4n-server/embedded-capabilities)
+  "${build_command[@]}"
 }
 
 runtime_worker_watcher_pid=""
@@ -471,19 +481,8 @@ stop_runtime_worker_watcher() {
   runtime_worker_watcher_pid=""
 }
 
-if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
-  migration_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  $RELEASE && migration_command+=(--release)
-  migration_command+=(-p a4n-migration)
-  "${migration_command[@]}"
-
-  build_server_children
-
-  server_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  $RELEASE && server_command+=(--release)
-  server_command+=(-p a4n-server)
-  $FULL_HOST && server_command+=(--features embedded-capabilities)
-  "${server_command[@]}"
+if [[ "$MODE" == "local-server" && "$REMOTE_API" == false ]]; then
+  build_local_server_targets
 fi
 
 if $SERVER && ! $REMOTE_API; then
@@ -496,21 +495,12 @@ if $FULL_HOST; then
 elif $MANAGED_SIDECARS && ! $REMOTE_API; then
   export A4N_RUNTIME_PROFILE=sidecar
   export A4N_MANAGED_SIDECARS=1
-  sidecar_package_lines="$(sidecar_catalog_binaries)"
-  mapfile -t sidecar_packages <<<"$sidecar_package_lines"
-  build_args=()
-  $RELEASE && build_args+=(--release)
-  for package in "${sidecar_packages[@]}"; do
-    build_args+=(-p "$package")
-  done
-  "$PROJECT_ROOT/scripts/cargo.sh" build "${build_args[@]}"
 else
   export A4N_RUNTIME_PROFILE=sidecar
   export A4N_MANAGED_SIDECARS=0
 fi
 
 if $SERVER; then
-  build_server_children
   npm --prefix frontend run build
   command=("$PROJECT_ROOT/scripts/cargo.sh" run)
   $RELEASE && command+=(--release)
