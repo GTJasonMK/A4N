@@ -10,6 +10,7 @@ a4n-archive-core = { path = "../a4n-archive-core" }
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-blueprint-contract = { path = "../a4n-blueprint-contract" }
 a4n-chapter-generation-contract = { path = "../a4n-chapter-generation-contract" }
+a4n-chapter-analysis-host-contract = { path = "../a4n-chapter-analysis-host-contract" }
 a4n-character-host-contract = { path = "../a4n-character-host-contract" }
 a4n-optimize-host-contract = { path = "../a4n-optimize-host-contract" }
 a4n-portrait-host-contract = { path = "../a4n-portrait-host-contract" }
@@ -48,6 +49,7 @@ a4n-import-core = { path = "../a4n-import-core" }
 a4n-media = { path = "../a4n-media" }
 a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-image-host-contract = { path = "../a4n-image-host-contract" }
+a4n-import-analysis-host-contract = { path = "../a4n-import-analysis-host-contract" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-contract = { path = "../a4n-video-contract" }
 a4n-video-host-contract = { path = "../a4n-video-host-contract" }

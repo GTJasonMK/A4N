@@ -3078,7 +3078,7 @@ if rg -U -n 'optimize_application\(\)\s*\.\s*(list_sessions|get_session|list_tur
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeSessionMutationApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_session_mutation_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/sessions.rs \
     crates/a4n-runtime/src/actions/optimize/analysis.rs \
@@ -3088,7 +3088,7 @@ if ! rg -n 'pub trait OptimizeSessionMutationApplicationPort' \
     exit 1
 fi
 if ! rg -n 'pub trait OptimizePatchApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_patch_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/patches/application.rs; then
     printf 'Optimize patch application must route through the patch application port\n' >&2
@@ -3096,7 +3096,7 @@ if ! rg -n 'pub trait OptimizePatchApplicationPort' \
 fi
 
 if ! rg -n 'pub trait OptimizePatchPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_patch_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
     printf 'Optimize patch previews must route through OptimizePatchPreviewApplicationPort\n' >&2
@@ -3108,7 +3108,7 @@ if rg -n 'optimize_preview_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeAnalysisPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_analysis_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/analysis/request_preview.rs; then
     printf 'Optimize analysis previews must route through OptimizeAnalysisPreviewApplicationPort\n' >&2
@@ -3120,7 +3120,7 @@ if rg -n 'optimize_preview_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeChatPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_chat_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/chat/request_preview.rs; then
     printf 'Optimize chat previews must route through OptimizeChatPreviewApplicationPort\n' >&2
@@ -3135,7 +3135,7 @@ for contract in \
     OptimizeChatGenerationApplicationPort \
     OptimizeAnalysisGenerationApplicationPort \
     OptimizePatchGenerationApplicationPort; do
-    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/optimize/application.rs; then
+    if ! rg -q "pub trait $contract" crates/a4n-optimize-host-contract/src/lib.rs; then
         printf '%s contract is missing\n' "$contract" >&2
         exit 1
     fi
@@ -3192,6 +3192,16 @@ fi
 
 if rg -n 'a4n_orchestrator::portrait::(Portrait|GenerationTaskAccessError)' crates/a4n-runtime/src; then
     printf 'Runtime portrait actions must use a4n-portrait-host-contract\n' >&2
+    exit 1
+fi
+
+if ! rg -q "pub trait ChapterAnalysisGenerationApplicationPort" crates/a4n-chapter-analysis-host-contract/src/lib.rs; then
+    printf 'Chapter analysis host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::(chapter_analysis|import_analysis)::(ChapterAnalysis|ImportAnalysis)' crates/a4n-runtime/src; then
+    printf 'Runtime analysis actions must use dedicated host contracts\n' >&2
     exit 1
 fi
 if ! rg -n 'character_discovery_application\(\)' \
@@ -3422,7 +3432,7 @@ if ! rg -n 'portrait_prompt_application\(\)' \
 fi
 
 if ! rg -n 'pub trait Portrait(PromptRequest|ImageRequest|Prompt|Upload|Generation)ApplicationPort' \
-    crates/a4n-orchestrator/src/portrait.rs; then
+    crates/a4n-portrait-host-contract/src/lib.rs; then
     printf 'Portrait application ports are missing from the portrait owner\n' >&2
     exit 1
 fi
@@ -3565,9 +3575,9 @@ if ! rg -n 'import_review_ingestion_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ImportAnalysisGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/import_analysis/application.rs || \
+    crates/a4n-import-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportAnalysisPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/import_analysis/application.rs || \
+    crates/a4n-import-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportAnalysisProgressApplicationPort' \
     crates/a4n-api-contract/src/import.rs; then
     printf 'Import-analysis application ports are missing\n' >&2
@@ -3655,13 +3665,13 @@ if ! rg -n 'rag_ingest\(\)' \
 fi
 
 if ! rg -n 'pub trait ChapterAnalysisGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterAnalysisResumeApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterAnalysisGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterAnalysisResumePreviewApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs; then
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs; then
     printf 'ChapterAnalysis split application ports are missing\n' >&2
     exit 1
 fi

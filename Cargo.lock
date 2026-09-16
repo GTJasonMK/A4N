@@ -146,6 +146,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-chapter-analysis-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-character-host-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "a4n-scene-host-contract",
+ "async-trait",
+ "tokio-util",
+]
+
+[[package]]
 name = "a4n-chapter-generation-contract"
 version = "0.1.0"
 dependencies = [
@@ -593,6 +607,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-import-analysis-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-chapter-analysis-host-contract",
+ "a4n-character-host-contract",
+ "a4n-error",
+ "a4n-prompt-contract",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-import-client"
 version = "0.1.0"
 dependencies = [
@@ -833,6 +859,7 @@ dependencies = [
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-chapter-analysis",
+ "a4n-chapter-analysis-host-contract",
  "a4n-chapter-generation-contract",
  "a4n-character-host-contract",
  "a4n-cleanup-contract",
@@ -846,6 +873,7 @@ dependencies = [
  "a4n-event",
  "a4n-image-contract",
  "a4n-image-host-contract",
+ "a4n-import-analysis-host-contract",
  "a4n-import-core",
  "a4n-llm-config",
  "a4n-llm-context",
@@ -1143,6 +1171,7 @@ dependencies = [
  "a4n-archive-core",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
+ "a4n-chapter-analysis-host-contract",
  "a4n-chapter-generation-contract",
  "a4n-character-host-contract",
  "a4n-cleanup-contract",
@@ -1164,6 +1193,7 @@ dependencies = [
  "a4n-image-host-contract",
  "a4n-image-provider-contract",
  "a4n-image-providers",
+ "a4n-import-analysis-host-contract",
  "a4n-import-client",
  "a4n-import-contract",
  "a4n-import-core",

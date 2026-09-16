@@ -387,11 +387,11 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort>,
     /// Host-facing import-analysis request-preview boundary.
     import_analysis_preview_application:
-        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisPreviewApplicationPort>,
+        Arc<dyn a4n_import_analysis_host_contract::ImportAnalysisPreviewApplicationPort>,
     /// Host-facing import-analysis execution boundary. Runtime supplies only
     /// prompt and cleanup adapters for the long-running analysis workflow.
     import_analysis_generation_application:
-        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisGenerationApplicationPort>,
+        Arc<dyn a4n_import_analysis_host_contract::ImportAnalysisGenerationApplicationPort>,
     /// Host-facing import-analysis cancellation boundary.
     import_analysis_cancellation_application:
         Arc<dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort>,
@@ -411,18 +411,18 @@ pub struct AppState {
     /// Host-facing chapter-analysis generation boundary. Analysis
     /// authorization, workflow state and summaries stay in the chapter owner.
     chapter_analysis_generation_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationApplicationPort>,
+        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort>,
     /// Host-facing chapter-analysis synchronization and workflow-recovery
     /// boundary.
     chapter_analysis_resume_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumeApplicationPort>,
+        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort>,
     /// Host-facing new chapter-analysis request-preview boundary.
     chapter_analysis_generation_preview_application: Arc<
-        dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationPreviewApplicationPort,
+        dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationPreviewApplicationPort,
     >,
     /// Host-facing chapter-analysis resume request-preview boundary.
     chapter_analysis_resume_preview_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumePreviewApplicationPort>,
+        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumePreviewApplicationPort>,
     /// Host-facing import-review ingestion boundary. Parsing stays in Runtime;
     /// queue persistence and projection stay in the import-review owner.
     import_review_ingestion_application:
@@ -2071,7 +2071,7 @@ impl AppState {
 
     pub(crate) fn import_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisGenerationApplicationPort {
+    ) -> &dyn a4n_import_analysis_host_contract::ImportAnalysisGenerationApplicationPort {
         self.import_analysis_generation_application.as_ref()
     }
 
@@ -2089,7 +2089,7 @@ impl AppState {
 
     pub(crate) fn import_analysis_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisPreviewApplicationPort {
+    ) -> &dyn a4n_import_analysis_host_contract::ImportAnalysisPreviewApplicationPort {
         self.import_analysis_preview_application.as_ref()
     }
 
@@ -2119,19 +2119,19 @@ impl AppState {
 
     pub(crate) fn chapter_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationApplicationPort {
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort {
         self.chapter_analysis_generation_application.as_ref()
     }
 
     pub(crate) fn chapter_analysis_resume_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumeApplicationPort {
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort {
         self.chapter_analysis_resume_application.as_ref()
     }
 
     pub(crate) fn chapter_analysis_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationPreviewApplicationPort
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationPreviewApplicationPort
     {
         self.chapter_analysis_generation_preview_application
             .as_ref()
@@ -2139,7 +2139,7 @@ impl AppState {
 
     pub(crate) fn chapter_analysis_resume_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumePreviewApplicationPort {
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumePreviewApplicationPort {
         self.chapter_analysis_resume_preview_application.as_ref()
     }
 

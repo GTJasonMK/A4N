@@ -92,14 +92,11 @@ impl<'a> ChapterAnalysisProgress<'a> {
 
 pub(crate) use owner::build_chapter_analysis_initial_request;
 
+pub(crate) use a4n_chapter_analysis_host_contract::{
+    ChapterAnalysisApplicationProgress, ChapterAnalysisHostPort,
+};
 pub(crate) use application::{
     CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
     CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,
     CHAPTER_ANALYSIS_STEP_SCENE_SYNC, CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS,
-};
-pub use application::{
-    ChapterAnalysisApplicationProgress, ChapterAnalysisApplicationProgressReporter,
-    ChapterAnalysisGenerationApplicationPort, ChapterAnalysisGenerationPreviewApplicationPort,
-    ChapterAnalysisHostPort, ChapterAnalysisRequestPreview, ChapterAnalysisResumeApplicationPort,
-    ChapterAnalysisResumePreviewApplicationPort,
 };
