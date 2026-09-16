@@ -984,9 +984,14 @@ fn package_policy(spec: &CommandSpec) -> (PackageId, PackageCommandCategory) {
 fn default_agent_policy(spec: &CommandSpec) -> Option<AgentPolicySpec> {
     // Existing manifest auth/secret metadata remains the single visibility gate.
     // Commands that need runtime secrets or an admin identity are not model tools.
+    // Web tools are the intentional exception: their provider credentials and
+    // limits arrive through the per-run runtime snapshot, while the command
+    // itself remains a read-only, user-scoped operation.
+    let is_web_tool = matches!(spec.name, "web_search" | "web_fetch");
     if spec.auth != "user"
-        || !spec.secret_pointers.is_empty()
-        || spec.runtime_config_policy != RuntimeConfigPolicy::None
+        || (!is_web_tool
+            && (!spec.secret_pointers.is_empty()
+                || spec.runtime_config_policy != RuntimeConfigPolicy::None))
         || matches!(spec.domain, "auth" | "settings" | "system")
         || matches!(
             spec.name,

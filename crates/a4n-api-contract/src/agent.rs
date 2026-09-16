@@ -1714,7 +1714,7 @@ pub trait AgentResourceAccessApplicationPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{
-        AGENT_CAPABILITIES, LocateWritingTargetInput, agent_tool_descriptor,
+        AGENT_CAPABILITIES, AgentToolExposure, LocateWritingTargetInput, agent_tool_descriptor,
         agent_tools_for_capability, synthetic_agent_tool_descriptor,
     };
     use crate::command_manifest::command_descriptor;
@@ -1764,6 +1764,14 @@ mod tests {
             crate::command_manifest::RuntimeConfigPolicy::None
         );
         assert!(agent_tool_descriptor("create_llm_config").is_none());
+        for name in ["web_search", "web_fetch"] {
+            let descriptor = agent_tool_descriptor(name)
+                .unwrap_or_else(|| panic!("{name} web tool should be exposed to Agent"));
+            assert_eq!(
+                descriptor.agent_policy.unwrap().exposure,
+                AgentToolExposure::Discoverable
+            );
+        }
         assert!(agent_tool_descriptor("list_agent_skills").is_none());
         assert!(agent_tool_descriptor("update_agent_skill_configuration").is_none());
     }
