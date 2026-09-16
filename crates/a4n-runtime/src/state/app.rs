@@ -312,9 +312,8 @@ pub struct AppState {
     settings_import_application: Arc<dyn a4n_api_contract::config::SettingsImportApplicationPort>,
     /// Host-facing prompt record read boundary. Prompt service selection stays
     /// with the prompt owner.
-    prompt_read_application: Arc<dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort>,
-    prompt_mutation_application:
-        Arc<dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort>,
+    prompt_read_application: Arc<dyn a4n_api_contract::prompt::PromptReadApplicationPort>,
+    prompt_mutation_application: Arc<dyn a4n_api_contract::prompt::PromptMutationApplicationPort>,
     /// Host-facing Agent operations are injected through focused contracts;
     /// worker-only lease operations stay on the worker aggregate below.
     agent_thread_mutation_application:
@@ -1730,13 +1729,13 @@ impl AppState {
 
     pub(crate) fn prompt_read_application(
         &self,
-    ) -> &dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort {
+    ) -> &dyn a4n_api_contract::prompt::PromptReadApplicationPort {
         self.prompt_read_application.as_ref()
     }
 
     pub(crate) fn prompt_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort {
+    ) -> &dyn a4n_api_contract::prompt::PromptMutationApplicationPort {
         self.prompt_mutation_application.as_ref()
     }
 
@@ -2822,11 +2821,10 @@ impl AppState {
                 Ok((llm, embedding))
             },
         )?;
-        let prompt_read_application: Arc<
-            dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort,
-        > = Arc::new(orchestrator.clone());
+        let prompt_read_application: Arc<dyn a4n_api_contract::prompt::PromptReadApplicationPort> =
+            Arc::new(orchestrator.clone());
         let prompt_mutation_application: Arc<
-            dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort,
+            dyn a4n_api_contract::prompt::PromptMutationApplicationPort,
         > = Arc::new(orchestrator.clone());
         prompt_mutation_application.hydrate_overrides().await?;
         let provider_runtime =

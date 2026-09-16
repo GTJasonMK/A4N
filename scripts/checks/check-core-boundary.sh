@@ -1561,7 +1561,7 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     exit 1
 fi
 
-if ! rg -n 'pub trait Prompt(Read|Mutation)ApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs; then
+if ! rg -n 'pub trait Prompt(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/prompt.rs; then
     printf 'Prompt read/mutation contracts are missing\n' >&2
     exit 1
 fi
