@@ -8,9 +8,9 @@ use a4n_api_contract::{
     image::GeneratedImageSummary,
     image_generation::{
         GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
-        GenerateSceneImageInput, ImageGenerationOperation, ObjectProfileImageInput,
-        ObjectProfileImagePromptOutput, SceneProfileImageInput, SceneProfileImagePromptOutput,
-        StartImageGenerationInput,
+        GenerateSceneImageInput, ImageGenerationOperation, ImageProfilePromptApplicationPort,
+        ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
+        SceneProfileImagePromptOutput, StartImageGenerationInput,
     },
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
@@ -33,8 +33,7 @@ use crate::{
         ImageBatchRequestPreviewApplicationPort, ImageCanvasRequestPreviewApplicationPort,
         ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationTaskApplicationPort,
         ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
-        ImageProfilePromptApplicationPort, ImageSceneRequestPreviewApplicationPort,
-        PreparedImageGenerationRequest,
+        ImageSceneRequestPreviewApplicationPort, PreparedImageGenerationRequest,
     },
 };
 

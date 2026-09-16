@@ -544,7 +544,7 @@ pub struct AppState {
         Arc<dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort>,
     /// Profile image prompt generation has no provider/file task dependency.
     image_profile_prompt_application:
-        Arc<dyn a4n_orchestrator::media::ImageProfilePromptApplicationPort>,
+        Arc<dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort>,
     /// Host-facing profile-material read boundary. Authorization and group
     /// projection stay in the media owner.
     profile_material_read_application:
@@ -2399,7 +2399,7 @@ impl AppState {
 
     pub(crate) fn image_profile_prompt_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageProfilePromptApplicationPort {
+    ) -> &dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort {
         self.image_profile_prompt_application.as_ref()
     }
 

@@ -2783,7 +2783,7 @@ if rg -n 'GenerateGalgameImageInput' crates/a4n-orchestrator/src/media.rs \
 fi
 
 if ! rg -n 'pub trait ImageProfilePromptApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs; then
+    crates/a4n-api-contract/src/image_generation.rs; then
     printf 'ImageProfilePromptApplicationPort contract is missing\n' >&2
     exit 1
 fi

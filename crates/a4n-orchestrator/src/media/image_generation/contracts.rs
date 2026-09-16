@@ -253,22 +253,6 @@ pub trait ImageGenerationTaskApplicationPort: Send + Sync {
     ) -> Result<(), String>;
 }
 
-/// Host-facing boundary for profile image prompt generation.
-#[async_trait]
-pub trait ImageProfilePromptApplicationPort: Send + Sync {
-    async fn object_profile_prompt(
-        &self,
-        user_id: i64,
-        input: &ObjectProfileImageInput,
-    ) -> Result<ObjectProfileImagePromptOutput, AppError>;
-
-    async fn scene_profile_prompt(
-        &self,
-        user_id: i64,
-        input: &SceneProfileImageInput,
-    ) -> Result<SceneProfileImagePromptOutput, AppError>;
-}
-
 #[async_trait]
 pub trait ImageGenerationHostPort: Send + Sync {
     async fn resolve_image_config(
