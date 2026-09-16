@@ -2804,7 +2804,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*(object_profile_prompt|scen
     exit 1
 fi
 if ! rg -n 'pub trait ImageGenerationTaskApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_generation_task_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/generation_task.rs; then
     printf 'Queued image generation must route through ImageGenerationTaskApplicationPort\n' >&2

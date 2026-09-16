@@ -540,7 +540,7 @@ pub struct AppState {
         Arc<dyn a4n_image_host_contract::ImageSceneRequestPreviewApplicationPort>,
     /// Queued image generation lifecycle owner.
     image_generation_task_application:
-        Arc<dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageGenerationTaskApplicationPort>,
     /// Profile image prompt generation has no provider/file task dependency.
     image_profile_prompt_application:
         Arc<dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort>,
@@ -2392,7 +2392,7 @@ impl AppState {
 
     pub(crate) fn image_generation_task_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageGenerationTaskApplicationPort {
         self.image_generation_task_application.as_ref()
     }
 

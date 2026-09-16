@@ -6,7 +6,6 @@ pub use a4n_api_contract::image_generation::{
 };
 use a4n_image_contract::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
-use async_trait::async_trait;
 use serde_json::Value;
 
 pub(crate) use a4n_image_host_contract::{
@@ -64,22 +63,4 @@ pub struct ImageGenerationExecutionOutcome {
     pub summary: GeneratedImageSummary,
     pub restored: bool,
     pub created_at: chrono::NaiveDateTime,
-}
-
-/// Host-facing boundary for queued image generation task ownership.
-#[async_trait]
-pub trait ImageGenerationTaskApplicationPort: Send + Sync {
-    async fn start_task(
-        &self,
-        user_id: i64,
-        input: &a4n_api_contract::image_generation::StartImageGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn run_task(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::image_generation::StartImageGenerationInput,
-        handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
-        host_port: &dyn ImageGenerationHostPort,
-    ) -> Result<(), String>;
 }

@@ -11,9 +11,9 @@ pub use a4n_api_contract::image::{GeneratedImageIdentity, ImageMediaReferencePor
 pub(crate) use a4n_image_host_contract::{
     GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
     ImageCanvasRequestPreviewApplicationPort, ImageGenerationHostPort, ImageGenerationProgress,
-    ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
-    ImageSceneRequestPreviewApplicationPort, PersistGeneratedImageFileInput,
-    PrepareGeneratedImageFileInput, PreparedImageGenerationRequest,
+    ImageGenerationTaskApplicationPort, ImageObjectProfileRequestPreviewApplicationPort,
+    ImagePageRequestPreviewApplicationPort, ImageSceneRequestPreviewApplicationPort,
+    PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput, PreparedImageGenerationRequest,
 };
 #[cfg(test)]
 pub(crate) use a4n_image_host_contract::{PersistedGeneratedImageFile, PreparedGeneratedImageFile};
@@ -21,12 +21,10 @@ pub(crate) use batch_image_application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
 pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
-pub use image_generation::{
-    ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
-    ImageGenerationPostCommitAction, ImageGenerationTaskApplicationPort,
-    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    SceneProfileImageInput, SceneProfileImagePromptOutput, generated_image_summary,
-    image_generation_request_trace_json, normalize_image_metadata,
+pub(crate) use image_generation::generated_image_summary;
+pub(crate) use image_generation::{
+    ImageGenerationExecutionInput, ImageGenerationPostCommitAction, ImageGenerationWorkflowBinding,
+    image_generation_request_trace_json,
 };
 
 pub(crate) use image_workflow_rules::{

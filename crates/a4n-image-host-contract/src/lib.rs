@@ -4,6 +4,9 @@
 //! behind this boundary so Runtime consumers do not depend on the
 //! Orchestrator media facade.
 
+use a4n_api_contract::generation_tasks::{
+    GenerationTaskHandle, GenerationTaskStart, GenerationTaskStartError,
+};
 use a4n_api_contract::image::{GeneratedImageSummary, UploadImageInput};
 use a4n_api_contract::image_generation::{
     GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
@@ -134,6 +137,23 @@ pub struct PreparedImportedImageUpload {
     pub panel_id: Option<String>,
     pub metadata_json: Option<serde_json::Map<String, Value>>,
     pub decoded: DecodedUploadedImage,
+}
+
+#[async_trait]
+pub trait ImageGenerationTaskApplicationPort: Send + Sync {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::image_generation::StartImageGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskStartError>;
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::image_generation::StartImageGenerationInput,
+        handle: GenerationTaskHandle,
+        host_port: &dyn ImageGenerationHostPort,
+    ) -> Result<(), String>;
 }
 
 /// Host-facing boundary for Galgame image generation.
