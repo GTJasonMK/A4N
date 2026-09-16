@@ -43,7 +43,6 @@ impl OrchestratorContext {
         config: a4n_config::app_config::AppConfig,
         event_bus: Arc<a4n_event::BroadcastEventBus>,
         task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
-        chapter: ChapterGenerationService,
         rag_store: Arc<dyn VectorStore>,
         task_queue: Arc<PersistentTaskQueue>,
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
@@ -58,6 +57,8 @@ impl OrchestratorContext {
             AppError,
         >,
     ) -> Result<Self, AppError> {
+        let chapter =
+            crate::chapter_generation::ChapterGenerationService::new(db.shared_connection());
         let admin = AdminApplication::new(db.clone());
         let agent = AgentApplication::new(db.clone());
         let asset = AssetApplication::new(db.clone());

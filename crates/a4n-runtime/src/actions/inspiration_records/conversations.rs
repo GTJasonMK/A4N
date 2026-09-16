@@ -1,13 +1,12 @@
 use crate::AppState;
-use a4n_api_contract::generation_tasks::GenerationTaskHandle;
+use a4n_api_contract::generation_tasks::{GenerationTaskHandle, GenerationTaskStartError};
 use a4n_api_contract::inspiration::StartInspirationGenerationInput;
-use a4n_orchestrator::GenerationTaskAccessError;
 
 pub async fn start_inspiration_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartInspirationGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .inspiration_generation_application()
         .start_generation(user_id, &input)

@@ -10,12 +10,11 @@ mod output;
 mod persistence;
 mod request;
 
-pub const CHARACTER_DISCOVERY_KIND: &str = "character_discovery";
-pub const CHARACTER_DISCOVERY_CALL_KEY: &str = "character_discovery.llm";
-pub const CHARACTER_DISCOVERY_PROGRESS_TOTAL: u32 = 100;
+pub use a4n_character_host_contract::{
+    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
+};
 
 pub use context::character_llm_chapter_context;
-pub use contracts::{CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview};
 pub use execution::validate_character_discovery_input;
 pub use identity::{character_identity_key, profile_character_keys};
 

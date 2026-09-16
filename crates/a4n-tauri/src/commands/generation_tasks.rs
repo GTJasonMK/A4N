@@ -348,7 +348,7 @@ fn host_error(
 pub(crate) fn map_access_error(
     error: generation_actions::GenerationTaskAccessError,
 ) -> HostErrorResponse {
-    let code = error.code();
+    let code = registered_generation_error_code(error.code());
     host_error(
         code,
         error.to_string(),
@@ -359,6 +359,30 @@ pub(crate) fn map_access_error(
                 | "generation_subscription_capacity_exceeded"
         ),
     )
+}
+
+fn registered_generation_error_code(code: &str) -> &'static str {
+    match code {
+        "generation_task_not_found" => "generation_task_not_found",
+        "generation_task_forbidden" => "generation_task_forbidden",
+        "generation_task_unauthenticated" => "generation_task_unauthenticated",
+        "generation_attempt_mismatch" => "generation_attempt_mismatch",
+        "generation_snapshot_required" => "generation_snapshot_required",
+        "generation_request_invalid" => "generation_request_invalid",
+        "generation_checkpoint_unavailable" => "generation_checkpoint_unavailable",
+        "generation_checkpoint_corrupt" => "generation_checkpoint_corrupt",
+        "generation_snapshot_expired" => "generation_snapshot_expired",
+        "generation_session_capacity_exceeded" => "generation_session_capacity_exceeded",
+        "generation_subscription_capacity_exceeded" => "generation_subscription_capacity_exceeded",
+        "generation_persist_failed" => "generation_persist_failed",
+        "generation_cancel_too_late" => "generation_cancel_too_late",
+        "generation_terminal_already_set" => "generation_terminal_already_set",
+        "generation_terminal_persistence_unavailable" => {
+            "generation_terminal_persistence_unavailable"
+        }
+        "generation_event_invalid" => "generation_event_invalid",
+        _ => "generation_persist_failed",
+    }
 }
 
 #[cfg(test)]

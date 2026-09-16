@@ -1,6 +1,10 @@
+use a4n_chapter_analysis_host_contract::ChapterAnalysisRequestStep;
 use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
-use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
+use a4n_import_analysis_host_contract::{
+    ImportAnalysisGenerationApplicationPort, ImportAnalysisPreviewApplicationPort,
+};
+use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 
 use crate::{
@@ -22,34 +26,6 @@ use super::{
         prepare_import_project_analysis, record_import_analysis_failure, save_import_stage,
     },
 };
-
-/// Runtime-facing import-analysis request-preview boundary.
-#[async_trait]
-pub trait ImportAnalysisPreviewApplicationPort: Send + Sync {
-    async fn preview(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError>;
-}
-
-/// Runtime-facing import-analysis execution boundary.
-///
-/// Authorization, workflow state and persistence remain owned by the
-/// import-analysis application. Runtime supplies only prompt/rendering and
-/// cleanup adapters.
-#[async_trait]
-pub trait ImportAnalysisGenerationApplicationPort: Send + Sync {
-    async fn run(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-        chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
-        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<ImportProjectAnalysisSummary, AppError>;
-}
 
 impl OrchestratorContext {
     pub async fn run_import_project_analysis_validated(

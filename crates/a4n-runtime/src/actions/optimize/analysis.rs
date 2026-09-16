@@ -1,8 +1,8 @@
 use crate::AppState;
 use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle, optimize::StartOptimizeAnalysisGenerationInput,
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
+    optimize::StartOptimizeAnalysisGenerationInput,
 };
-use a4n_orchestrator::GenerationTaskAccessError;
 
 use super::{
     AnalyzeChapterInput, OptimizationSessionSummary, PrepareOptimizationAnalysisSessionInput,
@@ -19,7 +19,7 @@ pub async fn start_optimize_analysis_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartOptimizeAnalysisGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .optimize_analysis_generation_application()
         .start_analysis_generation(user_id, &input)

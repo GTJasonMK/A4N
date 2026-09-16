@@ -31,7 +31,7 @@ impl OrchestratorContext {
                 project_id,
                 chapter_number,
                 &chapters,
-                progress.and_then(|progress| progress.active_task_id),
+                progress.and_then(SceneProfileSyncProgress::active_task_id),
             )
             .await?;
         let result = chapters::sync_scene_profile_chapters(

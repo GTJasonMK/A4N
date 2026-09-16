@@ -4,7 +4,7 @@ use a4n_domain::cost::{
 };
 use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
 use a4n_error::AppError;
-use a4n_orchestrator::canvas::{
+use a4n_canvas_host_contract::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
     CanvasVideoProviderInput,
 };

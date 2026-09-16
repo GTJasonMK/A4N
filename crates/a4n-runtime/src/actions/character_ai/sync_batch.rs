@@ -1,5 +1,5 @@
+use a4n_character_host_contract::{CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress};
 use a4n_error::AppError;
-use a4n_orchestrator::character::{CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress};
 
 use super::{CharacterAiProgress, SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult};
 use crate::{

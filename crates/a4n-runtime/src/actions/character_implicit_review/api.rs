@@ -8,7 +8,7 @@ use crate::{
         ModelRequestPreview, model_request_preview, traced_chat_request_step_for_state,
     },
 };
-use a4n_orchestrator::character::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
+use a4n_character_host_contract::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 
 pub async fn get_implicit_review(
     state: &AppState,

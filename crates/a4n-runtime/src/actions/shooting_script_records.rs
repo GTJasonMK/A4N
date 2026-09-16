@@ -15,4 +15,4 @@ pub use generation::{
 pub use read::{get_chapter_shooting_script, get_chapter_shooting_script_unit_progress};
 
 pub const CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL: u32 =
-    a4n_orchestrator::shooting_script::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
+    a4n_novel_host_contract::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;

@@ -29,6 +29,10 @@ use a4n_domain::{
     source_text_hash as source_content_sha256,
 };
 use a4n_error::AppError;
+use a4n_image_host_contract::{
+    ImageGenerationHostPort, PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput,
+    ProfileMaterialUploadApplicationPort,
+};
 use a4n_media::decode_uploaded_image_data;
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
@@ -38,14 +42,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::{
-    OrchestratorContext,
-    asset::asset_error,
-    collaboration::ProjectAccessRole,
-    media::{
-        ImageGenerationHostPort, PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput,
-        generated_image_summary,
-    },
-    scene_profile::scene_profile_db_error,
+    OrchestratorContext, asset::asset_error, collaboration::ProjectAccessRole,
+    media::generated_image_summary, scene_profile::scene_profile_db_error,
 };
 
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
@@ -61,16 +59,6 @@ struct ProfileMaterialGroupProjection {
     group: ProfileMaterialGroup,
     newest_image_sort_key: Option<(NaiveDateTime, i64)>,
     has_favorite_image: bool,
-}
-
-#[async_trait]
-pub trait ProfileMaterialUploadApplicationPort: Send + Sync {
-    async fn upload(
-        &self,
-        user_id: i64,
-        host: &dyn ImageGenerationHostPort,
-        input: UploadProfileMaterialImageInput,
-    ) -> Result<ProfileMaterialGroup, AppError>;
 }
 
 #[derive(Debug, Clone)]

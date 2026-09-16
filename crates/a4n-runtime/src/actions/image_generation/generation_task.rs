@@ -1,6 +1,5 @@
-use a4n_api_contract::generation_tasks::GenerationTaskHandle;
+use a4n_api_contract::generation_tasks::{GenerationTaskHandle, GenerationTaskStartError};
 use a4n_api_contract::image_generation::StartImageGenerationInput;
-use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::{AppState, actions::image_generation::host_port::RuntimeImageGenerationHostPort};
 
@@ -8,7 +7,7 @@ pub async fn start_image_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartImageGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .image_generation_task_application()
         .start_task(user_id, &input)

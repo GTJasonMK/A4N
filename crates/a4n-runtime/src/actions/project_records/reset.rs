@@ -5,6 +5,7 @@ use crate::AppState;
 use a4n_api_contract::project::{
     ProjectGeneratedDataResetResponse, ProjectGeneratedDataResetStatus,
 };
+use a4n_generation_host_contract::ProjectGeneratedDataResetApplicationResult;
 
 pub(super) async fn reset_generated_data(
     state: &AppState,
@@ -16,9 +17,7 @@ pub(super) async fn reset_generated_data(
         .reset_project(state, user_id, project_id)
         .await?;
     let result = match reset {
-        a4n_orchestrator::project::ProjectGeneratedDataResetApplicationResult::Standard(
-            outcome,
-        ) => {
+        ProjectGeneratedDataResetApplicationResult::Standard(outcome) => {
             to_generated_data_reset_summary(
                 state,
                 user_id,
@@ -28,9 +27,7 @@ pub(super) async fn reset_generated_data(
             )
             .await
         }
-        a4n_orchestrator::project::ProjectGeneratedDataResetApplicationResult::Freeform {
-            result,
-        } => {
+        ProjectGeneratedDataResetApplicationResult::Freeform { result } => {
             to_freeform_generated_data_reset_summary(
                 state,
                 user_id,

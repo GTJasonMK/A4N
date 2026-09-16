@@ -1,46 +1,13 @@
-use a4n_api_contract::portrait::{PortraitReferenceImageSource, PortraitSummary};
-use a4n_domain::media::GeneratedMediaArtifactFile;
+use a4n_api_contract::portrait::PortraitSummary;
 use a4n_error::AppError;
-use async_trait::async_trait;
-use serde_json::Value;
-use tokio_util::sync::CancellationToken;
 
-use crate::media::{
-    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
-    PreparedGeneratedImageFile,
+#[cfg(test)]
+pub(crate) use a4n_portrait_host_contract::DecodedPortraitImage;
+pub(crate) use a4n_portrait_host_contract::{
+    GeneratedPortraitImage, PortraitGenerationHostPort, PortraitImageProviderInput,
 };
 
 pub type PortraitProgress<'a> = &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
-
-#[derive(Debug, Clone)]
-pub struct PortraitImageProviderInput {
-    pub project_id: i64,
-    pub prompt: String,
-    pub width: i32,
-    pub height: i32,
-    pub reference_images: Vec<PortraitReferenceImageSource>,
-    pub workflow_run_id: Option<i64>,
-}
-
-#[derive(Debug)]
-pub struct GeneratedPortraitImage {
-    pub bytes: Vec<u8>,
-    pub format: String,
-    pub model: String,
-    pub provider: String,
-    pub request_json: Value,
-    pub width: i32,
-    pub height: i32,
-}
-
-#[derive(Debug)]
-pub struct DecodedPortraitImage {
-    pub bytes: Vec<u8>,
-    pub format: String,
-    pub model: String,
-    pub width: i32,
-    pub height: i32,
-}
 
 #[derive(Debug, Clone)]
 pub struct PortraitBatchItem {
@@ -68,41 +35,4 @@ impl PortraitBatchOutcome {
     pub fn failed(&self) -> u32 {
         self.failed_item_keys.len() as u32
     }
-}
-
-#[async_trait]
-pub trait PortraitGenerationHostPort: Send + Sync {
-    async fn generate_image(
-        &self,
-        input: PortraitImageProviderInput,
-        cancel_token: CancellationToken,
-    ) -> Result<GeneratedPortraitImage, AppError>;
-
-    fn decode_uploaded_image(
-        &self,
-        file_name: &str,
-        mime_type: &str,
-        data_base64: &str,
-    ) -> Result<DecodedPortraitImage, AppError>;
-
-    fn prepare_portrait_file(
-        &self,
-        input: PrepareGeneratedImageFileInput<'_>,
-    ) -> Result<PreparedGeneratedImageFile, AppError>;
-
-    fn persist_portrait_file(
-        &self,
-        input: PersistGeneratedImageFileInput<'_>,
-        prepared: &PreparedGeneratedImageFile,
-    ) -> Result<PersistedGeneratedImageFile, AppError>;
-
-    fn inspect_portrait_file(
-        &self,
-        relative_path: &str,
-        label: &str,
-    ) -> Result<GeneratedMediaArtifactFile, AppError>;
-
-    fn validate_portrait_file(&self, relative_path: &str, label: &str) -> Result<(), AppError>;
-
-    async fn remove_portrait_file(&self, relative_path: &str, label: &str) -> Result<(), AppError>;
 }

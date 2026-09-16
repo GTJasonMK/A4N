@@ -143,7 +143,6 @@ fi
 if ! rg -n 'pub struct GenerateCanvasImageInput' crates/a4n-canvas-contract/src/lib.rs || \
    ! rg -n 'pub struct GenerateCanvasVideoInput' crates/a4n-api-contract/src/canvas.rs || \
    ! rg -n 'a4n_canvas_contract::GenerateCanvasImageInput|a4n_api_contract::canvas::GenerateCanvasVideoInput|GenerateCanvas(Image|Video)Input' \
-    crates/a4n-orchestrator/src/canvas/preview.rs \
     crates/a4n-orchestrator/src/canvas/video_generation.rs \
     crates/a4n-orchestrator/src/context/canvas.rs \
     crates/a4n-orchestrator/src/media/image_generation/contracts.rs \
@@ -648,7 +647,7 @@ if ! rg -n 'canvas_preview_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/preview.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasPreviewApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -720,7 +719,7 @@ if ! rg -n 'canvas_llm_text_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasLlmTextNodeApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/text_generation.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasLlmTextNodeApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -738,7 +737,7 @@ if ! rg -n 'canvas_image_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasImageNodeApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/image_generation.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasImageNodeApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -756,7 +755,7 @@ if ! rg -n 'canvas_video_application\(\)' \
 fi
 
 if ! rg -n 'pub trait CanvasVideoNodeApplicationPort' \
-    crates/a4n-orchestrator/src/canvas/video_generation.rs; then
+    crates/a4n-canvas-host-contract/src/lib.rs; then
     printf 'CanvasVideoNodeApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -955,13 +954,13 @@ if ! rg -U -n 'generation_lifecycle_application\(\)\s*\.\s*reset_project_generat
 fi
 
 if ! rg -n 'pub trait GenerationTaskReadApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs || \
+    crates/a4n-generation-host-contract/src/lib.rs || \
    ! rg -n 'pub trait GenerationTaskMutationApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs || \
+    crates/a4n-generation-host-contract/src/lib.rs || \
    ! rg -n 'pub trait GenerationLifecycleApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs || \
+    crates/a4n-generation-host-contract/src/lib.rs || \
    ! rg -n 'pub trait GenerationCleanupApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs; then
+    crates/a4n-generation-host-contract/src/lib.rs; then
     printf 'Generation task/lifecycle/cleanup contracts are missing\n' >&2
     exit 1
 fi
@@ -1044,7 +1043,7 @@ if rg -n 'imported_image_summary' crates/a4n-runtime/src; then
 fi
 
 if ! rg -n 'pub trait ImageImport(Preparation|Publication)ApplicationPort|pub trait ImagePublicationRecoveryPort' \
-    crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then
+    crates/a4n-image-host-contract/src/lib.rs; then
     printf 'image import preparation/publication and recovery contracts are missing\n' >&2
     exit 1
 fi
@@ -1509,7 +1508,7 @@ fi
 
 if ! rg -U -n \
     '(?s)pub struct ImageGenerationProviderInput\s*\{.*?pub\s+config:\s*(a4n_provider_contract::)?ImageProviderConfig\b' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs; then
+    crates/a4n-image-host-contract/src/lib.rs; then
     printf 'ImageGenerationProviderInput.config must use ImageProviderConfig instead of the image ORM model\n' >&2
     exit 1
 fi
@@ -1561,7 +1560,7 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     exit 1
 fi
 
-if ! rg -n 'pub trait Prompt(Read|Mutation)ApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs; then
+if ! rg -n 'pub trait Prompt(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/prompt.rs; then
     printf 'Prompt read/mutation contracts are missing\n' >&2
     exit 1
 fi
@@ -2387,7 +2386,7 @@ fi
 if ! rg -n 'pub trait ProfileMaterial(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/profile.rs || \
    ! rg -n 'pub trait ProfileMaterialUploadApplicationPort' \
-    crates/a4n-orchestrator/src/profile_material.rs; then
+    crates/a4n-image-host-contract/src/lib.rs; then
     printf 'Profile-material split contracts are missing\n' >&2
     exit 1
 fi
@@ -2441,7 +2440,7 @@ if ! rg -n 'shooting_script_full_generation_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ShootingScript(FullGeneration|NextUnitGeneration)ApplicationPort' \
-    crates/a4n-orchestrator/src/shooting_script.rs || \
+    crates/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ShootingScriptRecord(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/shooting_script.rs; then
     printf 'ShootingScriptRecord read/mutation contracts are missing\n' >&2
@@ -2496,6 +2495,12 @@ if ! rg -n 'galgame_asset_generation_application\(\)' \
     exit 1
 fi
 
+if ! rg -n 'pub trait GalgameAssetGenerationApplicationPort' \
+    crates/a4n-galgame-host-contract/src/lib.rs; then
+    printf 'Galgame asset-generation host contract is missing\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub trait GalgameAssetPlanApplicationPort' \
     crates/a4n-api-contract/src/galgame.rs; then
     printf 'GalgameAssetPlanApplicationPort contract is missing\n' >&2
@@ -2532,7 +2537,7 @@ if ! rg -n 'inspiration_generation_application\(\)' \
 fi
 
 if ! rg -n 'pub trait InspirationGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/inspiration/application.rs; then
+    crates/a4n-inspiration-host-contract/src/lib.rs; then
     printf 'InspirationGenerationApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -2550,7 +2555,7 @@ if ! rg -n 'inspiration_request_application\(\)' \
 fi
 
 if ! rg -n 'pub trait InspirationRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/inspiration/application.rs; then
+    crates/a4n-inspiration-host-contract/src/lib.rs; then
     printf 'InspirationRequestPreviewApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -2783,7 +2788,7 @@ if rg -n 'GenerateGalgameImageInput' crates/a4n-orchestrator/src/media.rs \
 fi
 
 if ! rg -n 'pub trait ImageProfilePromptApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs; then
+    crates/a4n-api-contract/src/image_generation.rs; then
     printf 'ImageProfilePromptApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -2798,7 +2803,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*(object_profile_prompt|scen
     exit 1
 fi
 if ! rg -n 'pub trait ImageGenerationTaskApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_generation_task_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/generation_task.rs; then
     printf 'Queued image generation must route through ImageGenerationTaskApplicationPort\n' >&2
@@ -2810,7 +2815,7 @@ if rg -n 'image_generation_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageSceneRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_scene_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/direct.rs; then
     printf 'Scene image request previews must route through ImageSceneRequestPreviewApplicationPort\n' >&2
@@ -2822,7 +2827,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_scene_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageCanvasRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_canvas_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/direct.rs; then
     printf 'Canvas image request previews must route through ImageCanvasRequestPreviewApplicationPort\n' >&2
@@ -2834,7 +2839,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_canvas_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImagePageRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_page_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/page.rs; then
     printf 'Page image request previews must route through ImagePageRequestPreviewApplicationPort\n' >&2
@@ -2846,7 +2851,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_page_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageBatchRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_batch_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/batch_api.rs; then
     printf 'Batch image request previews must route through ImageBatchRequestPreviewApplicationPort\n' >&2
@@ -2858,7 +2863,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_batch_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageObjectProfileRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_object_profile_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/profiles.rs; then
     printf 'Object profile image request previews must route through ImageObjectProfileRequestPreviewApplicationPort\n' >&2
@@ -2870,7 +2875,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_object_profile_requ
     exit 1
 fi
 if ! rg -n 'pub trait GalgameImageGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'galgame_image_generation_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/direct.rs; then
     printf 'Galgame image generation must route through GalgameImageGenerationApplicationPort\n' >&2
@@ -3014,7 +3019,7 @@ for contract in \
     CharacterImplicitReviewCheckApplicationPort \
     CharacterImplicitReviewPreviewApplicationPort \
     CharacterImplicitReviewApplyApplicationPort; do
-    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/character.rs; then
+    if ! rg -q "pub trait $contract" crates/a4n-character-host-contract/src/lib.rs; then
         printf '%s contract is missing\n' "$contract" >&2
         exit 1
     fi
@@ -3078,7 +3083,7 @@ if rg -U -n 'optimize_application\(\)\s*\.\s*(list_sessions|get_session|list_tur
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeSessionMutationApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_session_mutation_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/sessions.rs \
     crates/a4n-runtime/src/actions/optimize/analysis.rs \
@@ -3088,7 +3093,7 @@ if ! rg -n 'pub trait OptimizeSessionMutationApplicationPort' \
     exit 1
 fi
 if ! rg -n 'pub trait OptimizePatchApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_patch_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/patches/application.rs; then
     printf 'Optimize patch application must route through the patch application port\n' >&2
@@ -3096,7 +3101,7 @@ if ! rg -n 'pub trait OptimizePatchApplicationPort' \
 fi
 
 if ! rg -n 'pub trait OptimizePatchPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_patch_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
     printf 'Optimize patch previews must route through OptimizePatchPreviewApplicationPort\n' >&2
@@ -3108,7 +3113,7 @@ if rg -n 'optimize_preview_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeAnalysisPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_analysis_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/analysis/request_preview.rs; then
     printf 'Optimize analysis previews must route through OptimizeAnalysisPreviewApplicationPort\n' >&2
@@ -3120,7 +3125,7 @@ if rg -n 'optimize_preview_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait OptimizeChatPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
+    crates/a4n-optimize-host-contract/src/lib.rs || \
    ! rg -n 'optimize_chat_preview_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/chat/request_preview.rs; then
     printf 'Optimize chat previews must route through OptimizeChatPreviewApplicationPort\n' >&2
@@ -3135,7 +3140,7 @@ for contract in \
     OptimizeChatGenerationApplicationPort \
     OptimizeAnalysisGenerationApplicationPort \
     OptimizePatchGenerationApplicationPort; do
-    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/optimize/application.rs; then
+    if ! rg -q "pub trait $contract" crates/a4n-optimize-host-contract/src/lib.rs; then
         printf '%s contract is missing\n' "$contract" >&2
         exit 1
     fi
@@ -3159,11 +3164,61 @@ if rg -n 'OptimizeApplicationPort|OptimizeGenerationApplicationPort|optimize_app
 fi
 
 for contract in CharacterDiscoveryApplicationPort CharacterProfileSyncApplicationPort; do
-    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/character.rs; then
+    if ! rg -q "pub trait $contract" crates/a4n-character-host-contract/src/lib.rs; then
         printf '%s contract is missing\n' "$contract" >&2
         exit 1
     fi
 done
+
+if ! rg -q "pub trait SceneProfileSyncApplicationPort" crates/a4n-scene-host-contract/src/lib.rs; then
+    printf 'SceneProfileSyncApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+
+if ! rg -q "pub trait CanvasPreviewApplicationPort" crates/a4n-canvas-host-contract/src/lib.rs; then
+    printf 'Canvas host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::canvas::(CanvasNodeRequestPreview|CanvasTextGeneration|Canvas(LlmText|Image|Video|Preview))' crates/a4n-runtime/src; then
+    printf 'Runtime Canvas node actions must use a4n-canvas-host-contract\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::scene_profile::(SceneProfileSyncApplicationPort|SceneProfileSyncHostPort|SceneProfileSyncProgress)' crates/a4n-runtime/src; then
+    printf 'Runtime scene profile sync must use a4n-scene-host-contract\n' >&2
+    exit 1
+fi
+
+if ! rg -q "pub trait OptimizeChatGenerationApplicationPort" crates/a4n-optimize-host-contract/src/lib.rs; then
+    printf 'Optimize host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::optimize::(Optimize|GenerationTaskAccessError)' crates/a4n-runtime/src; then
+    printf 'Runtime optimize actions must use a4n-optimize-host-contract\n' >&2
+    exit 1
+fi
+
+if ! rg -q "pub trait PortraitGenerationApplicationPort" crates/a4n-portrait-host-contract/src/lib.rs; then
+    printf 'Portrait host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::portrait::(Portrait|GenerationTaskAccessError)' crates/a4n-runtime/src; then
+    printf 'Runtime portrait actions must use a4n-portrait-host-contract\n' >&2
+    exit 1
+fi
+
+if ! rg -q "pub trait ChapterAnalysisGenerationApplicationPort" crates/a4n-chapter-analysis-host-contract/src/lib.rs; then
+    printf 'Chapter analysis host contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::(chapter_analysis|import_analysis)::(ChapterAnalysis|ImportAnalysis)' crates/a4n-runtime/src; then
+    printf 'Runtime analysis actions must use dedicated host contracts\n' >&2
+    exit 1
+fi
 if ! rg -n 'character_discovery_application\(\)' \
     crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/request.rs \
     crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/execution.rs || \
@@ -3392,7 +3447,7 @@ if ! rg -n 'portrait_prompt_application\(\)' \
 fi
 
 if ! rg -n 'pub trait Portrait(PromptRequest|ImageRequest|Prompt|Upload|Generation)ApplicationPort' \
-    crates/a4n-orchestrator/src/portrait.rs; then
+    crates/a4n-portrait-host-contract/src/lib.rs; then
     printf 'Portrait application ports are missing from the portrait owner\n' >&2
     exit 1
 fi
@@ -3484,9 +3539,9 @@ if ! rg -n 'import_reverse_preview_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait ImportReversePreviewApplicationPort' \
-    crates/a4n-orchestrator/src/import_reverse.rs || \
+    crates/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportReverseGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/import_reverse.rs || \
+    crates/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportReverseConfirmationApplicationPort' \
     crates/a4n-api-contract/src/import_reverse.rs; then
     printf 'Import-reverse application ports are missing\n' >&2
@@ -3535,9 +3590,9 @@ if ! rg -n 'import_review_ingestion_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ImportAnalysisGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/import_analysis/application.rs || \
+    crates/a4n-import-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportAnalysisPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/import_analysis/application.rs || \
+    crates/a4n-import-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ImportAnalysisProgressApplicationPort' \
     crates/a4n-api-contract/src/import.rs; then
     printf 'Import-analysis application ports are missing\n' >&2
@@ -3565,7 +3620,7 @@ if rg -n 'a4n_orchestrator::import_analysis::ImportAnalysisProgressApplicationPo
 fi
 
 if ! rg -n 'pub trait ImportReviewIngestionApplicationPort' \
-    crates/a4n-orchestrator/src/import_review/mod.rs; then
+    crates/a4n-novel-host-contract/src/lib.rs; then
     printf 'ImportReviewIngestionApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -3625,13 +3680,13 @@ if ! rg -n 'rag_ingest\(\)' \
 fi
 
 if ! rg -n 'pub trait ChapterAnalysisGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterAnalysisResumeApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterAnalysisGenerationPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ChapterAnalysisResumePreviewApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_analysis/application.rs; then
+    crates/a4n-chapter-analysis-host-contract/src/lib.rs; then
     printf 'ChapterAnalysis split application ports are missing\n' >&2
     exit 1
 fi

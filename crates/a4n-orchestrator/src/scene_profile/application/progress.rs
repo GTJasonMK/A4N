@@ -1,8 +1,8 @@
 use super::types::SceneProfileStageProgressSpec;
 use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
-use tokio_util::sync::CancellationToken;
+pub(crate) use a4n_scene_host_contract::SceneProfileSyncProgress;
 
-pub const SCENE_PROFILE_SYNC_PROGRESS_TOTAL: u32 = 100;
+pub(crate) use a4n_scene_host_contract::SCENE_PROFILE_SYNC_PROGRESS_TOTAL;
 pub(super) const SCENE_PROFILE_SYNC_CHAPTER_START: u32 = 5;
 pub(super) const SCENE_PROFILE_SYNC_CHAPTER_END: u32 = 88;
 pub(super) const SCENE_PROFILE_SYNC_RAG_PROGRESS: u32 = 94;
@@ -48,66 +48,6 @@ pub(super) const SCENE_ENTITY_STATE_PROGRESS_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("action_description", "动作描述", 1),
     FieldMilestone::new("source_anchor_ids", "来源锚点", 1),
 ];
-
-type SceneProfileSyncProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
-
-/// 活体信号出口：把模型输出的原始尾巴交给 Host，与字段级里程碑取自同一个 token 流。
-type SceneProfileSyncStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
-
-pub struct SceneProfileSyncProgress<'a> {
-    reporter: Option<SceneProfileSyncProgressReporter<'a>>,
-    stream_reporter: Option<SceneProfileSyncStreamReporter<'a>>,
-    pub(super) cancel_token: Option<&'a CancellationToken>,
-    pub(super) active_task_id: Option<&'a str>,
-}
-
-impl<'a> SceneProfileSyncProgress<'a> {
-    pub fn new(
-        reporter: Option<SceneProfileSyncProgressReporter<'a>>,
-        cancel_token: Option<&'a CancellationToken>,
-        active_task_id: Option<&'a str>,
-    ) -> Self {
-        Self {
-            reporter,
-            stream_reporter: None,
-            cancel_token,
-            active_task_id,
-        }
-    }
-
-    /// 附加活体信号出口。不提供时行为与之前完全一致。
-    pub fn with_stream_reporter(
-        mut self,
-        stream_reporter: Option<SceneProfileSyncStreamReporter<'a>>,
-    ) -> Self {
-        self.stream_reporter = stream_reporter;
-        self
-    }
-
-    pub(super) fn stream_text(&self, text: &str) {
-        if let Some(reporter) = self.stream_reporter {
-            reporter(text);
-        }
-    }
-
-    pub(super) fn has_stream_reporter(&self) -> bool {
-        self.stream_reporter.is_some()
-    }
-
-    fn progress(&self, current: u32, total: u32, message: &str) {
-        if let Some(reporter) = self.reporter {
-            reporter(current, total.max(1), message);
-        }
-    }
-
-    fn check_cancelled(&self, message: &str) -> Result<(), String> {
-        if self.cancel_token.is_some_and(|token| token.is_cancelled()) {
-            Err(message.to_string())
-        } else {
-            Ok(())
-        }
-    }
-}
 
 pub(super) fn subspan(
     span: ProgressSpan,
@@ -155,7 +95,7 @@ pub(super) fn report_scene_profile_sync_progress(
     cancelled_message: &str,
 ) -> Result<(), String> {
     if let Some(progress) = progress {
-        progress.progress(current, SCENE_PROFILE_SYNC_PROGRESS_TOTAL, message.as_ref());
+        progress.report(current, SCENE_PROFILE_SYNC_PROGRESS_TOTAL, message.as_ref());
         progress.check_cancelled(cancelled_message)?;
     }
     Ok(())

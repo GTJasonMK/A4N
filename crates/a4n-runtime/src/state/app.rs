@@ -11,7 +11,6 @@ use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_config::app_config::AppConfig;
 use a4n_db::character::Sha256SnapshotStore;
 use a4n_event::{BroadcastEventBus, InternalEvent};
-use a4n_orchestrator::chapter_generation::ChapterGenerationService;
 use a4n_orchestrator::task_queue::PersistentTaskQueue;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AgentHostCommandPayload, AgentRunPayload, WorkerRequest,
@@ -37,11 +36,14 @@ pub struct AppState {
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
     /// Generation task queries and subscriptions stay behind a narrow read
     /// boundary.
-    generation_task_read_application: Arc<dyn a4n_orchestrator::GenerationTaskReadApplicationPort>,
+    generation_task_read_application:
+        Arc<dyn a4n_generation_host_contract::GenerationTaskReadApplicationPort>,
     generation_task_mutation_application:
-        Arc<dyn a4n_orchestrator::GenerationTaskMutationApplicationPort>,
-    generation_lifecycle_application: Arc<dyn a4n_orchestrator::GenerationLifecycleApplicationPort>,
-    generation_cleanup_application: Arc<dyn a4n_orchestrator::GenerationCleanupApplicationPort>,
+        Arc<dyn a4n_generation_host_contract::GenerationTaskMutationApplicationPort>,
+    generation_lifecycle_application:
+        Arc<dyn a4n_generation_host_contract::GenerationLifecycleApplicationPort>,
+    generation_cleanup_application:
+        Arc<dyn a4n_generation_host_contract::GenerationCleanupApplicationPort>,
     /// Source-sync preview authorization and projection stay in the
     /// source-sync owner.
     source_sync_read_application:
@@ -57,9 +59,9 @@ pub struct AppState {
     shooting_script_record_mutation_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
     shooting_script_full_generation_application:
-        Arc<dyn a4n_orchestrator::ShootingScriptFullGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort>,
     shooting_script_next_unit_generation_application:
-        Arc<dyn a4n_orchestrator::ShootingScriptNextUnitGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort>,
     /// Host-facing authentication read boundary. Passwords, sessions and ORM
     /// models remain owned by the authentication application.
     auth_read_application: Arc<dyn a4n_api_contract::auth::AuthReadApplicationPort>,
@@ -110,40 +112,40 @@ pub struct AppState {
     /// Chapter-scene generation and request construction remain in the scene
     /// owner; Runtime only supplies prompt and progress adapters.
     chapter_scene_generation_application:
-        Arc<dyn a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ChapterSceneGenerationApplicationPort>,
     /// Content-optimization session reads stay behind the API contract.
     optimize_session_read_application:
         Arc<dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort>,
     /// Content-optimization session mutations stay in the optimize owner.
     optimize_session_mutation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeSessionMutationApplicationPort>,
     /// Content-optimization patch application and chapter writeback stay in
     /// the optimize owner.
-    optimize_patch_application: Arc<dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort>,
+    optimize_patch_application: Arc<dyn a4n_optimize_host_contract::OptimizePatchApplicationPort>,
     /// Content-optimization patch request previews stay behind the patch
     /// boundary.
     optimize_patch_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizePatchPreviewApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizePatchPreviewApplicationPort>,
     /// Content-optimization analysis request previews stay behind the
     /// analysis-specific boundary.
     optimize_analysis_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeAnalysisPreviewApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeAnalysisPreviewApplicationPort>,
     /// Content-optimization chat request previews stay behind the chat
     /// boundary.
     optimize_chat_preview_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeChatPreviewApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeChatPreviewApplicationPort>,
     /// Each content-optimization worker has its own runtime boundary so a
     /// worker-specific change does not widen the injected contract.
     optimize_chat_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeChatGenerationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeChatGenerationApplicationPort>,
     optimize_analysis_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeAnalysisGenerationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizeAnalysisGenerationApplicationPort>,
     optimize_patch_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizePatchGenerationApplicationPort>,
+        Arc<dyn a4n_optimize_host_contract::OptimizePatchGenerationApplicationPort>,
     /// Scene-profile synchronization remains owned by the scene-profile
     /// application; Runtime supplies only the RAG host adapter.
     scene_profile_sync_application:
-        Arc<dyn a4n_orchestrator::scene_profile::SceneProfileSyncApplicationPort>,
+        Arc<dyn a4n_scene_host_contract::SceneProfileSyncApplicationPort>,
     /// Managed service health queries stay with the service manager owner.
     service_health_application:
         Arc<dyn a4n_api_contract::service_health::ServiceHealthApplicationPort>,
@@ -152,9 +154,9 @@ pub struct AppState {
     /// Character discovery and profile synchronization use separate worker
     /// boundaries; Runtime only adapts progress and RAG tracing.
     character_discovery_application:
-        Arc<dyn a4n_orchestrator::character::CharacterDiscoveryApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterDiscoveryApplicationPort>,
     character_profile_sync_application:
-        Arc<dyn a4n_orchestrator::character::CharacterProfileSyncApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterProfileSyncApplicationPort>,
     /// Host-facing workflow read boundary. Runtime keeps only live handles
     /// and cancellation coordination outside this port.
     workflow_read_application: Arc<dyn a4n_api_contract::workflow::WorkflowReadApplicationPort>,
@@ -203,11 +205,11 @@ pub struct AppState {
     /// Character implicit-review checks, previews, and applies use separate
     /// worker boundaries; Runtime only supplies prompt rendering.
     character_implicit_review_check_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewCheckApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewCheckApplicationPort>,
     character_implicit_review_preview_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewPreviewApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewPreviewApplicationPort>,
     character_implicit_review_apply_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewApplyApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewApplyApplicationPort>,
     /// Host-facing implicit-review read boundary. Summary queries stay in the
     /// API contract rather than the LLM decision workflow boundary.
     character_implicit_review_read_application:
@@ -218,7 +220,7 @@ pub struct AppState {
     /// Character-consistency workflow owner. Runtime supplies only prompt,
     /// progress, and task lifecycle adapters.
     character_conflict_application:
-        Arc<dyn a4n_orchestrator::character::CharacterConflictApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterConflictApplicationPort>,
     /// Host-facing scene profile mutation boundary.
     scene_profile_mutation_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort>,
@@ -313,9 +315,8 @@ pub struct AppState {
     settings_import_application: Arc<dyn a4n_api_contract::config::SettingsImportApplicationPort>,
     /// Host-facing prompt record read boundary. Prompt service selection stays
     /// with the prompt owner.
-    prompt_read_application: Arc<dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort>,
-    prompt_mutation_application:
-        Arc<dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort>,
+    prompt_read_application: Arc<dyn a4n_api_contract::prompt::PromptReadApplicationPort>,
+    prompt_mutation_application: Arc<dyn a4n_api_contract::prompt::PromptMutationApplicationPort>,
     /// Host-facing Agent operations are injected through focused contracts;
     /// worker-only lease operations stay on the worker aggregate below.
     agent_thread_mutation_application:
@@ -347,16 +348,16 @@ pub struct AppState {
     /// Canvas LLM text owner. Runtime supplies the LLM HostPort and only node
     /// identity plus the shared workflow snapshot.
     canvas_llm_text_application:
-        Arc<dyn a4n_orchestrator::canvas::CanvasLlmTextNodeApplicationPort>,
+        Arc<dyn a4n_canvas_host_contract::CanvasLlmTextNodeApplicationPort>,
     /// Canvas image-generation owner. Runtime supplies only the image HostPort
     /// and a shared workflow snapshot.
-    canvas_image_application: Arc<dyn a4n_orchestrator::canvas::CanvasImageNodeApplicationPort>,
+    canvas_image_application: Arc<dyn a4n_canvas_host_contract::CanvasImageNodeApplicationPort>,
     /// Canvas video-generation owner. Runtime supplies only the video HostPort
     /// and a shared workflow snapshot.
-    canvas_video_application: Arc<dyn a4n_orchestrator::canvas::CanvasVideoNodeApplicationPort>,
+    canvas_video_application: Arc<dyn a4n_canvas_host_contract::CanvasVideoNodeApplicationPort>,
     /// Canvas request-preview owner. Runtime receives prepared pure requests
     /// and renders provider-specific preview steps.
-    canvas_preview_application: Arc<dyn a4n_orchestrator::canvas::CanvasPreviewApplicationPort>,
+    canvas_preview_application: Arc<dyn a4n_canvas_host_contract::CanvasPreviewApplicationPort>,
     /// Canvas editing node owner. Runtime supplies only media editing HostPort
     /// and a shared workflow snapshot.
     canvas_editing_application: Arc<dyn a4n_canvas_contract::CanvasEditingNodeApplicationPort>,
@@ -389,20 +390,20 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort>,
     /// Host-facing import-analysis request-preview boundary.
     import_analysis_preview_application:
-        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisPreviewApplicationPort>,
+        Arc<dyn a4n_import_analysis_host_contract::ImportAnalysisPreviewApplicationPort>,
     /// Host-facing import-analysis execution boundary. Runtime supplies only
     /// prompt and cleanup adapters for the long-running analysis workflow.
     import_analysis_generation_application:
-        Arc<dyn a4n_orchestrator::import_analysis::ImportAnalysisGenerationApplicationPort>,
+        Arc<dyn a4n_import_analysis_host_contract::ImportAnalysisGenerationApplicationPort>,
     /// Host-facing import-analysis cancellation boundary.
     import_analysis_cancellation_application:
         Arc<dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort>,
     /// Host-facing reverse-engineering request-preview boundary.
     import_reverse_preview_application:
-        Arc<dyn a4n_orchestrator::import_reverse::ImportReversePreviewApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ImportReversePreviewApplicationPort>,
     /// Host-facing reverse-engineering execution boundary.
     import_reverse_generation_application:
-        Arc<dyn a4n_orchestrator::import_reverse::ImportReverseGenerationApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ImportReverseGenerationApplicationPort>,
     /// Host-facing reverse-engineering confirmation boundary.
     import_reverse_confirmation_application:
         Arc<dyn a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort>,
@@ -413,22 +414,22 @@ pub struct AppState {
     /// Host-facing chapter-analysis generation boundary. Analysis
     /// authorization, workflow state and summaries stay in the chapter owner.
     chapter_analysis_generation_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationApplicationPort>,
+        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort>,
     /// Host-facing chapter-analysis synchronization and workflow-recovery
     /// boundary.
     chapter_analysis_resume_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumeApplicationPort>,
+        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort>,
     /// Host-facing new chapter-analysis request-preview boundary.
     chapter_analysis_generation_preview_application: Arc<
-        dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationPreviewApplicationPort,
+        dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationPreviewApplicationPort,
     >,
     /// Host-facing chapter-analysis resume request-preview boundary.
     chapter_analysis_resume_preview_application:
-        Arc<dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumePreviewApplicationPort>,
+        Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumePreviewApplicationPort>,
     /// Host-facing import-review ingestion boundary. Parsing stays in Runtime;
     /// queue persistence and projection stay in the import-review owner.
     import_review_ingestion_application:
-        Arc<dyn a4n_orchestrator::import_review::ImportReviewIngestionApplicationPort>,
+        Arc<dyn a4n_novel_host_contract::ImportReviewIngestionApplicationPort>,
     /// Host-facing import-review acceptance boundary.
     import_review_acceptance_application:
         Arc<dyn a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort>,
@@ -507,12 +508,12 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::image::ImageRecordMutationApplicationPort>,
     /// Imported-image file and publication transaction owner.
     image_import_preparation_application:
-        Arc<dyn a4n_orchestrator::media::ImageImportPreparationApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageImportPreparationApplicationPort>,
     image_import_publication_application:
-        Arc<dyn a4n_orchestrator::media::ImageImportPublicationApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageImportPublicationApplicationPort>,
     /// Image publication recovery and state-transition owner.
     image_publication_recovery_application:
-        Arc<dyn a4n_orchestrator::media::ImagePublicationRecoveryPort>,
+        Arc<dyn a4n_image_host_contract::ImagePublicationRecoveryPort>,
     /// Image publication recovery reads stay behind the API contract; Runtime
     /// supplies file facts and cleanup side effects separately.
     image_publication_recovery_read_application:
@@ -524,28 +525,28 @@ pub struct AppState {
     /// Galgame image generation owner. Runtime supplies only provider and
     /// file adapters when a worker is started.
     galgame_image_generation_application:
-        Arc<dyn a4n_orchestrator::media::GalgameImageGenerationApplicationPort>,
+        Arc<dyn a4n_image_host_contract::GalgameImageGenerationApplicationPort>,
     /// Canvas image request preview owner.
     image_canvas_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageCanvasRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageCanvasRequestPreviewApplicationPort>,
     /// Batch image request preview owner.
     image_batch_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageBatchRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageBatchRequestPreviewApplicationPort>,
     /// Object profile image request preview owner.
     image_object_profile_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageObjectProfileRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageObjectProfileRequestPreviewApplicationPort>,
     /// Manga page image request preview owner.
     image_page_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImagePageRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImagePageRequestPreviewApplicationPort>,
     /// Scene image request preview owner.
     image_scene_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageSceneRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageSceneRequestPreviewApplicationPort>,
     /// Queued image generation lifecycle owner.
     image_generation_task_application:
-        Arc<dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageGenerationTaskApplicationPort>,
     /// Profile image prompt generation has no provider/file task dependency.
     image_profile_prompt_application:
-        Arc<dyn a4n_orchestrator::media::ImageProfilePromptApplicationPort>,
+        Arc<dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort>,
     /// Host-facing profile-material read boundary. Authorization and group
     /// projection stay in the media owner.
     profile_material_read_application:
@@ -554,7 +555,7 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::profile::ProfileMaterialMutationApplicationPort>,
     /// Upload publication uses a separate media/file adapter boundary.
     profile_material_upload_application:
-        Arc<dyn a4n_orchestrator::ProfileMaterialUploadApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ProfileMaterialUploadApplicationPort>,
     /// Host-facing portrait-record read boundary. Portrait authorization and
     /// DTO projection stay in the character/portrait owner.
     portrait_record_read_application:
@@ -563,18 +564,18 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::portrait::PortraitRecordMutationApplicationPort>,
     /// Portrait prompt request preview owner.
     portrait_prompt_request_preview_application:
-        Arc<dyn a4n_orchestrator::portrait::PortraitPromptRequestPreviewApplicationPort>,
+        Arc<dyn a4n_portrait_host_contract::PortraitPromptRequestPreviewApplicationPort>,
     /// Portrait image request preview owner.
     portrait_image_request_preview_application:
-        Arc<dyn a4n_orchestrator::portrait::PortraitImageRequestPreviewApplicationPort>,
+        Arc<dyn a4n_portrait_host_contract::PortraitImageRequestPreviewApplicationPort>,
     /// Portrait prompt generation owner. Runtime supplies prompt rendering.
-    portrait_prompt_application: Arc<dyn a4n_orchestrator::portrait::PortraitPromptApplicationPort>,
+    portrait_prompt_application: Arc<dyn a4n_portrait_host_contract::PortraitPromptApplicationPort>,
     /// Portrait upload owner. Runtime supplies image/file adapters.
-    portrait_upload_application: Arc<dyn a4n_orchestrator::portrait::PortraitUploadApplicationPort>,
+    portrait_upload_application: Arc<dyn a4n_portrait_host_contract::PortraitUploadApplicationPort>,
     /// Portrait generation task owner. Runtime supplies prompt and media
     /// adapters when a worker is started.
     portrait_generation_application:
-        Arc<dyn a4n_orchestrator::portrait::PortraitGenerationApplicationPort>,
+        Arc<dyn a4n_portrait_host_contract::PortraitGenerationApplicationPort>,
     /// Persisted video provider configuration lookup. Runtime snapshot and
     /// user-scope policy stay outside this port.
     video_provider_config: Arc<dyn a4n_api_contract::video::VideoProviderConfigPort>,
@@ -609,7 +610,7 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::galgame::GalgameAssetPlanApplicationPort>,
     /// Galgame asset-generation owner. Runtime supplies visual/file adapters.
     galgame_asset_generation_application:
-        Arc<dyn a4n_orchestrator::galgame::GalgameAssetGenerationApplicationPort>,
+        Arc<dyn a4n_galgame_host_contract::GalgameAssetGenerationApplicationPort>,
     /// Host-facing Galgame script-record mutation boundary. Persistence and
     /// DTO projection remain in the Galgame owner.
     galgame_record_mutation_application:
@@ -647,11 +648,11 @@ pub struct AppState {
     /// Inspiration generation owner. Runtime only schedules the worker and
     /// supplies the prompt-rendering adapter.
     inspiration_generation_application:
-        Arc<dyn a4n_orchestrator::inspiration::InspirationGenerationApplicationPort>,
+        Arc<dyn a4n_inspiration_host_contract::InspirationGenerationApplicationPort>,
     /// Inspiration request construction boundary. Runtime supplies prompt
     /// rendering and provider preview budgeting after this call returns.
     inspiration_request_application:
-        Arc<dyn a4n_orchestrator::inspiration::InspirationRequestPreviewApplicationPort>,
+        Arc<dyn a4n_inspiration_host_contract::InspirationRequestPreviewApplicationPort>,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
     capabilities: RuntimeCapabilities,
     /// Runtime-owned event bus used by Host bridges.
@@ -1273,25 +1274,25 @@ impl AppState {
 
     pub(crate) fn chapter_scene_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_scene::ChapterSceneGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ChapterSceneGenerationApplicationPort {
         self.chapter_scene_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_chat_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeChatGenerationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeChatGenerationApplicationPort {
         self.optimize_chat_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeAnalysisGenerationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeAnalysisGenerationApplicationPort {
         self.optimize_analysis_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_patch_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchGenerationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizePatchGenerationApplicationPort {
         self.optimize_patch_generation_application.as_ref()
     }
 
@@ -1303,37 +1304,37 @@ impl AppState {
 
     pub(crate) fn optimize_session_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeSessionMutationApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeSessionMutationApplicationPort {
         self.optimize_session_mutation_application.as_ref()
     }
 
     pub(crate) fn optimize_patch_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizePatchApplicationPort {
         self.optimize_patch_application.as_ref()
     }
 
     pub(crate) fn optimize_patch_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchPreviewApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizePatchPreviewApplicationPort {
         self.optimize_patch_preview_application.as_ref()
     }
 
     pub(crate) fn optimize_analysis_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeAnalysisPreviewApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeAnalysisPreviewApplicationPort {
         self.optimize_analysis_preview_application.as_ref()
     }
 
     pub(crate) fn optimize_chat_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeChatPreviewApplicationPort {
+    ) -> &dyn a4n_optimize_host_contract::OptimizeChatPreviewApplicationPort {
         self.optimize_chat_preview_application.as_ref()
     }
 
     pub(crate) fn scene_profile_sync_application(
         &self,
-    ) -> &dyn a4n_orchestrator::scene_profile::SceneProfileSyncApplicationPort {
+    ) -> &dyn a4n_scene_host_contract::SceneProfileSyncApplicationPort {
         self.scene_profile_sync_application.as_ref()
     }
 
@@ -1351,13 +1352,13 @@ impl AppState {
 
     pub(crate) fn character_discovery_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterDiscoveryApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterDiscoveryApplicationPort {
         self.character_discovery_application.as_ref()
     }
 
     pub(crate) fn character_profile_sync_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterProfileSyncApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterProfileSyncApplicationPort {
         self.character_profile_sync_application.as_ref()
     }
 
@@ -1450,19 +1451,19 @@ impl AppState {
 
     pub(crate) fn character_implicit_review_check_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewCheckApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterImplicitReviewCheckApplicationPort {
         self.character_implicit_review_check_application.as_ref()
     }
 
     pub(crate) fn character_implicit_review_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewPreviewApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterImplicitReviewPreviewApplicationPort {
         self.character_implicit_review_preview_application.as_ref()
     }
 
     pub(crate) fn character_implicit_review_apply_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewApplyApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterImplicitReviewApplyApplicationPort {
         self.character_implicit_review_apply_application.as_ref()
     }
 
@@ -1480,7 +1481,7 @@ impl AppState {
 
     pub(crate) fn character_conflict_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterConflictApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterConflictApplicationPort {
         self.character_conflict_application.as_ref()
     }
 
@@ -1552,13 +1553,13 @@ impl AppState {
 
     pub(crate) fn inspiration_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::inspiration::InspirationGenerationApplicationPort {
+    ) -> &dyn a4n_inspiration_host_contract::InspirationGenerationApplicationPort {
         self.inspiration_generation_application.as_ref()
     }
 
     pub(crate) fn inspiration_request_application(
         &self,
-    ) -> &dyn a4n_orchestrator::inspiration::InspirationRequestPreviewApplicationPort {
+    ) -> &dyn a4n_inspiration_host_contract::InspirationRequestPreviewApplicationPort {
         self.inspiration_request_application.as_ref()
     }
 
@@ -1737,13 +1738,13 @@ impl AppState {
 
     pub(crate) fn prompt_read_application(
         &self,
-    ) -> &dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort {
+    ) -> &dyn a4n_api_contract::prompt::PromptReadApplicationPort {
         self.prompt_read_application.as_ref()
     }
 
     pub(crate) fn prompt_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort {
+    ) -> &dyn a4n_api_contract::prompt::PromptMutationApplicationPort {
         self.prompt_mutation_application.as_ref()
     }
 
@@ -1989,25 +1990,25 @@ impl AppState {
 
     pub(crate) fn canvas_llm_text_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasLlmTextNodeApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasLlmTextNodeApplicationPort {
         self.canvas_llm_text_application.as_ref()
     }
 
     pub(crate) fn canvas_image_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasImageNodeApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasImageNodeApplicationPort {
         self.canvas_image_application.as_ref()
     }
 
     pub(crate) fn canvas_video_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasVideoNodeApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasVideoNodeApplicationPort {
         self.canvas_video_application.as_ref()
     }
 
     pub(crate) fn canvas_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::canvas::CanvasPreviewApplicationPort {
+    ) -> &dyn a4n_canvas_host_contract::CanvasPreviewApplicationPort {
         self.canvas_preview_application.as_ref()
     }
 
@@ -2079,7 +2080,7 @@ impl AppState {
 
     pub(crate) fn import_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisGenerationApplicationPort {
+    ) -> &dyn a4n_import_analysis_host_contract::ImportAnalysisGenerationApplicationPort {
         self.import_analysis_generation_application.as_ref()
     }
 
@@ -2097,19 +2098,19 @@ impl AppState {
 
     pub(crate) fn import_analysis_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_analysis::ImportAnalysisPreviewApplicationPort {
+    ) -> &dyn a4n_import_analysis_host_contract::ImportAnalysisPreviewApplicationPort {
         self.import_analysis_preview_application.as_ref()
     }
 
     pub(crate) fn import_reverse_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_reverse::ImportReversePreviewApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ImportReversePreviewApplicationPort {
         self.import_reverse_preview_application.as_ref()
     }
 
     pub(crate) fn import_reverse_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_reverse::ImportReverseGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ImportReverseGenerationApplicationPort {
         self.import_reverse_generation_application.as_ref()
     }
 
@@ -2127,19 +2128,19 @@ impl AppState {
 
     pub(crate) fn chapter_analysis_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationApplicationPort {
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort {
         self.chapter_analysis_generation_application.as_ref()
     }
 
     pub(crate) fn chapter_analysis_resume_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumeApplicationPort {
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort {
         self.chapter_analysis_resume_application.as_ref()
     }
 
     pub(crate) fn chapter_analysis_generation_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisGenerationPreviewApplicationPort
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationPreviewApplicationPort
     {
         self.chapter_analysis_generation_preview_application
             .as_ref()
@@ -2147,13 +2148,13 @@ impl AppState {
 
     pub(crate) fn chapter_analysis_resume_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_analysis::ChapterAnalysisResumePreviewApplicationPort {
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumePreviewApplicationPort {
         self.chapter_analysis_resume_preview_application.as_ref()
     }
 
     pub(crate) fn import_review_ingestion_application(
         &self,
-    ) -> &dyn a4n_orchestrator::import_review::ImportReviewIngestionApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ImportReviewIngestionApplicationPort {
         self.import_review_ingestion_application.as_ref()
     }
 
@@ -2327,19 +2328,19 @@ impl AppState {
 
     pub(crate) fn image_import_preparation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageImportPreparationApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageImportPreparationApplicationPort {
         self.image_import_preparation_application.as_ref()
     }
 
     pub(crate) fn image_import_publication_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageImportPublicationApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageImportPublicationApplicationPort {
         self.image_import_publication_application.as_ref()
     }
 
     pub(crate) fn image_publication_recovery_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImagePublicationRecoveryPort {
+    ) -> &dyn a4n_image_host_contract::ImagePublicationRecoveryPort {
         self.image_publication_recovery_application.as_ref()
     }
 
@@ -2363,50 +2364,50 @@ impl AppState {
 
     pub(crate) fn galgame_image_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::GalgameImageGenerationApplicationPort {
+    ) -> &dyn a4n_image_host_contract::GalgameImageGenerationApplicationPort {
         self.galgame_image_generation_application.as_ref()
     }
 
     pub(crate) fn image_canvas_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageCanvasRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageCanvasRequestPreviewApplicationPort {
         self.image_canvas_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_batch_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageBatchRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageBatchRequestPreviewApplicationPort {
         self.image_batch_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_object_profile_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageObjectProfileRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageObjectProfileRequestPreviewApplicationPort {
         self.image_object_profile_request_preview_application
             .as_ref()
     }
 
     pub(crate) fn image_page_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImagePageRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImagePageRequestPreviewApplicationPort {
         self.image_page_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_scene_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageSceneRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageSceneRequestPreviewApplicationPort {
         self.image_scene_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_generation_task_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageGenerationTaskApplicationPort {
         self.image_generation_task_application.as_ref()
     }
 
     pub(crate) fn image_profile_prompt_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageProfilePromptApplicationPort {
+    ) -> &dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort {
         self.image_profile_prompt_application.as_ref()
     }
 
@@ -2424,7 +2425,7 @@ impl AppState {
 
     pub(crate) fn profile_material_upload_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ProfileMaterialUploadApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ProfileMaterialUploadApplicationPort {
         self.profile_material_upload_application.as_ref()
     }
 
@@ -2442,31 +2443,31 @@ impl AppState {
 
     pub(crate) fn portrait_prompt_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitPromptRequestPreviewApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitPromptRequestPreviewApplicationPort {
         self.portrait_prompt_request_preview_application.as_ref()
     }
 
     pub(crate) fn portrait_image_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitImageRequestPreviewApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitImageRequestPreviewApplicationPort {
         self.portrait_image_request_preview_application.as_ref()
     }
 
     pub(crate) fn portrait_prompt_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitPromptApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitPromptApplicationPort {
         self.portrait_prompt_application.as_ref()
     }
 
     pub(crate) fn portrait_upload_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitUploadApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitUploadApplicationPort {
         self.portrait_upload_application.as_ref()
     }
 
     pub(crate) fn portrait_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitGenerationApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitGenerationApplicationPort {
         self.portrait_generation_application.as_ref()
     }
 
@@ -2496,7 +2497,7 @@ impl AppState {
 
     pub(crate) fn galgame_asset_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::galgame::GalgameAssetGenerationApplicationPort {
+    ) -> &dyn a4n_galgame_host_contract::GalgameAssetGenerationApplicationPort {
         self.galgame_asset_generation_application.as_ref()
     }
 
@@ -2560,25 +2561,25 @@ impl AppState {
 
     pub(crate) fn generation_task_read_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationTaskReadApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationTaskReadApplicationPort {
         self.generation_task_read_application.as_ref()
     }
 
     pub(crate) fn generation_task_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationTaskMutationApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationTaskMutationApplicationPort {
         self.generation_task_mutation_application.as_ref()
     }
 
     pub(crate) fn generation_lifecycle_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationLifecycleApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationLifecycleApplicationPort {
         self.generation_lifecycle_application.as_ref()
     }
 
     pub(crate) fn generation_cleanup_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationCleanupApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationCleanupApplicationPort {
         self.generation_cleanup_application.as_ref()
     }
 
@@ -2608,13 +2609,13 @@ impl AppState {
 
     pub(crate) fn shooting_script_full_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ShootingScriptFullGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort {
         self.shooting_script_full_generation_application.as_ref()
     }
 
     pub(crate) fn shooting_script_next_unit_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ShootingScriptNextUnitGenerationApplicationPort {
+    ) -> &dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort {
         self.shooting_script_next_unit_generation_application
             .as_ref()
     }
@@ -2794,7 +2795,6 @@ impl AppState {
             create_rag_store(runtime_profile, capabilities.rag.clone()),
         );
         let prompt_engine = prompt_engine_result?;
-        let chapter = ChapterGenerationService::new(db.clone());
         let rag_store = rag_store_result?;
         let snapshot_store = Arc::new(Sha256SnapshotStore::new(db.clone()));
         let managed_sidecars = Arc::new(tokio::sync::Mutex::new(Vec::new()));
@@ -2806,7 +2806,6 @@ impl AppState {
             config.clone(),
             event_bus.clone(),
             task_manager.clone(),
-            chapter,
             rag_store,
             task_queue.clone(),
             Arc::new(prompt_engine),
@@ -2829,11 +2828,10 @@ impl AppState {
                 Ok((llm, embedding))
             },
         )?;
-        let prompt_read_application: Arc<
-            dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort,
-        > = Arc::new(orchestrator.clone());
+        let prompt_read_application: Arc<dyn a4n_api_contract::prompt::PromptReadApplicationPort> =
+            Arc::new(orchestrator.clone());
         let prompt_mutation_application: Arc<
-            dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort,
+            dyn a4n_api_contract::prompt::PromptMutationApplicationPort,
         > = Arc::new(orchestrator.clone());
         prompt_mutation_application.hydrate_overrides().await?;
         let provider_runtime =

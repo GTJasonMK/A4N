@@ -1,6 +1,6 @@
 use a4n_api_contract::chapter::ChapterAnalysisMutationResult;
+use a4n_chapter_analysis_host_contract::ChapterAnalysisApplicationProgress;
 use a4n_error::AppError;
-use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
 use crate::state::AppState;

@@ -1,11 +1,12 @@
 use a4n_api_contract::{
-    galgame::GalgameAssetPlanApplicationPort,
-    image::GeneratedImageSummary,
-    image_generation::GenerateGalgameImageInput,
-    portrait::{GeneratePortraitInput, PortraitSummary},
+    galgame::GalgameAssetPlanApplicationPort, image::GeneratedImageSummary,
+    image_generation::GenerateGalgameImageInput, portrait::GeneratePortraitInput,
 };
 use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
 use a4n_error::AppError;
+use a4n_galgame_host_contract::{
+    GalgameAssetGenerationApplicationPort, GalgameAssetGenerationHostPort,
+};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -24,44 +25,6 @@ use crate::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLO
 
 const GALGAME_PORTRAIT_VARIANT_STYLE: &str =
     "Galgame 视觉小说角色立绘表情差分；必须保持参考图中的角色身份、服装、体型比例和美术风格一致。";
-
-#[async_trait]
-pub trait GalgameAssetGenerationHostPort: Send + Sync {
-    async fn render_image_prompt(
-        &self,
-        template_name: &str,
-        variables: &HashMap<String, Value>,
-        project_id: i64,
-    ) -> Result<String, AppError>;
-
-    async fn generate_visual_image(
-        &self,
-        user_id: i64,
-        input: GenerateGalgameImageInput,
-    ) -> Result<GeneratedImageSummary, AppError>;
-
-    async fn generate_portrait_image(
-        &self,
-        user_id: i64,
-        input: GeneratePortraitInput,
-    ) -> Result<PortraitSummary, AppError>;
-
-    fn validate_data_file(&self, relative_path: &str, label: &str) -> Result<(), AppError>;
-}
-
-/// Host-facing Galgame asset-generation boundary.
-///
-/// Runtime supplies visual-generation and file adapters; asset planning,
-/// authorization and generation-spec persistence remain in the Galgame owner.
-#[async_trait]
-pub trait GalgameAssetGenerationApplicationPort: Send + Sync {
-    async fn run(
-        &self,
-        host_port: &dyn GalgameAssetGenerationHostPort,
-        user_id: i64,
-        input: RunGalgameAssetGenerationInput,
-    ) -> Result<GalgameAssetGenerationSummary, AppError>;
-}
 
 impl OrchestratorContext {
     pub async fn run_galgame_asset_generation_validated(

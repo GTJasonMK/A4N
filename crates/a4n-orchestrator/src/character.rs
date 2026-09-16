@@ -18,15 +18,16 @@ mod record_lifecycle;
 mod snapshot_rules;
 mod sync_projection;
 mod sync_rules;
-use a4n_api_contract::character::{
-    ApplyImplicitUpdateDecisionInput, ApplyImplicitUpdateDecisionResultSummary,
-    CheckImplicitUpdateInput, ImplicitUpdateDecisionSummary,
-};
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 
-pub const CHARACTER_PROFILE_SYNC_STEPS: u32 = 10;
+pub(crate) use a4n_character_host_contract::{
+    CHARACTER_PROFILE_SYNC_STEPS, CharacterDiscoveryApplicationPort, CharacterDiscoveryProgress,
+    CharacterDiscoveryRequestPreview, CharacterImplicitReviewApplyApplicationPort,
+    CharacterImplicitReviewCheckApplicationPort, CharacterImplicitReviewPreviewApplicationPort,
+    CharacterProfileSyncApplicationPort, CharacterProfileSyncPreviewStep,
+    CharacterProfileSyncProgress, CharacterProfileSyncStageTracePort,
+};
 
 pub(crate) use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
@@ -41,7 +42,6 @@ pub(crate) use a4n_db::character::{
 pub(crate) use a4n_db::generation::RecordCompletedGenerationRunInput;
 pub(crate) use a4n_domain::character::category_storage_key;
 pub(crate) use attribute_lifecycle::CharacterAttributeLifecycleError;
-pub use conflict::CharacterConflictApplicationPort;
 pub(crate) use record_lifecycle::{
     CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError,
     CharacterTimelineRollbackLifecycleResult,
@@ -108,61 +108,6 @@ pub use conflict::{
     CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictProgressReporter,
     validate_character_conflict_input,
 };
-
-/// Runtime-facing character discovery boundary.
-#[async_trait::async_trait]
-pub trait CharacterDiscoveryApplicationPort: Send + Sync {
-    async fn preview_discovery(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::character::DiscoverCharacterProfilesInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<CharacterDiscoveryRequestPreview, AppError>;
-
-    async fn discover(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::character::DiscoverCharacterProfilesInput,
-        prompt_renderer: &dyn PromptRenderer,
-        progress: Option<CharacterDiscoveryProgress<'_>>,
-    ) -> Result<a4n_api_contract::character::DiscoverCharacterProfilesResult, AppError>;
-}
-
-/// Runtime-facing character profile synchronization boundary.
-#[async_trait::async_trait]
-pub trait CharacterProfileSyncApplicationPort: Send + Sync {
-    async fn preview_profile_sync(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::character::SyncCharacterProfileInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Option<CharacterProfileSyncPreviewStep>, AppError>;
-
-    async fn sync_profile(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::character::SyncCharacterProfileInput,
-        prompt_renderer: &dyn PromptRenderer,
-        progress: Option<CharacterProfileSyncProgress<'_>>,
-        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<a4n_api_contract::character::SyncCharacterProfileResult, AppError>;
-
-    async fn preview_all_profiles_sync(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::character::SyncAllCharacterProfilesInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError>;
-
-    async fn sync_all_profiles(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::character::SyncAllCharacterProfilesInput,
-        prompt_renderer: &dyn PromptRenderer,
-        progress: CharacterProfileSyncProgress<'_>,
-        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<a4n_api_contract::character::SyncAllCharacterProfilesResult, AppError>;
-}
 
 #[async_trait::async_trait]
 impl CharacterDiscoveryApplicationPort for crate::OrchestratorContext {
@@ -298,7 +243,6 @@ impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
 }
 pub use discovery::{
     CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
-    CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview,
     validate_character_discovery_input,
 };
 pub(crate) use discovery::{
@@ -307,39 +251,6 @@ pub(crate) use discovery::{
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub use implicit_review::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
-
-/// Host-facing boundary for implicit character review checks.
-#[async_trait::async_trait]
-pub trait CharacterImplicitReviewCheckApplicationPort: Send + Sync {
-    async fn check(
-        &self,
-        user_id: i64,
-        input: CheckImplicitUpdateInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ImplicitUpdateDecisionSummary, AppError>;
-}
-
-/// Host-facing boundary for implicit character review request previews.
-#[async_trait::async_trait]
-pub trait CharacterImplicitReviewPreviewApplicationPort: Send + Sync {
-    async fn preview(
-        &self,
-        user_id: i64,
-        input: CheckImplicitUpdateInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ChatRequest, AppError>;
-}
-
-/// Host-facing boundary for applying implicit character review decisions.
-#[async_trait::async_trait]
-pub trait CharacterImplicitReviewApplyApplicationPort: Send + Sync {
-    async fn apply(
-        &self,
-        user_id: i64,
-        input: ApplyImplicitUpdateDecisionInput,
-    ) -> Result<ApplyImplicitUpdateDecisionResultSummary, AppError>;
-}
-pub use profile_sync::CharacterProfileSyncProgress;
 pub(crate) use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncSubject,
@@ -351,10 +262,6 @@ pub use profile_sync_batch::{
 pub(crate) use profile_sync_stages::{
     CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
     CharacterProfileSyncStageInput,
-};
-pub use profile_sync_stages::{
-    CharacterProfileSyncPreviewStep, CharacterProfileSyncStageTraceInput,
-    CharacterProfileSyncStageTracePort,
 };
 pub(crate) use sync_projection::{
     CharacterSyncAttributeEventDraft, pending_character_sync_attribute_events,

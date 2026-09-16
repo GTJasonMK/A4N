@@ -171,7 +171,7 @@ async fn start_generation(
                     ($action)(runtime, user_id, input),
                 )
                 .await
-                .map_err(map_access_error),
+                .map_err(map_generation_start_error),
                 Err(error) => Err(error),
             }
         }};

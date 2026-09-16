@@ -12,7 +12,6 @@ pub(crate) use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, EditChapterShootingScriptInput,
     EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
 };
-pub use contracts::CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
 pub(crate) use contracts::{
     ChapterShootingScriptUnitProgress, EditedChapterShootingScript, ResolvedChapterShootingScript,
 };
@@ -28,35 +27,10 @@ use a4n_api_contract::shooting_script::{
     ShootingScriptRecordMutationApplicationPort, ShootingScriptRecordReadApplicationPort,
 };
 use a4n_error::AppError;
+use a4n_novel_host_contract::{
+    ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
+};
 use tokio_util::sync::CancellationToken;
-
-/// Host-facing boundary for complete chapter shooting-script generation.
-#[async_trait::async_trait]
-pub trait ShootingScriptFullGenerationApplicationPort: Send + Sync {
-    async fn generate(
-        &self,
-        user_id: i64,
-        input: GenerateChapterShootingScriptInput,
-        progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ChapterShootingScriptView, AppError>;
-}
-
-/// Host-facing boundary for generating the next shooting-script unit.
-#[async_trait::async_trait]
-pub trait ShootingScriptNextUnitGenerationApplicationPort: Send + Sync {
-    async fn generate_next(
-        &self,
-        user_id: i64,
-        input: GenerateChapterShootingScriptInput,
-        progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ChapterShootingScriptUnitProgressView, AppError>;
-}
 
 #[async_trait::async_trait]
 impl ShootingScriptRecordReadApplicationPort for crate::OrchestratorContext {

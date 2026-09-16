@@ -1,19 +1,21 @@
-use a4n_api_contract::chapter::{
-    CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult, ChapterDerivedCleanupHostPort,
-    ChapterSummary,
-};
+use a4n_api_contract::chapter::{ChapterAnalysisMutationResult, ChapterSummary};
 use a4n_api_contract::character::DiscoverCharacterProfilesInput;
 use a4n_chapter_analysis::validate_saved_chapter_analysis;
+use a4n_chapter_analysis_host_contract::{
+    ChapterAnalysisApplicationProgress, ChapterAnalysisGenerationApplicationPort,
+    ChapterAnalysisGenerationPreviewApplicationPort, ChapterAnalysisHostPort,
+    ChapterAnalysisRequestPreview, ChapterAnalysisRequestStep,
+    ChapterAnalysisResumeApplicationPort, ChapterAnalysisResumePreviewApplicationPort,
+};
 use a4n_db_models::models::{
     chapter::chapter,
     generation::{workflow_checkpoint, workflow_run},
 };
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
-use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
+use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext,
@@ -25,7 +27,7 @@ use crate::{
         OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND, ObjectDiscoveryInput,
         ObjectDiscoveryProgress,
     },
-    scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress},
+    scene_profile::SceneProfileSyncProgress,
     workflow::{
         CompletedWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED, required_checkpoint_field,
         required_checkpoint_json, workflow_checkpoint_fingerprint_sha256,
@@ -52,150 +54,6 @@ pub const CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY: &str = "chapter_analysis.ch
 pub const CHAPTER_ANALYSIS_STEP_SCENE_SYNC: &str = "chapter_analysis.scene_sync";
 pub const CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC: &str = "chapter_analysis.character_sync";
 const STEP_REFRESH_STATUS: &str = "chapter_analysis.refresh_status";
-
-pub type ChapterAnalysisApplicationProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-
-#[derive(Clone, Copy, Default)]
-pub struct ChapterAnalysisApplicationProgress<'a> {
-    pub reporter: Option<ChapterAnalysisApplicationProgressReporter<'a>>,
-    /// 活体信号出口：与字段级里程碑取自同一个 token 流。
-    pub stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
-    pub cancel_token: Option<&'a CancellationToken>,
-    pub active_task_id: Option<&'a str>,
-}
-
-impl ChapterAnalysisApplicationProgress<'_> {
-    fn report(&self, current: u32, message: &str) -> Result<(), AppError> {
-        if let Some(reporter) = self.reporter {
-            reporter(current, CHAPTER_ANALYSIS_PROGRESS_TOTAL, message)?;
-        }
-        if self
-            .cancel_token
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            return Err(AppError::Cancelled);
-        }
-        Ok(())
-    }
-
-    fn subprogress(
-        &self,
-        current: u32,
-        total: u32,
-        span_start: u32,
-        span_end: u32,
-        message: &str,
-    ) -> Result<(), AppError> {
-        let total = total.max(1);
-        let span_width = span_end
-            .checked_sub(span_start)
-            .ok_or_else(|| AppError::InvalidArgument("章节分析进度区间顺序无效".to_string()))?;
-        let offset = u64::from(span_width) * u64::from(current.min(total)) / u64::from(total);
-        let mapped = span_start
-            .checked_add(u32::try_from(offset).map_err(|_| {
-                AppError::InvalidArgument("章节分析子进度超出 u32 范围".to_string())
-            })?)
-            .ok_or_else(|| AppError::InvalidArgument("章节分析进度溢出".to_string()))?;
-        if let Some(reporter) = self.reporter {
-            reporter(mapped, CHAPTER_ANALYSIS_PROGRESS_TOTAL, message)?;
-        }
-        if self
-            .cancel_token
-            .is_some_and(CancellationToken::is_cancelled)
-        {
-            return Err(AppError::Cancelled);
-        }
-        Ok(())
-    }
-}
-
-#[async_trait]
-pub trait ChapterAnalysisHostPort: ChapterDerivedCleanupHostPort + Send + Sync {
-    fn scene_profile_sync_host_port(&self) -> &dyn SceneProfileSyncHostPort;
-}
-
-#[derive(Debug)]
-pub struct ChapterAnalysisRequestPreview {
-    pub title: String,
-    pub steps: Vec<ChapterAnalysisRequestStep>,
-}
-
-/// Runtime-facing boundary for a new chapter-analysis run.
-///
-/// Analysis validation, authorization, workflow state and API projections stay
-/// in the chapter-analysis owner. Runtime supplies only prompt, cleanup and
-/// progress adapters.
-#[async_trait]
-pub trait ChapterAnalysisGenerationApplicationPort: Send + Sync {
-    async fn preflight_generate(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-    ) -> Result<ChapterSummary, AppError>;
-
-    async fn generate(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn ChapterAnalysisHostPort,
-        progress: ChapterAnalysisApplicationProgress<'_>,
-        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<ChapterAnalysisMutationResult, AppError>;
-}
-
-/// Runtime-facing boundary for chapter-analysis synchronization and workflow
-/// recovery.
-#[async_trait]
-pub trait ChapterAnalysisResumeApplicationPort: Send + Sync {
-    async fn preflight_resume(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-    ) -> Result<ChapterSummary, AppError>;
-
-    async fn resume_sync(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn ChapterAnalysisHostPort,
-        progress: ChapterAnalysisApplicationProgress<'_>,
-        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<ChapterSummary, AppError>;
-
-    async fn resume_workflow_run(
-        &self,
-        user_id: i64,
-        workflow_run_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn ChapterAnalysisHostPort,
-        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
-    ) -> Result<(), AppError>;
-}
-
-/// Runtime-facing boundary for new chapter-analysis request previews.
-#[async_trait]
-pub trait ChapterAnalysisGenerationPreviewApplicationPort: Send + Sync {
-    async fn preview(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ChapterAnalysisRequestPreview, AppError>;
-}
-
-/// Runtime-facing boundary for chapter-analysis resume request previews.
-#[async_trait]
-pub trait ChapterAnalysisResumePreviewApplicationPort: Send + Sync {
-    async fn preview_resume(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ChapterAnalysisRequestPreview, AppError>;
-}
 
 impl OrchestratorContext {
     pub async fn prepare_resume_chapter_analysis_preview_validated(

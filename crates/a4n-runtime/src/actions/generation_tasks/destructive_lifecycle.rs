@@ -10,8 +10,8 @@ use a4n_domain::generation::{
     ProjectLifecycleOperation,
 };
 use a4n_error::AppError;
-use a4n_orchestrator::{
-    generation::GenerationTerminalWriteOutcome, project::ProjectGeneratedDataResetApplicationResult,
+use a4n_generation_host_contract::{
+    GenerationTerminalWriteOutcome, ProjectGeneratedDataResetApplicationResult,
 };
 use a4n_service_protocol::InterruptionReason;
 

@@ -3,7 +3,7 @@ use a4n_api_contract::{
     image_generation::{GenerateGalgameImageInput, GenerateSceneImageInput},
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
-use a4n_orchestrator::media::ImageGenerationProgress;
+use a4n_image_host_contract::ImageGenerationProgress;
 
 use super::{
     AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,

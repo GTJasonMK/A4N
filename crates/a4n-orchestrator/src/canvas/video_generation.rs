@@ -1,5 +1,8 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
-use a4n_canvas_contract::{CanvasVideoNodeApplicationInput, GenerateCanvasVideoInput};
+use a4n_canvas_contract::GenerateCanvasVideoInput;
+pub(crate) use a4n_canvas_host_contract::{
+    CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoProviderInput,
+};
 use a4n_db::{
     canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
@@ -18,9 +21,8 @@ use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
 use a4n_video_host_contract::{
     CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoRequestPreview,
-    CanvasVideoResolvedImages, VideoProviderValidationMode,
+    VideoProviderValidationMode,
 };
-use async_trait::async_trait;
 use serde_json::{Value, json};
 use tokio::time::{Duration, Instant};
 
@@ -62,71 +64,6 @@ pub struct CanvasVideoNodeExecutionInput<'a> {
     pub document: &'a CanvasGraphRecordDocument,
     pub shared_run: Option<CanvasNodeRunHandle>,
     pub mode: &'a str,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasVideoProviderInput {
-    pub project_id: i64,
-    pub workflow_run_id: i64,
-    pub config: VideoProviderConfig,
-    pub request: VideoGenerationRequest,
-}
-
-pub struct CanvasVideoFileInput<'a> {
-    pub project_id: i64,
-    pub video_id: i64,
-    pub bytes: &'a [u8],
-    pub format: &'a str,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanvasVideoPersistedFile {
-    pub relative_path: String,
-    pub file_size: i64,
-}
-
-#[async_trait]
-pub trait CanvasVideoGenerationHostPort: CanvasVideoPreviewHostPort + Send + Sync {
-    async fn resolve_video_config(
-        &self,
-        config_id: Option<i64>,
-    ) -> Result<VideoProviderConfig, AppError>;
-
-    async fn resolve_canvas_video_images(
-        &self,
-        input: CanvasVideoImageInput,
-    ) -> Result<CanvasVideoResolvedImages, AppError>;
-
-    async fn submit_canvas_video(
-        &self,
-        input: CanvasVideoProviderInput,
-    ) -> Result<VideoGenerationResult, AppError>;
-
-    async fn poll_canvas_video(
-        &self,
-        project_id: i64,
-        workflow_run_id: i64,
-        config: &VideoProviderConfig,
-        job_id: &str,
-    ) -> Result<VideoJobState, AppError>;
-
-    fn persist_canvas_video_file(
-        &self,
-        input: CanvasVideoFileInput<'_>,
-    ) -> Result<CanvasVideoPersistedFile, AppError>;
-
-    async fn remove_canvas_video_file(&self, relative_path: &str) -> Result<(), AppError>;
-
-    fn runtime_config_snapshot(&self) -> Option<Value>;
-}
-
-#[async_trait]
-pub trait CanvasVideoNodeApplicationPort: Send + Sync {
-    async fn run_video(
-        &self,
-        input: CanvasVideoNodeApplicationInput,
-        host_port: &dyn CanvasVideoGenerationHostPort,
-    ) -> Result<CanvasRunSummary, AppError>;
 }
 
 impl OrchestratorContext {

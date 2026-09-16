@@ -20,6 +20,10 @@ use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
 };
 use a4n_error::AppError;
+use a4n_image_host_contract::{
+    ImageImportPreparationApplicationPort, ImageImportPublicationApplicationPort,
+    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
+};
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QuerySelect};
@@ -34,7 +38,7 @@ use crate::{
         resolve_video_reference_image_project_ids, video_reference_scope_rank,
     },
 };
-use a4n_media::{DecodedUploadedImage, decode_uploaded_image_data};
+use a4n_media::decode_uploaded_image_data;
 
 const MAX_IMPORT_IMAGE_BYTES: usize = 50 * 1024 * 1024;
 
@@ -55,87 +59,6 @@ fn image_publication_recovery_record(
         version: publication.version,
         image_id: publication.image_id,
     }
-}
-
-/// Host-facing boundary for validating and decoding imported image uploads.
-#[async_trait]
-pub trait ImageImportPreparationApplicationPort: Send + Sync {
-    async fn prepare_imported_upload(
-        &self,
-        user_id: i64,
-        input: UploadImageInput,
-    ) -> Result<PreparedImportedImageUpload, AppError>;
-}
-
-/// Host-facing boundary for creating and finalizing imported image
-/// publications.
-#[async_trait]
-pub trait ImageImportPublicationApplicationPort: Send + Sync {
-    async fn create_imported_publication_intent(
-        &self,
-        user_id: i64,
-        prepared: &PreparedImportedImageUpload,
-        publication_id: String,
-        staging_path: String,
-        final_path: String,
-        expected_sha256: String,
-    ) -> Result<(ImagePublicationRecoveryRecord, OwnedMutexGuard<()>), AppError>;
-
-    async fn publish_imported_image(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        publication_id: &str,
-        file_size: i64,
-        sha256: String,
-    ) -> Result<GeneratedImageSummary, AppError>;
-}
-
-/// Host-facing publication recovery boundary. Runtime supplies file facts and
-/// physical cleanup; the media owner keeps publication state transitions.
-#[async_trait]
-pub trait ImagePublicationRecoveryPort: Send + Sync {
-    async fn lock_image_publications(&self) -> OwnedMutexGuard<()>;
-
-    async fn publish_recovered_image(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        publication_id: &str,
-        file_size: i64,
-        sha256: String,
-    ) -> Result<(), AppError>;
-
-    async fn ensure_image_publication_identity(
-        &self,
-        user_id: i64,
-        publication_id: &str,
-    ) -> Result<(), AppError>;
-
-    async fn mark_image_publication_reclaiming(
-        &self,
-        publication_id: &str,
-        version: i64,
-        reason: String,
-    ) -> Result<ImagePublicationRecoveryRecord, AppError>;
-
-    async fn mark_image_publication_reclaimed(
-        &self,
-        publication_id: &str,
-        version: i64,
-        reason: Option<String>,
-    ) -> Result<(), AppError>;
-}
-
-pub struct PreparedImportedImageUpload {
-    pub project_id: i64,
-    pub image_type: String,
-    pub prompt: String,
-    pub model: String,
-    pub chapter_id: Option<i64>,
-    pub panel_id: Option<String>,
-    pub metadata_json: Option<Map<String, Value>>,
-    pub decoded: DecodedUploadedImage,
 }
 
 impl OrchestratorContext {

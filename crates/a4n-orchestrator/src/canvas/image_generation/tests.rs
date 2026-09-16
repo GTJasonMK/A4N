@@ -20,6 +20,11 @@ use a4n_db_models::models::{
 };
 use a4n_domain::{image::IMAGE_TYPE_CANVAS, media::GeneratedMediaArtifactFile};
 use a4n_error::AppError;
+use a4n_image_host_contract::{
+    ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
+    ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+};
 use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -34,11 +39,6 @@ use crate::{
 use super::{
     CanvasImageNodeApplicationPort, CanvasImageNodeExecutionInput,
     build_canvas_image_node_input_for_preview,
-};
-use crate::media::{
-    ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
-    ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
 };
 
 const PNG_1X1_B64: &str =

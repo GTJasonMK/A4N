@@ -1,5 +1,10 @@
-use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
+use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
+
+pub use a4n_character_host_contract::{
+    CharacterProfileSyncPreviewStep, CharacterProfileSyncStageTraceInput,
+    CharacterProfileSyncStageTracePort,
+};
 
 #[derive(Debug, Clone)]
 pub struct CharacterProfileSyncStageInput {
@@ -46,29 +51,6 @@ pub struct CharacterProfileSyncStageOutput {
     pub extraction: CharacterProfileSyncExtraction,
     pub generation_trace: CharacterProfileSyncGenerationTrace,
     pub llm_trace_paths: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CharacterProfileSyncPreviewStep {
-    pub id: String,
-    pub title: String,
-    pub prompt_name: &'static str,
-    pub note: String,
-    pub request: ChatRequest,
-}
-
-#[derive(Debug, Clone)]
-pub struct CharacterProfileSyncStageTraceInput {
-    pub profile_name: String,
-    pub phase: String,
-    pub messages: Vec<ChatMessage>,
-    pub response_content: String,
-    pub temperature: Option<f32>,
-    pub parse_error: Option<String>,
-}
-
-pub trait CharacterProfileSyncStageTracePort: Send + Sync {
-    fn record_stage_trace(&self, input: CharacterProfileSyncStageTraceInput) -> Option<String>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
