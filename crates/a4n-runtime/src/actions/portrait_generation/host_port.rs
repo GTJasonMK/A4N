@@ -5,16 +5,14 @@ use a4n_domain::image::validate_reference_image_ids;
 use a4n_domain::media::{GeneratedMediaArtifactFile, image_mime_from_path};
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
+use a4n_image_host_contract::{
+    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
+    PreparedGeneratedImageFile,
+};
 use a4n_media::{decode_uploaded_image_data, image_dimensions_from_bytes};
-use a4n_orchestrator::{
-    media::{
-        PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-        PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
-    },
-    portrait::{
-        DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
-        PortraitImageProviderInput,
-    },
+use a4n_orchestrator::portrait::{
+    DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
+    PortraitImageProviderInput,
 };
 use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};

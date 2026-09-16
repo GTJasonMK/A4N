@@ -517,6 +517,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-image-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-canvas-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-image-contract",
+ "a4n-provider-contract",
+ "async-trait",
+ "serde_json",
+ "tokio-util",
+]
+
+[[package]]
 name = "a4n-image-provider-contract"
 version = "0.1.0"
 dependencies = [
@@ -804,6 +819,7 @@ dependencies = [
  "a4n-error",
  "a4n-event",
  "a4n-image-contract",
+ "a4n-image-host-contract",
  "a4n-import-core",
  "a4n-llm-config",
  "a4n-llm-context",
@@ -1100,6 +1116,7 @@ dependencies = [
  "a4n-export-contract",
  "a4n-image-client",
  "a4n-image-contract",
+ "a4n-image-host-contract",
  "a4n-image-provider-contract",
  "a4n-image-providers",
  "a4n-import-client",

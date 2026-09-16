@@ -8,20 +8,22 @@ mod image_record_lifecycle;
 mod image_workflow_rules;
 
 pub use a4n_api_contract::image::{GeneratedImageIdentity, ImageMediaReferencePort};
+pub(crate) use a4n_image_host_contract::{
+    GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
+    ImageCanvasRequestPreviewApplicationPort, ImageGenerationHostPort, ImageGenerationProgress,
+    ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
+    ImageSceneRequestPreviewApplicationPort, PersistGeneratedImageFileInput,
+    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+    PreparedImageGenerationRequest,
+};
 pub(crate) use batch_image_application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
 pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
-    GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
-    ImageCanvasRequestPreviewApplicationPort, ImageGenerationExecutionInput,
-    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationTaskApplicationPort, ImageGenerationWorkflowBinding,
-    ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
-    ImageSceneRequestPreviewApplicationPort, ObjectProfileImageInput,
-    ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile, PreparedImageGenerationRequest,
+    ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
+    ImageGenerationPostCommitAction, ImageGenerationTaskApplicationPort,
+    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
     SceneProfileImageInput, SceneProfileImagePromptOutput, generated_image_summary,
     image_generation_request_trace_json, normalize_image_metadata,
 };

@@ -43,6 +43,7 @@ a4n-rag-contract = { path = "../a4n-rag-contract" }
 a4n-import-core = { path = "../a4n-import-core" }
 a4n-media = { path = "../a4n-media" }
 a4n-image-contract = { path = "../a4n-image-contract" }
+a4n-image-host-contract = { path = "../a4n-image-host-contract" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-contract = { path = "../a4n-video-contract" }
 a4n-video-host-contract = { path = "../a4n-video-host-contract" }

@@ -64,7 +64,6 @@ pub use context::generation::{
     GenerationTaskAccessError, GenerationTaskHistorySummaries,
     GenerationTaskMutationApplicationPort, GenerationTaskReadApplicationPort,
 };
-pub use profile_material::ProfileMaterialUploadApplicationPort;
 pub use shooting_script::{
     ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
 };

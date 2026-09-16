@@ -9,7 +9,7 @@ use crate::{
 };
 use a4n_image_client::ImageClient;
 use a4n_image_contract::ImageGenerationRequest;
-use a4n_orchestrator::media::PreparedImageGenerationRequest;
+use a4n_image_host_contract::PreparedImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 
 pub(super) async fn prepared_image_generation_preview_step(

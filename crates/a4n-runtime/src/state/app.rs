@@ -523,22 +523,22 @@ pub struct AppState {
     /// Galgame image generation owner. Runtime supplies only provider and
     /// file adapters when a worker is started.
     galgame_image_generation_application:
-        Arc<dyn a4n_orchestrator::media::GalgameImageGenerationApplicationPort>,
+        Arc<dyn a4n_image_host_contract::GalgameImageGenerationApplicationPort>,
     /// Canvas image request preview owner.
     image_canvas_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageCanvasRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageCanvasRequestPreviewApplicationPort>,
     /// Batch image request preview owner.
     image_batch_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageBatchRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageBatchRequestPreviewApplicationPort>,
     /// Object profile image request preview owner.
     image_object_profile_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageObjectProfileRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageObjectProfileRequestPreviewApplicationPort>,
     /// Manga page image request preview owner.
     image_page_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImagePageRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImagePageRequestPreviewApplicationPort>,
     /// Scene image request preview owner.
     image_scene_request_preview_application:
-        Arc<dyn a4n_orchestrator::media::ImageSceneRequestPreviewApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ImageSceneRequestPreviewApplicationPort>,
     /// Queued image generation lifecycle owner.
     image_generation_task_application:
         Arc<dyn a4n_orchestrator::media::ImageGenerationTaskApplicationPort>,
@@ -553,7 +553,7 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::profile::ProfileMaterialMutationApplicationPort>,
     /// Upload publication uses a separate media/file adapter boundary.
     profile_material_upload_application:
-        Arc<dyn a4n_orchestrator::ProfileMaterialUploadApplicationPort>,
+        Arc<dyn a4n_image_host_contract::ProfileMaterialUploadApplicationPort>,
     /// Host-facing portrait-record read boundary. Portrait authorization and
     /// DTO projection stay in the character/portrait owner.
     portrait_record_read_application:
@@ -2356,38 +2356,38 @@ impl AppState {
 
     pub(crate) fn galgame_image_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::GalgameImageGenerationApplicationPort {
+    ) -> &dyn a4n_image_host_contract::GalgameImageGenerationApplicationPort {
         self.galgame_image_generation_application.as_ref()
     }
 
     pub(crate) fn image_canvas_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageCanvasRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageCanvasRequestPreviewApplicationPort {
         self.image_canvas_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_batch_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageBatchRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageBatchRequestPreviewApplicationPort {
         self.image_batch_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_object_profile_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageObjectProfileRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageObjectProfileRequestPreviewApplicationPort {
         self.image_object_profile_request_preview_application
             .as_ref()
     }
 
     pub(crate) fn image_page_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImagePageRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImagePageRequestPreviewApplicationPort {
         self.image_page_request_preview_application.as_ref()
     }
 
     pub(crate) fn image_scene_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageSceneRequestPreviewApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ImageSceneRequestPreviewApplicationPort {
         self.image_scene_request_preview_application.as_ref()
     }
 
@@ -2417,7 +2417,7 @@ impl AppState {
 
     pub(crate) fn profile_material_upload_application(
         &self,
-    ) -> &dyn a4n_orchestrator::ProfileMaterialUploadApplicationPort {
+    ) -> &dyn a4n_image_host_contract::ProfileMaterialUploadApplicationPort {
         self.profile_material_upload_application.as_ref()
     }
 

@@ -1509,7 +1509,7 @@ fi
 
 if ! rg -U -n \
     '(?s)pub struct ImageGenerationProviderInput\s*\{.*?pub\s+config:\s*(a4n_provider_contract::)?ImageProviderConfig\b' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs; then
+    crates/a4n-image-host-contract/src/lib.rs; then
     printf 'ImageGenerationProviderInput.config must use ImageProviderConfig instead of the image ORM model\n' >&2
     exit 1
 fi
@@ -2387,7 +2387,7 @@ fi
 if ! rg -n 'pub trait ProfileMaterial(Read|Mutation)ApplicationPort' \
     crates/a4n-api-contract/src/profile.rs || \
    ! rg -n 'pub trait ProfileMaterialUploadApplicationPort' \
-    crates/a4n-orchestrator/src/profile_material.rs; then
+    crates/a4n-image-host-contract/src/lib.rs; then
     printf 'Profile-material split contracts are missing\n' >&2
     exit 1
 fi
@@ -2810,7 +2810,7 @@ if rg -n 'image_generation_application\(\)' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageSceneRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_scene_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/direct.rs; then
     printf 'Scene image request previews must route through ImageSceneRequestPreviewApplicationPort\n' >&2
@@ -2822,7 +2822,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_scene_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageCanvasRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_canvas_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/direct.rs; then
     printf 'Canvas image request previews must route through ImageCanvasRequestPreviewApplicationPort\n' >&2
@@ -2834,7 +2834,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_canvas_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImagePageRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_page_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/page.rs; then
     printf 'Page image request previews must route through ImagePageRequestPreviewApplicationPort\n' >&2
@@ -2846,7 +2846,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_page_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageBatchRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_batch_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/batch_api.rs; then
     printf 'Batch image request previews must route through ImageBatchRequestPreviewApplicationPort\n' >&2
@@ -2858,7 +2858,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_batch_request' \
     exit 1
 fi
 if ! rg -n 'pub trait ImageObjectProfileRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'image_object_profile_request_preview_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/profiles.rs; then
     printf 'Object profile image request previews must route through ImageObjectProfileRequestPreviewApplicationPort\n' >&2
@@ -2870,7 +2870,7 @@ if rg -U -n 'image_generation_application\(\)\s*\.\s*prepare_object_profile_requ
     exit 1
 fi
 if ! rg -n 'pub trait GalgameImageGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/media/image_generation/contracts.rs || \
+    crates/a4n-image-host-contract/src/lib.rs || \
    ! rg -n 'galgame_image_generation_application\(\)' \
     crates/a4n-runtime/src/actions/image_generation/direct.rs; then
     printf 'Galgame image generation must route through GalgameImageGenerationApplicationPort\n' >&2

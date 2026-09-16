@@ -1,7 +1,7 @@
 use super::files::{
     persist_reserved_generated_image_file, prepare_generated_image_file, required_filename_segment,
 };
-use a4n_orchestrator::media::{PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput};
+use a4n_image_host_contract::{PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 

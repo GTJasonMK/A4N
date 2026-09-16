@@ -2,7 +2,7 @@ use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_domain::media::image_mime_from_path;
 use a4n_error::AppError;
 use a4n_image_contract::ImageReference;
-use a4n_orchestrator::media::{
+use a4n_image_host_contract::{
     ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
     ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
     PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
