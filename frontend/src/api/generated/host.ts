@@ -171,6 +171,7 @@ export const HOST_API_COMMANDS = [
   "invite_project_member",
   "leave_project",
   "list_active_workflows",
+  "list_agent_skills",
   "list_all_projects",
   "list_all_users",
   "list_behaviors",
@@ -372,6 +373,7 @@ export const HOST_API_COMMANDS = [
   "test_llm_config",
   "trim_video",
   "unbind_galgame_media",
+  "update_agent_skill_configuration",
   "update_assembly_push_status",
   "update_chapter_content",
   "update_chapter_outline",
@@ -567,6 +569,8 @@ export const AGENT_THREADS_DEFAULT_LIMIT = 50;
 export const AGENT_THREADS_MAX_LIMIT = 500;
 export const AGENT_TOOLS_DEFAULT_LIMIT = 20;
 export const AGENT_TOOLS_MAX_LIMIT = 100;
+export const AGENT_SKILLS_DEFAULT_LIMIT = 20;
+export const AGENT_SKILLS_MAX_LIMIT = 50;
 
 export type AgentThreadKind = "main" | "subagent";
 
@@ -968,6 +972,36 @@ export interface AgentToolSearchResult {
   total: number;
 }
 
+export interface AgentSkillDescriptor {
+  capabilities: string[];
+  content_hash: string;
+  description: string;
+  enabled: boolean;
+  id: string;
+  name: string;
+  source: string;
+  version: string;
+}
+
+export interface AgentSkillContent {
+  content: string;
+  skill: AgentSkillDescriptor;
+}
+
+export interface AgentSkillSearchResult {
+  skills: AgentSkillDescriptor[];
+  total: number;
+}
+
+export interface AgentSkillProfileView {
+  capability: string;
+  skills: AgentSkillDescriptor[];
+}
+
+export interface AgentSkillSettingsView {
+  profiles: AgentSkillProfileView[];
+}
+
 export interface CreateAgentThreadInput {
   bound_resource?: AgentResourceRef | null;
   capability?: string | null;
@@ -1134,6 +1168,20 @@ export interface SearchAgentToolsInput {
 
 export interface DescribeAgentToolInput {
   name: string;
+}
+
+export interface SearchAgentSkillsInput {
+  limit?: number | null;
+  query?: string | null;
+}
+
+export interface LoadAgentSkillInput {
+  id: string;
+}
+
+export interface UpdateAgentSkillConfigurationInput {
+  capability: string;
+  enabled_skill_ids: string[];
 }
 
 export interface SpawnAgentInput {

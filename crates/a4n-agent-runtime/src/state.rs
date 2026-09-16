@@ -6,7 +6,10 @@ use a4n_agent_runtime_contract::{
     AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort, AgentWorkerRun,
     WorkerExecutionInput, WorkerExecutionUpdate,
 };
-use a4n_api_contract::agent::AgentScope;
+use a4n_api_contract::agent::{
+    AgentScope, AgentSkillContent, AgentSkillSearchResult, LoadAgentSkillInput,
+    SearchAgentSkillsInput,
+};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
@@ -24,8 +27,8 @@ use a4n_worker_contract::{
     AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    WorkerLease, WorkerRequest,
+    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest,
+    AgentWorkerSkillSearchRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -223,6 +226,42 @@ impl AgentRuntimeState {
     pub async fn mark_agent_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
         let request = self.agent_worker_lease_request(claimed)?;
         self.host.mark_turn_active(&request).await
+    }
+
+    pub async fn search_agent_skills(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: SearchAgentSkillsInput,
+    ) -> Result<AgentSkillSearchResult, AppError> {
+        let lease = self.agent_worker_lease_request(claimed)?.lease;
+        let request = AgentWorkerSkillSearchRequest {
+            run_id: claimed.run.id,
+            lease,
+            input,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent Skill search request 无效: {error}"),
+            operation: "搜索 Agent Skill".into(),
+        })?;
+        self.host.search_agent_skills(&request).await
+    }
+
+    pub async fn load_agent_skill(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: LoadAgentSkillInput,
+    ) -> Result<AgentSkillContent, AppError> {
+        let lease = self.agent_worker_lease_request(claimed)?.lease;
+        let request = AgentWorkerSkillLoadRequest {
+            run_id: claimed.run.id,
+            lease,
+            input,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent Skill load request 无效: {error}"),
+            operation: "加载 Agent Skill".into(),
+        })?;
+        self.host.load_agent_skill(&request).await
     }
 
     pub async fn update_agent_worker_usage(

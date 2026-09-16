@@ -6,13 +6,13 @@ use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
     AgentEvent, AgentEventsInput, AgentMemoryInput, AgentMemoryScopeKind, AgentMemoryView,
-    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentThreadSnapshot, AgentThreadView,
-    AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput,
-    ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
-    EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
-    ListAgentThreadsInput, ResolveAgentApprovalInput, RetractAgentMemoryInput,
-    SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
-    UpdateAgentThreadInput,
+    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentSkillContent,
+    AgentSkillSearchResult, AgentThreadSnapshot, AgentThreadView, AgentToolDescriptor,
+    AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput,
+    CreateAgentThreadInput, DescribeAgentToolInput, EnsureMainAgentThreadInput,
+    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, ResolveAgentApprovalInput,
+    RetractAgentMemoryInput, SearchAgentToolsInput, SendAgentMessageInput,
+    SendAgentMessageToChildInput, SpawnAgentInput, UpdateAgentThreadInput,
 };
 use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
@@ -44,8 +44,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
-    AgentWorkerUsageRequest, AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest,
+    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
+    AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
     AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use axum::Json;
@@ -256,6 +257,36 @@ pub(super) async fn describe_agent_tool(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::describe_agent_tool_for_worker(state.runtime(), &input)
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn search_agent_skills(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerSkillSearchRequest>,
+) -> Result<Json<AgentSkillSearchResult>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::search_agent_skills_for_worker(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn load_agent_skill(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerSkillLoadRequest>,
+) -> Result<Json<AgentSkillContent>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::load_agent_skill_for_worker(state.runtime(), &input)
+        .await
         .map(Json)
         .map_err(Into::into)
 }

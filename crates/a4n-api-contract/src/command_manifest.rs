@@ -8,7 +8,7 @@ use crate::agent::{
 };
 use crate::package::{PackageCommandCategory, PackageId};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 18;
+pub const COMMAND_MANIFEST_VERSION: u32 = 19;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -495,6 +495,7 @@ command_specs! {
     "invite_project_member" => args_invite_project_member, result_unit, "project", context(PROJECT_CONTEXT);
     "leave_project" => empty_args_schema, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "list_active_workflows" => empty_args_schema, result_list_active_workflows, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_TASK_IDS);
+    "list_agent_skills" => empty_args_schema, result_agent_skill_settings, "agent", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_all_projects" => empty_args_schema, result_list_all_projects, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_all_users" => empty_args_schema, result_users, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_behaviors" => args_list_behaviors, result_list_behaviors, "profile", effect(READ_EFFECT);
@@ -696,6 +697,7 @@ command_specs! {
     "test_llm_config" => args_preview_test_image_config_request, result_unit, "settings", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "trim_video" => args_trim_video, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "unbind_galgame_media" => args_unbind_galgame_media, result_unbind_galgame_media, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "update_agent_skill_configuration" => args_update_agent_skill_configuration, result_agent_skill_profile, "agent", context(NO_CONTEXT);
     "update_assembly_push_status" => args_update_assembly_push_status, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "update_chapter_content" => args_update_chapter_content, result_chapter_summary, "chapter", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
     "update_chapter_outline" => args_update_chapter_outline, result_update_chapter_outline, "chapter", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
@@ -985,6 +987,10 @@ fn default_agent_policy(spec: &CommandSpec) -> Option<AgentPolicySpec> {
         || !spec.secret_pointers.is_empty()
         || spec.runtime_config_policy != RuntimeConfigPolicy::None
         || matches!(spec.domain, "auth" | "settings" | "system")
+        || matches!(
+            spec.name,
+            "list_agent_skills" | "update_agent_skill_configuration"
+        )
         || spec.name == "respond_agent_editor"
     {
         return None;
@@ -1573,8 +1579,20 @@ fn args_review_agent_delegation() -> Value {
     strict_typed_input_schema::<crate::agent::ReviewAgentDelegationInput>()
 }
 
+fn args_update_agent_skill_configuration() -> Value {
+    strict_typed_input_schema::<crate::agent::UpdateAgentSkillConfigurationInput>()
+}
+
 fn result_agent_delegation() -> Value {
     typed_schema::<crate::agent::AgentDelegationView>()
+}
+
+fn result_agent_skill_profile() -> Value {
+    typed_schema::<crate::agent::AgentSkillProfileView>()
+}
+
+fn result_agent_skill_settings() -> Value {
+    typed_schema::<crate::agent::AgentSkillSettingsView>()
 }
 
 fn args_edit_chapter_visual_plan_draft() -> Value {

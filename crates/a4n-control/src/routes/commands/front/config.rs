@@ -1,3 +1,4 @@
+mod agent;
 mod embedding;
 mod image;
 mod llm;
@@ -6,6 +7,7 @@ mod shared;
 mod video;
 mod web_search;
 
+pub(in crate::routes::commands) use agent::{list_agent_skills, update_agent_skill_configuration};
 pub(in crate::routes::commands) use embedding::{
     create_embedding_config, delete_embedding_config, list_embedding_config,
     list_model_provider_catalog, preview_test_embedding_config_request,

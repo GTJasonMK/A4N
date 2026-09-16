@@ -252,6 +252,11 @@ pub fn internal_router(state: ServerState) -> Router {
             post(agent_runtime::describe_agent_tool),
         )
         .route(
+            "/agent/skills/search",
+            post(agent_runtime::search_agent_skills),
+        )
+        .route("/agent/skills/load", post(agent_runtime::load_agent_skill))
+        .route(
             "/agent/scope/chapters",
             post(agent_runtime::verify_agent_chapters),
         )

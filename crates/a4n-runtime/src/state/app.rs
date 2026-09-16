@@ -325,6 +325,7 @@ pub struct AppState {
     agent_run_read_application: Arc<dyn a4n_api_contract::agent::AgentRunReadApplicationPort>,
     agent_delegation_application: Arc<dyn a4n_api_contract::agent::AgentDelegationApplicationPort>,
     agent_tool_read_application: Arc<dyn a4n_api_contract::agent::AgentToolReadApplicationPort>,
+    agent_skill_application: Arc<dyn a4n_api_contract::agent::AgentSkillApplicationPort>,
     agent_event_read_application: Arc<dyn a4n_api_contract::agent::AgentEventReadApplicationPort>,
     agent_memory_read_application: Arc<dyn a4n_api_contract::agent::AgentMemoryReadApplicationPort>,
     agent_memory_mutation_application:
@@ -1776,6 +1777,12 @@ impl AppState {
         self.agent_tool_read_application.as_ref()
     }
 
+    pub(crate) fn agent_skill_application(
+        &self,
+    ) -> &dyn a4n_api_contract::agent::AgentSkillApplicationPort {
+        self.agent_skill_application.as_ref()
+    }
+
     pub(crate) fn agent_event_read_application(
         &self,
     ) -> &dyn a4n_api_contract::agent::AgentEventReadApplicationPort {
@@ -2964,6 +2971,7 @@ impl AppState {
             agent_run_read_application: Arc::new(orchestrator.agent().clone()),
             agent_delegation_application: Arc::new(orchestrator.agent().clone()),
             agent_tool_read_application: Arc::new(orchestrator.agent().clone()),
+            agent_skill_application: Arc::new(orchestrator.agent().clone()),
             agent_event_read_application: Arc::new(orchestrator.agent().clone()),
             agent_memory_read_application: Arc::new(orchestrator.agent().clone()),
             agent_memory_mutation_application: Arc::new(orchestrator.agent().clone()),

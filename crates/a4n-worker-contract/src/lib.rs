@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub use a4n_api_contract::agent::AgentScope;
 use a4n_api_contract::agent::{
     AgentDelegationView, AgentEditorRequest, AgentResourceRef, DescribeAgentToolInput,
-    ReviewAgentDelegationInput, SearchAgentToolsInput,
+    LoadAgentSkillInput, ReviewAgentDelegationInput, SearchAgentSkillsInput, SearchAgentToolsInput,
 };
 use a4n_api_contract::chapter_visual_plan::{ChapterVisualPlanV3, VisualPlanReadView};
 use a4n_api_contract::command_manifest::{RuntimeConfigPolicy, command_runtime_config_policy};
@@ -19,7 +19,7 @@ use chrono::NaiveDateTime;
 // Bump this whenever the Control/worker HTTP payload changes.  The server
 // rejects a mixed pair before a stale worker can reach a stricter command
 // route with an incompatible payload.
-pub const WORKER_SCHEMA_VERSION: u32 = 5;
+pub const WORKER_SCHEMA_VERSION: u32 = 6;
 pub const AGENT_RUN_OPERATION: &str = "agent.run";
 pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
 pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
@@ -271,6 +271,50 @@ pub struct AgentWorkerToolDescribeRequest {
 impl AgentWorkerToolDescribeRequest {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("input.name", &self.input.name)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerSkillSearchRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub input: SearchAgentSkillsInput,
+}
+
+impl AgentWorkerSkillSearchRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        if self.input.limit == Some(0) {
+            return Err(WorkerContractError::InvalidValue {
+                field: "input.limit",
+                reason: "must be positive",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerSkillLoadRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub input: LoadAgentSkillInput,
+}
+
+impl AgentWorkerSkillLoadRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("input.id", &self.input.id)
     }
 }
 
@@ -2209,6 +2253,40 @@ mod tests {
                 field: "input.name"
             })
         ));
+        let skill_search = AgentWorkerSkillSearchRequest {
+            run_id: 7,
+            lease: valid_request().lease.clone(),
+            input: SearchAgentSkillsInput {
+                query: Some("visual".into()),
+                limit: Some(5),
+            },
+        };
+        skill_search
+            .validate()
+            .expect("skill search should be valid");
+        assert!(matches!(
+            AgentWorkerSkillSearchRequest {
+                input: SearchAgentSkillsInput {
+                    query: None,
+                    limit: Some(0),
+                },
+                ..skill_search
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "input.limit",
+                ..
+            })
+        ));
+        AgentWorkerSkillLoadRequest {
+            run_id: 7,
+            lease: valid_request().lease,
+            input: LoadAgentSkillInput {
+                id: "a4n-agent-planning".into(),
+            },
+        }
+        .validate()
+        .expect("skill load should be valid");
         AgentWorkerChapterScopeRequest {
             user_id: 1,
             project_id: 2,

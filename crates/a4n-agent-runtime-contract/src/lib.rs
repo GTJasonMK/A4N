@@ -6,10 +6,10 @@
 
 use a4n_api_contract::agent::{
     AgentBudget, AgentDelegationView, AgentEditorRequest, AgentExecutionResultPage,
-    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentToolDescriptor,
-    AgentToolSearchResult, DescribeAgentToolInput, ReadAgentExecutionResultInput,
-    ReadAgentMemoryInput, RespondAgentEditorInput, ReviewAgentDelegationInput,
-    SearchAgentToolsInput,
+    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent,
+    AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult, DescribeAgentToolInput,
+    ReadAgentExecutionResultInput, ReadAgentMemoryInput, RespondAgentEditorInput,
+    ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
@@ -31,8 +31,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerSkillLoadRequest,
+    AgentWorkerSkillSearchRequest, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
+    AgentWorkerUsageRequest, WorkerRequest,
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};

@@ -16,6 +16,8 @@ import type {
   AgentMessageView,
   AgentRunInput,
   AgentRunView,
+  AgentSkillProfileView,
+  AgentSkillSettingsView,
   AgentThreadSnapshot,
   AgentThreadView,
   AgentToolDescriptor,
@@ -36,6 +38,7 @@ import type {
   SendAgentMessageToChildInput,
   SpawnAgentInput,
   UpdateAgentThreadInput,
+  UpdateAgentSkillConfigurationInput,
 } from "./generated/host";
 
 const AGENT_EVENT_POLL_INTERVAL_MS = 100;
@@ -59,6 +62,11 @@ export type {
   AgentResourceRef,
   AgentRunInput,
   AgentRunView,
+  AgentSkillContent,
+  AgentSkillDescriptor,
+  AgentSkillProfileView,
+  AgentSkillSearchResult,
+  AgentSkillSettingsView,
   AgentDelegationView,
   AgentScope,
   AgentThreadKind,
@@ -81,6 +89,7 @@ export type {
   SendAgentMessageToChildInput,
   SpawnAgentInput,
   UpdateAgentThreadInput,
+  UpdateAgentSkillConfigurationInput,
 } from "./generated/host";
 
 /** A thread remains usable until it is explicitly archived. */
@@ -113,6 +122,16 @@ export function listAgentThreads(
     input,
     agentThreadsPath(input),
   );
+}
+
+export function listAgentSkills(): Promise<AgentSkillSettingsView> {
+  return apiInvoke("list_agent_skills");
+}
+
+export function updateAgentSkillConfiguration(
+  input: UpdateAgentSkillConfigurationInput,
+): Promise<AgentSkillProfileView> {
+  return apiInvoke("update_agent_skill_configuration", { input });
 }
 
 export function ensureMainAgentThread(

@@ -11,11 +11,13 @@ import {
   Palette,
   ScrollText,
   Shield,
+  Sparkles,
   Wrench,
 } from "lucide-react";
 
 export type TabId =
   | "llm"
+  | "agent"
   | "embedding"
   | "image"
   | "video"
@@ -36,6 +38,7 @@ interface TabDef {
 
 export const TABS: TabDef[] = [
   { id: "llm", labelKey: "settings.llm", icon: <Bot size={14} />, groupKey: "settings.local" },
+  { id: "agent", labelKey: "settings.agent", icon: <Sparkles size={14} />, groupKey: "settings.local" },
   { id: "embedding", labelKey: "settings.embedding", icon: <Brain size={14} />, groupKey: "settings.local" },
   { id: "image", labelKey: "settings.image", icon: <ImageIcon size={14} />, groupKey: "settings.local" },
   { id: "video", labelKey: "settings.video", icon: <Film size={14} />, groupKey: "settings.local" },
