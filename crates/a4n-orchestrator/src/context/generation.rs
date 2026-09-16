@@ -848,7 +848,13 @@ impl GenerationApplication {
             task_scope: "director_segment_prompt",
             target: GenerationTargetRef {
                 kind: "visual_plan_segment".into(),
-                id: format!("{}:{}", input.record_id, input.segment_id),
+                // Keep the source chapter in the durable target identity so a
+                // chapter-bound Agent can verify a later wait without replaying
+                // the original start arguments.
+                id: format!(
+                    "chapter:{}:{}:{}",
+                    input.source_chapter_id, input.record_id, input.segment_id
+                ),
                 revision: Some(input.expected_revision.to_string()),
             },
         }).await
@@ -2735,15 +2741,29 @@ fn image_generation_operation_kind(operation: &ImageGenerationOperation) -> &'st
 fn image_generation_target_id(project_id: i64, operation: &ImageGenerationOperation) -> String {
     match operation {
         ImageGenerationOperation::VisualPlanPoint { options } => format!(
-            "{project_id}:visual_plan:{}:{}",
-            options.record_id, options.point_id
+            "{project_id}:visual_plan:chapter:{}:{}:{}",
+            options.source_chapter_id, options.record_id, options.point_id
         ),
+        ImageGenerationOperation::ObjectProfile {
+            object_profile_id,
+            chapter_id: Some(chapter_id),
+            ..
+        } => format!("{project_id}:object_profile:chapter:{chapter_id}:{object_profile_id}"),
         ImageGenerationOperation::ObjectProfile {
             object_profile_id, ..
         } => format!("{project_id}:object_profile:{object_profile_id}"),
         ImageGenerationOperation::SceneProfile {
+            scene_profile_id,
+            chapter_id: Some(chapter_id),
+            ..
+        } => format!("{project_id}:scene_profile:chapter:{chapter_id}:{scene_profile_id}"),
+        ImageGenerationOperation::SceneProfile {
             scene_profile_id, ..
         } => format!("{project_id}:scene_profile:{scene_profile_id}"),
+        ImageGenerationOperation::Scene {
+            chapter_id: Some(chapter_id),
+            ..
+        } => format!("{project_id}:scene:chapter:{chapter_id}"),
         _ => project_id.to_string(),
     }
 }

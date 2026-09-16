@@ -20,9 +20,10 @@ use a4n_llm::provider::{
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalExpiryRequest,
     AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest, AgentWorkerDelegationScopeRequest,
-    AgentWorkerEditorWaitExpiryRequest, AgentWorkerExpiredRunRecoveryRequest, AgentWorkerRunWire,
-    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION,
-    WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerEditorWaitExpiryRequest, AgentWorkerExpiredRunRecoveryRequest,
+    AgentWorkerExternalTaskWaitSnapshotWire, AgentWorkerRunWire, AgentWorkerToolDescribeRequest,
+    AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    WorkerPrincipalKind, WorkerRequest,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -217,6 +218,30 @@ impl RuntimeAgentToolExecutor {
             return Err(AppError::Forbidden(format!(
                 "Agent 工具 {name} 是写操作，必须先获得用户审批"
             )));
+        }
+
+        if task_wait::is_wait(name) {
+            let execution = execution.ok_or_else(|| AppError::InvalidState {
+                current: format!("Agent wait 工具 {name} 缺少 durable execution"),
+                operation: "读取 Agent 外部任务等待".into(),
+            })?;
+            let snapshot = self.state.agent_runtime_snapshot(claimed.run.id).await;
+            return self
+                .state
+                .host()
+                .read_external_task_wait(
+                    &AgentWorkerExternalTaskWaitSnapshotWire {
+                        run_id: claimed.run.id,
+                        owner_user_id: context.owner_user_id,
+                        scope: context.scope.clone(),
+                        execution_id: execution.id,
+                        tool_name: Some(name.to_string()),
+                        arguments_json: Some(arguments),
+                        duration_exhausted: false,
+                    },
+                    snapshot.as_ref(),
+                )
+                .await;
         }
 
         let result = match name {

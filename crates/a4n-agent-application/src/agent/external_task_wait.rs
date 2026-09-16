@@ -7,6 +7,35 @@ use a4n_db::agent;
 use a4n_error::AppError;
 
 impl AgentApplication {
+    pub async fn external_task_wait(
+        &self,
+        run_id: i64,
+        execution_id: i64,
+    ) -> Result<Option<AgentExternalTaskWaitSnapshot>, AppError> {
+        let Some((run, thread, execution)) =
+            agent::external_task_wait(self.connection(), run_id, execution_id)
+                .await
+                .map_err(agent_db_error_to_app)?
+        else {
+            return Ok(None);
+        };
+        let duration_exhausted = agent::run_budget_snapshot(self.connection(), run.id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .remaining
+            .max_duration_seconds
+            == Some(0);
+        Ok(Some(AgentExternalTaskWaitSnapshot {
+            run_id: run.id,
+            owner_user_id: thread.owner_user_id,
+            scope: from_json(thread.scope_json, "agent_thread.scope_json")?,
+            execution_id: execution.id,
+            tool_name: execution.tool_name,
+            arguments_json: execution.arguments_json,
+            duration_exhausted,
+        }))
+    }
+
     pub async fn external_task_waits(
         &self,
         after_run_id: i64,
@@ -53,6 +82,14 @@ impl AgentExternalTaskWaitApplicationPort for AgentApplication {
         after_run_id: i64,
     ) -> Result<Vec<AgentExternalTaskWaitSnapshot>, AppError> {
         AgentApplication::external_task_waits(self, after_run_id).await
+    }
+
+    async fn external_task_wait(
+        &self,
+        run_id: i64,
+        execution_id: i64,
+    ) -> Result<Option<AgentExternalTaskWaitSnapshot>, AppError> {
+        AgentApplication::external_task_wait(self, run_id, execution_id).await
     }
 
     async fn wake_external_task_wait(

@@ -145,7 +145,7 @@ pub(super) async fn process(
         .dispatch_agent_host_command(
             context.owner_user_id,
             "list_optimize_turns".into(),
-            json!({"sessionId": session_id}),
+            json!({"input": {"session_id": session_id}}),
             worker_request,
         )
         .await?;
@@ -158,11 +158,10 @@ pub(super) async fn process(
         .final_reply
         .filter(|reply| !reply.trim().is_empty())
         .ok_or_else(|| AppError::InvalidArgument("内容优化结果缺少最终答复".into()))?;
-    let observed = state
-        .read_worker_history(claimed)
-        .await?
-        .latest_model_input_message_id
-        .ok_or_else(|| AppError::InvalidArgument("内容优化缺少已处理的用户消息边界".into()))?;
+    // This professional path is driven by the current Turn input. The worker
+    // history projection may omit that message while the durable turn is
+    // still being finalized, so use the already validated turn boundary.
+    let observed = context.turn.input_message_id;
     super::complete_run(state, claimed, reply, observed).await
 }
 

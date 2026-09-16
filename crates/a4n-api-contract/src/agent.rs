@@ -210,9 +210,7 @@ pub fn synthetic_agent_tool_descriptor(
         | "run_canvas_graph"
         | "run_canvas_node"
         | "start_visual_plan_prompt_generation"
-        | "start_image_generation" => {
-            Some(crate::command_manifest::command_descriptor(name)?)
-        }
+        | "start_image_generation" => Some(crate::command_manifest::command_descriptor(name)?),
         "wait_workflow_run" => Some(crate::command_manifest::command_descriptor(
             "get_workflow_run_detail",
         )?),
@@ -317,9 +315,7 @@ pub fn synthetic_agent_tool_descriptor(
         | "run_canvas_graph"
         | "run_canvas_node"
         | "start_visual_plan_prompt_generation"
-        | "start_image_generation" => {
-            "task".into()
-        }
+        | "start_image_generation" => "task".into(),
         _ => "immediate".into(),
     };
     descriptor.args_schema = match name {

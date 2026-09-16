@@ -320,6 +320,13 @@ pub async fn dispatch_runtime_command(
     args: Value,
     cmd: String,
 ) -> Result<Value, String> {
+    if let Some(result) =
+        super::generation::dispatch_generation_start(runtime, user_id, &args, &cmd).await
+    {
+        return result
+            .map(|handle| serde_json::to_value(handle).expect("generation handle must serialize"))
+            .map_err(|error| error.message);
+    }
     dispatch_runtime_command_inner(runtime, user_id, args, cmd)
         .await
         .map_err(|error| error.to_string())
@@ -331,6 +338,15 @@ pub async fn dispatch_runtime_command_value(
     args: Value,
     cmd: String,
 ) -> Result<Value, Value> {
+    if let Some(result) =
+        super::generation::dispatch_generation_start(runtime, user_id, &args, &cmd).await
+    {
+        return result
+            .map(|handle| serde_json::to_value(handle).expect("generation handle must serialize"))
+            .map_err(|error| {
+                serde_json::to_value(error).expect("generation error must serialize")
+            });
+    }
     dispatch_runtime_command_inner(runtime, user_id, args, cmd)
         .await
         .map_err(ApiError::into_value)
@@ -345,6 +361,27 @@ async fn dispatch_runtime_command_inner(
     let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::snapshot_from_args(&args)
         .map_err(ApiError::bad_request)?;
     let state = ServerState::from_runtime(runtime.clone());
+    if matches!(
+        cmd.as_str(),
+        "ensure_content_optimization_session" | "send_content_optimization_message"
+    ) {
+        let mut synthetic_args = args;
+        if let Some(fields) = synthetic_args.as_object_mut() {
+            fields.remove("runtime_config_snapshot");
+        }
+        let runtime = runtime.clone();
+        return run_with_runtime_context(user_id, runtime_config_snapshot, async move {
+            a4n_runtime::host_api::agent_runtime::execute_synthetic_agent_tool(
+                &runtime,
+                user_id,
+                &cmd,
+                synthetic_args,
+            )
+            .await
+            .map_err(ApiError::from)
+        })
+        .await;
+    }
     let availability = package_actions::command_availability(runtime, user_id, &cmd)
         .await
         .map_err(ApiError::from)?;
@@ -352,6 +389,12 @@ async fn dispatch_runtime_command_inner(
         return Err(ApiError::package_unavailable(availability));
     }
     run_with_runtime_context(user_id, runtime_config_snapshot, async move {
+        let mut args = args;
+        if let Some(fields) = args.as_object_mut() {
+            // The snapshot is consumed by RuntimeConfigScope. Do not pass the
+            // internal field into strict Host command input schemas.
+            fields.remove("runtime_config_snapshot");
+        }
         if is_reverse_engineer_web_command(&cmd) {
             return run_reverse_engineer_web_command(&state, user_id, &args, &cmd).await;
         }

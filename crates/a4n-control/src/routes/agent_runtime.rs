@@ -1,7 +1,7 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_agent_runtime_contract::AgentExternalTaskWaitSnapshot;
+use a4n_agent_runtime_contract::{AgentExternalTaskWaitSnapshot, restore_model_request_snapshot};
 use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
@@ -16,7 +16,7 @@ use a4n_api_contract::agent::{
 };
 use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
+use a4n_llm::provider::{ChatChunk, ModelCapabilities};
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
@@ -778,7 +778,7 @@ pub(super) async fn agent_chat(
     Json(input): Json<AgentWorkerChatRequest>,
 ) -> Result<Response, ApiError> {
     authorize_worker_request(&state, &headers)?;
-    let request = serde_json::from_value::<ChatRequest>(input.request)
+    let request = restore_model_request_snapshot(input.request)
         .map_err(|error| ApiError::bad_request(format!("Agent LLM request 无效: {error}")))?;
     let chunks = agent_actions::agent_chat_stream(
         state.runtime(),
@@ -1445,6 +1445,7 @@ fn validate_event_batch(
 mod tests {
     use super::*;
     use a4n_api_contract::agent::AGENT_API_PROTOCOL_VERSION;
+    use a4n_llm::provider::ChatRequest;
     use serde_json::json;
 
     fn event(thread_id: &str, sequence: u64) -> AgentEvent {
@@ -1528,13 +1529,18 @@ mod tests {
         let request = ChatRequest::system_user("system", "user", Some(0.2), Some(128))
             .with_json_response_format()
             .with_stream_usage();
-        let value = request.snapshot_value().unwrap();
-        let parsed: ChatRequest = serde_json::from_value(value).unwrap();
+        let mut value = request.snapshot_value().unwrap();
+        value["context_manifest_json"] = serde_json::json!({"packs": ["thread"]});
+        let parsed = a4n_agent_runtime_contract::restore_model_request_snapshot(value).unwrap();
 
         assert_eq!(parsed.messages.len(), 2);
         assert_eq!(parsed.temperature, Some(0.2));
         assert_eq!(parsed.max_tokens, Some(128));
         assert!(parsed.stream_include_usage);
         assert!(parsed.response_format.is_some());
+        assert_eq!(
+            parsed.context_manifest_json,
+            Some(serde_json::json!({"packs": ["thread"]}))
+        );
     }
 }

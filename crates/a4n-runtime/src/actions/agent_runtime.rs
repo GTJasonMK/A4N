@@ -1615,16 +1615,33 @@ pub async fn read_external_task_wait(
 ) -> Result<Value, AppError> {
     let authoritative = state
         .agent_external_task_wait_application()
-        .external_task_waits(0)
+        .external_task_wait(requested.run_id, requested.execution_id)
         .await?
-        .into_iter()
-        .find(|wait| wait.run_id == requested.run_id && wait.execution_id == requested.execution_id)
         .ok_or_else(|| AppError::Forbidden("Agent wait 不再属于可访问的 durable Run".into()))?;
-    if authoritative.owner_user_id != requested.owner_user_id
-        || authoritative.scope != requested.scope
-        || authoritative.tool_name != requested.tool_name
-        || authoritative.arguments_json != requested.arguments_json
-    {
+    let owner_matches = authoritative.owner_user_id == requested.owner_user_id;
+    // Restricted capabilities hydrate their default tool catalog while the
+    // worker builds AgentRunContext. The durable thread scope intentionally
+    // stores an empty allowlist in that case; compare the resource fence and
+    // capability policy, and require an explicit stored allowlist to match.
+    let scope_matches = authoritative.scope.resource_kind == requested.scope.resource_kind
+        && authoritative.scope.resource_id == requested.scope.resource_id
+        && authoritative.scope.project_id == requested.scope.project_id
+        && authoritative.scope.chapter_id == requested.scope.chapter_id
+        && authoritative.scope.allowed_capabilities == requested.scope.allowed_capabilities
+        && (authoritative.scope.allowed_tools.is_empty()
+            || authoritative.scope.allowed_tools == requested.scope.allowed_tools);
+    let tool_matches = authoritative.tool_name == requested.tool_name;
+    let arguments_match = authoritative.arguments_json == requested.arguments_json;
+    if !(owner_matches && scope_matches && tool_matches && arguments_match) {
+        tracing::warn!(
+            run_id = requested.run_id,
+            execution_id = requested.execution_id,
+            owner_matches,
+            scope_matches,
+            tool_matches,
+            arguments_match,
+            "Agent wait request 与 durable execution 不匹配"
+        );
         return Err(AppError::Forbidden(
             "Agent wait 请求与 durable Run/thread scope 不匹配".into(),
         ));
@@ -1671,6 +1688,72 @@ pub async fn cancel_agent_owned_generation_task(
     .await
     .map(|_| ())
     .map_err(|error| AppError::InvalidArgument(error.to_string()))
+}
+
+/// Dispatch the two domain-native optimization setup calls used by the
+/// external Agent worker. They are not public Host commands, but still route
+/// through the content-optimization owner for scope/session validation.
+pub async fn execute_synthetic_agent_tool(
+    state: &AppState,
+    user_id: i64,
+    name: &str,
+    arguments: Value,
+) -> Result<Value, AppError> {
+    match name {
+        "ensure_content_optimization_session" => {
+            let input = serde_json::from_value::<
+                crate::actions::agent_domains::content_optimization::EnsureContentOptimizationSessionInput,
+            >(arguments)
+            .map_err(|error| AppError::InvalidArgument(format!("Agent 工具 {name} 参数无效: {error}")))?;
+            let scope = AgentScope {
+                project_id: Some(input.project_id),
+                chapter_id: Some(input.chapter_id),
+                ..AgentScope::default()
+            };
+            serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::ensure_session(
+                    state, user_id, &scope, input,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        "send_content_optimization_message" => {
+            let input = serde_json::from_value::<
+                crate::actions::agent_domains::content_optimization::SendContentOptimizationMessageInput,
+            >(arguments)
+            .map_err(|error| AppError::InvalidArgument(format!("Agent 工具 {name} 参数无效: {error}")))?;
+            let session = crate::actions::optimize::get_optimize_session(
+                state,
+                user_id,
+                a4n_api_contract::optimize::OptimizeSessionInput {
+                    session_id: input.session_id,
+                },
+            )
+            .await
+            .map_err(AppError::InvalidArgument)?;
+            let scope = AgentScope {
+                project_id: Some(session.project_id),
+                chapter_id: Some(session.chapter_id),
+                ..AgentScope::default()
+            };
+            serde_json::to_value(
+                crate::actions::agent_domains::content_optimization::send_message(
+                    state,
+                    user_id,
+                    &scope,
+                    input,
+                    uuid::Uuid::new_v4().to_string(),
+                    8_192,
+                )
+                .await?,
+            )
+            .map_err(AppError::from)
+        }
+        _ => Err(AppError::NotFound(format!(
+            "未知 synthetic Agent 工具: {name}"
+        ))),
+    }
 }
 
 pub async fn cancel_agent_owned_workflow(
