@@ -74,6 +74,7 @@ capability_contracts = %w[
   a4n-video-sidecar-contract
   a4n-import-contract
   a4n-export-contract
+  a4n-media-contract
 ]
 
 forbidden_contract_dependency = lambda do |dependency|
@@ -155,6 +156,7 @@ service_packages = %w[
   a4n-video-service
   a4n-import-service
   a4n-export-service
+  a4n-media-service
 ]
 service_packages.each do |package_name|
   next unless packages.key?(package_name)

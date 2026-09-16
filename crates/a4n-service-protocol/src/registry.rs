@@ -11,6 +11,7 @@ pub const IMAGE_PROVIDER_CAPABILITY_VERSION: &str = "image-provider-v4";
 pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v7";
 pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v3";
 pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v3";
+pub const MEDIA_FFMPEG_CAPABILITY_VERSION: &str = "media-ffmpeg-v1";
 
 pub const PROMPT_SERVICE_NAME: &str = "prompt";
 pub const LLM_SERVICE_NAME: &str = "llm";
@@ -20,6 +21,7 @@ pub const IMAGE_SERVICE_NAME: &str = "image";
 pub const VIDEO_SERVICE_NAME: &str = "video";
 pub const IMPORT_SERVICE_NAME: &str = "import";
 pub const EXPORT_SERVICE_NAME: &str = "export";
+pub const MEDIA_SERVICE_NAME: &str = "media";
 
 pub(crate) const REGISTERED_SERVICE_NAMES: &[&str] = &[
     PROMPT_SERVICE_NAME,
@@ -30,6 +32,7 @@ pub(crate) const REGISTERED_SERVICE_NAMES: &[&str] = &[
     VIDEO_SERVICE_NAME,
     IMPORT_SERVICE_NAME,
     EXPORT_SERVICE_NAME,
+    MEDIA_SERVICE_NAME,
 ];
 
 pub fn expected_capability_version_for_service(service: &str) -> Option<&'static str> {
@@ -42,6 +45,7 @@ pub fn expected_capability_version_for_service(service: &str) -> Option<&'static
         VIDEO_SERVICE_NAME => Some(VIDEO_PROVIDER_CAPABILITY_VERSION),
         IMPORT_SERVICE_NAME => Some(IMPORT_TRANSFORM_CAPABILITY_VERSION),
         EXPORT_SERVICE_NAME => Some(EXPORT_RENDER_CAPABILITY_VERSION),
+        MEDIA_SERVICE_NAME => Some(MEDIA_FFMPEG_CAPABILITY_VERSION),
         _ => None,
     }
 }
@@ -59,6 +63,7 @@ pub fn egress_data_type_for_service(service: &str) -> Option<EgressDataType> {
         IMAGE_SERVICE_NAME => Some(EgressDataType::Image),
         VIDEO_SERVICE_NAME => Some(EgressDataType::Video),
         IMPORT_SERVICE_NAME | EXPORT_SERVICE_NAME => Some(EgressDataType::Archive),
+        MEDIA_SERVICE_NAME => Some(EgressDataType::Metadata),
         _ => None,
     }
 }
@@ -91,6 +96,7 @@ pub(crate) fn expected_capability_label_for_service(service: &str) -> Option<&'s
         VIDEO_SERVICE_NAME => Some("video capability"),
         IMPORT_SERVICE_NAME => Some("import capability"),
         EXPORT_SERVICE_NAME => Some("export capability"),
+        MEDIA_SERVICE_NAME => Some("media capability"),
         _ => None,
     }
 }
@@ -111,6 +117,9 @@ pub(crate) fn required_secret_policy_for_service(service: &str) -> Option<Requir
         }),
         EXPORT_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
             rejection_message: "export render sidecar 不接收 secret forwarding policy",
+        }),
+        MEDIA_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
+            rejection_message: "media worker 不接收 secret forwarding policy",
         }),
         _ => None,
     }

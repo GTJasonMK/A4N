@@ -32,11 +32,11 @@ pub async fn load_video_scrub_playback_data(
         scrub_cache_paths(state.temp_dir(), video_id, &source_path, include_audio)?;
     if !is_valid_scrub_proxy(&proxy_path) {
         remove_scrub_temp_file(&proxy_path);
-        generate_scrub_proxy(&source_path, &proxy_path, include_audio).await?;
+        generate_scrub_proxy(state, &source_path, &proxy_path, include_audio).await?;
     }
     if !include_audio && !is_non_empty_file(&frames_path) {
         remove_scrub_temp_file(&frames_path);
-        generate_scrub_frames(&source_path, &frames_path).await?;
+        generate_scrub_frames(state, &source_path, &frames_path).await?;
     }
     remove_stale_scrub_assets(&proxy_path, video_id, &current_prefix);
     read_video_playback_data(
@@ -73,7 +73,7 @@ fn read_video_playback_data(
         .map(|path| {
             read_inline_file(path, "剪辑拖动帧数据").map(|bytes| VideoScrubFramesData {
                 data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
-                frames_per_second: a4n_media::VIDEO_SCRUB_FRAMES_PER_SECOND,
+                frames_per_second: a4n_media_render_core::VIDEO_SCRUB_FRAMES_PER_SECOND,
                 mime_type: "image/jpeg".to_string(),
             })
         })
@@ -127,49 +127,34 @@ fn scrub_cache_paths(
 }
 
 async fn generate_scrub_proxy(
+    state: &AppState,
     source_path: &Path,
     proxy_path: &Path,
     include_audio: bool,
 ) -> Result<(), String> {
     let temp_path =
         proxy_path.with_file_name(format!(".video-scrub-{}.tmp.mp4", uuid::Uuid::new_v4()));
-    let source_path = source_path.to_path_buf();
-    let render_path = temp_path.clone();
-    let generation = tokio::task::spawn_blocking(move || {
-        a4n_media::generate_video_scrub_proxy(&source_path, &render_path, include_audio)
-    })
-    .await;
-    let generation = match generation {
-        Ok(generation) => generation,
-        Err(error) => {
-            remove_scrub_temp_file(&temp_path);
-            return Err(format!("剪辑预览代理生成任务异常终止：{error}"));
-        }
-    };
-    if let Err(error) = generation {
+    if let Err(error) = state
+        .render_media_scrub_proxy(source_path, &temp_path, include_audio)
+        .await
+    {
         remove_scrub_temp_file(&temp_path);
         return Err(format!("无法生成剪辑预览代理：{error}"));
     }
     publish_scrub_asset(&temp_path, proxy_path, "剪辑预览代理")
 }
 
-async fn generate_scrub_frames(source_path: &Path, frames_path: &Path) -> Result<(), String> {
+async fn generate_scrub_frames(
+    state: &AppState,
+    source_path: &Path,
+    frames_path: &Path,
+) -> Result<(), String> {
     let temp_path =
         frames_path.with_file_name(format!(".video-scrub-{}.tmp.mjpeg", uuid::Uuid::new_v4()));
-    let source_path = source_path.to_path_buf();
-    let render_path = temp_path.clone();
-    let generation = tokio::task::spawn_blocking(move || {
-        a4n_media::generate_video_scrub_frames(&source_path, &render_path)
-    })
-    .await;
-    let generation = match generation {
-        Ok(generation) => generation,
-        Err(error) => {
-            remove_scrub_temp_file(&temp_path);
-            return Err(format!("剪辑拖动帧生成任务异常终止：{error}"));
-        }
-    };
-    if let Err(error) = generation {
+    if let Err(error) = state
+        .render_media_scrub_frames(source_path, &temp_path)
+        .await
+    {
         remove_scrub_temp_file(&temp_path);
         return Err(format!("无法生成剪辑拖动帧：{error}"));
     }

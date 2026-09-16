@@ -15,6 +15,7 @@ ROUTERS=(
     crates/a4n-video-service/src/main.rs
     crates/a4n-import-service/src/main.rs
     crates/a4n-export-service/src/main.rs
+    crates/a4n-media-service/src/main.rs
 )
 
 for router in "${ROUTERS[@]}"; do
@@ -48,7 +49,8 @@ if rg -n 'const [A-Z0-9_]*(BODY_LIMIT|MAX_CONCURRENT)' \
     crates/a4n-image-service/src/app.rs \
     crates/a4n-video-service/src/main.rs \
     crates/a4n-import-service/src/main.rs \
-    crates/a4n-export-service/src/main.rs; then
+    crates/a4n-export-service/src/main.rs \
+    crates/a4n-media-service/src/main.rs; then
     printf 'sidecar resource limits must have one service-protocol owner\n' >&2
     exit 1
 fi

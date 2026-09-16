@@ -6,11 +6,14 @@
 mod assembly;
 mod ffmpeg;
 mod media_file;
-mod playback;
 mod postprocess;
 mod probe;
 mod upload;
 
+pub use a4n_media_render_core::{
+    VIDEO_SCRUB_FRAMES_PER_SECOND, VideoScrubProxyError, generate_video_scrub_frames,
+    generate_video_scrub_proxy,
+};
 pub use assembly::{
     VideoAssemblyClip, VideoAssemblyError, VideoAssemblyRequest, assemble_videos,
     build_video_assembly_filter,
@@ -23,10 +26,6 @@ pub use media_file::{
     MediaFileResponse, MediaFileResponseError, MediaResponseStatus, read_media_file_response,
     relative_media_path, relative_media_uri_path, requested_byte_range,
     requested_byte_range_header,
-};
-pub use playback::{
-    VIDEO_SCRUB_FRAMES_PER_SECOND, VideoScrubProxyError, generate_video_scrub_frames,
-    generate_video_scrub_proxy,
 };
 pub use postprocess::{
     VideoPostprocessError, VideoPostprocessRequest, build_video_postprocess_filter,

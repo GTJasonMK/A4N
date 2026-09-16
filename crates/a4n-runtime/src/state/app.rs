@@ -25,7 +25,9 @@ use super::database::{
 use super::profile::{RuntimeProfile, RuntimeRole};
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;
-use crate::sidecar_clients::RuntimeCapabilities;
+use crate::sidecar_clients::{
+    RuntimeCapabilities, pure_transform_typed_service_request, typed_response_payload,
+};
 
 /// Runtime owns Host lifecycle state and receives business behavior through
 /// explicit application ports.
@@ -534,6 +536,142 @@ impl AppState {
     /// 数据目录（来自 AppConfig）。
     pub fn data_dir(&self) -> &Path {
         &self.config.data_dir
+    }
+
+    pub(crate) async fn render_media_scrub_proxy(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+        include_audio: bool,
+    ) -> Result<(), String> {
+        let input = self.media_file_ref(
+            input_path,
+            a4n_media_contract::MediaRoot::Data,
+            "剪辑源视频",
+        )?;
+        let output = self.media_file_ref(
+            output_path,
+            a4n_media_contract::MediaRoot::Temp,
+            "剪辑输出媒体",
+        )?;
+        let request_input = a4n_media_contract::MediaExecuteInput::GenerateVideoScrubProxy {
+            input,
+            output,
+            include_audio,
+        };
+        if self.runtime_profile.uses_sidecars() {
+            let client = self.capabilities.media.as_ref().ok_or_else(|| {
+                "media sidecar capability 未配置，无法生成剪辑预览代理".to_string()
+            })?;
+            let request = pure_transform_typed_service_request(
+                a4n_media_contract::MEDIA_FFMPEG_CAPABILITY_VERSION,
+                request_input,
+                None,
+                None,
+            )?;
+            let response = client
+                .execute(request)
+                .await
+                .map_err(|error| error.message)?;
+            match typed_response_payload(response, "media")? {
+                a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+            }
+        } else {
+            let input_path = input_path.to_path_buf();
+            let output_path = output_path.to_path_buf();
+            tokio::task::spawn_blocking(move || {
+                a4n_media_render_core::generate_video_scrub_proxy(
+                    &input_path,
+                    &output_path,
+                    include_audio,
+                )
+                .map_err(|error| error.to_string())
+            })
+            .await
+            .map_err(|error| format!("剪辑预览代理生成任务异常终止：{error}"))??;
+            Ok(())
+        }
+    }
+
+    pub(crate) async fn render_media_scrub_frames(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+    ) -> Result<(), String> {
+        let input = self.media_file_ref(
+            input_path,
+            a4n_media_contract::MediaRoot::Data,
+            "剪辑源视频",
+        )?;
+        let output = self.media_file_ref(
+            output_path,
+            a4n_media_contract::MediaRoot::Temp,
+            "剪辑输出媒体",
+        )?;
+        let request_input =
+            a4n_media_contract::MediaExecuteInput::GenerateVideoScrubFrames { input, output };
+        if self.runtime_profile.uses_sidecars() {
+            let client =
+                self.capabilities.media.as_ref().ok_or_else(|| {
+                    "media sidecar capability 未配置，无法生成剪辑拖动帧".to_string()
+                })?;
+            let request = pure_transform_typed_service_request(
+                a4n_media_contract::MEDIA_FFMPEG_CAPABILITY_VERSION,
+                request_input,
+                None,
+                None,
+            )?;
+            let response = client
+                .execute(request)
+                .await
+                .map_err(|error| error.message)?;
+            match typed_response_payload(response, "media")? {
+                a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+            }
+        } else {
+            let input_path = input_path.to_path_buf();
+            let output_path = output_path.to_path_buf();
+            tokio::task::spawn_blocking(move || {
+                a4n_media_render_core::generate_video_scrub_frames(&input_path, &output_path)
+                    .map_err(|error| error.to_string())
+            })
+            .await
+            .map_err(|error| format!("剪辑拖动帧生成任务异常终止：{error}"))??;
+            Ok(())
+        }
+    }
+
+    fn media_file_ref(
+        &self,
+        path: &Path,
+        root: a4n_media_contract::MediaRoot,
+        label: &str,
+    ) -> Result<a4n_media_contract::MediaFileRef, String> {
+        let root_path = match root {
+            a4n_media_contract::MediaRoot::Data => &self.config.data_dir,
+            a4n_media_contract::MediaRoot::Temp => &self.config.temp_dir,
+        };
+        let root_path = root_path
+            .canonicalize()
+            .map_err(|error| format!("无法解析{label}根目录：{error}"))?;
+        let resolved = if path.exists() {
+            path.canonicalize()
+                .map_err(|error| format!("无法解析{label}：{error}"))?
+        } else {
+            let parent = path
+                .parent()
+                .ok_or_else(|| format!("{label}路径缺少父目录"))?
+                .canonicalize()
+                .map_err(|error| format!("无法解析{label}目录：{error}"))?;
+            parent.join(
+                path.file_name()
+                    .ok_or_else(|| format!("{label}路径缺少文件名"))?,
+            )
+        };
+        let relative = resolved
+            .strip_prefix(&root_path)
+            .map_err(|_| format!("{label}不在允许的本地目录内"))?;
+        a4n_media_contract::MediaFileRef::new(root, relative.to_string_lossy().replace('\\', "/"))
     }
 
     /// Host 窗口/路径初始化用配置视图。

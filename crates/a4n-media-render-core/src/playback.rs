@@ -1,11 +1,13 @@
 use std::{io, path::Path, process::Command};
 
+use a4n_media_contract::{MediaExecuteInput, MediaExecuteOutput};
 use thiserror::Error;
 
-use crate::ffmpeg::stderr_preview;
+use crate::MediaRoots;
 
 const SCRUB_PROXY_STDERR_PREVIEW_CHARS: usize = 800;
 pub const VIDEO_SCRUB_FRAMES_PER_SECOND: u32 = 12;
+const STDERR_PREVIEW_CHARS: usize = 800;
 
 #[derive(Debug, Error)]
 pub enum VideoScrubProxyError {
@@ -18,6 +20,27 @@ pub enum VideoScrubProxyError {
     },
     #[error("ffmpeg video scrub proxy generation failed: {stderr}")]
     Failed { stderr: String },
+}
+
+pub fn execute(roots: &MediaRoots, input: MediaExecuteInput) -> Result<MediaExecuteOutput, String> {
+    match input {
+        MediaExecuteInput::GenerateVideoScrubProxy {
+            input,
+            output,
+            include_audio,
+        } => {
+            let input = roots.input(&input)?;
+            let output = roots.output(&output)?;
+            generate_video_scrub_proxy(&input, &output, include_audio)
+                .map_err(|error| error.to_string())?;
+        }
+        MediaExecuteInput::GenerateVideoScrubFrames { input, output } => {
+            let input = roots.input(&input)?;
+            let output = roots.output(&output)?;
+            generate_video_scrub_frames(&input, &output).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(MediaExecuteOutput::Unit)
 }
 
 /// Produces a high-quality H.264 editing source with frequent keyframes for random seeking.
@@ -86,6 +109,13 @@ pub fn generate_video_scrub_proxy(
             stderr: stderr_preview(&output, SCRUB_PROXY_STDERR_PREVIEW_CHARS),
         })
     }
+}
+
+fn stderr_preview(output: &std::process::Output, limit: usize) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let chars = stderr.chars().collect::<Vec<_>>();
+    let start = chars.len().saturating_sub(limit.min(STDERR_PREVIEW_CHARS));
+    chars[start..].iter().collect()
 }
 
 /// Produces a compact concatenated JPEG sequence for deterministic scrubbing.

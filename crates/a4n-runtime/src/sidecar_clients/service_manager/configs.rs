@@ -139,6 +139,12 @@ pub(super) fn reserve_managed_loopback_addr(
 }
 
 fn remote_service(spec: ServiceCatalogEntry) -> Result<ManagedServiceConfig, String> {
+    if spec.local_only {
+        return Err(format!(
+            "service {} requires access to the Host local filesystem and must run as a managed sidecar",
+            spec.name
+        ));
+    }
     let url = sidecar_url_from_spec(&spec)?;
     let mut remote_security = remote_security_from_env(&spec.name)?;
     if !remote_security.has_deployment_credential() && is_loopback_http_url(&url) {

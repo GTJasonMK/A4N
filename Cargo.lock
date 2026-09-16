@@ -870,10 +870,53 @@ name = "a4n-media"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-media-render-core",
  "base64 0.22.1",
  "image",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "a4n-media-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-media-contract",
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+]
+
+[[package]]
+name = "a4n-media-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-media-render-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-media-contract",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "a4n-media-service"
+version = "0.1.0"
+dependencies = [
+ "a4n-media-client",
+ "a4n-media-contract",
+ "a4n-media-render-core",
+ "a4n-service-protocol",
+ "a4n-sidecar-bootstrap",
+ "a4n-test-support",
+ "anyhow",
+ "axum 0.8.9",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1302,6 +1345,9 @@ dependencies = [
  "a4n-llm-provider-contract",
  "a4n-llm-sidecar-contract",
  "a4n-media",
+ "a4n-media-client",
+ "a4n-media-contract",
+ "a4n-media-render-core",
  "a4n-migration",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
@@ -1544,6 +1590,8 @@ dependencies = [
  "a4n-llm-client",
  "a4n-llm-provider-contract",
  "a4n-llm-sidecar-contract",
+ "a4n-media-client",
+ "a4n-media-contract",
  "a4n-model-discovery-contract",
  "a4n-prompt-client",
  "a4n-rag-client",

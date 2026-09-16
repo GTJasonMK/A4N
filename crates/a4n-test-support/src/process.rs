@@ -40,6 +40,10 @@ pub use a4n_import_contract::{
     IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportReadMediaPackageZipInput,
 };
 pub use a4n_llm_client::{HttpLlmClient, LlmClient};
+pub use a4n_media_client::{HttpMediaClient, MediaClient};
+pub use a4n_media_contract::{
+    MEDIA_FFMPEG_CAPABILITY_VERSION, MEDIA_SERVICE_NAME, MediaExecuteInput, MediaExecuteOutput,
+};
 pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
 pub type JsonRequest = ServiceRequest<Value>;
 

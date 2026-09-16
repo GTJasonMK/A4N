@@ -21,6 +21,8 @@ pub struct ServiceCatalogEntry {
     pub addr_env: String,
     pub url_env: String,
     pub default_addr: String,
+    #[serde(default)]
+    pub local_only: bool,
 }
 
 pub fn service_catalog() -> Result<Vec<ServiceCatalogEntry>, serde_json::Error> {
@@ -65,7 +67,7 @@ mod tests {
     #[test]
     fn catalog_has_unique_process_identity_and_environment_keys() {
         let entries = service_catalog().expect("embedded service catalog must be valid");
-        assert_eq!(entries.len(), 8);
+        assert_eq!(entries.len(), 9);
         for field in [
             entries
                 .iter()
@@ -105,5 +107,14 @@ mod tests {
             Some("export".to_string())
         );
         assert!(service_catalog_entry_for_capability_version("unknown-v1").is_none());
+        assert_eq!(
+            service_catalog_entry_for_capability_version("media-ffmpeg-v1").map(|entry| entry.name),
+            Some("media".to_string())
+        );
+        assert!(
+            super::service_catalog_entry("media")
+                .expect("media service catalog entry")
+                .local_only
+        );
     }
 }

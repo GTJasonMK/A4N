@@ -7,6 +7,8 @@ use a4n_image_client::{HttpImageClient, ImageClient};
 use a4n_import_client::{HttpImportClient, ImportClient};
 use a4n_import_contract::IMPORT_SERVICE_NAME;
 use a4n_llm_client::{HttpLlmClient, LlmClient};
+use a4n_media_client::{HttpMediaClient, MediaClient};
+use a4n_media_contract::MEDIA_SERVICE_NAME;
 use a4n_prompt_client::{HttpPromptClient, PromptClient};
 use a4n_rag_client::{HttpRagClient, RagClient};
 use a4n_service_manager::{ServiceManager, ServiceMode};
@@ -28,6 +30,7 @@ pub(crate) struct RuntimeCapabilities {
     pub(crate) video: Option<Arc<dyn VideoClient>>,
     pub(crate) import: Option<Arc<dyn ImportClient>>,
     pub(crate) export: Option<Arc<dyn ExportClient>>,
+    pub(crate) media: Option<Arc<dyn MediaClient>>,
 }
 
 impl RuntimeCapabilities {
@@ -70,6 +73,11 @@ impl RuntimeCapabilities {
         self.export = Some(export);
         self
     }
+
+    fn with_media(mut self, media: Arc<dyn MediaClient>) -> Self {
+        self.media = Some(media);
+        self
+    }
 }
 
 pub(crate) fn runtime_capabilities(
@@ -104,6 +112,9 @@ pub(crate) fn runtime_capabilities(
     }
     if service_is_configured(service_manager, EXPORT_SERVICE_NAME)? {
         capabilities = capabilities.with_export(Arc::new(http_export(service_manager)?));
+    }
+    if service_is_configured(service_manager, MEDIA_SERVICE_NAME)? {
+        capabilities = capabilities.with_media(Arc::new(http_media(service_manager)?));
     }
     Ok(capabilities)
 }
@@ -152,3 +163,4 @@ http_capability!(http_image, HttpImageClient, IMAGE_SERVICE_NAME);
 http_capability!(http_video, HttpVideoClient, VIDEO_SERVICE_NAME);
 http_capability!(http_import, HttpImportClient, IMPORT_SERVICE_NAME);
 http_capability!(http_export, HttpExportClient, EXPORT_SERVICE_NAME);
+http_capability!(http_media, HttpMediaClient, MEDIA_SERVICE_NAME);
