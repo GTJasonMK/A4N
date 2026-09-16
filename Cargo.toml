@@ -59,6 +59,7 @@ members = [
     "crates/a4n-rag-service",
     "crates/a4n-image-contract",
     "crates/a4n-image-host-contract",
+    "crates/a4n-inspiration-host-contract",
     "crates/a4n-import-analysis-host-contract",
     "crates/a4n-image-provider-contract",
     "crates/a4n-image-providers",

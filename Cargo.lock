@@ -680,6 +680,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-inspiration-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-llm-client"
 version = "0.1.0"
 dependencies = [
@@ -886,6 +897,7 @@ dependencies = [
  "a4n-image-host-contract",
  "a4n-import-analysis-host-contract",
  "a4n-import-core",
+ "a4n-inspiration-host-contract",
  "a4n-llm-config",
  "a4n-llm-context",
  "a4n-llm-provider-contract",
@@ -1209,6 +1221,7 @@ dependencies = [
  "a4n-import-client",
  "a4n-import-contract",
  "a4n-import-core",
+ "a4n-inspiration-host-contract",
  "a4n-llm-client",
  "a4n-llm-config",
  "a4n-llm-context",

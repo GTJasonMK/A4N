@@ -2538,7 +2538,7 @@ if ! rg -n 'inspiration_generation_application\(\)' \
 fi
 
 if ! rg -n 'pub trait InspirationGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/inspiration/application.rs; then
+    crates/a4n-inspiration-host-contract/src/lib.rs; then
     printf 'InspirationGenerationApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -2556,7 +2556,7 @@ if ! rg -n 'inspiration_request_application\(\)' \
 fi
 
 if ! rg -n 'pub trait InspirationRequestPreviewApplicationPort' \
-    crates/a4n-orchestrator/src/inspiration/application.rs; then
+    crates/a4n-inspiration-host-contract/src/lib.rs; then
     printf 'InspirationRequestPreviewApplicationPort contract is missing\n' >&2
     exit 1
 fi

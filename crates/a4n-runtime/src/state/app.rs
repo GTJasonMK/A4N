@@ -645,11 +645,11 @@ pub struct AppState {
     /// Inspiration generation owner. Runtime only schedules the worker and
     /// supplies the prompt-rendering adapter.
     inspiration_generation_application:
-        Arc<dyn a4n_orchestrator::inspiration::InspirationGenerationApplicationPort>,
+        Arc<dyn a4n_inspiration_host_contract::InspirationGenerationApplicationPort>,
     /// Inspiration request construction boundary. Runtime supplies prompt
     /// rendering and provider preview budgeting after this call returns.
     inspiration_request_application:
-        Arc<dyn a4n_orchestrator::inspiration::InspirationRequestPreviewApplicationPort>,
+        Arc<dyn a4n_inspiration_host_contract::InspirationRequestPreviewApplicationPort>,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
     capabilities: RuntimeCapabilities,
     /// Runtime-owned event bus used by Host bridges.
@@ -1544,13 +1544,13 @@ impl AppState {
 
     pub(crate) fn inspiration_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::inspiration::InspirationGenerationApplicationPort {
+    ) -> &dyn a4n_inspiration_host_contract::InspirationGenerationApplicationPort {
         self.inspiration_generation_application.as_ref()
     }
 
     pub(crate) fn inspiration_request_application(
         &self,
-    ) -> &dyn a4n_orchestrator::inspiration::InspirationRequestPreviewApplicationPort {
+    ) -> &dyn a4n_inspiration_host_contract::InspirationRequestPreviewApplicationPort {
         self.inspiration_request_application.as_ref()
     }
 
