@@ -25,6 +25,7 @@ a4n-document-export-core = { path = "../a4n-document-export-core" }
 a4n-domain = { path = "../a4n-domain" }
  a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }
+a4n-galgame-host-contract = { path = "../a4n-galgame-host-contract" }
 a4n-db = { path = "../a4n-db" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }

@@ -514,6 +514,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-galgame-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-generation-artifact-contract"
 version = "0.1.0"
 dependencies = [
@@ -871,6 +881,7 @@ dependencies = [
  "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-event",
+ "a4n-galgame-host-contract",
  "a4n-image-contract",
  "a4n-image-host-contract",
  "a4n-import-analysis-host-contract",
@@ -1188,6 +1199,7 @@ dependencies = [
  "a4n-event",
  "a4n-export-client",
  "a4n-export-contract",
+ "a4n-galgame-host-contract",
  "a4n-image-client",
  "a4n-image-contract",
  "a4n-image-host-contract",

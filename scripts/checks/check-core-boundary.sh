@@ -2496,6 +2496,12 @@ if ! rg -n 'galgame_asset_generation_application\(\)' \
     exit 1
 fi
 
+if ! rg -n 'pub trait GalgameAssetGenerationApplicationPort' \
+    crates/a4n-galgame-host-contract/src/lib.rs; then
+    printf 'Galgame asset-generation host contract is missing\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub trait GalgameAssetPlanApplicationPort' \
     crates/a4n-api-contract/src/galgame.rs; then
     printf 'GalgameAssetPlanApplicationPort contract is missing\n' >&2

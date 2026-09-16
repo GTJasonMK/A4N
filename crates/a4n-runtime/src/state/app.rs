@@ -607,7 +607,7 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::galgame::GalgameAssetPlanApplicationPort>,
     /// Galgame asset-generation owner. Runtime supplies visual/file adapters.
     galgame_asset_generation_application:
-        Arc<dyn a4n_orchestrator::galgame::GalgameAssetGenerationApplicationPort>,
+        Arc<dyn a4n_galgame_host_contract::GalgameAssetGenerationApplicationPort>,
     /// Host-facing Galgame script-record mutation boundary. Persistence and
     /// DTO projection remain in the Galgame owner.
     galgame_record_mutation_application:
@@ -2488,7 +2488,7 @@ impl AppState {
 
     pub(crate) fn galgame_asset_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::galgame::GalgameAssetGenerationApplicationPort {
+    ) -> &dyn a4n_galgame_host_contract::GalgameAssetGenerationApplicationPort {
         self.galgame_asset_generation_application.as_ref()
     }
 
