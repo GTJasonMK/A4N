@@ -22,6 +22,15 @@ pub struct DecodedUploadedImage {
     pub source_file_name: String,
 }
 
+/// Decoded audio facts passed from upload validation to the owning workflow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedUploadedAudio {
+    pub file_name: String,
+    pub mime_type: &'static str,
+    pub extension: &'static str,
+    pub bytes: Vec<u8>,
+}
+
 /// Durable facts needed to recover an image publication without exposing ORM
 /// rows to the Runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]

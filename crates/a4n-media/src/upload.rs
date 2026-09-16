@@ -4,7 +4,7 @@
 
 use std::{io::Cursor, path::Path};
 
-use a4n_domain::media::{DecodedUploadedImage, canonical_audio_mime};
+use a4n_domain::media::{DecodedUploadedAudio, DecodedUploadedImage, canonical_audio_mime};
 use base64::Engine as _;
 use image::GenericImageView;
 
@@ -33,14 +33,6 @@ pub fn image_dimensions_from_bytes(bytes: &[u8]) -> Result<(i32, i32), ImageDime
         i32::try_from(width).map_err(|_| ImageDimensionsError::WidthOverflow)?,
         i32::try_from(height).map_err(|_| ImageDimensionsError::HeightOverflow)?,
     ))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DecodedUploadedAudio {
-    pub file_name: String,
-    pub mime_type: &'static str,
-    pub extension: &'static str,
-    pub bytes: Vec<u8>,
 }
 
 pub fn required_upload_file_name(file_name: &str, label: &str) -> Result<String, String> {
