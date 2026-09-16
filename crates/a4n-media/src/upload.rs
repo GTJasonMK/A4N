@@ -4,7 +4,7 @@
 
 use std::{io::Cursor, path::Path};
 
-use a4n_domain::media::canonical_audio_mime;
+use a4n_domain::media::{DecodedUploadedImage, canonical_audio_mime};
 use base64::Engine as _;
 use image::GenericImageView;
 
@@ -41,16 +41,6 @@ pub struct DecodedUploadedAudio {
     pub mime_type: &'static str,
     pub extension: &'static str,
     pub bytes: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct DecodedUploadedImage {
-    pub bytes: Vec<u8>,
-    pub extension: &'static str,
-    pub mime_type: &'static str,
-    pub width: i32,
-    pub height: i32,
-    pub source_file_name: String,
 }
 
 pub fn required_upload_file_name(file_name: &str, label: &str) -> Result<String, String> {

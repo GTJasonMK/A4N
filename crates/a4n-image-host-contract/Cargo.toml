@@ -10,7 +10,6 @@ a4n-canvas-contract = { path = "../a4n-canvas-contract" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error" }
 a4n-image-contract = { path = "../a4n-image-contract" }
-a4n-media = { path = "../a4n-media" }
 a4n-provider-contract = { path = "../a4n-provider-contract" }
 
 async-trait = { workspace = true }

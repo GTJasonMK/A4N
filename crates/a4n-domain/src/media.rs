@@ -9,6 +9,19 @@ pub struct GeneratedMediaArtifactFile {
     pub byte_size: u64,
 }
 
+/// Decoded image facts passed from media parsing to the image publication
+/// owner. The parser owns validation; this pure value carries no image crate
+/// or file-system implementation dependency.
+#[derive(Debug)]
+pub struct DecodedUploadedImage {
+    pub bytes: Vec<u8>,
+    pub extension: &'static str,
+    pub mime_type: &'static str,
+    pub width: i32,
+    pub height: i32,
+    pub source_file_name: String,
+}
+
 /// Durable facts needed to recover an image publication without exposing ORM
 /// rows to the Runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]

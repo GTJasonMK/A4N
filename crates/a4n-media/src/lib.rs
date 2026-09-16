@@ -11,6 +11,7 @@ mod postprocess;
 mod probe;
 mod upload;
 
+pub use a4n_domain::media::DecodedUploadedImage;
 pub use assembly::{
     VideoAssemblyClip, VideoAssemblyError, VideoAssemblyRequest, assemble_videos,
     build_video_assembly_filter,
@@ -38,9 +39,9 @@ pub use probe::{
     probe_audio_duration_secs, probe_video_has_audio, probe_video_properties,
 };
 pub use upload::{
-    DecodedUploadedAudio, DecodedUploadedImage, ImageDimensionsError, MAX_IMPORT_AUDIO_BYTES,
-    decode_uploaded_audio_data, decode_uploaded_bytes, decode_uploaded_image_data,
-    image_dimensions_from_bytes, required_upload_file_name,
+    DecodedUploadedAudio, ImageDimensionsError, MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data,
+    decode_uploaded_bytes, decode_uploaded_image_data, image_dimensions_from_bytes,
+    required_upload_file_name,
 };
 
 #[cfg(test)]
