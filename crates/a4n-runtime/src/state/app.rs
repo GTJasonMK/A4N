@@ -151,9 +151,9 @@ pub struct AppState {
     /// Character discovery and profile synchronization use separate worker
     /// boundaries; Runtime only adapts progress and RAG tracing.
     character_discovery_application:
-        Arc<dyn a4n_orchestrator::character::CharacterDiscoveryApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterDiscoveryApplicationPort>,
     character_profile_sync_application:
-        Arc<dyn a4n_orchestrator::character::CharacterProfileSyncApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterProfileSyncApplicationPort>,
     /// Host-facing workflow read boundary. Runtime keeps only live handles
     /// and cancellation coordination outside this port.
     workflow_read_application: Arc<dyn a4n_api_contract::workflow::WorkflowReadApplicationPort>,
@@ -202,11 +202,11 @@ pub struct AppState {
     /// Character implicit-review checks, previews, and applies use separate
     /// worker boundaries; Runtime only supplies prompt rendering.
     character_implicit_review_check_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewCheckApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewCheckApplicationPort>,
     character_implicit_review_preview_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewPreviewApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewPreviewApplicationPort>,
     character_implicit_review_apply_application:
-        Arc<dyn a4n_orchestrator::character::CharacterImplicitReviewApplyApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterImplicitReviewApplyApplicationPort>,
     /// Host-facing implicit-review read boundary. Summary queries stay in the
     /// API contract rather than the LLM decision workflow boundary.
     character_implicit_review_read_application:
@@ -217,7 +217,7 @@ pub struct AppState {
     /// Character-consistency workflow owner. Runtime supplies only prompt,
     /// progress, and task lifecycle adapters.
     character_conflict_application:
-        Arc<dyn a4n_orchestrator::character::CharacterConflictApplicationPort>,
+        Arc<dyn a4n_character_host_contract::CharacterConflictApplicationPort>,
     /// Host-facing scene profile mutation boundary.
     scene_profile_mutation_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort>,
@@ -1343,13 +1343,13 @@ impl AppState {
 
     pub(crate) fn character_discovery_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterDiscoveryApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterDiscoveryApplicationPort {
         self.character_discovery_application.as_ref()
     }
 
     pub(crate) fn character_profile_sync_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterProfileSyncApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterProfileSyncApplicationPort {
         self.character_profile_sync_application.as_ref()
     }
 
@@ -1442,19 +1442,19 @@ impl AppState {
 
     pub(crate) fn character_implicit_review_check_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewCheckApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterImplicitReviewCheckApplicationPort {
         self.character_implicit_review_check_application.as_ref()
     }
 
     pub(crate) fn character_implicit_review_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewPreviewApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterImplicitReviewPreviewApplicationPort {
         self.character_implicit_review_preview_application.as_ref()
     }
 
     pub(crate) fn character_implicit_review_apply_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterImplicitReviewApplyApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterImplicitReviewApplyApplicationPort {
         self.character_implicit_review_apply_application.as_ref()
     }
 
@@ -1472,7 +1472,7 @@ impl AppState {
 
     pub(crate) fn character_conflict_application(
         &self,
-    ) -> &dyn a4n_orchestrator::character::CharacterConflictApplicationPort {
+    ) -> &dyn a4n_character_host_contract::CharacterConflictApplicationPort {
         self.character_conflict_application.as_ref()
     }
 

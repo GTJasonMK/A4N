@@ -1,6 +1,6 @@
 use super::super::SyncCharacterProfileInput;
 use crate::AppState;
-use a4n_orchestrator::character::CharacterProfileSyncPreviewStep;
+use a4n_character_host_contract::CharacterProfileSyncPreviewStep;
 
 pub(crate) async fn character_sync_preview_step(
     state: &AppState,

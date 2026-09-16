@@ -8,6 +8,6 @@ pub use a4n_api_contract::character::{
     CheckImplicitUpdateInput, GetImplicitReviewInput, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary,
 };
-pub use a4n_orchestrator::character::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
+pub use a4n_character_host_contract::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 pub use api::{check_implicit_update, get_implicit_review, preview_check_implicit_update_request};
 pub use application::apply_implicit_update_decision;

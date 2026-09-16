@@ -157,6 +157,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-character-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+ "tokio-util",
+]
+
+[[package]]
 name = "a4n-cleanup-contract"
 version = "0.1.0"
 dependencies = [
@@ -811,6 +823,7 @@ dependencies = [
  "a4n-canvas-contract",
  "a4n-chapter-analysis",
  "a4n-chapter-generation-contract",
+ "a4n-character-host-contract",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
@@ -1102,6 +1115,7 @@ dependencies = [
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-chapter-generation-contract",
+ "a4n-character-host-contract",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",

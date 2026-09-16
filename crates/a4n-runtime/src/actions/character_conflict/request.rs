@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use a4n_api_contract::character::CharacterConflictCheckInput;
-use a4n_orchestrator::character::CHARACTER_CONFLICT_KIND;
+use a4n_character_host_contract::CHARACTER_CONFLICT_KIND;
 
 pub async fn preview_character_conflict_request(
     state: &AppState,

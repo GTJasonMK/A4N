@@ -3014,7 +3014,7 @@ for contract in \
     CharacterImplicitReviewCheckApplicationPort \
     CharacterImplicitReviewPreviewApplicationPort \
     CharacterImplicitReviewApplyApplicationPort; do
-    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/character.rs; then
+    if ! rg -q "pub trait $contract" crates/a4n-character-host-contract/src/lib.rs; then
         printf '%s contract is missing\n' "$contract" >&2
         exit 1
     fi
@@ -3159,7 +3159,7 @@ if rg -n 'OptimizeApplicationPort|OptimizeGenerationApplicationPort|optimize_app
 fi
 
 for contract in CharacterDiscoveryApplicationPort CharacterProfileSyncApplicationPort; do
-    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/character.rs; then
+    if ! rg -q "pub trait $contract" crates/a4n-character-host-contract/src/lib.rs; then
         printf '%s contract is missing\n' "$contract" >&2
         exit 1
     fi

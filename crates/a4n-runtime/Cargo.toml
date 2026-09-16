@@ -28,6 +28,7 @@ a4n-agent-runtime-contract = { path = "../a4n-agent-runtime-contract" }
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-blueprint-contract = { path = "../a4n-blueprint-contract" }
 a4n-chapter-generation-contract = { path = "../a4n-chapter-generation-contract" }
+a4n-character-host-contract = { path = "../a4n-character-host-contract" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-canvas-contract = { path = "../a4n-canvas-contract" }
 a4n-outline-contract = { path = "../a4n-outline-contract" }
