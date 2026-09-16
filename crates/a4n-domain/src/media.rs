@@ -99,6 +99,27 @@ pub struct UpdateGeneratedVideoRecordInput {
     pub is_favorite: Option<bool>,
 }
 
+/// Input for recording a pending image publication. The database owns the
+/// transaction and state machine; this value only carries the request facts.
+#[derive(Debug, Clone)]
+pub struct CreateImagePublicationIntentInput {
+    pub publication_id: String,
+    pub project_id: i64,
+    pub requested_by_user_id: i64,
+    pub staging_path: String,
+    pub final_path: String,
+    pub image: CreateGeneratedImageRecordDraftInput,
+    pub expected_file_size: i64,
+    pub expected_sha256: String,
+}
+
+/// File facts recorded by the media adapter during image publication.
+#[derive(Debug, Clone)]
+pub struct ImagePublicationFileFacts {
+    pub file_size: i64,
+    pub sha256: String,
+}
+
 /// Durable facts needed to recover an image publication without exposing ORM
 /// rows to the Runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -10,9 +10,10 @@ use super::create::{
 };
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
 use a4n_domain::media::{
-    CreateGeneratedImageRecordDraftInput, IMAGE_PUBLICATION_STATUS_PENDING,
-    IMAGE_PUBLICATION_STATUS_PUBLISHED, IMAGE_PUBLICATION_STATUS_RECLAIMED,
-    IMAGE_PUBLICATION_STATUS_RECLAIMING,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
+    IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
+    ImagePublicationFileFacts,
 };
 use chrono::Utc;
 use sea_orm::sea_query::{Expr, OnConflict};
@@ -21,24 +22,6 @@ use sea_orm::{
     QuerySelect, Set, TransactionTrait,
 };
 use serde_json::Value;
-
-#[derive(Debug, Clone)]
-pub struct CreateImagePublicationIntentInput {
-    pub publication_id: String,
-    pub project_id: i64,
-    pub requested_by_user_id: i64,
-    pub staging_path: String,
-    pub final_path: String,
-    pub image: CreateGeneratedImageRecordDraftInput,
-    pub expected_file_size: i64,
-    pub expected_sha256: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ImagePublicationFileFacts {
-    pub file_size: i64,
-    pub sha256: String,
-}
 
 pub async fn update_image_publication_metadata<C>(
     db: &C,
@@ -795,16 +778,16 @@ fn required_reason(value: String) -> Result<String, VideoDbError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
-        IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
-        IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
-        ImagePublicationFileFacts, create_image_publication_intent,
+        CreateGeneratedImageRecordDraftInput, IMAGE_PUBLICATION_STATUS_PENDING,
+        IMAGE_PUBLICATION_STATUS_PUBLISHED, IMAGE_PUBLICATION_STATUS_RECLAIMED,
+        IMAGE_PUBLICATION_STATUS_RECLAIMING, create_image_publication_intent,
         image_publications_for_recovery, mark_image_publication_reclaimed,
         mark_image_publication_reclaiming, normalize_sha256, project_scoped_path,
         publish_image_publication, required_publication_id,
     };
     use crate::project::{CreateProjectRecordInput, create_project_record};
     use a4n_db_models::models::{ai::generated_image, media::image_publication};
+    use a4n_domain::media::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
     use a4n_migration::test_support::connect_test_database;
     use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
     use uuid::Uuid;

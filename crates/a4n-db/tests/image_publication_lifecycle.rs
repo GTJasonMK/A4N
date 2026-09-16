@@ -13,17 +13,18 @@ use a4n_db::profile_material::upsert_profile_primary_material;
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
 use a4n_db::project_delete::delete_project_cascade_record;
 use a4n_db::video::{
-    CreateImagePublicationIntentInput, ImagePublicationFileFacts, create_image_publication_intent,
-    delete_generated_image_record_with_cleanup, image_publications_for_recovery,
-    mark_image_publication_reclaimed, mark_image_publication_reclaiming, publish_image_publication,
+    create_image_publication_intent, delete_generated_image_record_with_cleanup,
+    image_publications_for_recovery, mark_image_publication_reclaimed,
+    mark_image_publication_reclaiming, publish_image_publication,
 };
 use a4n_db_models::models::{
     ai::generated_image, media::image_publication, project::novel_project, task::cleanup_outbox,
 };
 use a4n_domain::media::{
-    CreateGeneratedImageRecordDraftInput, IMAGE_PUBLICATION_STATUS_PENDING,
-    IMAGE_PUBLICATION_STATUS_PUBLISHED, IMAGE_PUBLICATION_STATUS_RECLAIMED,
-    IMAGE_PUBLICATION_STATUS_RECLAIMING,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
+    IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
+    ImagePublicationFileFacts,
 };
 use a4n_migration::test_support::connect_test_database;
 use sea_orm::{

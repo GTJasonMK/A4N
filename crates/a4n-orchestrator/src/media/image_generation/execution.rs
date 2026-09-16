@@ -4,11 +4,11 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
     RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db::video::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
 use a4n_db_models::models::ai::generated_image;
 use a4n_domain::media::{
-    CreateGeneratedImageRecordDraftInput, IMAGE_PUBLICATION_STATUS_PENDING,
-    IMAGE_PUBLICATION_STATUS_PUBLISHED,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
+    ImagePublicationFileFacts,
 };
 use a4n_error::AppError;
 use a4n_provider_contract::ImageProviderConfig;

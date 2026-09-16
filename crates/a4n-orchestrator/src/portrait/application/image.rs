@@ -6,14 +6,14 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
     RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db::video::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
 use a4n_db_models::models::{
     character::{character_portrait, protagonist_profile},
     media::image_publication,
 };
 use a4n_domain::media::{
-    CreateGeneratedImageRecordDraftInput, IMAGE_PUBLICATION_STATUS_PENDING,
-    IMAGE_PUBLICATION_STATUS_PUBLISHED,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
+    ImagePublicationFileFacts,
 };
 use a4n_domain::{character::CharacterPortraitCreateInput, image::validate_reference_image_ids};
 use a4n_error::AppError;

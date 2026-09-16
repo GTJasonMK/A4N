@@ -9,7 +9,6 @@ use a4n_db::profile_material::{
     profile_material_identity_from_fields,
 };
 
-use a4n_db::video::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
 use a4n_db_models::models::{
     ai::generated_image,
     asset::{object_profile, profile_primary_material},
@@ -19,8 +18,9 @@ use a4n_db_models::models::{
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
     media::{
-        CreateGeneratedImageRecordDraftInput, IMAGE_PUBLICATION_STATUS_PENDING,
-        IMAGE_PUBLICATION_STATUS_PUBLISHED,
+        CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+        IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
+        ImagePublicationFileFacts,
     },
     profile_material::{
         ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,

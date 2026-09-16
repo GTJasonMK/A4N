@@ -7,9 +7,7 @@ use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
-use a4n_db::video::{
-    ChapterVideoPromptTimelineRecord, CreateImagePublicationIntentInput, ImagePublicationFileFacts,
-};
+use a4n_db::video::ChapterVideoPromptTimelineRecord;
 use a4n_db::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
@@ -18,7 +16,8 @@ use a4n_db_models::models::{
 };
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
-    UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
+    CreateImagePublicationIntentInput, ImagePublicationFileFacts, UpdateGeneratedImageRecordInput,
+    UpdateGeneratedVideoRecordInput,
 };
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap};
