@@ -251,6 +251,7 @@ impl OrchestratorContext {
             }
             let result = host_port
                 .submit_canvas_video(CanvasVideoProviderInput {
+                    user_id: input.user_id,
                     project_id: input.project_id,
                     workflow_run_id: lifecycle.run.workflow_run_id,
                     config: config.clone(),

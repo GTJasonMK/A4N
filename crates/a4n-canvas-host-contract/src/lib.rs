@@ -69,6 +69,7 @@ pub trait CanvasImageNodeApplicationPort: Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct CanvasVideoProviderInput {
+    pub user_id: i64,
     pub project_id: i64,
     pub workflow_run_id: i64,
     pub config: VideoProviderConfig,

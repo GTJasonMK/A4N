@@ -26,6 +26,9 @@ use tokio_util::sync::CancellationToken;
 
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";
 
+pub type ImageGenerationProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync + 'a);
+pub type ImageGenerationCancelToken<'a> = &'a CancellationToken;
+
 #[derive(Debug, Clone)]
 pub struct PreparedImageGenerationRequest {
     pub project_id: i64,
@@ -38,8 +41,8 @@ pub struct PreparedImageGenerationRequest {
 }
 
 pub struct ImageGenerationProgress<'a> {
-    reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync + 'a)>,
-    cancel_token: Option<&'a CancellationToken>,
+    reporter: Option<ImageGenerationProgressReporter<'a>>,
+    cancel_token: Option<ImageGenerationCancelToken<'a>>,
 }
 
 impl<'a> ImageGenerationProgress<'a> {
@@ -51,8 +54,8 @@ impl<'a> ImageGenerationProgress<'a> {
     }
 
     pub fn new(
-        reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync + 'a)>,
-        cancel_token: Option<&'a CancellationToken>,
+        reporter: Option<ImageGenerationProgressReporter<'a>>,
+        cancel_token: Option<ImageGenerationCancelToken<'a>>,
     ) -> Self {
         Self {
             reporter,
@@ -83,6 +86,7 @@ impl<'a> ImageGenerationProgress<'a> {
 
 #[derive(Debug, Clone)]
 pub struct ImageGenerationProviderInput {
+    pub user_id: i64,
     pub project_id: i64,
     pub workflow_run_id: i64,
     pub config: ImageProviderConfig,

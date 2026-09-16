@@ -26,6 +26,7 @@ use super::{
 };
 
 struct PreparedReferenceMediaVideoGeneration {
+    user_id: i64,
     project_id: i64,
     chapter_id: i64,
     segment_plan_prompt_id: i64,
@@ -52,6 +53,7 @@ impl OrchestratorContext {
             .await?;
         let body = host_port
             .reference_media_provider_request_body_for_preview(VideoProviderRequestInput {
+                user_id: prepared.user_id,
                 project_id: prepared.project_id,
                 config: prepared.config.clone(),
                 request: prepared.request.clone(),
@@ -98,6 +100,7 @@ impl OrchestratorContext {
         progress.check_cancelled("参考媒体视频生成已停止")?;
         let request_body = host_port
             .reference_media_provider_request_body(VideoProviderRequestInput {
+                user_id: prepared.user_id,
                 project_id: prepared.project_id,
                 config: prepared.config.clone(),
                 request: prepared.request.clone(),
@@ -208,6 +211,7 @@ impl OrchestratorContext {
             return Err(AppError::Cancelled);
         }
         let mut provider_input = VideoProviderRequestInput {
+            user_id: prepared.user_id,
             project_id: prepared.project_id,
             config: prepared.config.clone(),
             request: prepared.request,
@@ -447,6 +451,7 @@ impl OrchestratorContext {
             };
         }
         Ok(PreparedReferenceMediaVideoGeneration {
+            user_id,
             project_id,
             chapter_id,
             segment_plan_prompt_id,

@@ -91,7 +91,7 @@ impl ModelCapability {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct ModelUsageMeter {
     pub input_tokens: Option<u64>,
@@ -101,20 +101,6 @@ pub struct ModelUsageMeter {
     pub image_count: Option<u64>,
     pub duration_seconds: Option<String>,
     pub estimated: bool,
-}
-
-impl Default for ModelUsageMeter {
-    fn default() -> Self {
-        Self {
-            input_tokens: None,
-            output_tokens: None,
-            cache_read_tokens: None,
-            cache_write_tokens: None,
-            image_count: None,
-            duration_seconds: None,
-            estimated: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

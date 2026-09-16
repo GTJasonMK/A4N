@@ -76,6 +76,7 @@ struct SharedSegmentValidationIndex {
 }
 
 struct PreparedChapterVideoGeneration {
+    user_id: i64,
     project_id: i64,
     chapter_id: i64,
     context: ChapterVideoProviderRequestContext,
@@ -113,6 +114,7 @@ impl OrchestratorContext {
             .await?;
         let body = host_port
             .chapter_video_provider_request_body_for_preview(VideoProviderRequestInput {
+                user_id: prepared.user_id,
                 project_id: prepared.project_id,
                 config: prepared.context.config.clone(),
                 request: prepared.context.request.clone(),
@@ -187,6 +189,7 @@ impl OrchestratorContext {
         }
         let prompt_length_context = video_request_prompt_length_context(&context.request);
         let mut provider_input = VideoProviderRequestInput {
+            user_id: prepared.user_id,
             project_id: prepared.project_id,
             config: context.config.clone(),
             request: context.request.clone(),
@@ -442,6 +445,7 @@ impl OrchestratorContext {
         enforce_provider_prompt_length_contract(&config.backend, &request.prompt)
             .map_err(AppError::InvalidArgument)?;
         Ok(PreparedChapterVideoGeneration {
+            user_id,
             project_id,
             chapter_id,
             staging_artifacts: image_inputs.staging_artifacts,
@@ -475,6 +479,7 @@ impl OrchestratorContext {
             .map_err(AppError::InvalidArgument)?;
         let body = host_port
             .chapter_video_provider_request_body(VideoProviderRequestInput {
+                user_id: prepared.user_id,
                 project_id: prepared.project_id,
                 config: context.config.clone(),
                 request: snapshot_request,

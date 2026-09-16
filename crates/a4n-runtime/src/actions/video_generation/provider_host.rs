@@ -1,13 +1,13 @@
+use a4n_canvas_host_contract::{
+    CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
+    CanvasVideoProviderInput,
+};
 use a4n_config::optional_non_empty_env_string;
 use a4n_domain::cost::{
     ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
 };
 use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
 use a4n_error::AppError;
-use a4n_canvas_host_contract::{
-    CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
-    CanvasVideoProviderInput,
-};
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_service_protocol::GenerationArtifactRef;
@@ -152,7 +152,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
             .provider_runtime()
             .start_model_usage(ModelUsageRecordStart {
                 request_id: uuid::Uuid::new_v4().to_string(),
-                user_id: None,
+                user_id: Some(input.user_id),
                 project_id: Some(input.project_id),
                 root_project_id,
                 workflow_run_id: None,
@@ -693,7 +693,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             .provider_runtime()
             .start_model_usage(ModelUsageRecordStart {
                 request_id: uuid::Uuid::new_v4().to_string(),
-                user_id: None,
+                user_id: Some(input.user_id),
                 project_id: Some(input.project_id),
                 root_project_id,
                 workflow_run_id: Some(input.workflow_run_id),
