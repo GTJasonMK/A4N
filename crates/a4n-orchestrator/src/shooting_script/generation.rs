@@ -36,6 +36,13 @@ enum ShootingScriptGenerationOutcome {
     Complete(Box<ResolvedChapterShootingScript>),
 }
 
+fn progress_source(source: ChapterShootingScriptSourceInput) -> ChapterShootingScriptSourceInput {
+    ChapterShootingScriptSourceInput {
+        visual_plan_id: None,
+        ..source
+    }
+}
+
 fn shared_workflow_source(source: &ResolvedChapterSource) -> ChapterShootingScriptSourceInput {
     ChapterShootingScriptSourceInput {
         project_id: source.root_project_id,
@@ -60,6 +67,7 @@ impl OrchestratorContext {
         &self,
         source: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptUnitProgress>, AppError> {
+        let source = progress_source(source);
         let (requested_source, _) = self
             .load_chapter_shooting_script_source_record(&source)
             .await?;
@@ -458,9 +466,23 @@ impl OrchestratorContext {
 
 #[cfg(test)]
 mod tests {
+    use a4n_api_contract::shooting_script::ChapterShootingScriptSourceInput;
     use a4n_db::project::ResolvedChapterSource;
 
-    use super::shared_workflow_source;
+    use super::{progress_source, shared_workflow_source};
+
+    #[test]
+    fn progress_ignores_requested_visual_plan_id() {
+        let source = progress_source(ChapterShootingScriptSourceInput {
+            project_id: 26,
+            source_chapter_id: 11,
+            visual_plan_id: Some(26),
+        });
+
+        assert_eq!(source.project_id, 26);
+        assert_eq!(source.source_chapter_id, 11);
+        assert_eq!(source.visual_plan_id, None);
+    }
 
     #[test]
     fn derived_project_reads_partial_workflow_from_shared_root_project() {
