@@ -339,12 +339,12 @@ use a4n_domain::profile_material::{
     ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
     ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
 };
-use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind, ProgressSeverity};
 use a4n_domain::{
     DEFAULT_IMAGE_SIZES, DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, ImageSize,
     LLM_RESERVED_REQUEST_OPTION_KEYS, THEME_DOCUMENT_VERSION, THEME_GLOBAL_ROUTE_FAMILY,
     THEME_ROUTE_FAMILIES, THEME_TOKEN_NAMES,
 };
+use a4n_progress::{ProgressMeta, ProgressPhaseKind, ProgressSeverity};
 use schemars::JsonSchema;
 use serde_json::Value;
 use std::{env, fs, path::PathBuf};

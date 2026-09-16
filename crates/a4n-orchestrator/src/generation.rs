@@ -9,8 +9,8 @@ pub use terminal::{GenerationTerminalError, GenerationTerminalWriteOutcome};
 
 use std::sync::Arc;
 
-use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_error::AppError;
+use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationError, GenerationErrorCode, GenerationFinishReason,
     GenerationResultRef, GenerationTaskStatus, ProgressEvent,

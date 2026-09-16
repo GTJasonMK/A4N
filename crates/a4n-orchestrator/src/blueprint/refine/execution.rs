@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 use a4n_api_contract::{
     blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
 };
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_domain::project::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND};
 use a4n_error::AppError;
+use a4n_progress::ProgressPhaseKind;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;

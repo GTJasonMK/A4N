@@ -14,8 +14,8 @@ use a4n_api_contract::{
     },
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
+use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{BatchSummary, GenerationError, GenerationResultRef};
 use tokio::sync::mpsc;
 

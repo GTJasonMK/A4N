@@ -9,6 +9,7 @@ a4n-config = { path = "../a4n-config" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
+a4n-progress = { path = "../a4n-progress" }
  a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-queue = { path = "../a4n-queue" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }

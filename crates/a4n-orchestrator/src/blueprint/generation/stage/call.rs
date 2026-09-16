@@ -1,8 +1,8 @@
-use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_domain::project::{
     BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_RAW_JSON_STREAM_ID, blueprint_stage_call_key,
 };
 use a4n_error::AppError;
+use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_prompt::blueprint_generation::parse_blueprint_stage_json_object;
 use a4n_service_protocol::GenerationUsage;
 

@@ -29,7 +29,6 @@ pub mod object_profile;
 pub mod profile_material;
 pub mod profile_ownership;
 pub mod profile_text;
-pub mod progress;
 pub mod project;
 pub mod project_reset;
 pub mod prompt_language;

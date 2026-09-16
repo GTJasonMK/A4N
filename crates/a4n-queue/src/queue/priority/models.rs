@@ -1,5 +1,5 @@
 use super::{TaskKind, TaskPriority, TaskStatus};
-use a4n_domain::progress::ProgressMeta;
+use a4n_progress::ProgressMeta;
 use serde::{Deserialize, Serialize};
 
 /// 任务进度

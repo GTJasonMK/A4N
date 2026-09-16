@@ -1,8 +1,8 @@
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizeAnalysisGenerationInput,
 };
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
+use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     GenerationFinishReason, GenerationResultRef, GenerationTaskStatus, StreamTextHash,
 };

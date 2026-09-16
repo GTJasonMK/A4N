@@ -1,10 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{
     ChatMessage, ChatRequest, ChatResponse, LlmProvider, UsageInfo, is_truncated_finish_reason,
 };
+use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     GenerationError, GenerationErrorCode, GenerationFinishReason, GenerationUsage,
     JS_SAFE_INTEGER_U64, MAX_TEXT_DELTA_BYTES, ProgressEvent, UsageEvent,

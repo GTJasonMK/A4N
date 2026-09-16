@@ -92,6 +92,7 @@ dependencies = [
  "a4n-domain",
  "a4n-embedding-contract",
  "a4n-error",
+ "a4n-progress",
  "a4n-prompt-contract",
  "a4n-provider-contract",
  "a4n-service-protocol",
@@ -286,6 +287,7 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "a4n-migration",
+ "a4n-progress",
  "a4n-queue",
  "a4n-service-protocol",
  "a4n-test-support",
@@ -1132,6 +1134,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
+ "a4n-progress",
  "anyhow",
  "chrono",
  "dashmap",
@@ -1447,6 +1450,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-domain",
  "a4n-error",
+ "a4n-progress",
  "chrono",
  "dashmap",
  "parking_lot",

@@ -1,4 +1,4 @@
-use a4n_domain::progress::ProgressMeta;
+use a4n_progress::ProgressMeta;
 use a4n_queue::priority::TaskInfo;
 use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};

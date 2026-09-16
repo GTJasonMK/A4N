@@ -1304,7 +1304,7 @@ impl WorkflowCancellationPort for OrchestratorContext {
 #[cfg(test)]
 mod task_read_tests {
     use super::task_info_summary;
-    use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind};
+    use a4n_progress::{ProgressMeta, ProgressPhaseKind};
     use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
     use chrono::NaiveDate;
 

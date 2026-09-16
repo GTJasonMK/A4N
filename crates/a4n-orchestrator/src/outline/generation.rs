@@ -10,9 +10,9 @@ use a4n_api_contract::{
         StartOutlineGenerationInput,
     },
 };
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, StreamTextHash, TextStreamSnapshot,
 };

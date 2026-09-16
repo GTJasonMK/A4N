@@ -3,7 +3,7 @@ use a4n_db_models::models::generation::{
 };
 #[cfg(test)]
 use a4n_db_models::models::task::task_queue;
-use a4n_domain::progress::ProgressMeta;
+use a4n_progress::ProgressMeta;
 #[cfg(test)]
 use a4n_queue::priority::{TaskKind, TaskPriority, TaskStatus};
 use chrono::Utc;

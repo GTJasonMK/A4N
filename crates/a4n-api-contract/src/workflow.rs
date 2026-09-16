@@ -1,4 +1,4 @@
-use a4n_domain::progress::ProgressMeta;
+use a4n_progress::ProgressMeta;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

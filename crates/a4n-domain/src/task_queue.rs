@@ -1,6 +1,6 @@
 //! Pure task-queue contracts.
 
-use crate::progress::{ProgressMeta, ProgressPhaseKind};
+use a4n_progress::{ProgressMeta, ProgressPhaseKind};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

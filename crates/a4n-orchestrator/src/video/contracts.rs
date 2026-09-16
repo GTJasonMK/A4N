@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::chapter::chapter;
-use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::Value;
