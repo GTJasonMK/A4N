@@ -1293,29 +1293,31 @@ impl crate::OrchestratorContext {
         file_size: i64,
     ) -> Result<GeneratedImageSummary, AppError> {
         let image = self
-            .create_generated_image_record(a4n_db::video::CreateGeneratedImageRecordDraftInput {
-                project_id: plan.video.project_id,
-                image_type: IMAGE_TYPE_CANVAS_FRAME.to_string(),
-                file_path,
-                prompt: format!("视频 #{} 画布抽帧 {}", plan.video.id, plan.frame_kind),
-                model: "ffmpeg".to_string(),
-                width: plan.video.width,
-                height: plan.video.height,
-                file_size: Some(file_size),
-                chapter_id: None,
-                panel_id: None,
-                metadata_json: Some(serde_json::json!({
-                    "canvas_frame": {
-                        "source_video_id": plan.video.id,
-                        "frame_kind": plan.frame_kind,
-                        "at_secs": plan.timestamp,
-                        "source_workflow_mode": plan.video.workflow_mode,
-                        "extracted_at": Utc::now().to_rfc3339(),
-                    },
-                    "source": "video_canvas",
-                })),
-                created_at: None,
-            })
+            .create_generated_image_record(
+                a4n_domain::media::CreateGeneratedImageRecordDraftInput {
+                    project_id: plan.video.project_id,
+                    image_type: IMAGE_TYPE_CANVAS_FRAME.to_string(),
+                    file_path,
+                    prompt: format!("视频 #{} 画布抽帧 {}", plan.video.id, plan.frame_kind),
+                    model: "ffmpeg".to_string(),
+                    width: plan.video.width,
+                    height: plan.video.height,
+                    file_size: Some(file_size),
+                    chapter_id: None,
+                    panel_id: None,
+                    metadata_json: Some(serde_json::json!({
+                        "canvas_frame": {
+                            "source_video_id": plan.video.id,
+                            "frame_kind": plan.frame_kind,
+                            "at_secs": plan.timestamp,
+                            "source_workflow_mode": plan.video.workflow_mode,
+                            "extracted_at": Utc::now().to_rfc3339(),
+                        },
+                        "source": "video_canvas",
+                    })),
+                    created_at: None,
+                },
+            )
             .await?;
         Ok(crate::media::generated_image_summary(&image))
     }
@@ -1351,30 +1353,32 @@ impl crate::OrchestratorContext {
             .as_ref()
             .and_then(|metadata| metadata.get("source"))
             .cloned();
-        self.create_generated_image_record(a4n_db::video::CreateGeneratedImageRecordDraftInput {
-            project_id: video.project_id,
-            image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.to_string(),
-            file_path,
-            prompt: format!("视频 #{} 第 {} 段真实尾帧采集", video.id, shot_number),
-            model: "ffmpeg".to_string(),
-            width: video.width.max(1),
-            height: video.height.max(1),
-            file_size: Some(file_size),
-            chapter_id: Some(chapter_id),
-            panel_id: None,
-            metadata_json: Some(serde_json::json!({
-                "generation_context": {
-                    "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
-                    "video_id": video.id,
-                    "shot_number": shot_number,
-                    "source_content_sha256": metadata_source_content_sha256(
-                        video.metadata_json.as_ref()
-                    ),
-                },
-                "source": source,
-            })),
-            created_at: None,
-        })
+        self.create_generated_image_record(
+            a4n_domain::media::CreateGeneratedImageRecordDraftInput {
+                project_id: video.project_id,
+                image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.to_string(),
+                file_path,
+                prompt: format!("视频 #{} 第 {} 段真实尾帧采集", video.id, shot_number),
+                model: "ffmpeg".to_string(),
+                width: video.width.max(1),
+                height: video.height.max(1),
+                file_size: Some(file_size),
+                chapter_id: Some(chapter_id),
+                panel_id: None,
+                metadata_json: Some(serde_json::json!({
+                    "generation_context": {
+                        "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+                        "video_id": video.id,
+                        "shot_number": shot_number,
+                        "source_content_sha256": metadata_source_content_sha256(
+                            video.metadata_json.as_ref()
+                        ),
+                    },
+                    "source": source,
+                })),
+                created_at: None,
+            },
+        )
         .await
     }
 

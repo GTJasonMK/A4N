@@ -54,7 +54,7 @@ async fn director_resources_are_family_scoped_and_survive_reset_and_supersession
         .unwrap();
     let image = a4n_db::video::create_generated_image_record(
         &db,
-        a4n_db::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: media_project.id,
             image_type: "director_storyboard_frame".into(),
             file_path: format!("projects/{}/images/director.png", media_project.id),

@@ -43,7 +43,7 @@ async fn media_workflow_reset_commits_file_cleanup_intent_with_record_deletion()
     let path = format!("projects/{}/images/reset.png", project.id);
     let image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: path.clone(),

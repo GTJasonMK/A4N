@@ -66,7 +66,7 @@ async fn generated_image_record(
 ) -> generated_image::Model {
     crate::video::create_generated_image_record(
         db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
             image_type: "chapter_image".to_string(),
             file_path: file_path.to_string(),

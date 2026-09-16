@@ -388,7 +388,7 @@ async fn prompt_mutability_batch_preserves_generated_frame_guard() {
     .await;
     let image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
             image_type: "video_key_frame".to_string(),
             file_path: "images/batch-guard.png".to_string(),
@@ -438,7 +438,7 @@ async fn prompt_mutability_batch_can_skip_generated_frame_guard() {
     .await;
     crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
             image_type: "video_key_frame".to_string(),
             file_path: "images/skip-batch-guard.png".to_string(),
@@ -489,7 +489,7 @@ async fn prompt_delete_batch_preserves_generated_frame_guard() {
     .await;
     let image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
             image_type: "video_key_frame".to_string(),
             file_path: "images/delete-batch-guard.png".to_string(),

@@ -1,4 +1,5 @@
 use a4n_db_models::models::{ai::generated_image, project::novel_blueprint};
+use a4n_domain::media::CreateGeneratedImageRecordDraftInput;
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;
 use serde_json::Value;
@@ -60,22 +61,6 @@ pub(in crate::video::generated_images) struct CreateGeneratedImageRecordInput {
     pub panel_id: Option<String>,
     pub metadata_json: Option<Value>,
     pub created_at: NaiveDateTime,
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateGeneratedImageRecordDraftInput {
-    pub project_id: i64,
-    pub image_type: String,
-    pub file_path: String,
-    pub prompt: String,
-    pub model: String,
-    pub width: i32,
-    pub height: i32,
-    pub file_size: Option<i64>,
-    pub chapter_id: Option<i64>,
-    pub panel_id: Option<String>,
-    pub metadata_json: Option<Value>,
-    pub created_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, Default)]

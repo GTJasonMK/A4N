@@ -105,7 +105,7 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
     let image_path = format!("projects/{}/images/ref.png", project.id);
     let image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: image_path.clone(),

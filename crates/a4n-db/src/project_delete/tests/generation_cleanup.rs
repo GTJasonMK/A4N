@@ -106,7 +106,7 @@ async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
         generated_image_with_asset(&db, project.id, "generated-reset.png").await;
     let imported = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: generated.file_path.clone(),

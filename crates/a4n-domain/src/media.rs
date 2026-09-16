@@ -1,6 +1,8 @@
 use serde_json::Value;
 use std::path::Path;
 
+use chrono::NaiveDateTime;
+
 /// Facts inspected from a generated media file before publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedMediaArtifactFile {
@@ -29,6 +31,24 @@ pub struct DecodedUploadedAudio {
     pub mime_type: &'static str,
     pub extension: &'static str,
     pub bytes: Vec<u8>,
+}
+
+/// Pure input for creating a generated-image record. Database validation,
+/// project ownership, locking and persistence stay in `a4n-db`.
+#[derive(Debug, Clone)]
+pub struct CreateGeneratedImageRecordDraftInput {
+    pub project_id: i64,
+    pub image_type: String,
+    pub file_path: String,
+    pub prompt: String,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: Option<i64>,
+    pub chapter_id: Option<i64>,
+    pub panel_id: Option<String>,
+    pub metadata_json: Option<Value>,
+    pub created_at: Option<NaiveDateTime>,
 }
 
 /// Durable facts needed to recover an image publication without exposing ORM

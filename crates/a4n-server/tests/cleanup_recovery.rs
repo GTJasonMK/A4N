@@ -530,7 +530,7 @@ async fn server_process_keeps_referenced_file_artifact_during_cleanup() {
     std::fs::write(&absolute_path, b"referenced").unwrap();
     let image = a4n_db::video::create_generated_image_record(
         &db,
-        a4n_db::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: "imported".to_string(),
             file_path: referenced_path.clone(),

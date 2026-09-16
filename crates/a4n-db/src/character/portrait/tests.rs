@@ -312,7 +312,7 @@ async fn portrait_rollback_is_transactional_and_project_scoped() {
     .unwrap();
     let target_image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: "portrait".to_string(),
             file_path: image_path.to_string(),
@@ -334,7 +334,7 @@ async fn portrait_rollback_is_transactional_and_project_scoped() {
     .unwrap();
     let other_image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: other_project.id,
             image_type: "portrait".to_string(),
             file_path: image_path.to_string(),

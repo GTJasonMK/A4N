@@ -170,7 +170,7 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
     .unwrap();
     let image_a = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: "portrait".to_string(),
             file_path: shared_path.to_string(),
@@ -189,7 +189,7 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
     .unwrap();
     let image_b = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: "portrait".to_string(),
             file_path: shared_path.to_string(),
