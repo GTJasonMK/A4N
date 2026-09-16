@@ -26,7 +26,7 @@ pub(super) fn request_for_call(
     execution: &AgentExecutionSnapshot,
     call: &ToolCall,
 ) -> Result<AgentEditorRequest, AppError> {
-    ensure_scope_allows_tool(&context.scope, &call.name)?;
+    ensure_agent_scope_allows_tool(&context.scope, &call.name)?;
     ensure_argument_scope(
         &context.scope,
         &tool_descriptor(&call.name)?,

@@ -2,15 +2,16 @@ use crate::AppState;
 use a4n_agent_runtime_contract::{
     AgentContextSummary, AgentExecutionSnapshot, AgentExternalTaskWaitSnapshot, AgentInboxSnapshot,
     AgentMessageSnapshot, AgentRunContext, AgentWorkerRun, WorkerDelegationInput,
-    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
-    enforce_delegation_limits, validate_agent_budget,
+    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, agent_skill_directory_prompt,
+    child_budget_within_parent, enforce_delegation_limits, ensure_agent_scope_allows_tool,
+    validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentApprovalView, AgentBudget, AgentEvent, AgentEventsInput, AgentMemoryInput,
     AgentMemoryScopeKind, AgentMemoryView, AgentMessageAccepted, AgentRunView, AgentScope,
-    AgentSkillContent, AgentSkillDescriptor, AgentSkillSearchResult, AgentThreadSnapshot,
-    AgentThreadView, AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput,
-    ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
+    AgentSkillContent, AgentSkillSearchResult, AgentThreadSnapshot, AgentThreadView,
+    AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput,
+    ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
     EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
     ListAgentThreadsInput, LoadAgentSkillInput, LocateWritingTargetInput,
     ResolveAgentApprovalInput, RetractAgentMemoryInput, SearchAgentSkillsInput,
@@ -411,7 +412,7 @@ impl RuntimeAgentToolExecutor {
         let user_id = context.owner_user_id;
         let scope = &context.scope;
         let descriptor = tool_descriptor(name)?;
-        ensure_scope_allows_tool(scope, name)?;
+        ensure_agent_scope_allows_tool(scope, name)?;
         ensure_argument_scope(scope, &descriptor, &arguments)?;
         ensure_argument_resource_scope(&self.state, user_id, scope, &arguments).await?;
         if tool_requires_approval(name, &descriptor.effect) && !approved_write {
@@ -715,7 +716,7 @@ impl RuntimeAgentToolExecutor {
             ),
             "describe_agent_tool" => {
                 let input = parse_arguments::<DescribeAgentToolInput>(arguments, name)?;
-                ensure_scope_allows_tool(scope, &input.name)?;
+                ensure_agent_scope_allows_tool(scope, &input.name)?;
                 serde_json::to_value(
                     self.state
                         .agent_tool_read_application()
@@ -815,25 +816,6 @@ fn tool_descriptor(
             AppError::NotFound(format!("Host command manifest 中不存在工具: {name}"))
         }
     })
-}
-
-fn ensure_scope_allows_tool(scope: &AgentScope, name: &str) -> Result<(), AppError> {
-    // Skills are read-only guidance and do not expand the operational scope.
-    // Keep them visible to threads created before the Skill catalog existed.
-    if is_agent_skill_tool(name)
-        || scope.allowed_tools.is_empty()
-        || scope.allowed_tools.iter().any(|allowed| allowed == name)
-    {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden(format!(
-            "Agent scope 不允许使用工具: {name}"
-        )))
-    }
-}
-
-fn is_agent_skill_tool(name: &str) -> bool {
-    matches!(name, "search_agent_skills" | "load_agent_skill")
 }
 
 /// A bound Agent scope is also a resource fence for dynamically discovered
@@ -4149,7 +4131,7 @@ fn with_agent_system_prompt(
     } else {
         ""
     };
-    let skill_directory = skill_directory_prompt(&skills.skills);
+    let skill_directory = agent_skill_directory_prompt(&skills.skills);
     let prompt = format!(
         "你是 A4N 项目 Agent。{role}\n\
 当前能力域：{}\n\
@@ -4184,17 +4166,6 @@ fn with_agent_system_prompt(
         );
     }
     messages
-}
-
-fn skill_directory_prompt(skills: &[AgentSkillDescriptor]) -> String {
-    if skills.is_empty() {
-        return "当前 capability 没有启用 Skill。".into();
-    }
-    skills
-        .iter()
-        .map(|skill| format!("- {} ({})：{}", skill.id, skill.version, skill.description))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 fn action_budget_exhausted(
@@ -4280,7 +4251,7 @@ fn available_runtime_tools(
     {
         names.push("web_search".into());
     }
-    names.retain(|name| ensure_scope_allows_tool(scope, name).is_ok());
+    names.retain(|name| ensure_agent_scope_allows_tool(scope, name).is_ok());
     let pending = executions
         .iter()
         .filter(|execution| {
@@ -4290,7 +4261,7 @@ fn available_runtime_tools(
             )
         })
         .filter_map(|execution| execution.tool_name.as_deref())
-        .filter(|name| ensure_scope_allows_tool(scope, name).is_ok())
+        .filter(|name| ensure_agent_scope_allows_tool(scope, name).is_ok())
         .collect::<Vec<_>>();
     for name in pending.iter().copied() {
         if !names.iter().any(|known| known == name) {
@@ -4308,7 +4279,8 @@ fn available_runtime_tools(
         });
     }
     for name in discovered_tools.iter().rev() {
-        if !names.iter().any(|known| known == name) && ensure_scope_allows_tool(scope, name).is_ok()
+        if !names.iter().any(|known| known == name)
+            && ensure_agent_scope_allows_tool(scope, name).is_ok()
         {
             if names.len() == MAX_AGENT_TOOL_SCHEMAS {
                 break;
@@ -4370,7 +4342,7 @@ fn extend_discovered_tools(
 ) -> Result<(), AppError> {
     for name in names {
         let name = name.trim();
-        if name.is_empty() || ensure_scope_allows_tool(scope, name).is_err() {
+        if name.is_empty() || ensure_agent_scope_allows_tool(scope, name).is_err() {
             continue;
         }
         // Re-resolve every discovered name through the canonical descriptor.

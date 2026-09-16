@@ -36,6 +36,13 @@ pub const GENERAL_AGENT_CAPABILITY: &str = "general";
 pub const CONTENT_OPTIMIZATION_AGENT_CAPABILITY: &str = "content_optimization";
 pub const CANVAS_AGENT_CAPABILITY: &str = "canvas";
 pub const DIRECTOR_AGENT_CAPABILITY: &str = "director";
+pub const AGENT_CAPABILITIES: &[&str] = &[
+    MAIN_AGENT_CAPABILITY,
+    GENERAL_AGENT_CAPABILITY,
+    CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+    CANVAS_AGENT_CAPABILITY,
+    DIRECTOR_AGENT_CAPABILITY,
+];
 pub const MAIN_AGENT_TOOLS: &[&str] = &[
     "search_agent_tools",
     "describe_agent_tool",
@@ -143,6 +150,10 @@ pub fn capability_has_restricted_tool_catalog(capability: &str) -> bool {
         capability.trim(),
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY | CANVAS_AGENT_CAPABILITY | DIRECTOR_AGENT_CAPABILITY
     )
+}
+
+pub fn is_agent_skill_tool(name: &str) -> bool {
+    matches!(name, "search_agent_skills" | "load_agent_skill")
 }
 
 pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
@@ -1697,21 +1708,14 @@ pub trait AgentResourceAccessApplicationPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
-        GENERAL_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
-        agent_tool_descriptor, agent_tools_for_capability, synthetic_agent_tool_descriptor,
+        AGENT_CAPABILITIES, LocateWritingTargetInput, agent_tool_descriptor,
+        agent_tools_for_capability, synthetic_agent_tool_descriptor,
     };
     use crate::command_manifest::command_descriptor;
 
     #[test]
     fn capability_catalogs_are_non_empty_and_every_tool_is_resolvable() {
-        for capability in [
-            MAIN_AGENT_CAPABILITY,
-            GENERAL_AGENT_CAPABILITY,
-            CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
-            CANVAS_AGENT_CAPABILITY,
-            DIRECTOR_AGENT_CAPABILITY,
-        ] {
+        for capability in AGENT_CAPABILITIES {
             let tools = agent_tools_for_capability(capability);
             assert!(!tools.is_empty(), "{capability} must expose tools");
             assert!(tools.contains(&"search_agent_tools"));

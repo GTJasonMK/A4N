@@ -1,9 +1,10 @@
 use super::AgentApplication;
 use a4n_api_contract::agent::{
-    AgentSkillContent, AgentSkillDescriptor, AgentSkillProfileView, AgentSkillSearchResult,
-    AgentSkillSettingsView, CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
-    DIRECTOR_AGENT_CAPABILITY, GENERAL_AGENT_CAPABILITY, LoadAgentSkillInput,
-    MAIN_AGENT_CAPABILITY, SearchAgentSkillsInput, UpdateAgentSkillConfigurationInput,
+    AGENT_CAPABILITIES, AgentSkillContent, AgentSkillDescriptor, AgentSkillProfileView,
+    AgentSkillSearchResult, AgentSkillSettingsView, CANVAS_AGENT_CAPABILITY,
+    CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY, GENERAL_AGENT_CAPABILITY,
+    LoadAgentSkillInput, MAIN_AGENT_CAPABILITY, SearchAgentSkillsInput,
+    UpdateAgentSkillConfigurationInput,
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
@@ -13,13 +14,6 @@ use std::collections::HashSet;
 
 const MAX_SKILL_IDS: usize = 32;
 const MAX_SKILL_CONTENT_BYTES: usize = 12 * 1024;
-const SUPPORTED_CAPABILITIES: &[&str] = &[
-    MAIN_AGENT_CAPABILITY,
-    GENERAL_AGENT_CAPABILITY,
-    CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
-    CANVAS_AGENT_CAPABILITY,
-    DIRECTOR_AGENT_CAPABILITY,
-];
 
 struct BuiltinSkill {
     id: &'static str,
@@ -76,8 +70,8 @@ impl AgentApplication {
         user_id: i64,
     ) -> Result<AgentSkillSettingsView, AppError> {
         super::validate_user_id(user_id)?;
-        let mut profiles = Vec::with_capacity(SUPPORTED_CAPABILITIES.len());
-        for capability in SUPPORTED_CAPABILITIES {
+        let mut profiles = Vec::with_capacity(AGENT_CAPABILITIES.len());
+        for capability in AGENT_CAPABILITIES {
             profiles.push(self.skill_profile_view(user_id, capability).await?);
         }
         Ok(AgentSkillSettingsView { profiles })
@@ -89,13 +83,13 @@ impl AgentApplication {
         input: UpdateAgentSkillConfigurationInput,
     ) -> Result<AgentSkillProfileView, AppError> {
         super::validate_user_id(user_id)?;
-        let capability = normalize_capability(&input.capability)?;
-        if !SUPPORTED_CAPABILITIES.contains(&capability) {
+        let capability = super::required_capability(input.capability)?;
+        if !AGENT_CAPABILITIES.contains(&capability.as_str()) {
             return Err(AppError::InvalidArgument(format!(
                 "不支持配置的 Agent capability: {capability}"
             )));
         }
-        let available = applicable_skills(capability);
+        let available = applicable_skills(&capability);
         let available_ids = available
             .iter()
             .map(|skill| skill.id)
@@ -121,12 +115,12 @@ impl AgentApplication {
         a4n_db::agent::save_agent_skill_profile_ids(
             self.connection(),
             user_id,
-            capability,
+            &capability,
             &input.enabled_skill_ids,
         )
         .await
         .map_err(super::agent_db_error_to_app)?;
-        self.skill_profile_view(user_id, capability).await
+        self.skill_profile_view(user_id, &capability).await
     }
 
     pub(crate) async fn search_skills(
@@ -136,13 +130,13 @@ impl AgentApplication {
         input: SearchAgentSkillsInput,
     ) -> Result<AgentSkillSearchResult, AppError> {
         super::validate_user_id(user_id)?;
-        let capability = normalize_capability(capability)?;
+        let capability = super::required_capability(capability.to_string())?;
         if input.query.as_deref().is_some_and(|query| {
             query.chars().count() > 200 || query.chars().any(|ch| ch.is_control())
         }) {
             return Err(AppError::InvalidArgument("Skill 搜索关键词无效".into()));
         }
-        let enabled = self.enabled_skill_ids(user_id, capability).await?;
+        let enabled = self.enabled_skill_ids(user_id, &capability).await?;
         let query = input
             .query
             .as_deref()
@@ -155,7 +149,7 @@ impl AgentApplication {
             a4n_api_contract::agent::AGENT_SKILLS_MAX_LIMIT,
             "limit",
         )? as usize;
-        let mut skills = applicable_skills(capability)
+        let mut skills = applicable_skills(&capability)
             .into_iter()
             .filter(|skill| enabled.contains(skill.id))
             .filter(|skill| {
@@ -179,13 +173,13 @@ impl AgentApplication {
         input: LoadAgentSkillInput,
     ) -> Result<AgentSkillContent, AppError> {
         super::validate_user_id(user_id)?;
-        let capability = normalize_capability(capability)?;
+        let capability = super::required_capability(capability.to_string())?;
         let id = input.id.trim();
         if id.is_empty() || id.len() > 160 {
             return Err(AppError::InvalidArgument("Skill ID 无效".into()));
         }
-        let enabled = self.enabled_skill_ids(user_id, capability).await?;
-        let skill = applicable_skills(capability)
+        let enabled = self.enabled_skill_ids(user_id, &capability).await?;
+        let skill = applicable_skills(&capability)
             .into_iter()
             .find(|skill| skill.id == id)
             .ok_or_else(|| {
@@ -332,14 +326,6 @@ impl a4n_api_contract::agent::AgentSkillApplicationPort for AgentApplication {
     ) -> Result<AgentSkillContent, AppError> {
         AgentApplication::load_skill(self, user_id, capability, input).await
     }
-}
-
-fn normalize_capability(value: &str) -> Result<&str, AppError> {
-    let value = value.trim();
-    if value.is_empty() || value.len() > 128 || value.chars().any(|ch| ch.is_control()) {
-        return Err(AppError::InvalidArgument("Agent capability 无效".into()));
-    }
-    Ok(value)
 }
 
 fn applicable_skills(capability: &str) -> Vec<&'static BuiltinSkill> {
