@@ -1,6 +1,6 @@
 use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use a4n_domain::source_text_hash;
-use a4n_domain::video_prompt::ChapterVideoPromptPatch;
+use a4n_domain::video_prompt::{ChapterVideoPromptPatch, UpdateChapterVideoPromptRecordInput};
 use a4n_video_contract::{
     VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     update_video_segment_recipe_metadata, video_segment_content_fingerprint,
@@ -116,7 +116,7 @@ where
     video::update_chapter_video_prompt_record(
         db,
         prompt,
-        video::UpdateChapterVideoPromptRecordInput {
+        UpdateChapterVideoPromptRecordInput {
             visual_prompt,
             motion_prompt,
             negative_prompt,

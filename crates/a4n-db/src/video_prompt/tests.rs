@@ -5,7 +5,8 @@ use a4n_db_models::models::{
     generation::{generation_run, generation_run_target},
 };
 use a4n_domain::video_prompt::{
-    ChapterVideoPromptPatch, ChapterVideoPromptSyncPolicy, PreparedVideoPromptGenerationTrace,
+    ChapterVideoPromptPatch, ChapterVideoPromptRecordFields, ChapterVideoPromptSyncPolicy,
+    PreparedVideoPromptGenerationTrace,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -175,7 +176,7 @@ fn sync_draft(
     shot_number: i32,
 ) -> ChapterVideoPromptSyncDraft {
     ChapterVideoPromptSyncDraft {
-        fields: video::ChapterVideoPromptRecordFields {
+        fields: ChapterVideoPromptRecordFields {
             project_id,
             chapter_id,
             style: Some("测试风格".to_string()),

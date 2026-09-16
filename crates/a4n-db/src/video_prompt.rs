@@ -5,8 +5,10 @@ use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
 
-use crate::video::{self, VideoDbError};
-use a4n_domain::video_prompt::PreparedVideoPromptGenerationTrace;
+use crate::video::VideoDbError;
+use a4n_domain::video_prompt::{
+    ChapterVideoPromptRecordFields, PreparedVideoPromptGenerationTrace,
+};
 
 async fn lock_chapter_video_prompt_scope<C>(db: &C, chapter_id: i64) -> Result<String, VideoDbError>
 where
@@ -30,7 +32,7 @@ where
 
 #[derive(Debug, Clone)]
 pub struct ChapterVideoPromptSyncDraft {
-    pub fields: video::ChapterVideoPromptRecordFields,
+    pub fields: ChapterVideoPromptRecordFields,
     pub generation_trace: Option<PreparedVideoPromptGenerationTrace>,
 }
 

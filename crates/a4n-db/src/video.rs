@@ -2,8 +2,7 @@ use sea_orm::{ConnectionTrait, DbErr};
 
 mod prompt_records;
 pub use prompt_records::{
-    ChapterVideoPromptCandidateRecord, ChapterVideoPromptRecordFields,
-    ChapterVideoPromptTimelineRecord, UpdateChapterVideoPromptRecordInput,
+    ChapterVideoPromptCandidateRecord, ChapterVideoPromptTimelineRecord,
     chapter_video_boundary_frame_prompt_candidates,
     chapter_video_first_frame_chain_prompt_candidates, chapter_video_first_frame_prompt_candidates,
     chapter_video_prompt_by_id, chapter_video_prompt_ids_for_types,

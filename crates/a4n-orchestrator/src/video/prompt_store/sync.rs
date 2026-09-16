@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
-use a4n_domain::video_prompt::ChapterVideoPromptSyncPolicy;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecordFields, ChapterVideoPromptSyncPolicy};
 use a4n_error::AppError;
 
 use super::contracts::NewChapterVideoPrompt;
@@ -82,7 +82,7 @@ fn prepare_prompt_sync_draft(
         .transpose()?;
     let workflow_mode = draft.workflow_mode.as_str().to_string();
     Ok(a4n_db::video_prompt::ChapterVideoPromptSyncDraft {
-        fields: a4n_db::video::ChapterVideoPromptRecordFields {
+        fields: ChapterVideoPromptRecordFields {
             project_id: draft.project_id,
             chapter_id: draft.chapter_id,
             style: draft.style,

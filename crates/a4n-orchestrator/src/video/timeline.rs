@@ -259,7 +259,7 @@ impl OrchestratorContext {
             timeline_id: input.timeline_id,
             expected_revision: input.expected_timeline_revision,
             gap,
-            prompt: a4n_db::video::ChapterVideoPromptRecordFields {
+            prompt: a4n_domain::video_prompt::ChapterVideoPromptRecordFields {
                 project_id,
                 chapter_id,
                 style: Some(fingerprint.payload.style.trim().to_string()),

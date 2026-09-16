@@ -1,6 +1,8 @@
 use super::identity::should_keep_unmatched_prompt;
 use super::*;
 use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
+#[cfg(test)]
+use a4n_domain::video_prompt::ChapterVideoPromptRecordFields;
 use a4n_domain::video_prompt::ChapterVideoPromptSyncPolicy;
 use a4n_video_contract::{VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2};
 use std::collections::BTreeSet;
@@ -331,7 +333,7 @@ mod tests {
 
     fn draft(metadata_json: Value) -> ChapterVideoPromptSyncDraft {
         ChapterVideoPromptSyncDraft {
-            fields: crate::video::ChapterVideoPromptRecordFields {
+            fields: ChapterVideoPromptRecordFields {
                 project_id: 1,
                 chapter_id: 2,
                 style: Some("cinematic".to_string()),

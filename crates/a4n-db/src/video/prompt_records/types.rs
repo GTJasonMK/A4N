@@ -32,33 +32,3 @@ pub struct ChapterVideoPromptCandidateRecord {
     pub shot_number: i32,
     pub metadata_json: Option<Value>,
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct UpdateChapterVideoPromptRecordInput {
-    pub visual_prompt: Option<String>,
-    pub motion_prompt: Option<Option<String>>,
-    pub negative_prompt: Option<Option<String>>,
-    pub duration_secs: Option<i32>,
-    pub reference_image_ids_json: Option<Option<Value>>,
-    pub metadata_json: Option<Value>,
-    pub reset_video_binding_to_pending: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterVideoPromptRecordFields {
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub style: Option<String>,
-    pub prompt_type: String,
-    pub workflow_mode: String,
-    pub shot_number: i32,
-    pub title: Option<String>,
-    pub scene_summary: Option<String>,
-    pub visual_prompt: String,
-    pub motion_prompt: Option<String>,
-    pub negative_prompt: Option<String>,
-    pub duration_secs: i32,
-    pub aspect_ratio: Option<String>,
-    pub reference_image_ids_json: Option<Value>,
-    pub metadata_json: Option<Value>,
-}
