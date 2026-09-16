@@ -113,7 +113,10 @@ export const WebSearchConfigPanel: React.FC = () => {
   };
 
   return (
-    <section aria-label={t("settings.webSearch")} className="w-full max-w-4xl">
+    <section
+      aria-label={t("settings.webSearch")}
+      className="custom-scrollbar h-auto min-h-0 w-full max-w-4xl overflow-visible pb-12 md:h-full md:overflow-y-auto md:pr-2"
+    >
       <div className="flex min-w-0 items-start gap-2">
         <Globe2 size={18} className="mt-0.5 shrink-0 text-book-primary" />
         <div className="min-w-0 flex-1">
