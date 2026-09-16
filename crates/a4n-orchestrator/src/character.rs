@@ -104,10 +104,7 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
 
 pub(crate) use attribute_lifecycle::implicit_review_attribute_event;
 
-pub use conflict::{
-    CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictProgressReporter,
-    validate_character_conflict_input,
-};
+pub use conflict::validate_character_conflict_input;
 
 #[async_trait::async_trait]
 impl CharacterDiscoveryApplicationPort for crate::OrchestratorContext {
@@ -241,16 +238,14 @@ impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
         .await
     }
 }
-pub use discovery::{
-    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
-    validate_character_discovery_input,
-};
+pub use discovery::validate_character_discovery_input;
+pub(crate) use discovery::{CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND};
 pub(crate) use discovery::{
     character_identity_key, character_llm_chapter_context, profile_character_keys,
 };
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
-pub use implicit_review::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
+pub(crate) use implicit_review::IMPLICIT_UPDATE_WORKFLOW_KIND;
 pub(crate) use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncSubject,

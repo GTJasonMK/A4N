@@ -10,7 +10,7 @@ mod output;
 mod persistence;
 mod request;
 
-pub use a4n_character_host_contract::{
+pub(crate) use a4n_character_host_contract::{
     CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
 };
 
