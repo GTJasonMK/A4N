@@ -118,7 +118,10 @@ export const AgentTab: React.FC = () => {
   };
 
   return (
-    <div className="flex h-auto min-h-0 flex-col gap-4 md:h-full">
+    <div
+      className="flex h-auto min-h-0 flex-col gap-4 md:h-full"
+      data-settings-dirty={dirty ? "true" : undefined}
+    >
       <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-book-border/60 pb-3">
         <div className="min-w-0">
           <div className="mb-1 flex items-center gap-2">
