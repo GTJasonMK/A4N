@@ -110,6 +110,17 @@ where
         .map_err(|e| ApiError::bad_request(format!("{command}.input 无效: {e}")))
 }
 
+pub(in crate::routes::commands) fn direct_command_input<T>(
+    args: &Value,
+    command: &str,
+) -> Result<T, ApiError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    serde_json::from_value(args.clone())
+        .map_err(|e| ApiError::bad_request(format!("{command} 参数无效: {e}")))
+}
+
 pub(in crate::routes::commands) fn strict_command_input<T>(
     args: &Value,
     command: &str,
@@ -191,7 +202,7 @@ pub(in crate::routes::commands) fn required_json_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        reject_unknown_command_args, strict_command_input,
+        direct_command_input, reject_unknown_command_args, strict_command_input,
         strict_optional_task_runtime_command_input, strict_runtime_command_input,
     };
     use serde::Deserialize;
@@ -249,5 +260,16 @@ mod tests {
             .is_err()
         );
         assert!(reject_unknown_command_args(&json!({ "input": {} }), "empty", &[]).is_err());
+    }
+
+    #[test]
+    fn direct_command_input_deserializes_manifest_level_arguments() {
+        let input =
+            direct_command_input::<TestInput>(&json!({ "value": 7 }), "test_command").unwrap();
+        assert_eq!(input.value, 7);
+        assert!(
+            direct_command_input::<TestInput>(&json!({ "input": { "value": 7 } }), "test_command",)
+                .is_err()
+        );
     }
 }

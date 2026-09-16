@@ -1,7 +1,8 @@
 use serde_json::Value;
 
 use super::super::super::{
-    ApiError, ServerState, image_records_actions, strict_command_input, to_value,
+    ApiError, ServerState, direct_command_input, image_records_actions, strict_command_input,
+    to_value,
 };
 
 pub(in crate::routes::commands) async fn list_images_by_project(
@@ -63,7 +64,7 @@ pub(in crate::routes::commands) async fn read_image(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: a4n_api_contract::image_read::ReadImageInput =
-        strict_command_input(args, "read_image")?;
+        direct_command_input(args, "read_image")?;
     to_value(
         image_records_actions::read_image(state.runtime(), user_id, input)
             .await

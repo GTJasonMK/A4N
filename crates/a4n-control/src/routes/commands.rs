@@ -194,10 +194,11 @@ use self::import_project::{
     read_visual_plan_prompt_candidate, validate_chapter_visual_plan,
 };
 use self::input::{
-    bool_arg, command_input, empty_command_args, f32_arg, i64_arg, nullable_i64_arg,
-    optional_i32_field, optional_string_field, reject_unknown_command_args, required_arg,
-    required_json_i32, strict_command_input, strict_optional_task_runtime_command_input,
-    strict_runtime_command_input, string_arg, to_value, u64_arg,
+    bool_arg, command_input, direct_command_input, empty_command_args, f32_arg, i64_arg,
+    nullable_i64_arg, optional_i32_field, optional_string_field, reject_unknown_command_args,
+    required_arg, required_json_i32, strict_command_input,
+    strict_optional_task_runtime_command_input, strict_runtime_command_input, string_arg, to_value,
+    u64_arg,
 };
 use self::media::{
     apply_assembly_postprocess_edit, assemble_chapter_videos, bind_manga_reference_image,
