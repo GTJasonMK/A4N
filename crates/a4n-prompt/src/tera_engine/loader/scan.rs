@@ -60,7 +60,10 @@ impl TeraPromptEngine {
             let name_str = file_name.to_string_lossy();
 
             if path.is_dir() {
-                if name_str.starts_with('_') {
+                // Agent Skills are loaded by the Agent owner on demand, not by
+                // the prompt registry. Their SKILL.md files intentionally use
+                // the Skill format instead of prompt frontmatter.
+                if name_str.starts_with('_') || name_str == "skills" {
                     continue;
                 }
                 self.plan_scan_dir_recursive(context, &path, seen_names, plan)?;

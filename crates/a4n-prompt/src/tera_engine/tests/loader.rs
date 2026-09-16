@@ -38,6 +38,30 @@ fn test_from_directory() {
 }
 
 #[test]
+fn from_directory_ignores_agent_skill_documents() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("greeting.md"),
+        "---\nname: greeting\n---\n你好",
+    )
+    .unwrap();
+    fs::create_dir_all(tmp.path().join("skills/example")).unwrap();
+    fs::write(
+        tmp.path().join("skills/example/SKILL.md"),
+        "# Skill without prompt frontmatter\n\nThis belongs to the Agent catalog.",
+    )
+    .unwrap();
+    write_test_registry(
+        tmp.path(),
+        "  greeting:\n    path: \"greeting.md\"\n    title: \"问候\"\n    category: \"writing\"\n    tags: [\"test\"]\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\n    description: \"问候模板\"\n",
+    );
+
+    let engine = TeraPromptEngine::from_directory(tmp.path()).unwrap();
+    assert_eq!(engine.list_all().len(), 1);
+    assert!(engine.get("greeting").is_ok());
+}
+
+#[test]
 fn registry_category_is_not_limited_to_hard_coded_engine_enum() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(

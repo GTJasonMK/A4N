@@ -163,7 +163,11 @@ fn test_load_real_prompts_dir() {
 
     for name in ["content_optimization", "content_optimization_chat"] {
         let content = engine.get(name).unwrap().content;
-        assert!(content.contains("参数结构"));
+        if name == "content_optimization" {
+            assert!(content.contains("参数结构"));
+        } else {
+            assert!(content.contains("schema 名称"));
+        }
         assert!(!content.contains("符合对应 schema"));
     }
 
