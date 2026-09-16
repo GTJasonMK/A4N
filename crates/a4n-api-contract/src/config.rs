@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use a4n_domain::cost::PricingPlan;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 
 use crate::serde_update::{deserialize_nullable_update_field, deserialize_required_nullable_field};
@@ -263,6 +264,7 @@ pub struct ImageConfigForConnectivityTest {
     pub model: String,
     pub max_concurrent: i32,
     pub supported_sizes_json: Value,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -291,6 +293,7 @@ pub struct EmbeddingConfigSummary {
     pub batch_size: i32,
     pub local_model_path: Option<String>,
     pub is_default: bool,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -304,6 +307,8 @@ pub struct CreateEmbeddingInput {
     pub dimension: i32,
     pub batch_size: i32,
     pub local_model_path: Option<String>,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -331,6 +336,8 @@ pub struct UpdateEmbeddingInput {
     pub batch_size: i32,
     #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub local_model_path: Option<String>,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -344,6 +351,7 @@ pub struct ImageConfigSummary {
     pub max_concurrent: i32,
     pub supported_sizes: Vec<ImageSize>,
     pub is_default: bool,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -356,6 +364,8 @@ pub struct ImageConfigInput {
     pub model: String,
     pub max_concurrent: i32,
     pub supported_sizes: Vec<ImageSize>,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -369,6 +379,8 @@ pub struct UpdateImageConfigInput {
     pub model: String,
     pub max_concurrent: i32,
     pub supported_sizes: Vec<ImageSize>,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -385,6 +397,7 @@ pub struct LlmConfigSummary {
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
     pub is_default: bool,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -400,6 +413,8 @@ pub struct CreateLlmInput {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -430,6 +445,8 @@ pub struct UpdateLlmInput {
     pub max_output_tokens: i32,
     #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub extra_body_json: Option<Value>,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -450,6 +467,7 @@ pub struct VideoConfigSummary {
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
     pub is_default: bool,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -469,6 +487,8 @@ pub struct VideoConfigInput {
     pub duration_mode: VideoDurationMode,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -489,6 +509,8 @@ pub struct UpdateVideoConfigInput {
     pub duration_mode: VideoDurationMode,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

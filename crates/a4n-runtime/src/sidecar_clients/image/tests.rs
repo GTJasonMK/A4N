@@ -20,6 +20,7 @@ fn image_config() -> ImageProviderConfig {
         model: "image-model".to_string(),
         max_concurrent: 1,
         supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
+        pricing: Default::default(),
     }
 }
 

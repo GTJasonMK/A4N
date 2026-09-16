@@ -5,4 +5,5 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-domain = { path = "../a4n-domain" }
 serde_json = { workspace = true }

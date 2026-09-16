@@ -16,6 +16,7 @@ fn llm_input(name: String) -> LlmConfigRecordInput {
         max_context_tokens: 8192,
         max_output_tokens: 2048,
         extra_body_json: None,
+        pricing_json: serde_json::json!({}),
     }
 }
 

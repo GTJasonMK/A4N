@@ -377,6 +377,7 @@ fn test_llm_model() -> LlmProviderConfig {
         max_context_tokens: 16_384,
         max_output_tokens: 2_048,
         extra_body_json: None,
+        pricing: Default::default(),
     }
 }
 

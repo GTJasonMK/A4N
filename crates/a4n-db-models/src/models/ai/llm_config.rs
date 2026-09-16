@@ -40,6 +40,10 @@ pub struct Model {
     /// Provider-specific extra JSON fields merged into chat/completions requests.
     pub extra_body_json: Option<Value>,
 
+    /// 手工维护的模型价格计划快照源。
+    #[sea_orm(column_type = "JsonBinary")]
+    pub pricing_json: Value,
+
     /// 是否设为默认
     pub is_default: bool,
 

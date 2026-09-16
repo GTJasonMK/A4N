@@ -10,6 +10,7 @@ use futures::Stream;
 
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};
 use crate::provider_runtime::DynamicProviderFacade;
+use a4n_provider_runtime_contract::ModelUsageRecordHandle;
 use a4n_provider_runtime_contract::TaskLease;
 
 pub(in crate::dynamic_llm) struct QueueTrackedLlmStream {
@@ -22,6 +23,7 @@ impl QueueTrackedLlmStream {
         inner: Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>,
         facade: DynamicProviderFacade,
         running_task: Box<dyn TaskLease>,
+        cost_record: ModelUsageRecordHandle,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,
@@ -32,6 +34,7 @@ impl QueueTrackedLlmStream {
                 StreamKind::Embedded,
                 facade,
                 running_task,
+                cost_record,
                 trace_context,
                 model_name,
                 started,

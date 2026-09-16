@@ -11,6 +11,7 @@ import type { LlmProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import { useI18n } from "../../../i18n";
+import { PricingPlanFields } from "../config-list/PricingPlanFields";
 
 interface LlmConfigEditorProps {
   form: LlmForm;
@@ -230,6 +231,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           disabled={structureDisabled}
         />
       </FormField>
+      <PricingPlanFields
+        value={form.pricing}
+        onChange={(pricing) => setForm({ ...form, pricing })}
+        readonly={readonly}
+      />
     </>
   );
 };

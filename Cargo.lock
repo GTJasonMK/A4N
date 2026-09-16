@@ -955,6 +955,7 @@ dependencies = [
 name = "a4n-provider-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-domain",
  "serde_json",
 ]
 

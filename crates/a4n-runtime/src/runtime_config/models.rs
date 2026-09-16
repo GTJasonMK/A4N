@@ -15,6 +15,7 @@ pub(super) fn image_provider_config_from_runtime(cfg: RuntimeImageConfig) -> Ima
         max_concurrent: cfg.max_concurrent,
         supported_sizes_json: serde_json::to_value(cfg.supported_sizes)
             .expect("ImageSize 只包含 JSON 可序列化字段"),
+        pricing: cfg.pricing,
     }
 }
 
@@ -36,6 +37,7 @@ pub(super) fn video_provider_config_from_runtime(cfg: RuntimeVideoConfig) -> Vid
         supported_durations_json: cfg.supported_durations_json,
         default_fps: cfg.default_fps,
         is_default: cfg.is_default,
+        pricing: cfg.pricing,
     }
 }
 
@@ -52,6 +54,7 @@ pub(super) fn llm_provider_config_from_runtime(cfg: RuntimeLlmConfig) -> LlmProv
         max_context_tokens: cfg.max_context_tokens,
         max_output_tokens: cfg.max_output_tokens,
         extra_body_json: cfg.extra_body_json,
+        pricing: cfg.pricing,
     }
 }
 
@@ -68,5 +71,6 @@ pub(super) fn embedding_provider_config_from_runtime(
         dimension: cfg.dimension,
         batch_size: cfg.batch_size,
         local_model_path: cfg.local_model_path,
+        pricing: cfg.pricing,
     }
 }

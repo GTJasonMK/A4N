@@ -18,6 +18,7 @@ fn test_llm_config(id: i64, is_default: bool) -> RuntimeLlmConfig {
         max_output_tokens: 8_192,
         extra_body_json: None,
         is_default,
+        pricing: Default::default(),
     }
 }
 
@@ -32,6 +33,7 @@ fn test_image_config(id: i64, is_default: bool) -> RuntimeImageConfig {
         max_concurrent: 1,
         supported_sizes: vec![ImageSize::new(1024, 1024)],
         is_default,
+        pricing: Default::default(),
     }
 }
 
@@ -53,6 +55,7 @@ fn test_video_config(id: i64, is_default: bool) -> RuntimeVideoConfig {
         supported_durations_json: None,
         default_fps: 24,
         is_default,
+        pricing: Default::default(),
     }
 }
 
@@ -308,6 +311,7 @@ fn redacted_snapshot_value_uses_shared_sidecar_sensitive_field_policy() {
             max_output_tokens: 8_192,
             extra_body_json: None,
             is_default: true,
+            pricing: Default::default(),
         }),
         llm_configs: Vec::new(),
         image: None,

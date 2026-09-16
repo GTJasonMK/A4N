@@ -15,4 +15,5 @@ pub struct VideoConfigRecordInput {
     pub duration_mode: String,
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
+    pub pricing_json: Value,
 }

@@ -38,6 +38,7 @@ mod tests {
             model: "image-model".to_string(),
             max_concurrent: 1,
             supported_sizes_json: serde_json::json!([{"width": 1024, "height": 1024}]),
+            pricing_json: serde_json::json!({}),
             is_default: true,
             created_at: chrono::NaiveDateTime::MIN,
             updated_at: chrono::NaiveDateTime::MIN,

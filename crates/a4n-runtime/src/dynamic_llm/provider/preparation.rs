@@ -1,8 +1,9 @@
 use std::time::Instant;
 
+use a4n_domain::cost::{ModelCapability, ModelUsageRecordStart};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
-use a4n_provider_runtime_contract::TaskLease;
+use a4n_provider_runtime_contract::{ModelUsageRecordHandle, TaskLease};
 use a4n_queue::priority::TaskPriority;
 
 use super::super::{
@@ -17,6 +18,7 @@ pub(in crate::dynamic_llm) struct PreparedLlmCall {
     pub request: ChatRequest,
     pub trace: Option<LlmTraceContext>,
     pub task: Box<dyn TaskLease>,
+    pub cost_record: ModelUsageRecordHandle,
     pub started: Instant,
 }
 
@@ -47,19 +49,63 @@ impl DynamicLlmProvider {
         request.stream_include_usage = true;
         tracing::debug!(target: "a4n::llm", model = model.model_name(), config_id = model.model.id, max_tokens = ?request.max_tokens, "LLM stream 请求");
         let started = Instant::now();
-        let task = self
+        let trace_for_cost = trace.as_ref();
+        let cost_record = self
+            .facade
+            .start_model_usage(ModelUsageRecordStart {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                user_id: crate::runtime_config::current_user_id(),
+                project_id: trace_for_cost.and_then(|trace| trace.project_id),
+                root_project_id: trace_for_cost.and_then(|trace| trace.root_project_id),
+                workflow_run_id: trace_for_cost.and_then(|trace| trace.workflow_run_id),
+                generation_run_id: trace_for_cost.and_then(|trace| trace.generation_run_id),
+                workflow: trace_for_cost
+                    .map(|trace| trace.workflow.clone())
+                    .unwrap_or_else(|| "llm".to_string()),
+                step_key: trace_for_cost
+                    .map(|trace| trace.step_key.clone())
+                    .unwrap_or_else(|| "chat".to_string()),
+                call_key: trace_for_cost.and_then(|trace| trace.call_key.clone()),
+                source: Some("llm_call".to_string()),
+                capability: ModelCapability::Llm,
+                provider_config_id: Some(model.model.id),
+                provider: Some(model.model.provider.clone()),
+                model: Some(model.model.model.clone()),
+                pricing: model.model.pricing.clone(),
+            })
+            .await?;
+        let task = match self
             .facade
             .queue_start_llm_task(
                 model.concurrency_limit(),
                 TaskPriority::Medium,
                 trace.as_ref(),
             )
-            .await?;
+            .await
+        {
+            Ok(task) => task,
+            Err(error) => {
+                let _ = self
+                    .facade
+                    .finish_model_usage(
+                        cost_record,
+                        a4n_domain::cost::ModelUsageRecordCompletion {
+                            status: "failed".to_string(),
+                            meter: Default::default(),
+                            error_kind: Some("queue".to_string()),
+                            error_message: Some(error.to_string()),
+                        },
+                    )
+                    .await;
+                return Err(error);
+            }
+        };
         Ok(PreparedLlmCall {
             model,
             request,
             trace,
             task,
+            cost_record,
             started,
         })
     }

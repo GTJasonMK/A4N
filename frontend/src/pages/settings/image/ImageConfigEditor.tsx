@@ -12,6 +12,7 @@ import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import type { ImageForm } from "./types";
 import { useI18n } from "../../../i18n";
+import { PricingPlanFields } from "../config-list/PricingPlanFields";
 
 interface ImageConfigEditorProps {
   form: ImageForm;
@@ -239,6 +240,11 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
           />
         </FormField>
       </div>
+      <PricingPlanFields
+        value={form.pricing}
+        onChange={(pricing) => setForm({ ...form, pricing })}
+        readonly={readonly}
+      />
     </>
   );
 };

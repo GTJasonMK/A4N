@@ -26,6 +26,8 @@ pub struct Model {
     pub supported_durations_json: Option<serde_json::Value>,
     pub default_fps: i32,
     pub is_default: bool,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub pricing_json: serde_json::Value,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }

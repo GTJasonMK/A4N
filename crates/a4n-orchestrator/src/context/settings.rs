@@ -28,6 +28,7 @@ use a4n_db_models::models::{
     ai::{embedding_config, image_gen_config, llm_config, video_gen_config},
     user::theme_config,
 };
+use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_domain::{
     ThemeDocument, ThemeMode, embedding::CreateEmbeddingConfigParams,
     image::CreateImageConfigParams,
@@ -41,6 +42,7 @@ use a4n_provider_contract::{
     EmbeddingProviderConfig, ImageProviderConfig, LlmProviderConfig, VideoProviderConfig,
 };
 use a4n_video::{VideoConfigParams, validate_video_config_params};
+use serde_json::Value;
 use std::str::FromStr;
 
 /// AI 配置、主题与系统设置的私有 application owner。
@@ -55,6 +57,22 @@ pub(super) struct ConfigApplication {
 impl ConfigApplication {
     pub(super) fn new(database: DbHandle) -> Self {
         Self { database }
+    }
+
+    pub(super) async fn start_model_usage_record(
+        &self,
+        input: ModelUsageRecordStart,
+    ) -> Result<a4n_db_models::models::generation::model_usage_record::Model, AppError> {
+        a4n_db::model_usage::start_model_usage_record(self.database.connection(), input).await
+    }
+
+    pub(super) async fn finish_model_usage_record(
+        &self,
+        record_id: i64,
+        input: ModelUsageRecordCompletion,
+    ) -> Result<(), AppError> {
+        a4n_db::model_usage::finish_model_usage_record(self.database.connection(), record_id, input)
+            .await
     }
 
     async fn set_default_provider_config(
@@ -201,7 +219,7 @@ impl ConfigApplication {
         input: UpdateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
         let existing = self.llm_config_by_id(config_id).await?;
-        let normalized = normalize_update_llm_config_input(
+        let mut normalized = normalize_update_llm_config_input(
             existing.api_key_encrypted.as_deref(),
             UpdateLlmConfigInput {
                 name: &input.name,
@@ -219,6 +237,7 @@ impl ConfigApplication {
                 extra_body_json: input.extra_body_json,
             },
         )?;
+        normalized.pricing_json = pricing_json(input.pricing)?;
         a4n_db::config::update_llm_config_record(
             self.database.connection(),
             existing,
@@ -265,10 +284,10 @@ impl ConfigApplication {
         &self,
         input: ImageConfigInput,
     ) -> Result<image_gen_config::Model, AppError> {
-        let params = image_config_params(input)?;
+        let (params, pricing) = image_config_params(input)?;
         a4n_db::config::create_image_config_record(
             self.database.connection(),
-            image_record_input(params),
+            image_record_input(params, pricing),
         )
         .await
     }
@@ -282,6 +301,7 @@ impl ConfigApplication {
         let existing = self.image_config_by_id(config_id).await?;
         let api_key_encrypted =
             merge_api_key_update(input.api_key_encrypted, existing.api_key_encrypted.clone());
+        let pricing = pricing_json(input.pricing)?;
         let params = validate_image_config_params(CreateImageConfigParams {
             name: input.name,
             backend: input.backend,
@@ -294,7 +314,7 @@ impl ConfigApplication {
         a4n_db::config::update_image_config_record(
             self.database.connection(),
             existing,
-            image_record_input(params),
+            image_record_input(params, pricing),
         )
         .await
     }
@@ -349,10 +369,10 @@ impl ConfigApplication {
         &self,
         input: VideoConfigInput,
     ) -> Result<video_gen_config::Model, AppError> {
-        let params = video_config_params(input)?;
+        let (params, pricing) = video_config_params(input)?;
         a4n_db::config::create_video_config_record(
             self.database.connection(),
-            video_record_input(params),
+            video_record_input(params, pricing),
         )
         .await
     }
@@ -366,6 +386,7 @@ impl ConfigApplication {
         let existing = self.video_config_by_id(config_id).await?;
         let api_key_encrypted =
             merge_api_key_update(input.api_key_encrypted, existing.api_key_encrypted.clone());
+        let pricing = pricing_json(input.pricing)?;
         let params = validate_video_config_params(VideoConfigParams {
             name: input.name,
             backend: input.backend,
@@ -386,7 +407,7 @@ impl ConfigApplication {
         a4n_db::config::update_video_config_record(
             self.database.connection(),
             existing,
-            video_record_input(params),
+            video_record_input(params, pricing),
         )
         .await
     }
@@ -443,10 +464,10 @@ impl ConfigApplication {
         &self,
         input: CreateEmbeddingInput,
     ) -> Result<embedding_config::Model, AppError> {
-        let params = embedding_config_params(input)?;
+        let (params, pricing) = embedding_config_params(input)?;
         a4n_db::config::create_embedding_config_record(
             self.database.connection(),
-            embedding_record_input(params),
+            embedding_record_input(params, pricing),
         )
         .await
     }
@@ -460,6 +481,7 @@ impl ConfigApplication {
         let existing = self.embedding_config_by_id(config_id).await?;
         let requested_api_key =
             merge_api_key_update(input.api_key_encrypted, existing.api_key_encrypted.clone());
+        let pricing = pricing_json(input.pricing)?;
         let params = validate_embedding_config_params(CreateEmbeddingConfigParams {
             name: input.name,
             backend: input.backend,
@@ -473,7 +495,7 @@ impl ConfigApplication {
         a4n_db::config::update_embedding_config_record(
             self.database.connection(),
             existing,
-            embedding_record_input(params),
+            embedding_record_input(params, pricing),
         )
         .await
     }
@@ -526,7 +548,7 @@ impl ConfigApplication {
     ) -> Result<bool, AppError> {
         a4n_db::config::insert_baseline_image_config_if_empty(
             self.database.connection(),
-            image_record_input(config),
+            image_record_input(config, serde_json::json!({})),
         )
         .await
     }
@@ -537,7 +559,7 @@ impl ConfigApplication {
     ) -> Result<bool, AppError> {
         a4n_db::config::insert_baseline_video_config_if_empty(
             self.database.connection(),
-            video_record_input(config),
+            video_record_input(config, serde_json::json!({})),
         )
         .await
     }
@@ -1199,22 +1221,16 @@ impl a4n_api_contract::config::ConfigMutationApplicationPort for OrchestratorCon
         &self,
         input: ImageConfigInput,
     ) -> Result<bool, AppError> {
-        OrchestratorContext::insert_baseline_image_config_if_empty(
-            self,
-            image_config_params(input)?,
-        )
-        .await
+        let (params, _) = image_config_params(input)?;
+        OrchestratorContext::insert_baseline_image_config_if_empty(self, params).await
     }
 
     async fn insert_baseline_video_if_empty(
         &self,
         input: VideoConfigInput,
     ) -> Result<bool, AppError> {
-        OrchestratorContext::insert_baseline_video_config_if_empty(
-            self,
-            video_config_params(input)?,
-        )
-        .await
+        let (params, _) = video_config_params(input)?;
+        OrchestratorContext::insert_baseline_video_config_if_empty(self, params).await
     }
 
     async fn update_web_search_config(
@@ -1370,6 +1386,23 @@ fn has_configured_api_key(value: Option<&str>) -> bool {
     value.is_some_and(|value| !value.trim().is_empty())
 }
 
+fn pricing_json(pricing: a4n_api_contract::config::PricingPlan) -> Result<Value, AppError> {
+    let pricing = pricing.validate().map_err(AppError::InvalidArgument)?;
+    serde_json::to_value(pricing).map_err(AppError::Serialization)
+}
+
+fn pricing_from_json(value: &Value) -> Result<a4n_api_contract::config::PricingPlan, AppError> {
+    let pricing: a4n_api_contract::config::PricingPlan = serde_json::from_value(value.clone())
+        .map_err(|error| AppError::InvalidState {
+            current: error.to_string(),
+            operation: "读取 Provider 价格计划".to_string(),
+        })?;
+    pricing.validate().map_err(|error| AppError::InvalidState {
+        current: error,
+        operation: "校验 Provider 价格计划".to_string(),
+    })
+}
+
 fn validate_web_search_record(
     record: &a4n_db::config::WebSearchConfigRecord,
 ) -> Result<(), AppError> {
@@ -1425,6 +1458,7 @@ fn llm_provider_config_from_model(model: llm_config::Model) -> LlmProviderConfig
         max_context_tokens: model.max_context_tokens,
         max_output_tokens: model.max_output_tokens,
         extra_body_json: model.extra_body_json,
+        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
     }
 }
 
@@ -1439,6 +1473,7 @@ fn embedding_provider_config_from_model(model: embedding_config::Model) -> Embed
         dimension: model.dimension,
         batch_size: model.batch_size,
         local_model_path: model.local_model_path,
+        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
     }
 }
 
@@ -1452,6 +1487,7 @@ fn image_provider_config_from_model(model: image_gen_config::Model) -> ImageProv
         model: model.model,
         max_concurrent: model.max_concurrent,
         supported_sizes_json: model.supported_sizes_json,
+        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
     }
 }
 
@@ -1467,6 +1503,7 @@ fn image_config_for_connectivity_test_from_model(
         model: model.model,
         max_concurrent: model.max_concurrent,
         supported_sizes_json: model.supported_sizes_json,
+        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
     }
 }
 
@@ -1484,6 +1521,7 @@ fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary {
         max_output_tokens: config.max_output_tokens,
         extra_body_json: config.extra_body_json.clone(),
         is_default: config.is_default,
+        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
     }
 }
 
@@ -1509,6 +1547,7 @@ fn image_config_summary(config: &image_gen_config::Model) -> Result<ImageConfigS
             },
         )?,
         is_default: config.is_default,
+        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
     })
 }
 
@@ -1580,6 +1619,7 @@ fn video_config_summary(config: &video_gen_config::Model) -> Result<VideoConfigS
         supported_durations_json: config.supported_durations_json.clone(),
         default_fps: config.default_fps,
         is_default: config.is_default,
+        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
     })
 }
 
@@ -1595,6 +1635,7 @@ fn embedding_config_summary(config: &embedding_config::Model) -> EmbeddingConfig
         batch_size: config.batch_size,
         local_model_path: config.local_model_path.clone(),
         is_default: config.is_default,
+        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
     }
 }
 
@@ -1610,8 +1651,9 @@ fn normalize_llm_config_input(input: CreateLlmInput) -> Result<NormalizedLlmConf
         max_context_tokens,
         max_output_tokens,
         extra_body_json,
+        pricing,
     } = input;
-    normalize_create_llm_config_input(CreateLlmConfigInput {
+    let mut normalized = normalize_create_llm_config_input(CreateLlmConfigInput {
         name: &name,
         provider: &provider,
         base_url: &base_url,
@@ -1622,11 +1664,16 @@ fn normalize_llm_config_input(input: CreateLlmInput) -> Result<NormalizedLlmConf
         max_context_tokens,
         max_output_tokens,
         extra_body_json,
-    })
+    })?;
+    normalized.pricing_json = pricing_json(pricing)?;
+    Ok(normalized)
 }
 
-fn image_config_params(input: ImageConfigInput) -> Result<CreateImageConfigParams, AppError> {
-    validate_image_config_params(CreateImageConfigParams {
+fn image_config_params(
+    input: ImageConfigInput,
+) -> Result<(CreateImageConfigParams, Value), AppError> {
+    let pricing = pricing_json(input.pricing)?;
+    let params = validate_image_config_params(CreateImageConfigParams {
         name: input.name,
         backend: input.backend,
         base_url: input.base_url,
@@ -1634,11 +1681,13 @@ fn image_config_params(input: ImageConfigInput) -> Result<CreateImageConfigParam
         model: input.model,
         max_concurrent: input.max_concurrent,
         supported_sizes: input.supported_sizes,
-    })
+    })?;
+    Ok((params, pricing))
 }
 
-fn video_config_params(input: VideoConfigInput) -> Result<VideoConfigParams, AppError> {
-    validate_video_config_params(VideoConfigParams {
+fn video_config_params(input: VideoConfigInput) -> Result<(VideoConfigParams, Value), AppError> {
+    let pricing = pricing_json(input.pricing)?;
+    let params = validate_video_config_params(VideoConfigParams {
         name: input.name,
         backend: input.backend,
         base_url: input.base_url,
@@ -1654,13 +1703,15 @@ fn video_config_params(input: VideoConfigInput) -> Result<VideoConfigParams, App
         supported_durations_json: input.supported_durations_json,
         default_fps: input.default_fps,
     })
-    .map_err(AppError::InvalidArgument)
+    .map_err(AppError::InvalidArgument)?;
+    Ok((params, pricing))
 }
 
 fn embedding_config_params(
     input: CreateEmbeddingInput,
-) -> Result<CreateEmbeddingConfigParams, AppError> {
-    validate_embedding_config_params(CreateEmbeddingConfigParams {
+) -> Result<(CreateEmbeddingConfigParams, Value), AppError> {
+    let pricing = pricing_json(input.pricing)?;
+    let params = validate_embedding_config_params(CreateEmbeddingConfigParams {
         name: input.name,
         backend: input.backend,
         base_url: input.base_url,
@@ -1669,7 +1720,8 @@ fn embedding_config_params(
         dimension: input.dimension,
         batch_size: input.batch_size,
         local_model_path: input.local_model_path,
-    })
+    })?;
+    Ok((params, pricing))
 }
 
 fn llm_record_input(normalized: NormalizedLlmConfig) -> LlmConfigRecordInput {
@@ -1684,6 +1736,7 @@ fn llm_record_input(normalized: NormalizedLlmConfig) -> LlmConfigRecordInput {
         max_context_tokens: normalized.max_context_tokens,
         max_output_tokens: normalized.max_output_tokens,
         extra_body_json: normalized.extra_body_json,
+        pricing_json: normalized.pricing_json,
     }
 }
 
@@ -1702,7 +1755,10 @@ fn llm_config_snapshot(model: &llm_config::Model) -> LlmConfigSnapshot {
     }
 }
 
-fn image_record_input(params: CreateImageConfigParams) -> ImageConfigRecordInput {
+fn image_record_input(
+    params: CreateImageConfigParams,
+    pricing_json: Value,
+) -> ImageConfigRecordInput {
     ImageConfigRecordInput {
         name: params.name,
         backend: params.backend,
@@ -1712,10 +1768,11 @@ fn image_record_input(params: CreateImageConfigParams) -> ImageConfigRecordInput
         max_concurrent: params.max_concurrent,
         supported_sizes_json: image_sizes_to_json(&params.supported_sizes)
             .expect("图片配置尺寸已在校验阶段验证"),
+        pricing_json,
     }
 }
 
-fn video_record_input(params: VideoConfigParams) -> VideoConfigRecordInput {
+fn video_record_input(params: VideoConfigParams, pricing_json: Value) -> VideoConfigRecordInput {
     VideoConfigRecordInput {
         name: params.name,
         backend: params.backend,
@@ -1731,10 +1788,14 @@ fn video_record_input(params: VideoConfigParams) -> VideoConfigRecordInput {
         duration_mode: params.duration_mode,
         supported_durations_json: params.supported_durations_json,
         default_fps: params.default_fps,
+        pricing_json,
     }
 }
 
-fn embedding_record_input(params: CreateEmbeddingConfigParams) -> EmbeddingConfigRecordInput {
+fn embedding_record_input(
+    params: CreateEmbeddingConfigParams,
+    pricing_json: Value,
+) -> EmbeddingConfigRecordInput {
     EmbeddingConfigRecordInput {
         name: params.name,
         backend: params.backend,
@@ -1744,6 +1805,7 @@ fn embedding_record_input(params: CreateEmbeddingConfigParams) -> EmbeddingConfi
         dimension: params.dimension,
         batch_size: params.batch_size,
         local_model_path: params.local_model_path,
+        pricing_json,
     }
 }
 
@@ -1788,6 +1850,7 @@ mod tests {
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             extra_body_json: Some(json!({"reasoning": {"effort": "low"}})),
+            pricing_json: json!({}),
             is_default: true,
             created_at: Default::default(),
             updated_at: Default::default(),
@@ -1809,6 +1872,7 @@ mod tests {
             dimension: 768,
             batch_size: 16,
             local_model_path: Some("/tmp/model".into()),
+            pricing_json: json!({}),
             is_default: false,
             created_at: Default::default(),
             updated_at: Default::default(),
@@ -1826,6 +1890,7 @@ mod tests {
             model: "image-model".into(),
             max_concurrent: 1,
             supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
+            pricing_json: json!({}),
             is_default: true,
             created_at: Default::default(),
             updated_at: Default::default(),

@@ -1,4 +1,5 @@
 import type { VideoDurationMode } from "../../../api/video";
+import type { PricingPlan } from "../../../api/generated/config";
 
 export type VideoProvider = string;
 
@@ -18,4 +19,5 @@ export interface VideoForm {
   supported_durations_text: string;
   fps: number;
   max_concurrent: number;
+  pricing: PricingPlan;
 }

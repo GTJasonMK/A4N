@@ -93,5 +93,6 @@ fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<CreateLlmInput>, AppEr
         max_output_tokens,
         extra_body_json: optional_env_json("A4N_PUBLIC_LLM_EXTRA_BODY_JSON")?
             .or_else(|| fallback.extra_body_json.clone()),
+        pricing: Default::default(),
     }))
 }

@@ -63,6 +63,7 @@ fn video_active_model_for_update(
     active.duration_mode = Set(row.duration_mode);
     active.supported_durations_json = Set(row.supported_durations_json);
     active.default_fps = Set(row.default_fps);
+    active.pricing_json = Set(row.pricing_json);
     active.is_default = Set(row.is_default);
     active.updated_at = Set(now);
     active
@@ -87,6 +88,7 @@ fn video_active_model_for_insert(
         duration_mode: Set(row.duration_mode),
         supported_durations_json: Set(row.supported_durations_json),
         default_fps: Set(row.default_fps),
+        pricing_json: Set(row.pricing_json),
         is_default: Set(row.is_default),
         created_at: Set(now),
         updated_at: Set(now),

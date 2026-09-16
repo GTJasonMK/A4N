@@ -4,6 +4,7 @@
 //! not ORM models or the orchestrator context. The orchestrator supplies the
 //! implementation; runtime provider code only depends on this crate.
 
+use a4n_domain::cost::PricingPlan;
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,6 +20,7 @@ pub struct LlmProviderConfig {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +34,7 @@ pub struct EmbeddingProviderConfig {
     pub dimension: i32,
     pub batch_size: i32,
     pub local_model_path: Option<String>,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +47,7 @@ pub struct ImageProviderConfig {
     pub model: String,
     pub max_concurrent: i32,
     pub supported_sizes_json: Value,
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,4 +68,5 @@ pub struct VideoProviderConfig {
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
     pub is_default: bool,
+    pub pricing: PricingPlan,
 }

@@ -18,6 +18,7 @@ mod chapter_content_projection;
 mod character;
 mod collaboration;
 mod construction;
+mod cost;
 pub(super) mod dynamic_provider;
 mod galgame;
 pub(super) mod generation;

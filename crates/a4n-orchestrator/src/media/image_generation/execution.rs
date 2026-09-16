@@ -153,6 +153,7 @@ impl OrchestratorContext {
         let provider_output = host_port
             .generate_image(
                 ImageGenerationProviderInput {
+                    user_id: input.requested_by_user_id,
                     project_id: input.project_id,
                     workflow_run_id: workflow.workflow_run_id,
                     config: input.config.clone(),

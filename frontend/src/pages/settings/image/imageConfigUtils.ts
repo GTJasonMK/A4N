@@ -3,6 +3,7 @@ import { DEFAULT_IMAGE_SIZES, imageSizeLabel } from "../../../api/image";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { ImageForm } from "./types";
 import type { MessageKey, MessageParams } from "../../../i18n";
+import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
 
@@ -16,6 +17,7 @@ export const DEFAULT_IMAGE_FORM: ImageForm = {
   clear_api_key: false,
   supported_sizes: DEFAULT_IMAGE_SIZES.map((size) => ({ ...size })),
   max_concurrent: 1,
+  pricing: DEFAULT_PRICING_PLAN,
 };
 
 export function validateImageForm(form: ImageForm, t: Translate): string | null {
@@ -75,6 +77,7 @@ export function toImageItem(raw: ImageGenConfig): ConfigItem<ImageForm> {
       clear_api_key: false,
       supported_sizes: raw.supported_sizes.map((size) => ({ ...size })),
       max_concurrent: raw.max_concurrent,
+      pricing: clonePricingPlan(raw.pricing),
     },
   };
 }
@@ -110,5 +113,6 @@ function buildImageConfigInput(
       width: size.width,
       height: size.height,
     })),
+    pricing: form.pricing,
   };
 }

@@ -12,6 +12,7 @@ pub mod chapter_visual_plan;
 pub mod character;
 pub mod collaboration;
 pub mod config;
+pub mod cost;
 pub mod embedding;
 pub mod galgame;
 pub mod generation;

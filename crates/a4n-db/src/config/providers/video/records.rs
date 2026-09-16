@@ -68,6 +68,7 @@ where
         duration_mode: Set(input.duration_mode),
         supported_durations_json: Set(input.supported_durations_json),
         default_fps: Set(input.default_fps),
+        pricing_json: Set(input.pricing_json),
         is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
@@ -103,6 +104,7 @@ where
     active.duration_mode = Set(input.duration_mode);
     active.supported_durations_json = Set(input.supported_durations_json);
     active.default_fps = Set(input.default_fps);
+    active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
 }

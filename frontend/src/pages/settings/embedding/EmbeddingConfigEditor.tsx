@@ -17,6 +17,7 @@ import {
 import type { EmbeddingForm } from "./types";
 import type { EmbeddingProviderDescriptor } from "../../../api/generated/config";
 import { useI18n } from "../../../i18n";
+import { PricingPlanFields } from "../config-list/PricingPlanFields";
 
 interface EmbeddingConfigEditorProps {
   form: EmbeddingForm;
@@ -230,6 +231,11 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
           />
         </FormField>
       </div>
+      <PricingPlanFields
+        value={form.pricing}
+        onChange={(pricing) => setForm({ ...form, pricing })}
+        readonly={readonly}
+      />
     </>
   );
 };

@@ -54,4 +54,5 @@ pub struct NormalizedLlmConfig {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    pub pricing_json: Value,
 }

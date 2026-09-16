@@ -10,6 +10,7 @@ import { copyTextToClipboard } from "../../../utils/clipboard";
 import { logger } from "../../../utils/logger";
 import { useAuthStore } from "../../../store/auth";
 import { GenerationCallAnalyticsPanel } from "./GenerationCallAnalyticsPanel";
+import { ModelUsageCostPanel } from "../../novel-detail/ModelUsageCostPanel";
 import { logLineClassName, logPathText, type LogReadResult } from "./logUtils";
 import { formatNumber, useI18n } from "../../../i18n";
 
@@ -210,6 +211,9 @@ export const LogsTab: React.FC = () => {
           aria-label={t("settingsLogs.analyticsTab")}
         >
           <GenerationCallAnalyticsPanel />
+          <div className="mt-4 border-t border-book-border/40 pt-4">
+            <ModelUsageCostPanel projectId={null} />
+          </div>
         </div>
       ) : (
         <div

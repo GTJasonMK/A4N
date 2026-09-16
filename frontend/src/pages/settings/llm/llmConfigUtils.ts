@@ -12,6 +12,7 @@ import {
 import type { ConfigItem } from "../ConfigListPanel";
 import type { LlmForm } from "./types";
 import type { MessageTranslator } from "../../../i18n";
+import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 export const DEFAULT_LLM_FORM: LlmForm = {
   name: "",
@@ -26,6 +27,7 @@ export const DEFAULT_LLM_FORM: LlmForm = {
   max_context_tokens: DEFAULT_LLM_MAX_CONTEXT_TOKENS,
   max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
   extra_body_text: "",
+  pricing: DEFAULT_PRICING_PLAN,
 };
 
 export function selectLlmProvider(
@@ -135,6 +137,7 @@ export function toLlmItem(raw: LlmConfigSummary): ConfigItem<LlmForm> {
       max_context_tokens: raw.max_context_tokens,
       max_output_tokens: raw.max_output_tokens,
       extra_body_text: formatExtraBody(raw.extra_body_json),
+      pricing: clonePricingPlan(raw.pricing),
     },
   };
 }
@@ -151,6 +154,7 @@ export function toCreateLlmInput(form: LlmForm, t: MessageTranslator): CreateLlm
     max_context_tokens: form.max_context_tokens,
     max_output_tokens: form.max_output_tokens,
     extra_body_json: parseExtraBodyText(form.extra_body_text, t),
+    pricing: form.pricing,
   };
 }
 
@@ -167,6 +171,7 @@ export function toUpdateLlmInput(form: LlmForm, t: MessageTranslator): UpdateLlm
     max_context_tokens: form.max_context_tokens,
     max_output_tokens: form.max_output_tokens,
     extra_body_json: parseExtraBodyText(form.extra_body_text, t),
+    pricing: form.pricing,
   };
 }
 

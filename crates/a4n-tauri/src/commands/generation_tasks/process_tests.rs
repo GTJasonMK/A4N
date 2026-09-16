@@ -73,6 +73,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             model: "tauri-test-image-model".to_string(),
             max_concurrent: 1,
             supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
+            pricing_json: serde_json::json!({}),
         },
     )
     .await

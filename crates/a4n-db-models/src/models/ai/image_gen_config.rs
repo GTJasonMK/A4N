@@ -18,6 +18,8 @@ pub struct Model {
     pub max_concurrent: i32,
     #[sea_orm(column_type = "JsonBinary")]
     pub supported_sizes_json: serde_json::Value,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub pricing_json: serde_json::Value,
     pub is_default: bool,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,

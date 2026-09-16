@@ -11,6 +11,7 @@ import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import type { VideoForm } from "./types";
 import { useI18n } from "../../../i18n";
+import { PricingPlanFields } from "../config-list/PricingPlanFields";
 
 interface VideoConfigEditorProps {
   form: VideoForm;
@@ -297,6 +298,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           />
         </FormField>
       )}
+      <PricingPlanFields
+        value={form.pricing}
+        onChange={(pricing) => setForm({ ...form, pricing })}
+        readonly={readonly}
+      />
     </>
   );
 };

@@ -19,6 +19,7 @@ impl DynamicLlmProvider {
             request,
             trace,
             task,
+            cost_record,
             started,
         } = prepared;
         let provider = make_provider(&model.model)?;
@@ -34,6 +35,7 @@ impl DynamicLlmProvider {
                 stream,
                 self.facade.clone(),
                 task,
+                cost_record,
                 trace,
                 model_name,
                 started,
@@ -50,6 +52,18 @@ impl DynamicLlmProvider {
                         "{error}；同步 LLM stream 建立失败状态失败: {status_error}"
                     )),
                 };
+                let _ = self
+                    .facade
+                    .finish_model_usage(
+                        cost_record,
+                        a4n_domain::cost::ModelUsageRecordCompletion {
+                            status: "failed".to_string(),
+                            meter: Default::default(),
+                            error_kind: Some("provider".to_string()),
+                            error_message: Some(error.to_string()),
+                        },
+                    )
+                    .await;
                 record_dynamic_llm_trace(
                     &self.facade,
                     trace.as_ref(),

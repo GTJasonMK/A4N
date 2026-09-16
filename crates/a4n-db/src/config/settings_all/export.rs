@@ -31,6 +31,7 @@ pub async fn settings_all_config_rows(
             max_context_tokens: row.max_context_tokens,
             max_output_tokens: row.max_output_tokens,
             extra_body_json: row.extra_body_json,
+            pricing_json: row.pricing_json,
             is_default: row.is_default,
         })
         .collect();
@@ -48,6 +49,7 @@ pub async fn settings_all_config_rows(
             dimension: row.dimension,
             batch_size: row.batch_size,
             local_model_path: row.local_model_path,
+            pricing_json: row.pricing_json,
             is_default: row.is_default,
         })
         .collect();
@@ -67,6 +69,7 @@ pub async fn settings_all_config_rows(
                 model: row.model,
                 max_concurrent: row.max_concurrent,
                 supported_sizes: image_sizes_from_json(&row.supported_sizes_json)?,
+                pricing_json: row.pricing_json,
                 is_default: row.is_default,
             })
         })
@@ -94,6 +97,7 @@ pub async fn settings_all_config_rows(
                 duration_mode: row.duration_mode,
                 supported_durations_json: row.supported_durations_json,
                 default_fps: row.default_fps,
+                pricing_json: row.pricing_json,
                 is_default: row.is_default,
             })
         })

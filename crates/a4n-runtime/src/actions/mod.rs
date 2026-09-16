@@ -31,6 +31,7 @@ pub mod inspiration_records;
 pub mod logging;
 pub mod manga_pipeline;
 pub mod manga_records;
+pub mod model_usage;
 pub mod oauth;
 pub mod object_profile_records;
 pub mod optimize;

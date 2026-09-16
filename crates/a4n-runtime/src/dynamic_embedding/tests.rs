@@ -18,6 +18,7 @@ fn embedding_model(backend: &str) -> EmbeddingProviderConfig {
         dimension: 384,
         batch_size: 8,
         local_model_path: None,
+        pricing: Default::default(),
     }
 }
 

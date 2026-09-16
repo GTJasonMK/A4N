@@ -61,6 +61,7 @@ pub mod generation {
     pub mod generation_task_checkpoint;
     pub mod llm_call_trace;
     pub mod llm_context_pack;
+    pub mod model_usage_record;
     pub mod prompt_artifact;
     pub mod workflow_checkpoint;
     pub mod workflow_progress_event;

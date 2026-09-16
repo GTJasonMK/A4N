@@ -364,6 +364,7 @@ fn image_provider_config() -> ImageProviderConfig {
             {"width": 1024, "height": 576},
             {"width": 1024, "height": 1536}
         ]),
+        pricing: Default::default(),
     }
 }
 
