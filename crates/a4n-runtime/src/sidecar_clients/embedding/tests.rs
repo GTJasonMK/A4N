@@ -5,7 +5,7 @@ use super::contracts::{
 };
 use super::download::{
     download_embedding_model_events, handle_embedding_download_event,
-    test_embedding_config_via_sidecar,
+    prepare_embedding_connectivity_test, test_embedding_config_via_sidecar,
 };
 use crate::state::RuntimeProfile;
 use a4n_embedding_provider_contract::EmbeddingModelIdentity;
@@ -166,7 +166,10 @@ async fn embedding_connectivity_uses_typed_capability_and_deny_all_request() {
     let mut model = embedding_model("fastembed");
     model.local_model_path = Some("/host/private/cache".to_string());
 
-    test_embedding_config_via_sidecar(Some(client.clone()), &model)
+    let (sidecar_client, payload) =
+        prepare_embedding_connectivity_test(Some(client.clone()), &model)
+            .expect("embedding connectivity preflight");
+    test_embedding_config_via_sidecar(sidecar_client, payload)
         .await
         .expect("sidecar connectivity test");
 
@@ -188,7 +191,10 @@ async fn api_embedding_connectivity_forwards_secret_only_with_local_user_policy(
     model.base_url = Some("https://provider.example/v1".to_string());
     model.api_key = Some("secret-key".to_string());
 
-    test_embedding_config_via_sidecar(Some(client.clone()), &model)
+    let (sidecar_client, payload) =
+        prepare_embedding_connectivity_test(Some(client.clone()), &model)
+            .expect("embedding connectivity preflight");
+    test_embedding_config_via_sidecar(sidecar_client, payload)
         .await
         .expect("API embedding connectivity test");
     let request = client.last_embed_request().expect("recorded embed request");

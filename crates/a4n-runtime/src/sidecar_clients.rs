@@ -11,7 +11,8 @@ mod video;
 
 pub(crate) use embedding::{
     create_embedding_provider, delete_embedding_model, download_embedding_model_events,
-    embedding_model_download_info, list_embedding_models, test_embedding_config_via_sidecar,
+    embedding_model_download_info, list_embedding_models, prepare_embedding_connectivity_test,
+    test_embedding_config_via_sidecar,
 };
 pub(crate) use image::{generate_image, preview_image_provider_request};
 pub(crate) use llm::create_llm_provider;

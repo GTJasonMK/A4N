@@ -895,10 +895,15 @@ impl OrchestratorContext {
     ) -> Result<VideoProviderConfig, AppError> {
         match runtime_video_config {
             Some(config) => Ok(config.clone()),
-            None => self
-                .default_video_config()
-                .await
-                .map(|config| super::video_provider_config_from_model(&config)),
+            None => {
+                let config = self.default_video_config().await?;
+                super::video_provider_config_from_model(&config).map_err(|error| {
+                    AppError::InvalidState {
+                        current: error,
+                        operation: "读取视频 Provider 价格配置".to_string(),
+                    }
+                })
+            }
         }
     }
 

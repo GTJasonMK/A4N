@@ -1057,9 +1057,7 @@ impl a4n_api_contract::config::ConfigReadApplicationPort for OrchestratorContext
     ) -> Result<LlmProviderConfig, AppError> {
         self.require_settings_admin(caller_user_id).await?;
         validate_positive_config_id(config_id)?;
-        Ok(llm_provider_config_from_model(
-            self.llm_config_by_id(config_id).await?,
-        ))
+        llm_provider_config_from_model(self.llm_config_by_id(config_id).await?)
     }
 
     async fn embedding_config_for_connectivity_test(
@@ -1069,9 +1067,7 @@ impl a4n_api_contract::config::ConfigReadApplicationPort for OrchestratorContext
     ) -> Result<EmbeddingProviderConfig, AppError> {
         self.require_settings_admin(caller_user_id).await?;
         validate_positive_config_id(config_id)?;
-        Ok(embedding_provider_config_from_model(
-            self.embedding_config_by_id(config_id).await?,
-        ))
+        embedding_provider_config_from_model(self.embedding_config_by_id(config_id).await?)
     }
 
     async fn image_config_for_connectivity_test(
@@ -1081,18 +1077,15 @@ impl a4n_api_contract::config::ConfigReadApplicationPort for OrchestratorContext
     ) -> Result<ImageConfigForConnectivityTest, AppError> {
         self.require_settings_admin(caller_user_id).await?;
         validate_positive_config_id(config_id)?;
-        Ok(image_config_for_connectivity_test_from_model(
-            self.image_config_by_id(config_id).await?,
-        ))
+        image_config_for_connectivity_test_from_model(self.image_config_by_id(config_id).await?)
     }
 
     async fn list_llm(&self) -> Result<Vec<LlmConfigSummary>, AppError> {
-        Ok(self
-            .list_llm_config_records()
+        self.list_llm_config_records()
             .await?
             .iter()
             .map(llm_config_summary)
-            .collect())
+            .collect()
     }
 
     async fn list_image(&self) -> Result<Vec<ImageConfigSummary>, AppError> {
@@ -1112,12 +1105,11 @@ impl a4n_api_contract::config::ConfigReadApplicationPort for OrchestratorContext
     }
 
     async fn list_embedding(&self) -> Result<Vec<EmbeddingConfigSummary>, AppError> {
-        Ok(self
-            .list_embedding_configs()
+        self.list_embedding_configs()
             .await?
             .iter()
             .map(embedding_config_summary)
-            .collect())
+            .collect()
     }
 }
 
@@ -1157,9 +1149,7 @@ impl a4n_api_contract::config::ConfigMutationApplicationPort for OrchestratorCon
         input: CreateLlmInput,
     ) -> Result<LlmConfigSummary, AppError> {
         self.require_settings_admin(caller_user_id).await?;
-        Ok(llm_config_summary(
-            &self.create_llm_config_validated(input).await?,
-        ))
+        llm_config_summary(&self.create_llm_config_validated(input).await?)
     }
 
     async fn update_llm(
@@ -1169,9 +1159,7 @@ impl a4n_api_contract::config::ConfigMutationApplicationPort for OrchestratorCon
         input: UpdateLlmInput,
     ) -> Result<LlmConfigSummary, AppError> {
         self.require_settings_admin(caller_user_id).await?;
-        Ok(llm_config_summary(
-            &self.update_llm_config_validated(config_id, input).await?,
-        ))
+        llm_config_summary(&self.update_llm_config_validated(config_id, input).await?)
     }
 
     async fn set_default_llm(&self, caller_user_id: i64, config_id: i64) -> Result<(), AppError> {
@@ -1248,9 +1236,7 @@ impl a4n_api_contract::config::ConfigMutationApplicationPort for OrchestratorCon
         input: CreateEmbeddingInput,
     ) -> Result<EmbeddingConfigSummary, AppError> {
         self.require_settings_admin(caller_user_id).await?;
-        Ok(embedding_config_summary(
-            &self.create_embedding_config_validated(input).await?,
-        ))
+        embedding_config_summary(&self.create_embedding_config_validated(input).await?)
     }
 
     async fn update_embedding(
@@ -1260,11 +1246,11 @@ impl a4n_api_contract::config::ConfigMutationApplicationPort for OrchestratorCon
         input: UpdateEmbeddingInput,
     ) -> Result<EmbeddingConfigSummary, AppError> {
         self.require_settings_admin(caller_user_id).await?;
-        Ok(embedding_config_summary(
+        embedding_config_summary(
             &self
                 .update_embedding_config_validated(config_id, input)
                 .await?,
-        ))
+        )
     }
 
     async fn set_default_embedding(
@@ -1321,8 +1307,8 @@ fn validate_positive_config_id(config_id: i64) -> Result<(), AppError> {
     ))
 }
 
-fn llm_provider_config_from_model(model: llm_config::Model) -> LlmProviderConfig {
-    LlmProviderConfig {
+fn llm_provider_config_from_model(model: llm_config::Model) -> Result<LlmProviderConfig, AppError> {
+    Ok(LlmProviderConfig {
         id: model.id,
         name: model.name,
         provider: model.provider,
@@ -1334,12 +1320,14 @@ fn llm_provider_config_from_model(model: llm_config::Model) -> LlmProviderConfig
         max_context_tokens: model.max_context_tokens,
         max_output_tokens: model.max_output_tokens,
         extra_body_json: model.extra_body_json,
-        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
-    }
+        pricing: pricing_from_json(&model.pricing_json)?,
+    })
 }
 
-fn embedding_provider_config_from_model(model: embedding_config::Model) -> EmbeddingProviderConfig {
-    EmbeddingProviderConfig {
+fn embedding_provider_config_from_model(
+    model: embedding_config::Model,
+) -> Result<EmbeddingProviderConfig, AppError> {
+    Ok(EmbeddingProviderConfig {
         id: model.id,
         name: model.name,
         backend: model.backend,
@@ -1349,12 +1337,14 @@ fn embedding_provider_config_from_model(model: embedding_config::Model) -> Embed
         dimension: model.dimension,
         batch_size: model.batch_size,
         local_model_path: model.local_model_path,
-        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
-    }
+        pricing: pricing_from_json(&model.pricing_json)?,
+    })
 }
 
-fn image_provider_config_from_model(model: image_gen_config::Model) -> ImageProviderConfig {
-    ImageProviderConfig {
+fn image_provider_config_from_model(
+    model: image_gen_config::Model,
+) -> Result<ImageProviderConfig, AppError> {
+    Ok(ImageProviderConfig {
         id: model.id,
         name: model.name,
         backend: model.backend,
@@ -1363,14 +1353,14 @@ fn image_provider_config_from_model(model: image_gen_config::Model) -> ImageProv
         model: model.model,
         max_concurrent: model.max_concurrent,
         supported_sizes_json: model.supported_sizes_json,
-        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
-    }
+        pricing: pricing_from_json(&model.pricing_json)?,
+    })
 }
 
 fn image_config_for_connectivity_test_from_model(
     model: image_gen_config::Model,
-) -> ImageConfigForConnectivityTest {
-    ImageConfigForConnectivityTest {
+) -> Result<ImageConfigForConnectivityTest, AppError> {
+    Ok(ImageConfigForConnectivityTest {
         id: model.id,
         name: model.name,
         backend: model.backend,
@@ -1379,12 +1369,12 @@ fn image_config_for_connectivity_test_from_model(
         model: model.model,
         max_concurrent: model.max_concurrent,
         supported_sizes_json: model.supported_sizes_json,
-        pricing: pricing_from_json(&model.pricing_json).unwrap_or_default(),
-    }
+        pricing: pricing_from_json(&model.pricing_json)?,
+    })
 }
 
-fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary {
-    LlmConfigSummary {
+fn llm_config_summary(config: &llm_config::Model) -> Result<LlmConfigSummary, AppError> {
+    Ok(LlmConfigSummary {
         id: config.id,
         name: config.name.clone(),
         provider: config.provider.clone(),
@@ -1397,8 +1387,8 @@ fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary {
         max_output_tokens: config.max_output_tokens,
         extra_body_json: config.extra_body_json.clone(),
         is_default: config.is_default,
-        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
-    }
+        pricing: pricing_from_json(&config.pricing_json)?,
+    })
 }
 
 fn image_config_summary(config: &image_gen_config::Model) -> Result<ImageConfigSummary, AppError> {
@@ -1423,7 +1413,7 @@ fn image_config_summary(config: &image_gen_config::Model) -> Result<ImageConfigS
             },
         )?,
         is_default: config.is_default,
-        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
+        pricing: pricing_from_json(&config.pricing_json)?,
     })
 }
 
@@ -1432,13 +1422,13 @@ impl VideoProviderConfigPort for OrchestratorContext {
     async fn by_id(&self, config_id: i64) -> Result<VideoProviderConfig, AppError> {
         self.video_config_by_id(config_id)
             .await
-            .map(|config| video_provider_config_from_model(&config))
+            .and_then(video_provider_config_checked)
     }
 
     async fn default(&self) -> Result<VideoProviderConfig, AppError> {
         self.default_video_config()
             .await
-            .map(|config| video_provider_config_from_model(&config))
+            .and_then(video_provider_config_checked)
     }
 
     async fn for_provider_job(
@@ -1452,18 +1442,27 @@ impl VideoProviderConfigPort for OrchestratorContext {
     }
 }
 
+fn video_provider_config_checked(
+    config: video_gen_config::Model,
+) -> Result<VideoProviderConfig, AppError> {
+    video_provider_config_from_model(&config).map_err(|error| AppError::InvalidState {
+        current: error,
+        operation: "读取视频 Provider 价格配置".to_string(),
+    })
+}
+
 #[async_trait::async_trait]
 impl a4n_api_contract::image::ImageProviderConfigPort for OrchestratorContext {
     async fn by_id(&self, config_id: i64) -> Result<ImageProviderConfig, AppError> {
         self.image_config_by_id(config_id)
             .await
-            .map(image_provider_config_from_model)
+            .and_then(image_provider_config_from_model)
     }
 
     async fn default(&self) -> Result<ImageProviderConfig, AppError> {
         self.resolve_image_config(None)
             .await
-            .map(image_provider_config_from_model)
+            .and_then(image_provider_config_from_model)
     }
 }
 
@@ -1495,12 +1494,14 @@ fn video_config_summary(config: &video_gen_config::Model) -> Result<VideoConfigS
         supported_durations_json: config.supported_durations_json.clone(),
         default_fps: config.default_fps,
         is_default: config.is_default,
-        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
+        pricing: pricing_from_json(&config.pricing_json)?,
     })
 }
 
-fn embedding_config_summary(config: &embedding_config::Model) -> EmbeddingConfigSummary {
-    EmbeddingConfigSummary {
+fn embedding_config_summary(
+    config: &embedding_config::Model,
+) -> Result<EmbeddingConfigSummary, AppError> {
+    Ok(EmbeddingConfigSummary {
         id: config.id,
         name: config.name.clone(),
         backend: config.backend.clone(),
@@ -1511,8 +1512,8 @@ fn embedding_config_summary(config: &embedding_config::Model) -> EmbeddingConfig
         batch_size: config.batch_size,
         local_model_path: config.local_model_path.clone(),
         is_default: config.is_default,
-        pricing: pricing_from_json(&config.pricing_json).unwrap_or_default(),
-    }
+        pricing: pricing_from_json(&config.pricing_json)?,
+    })
 }
 
 fn normalize_llm_config_input(input: CreateLlmInput) -> Result<NormalizedLlmConfig, AppError> {
@@ -1696,7 +1697,8 @@ fn merge_api_key_update(
 mod tests {
     use super::{
         embedding_provider_config_from_model, image_config_for_connectivity_test_from_model,
-        llm_provider_config_from_model, merge_api_key_update, validate_positive_config_id,
+        llm_provider_config_from_model, merge_api_key_update, pricing_from_json,
+        validate_positive_config_id,
     };
     use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config};
     use serde_json::json;
@@ -1710,6 +1712,11 @@ mod tests {
             merge_api_key_update(Some(Some("new".into())), Some("saved".into())),
             Some("new".into())
         );
+    }
+
+    #[test]
+    fn invalid_pricing_json_is_rejected_instead_of_defaulting() {
+        assert!(pricing_from_json(&json!({"currency": "US"})).is_err());
     }
 
     #[test]
@@ -1730,7 +1737,8 @@ mod tests {
             is_default: true,
             created_at: Default::default(),
             updated_at: Default::default(),
-        });
+        })
+        .unwrap();
         assert_eq!(llm.id, 7);
         assert_eq!(llm.api_key.as_deref(), Some("secret"));
         assert_eq!(
@@ -1752,7 +1760,8 @@ mod tests {
             is_default: false,
             created_at: Default::default(),
             updated_at: Default::default(),
-        });
+        })
+        .unwrap();
         assert_eq!(embedding.id, 9);
         assert_eq!(embedding.api_key.as_deref(), Some("embedding-secret"));
         assert_eq!(embedding.local_model_path.as_deref(), Some("/tmp/model"));
@@ -1770,7 +1779,8 @@ mod tests {
             is_default: true,
             created_at: Default::default(),
             updated_at: Default::default(),
-        });
+        })
+        .unwrap();
         assert_eq!(image.id, 11);
         assert_eq!(image.api_key.as_deref(), Some("image-secret"));
         assert_eq!(image.base_url.as_deref(), Some("https://example.test/v1"));

@@ -269,9 +269,11 @@ fn estimate_llm_cost(plan: &PricingPlan, meter: &ModelUsageMeter) -> Result<Cost
         CostConfidence::Exact
     };
     Ok(CostEstimate {
-        amount_micros: i64::try_from(amount)
-            .map(Some)
-            .map_err(|_| "成本超出 i64 范围".to_string())?,
+        amount_micros: if matches!(confidence, CostConfidence::Unpriced) {
+            None
+        } else {
+            Some(i64::try_from(amount).map_err(|_| "成本超出 i64 范围".to_string())?)
+        },
         confidence,
     })
 }
@@ -462,5 +464,30 @@ mod tests {
         .unwrap();
         assert_eq!(estimate.amount_micros, None);
         assert_eq!(estimate.confidence, CostConfidence::Unpriced);
+    }
+
+    #[test]
+    fn missing_llm_price_is_not_zero_and_partial_price_is_visible() {
+        let meter = ModelUsageMeter {
+            input_tokens: Some(1_000_000),
+            output_tokens: Some(500_000),
+            ..Default::default()
+        };
+        let unpriced =
+            estimate_cost(ModelCapability::Llm, &PricingPlan::default(), &meter).unwrap();
+        assert_eq!(unpriced.amount_micros, None);
+        assert_eq!(unpriced.confidence, CostConfidence::Unpriced);
+
+        let partial = estimate_cost(
+            ModelCapability::Llm,
+            &PricingPlan {
+                llm_input_per_million: Some("1".into()),
+                ..Default::default()
+            },
+            &meter,
+        )
+        .unwrap();
+        assert_eq!(partial.amount_micros, Some(1_000_000));
+        assert_eq!(partial.confidence, CostConfidence::Partial);
     }
 }

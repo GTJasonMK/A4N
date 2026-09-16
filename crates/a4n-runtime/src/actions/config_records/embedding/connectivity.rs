@@ -25,6 +25,29 @@ pub async fn test_embedding_config(
     config_id: i64,
 ) -> Result<(), String> {
     let config = resolve_embedding_config_for_connectivity_test(state, user_id, config_id).await?;
+    let uses_sidecars = state.runtime_profile().uses_sidecars();
+    let sidecar_prepared = if uses_sidecars {
+        Some(
+            crate::sidecar_clients::prepare_embedding_connectivity_test(
+                state.capabilities().embedding.clone(),
+                &config,
+            )
+            .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
+    let embedded_provider = if uses_sidecars {
+        None
+    } else {
+        Some(
+            crate::dynamic_embedding::make_provider_from_model(
+                &config,
+                state.embedding_models_dir(),
+            )
+            .map_err(|error| error.to_string())?,
+        )
+    };
     let cost_record = state
         .provider_runtime()
         .start_model_usage(ModelUsageRecordStart {
@@ -46,8 +69,9 @@ pub async fn test_embedding_config(
         })
         .await
         .map_err(|error| error.to_string())?;
-    let result = if state.runtime_profile().uses_sidecars() {
-        let client = state.capabilities().embedding.clone();
+    let result = if uses_sidecars {
+        let (client, payload) =
+            sidecar_prepared.ok_or_else(|| "Embedding sidecar 预检状态缺失".to_string())?;
         state
             .provider_runtime()
             .queue_run_tracked(
@@ -55,18 +79,15 @@ pub async fn test_embedding_config(
                 TaskPriority::High,
                 None,
                 || async move {
-                    crate::sidecar_clients::test_embedding_config_via_sidecar(client, &config)
+                    crate::sidecar_clients::test_embedding_config_via_sidecar(client, payload)
                         .await
                         .map_err(a4n_error::AppError::from)
                 },
             )
             .await
     } else {
-        let provider = crate::dynamic_embedding::make_provider_from_model(
-            &config,
-            state.embedding_models_dir(),
-        )
-        .map_err(|e| e.to_string())?;
+        let provider = embedded_provider
+            .ok_or_else(|| "Embedding embedded Provider 预检状态缺失".to_string())?;
         state
             .provider_runtime()
             .queue_run_tracked(

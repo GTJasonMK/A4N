@@ -1866,6 +1866,7 @@ export interface ModelUsageReportInput {
 export interface ModelUsageCurrencyTotal {
   amountMicros: string;
   currency: string;
+  partialCalls: number;
   pricedCalls: number;
   unpricedCalls: number;
 }
@@ -1897,6 +1898,7 @@ export interface ModelUsageEntry {
 
 export interface ModelUsageReport {
   capabilities: ModelUsageCapabilityTotal[];
+  partialCalls: number;
   projectId: number | null;
   recent: ModelUsageEntry[];
   since: string;

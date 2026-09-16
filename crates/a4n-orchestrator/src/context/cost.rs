@@ -55,26 +55,31 @@ impl OrchestratorContext {
         )
         .await?;
 
-        let mut currency_totals: BTreeMap<String, (i64, u64, u64)> = BTreeMap::new();
+        let mut currency_totals: BTreeMap<String, (i64, u64, u64, u64)> = BTreeMap::new();
         let mut capability_totals: BTreeMap<(String, String), (u64, i64)> = BTreeMap::new();
+        let mut partial_calls = 0u64;
         let mut unpriced_calls = 0u64;
         let mut unsettled_calls = 0u64;
         for aggregate in aggregates {
             let currency = currency_totals
                 .entry(aggregate.currency.clone())
-                .or_insert((0, 0, 0));
+                .or_insert((0, 0, 0, 0));
             currency.0 = currency.0.saturating_add(aggregate.amount_micros);
             currency.1 = currency
                 .1
                 .saturating_add(count_to_u64(aggregate.priced_calls)?);
             currency.2 = currency
                 .2
+                .saturating_add(count_to_u64(aggregate.partial_calls)?);
+            currency.3 = currency
+                .3
                 .saturating_add(count_to_u64(aggregate.unpriced_calls)?);
             let capability = capability_totals
                 .entry((aggregate.currency.clone(), aggregate.capability))
                 .or_insert((0, 0));
             capability.0 = capability.0.saturating_add(count_to_u64(aggregate.calls)?);
             capability.1 = capability.1.saturating_add(aggregate.amount_micros);
+            partial_calls = partial_calls.saturating_add(count_to_u64(aggregate.partial_calls)?);
             unpriced_calls = unpriced_calls.saturating_add(count_to_u64(aggregate.unpriced_calls)?);
             unsettled_calls =
                 unsettled_calls.saturating_add(count_to_u64(aggregate.unsettled_calls)?);
@@ -106,10 +111,11 @@ impl OrchestratorContext {
             totals: currency_totals
                 .into_iter()
                 .map(
-                    |(currency, (amount, priced, unpriced))| ModelUsageCurrencyTotal {
+                    |(currency, (amount, priced, partial, unpriced))| ModelUsageCurrencyTotal {
                         currency,
                         amount_micros: amount.to_string(),
                         priced_calls: priced,
+                        partial_calls: partial,
                         unpriced_calls: unpriced,
                     },
                 )
@@ -126,6 +132,7 @@ impl OrchestratorContext {
                 )
                 .collect(),
             recent,
+            partial_calls,
             unpriced_calls,
             unsettled_calls,
         })

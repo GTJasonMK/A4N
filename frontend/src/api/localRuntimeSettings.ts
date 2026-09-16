@@ -150,12 +150,70 @@ const DEFAULT_PRICING: PricingPlan = {
   image_per_generation: null,
   video_per_second: null,
 };
+const PRICING_KEYS = [
+  "currency",
+  "llm_input_per_million",
+  "llm_output_per_million",
+  "llm_cache_read_per_million",
+  "llm_cache_write_per_million",
+  "embedding_input_per_million",
+  "image_per_generation",
+  "video_per_second",
+] as const;
 
 function normalizePricing(value: unknown): PricingPlan {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (value == null) {
     return { ...DEFAULT_PRICING };
   }
-  return { ...DEFAULT_PRICING, ...(value as Partial<PricingPlan>) };
+  const payload = requiredObject(value, "本机价格计划");
+  assertNoUnknownKeys(payload, PRICING_KEYS, "本机价格计划");
+  const currency =
+    payload.currency == null
+      ? DEFAULT_PRICING.currency
+      : requiredTrimmedString(payload.currency, "本机价格计划 currency").toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    throw new Error("本机价格计划 currency 必须是 3 位大写 ISO 货币代码");
+  }
+  return {
+    currency,
+    llm_input_per_million: normalizePrice(
+      payload.llm_input_per_million,
+      "本机价格计划 llm_input_per_million",
+    ),
+    llm_output_per_million: normalizePrice(
+      payload.llm_output_per_million,
+      "本机价格计划 llm_output_per_million",
+    ),
+    llm_cache_read_per_million: normalizePrice(
+      payload.llm_cache_read_per_million,
+      "本机价格计划 llm_cache_read_per_million",
+    ),
+    llm_cache_write_per_million: normalizePrice(
+      payload.llm_cache_write_per_million,
+      "本机价格计划 llm_cache_write_per_million",
+    ),
+    embedding_input_per_million: normalizePrice(
+      payload.embedding_input_per_million,
+      "本机价格计划 embedding_input_per_million",
+    ),
+    image_per_generation: normalizePrice(
+      payload.image_per_generation,
+      "本机价格计划 image_per_generation",
+    ),
+    video_per_second: normalizePrice(
+      payload.video_per_second,
+      "本机价格计划 video_per_second",
+    ),
+  };
+}
+
+function normalizePrice(value: unknown, field: string): string | null {
+  if (value == null) return null;
+  const price = requiredTrimmedString(value, field);
+  if (!/^[0-9]+(?:\.[0-9]{0,6})?$/.test(price)) {
+    throw new Error(`${field} 必须是最多 6 位小数的非负十进制数`);
+  }
+  return price;
 }
 
 function defaultSettings(): LocalRuntimeSettings {

@@ -62,6 +62,8 @@ impl SidecarEmbeddingProvider {
             .iter()
             .map(|text| (text.chars().count() as u64 / 4).max(1))
             .sum();
+        let payload = embedding_texts_payload(&model, texts)?;
+        let expected_dimension = payload.dimension;
         let cost_record = self
             .facade
             .start_model_usage(ModelUsageRecordStart {
@@ -82,8 +84,6 @@ impl SidecarEmbeddingProvider {
                 pricing: model.pricing.clone(),
             })
             .await?;
-        let payload = embedding_texts_payload(&model, texts)?;
-        let expected_dimension = payload.dimension;
         let client = self.client.clone();
         let response = self
             .facade

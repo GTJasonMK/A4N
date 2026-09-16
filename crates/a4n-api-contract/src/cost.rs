@@ -15,6 +15,7 @@ pub struct ModelUsageCurrencyTotal {
     pub currency: String,
     pub amount_micros: String,
     pub priced_calls: u64,
+    pub partial_calls: u64,
     pub unpriced_calls: u64,
 }
 
@@ -56,6 +57,7 @@ pub struct ModelUsageReport {
     pub totals: Vec<ModelUsageCurrencyTotal>,
     pub capabilities: Vec<ModelUsageCapabilityTotal>,
     pub recent: Vec<ModelUsageEntry>,
+    pub partial_calls: u64,
     pub unpriced_calls: u64,
     pub unsettled_calls: u64,
 }

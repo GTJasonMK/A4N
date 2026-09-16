@@ -1,5 +1,7 @@
 use a4n_embedding_client::EmbeddingClient;
-use a4n_embedding_contract::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
+use a4n_embedding_contract::{
+    EmbedTextsPayload, EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary,
+};
 use a4n_embedding_provider_contract::DownloadProgress;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
@@ -67,12 +69,19 @@ pub(crate) async fn delete_embedding_model(
     typed_response_payload(response, "embedding").map_err(service_app_error)
 }
 
-pub(crate) async fn test_embedding_config_via_sidecar(
+pub(crate) fn prepare_embedding_connectivity_test(
     client: Option<Arc<dyn EmbeddingClient>>,
     model: &EmbeddingProviderConfig,
-) -> Result<(), AppError> {
+) -> Result<(Arc<dyn EmbeddingClient>, EmbedTextsPayload), AppError> {
     let client = required_embedding_client(client)?;
     let payload = embedding_connectivity_test_payload(model)?;
+    Ok((client, payload))
+}
+
+pub(crate) async fn test_embedding_config_via_sidecar(
+    client: Arc<dyn EmbeddingClient>,
+    payload: EmbedTextsPayload,
+) -> Result<(), AppError> {
     let expected_dimension = payload.dimension;
     let request = global_typed_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;

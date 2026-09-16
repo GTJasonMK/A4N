@@ -148,3 +148,10 @@ it("rejects incomplete, contradictory, repaired, and extended v1 settings", () =
     payload.legacy_defaults = {};
   }, "包含未知字段：legacy_defaults");
 });
+
+it("rejects malformed local pricing instead of silently defaulting", () => {
+  expectStoredSettingsRejected((payload) => {
+    const embedding = payload.embedding as Array<Record<string, unknown>>;
+    embedding[0].pricing = { currency: "US" };
+  }, "本机价格计划 currency 必须是 3 位大写 ISO 货币代码");
+});

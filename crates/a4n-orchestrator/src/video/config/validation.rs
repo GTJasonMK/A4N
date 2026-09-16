@@ -11,11 +11,16 @@ use a4n_video::{
 pub fn validate_video_config_model(
     cfg: &video_gen_config::Model,
 ) -> Result<VideoConfigParams, String> {
-    validate_video_provider_config(&video_provider_config_from_model(cfg))
+    let provider_config = video_provider_config_from_model(cfg)?;
+    validate_video_provider_config(&provider_config)
 }
 
-pub fn video_provider_config_from_model(cfg: &video_gen_config::Model) -> VideoProviderConfig {
-    VideoProviderConfig {
+pub fn video_provider_config_from_model(
+    cfg: &video_gen_config::Model,
+) -> Result<VideoProviderConfig, String> {
+    let pricing = serde_json::from_value(cfg.pricing_json.clone())
+        .map_err(|error| format!("视频配置 #{} pricing_json 无效：{error}", cfg.id))?;
+    Ok(VideoProviderConfig {
         id: cfg.id,
         name: cfg.name.clone(),
         backend: cfg.backend.clone(),
@@ -32,8 +37,8 @@ pub fn video_provider_config_from_model(cfg: &video_gen_config::Model) -> VideoP
         supported_durations_json: cfg.supported_durations_json.clone(),
         default_fps: cfg.default_fps,
         is_default: cfg.is_default,
-        pricing: serde_json::from_value(cfg.pricing_json.clone()).unwrap_or_default(),
-    }
+        pricing,
+    })
 }
 
 fn validate_video_provider_config(cfg: &VideoProviderConfig) -> Result<VideoConfigParams, String> {

@@ -70,9 +70,30 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
                 <div className="mt-1 text-small text-book-text-muted">
                   {t("novel.costCalls", { count: formatNumber(total.pricedCalls, locale) })}
                 </div>
+                {total.partialCalls > 0 && (
+                  <div className="text-small text-book-text-muted">
+                    {t("novel.costPartialCalls", {
+                      count: formatNumber(total.partialCalls, locale),
+                    })}
+                  </div>
+                )}
+                {total.unpricedCalls > 0 && (
+                  <div className="text-small text-book-text-muted">
+                    {t("novel.costUnpricedCalls", {
+                      count: formatNumber(total.unpricedCalls, locale),
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
+          {report.unsettledCalls > 0 && (
+            <p className="text-small text-book-text-muted">
+              {t("novel.costUnsettledCalls", {
+                count: formatNumber(report.unsettledCalls, locale),
+              })}
+            </p>
+          )}
           <div className="overflow-x-auto border-y border-book-border/40">
             <table className="w-full min-w-[680px] text-left text-small">
               <thead className="text-book-text-muted">

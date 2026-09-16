@@ -149,6 +149,7 @@ pub struct ModelUsageAggregate {
     pub calls: i64,
     pub amount_micros: i64,
     pub priced_calls: i64,
+    pub partial_calls: i64,
     pub unpriced_calls: i64,
     pub unsettled_calls: i64,
 }
@@ -171,11 +172,17 @@ where
             "amount_micros",
         )
         .column_as(
-            Expr::cust("COUNT(*) FILTER (WHERE amount_micros IS NOT NULL)"),
+            Expr::cust("COUNT(*) FILTER (WHERE confidence IN ('exact', 'estimated'))"),
             "priced_calls",
         )
         .column_as(
-            Expr::cust("COUNT(*) FILTER (WHERE amount_micros IS NULL)"),
+            Expr::cust("COUNT(*) FILTER (WHERE confidence = 'partial')"),
+            "partial_calls",
+        )
+        .column_as(
+            Expr::cust(
+                "COUNT(*) FILTER (WHERE confidence IN ('unpriced', 'unknown') OR amount_micros IS NULL)",
+            ),
             "unpriced_calls",
         )
         .column_as(

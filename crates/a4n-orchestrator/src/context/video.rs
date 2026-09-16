@@ -1553,7 +1553,12 @@ impl OrchestratorContext {
                 operation: format!("恢复 backend={}", config.backend),
             });
         }
-        Ok(crate::video::video_provider_config_from_model(&config))
+        crate::video::video_provider_config_from_model(&config).map_err(|error| {
+            AppError::InvalidState {
+                current: error,
+                operation: "恢复视频 Provider 价格配置".to_string(),
+            }
+        })
     }
 
     pub(crate) async fn update_generated_video_record(
