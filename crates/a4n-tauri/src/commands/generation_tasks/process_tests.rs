@@ -117,9 +117,10 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     .ensure_dirs()
     .unwrap();
     let data_dir = config.data_dir.clone();
-    let state = a4n_control::initialize_runtime(config, RuntimeProfile::Minimal, RuntimeRole::Host)
-        .await
-        .unwrap();
+    let state =
+        a4n_host_assembly::initialize_runtime(config, RuntimeProfile::Minimal, RuntimeRole::Host)
+            .await
+            .unwrap();
 
     let registry = GenerationSubscriptionRegistry::default();
     let cleanup_registry = registry.clone();

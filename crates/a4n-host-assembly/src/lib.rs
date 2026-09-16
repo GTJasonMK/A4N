@@ -1,3 +1,8 @@
+//! Host-side composition root for Runtime and Orchestrator.
+//!
+//! This crate owns construction only. HTTP routing, Tauri commands, and domain
+//! behavior remain in their respective owners.
+
 use std::sync::Arc;
 
 use a4n_error::AppError;

@@ -255,11 +255,11 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
+ "a4n-host-assembly",
  "a4n-image-host-contract",
  "a4n-llm-provider-contract",
  "a4n-media",
  "a4n-migration",
- "a4n-orchestrator",
  "a4n-runtime",
  "a4n-service-protocol",
  "a4n-storage",
@@ -567,6 +567,16 @@ dependencies = [
  "a4n-service-protocol",
  "async-trait",
  "tokio",
+]
+
+[[package]]
+name = "a4n-host-assembly"
+version = "0.1.0"
+dependencies = [
+ "a4n-config",
+ "a4n-error",
+ "a4n-orchestrator",
+ "a4n-runtime",
 ]
 
 [[package]]
@@ -1484,6 +1494,7 @@ dependencies = [
  "a4n-control",
  "a4n-db",
  "a4n-error",
+ "a4n-host-assembly",
  "a4n-media",
  "a4n-migration",
  "a4n-runtime",

@@ -31,7 +31,8 @@ pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
     app_paths.ensure_dirs().map_err(AppError::Io)?;
 
     let runtime_profile = runtime_profile_for_tauri_host()?;
-    let state = a4n_control::initialize_runtime(config, runtime_profile, RuntimeRole::Host).await?;
+    let state =
+        a4n_host_assembly::initialize_runtime(config, runtime_profile, RuntimeRole::Host).await?;
     event_logger::spawn_event_logger(&state);
 
     Ok(state)

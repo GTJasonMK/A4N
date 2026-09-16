@@ -101,6 +101,7 @@ members = [
     "crates/a4n-task-runtime",
     "crates/a4n-db",
     "crates/a4n-orchestrator",
+    "crates/a4n-host-assembly",
     "crates/a4n-runtime",
     "crates/a4n-tauri",
     "crates/a4n-migration",

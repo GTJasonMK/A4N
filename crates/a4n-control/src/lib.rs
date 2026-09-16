@@ -1,6 +1,5 @@
 mod logging;
 mod routes;
-mod runtime;
 mod state;
 
 #[cfg(test)]
@@ -11,12 +10,12 @@ use a4n_runtime::AppState;
 use axum::{Router, routing::get};
 use std::sync::Arc;
 
+pub use a4n_host_assembly::initialize_runtime;
 pub use logging::init_tracing;
 pub use routes::{
     api_router, dispatch_agent_host_command, dispatch_agent_host_command_value,
     dispatch_generation_start, dispatch_runtime_command, dispatch_runtime_command_value,
 };
-pub use runtime::initialize_runtime;
 pub use state::{ServerConfig, ServerState};
 
 /// Installs the Control-owned dispatcher for dynamically discovered Agent tools.
