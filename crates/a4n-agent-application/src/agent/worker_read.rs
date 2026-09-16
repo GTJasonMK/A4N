@@ -6,7 +6,10 @@ use a4n_api_contract::agent::{
     SearchAgentToolsInput,
 };
 use a4n_error::AppError;
-use a4n_worker_contract::{AgentWorkerExecutionResultRequest, AgentWorkerMemoryRequest};
+use a4n_worker_contract::{
+    AgentWorkerExecutionResultRequest, AgentWorkerMemoryRequest, AgentWorkerSkillLoadRequest,
+    AgentWorkerSkillSearchRequest,
+};
 
 #[async_trait::async_trait]
 impl AgentWorkerReadApplicationPort for AgentApplication {
@@ -22,6 +25,20 @@ impl AgentWorkerReadApplicationPort for AgentApplication {
         input: DescribeAgentToolInput,
     ) -> Result<AgentToolDescriptor, AppError> {
         AgentApplication::describe_tool(self, input)
+    }
+
+    async fn search_skills_for_worker(
+        &self,
+        request: &AgentWorkerSkillSearchRequest,
+    ) -> Result<a4n_api_contract::agent::AgentSkillSearchResult, AppError> {
+        AgentApplication::search_skills_for_worker(self, request).await
+    }
+
+    async fn load_skill_for_worker(
+        &self,
+        request: &AgentWorkerSkillLoadRequest,
+    ) -> Result<a4n_api_contract::agent::AgentSkillContent, AppError> {
+        AgentApplication::load_skill_for_worker(self, request).await
     }
 
     async fn verify_chapters_in_project_for_worker(

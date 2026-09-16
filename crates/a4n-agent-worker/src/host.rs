@@ -1,6 +1,8 @@
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
 use a4n_agent_runtime_contract::model_request_wire_value;
-use a4n_api_contract::agent::AgentExecutionResultPage;
+use a4n_api_contract::agent::{
+    AgentExecutionResultPage, AgentSkillContent, AgentSkillSearchResult,
+};
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV3, VisualPlanProjection, VisualPlanReadView,
 };
@@ -33,8 +35,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
-    AgentWorkerUsageRequest, AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest,
+    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
+    AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
     AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerRequest,
 };
 use async_trait::async_trait;
@@ -258,6 +261,22 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerToolDescribeRequest,
     ) -> Result<a4n_api_contract::agent::AgentToolDescriptor, AppError> {
         self.request_json(Method::POST, "/internal/agent/tools/describe", request)
+            .await
+    }
+
+    async fn search_agent_skills(
+        &self,
+        request: &AgentWorkerSkillSearchRequest,
+    ) -> Result<AgentSkillSearchResult, AppError> {
+        self.request_json(Method::POST, "/internal/agent/skills/search", request)
+            .await
+    }
+
+    async fn load_agent_skill(
+        &self,
+        request: &AgentWorkerSkillLoadRequest,
+    ) -> Result<AgentSkillContent, AppError> {
+        self.request_json(Method::POST, "/internal/agent/skills/load", request)
             .await
     }
 

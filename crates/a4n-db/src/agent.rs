@@ -7,6 +7,7 @@
 use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, memory, message, run, thread, turn,
 };
+use a4n_db_models::models::ai::system_settings;
 use a4n_domain::agent::{
     AgentApprovalInput, AgentDelegationInput, AgentEventInput, AgentExecutionInput,
     AgentInboxInput, AgentMemoryInput, AgentMessageInput, AgentThreadCreateInput, AgentTurnInput,
@@ -39,6 +40,7 @@ pub use workflow::{active_owned_workflows, bind_owned_workflow, workflow_owner};
 pub const RUN_LEASE_SECONDS: i64 = 30;
 pub const INBOX_LEASE_SECONDS: i64 = 30;
 pub const EDITOR_RESPONSE_TTL_SECONDS: i64 = 30;
+const AGENT_SKILL_PROFILE_KEY_PREFIX: &str = "agent_skill_profile:";
 
 #[derive(Debug, thiserror::Error)]
 pub enum AgentDbError {
@@ -104,6 +106,67 @@ fn is_run_terminal(status: &str) -> bool {
 /// process interruption.
 pub fn is_run_active(status: &str) -> bool {
     !is_run_terminal(status)
+}
+
+fn agent_skill_profile_key(owner_user_id: i64, capability: &str) -> String {
+    format!("{AGENT_SKILL_PROFILE_KEY_PREFIX}{owner_user_id}:{capability}")
+}
+
+pub async fn agent_skill_profile_ids<C: ConnectionTrait>(
+    db: &C,
+    owner_user_id: i64,
+    capability: &str,
+) -> Result<Option<Vec<String>>, AgentDbError> {
+    let key = agent_skill_profile_key(owner_user_id, capability);
+    let Some(setting) = system_settings::Entity::find()
+        .filter(system_settings::Column::Key.eq(key))
+        .one(db)
+        .await?
+    else {
+        return Ok(None);
+    };
+    serde_json::from_value(setting.value)
+        .map(Some)
+        .map_err(|error| {
+            AgentDbError::InvalidArgument(format!("Agent Skill 配置解析失败: {error}"))
+        })
+}
+
+pub async fn save_agent_skill_profile_ids(
+    db: &DatabaseConnection,
+    owner_user_id: i64,
+    capability: &str,
+    enabled_skill_ids: &[String],
+) -> Result<(), AgentDbError> {
+    let key = agent_skill_profile_key(owner_user_id, capability);
+    let value = serde_json::to_value(enabled_skill_ids).map_err(|error| {
+        AgentDbError::InvalidArgument(format!("Agent Skill 配置序列化失败: {error}"))
+    })?;
+    let now = now();
+    let existing = system_settings::Entity::find()
+        .filter(system_settings::Column::Key.eq(&key))
+        .one(db)
+        .await?;
+    if let Some(setting) = existing {
+        let mut active: system_settings::ActiveModel = setting.into();
+        active.value = Set(value);
+        active.category = Set("agent_skill".into());
+        active.description = Set(Some("Agent capability 的启用 Skill".into()));
+        active.updated_at = Set(now);
+        active.update(db).await?;
+    } else {
+        system_settings::ActiveModel {
+            key: Set(key),
+            value: Set(value),
+            category: Set("agent_skill".into()),
+            description: Set(Some("Agent capability 的启用 Skill".into())),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(db)
+        .await?;
+    }
+    Ok(())
 }
 
 pub fn validate_live_run_lease(

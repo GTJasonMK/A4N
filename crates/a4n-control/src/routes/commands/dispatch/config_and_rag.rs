@@ -5,14 +5,14 @@ use super::super::{
     detect_llm_config_models, download_embedding_model, export_all_configs_json, export_theme,
     export_theme_package, get_embedding_model_download_info, get_storage_paths,
     get_theme_preference, import_all_configs, import_theme, import_theme_package,
-    list_embedding_config, list_llm_config, list_local_embedding_models,
+    list_agent_skills, list_embedding_config, list_llm_config, list_local_embedding_models,
     list_model_provider_catalog, list_themes, prepare_chapter_generation_rag_embedding,
     preview_test_embedding_config_request, preview_test_llm_config_request, rag_enhanced_search,
     rag_enhanced_search_with_vectors, rag_ingest_all, rag_prepare_enhanced_search,
     rag_prepare_ingest_all, rag_upload_ingest_embeddings, set_default_embedding_config,
-    set_default_llm_config, test_embedding_config, test_llm_config, update_embedding_config,
-    update_llm_config, update_theme, update_theme_preference, upload_theme_resource, web_fetch,
-    web_search,
+    set_default_llm_config, test_embedding_config, test_llm_config,
+    update_agent_skill_configuration, update_embedding_config, update_llm_config, update_theme,
+    update_theme_preference, upload_theme_resource, web_fetch, web_search,
 };
 use serde_json::Value;
 
@@ -23,6 +23,7 @@ pub(super) async fn try_dispatch(
     cmd: &str,
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
+        "list_agent_skills" => list_agent_skills(state, user_id, args).await?,
         "list_themes" => list_themes(state, user_id, args).await?,
         "create_theme" => create_theme(state, user_id, args).await?,
         "update_theme" => update_theme(state, user_id, args).await?,
@@ -43,6 +44,9 @@ pub(super) async fn try_dispatch(
         "update_llm_config" => update_llm_config(state, user_id, args).await?,
         "set_default_llm_config" => set_default_llm_config(state, user_id, args).await?,
         "delete_llm_config" => delete_llm_config(state, user_id, args).await?,
+        "update_agent_skill_configuration" => {
+            update_agent_skill_configuration(state, user_id, args).await?
+        }
         "web_search" => web_search(args).await?,
         "web_fetch" => web_fetch(args).await?,
         "list_embedding_config" => list_embedding_config(state, user_id, args).await?,

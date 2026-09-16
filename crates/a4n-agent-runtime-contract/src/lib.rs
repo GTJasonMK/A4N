@@ -6,10 +6,10 @@
 
 use a4n_api_contract::agent::{
     AgentBudget, AgentDelegationView, AgentEditorRequest, AgentExecutionResultPage,
-    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentToolDescriptor,
-    AgentToolSearchResult, DescribeAgentToolInput, ReadAgentExecutionResultInput,
-    ReadAgentMemoryInput, RespondAgentEditorInput, ReviewAgentDelegationInput,
-    SearchAgentToolsInput,
+    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent, AgentSkillDescriptor,
+    AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult, DescribeAgentToolInput,
+    ReadAgentExecutionResultInput, ReadAgentMemoryInput, RespondAgentEditorInput,
+    ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
@@ -31,8 +31,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
-    AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerSkillLoadRequest,
+    AgentWorkerSkillSearchRequest, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
+    AgentWorkerUsageRequest, WorkerRequest,
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
@@ -42,6 +43,30 @@ mod ports;
 pub use ports::*;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
+
+pub fn agent_skill_directory_prompt(skills: &[AgentSkillDescriptor]) -> String {
+    if skills.is_empty() {
+        return "当前 capability 没有启用 Skill。".into();
+    }
+    skills
+        .iter()
+        .map(|skill| format!("- {} ({})：{}", skill.id, skill.version, skill.description))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn ensure_agent_scope_allows_tool(scope: &AgentScope, name: &str) -> Result<(), AppError> {
+    if a4n_api_contract::agent::is_agent_skill_tool(name)
+        || scope.allowed_tools.is_empty()
+        || scope.allowed_tools.iter().any(|allowed| allowed == name)
+    {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(format!(
+            "Agent scope 不允许使用工具: {name}"
+        )))
+    }
+}
 
 /// Serialize the Agent worker-to-Control request without exposing durable-only
 /// context, while preserving the trace required by the Control LLM runtime.
@@ -966,6 +991,27 @@ mod tests {
         };
         assert!(valid.validate().is_ok());
     }
+
+    #[test]
+    fn skill_runtime_helpers_keep_catalog_behavior_in_one_place() {
+        assert!(a4n_api_contract::agent::is_agent_skill_tool(
+            "search_agent_skills"
+        ));
+        assert!(!a4n_api_contract::agent::is_agent_skill_tool(
+            "read_agent_memory"
+        ));
+        assert_eq!(
+            agent_skill_directory_prompt(&[]),
+            "当前 capability 没有启用 Skill。"
+        );
+        let restricted = AgentScope {
+            allowed_tools: vec!["read_agent_memory".into()],
+            ..AgentScope::default()
+        };
+        assert!(ensure_agent_scope_allows_tool(&restricted, "load_agent_skill").is_ok());
+        assert!(ensure_agent_scope_allows_tool(&restricted, "list_projects").is_err());
+    }
+
     #[test]
     fn model_request_wire_round_trips_trace_without_durable_context() {
         let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));

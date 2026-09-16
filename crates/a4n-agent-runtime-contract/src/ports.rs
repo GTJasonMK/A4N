@@ -448,6 +448,16 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerExecutionResultRequest,
     ) -> Result<AgentExecutionResultPage, AppError>;
+
+    async fn search_skills_for_worker(
+        &self,
+        request: &AgentWorkerSkillSearchRequest,
+    ) -> Result<AgentSkillSearchResult, AppError>;
+
+    async fn load_skill_for_worker(
+        &self,
+        request: &AgentWorkerSkillLoadRequest,
+    ) -> Result<AgentSkillContent, AppError>;
 }
 
 #[async_trait::async_trait]

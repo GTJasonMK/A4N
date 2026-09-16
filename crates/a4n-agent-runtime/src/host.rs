@@ -1,5 +1,6 @@
 use a4n_api_contract::agent::{
-    AgentExecutionResultPage, AgentToolDescriptor, AgentToolSearchResult,
+    AgentExecutionResultPage, AgentSkillContent, AgentSkillSearchResult, AgentToolDescriptor,
+    AgentToolSearchResult,
 };
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanV3, VisualPlanProjection, VisualPlanReadView,
@@ -30,8 +31,9 @@ use a4n_worker_contract::{
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
-    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest,
+    AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -106,6 +108,16 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerToolDescribeRequest,
     ) -> Result<AgentToolDescriptor, AppError>;
+
+    async fn search_agent_skills(
+        &self,
+        request: &AgentWorkerSkillSearchRequest,
+    ) -> Result<AgentSkillSearchResult, AppError>;
+
+    async fn load_agent_skill(
+        &self,
+        request: &AgentWorkerSkillLoadRequest,
+    ) -> Result<AgentSkillContent, AppError>;
 
     async fn verify_agent_chapters(
         &self,

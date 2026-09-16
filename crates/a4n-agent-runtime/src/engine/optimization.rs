@@ -32,7 +32,7 @@ pub(super) async fn process(
             .clone()
             .ok_or_else(|| AppError::InvalidArgument("优化启动记录缺少原参数".into()))?,
         None => {
-            ensure_scope_allows_tool(&context.scope, "ensure_content_optimization_session")?;
+            ensure_agent_scope_allows_tool(&context.scope, "ensure_content_optimization_session")?;
             let Some(session) = call(
                 state,
                 claimed,

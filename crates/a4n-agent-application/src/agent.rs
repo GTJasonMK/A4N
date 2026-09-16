@@ -94,6 +94,7 @@ mod external_task_wait;
 mod generation;
 mod generation_cancel;
 mod lease_recovery;
+mod skills;
 mod worker_activation;
 mod worker_approval;
 mod worker_claim;

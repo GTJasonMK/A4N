@@ -13,6 +13,9 @@ import { useI18n } from "../../i18n";
 const EmbeddingTab = lazy(() =>
   import("./EmbeddingTab").then((module) => ({ default: module.EmbeddingTab })),
 );
+const AgentTab = lazy(() =>
+  import("./AgentTab").then((module) => ({ default: module.AgentTab })),
+);
 const ImageTab = lazy(() =>
   import("./ImageTab").then((module) => ({ default: module.ImageTab })),
 );
@@ -177,6 +180,7 @@ export const SettingsPage: React.FC = () => {
               }
             >
               {tab === "llm" && <LlmTab />}
+              {tab === "agent" && <AgentTab />}
               {tab === "embedding" && <EmbeddingTab />}
               {tab === "image" && <ImageTab />}
               {tab === "video" && <VideoTab />}
