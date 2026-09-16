@@ -8,18 +8,7 @@ mod stages;
 mod types;
 mod workflow;
 
-use a4n_error::AppError;
-use async_trait::async_trait;
-
-pub use progress::{SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncProgress};
-#[async_trait]
-pub trait SceneProfileSyncHostPort: Send + Sync {
-    async fn sync_scene_rag_records(
-        &self,
-        project_id: i64,
-        workflow_run_id: i64,
-    ) -> Result<(), AppError>;
-}
+pub(crate) use a4n_scene_host_contract::SceneProfileSyncHostPort;
 
 #[cfg(test)]
 mod tests;

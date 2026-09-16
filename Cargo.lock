@@ -853,6 +853,7 @@ dependencies = [
  "a4n-queue",
  "a4n-rag-contract",
  "a4n-rag-core",
+ "a4n-scene-host-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
@@ -1162,6 +1163,7 @@ dependencies = [
  "a4n-rag-core",
  "a4n-rag-index",
  "a4n-rag-sidecar-contract",
+ "a4n-scene-host-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
@@ -1194,6 +1196,17 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "zip",
+]
+
+[[package]]
+name = "a4n-scene-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-prompt-contract",
+ "async-trait",
+ "tokio-util",
 ]
 
 [[package]]

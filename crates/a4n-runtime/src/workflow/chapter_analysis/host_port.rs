@@ -1,9 +1,8 @@
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
-use a4n_orchestrator::{
-    chapter_analysis::ChapterAnalysisHostPort, scene_profile::SceneProfileSyncHostPort,
-};
+use a4n_orchestrator::chapter_analysis::ChapterAnalysisHostPort;
+use a4n_scene_host_contract::SceneProfileSyncHostPort;
 use async_trait::async_trait;
 
 use crate::{

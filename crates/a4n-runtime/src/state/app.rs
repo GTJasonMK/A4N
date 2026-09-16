@@ -142,7 +142,7 @@ pub struct AppState {
     /// Scene-profile synchronization remains owned by the scene-profile
     /// application; Runtime supplies only the RAG host adapter.
     scene_profile_sync_application:
-        Arc<dyn a4n_orchestrator::scene_profile::SceneProfileSyncApplicationPort>,
+        Arc<dyn a4n_scene_host_contract::SceneProfileSyncApplicationPort>,
     /// Managed service health queries stay with the service manager owner.
     service_health_application:
         Arc<dyn a4n_api_contract::service_health::ServiceHealthApplicationPort>,
@@ -1325,7 +1325,7 @@ impl AppState {
 
     pub(crate) fn scene_profile_sync_application(
         &self,
-    ) -> &dyn a4n_orchestrator::scene_profile::SceneProfileSyncApplicationPort {
+    ) -> &dyn a4n_scene_host_contract::SceneProfileSyncApplicationPort {
         self.scene_profile_sync_application.as_ref()
     }
 

@@ -3164,6 +3164,16 @@ for contract in CharacterDiscoveryApplicationPort CharacterProfileSyncApplicatio
         exit 1
     fi
 done
+
+if ! rg -q "pub trait SceneProfileSyncApplicationPort" crates/a4n-scene-host-contract/src/lib.rs; then
+    printf 'SceneProfileSyncApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::scene_profile::(SceneProfileSyncApplicationPort|SceneProfileSyncHostPort|SceneProfileSyncProgress)' crates/a4n-runtime/src; then
+    printf 'Runtime scene profile sync must use a4n-scene-host-contract\n' >&2
+    exit 1
+fi
 if ! rg -n 'character_discovery_application\(\)' \
     crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/request.rs \
     crates/a4n-runtime/src/actions/character_ai/character_discovery_flow/execution.rs || \

@@ -81,6 +81,7 @@ members = [
     "crates/a4n-domain",
     "crates/a4n-chapter-generation-contract",
     "crates/a4n-character-host-contract",
+    "crates/a4n-scene-host-contract",
     "crates/a4n-config",
     "crates/a4n-event",
     "crates/a4n-storage",
