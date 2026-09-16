@@ -3,7 +3,7 @@ use sea_orm::ConnectionTrait;
 use serde_json::json;
 
 use crate::video::VideoDbError;
-use crate::video_prompt::PreparedVideoPromptGenerationTrace;
+use a4n_domain::video_prompt::PreparedVideoPromptGenerationTrace;
 
 pub(in crate::video_prompt::sync) async fn record_chapter_video_prompt_generation_run<C>(
     db: &C,

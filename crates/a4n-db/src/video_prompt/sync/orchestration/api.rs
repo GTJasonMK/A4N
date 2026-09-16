@@ -3,7 +3,8 @@ use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 use crate::video::VideoDbError;
-use crate::video_prompt::{ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy};
+use crate::video_prompt::ChapterVideoPromptSyncDraft;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncPolicy;
 
 pub async fn sync_chapter_video_prompts_with_generation_runs<C>(
     db: &C,

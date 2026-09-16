@@ -51,7 +51,7 @@ pub(in crate::video) use test_support::{
 };
 
 // 子模块通过 `use crate::video::{...}` / `super::` 共享的类型与错误映射。
-pub(crate) use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
+pub(crate) use a4n_domain::video_prompt::VideoPromptDownstreamDependencies;
 #[cfg(test)]
 pub(in crate::video) use a4n_error::AppError;
 

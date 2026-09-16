@@ -4,9 +4,10 @@ use super::{
 };
 use crate::{
     video::{self, VideoDbError},
-    video_prompt::{PromptStage, VideoPromptDownstreamDependencies},
+    video_prompt::PromptStage,
 };
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::VideoPromptDownstreamDependencies;
 use sea_orm::ConnectionTrait;
 use std::collections::BTreeSet;
 

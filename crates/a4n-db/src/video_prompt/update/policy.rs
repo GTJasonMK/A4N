@@ -1,5 +1,6 @@
 use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use a4n_domain::source_text_hash;
+use a4n_domain::video_prompt::ChapterVideoPromptPatch;
 use a4n_video_contract::{
     VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     update_video_segment_recipe_metadata, video_segment_content_fingerprint,
@@ -14,10 +15,7 @@ use serde_json::Value;
 use crate::video::{self, VideoDbError};
 
 use super::{
-    super::{
-        ChapterVideoPromptPatch, ensure_chapter_video_prompt_stage_mutable,
-        lock_chapter_video_prompt_scope,
-    },
+    super::{ensure_chapter_video_prompt_stage_mutable, lock_chapter_video_prompt_scope},
     metadata::sync_chapter_video_prompt_metadata_after_update,
 };
 

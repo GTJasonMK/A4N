@@ -1,11 +1,12 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptPatch;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
 
 use crate::video::{self, VideoDbError};
 
 use super::{
-    super::ChapterVideoPromptPatch, metadata::sync_chapter_video_prompt_metadata_after_update,
+    metadata::sync_chapter_video_prompt_metadata_after_update,
     policy::update_chapter_video_prompt_with_policy_in,
 };
 
