@@ -30,6 +30,37 @@ pub async fn list_external_task_waits(
     Ok(waits)
 }
 
+/// Read one wait execution after the worker has been woken. The list query
+/// above intentionally only returns runs still waiting; resumed runs need the
+/// same durable identity without weakening the execution-kind/status fence.
+pub async fn external_task_wait(
+    db: &DatabaseConnection,
+    run_id: i64,
+    execution_id: i64,
+) -> Result<Option<(run::Model, thread::Model, execution::Model)>, AgentDbError> {
+    let Some(run_row) = run::Entity::find_by_id(run_id).one(db).await? else {
+        return Ok(None);
+    };
+    let Some(execution_row) = execution::Entity::find_by_id(execution_id)
+        .one(db)
+        .await?
+        .filter(|row| {
+            row.run_id == run_id && row.execution_kind == "wait" && row.status == "running"
+        })
+    else {
+        return Ok(None);
+    };
+    let Some(thread_row) = thread::Entity::find_by_id(run_row.thread_id)
+        .one(db)
+        .await?
+    else {
+        return Err(AgentDbError::NotFound(
+            "等待任务的 Agent Thread 不存在".into(),
+        ));
+    };
+    Ok(Some((run_row, thread_row, execution_row)))
+}
+
 /// A stale task notification cannot release an editor wait or a newer wait.
 pub async fn wake_external_task_wait(
     db: &DatabaseConnection,

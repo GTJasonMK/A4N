@@ -25,7 +25,7 @@ use std::collections::HashSet;
 mod review;
 pub use review::review_delegation;
 mod task_wait;
-pub use task_wait::{list_external_task_waits, wake_external_task_wait};
+pub use task_wait::{external_task_wait, list_external_task_waits, wake_external_task_wait};
 mod budget;
 pub use budget::{AgentBudgetSnapshot, run_budget_snapshot};
 mod generation;

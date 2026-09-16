@@ -683,7 +683,7 @@ def start_provider(
                 "--log",
                 str(request_log),
                 "--embedding-dimension",
-                "8",
+                str(getattr(args, "embedding_dimension", 8)),
             ],
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
@@ -701,7 +701,11 @@ def start_provider(
     return provider, request_log
 
 
-def runtime_snapshot(base_url: str, llm_provider: str = "openai") -> dict[str, Any]:
+def runtime_snapshot(
+    base_url: str,
+    llm_provider: str = "openai",
+    embedding_dimension: int = 8,
+) -> dict[str, Any]:
     key = "a4n-e2e-provider-key"
     llm = {
         "id": 900001,
@@ -729,7 +733,10 @@ def runtime_snapshot(base_url: str, llm_provider: str = "openai") -> dict[str, A
         "api_key_encrypted": key,
         "model": "a4n-virtual-image",
         "max_concurrent": 4,
-        "supported_sizes": [{"width": 1024, "height": 1024}],
+        "supported_sizes": [
+            {"width": 1024, "height": 1024},
+            {"width": 1920, "height": 1080},
+        ],
         "is_default": True,
     }
     video = {
@@ -757,7 +764,7 @@ def runtime_snapshot(base_url: str, llm_provider: str = "openai") -> dict[str, A
         "base_url": base_url,
         "api_key_encrypted": key,
         "model": "a4n-virtual-embedding",
-        "dimension": 8,
+        "dimension": embedding_dimension,
         "batch_size": 32,
         "local_model_path": None,
         "is_default": True,

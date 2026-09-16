@@ -410,13 +410,43 @@ def main():
             })
             generated_snapshot = finish(generation_run)
             generated_executions = [row for row in generated_snapshot["executions"] if row["run_id"] == generation_run]
-            generated_tools = [row["tool_name"] for row in generated_executions if row["status"] == "succeeded"]
+            generated_tools = [
+                row["tool_name"]
+                for row in generated_executions
+                if row["kind"] in {"tool_call", "wait"}
+                and row["status"] == "succeeded"
+                and row["tool_name"] != "read_agent_execution_result"
+            ]
             assert generated_tools == [
                 "read_chapter_visual_plan",
                 "start_visual_plan_prompt_generation",
                 "wait_generation_task",
                 "read_visual_plan_prompt_candidate",
             ], generated_tools
+            prompt_handle = next(
+                row["metadata"]["result"]
+                for row in generated_snapshot["messages"]
+                if row["run_id"] == generation_run
+                and row["role"] == "tool"
+                and row["metadata"]["tool"] == "start_visual_plan_prompt_generation"
+            )
+            thread_id = other_thread["id"]
+            cross_chapter_run = send({
+                "mode": "wait_generation",
+                "task_id": prompt_handle["task_id"],
+                "attempt": prompt_handle["attempt"],
+            })
+            cross_chapter_snapshot = finish(cross_chapter_run)
+            cross_chapter_execution = next(
+                row
+                for row in cross_chapter_snapshot["executions"]
+                if row["run_id"] == cross_chapter_run
+                and row["tool_name"] == "wait_generation_task"
+            )
+            assert cross_chapter_execution["status"] == "failed"
+            assert "章节" in (cross_chapter_execution["error"] or "")
+            thread_id = original_thread_id
+            report["checks"].append("a Director Agent cannot observe a completed generation task from another chapter in the same project")
             report["checks"].append("Director Agent starts an async prompt generation task, waits for its terminal result and reads a plan-bound candidate without auto-adoption")
 
             image_run = send({
@@ -428,7 +458,13 @@ def main():
             })
             image_snapshot = finish(image_run)
             image_executions = [row for row in image_snapshot["executions"] if row["run_id"] == image_run]
-            image_tools = [row["tool_name"] for row in image_executions if row["status"] == "succeeded"]
+            image_tools = [
+                row["tool_name"]
+                for row in image_executions
+                if row["kind"] in {"tool_call", "wait"}
+                and row["status"] == "succeeded"
+                and row["tool_name"] != "read_agent_execution_result"
+            ]
             assert image_tools == [
                 "read_chapter_visual_plan",
                 "preview_visual_plan_point_generation",

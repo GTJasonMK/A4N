@@ -195,8 +195,8 @@ pub(crate) async fn generation_task_summary(
     .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
 
     // The generic generation-task authorization only checks the user's
-    // project access. A chapter-bound optimization Agent must also prove that
-    // this task belongs to its exact optimization session/chapter.
+    // project access. A bound Agent must also prove that a task belongs to its
+    // exact chapter before observing it.
     if scope.project_id.is_none() && scope.chapter_id.is_none() && scope.resource_kind.is_none() {
         return Ok(summary);
     }
@@ -208,45 +208,120 @@ pub(crate) async fn generation_task_summary(
     if scope.chapter_id.is_none() {
         return Ok(summary);
     }
-    let target = summary
-        .started
-        .target
-        .as_ref()
-        .filter(|target| {
-            matches!(
-                target.kind.as_str(),
-                "optimization_chat" | "optimization_analysis" | "optimization_patch"
-            )
-        })
-        .ok_or_else(|| {
-            AppError::Forbidden("章节绑定的 Agent 只能读取可验证的内容优化 generation task".into())
-        })?;
-    let session_id = target
-        .id
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| {
-            AppError::InvalidArgument("optimization generation task 的 sessionId 无效".into())
-        })?;
-    let session = crate::actions::optimize::get_optimize_session(
-        state,
-        user_id,
-        OptimizeSessionInput { session_id },
-    )
-    .await
-    .map_err(AppError::InvalidArgument)?;
-    if session.project_id != project_id {
-        return Err(AppError::InvalidState {
-            current: format!(
-                "generation task {} 的项目归属与 optimization session 不一致",
-                summary.handle.task_id
-            ),
-            operation: "校验 Agent generation task scope".into(),
-        });
+    let target = summary.started.target.as_ref().ok_or_else(|| {
+        AppError::Forbidden("章节绑定的 Agent 只能读取带可验证章节归属的 generation task".into())
+    })?;
+    if matches!(
+        target.kind.as_str(),
+        "optimization_chat" | "optimization_analysis" | "optimization_patch"
+    ) {
+        let session_id = target
+            .id
+            .parse::<i64>()
+            .ok()
+            .filter(|id| *id > 0)
+            .ok_or_else(|| {
+                AppError::InvalidArgument("optimization generation task 的 sessionId 无效".into())
+            })?;
+        let session = crate::actions::optimize::get_optimize_session(
+            state,
+            user_id,
+            OptimizeSessionInput { session_id },
+        )
+        .await
+        .map_err(AppError::InvalidArgument)?;
+        if session.project_id != project_id {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "generation task {} 的项目归属与 optimization session 不一致",
+                    summary.handle.task_id
+                ),
+                operation: "校验 Agent generation task scope".into(),
+            });
+        }
+        super::super::agent_runtime::ensure_chapter_scope(scope, session.chapter_id)?;
+        return Ok(summary);
     }
-    super::super::agent_runtime::ensure_chapter_scope(scope, session.chapter_id)?;
+
+    let chapter_id = target_chapter_id(target).ok_or_else(|| {
+        AppError::Forbidden("章节绑定的 Agent 只能读取带可验证章节归属的 generation task".into())
+    })?;
+    state
+        .agent_resource_access_application()
+        .verify_chapters_in_project(user_id, project_id, &[chapter_id])
+        .await?;
+    super::super::agent_runtime::ensure_chapter_scope(scope, chapter_id)?;
     Ok(summary)
+}
+
+/// Extract the chapter fence persisted in Director generation target IDs.
+/// Older tasks intentionally return `None`: their target cannot prove chapter
+/// ownership and must not bypass a bound Agent scope.
+fn target_chapter_id(target: &a4n_service_protocol::GenerationTargetRef) -> Option<i64> {
+    let mut parts = target.id.split(':');
+    match target.kind.as_str() {
+        "visual_plan_segment" => {
+            (parts.next()? == "chapter").then_some(())?;
+            parts.next()?.parse().ok()
+        }
+        "image_visual_plan_point" => {
+            parts.next()?.parse::<i64>().ok()?;
+            (parts.next()? == "visual_plan").then_some(())?;
+            (parts.next()? == "chapter").then_some(())?;
+            parts.next()?.parse().ok()
+        }
+        "image_object_profile" | "image_scene_profile" => {
+            parts.next()?.parse::<i64>().ok()?;
+            (parts.next()? == "chapter").then_some(())?;
+            parts.next()?.parse().ok()
+        }
+        "image_scene" => {
+            parts.next()?.parse::<i64>().ok()?;
+            (parts.next()? == "scene").then_some(())?;
+            (parts.next()? == "chapter").then_some(())?;
+            parts.next()?.parse().ok()
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod generation_task_scope_tests {
+    use super::target_chapter_id;
+    use a4n_service_protocol::GenerationTargetRef;
+
+    fn target(kind: &str, id: &str) -> GenerationTargetRef {
+        GenerationTargetRef {
+            kind: kind.into(),
+            id: id.into(),
+            revision: None,
+        }
+    }
+
+    #[test]
+    fn director_targets_keep_the_chapter_fence() {
+        assert_eq!(
+            target_chapter_id(&target("visual_plan_segment", "chapter:11:42:shot-1")),
+            Some(11)
+        );
+        assert_eq!(
+            target_chapter_id(&target(
+                "image_visual_plan_point",
+                "7:visual_plan:chapter:11:42:point-1",
+            )),
+            Some(11)
+        );
+    }
+
+    #[test]
+    fn chapterless_or_legacy_targets_are_not_verifiable() {
+        assert_eq!(
+            target_chapter_id(&target("visual_plan_segment", "42:shot-1")),
+            None
+        );
+        assert_eq!(target_chapter_id(&target("image_scene", "7")), None);
+        assert_eq!(target_chapter_id(&target("optimization_chat", "9")), None);
+    }
 }
 
 async fn scoped_session(

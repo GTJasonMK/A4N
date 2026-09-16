@@ -45,6 +45,12 @@ pub trait AgentExternalTaskWaitApplicationPort: Send + Sync {
         after_run_id: i64,
     ) -> Result<Vec<AgentExternalTaskWaitSnapshot>, AppError>;
 
+    async fn external_task_wait(
+        &self,
+        run_id: i64,
+        execution_id: i64,
+    ) -> Result<Option<AgentExternalTaskWaitSnapshot>, AppError>;
+
     async fn wake_external_task_wait(&self, run_id: i64, execution_id: i64)
     -> Result<(), AppError>;
 }

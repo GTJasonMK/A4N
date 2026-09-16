@@ -431,9 +431,7 @@ async fn dispatch_runtime_command_inner(
     let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::snapshot_from_args(&args)
         .map_err(ApiError::bad_request)?;
     let mut command_args = args;
-    if agent_context.is_some()
-        && let Value::Object(fields) = &mut command_args
-    {
+    if let Value::Object(fields) = &mut command_args {
         fields.remove("runtime_config_snapshot");
     }
     let state = ServerState::from_runtime(runtime.clone());

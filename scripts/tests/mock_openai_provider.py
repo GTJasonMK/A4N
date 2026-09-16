@@ -909,7 +909,9 @@ def optimization_chat_response(combined: str) -> dict[str, Any]:
         observations = states[-1].get("observations", []) if states else []
     instruction = re.search(r"# 本次用户指令\s*\n([\s\S]*?)\n# 可用工具", combined)
     current = instruction.group(1) if instruction else ""
-    if "A4N_OPTIMIZATION_WAIT" in current:
+    if "A4N_OPTIMIZATION_CANCEL_WAIT" in current:
+        time.sleep(10)
+    elif "A4N_OPTIMIZATION_WAIT" in current:
         time.sleep(3)
     if "A4N_OPTIMIZATION_PLAIN" in current:
         return {"thought": "该问题可直接回答。", "action": "final", "arguments": {"reply": "局部补丁提案需要用户确认后才会写回正文。"}}

@@ -103,9 +103,20 @@ def director_fixture(body, messages):
                 "operations": [{"kind": "set_node_config", "node_id": task["node_id"], "config_json": task["config"]}],
             })
         if task.get("run") and "run" not in observations:
-            return call("run", "run_canvas_node", {**resource, "node_id": task["node_id"]})
+            return call(
+                "run",
+                "run_canvas_node",
+                {"input": {**resource, "node_id": task["node_id"]}},
+            )
         if task.get("run") and "wait" not in observations:
-            return host("wait", "wait_workflow_run", {"workflow_run_id": observations["run"]["workflow_run_id"]})
+            return host(
+                "wait",
+                "wait_workflow_run",
+                {
+                    "workflow_run_id": observations["run"]["workflow_run_id"],
+                    "include_generation_runs": False,
+                },
+            )
         return {"content": "画布局部修改已保存，并已取得实际执行结果。" if task.get("run") else "画布局部修改已保存。"}
     if mode == "read_result":
         if "result" not in observations:
@@ -173,7 +184,10 @@ def director_fixture(body, messages):
             return host(
                 "candidate",
                 "read_visual_plan_prompt_candidate",
-                {**resource, "generation_run_id": int(result_ref["id"])},
+                {
+                    "project_id": task["project_id"],
+                    "generation_run_id": int(result_ref["id"]),
+                },
             )
         candidate = observations["candidate"]
         if not candidate.get("prompt") or candidate.get("plan_sha256") != plan_resource.get("hash"):
@@ -201,8 +215,30 @@ def director_fixture(body, messages):
             "config_id": None,
         }
         if "preview" not in observations:
-            return host("preview", "preview_visual_plan_point_generation", {**resource, "options": options})
+            return host(
+                "preview",
+                "preview_visual_plan_point_generation",
+                {"project_id": task["project_id"], "options": options},
+            )
         preview = observations["preview"]
+        if preview.get("complete") is False:
+            execution_id = preview["execution_id"]
+            if "preview_aspect" not in observations:
+                return call(
+                    "preview_aspect",
+                    "read_agent_execution_result",
+                    {"execution_id": execution_id, "pointer": "/aspect_ratio"},
+                )
+            if "preview_refs" not in observations:
+                return call(
+                    "preview_refs",
+                    "read_agent_execution_result",
+                    {"execution_id": execution_id, "pointer": "/reference_image_ids"},
+                )
+            preview = {
+                "aspect_ratio": observations["preview_aspect"]["text"],
+                "reference_image_ids": json.loads(observations["preview_refs"]["text"]),
+            }
         if not preview.get("aspect_ratio") or not isinstance(preview.get("reference_image_ids"), list):
             raise ValueError("image generation preview is incomplete")
         if "start" not in observations:
@@ -220,10 +256,36 @@ def director_fixture(body, messages):
             return call("wait", "wait_generation_task", {"taskId": handle["task_id"], "attempt": handle["attempt"]})
         if "images" not in observations:
             return host("images", "list_images_by_projects", {"project_ids": [task["project_id"]]})
+        images = observations["images"]
+        if isinstance(images, dict) and images.get("complete") is False:
+            if "image_metadata_0" not in observations:
+                return call(
+                    "image_metadata_0",
+                    "read_agent_execution_result",
+                    {"execution_id": images["execution_id"], "pointer": "/0/metadata_json/director_candidate"},
+                )
+            first_metadata = json.loads(observations["image_metadata_0"]["text"])
+            if first_metadata.get("point_id") != task["point_id"]:
+                if "image_metadata_1" not in observations:
+                    return call(
+                        "image_metadata_1",
+                        "read_agent_execution_result",
+                        {"execution_id": images["execution_id"], "pointer": "/1/metadata_json/director_candidate"},
+                    )
+                images = [
+                    {"metadata_json": {"director_candidate": first_metadata}},
+                    {
+                        "metadata_json": {
+                            "director_candidate": json.loads(observations["image_metadata_1"]["text"])
+                        }
+                    },
+                ]
+            else:
+                images = [{"metadata_json": {"director_candidate": first_metadata}}]
         image = next(
             (
                 item
-                for item in observations["images"]
+                for item in images
                 if isinstance(item, dict)
                 and isinstance(item.get("metadata_json"), dict)
                 and item["metadata_json"].get("director_candidate", {}).get("point_id") == task["point_id"]
