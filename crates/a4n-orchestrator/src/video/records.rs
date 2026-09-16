@@ -294,7 +294,7 @@ impl crate::OrchestratorContext {
 
         self.update_generated_video_record(
             video_id,
-            a4n_db::video::UpdateGeneratedVideoRecordInput {
+            a4n_domain::media::UpdateGeneratedVideoRecordInput {
                 prompt: input.prompt,
                 negative_prompt,
                 clear_negative_prompt,
@@ -364,7 +364,7 @@ impl crate::OrchestratorContext {
             next_assembly_push_status(input.action, pushes[latest_index].status.as_str())?;
         self.update_generated_video_record(
             existing.id,
-            a4n_db::video::UpdateGeneratedVideoRecordInput {
+            a4n_domain::media::UpdateGeneratedVideoRecordInput {
                 prompt: None,
                 negative_prompt: None,
                 clear_negative_prompt: false,

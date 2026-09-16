@@ -72,6 +72,33 @@ pub struct CreateGeneratedVideoRecordDraftInput {
     pub metadata_json: Option<Value>,
 }
 
+/// Pure patch input for a generated-image record. Database ownership checks,
+/// normalization and persistence stay in `a4n-db`.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateGeneratedImageRecordInput {
+    pub prompt: Option<String>,
+    pub image_type: Option<String>,
+    pub chapter_id: Option<i64>,
+    pub clear_chapter_id: bool,
+    pub panel_id: Option<String>,
+    pub clear_panel_id: bool,
+    pub ai_score: Option<f32>,
+    pub clear_ai_score: bool,
+    pub is_favorite: Option<bool>,
+}
+
+/// Pure patch input for a generated-video record. Database ownership checks,
+/// normalization and persistence stay in `a4n-db`.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateGeneratedVideoRecordInput {
+    pub prompt: Option<String>,
+    pub negative_prompt: Option<String>,
+    pub clear_negative_prompt: bool,
+    pub metadata_json: Option<Value>,
+    pub clear_metadata_json: bool,
+    pub is_favorite: Option<bool>,
+}
+
 /// Durable facts needed to recover an image publication without exposing ORM
 /// rows to the Runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]

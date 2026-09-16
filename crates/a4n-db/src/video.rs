@@ -27,18 +27,18 @@ mod generated_images;
 pub(crate) use generated_images::validated_video_reference_image_records_batch;
 pub(crate) use generated_images::video_project_record;
 pub use generated_images::{
-    CreateImagePublicationIntentInput, ImagePublicationFileFacts, UpdateGeneratedImageRecordInput,
-    VideoProfileMaterialReadModel, VideoProfilePrimaryMaterialRow, VideoProfileRelevanceRow,
-    VideoProjectContextReadModel, VideoProjectIdentity, VideoPromptBlueprintCharacterRecord,
-    VideoPromptProtagonistProfileRecord, create_generated_image_record,
-    create_generated_image_record_with_generation_run_checkpoint, create_image_publication_intent,
-    delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
-    ensure_image_chapter_belongs_to_project_record, ensure_video_chapter_belongs_to_project_record,
-    ensure_video_reference_images_available_record, generated_image_by_id, generated_image_exists,
-    generated_image_ids_by_ids, generated_images_by_ids, generated_images_for_chapter,
-    generated_images_for_project, generated_images_for_projects,
-    generated_images_for_projects_chapter_by_id_desc, generated_images_for_video_prompt_references,
-    image_publication_by_id, image_publications_for_recovery, mark_image_publication_reclaimed,
+    CreateImagePublicationIntentInput, ImagePublicationFileFacts, VideoProfileMaterialReadModel,
+    VideoProfilePrimaryMaterialRow, VideoProfileRelevanceRow, VideoProjectContextReadModel,
+    VideoProjectIdentity, VideoPromptBlueprintCharacterRecord, VideoPromptProtagonistProfileRecord,
+    create_generated_image_record, create_generated_image_record_with_generation_run_checkpoint,
+    create_image_publication_intent, delete_generated_image_record_with_cleanup,
+    delete_manga_page_image_records, ensure_image_chapter_belongs_to_project_record,
+    ensure_video_chapter_belongs_to_project_record, ensure_video_reference_images_available_record,
+    generated_image_by_id, generated_image_exists, generated_image_ids_by_ids,
+    generated_images_by_ids, generated_images_for_chapter, generated_images_for_project,
+    generated_images_for_projects, generated_images_for_projects_chapter_by_id_desc,
+    generated_images_for_video_prompt_references, image_publication_by_id,
+    image_publications_for_recovery, mark_image_publication_reclaimed,
     mark_image_publication_reclaiming, publish_image_publication,
     publish_image_publication_with_generation_run_checkpoint, update_generated_image_record,
     update_image_publication_metadata, validated_video_reference_image_records,
@@ -55,8 +55,8 @@ pub(crate) use generated_images::{
 mod generated_videos;
 pub(crate) use generated_videos::clear_generated_video_references_by_ids;
 pub use generated_videos::{
-    GeneratedVideoErrorStatusBatchInput, UpdateGeneratedVideoRecordInput,
-    create_generated_video_record, create_generated_video_record_with_generation_run,
+    GeneratedVideoErrorStatusBatchInput, create_generated_video_record,
+    create_generated_video_record_with_generation_run,
     create_prompt_generated_video_record_with_generation_run,
     delete_generated_video_record_with_cleanup, delete_missing_generated_video_references_record,
     generated_video_by_id, generated_videos_by_ids, generated_videos_by_provider_job_id,

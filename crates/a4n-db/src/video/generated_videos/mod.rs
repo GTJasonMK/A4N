@@ -46,13 +46,3 @@ pub(in crate::video::generated_videos) struct CreateGeneratedVideoRecordInput {
     pub provider_job_id: Option<String>,
     pub metadata_json: Option<Value>,
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct UpdateGeneratedVideoRecordInput {
-    pub prompt: Option<String>,
-    pub negative_prompt: Option<String>,
-    pub clear_negative_prompt: bool,
-    pub metadata_json: Option<Value>,
-    pub clear_metadata_json: bool,
-    pub is_favorite: Option<bool>,
-}

@@ -8,15 +8,16 @@ use a4n_domain::image::{
 };
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
+    UpdateGeneratedImageRecordInput,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use serde_json::json;
 
 use crate::video::{
-    UpdateGeneratedImageRecordInput, VideoDbError, create_generated_image_record,
-    create_generated_video_record, delete_generated_image_record_with_cleanup,
-    generated_image_ids_by_ids, update_generated_image_record,
+    VideoDbError, create_generated_image_record, create_generated_video_record,
+    delete_generated_image_record_with_cleanup, generated_image_ids_by_ids,
+    update_generated_image_record,
 };
 
 async fn setup_db() -> DatabaseConnection {

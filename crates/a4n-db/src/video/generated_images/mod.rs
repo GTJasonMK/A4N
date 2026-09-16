@@ -63,19 +63,6 @@ pub(in crate::video::generated_images) struct CreateGeneratedImageRecordInput {
     pub created_at: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct UpdateGeneratedImageRecordInput {
-    pub prompt: Option<String>,
-    pub image_type: Option<String>,
-    pub chapter_id: Option<i64>,
-    pub clear_chapter_id: bool,
-    pub panel_id: Option<String>,
-    pub clear_panel_id: bool,
-    pub ai_score: Option<f32>,
-    pub clear_ai_score: bool,
-    pub is_favorite: Option<bool>,
-}
-
 #[derive(Debug, Clone)]
 pub struct VideoProfileRelevanceRow {
     pub id: i64,

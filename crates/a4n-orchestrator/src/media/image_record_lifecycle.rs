@@ -7,11 +7,12 @@ use a4n_api_contract::image::{
     ListImagesByProjectsInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
     UploadImageInput,
 };
-use a4n_db::video::{
-    CreateImagePublicationIntentInput, ImagePublicationFileFacts, UpdateGeneratedImageRecordInput,
-};
+use a4n_db::video::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
-use a4n_domain::media::{CreateGeneratedImageRecordDraftInput, ImagePublicationRecoveryRecord};
+use a4n_domain::media::{
+    CreateGeneratedImageRecordDraftInput, ImagePublicationRecoveryRecord,
+    UpdateGeneratedImageRecordInput,
+};
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_domain::project::required_text;
 use a4n_domain::{
