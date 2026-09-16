@@ -26,6 +26,7 @@ a4n-domain = { path = "../a4n-domain" }
  a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }
 a4n-galgame-host-contract = { path = "../a4n-galgame-host-contract" }
+a4n-generation-host-contract = { path = "../a4n-generation-host-contract" }
 a4n-db = { path = "../a4n-db" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
@@ -50,6 +51,7 @@ a4n-import-core = { path = "../a4n-import-core" }
 a4n-media = { path = "../a4n-media" }
 a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-image-host-contract = { path = "../a4n-image-host-contract" }
+a4n-inspiration-host-contract = { path = "../a4n-inspiration-host-contract" }
 a4n-import-analysis-host-contract = { path = "../a4n-import-analysis-host-contract" }
 a4n-video = { path = "../a4n-video" }
 a4n-video-contract = { path = "../a4n-video-contract" }

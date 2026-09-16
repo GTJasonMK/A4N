@@ -43,6 +43,7 @@ a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }
 a4n-galgame-host-contract = { path = "../a4n-galgame-host-contract" }
+a4n-generation-host-contract = { path = "../a4n-generation-host-contract" }
 a4n-embedding-contract = { path = "../a4n-embedding-contract" }
 a4n-embedding-provider-contract = { path = "../a4n-embedding-provider-contract" }
 a4n-process-catalog = { path = "../a4n-process-catalog" }
@@ -78,6 +79,7 @@ a4n-rag-sidecar-contract = { path = "../a4n-rag-sidecar-contract" }
 a4n-rag-index = { path = "../a4n-rag-index", optional = true }
 a4n-image-contract = { path = "../a4n-image-contract" }
 a4n-image-host-contract = { path = "../a4n-image-host-contract" }
+a4n-inspiration-host-contract = { path = "../a4n-inspiration-host-contract" }
 a4n-import-analysis-host-contract = { path = "../a4n-import-analysis-host-contract" }
 a4n-image-client = { path = "../a4n-image-client" }
 a4n-image-provider-contract = { path = "../a4n-image-provider-contract" }

@@ -37,11 +37,14 @@ pub struct AppState {
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
     /// Generation task queries and subscriptions stay behind a narrow read
     /// boundary.
-    generation_task_read_application: Arc<dyn a4n_orchestrator::GenerationTaskReadApplicationPort>,
+    generation_task_read_application:
+        Arc<dyn a4n_generation_host_contract::GenerationTaskReadApplicationPort>,
     generation_task_mutation_application:
-        Arc<dyn a4n_orchestrator::GenerationTaskMutationApplicationPort>,
-    generation_lifecycle_application: Arc<dyn a4n_orchestrator::GenerationLifecycleApplicationPort>,
-    generation_cleanup_application: Arc<dyn a4n_orchestrator::GenerationCleanupApplicationPort>,
+        Arc<dyn a4n_generation_host_contract::GenerationTaskMutationApplicationPort>,
+    generation_lifecycle_application:
+        Arc<dyn a4n_generation_host_contract::GenerationLifecycleApplicationPort>,
+    generation_cleanup_application:
+        Arc<dyn a4n_generation_host_contract::GenerationCleanupApplicationPort>,
     /// Source-sync preview authorization and projection stay in the
     /// source-sync owner.
     source_sync_read_application:
@@ -2552,25 +2555,25 @@ impl AppState {
 
     pub(crate) fn generation_task_read_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationTaskReadApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationTaskReadApplicationPort {
         self.generation_task_read_application.as_ref()
     }
 
     pub(crate) fn generation_task_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationTaskMutationApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationTaskMutationApplicationPort {
         self.generation_task_mutation_application.as_ref()
     }
 
     pub(crate) fn generation_lifecycle_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationLifecycleApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationLifecycleApplicationPort {
         self.generation_lifecycle_application.as_ref()
     }
 
     pub(crate) fn generation_cleanup_application(
         &self,
-    ) -> &dyn a4n_orchestrator::GenerationCleanupApplicationPort {
+    ) -> &dyn a4n_generation_host_contract::GenerationCleanupApplicationPort {
         self.generation_cleanup_application.as_ref()
     }
 

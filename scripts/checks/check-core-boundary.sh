@@ -955,13 +955,13 @@ if ! rg -U -n 'generation_lifecycle_application\(\)\s*\.\s*reset_project_generat
 fi
 
 if ! rg -n 'pub trait GenerationTaskReadApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs || \
+    crates/a4n-generation-host-contract/src/lib.rs || \
    ! rg -n 'pub trait GenerationTaskMutationApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs || \
+    crates/a4n-generation-host-contract/src/lib.rs || \
    ! rg -n 'pub trait GenerationLifecycleApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs || \
+    crates/a4n-generation-host-contract/src/lib.rs || \
    ! rg -n 'pub trait GenerationCleanupApplicationPort' \
-    crates/a4n-orchestrator/src/context/generation.rs; then
+    crates/a4n-generation-host-contract/src/lib.rs; then
     printf 'Generation task/lifecycle/cleanup contracts are missing\n' >&2
     exit 1
 fi
