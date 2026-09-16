@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
 use a4n_domain::ProviderError;
+use a4n_domain::cost::{
+    ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
+};
 use a4n_embedding_client::EmbeddingClient;
 use a4n_embedding_provider_contract::{
     EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider,
@@ -55,6 +58,30 @@ impl SidecarEmbeddingProvider {
         model: EmbeddingProviderConfig,
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
+        let estimated_tokens = texts
+            .iter()
+            .map(|text| (text.chars().count() as u64 / 4).max(1))
+            .sum();
+        let cost_record = self
+            .facade
+            .start_model_usage(ModelUsageRecordStart {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                user_id: runtime_config::current_user_id(),
+                project_id: None,
+                root_project_id: None,
+                workflow_run_id: None,
+                generation_run_id: None,
+                workflow: "embedding".to_string(),
+                step_key: "embed".to_string(),
+                call_key: None,
+                source: Some("embedding_call".to_string()),
+                capability: ModelCapability::Embedding,
+                provider_config_id: Some(model.id),
+                provider: Some(model.backend.clone()),
+                model: Some(model.model.clone()),
+                pricing: model.pricing.clone(),
+            })
+            .await?;
         let payload = embedding_texts_payload(&model, texts)?;
         let expected_dimension = payload.dimension;
         let client = self.client.clone();
@@ -73,7 +100,28 @@ impl SidecarEmbeddingProvider {
                     client.embed(request).await.map_err(service_error_app_error)
                 },
             )
+            .await;
+        let status = if response.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        self.facade
+            .finish_model_usage(
+                cost_record,
+                ModelUsageRecordCompletion {
+                    status: status.to_string(),
+                    meter: ModelUsageMeter {
+                        input_tokens: Some(estimated_tokens),
+                        estimated: true,
+                        ..Default::default()
+                    },
+                    error_kind: response.as_ref().err().map(|_| "provider".to_string()),
+                    error_message: response.as_ref().err().map(ToString::to_string),
+                },
+            )
             .await?;
+        let response = response?;
         let output: EmbedTextsOutput =
             typed_response_payload(response, "embedding").map_err(service_app_error)?;
         if output.identity.dimension != expected_dimension {

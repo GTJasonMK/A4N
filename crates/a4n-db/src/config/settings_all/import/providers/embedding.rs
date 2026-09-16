@@ -39,6 +39,7 @@ where
             active.dimension = Set(row.dimension);
             active.batch_size = Set(row.batch_size);
             active.local_model_path = Set(row.local_model_path);
+            active.pricing_json = Set(row.pricing_json);
             active.is_default = Set(row.is_default);
             active.updated_at = Set(now);
             active.update(db).await.map_err(|source| {
@@ -56,6 +57,7 @@ where
                 dimension: Set(row.dimension),
                 batch_size: Set(row.batch_size),
                 local_model_path: Set(row.local_model_path),
+                pricing_json: Set(row.pricing_json),
                 is_default: Set(row.is_default),
                 created_at: Set(now),
                 updated_at: Set(now),

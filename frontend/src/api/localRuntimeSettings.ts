@@ -18,6 +18,7 @@ import type {
 } from "./video";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
 import { LLM_RESERVED_REQUEST_OPTION_KEYS } from "./generated/config";
+import type { PricingPlan } from "./generated/config";
 
 const STORE_KEY = "a4n:local-runtime-settings:v1";
 const LOCAL_RUNTIME_SETTINGS_KEYS = [
@@ -139,6 +140,23 @@ const DEFAULT_LOCAL_WEB_FETCH_CONFIG: LocalWebFetchConfig = {
   max_body_chars: 100_000,
   max_output_chars: 200_000,
 };
+const DEFAULT_PRICING: PricingPlan = {
+  currency: "USD",
+  llm_input_per_million: null,
+  llm_output_per_million: null,
+  llm_cache_read_per_million: null,
+  llm_cache_write_per_million: null,
+  embedding_input_per_million: null,
+  image_per_generation: null,
+  video_per_second: null,
+};
+
+function normalizePricing(value: unknown): PricingPlan {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_PRICING };
+  }
+  return { ...DEFAULT_PRICING, ...(value as Partial<PricingPlan>) };
+}
 
 function defaultSettings(): LocalRuntimeSettings {
   return {
@@ -161,6 +179,7 @@ function defaultSettings(): LocalRuntimeSettings {
         batch_size: 100,
         local_model_path: null,
         is_default: true,
+        pricing: { ...DEFAULT_PRICING },
       },
     ],
     image: [],
@@ -458,6 +477,7 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
       `本机 LLM 配置 ${label} is_default`,
     ),
     has_api_key: Boolean(apiKey),
+    pricing: normalizePricing(item.pricing),
   };
 }
 
@@ -520,6 +540,7 @@ function normalizeLocalEmbeddingConfig(value: unknown): LocalEmbeddingConfig {
       item.is_default,
       `本机 Embedding 配置 ${label} is_default`,
     ),
+    pricing: normalizePricing(item.pricing),
   };
 }
 
@@ -554,6 +575,7 @@ function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
       item.is_default,
       `本机图片配置 ${label} is_default`,
     ),
+    pricing: normalizePricing(item.pricing),
   };
 }
 
@@ -616,6 +638,7 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
       item.is_default,
       `本机视频配置 ${label} is_default`,
     ),
+    pricing: normalizePricing(item.pricing),
   };
 }
 

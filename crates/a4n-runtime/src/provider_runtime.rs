@@ -2,13 +2,16 @@
 
 use std::{future::Future, sync::Arc};
 
+use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_domain::llm::{
     ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput,
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::LlmTraceContext;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
-use a4n_provider_runtime_contract::{ProviderRuntimePort, ProviderTaskPriority, TaskLease};
+use a4n_provider_runtime_contract::{
+    ModelUsageRecordHandle, ProviderRuntimePort, ProviderTaskPriority, TaskLease,
+};
 use a4n_queue::{
     TaskWorkflowContext,
     priority::{TaskKind, TaskPriority as QueueTaskPriority},
@@ -53,6 +56,21 @@ impl DynamicProviderFacade {
         input: RecordLlmCallTraceInput,
     ) -> Result<(), AppError> {
         self.port.record_llm_call_trace(input).await
+    }
+
+    pub(crate) async fn start_model_usage(
+        &self,
+        input: ModelUsageRecordStart,
+    ) -> Result<ModelUsageRecordHandle, AppError> {
+        self.port.start_model_usage(input).await
+    }
+
+    pub(crate) async fn finish_model_usage(
+        &self,
+        handle: ModelUsageRecordHandle,
+        input: ModelUsageRecordCompletion,
+    ) -> Result<(), AppError> {
+        self.port.finish_model_usage(handle, input).await
     }
 
     pub(crate) async fn record_or_reuse_context_pack_reference(

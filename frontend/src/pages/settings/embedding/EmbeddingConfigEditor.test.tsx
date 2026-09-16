@@ -4,6 +4,7 @@ import { EmbeddingConfigEditor } from "./EmbeddingConfigEditor";
 import type { EmbeddingForm } from "./types";
 import { I18nProvider } from "../../../i18n";
 import type { LocalEmbeddingModel } from "../../../api/config";
+import { DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 describe("EmbeddingConfigEditor", () => {
   it("makes read-only configuration fields visibly unavailable", () => {
@@ -18,6 +19,7 @@ describe("EmbeddingConfigEditor", () => {
       dimension: 384,
       batch_size: 100,
       local_model_path: "",
+      pricing: DEFAULT_PRICING_PLAN,
     };
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-CN">
@@ -54,6 +56,7 @@ describe("EmbeddingConfigEditor", () => {
       dimension: 768,
       batch_size: 32,
       local_model_path: "",
+      pricing: DEFAULT_PRICING_PLAN,
     };
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-CN">
@@ -98,6 +101,7 @@ describe("EmbeddingConfigEditor", () => {
       dimension: model.dimension,
       batch_size: 32,
       local_model_path: "",
+      pricing: DEFAULT_PRICING_PLAN,
     };
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-CN">

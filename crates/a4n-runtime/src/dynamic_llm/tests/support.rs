@@ -4,12 +4,15 @@ use std::sync::{
 };
 
 use a4n_domain::{
+    cost::{ModelUsageRecordCompletion, ModelUsageRecordStart},
     llm::{ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput},
     task_queue::{LlmConcurrencyLimit, TaskKind},
 };
 use a4n_error::AppError;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
-use a4n_provider_runtime_contract::{ProviderRuntimePort, ProviderTaskPriority, TaskLease};
+use a4n_provider_runtime_contract::{
+    ModelUsageRecordHandle, ProviderRuntimePort, ProviderTaskPriority, TaskLease,
+};
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
@@ -63,6 +66,19 @@ impl ProviderRuntimePort for TestProviderPort {
         Ok(Some(project_id))
     }
     async fn record_llm_call_trace(&self, _input: RecordLlmCallTraceInput) -> Result<(), AppError> {
+        Ok(())
+    }
+    async fn start_model_usage(
+        &self,
+        _input: ModelUsageRecordStart,
+    ) -> Result<ModelUsageRecordHandle, AppError> {
+        Ok(ModelUsageRecordHandle { id: 1 })
+    }
+    async fn finish_model_usage(
+        &self,
+        _handle: ModelUsageRecordHandle,
+        _input: ModelUsageRecordCompletion,
+    ) -> Result<(), AppError> {
         Ok(())
     }
     async fn record_or_reuse_context_pack_reference(

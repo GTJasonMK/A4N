@@ -24,6 +24,9 @@ pub struct Model {
     /// 本地模型路径
     pub local_model_path: Option<String>,
 
+    #[sea_orm(column_type = "JsonBinary")]
+    pub pricing_json: serde_json::Value,
+
     pub is_default: bool,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,

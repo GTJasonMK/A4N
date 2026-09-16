@@ -10,6 +10,7 @@ use a4n_db::config::{
     SettingsAllImportTableCounts, SettingsAllLlmConfigRow, SettingsAllSystemSettingRow,
     SettingsAllThemeRow, SettingsAllVideoConfigRow,
 };
+use a4n_domain::cost::PricingPlan;
 use a4n_domain::{embedding::CreateEmbeddingConfigParams, image::CreateImageConfigParams};
 use a4n_llm_config::{
     CreateLlmConfigInput, NormalizedLlmConfig, normalize_create_llm_config_input,
@@ -128,12 +129,32 @@ fn validate_provider_rows(incoming: &AllConfigsExport) -> Result<(), String> {
     validate_named_rows("LLM 配置", &incoming.llm_configs, |row| &row.name)?;
     validate_named_rows("嵌入配置", &incoming.embedding_configs, |row| &row.name)?;
     validate_named_rows("图片配置", &incoming.image_configs, |row| &row.name)?;
-    validate_named_rows("视频配置", &incoming.video_configs, |row| &row.name)
+    validate_named_rows("视频配置", &incoming.video_configs, |row| &row.name)?;
+    for (index, pricing) in incoming
+        .llm_configs
+        .iter()
+        .map(|row| &row.pricing_json)
+        .chain(
+            incoming
+                .embedding_configs
+                .iter()
+                .map(|row| &row.pricing_json),
+        )
+        .chain(incoming.image_configs.iter().map(|row| &row.pricing_json))
+        .chain(incoming.video_configs.iter().map(|row| &row.pricing_json))
+        .enumerate()
+    {
+        let plan: PricingPlan = serde_json::from_value(pricing.clone())
+            .map_err(|error| format!("Provider 价格计划 #{} 解析失败：{error}", index + 1))?;
+        plan.validate()
+            .map_err(|error| format!("Provider 价格计划 #{} 无效：{error}", index + 1))?;
+    }
+    Ok(())
 }
 
 fn normalize_provider_rows(incoming: &mut AllConfigsExport) -> Result<(), String> {
     for (index, row) in incoming.llm_configs.iter_mut().enumerate() {
-        let params =
+        let mut params =
             normalize_create_llm_config_input(llm_input_from_row(row)).map_err(|error| {
                 format!(
                     "LLM 配置 #{} 规范化失败：{}",
@@ -141,6 +162,7 @@ fn normalize_provider_rows(incoming: &mut AllConfigsExport) -> Result<(), String
                     app_error_plain_message(error)
                 )
             })?;
+        params.pricing_json = row.pricing_json.clone();
         apply_llm_params_to_row(row, params);
     }
     for (index, row) in incoming.embedding_configs.iter_mut().enumerate() {
@@ -240,6 +262,7 @@ fn apply_llm_params_to_row(row: &mut SettingsAllLlmConfigRow, params: Normalized
     row.max_context_tokens = params.max_context_tokens;
     row.max_output_tokens = params.max_output_tokens;
     row.extra_body_json = params.extra_body_json;
+    row.pricing_json = params.pricing_json;
 }
 
 fn embedding_params_from_row(row: &SettingsAllEmbeddingConfigRow) -> CreateEmbeddingConfigParams {
@@ -407,6 +430,7 @@ mod tests {
             max_context_tokens: 8192,
             max_output_tokens: 2048,
             extra_body_json: Some(json!({})),
+            pricing_json: json!({}),
             is_default: true,
         });
 

@@ -1,4 +1,7 @@
 use a4n_config::optional_non_empty_env_string;
+use a4n_domain::cost::{
+    ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
+};
 use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
 use a4n_error::AppError;
 use a4n_orchestrator::canvas::{
@@ -142,6 +145,30 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         .await
         .map_err(host_error)?;
         let prompt_length_context = video_request_prompt_length_context(&input.request);
+        let cost_config = input.config.clone();
+        let duration_seconds = input.request.duration_secs.to_string();
+        let cost_record = self
+            .state
+            .provider_runtime()
+            .start_model_usage(ModelUsageRecordStart {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                user_id: None,
+                project_id: Some(input.project_id),
+                root_project_id,
+                workflow_run_id: None,
+                generation_run_id: None,
+                workflow: "video_generation".to_string(),
+                step_key: "provider_submit".to_string(),
+                call_key: None,
+                source: Some("video_generation".to_string()),
+                capability: ModelCapability::Video,
+                provider_config_id: Some(cost_config.id),
+                provider: Some(cost_config.backend.clone()),
+                model: Some(cost_config.model.clone()),
+                pricing: cost_config.pricing.clone(),
+            })
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
         let (sidecar_progress_tx, sidecar_progress_rx) = tokio::sync::mpsc::unbounded_channel();
         let provider_cancel = CancellationToken::new();
         let cancellation = progress.cancellation_handle();
@@ -179,14 +206,36 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 }
             }
         };
-        relay_video_sidecar_progress(progress, sidecar_progress_rx, request_future)
+        let result = relay_video_sidecar_progress(progress, sidecar_progress_rx, request_future)
             .await
             .map_err(|error| {
                 host_error(append_video_request_prompt_length_context(
                     error,
                     &prompt_length_context,
                 ))
-            })
+            });
+        let status = if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        self.state
+            .provider_runtime()
+            .finish_model_usage(
+                cost_record,
+                ModelUsageRecordCompletion {
+                    status: status.to_string(),
+                    meter: ModelUsageMeter {
+                        duration_seconds: Some(duration_seconds),
+                        ..Default::default()
+                    },
+                    error_kind: result.as_ref().err().map(|_| "provider".to_string()),
+                    error_message: result.as_ref().err().map(ToString::to_string),
+                },
+            )
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        result
     }
 
     async fn resolve_video_image_inputs(
@@ -638,7 +687,30 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         )
         .await
         .map_err(host_error)?;
-        run_queued_request_with_cancel_and_workflow(
+        let duration_seconds = input.request.duration_secs.to_string();
+        let cost_record = self
+            .state
+            .provider_runtime()
+            .start_model_usage(ModelUsageRecordStart {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                user_id: None,
+                project_id: Some(input.project_id),
+                root_project_id,
+                workflow_run_id: Some(input.workflow_run_id),
+                generation_run_id: None,
+                workflow: "canvas_video_generation".to_string(),
+                step_key: "provider_submit".to_string(),
+                call_key: None,
+                source: Some("video_generation".to_string()),
+                capability: ModelCapability::Video,
+                provider_config_id: Some(input.config.id),
+                provider: Some(input.config.backend.clone()),
+                model: Some(input.config.model.clone()),
+                pricing: input.config.pricing.clone(),
+            })
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        let result = run_queued_request_with_cancel_and_workflow(
             self.state,
             QueueTaskKind::VideoGeneration,
             TaskPriority::Medium,
@@ -661,7 +733,29 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             },
         )
         .await
-        .map_err(host_error)
+        .map_err(host_error);
+        let status = if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        self.state
+            .provider_runtime()
+            .finish_model_usage(
+                cost_record,
+                ModelUsageRecordCompletion {
+                    status: status.to_string(),
+                    meter: ModelUsageMeter {
+                        duration_seconds: Some(duration_seconds),
+                        ..Default::default()
+                    },
+                    error_kind: result.as_ref().err().map(|_| "provider".to_string()),
+                    error_message: result.as_ref().err().map(ToString::to_string),
+                },
+            )
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        result
     }
 
     async fn poll_canvas_video(

@@ -60,6 +60,7 @@ where
         model: Set(input.model),
         max_concurrent: Set(input.max_concurrent),
         supported_sizes_json: Set(input.supported_sizes_json),
+        pricing_json: Set(input.pricing_json),
         is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
@@ -88,6 +89,7 @@ where
     active.model = Set(input.model);
     active.max_concurrent = Set(input.max_concurrent);
     active.supported_sizes_json = Set(input.supported_sizes_json);
+    active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
 }

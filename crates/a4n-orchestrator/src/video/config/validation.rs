@@ -32,6 +32,7 @@ pub fn video_provider_config_from_model(cfg: &video_gen_config::Model) -> VideoP
         supported_durations_json: cfg.supported_durations_json.clone(),
         default_fps: cfg.default_fps,
         is_default: cfg.is_default,
+        pricing: serde_json::from_value(cfg.pricing_json.clone()).unwrap_or_default(),
     }
 }
 

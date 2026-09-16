@@ -123,6 +123,7 @@ impl<'a> ImageGenerationProgress<'a> {
 
 #[derive(Debug, Clone)]
 pub struct ImageGenerationProviderInput {
+    pub user_id: i64,
     pub project_id: i64,
     pub workflow_run_id: i64,
     pub config: ImageProviderConfig,

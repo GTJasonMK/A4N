@@ -1,4 +1,5 @@
 use a4n_domain::ImageSize;
+use a4n_domain::cost::PricingPlan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::Value;
@@ -98,6 +99,8 @@ pub struct RuntimeLlmConfig {
     pub extra_body_json: Option<Value>,
     #[serde(default)]
     pub is_default: bool,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -116,6 +119,8 @@ pub struct RuntimeImageConfig {
     pub supported_sizes: Vec<ImageSize>,
     #[serde(default)]
     pub is_default: bool,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -142,6 +147,8 @@ pub struct RuntimeVideoConfig {
     pub default_fps: i32,
     #[serde(default)]
     pub is_default: bool,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -162,6 +169,8 @@ pub struct RuntimeEmbeddingConfig {
     pub local_model_path: Option<String>,
     #[serde(default)]
     pub is_default: bool,
+    #[serde(default)]
+    pub pricing: PricingPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

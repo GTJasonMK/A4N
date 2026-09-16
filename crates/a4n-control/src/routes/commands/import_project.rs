@@ -38,7 +38,8 @@ pub(super) use import::{
 };
 pub(super) use operations::{
     cleanup_orphan_project_data_dirs, get_generation_call_analytics, get_log_dir,
-    get_storage_paths, list_orphan_project_data_dirs, read_recent_logs, set_log_level,
+    get_model_usage_report, get_storage_paths, list_orphan_project_data_dirs, read_recent_logs,
+    set_log_level,
 };
 pub(super) use outline::{
     delete_latest_chapter_outlines, delete_latest_parts, get_chapter_outlines_pacing,

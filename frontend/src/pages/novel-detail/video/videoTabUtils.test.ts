@@ -65,6 +65,16 @@ const videoConfigBase = {
   max_concurrent: 1,
   model: "video-model",
   name: "视频配置",
+  pricing: {
+    currency: "USD",
+    llm_input_per_million: null,
+    llm_output_per_million: null,
+    llm_cache_read_per_million: null,
+    llm_cache_write_per_million: null,
+    embedding_input_per_million: null,
+    image_per_generation: null,
+    video_per_second: null,
+  },
   updated_at: null,
 };
 

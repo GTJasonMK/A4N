@@ -39,6 +39,7 @@ where
             active.max_context_tokens = Set(row.max_context_tokens);
             active.max_output_tokens = Set(row.max_output_tokens);
             active.extra_body_json = Set(row.extra_body_json);
+            active.pricing_json = Set(row.pricing_json);
             active.is_default = Set(row.is_default);
             active.updated_at = Set(now);
             active
@@ -59,6 +60,7 @@ where
                 max_context_tokens: Set(row.max_context_tokens),
                 max_output_tokens: Set(row.max_output_tokens),
                 extra_body_json: Set(row.extra_body_json),
+                pricing_json: Set(row.pricing_json),
                 is_default: Set(row.is_default),
                 created_at: Set(now),
                 updated_at: Set(now),

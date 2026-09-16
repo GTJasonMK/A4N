@@ -97,6 +97,11 @@ const ChaptersTab = lazy(() =>
     default: module.ChaptersTab,
   })),
 );
+const ModelUsageCostPanel = lazy(() =>
+  import("./novel-detail/ModelUsageCostPanel").then((module) => ({
+    default: module.ModelUsageCostPanel,
+  })),
+);
 const StatusMachineDialog = lazy(() =>
   import("./StatusMachineDialog").then((module) => ({
     default: module.StatusMachineDialog,
@@ -138,7 +143,8 @@ type Tab =
   | "chapter_outline"
   | "images"
   | "imports"
-  | "chapters";
+  | "chapters"
+  | "cost";
 
 // 详情页固定 Tab 顺序
 const TABS: { id: Tab; labelKey: MessageKey; accessibleLabelKey: MessageKey }[] = [
@@ -153,6 +159,7 @@ const TABS: { id: Tab; labelKey: MessageKey; accessibleLabelKey: MessageKey }[] 
   { id: "images", labelKey: "novel.imagesTab", accessibleLabelKey: "novel.imagesTabA11y" },
   { id: "imports", labelKey: "novel.importsTab", accessibleLabelKey: "novel.importsTabA11y" },
   { id: "chapters", labelKey: "novel.chaptersTab", accessibleLabelKey: "novel.chaptersTabA11y" },
+  { id: "cost", labelKey: "novel.costTab", accessibleLabelKey: "novel.costTabA11y" },
 ];
 const TAB_IDS = TABS.map((t) => t.id) as readonly Tab[];
 
@@ -725,6 +732,7 @@ export const NovelDetail: React.FC = () => {
           {tab === "chapters" && (
             <ChaptersTab projectId={projectId} canEditChapters={canEditProject} />
           )}
+          {tab === "cost" && <ModelUsageCostPanel projectId={projectId} />}
         </Suspense>
       </div>
 

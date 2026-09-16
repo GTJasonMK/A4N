@@ -58,6 +58,7 @@ fn image_active_model_for_update(
     active.max_concurrent = Set(row.max_concurrent);
     active.supported_sizes_json = Set(image_sizes_to_json(&row.supported_sizes)
         .expect("settings-all 图片尺寸已在导入校验阶段验证"));
+    active.pricing_json = Set(row.pricing_json);
     active.is_default = Set(row.is_default);
     active.updated_at = Set(now);
     active
@@ -76,6 +77,7 @@ fn image_active_model_for_insert(
         max_concurrent: Set(row.max_concurrent),
         supported_sizes_json: Set(image_sizes_to_json(&row.supported_sizes)
             .expect("settings-all 图片尺寸已在导入校验阶段验证")),
+        pricing_json: Set(row.pricing_json),
         is_default: Set(row.is_default),
         created_at: Set(now),
         updated_at: Set(now),

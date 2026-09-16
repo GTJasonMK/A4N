@@ -1621,6 +1621,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
                 duration_mode: "range".to_string(),
                 supported_durations_json: None,
                 default_fps: 24,
+                pricing_json: serde_json::json!({}),
             },
         )
         .await
@@ -2226,6 +2227,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             extra_body_json: None,
+            pricing_json: serde_json::json!({}),
         },
     )
     .await
@@ -2433,6 +2435,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             extra_body_json: None,
+            pricing_json: serde_json::json!({}),
         },
     )
     .await
@@ -2667,6 +2670,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             extra_body_json: None,
+            pricing_json: serde_json::json!({}),
         },
     )
     .await
@@ -2917,6 +2921,7 @@ async fn server_process_streams_image_generation_success_terminal() {
             model: "process-test-image-model".to_string(),
             max_concurrent: 1,
             supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
+            pricing_json: serde_json::json!({}),
         },
     )
     .await
@@ -3112,6 +3117,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             extra_body_json: None,
+            pricing_json: serde_json::json!({}),
         },
     )
     .await
@@ -3307,6 +3313,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
             extra_body_json: None,
+            pricing_json: serde_json::json!({}),
         },
     )
     .await

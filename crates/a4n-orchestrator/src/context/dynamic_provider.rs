@@ -6,10 +6,13 @@
 use std::sync::Arc;
 
 use a4n_db_models::models::ai::{embedding_config, llm_config};
+use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_domain::llm::ContextPackReference;
 use a4n_error::AppError;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
-use a4n_provider_runtime_contract::{ProviderRuntimePort, ProviderTaskPriority, TaskLease};
+use a4n_provider_runtime_contract::{
+    ModelUsageRecordHandle, ProviderRuntimePort, ProviderTaskPriority, TaskLease,
+};
 use a4n_queue::{
     TaskWorkflowContext,
     priority::{TaskKind, TaskPriority as QueueTaskPriority},
@@ -57,7 +60,7 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         self.settings
             .resolve_llm_config(config_id)
             .await
-            .map(llm_provider_config)
+            .and_then(llm_provider_config)
     }
 
     async fn default_embedding_config_optional(
@@ -66,14 +69,14 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         self.settings
             .default_embedding_config_optional()
             .await
-            .map(|model| model.map(embedding_provider_config))
+            .and_then(|model| model.map(embedding_provider_config).transpose())
     }
 
     async fn default_embedding_config(&self) -> Result<EmbeddingProviderConfig, AppError> {
         self.settings
             .default_embedding_config()
             .await
-            .map(embedding_provider_config)
+            .and_then(embedding_provider_config)
     }
 
     async fn project_root_id(&self, project_id: i64) -> Result<Option<i64>, AppError> {
@@ -91,6 +94,26 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
             .record_llm_call_trace(input)
             .await
             .map(|_| ())
+    }
+
+    async fn start_model_usage(
+        &self,
+        input: ModelUsageRecordStart,
+    ) -> Result<ModelUsageRecordHandle, AppError> {
+        self.settings
+            .start_model_usage_record(input)
+            .await
+            .map(|record| ModelUsageRecordHandle { id: record.id })
+    }
+
+    async fn finish_model_usage(
+        &self,
+        handle: ModelUsageRecordHandle,
+        input: ModelUsageRecordCompletion,
+    ) -> Result<(), AppError> {
+        self.settings
+            .finish_model_usage_record(handle.id, input)
+            .await
     }
 
     async fn record_or_reuse_context_pack_reference(
@@ -164,8 +187,8 @@ impl TaskLease for DurableTaskLease {
     }
 }
 
-fn llm_provider_config(model: llm_config::Model) -> LlmProviderConfig {
-    LlmProviderConfig {
+fn llm_provider_config(model: llm_config::Model) -> Result<LlmProviderConfig, AppError> {
+    Ok(LlmProviderConfig {
         id: model.id,
         name: model.name,
         provider: model.provider,
@@ -177,11 +200,14 @@ fn llm_provider_config(model: llm_config::Model) -> LlmProviderConfig {
         max_context_tokens: model.max_context_tokens,
         max_output_tokens: model.max_output_tokens,
         extra_body_json: model.extra_body_json,
-    }
+        pricing: parse_pricing(model.pricing_json)?,
+    })
 }
 
-fn embedding_provider_config(model: embedding_config::Model) -> EmbeddingProviderConfig {
-    EmbeddingProviderConfig {
+fn embedding_provider_config(
+    model: embedding_config::Model,
+) -> Result<EmbeddingProviderConfig, AppError> {
+    Ok(EmbeddingProviderConfig {
         id: model.id,
         name: model.name,
         backend: model.backend,
@@ -191,5 +217,12 @@ fn embedding_provider_config(model: embedding_config::Model) -> EmbeddingProvide
         dimension: model.dimension,
         batch_size: model.batch_size,
         local_model_path: model.local_model_path,
-    }
+        pricing: parse_pricing(model.pricing_json)?,
+    })
+}
+
+fn parse_pricing(value: serde_json::Value) -> Result<a4n_domain::cost::PricingPlan, AppError> {
+    let pricing: a4n_domain::cost::PricingPlan =
+        serde_json::from_value(value).map_err(AppError::Serialization)?;
+    pricing.validate().map_err(AppError::InvalidArgument)
 }

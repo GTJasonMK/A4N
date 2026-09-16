@@ -1,3 +1,5 @@
+import type { PricingPlan } from "../../../api/generated/config";
+
 export interface LlmForm {
   name: string;
   provider: string;
@@ -11,4 +13,5 @@ export interface LlmForm {
   max_context_tokens: number;
   max_output_tokens: number;
   extra_body_text: string;
+  pricing: PricingPlan;
 }

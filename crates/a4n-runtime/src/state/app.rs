@@ -67,6 +67,7 @@ pub struct AppState {
     /// Host-facing administrative read and authorization boundary. Admin
     /// projections stay in the orchestrator owner.
     admin_read_application: Arc<dyn a4n_api_contract::admin::AdminReadApplicationPort>,
+    model_usage_read_application: Arc<dyn a4n_api_contract::cost::ModelUsageReadApplicationPort>,
     admin_mutation_application: Arc<dyn a4n_api_contract::admin::AdminMutationApplicationPort>,
     /// Host-facing project status boundary. Status transitions and family
     /// projections stay in the project owner and return API DTOs only.
@@ -1190,6 +1191,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_api_contract::admin::AdminReadApplicationPort {
         self.admin_read_application.as_ref()
+    }
+
+    pub(crate) fn model_usage_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::cost::ModelUsageReadApplicationPort {
+        self.model_usage_read_application.as_ref()
     }
 
     pub(crate) fn admin_mutation_application(
@@ -2876,6 +2883,7 @@ impl AppState {
             auth_read_application: Arc::new(orchestrator.clone()),
             auth_mutation_application: Arc::new(orchestrator.clone()),
             admin_read_application: Arc::new(orchestrator.clone()),
+            model_usage_read_application: Arc::new(orchestrator.clone()),
             admin_mutation_application: Arc::new(orchestrator.clone()),
             project_status_application: Arc::new(orchestrator.clone()),
             project_collaboration_application: Arc::new(orchestrator.clone()),

@@ -49,6 +49,7 @@ fn embedding_row(name: &str, is_default: bool) -> SettingsAllEmbeddingConfigRow 
         dimension: 384,
         batch_size: 16,
         local_model_path: None,
+        pricing_json: serde_json::json!({}),
         is_default,
     }
 }

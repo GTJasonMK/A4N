@@ -1,6 +1,9 @@
 use a4n_api_contract::portrait::PortraitReferenceImageSource;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
+use a4n_domain::cost::{
+    ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
+};
 use a4n_domain::image::validate_reference_image_ids;
 use a4n_domain::media::{GeneratedMediaArtifactFile, image_mime_from_path};
 use a4n_error::AppError;
@@ -169,6 +172,28 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         let root_project_id = crate::actions::sidecar_root_project_id(self.state, project_id)
             .await
             .map_err(host_error)?;
+        let cost_record = self
+            .state
+            .provider_runtime()
+            .start_model_usage(ModelUsageRecordStart {
+                request_id: uuid::Uuid::new_v4().to_string(),
+                user_id: None,
+                project_id: Some(project_id),
+                root_project_id,
+                workflow_run_id,
+                generation_run_id: None,
+                workflow: "portrait_generation".to_string(),
+                step_key: "provider_submit".to_string(),
+                call_key: None,
+                source: Some("portrait_generation".to_string()),
+                capability: ModelCapability::Image,
+                provider_config_id: Some(config.id),
+                provider: Some(config.backend.clone()),
+                model: Some(config.model.clone()),
+                pricing: config.pricing.clone(),
+            })
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
         let result = crate::actions::image_generation::run_queued_request_with_cancel_and_workflow(
             self.state,
             QueueTaskKind::ImageGeneration,
@@ -191,7 +216,29 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
             },
         )
         .await
-        .map_err(host_error)?;
+        .map_err(host_error);
+        let status = if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        };
+        self.state
+            .provider_runtime()
+            .finish_model_usage(
+                cost_record,
+                ModelUsageRecordCompletion {
+                    status: status.to_string(),
+                    meter: ModelUsageMeter {
+                        image_count: Some(1),
+                        ..Default::default()
+                    },
+                    error_kind: result.as_ref().err().map(|_| "provider".to_string()),
+                    error_message: result.as_ref().err().map(ToString::to_string),
+                },
+            )
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        let result = result?;
         let (width, height) =
             image_dimensions_from_bytes(&result.bytes).map_err(|error| match error {
                 a4n_media::ImageDimensionsError::Format(source) => AppError::InvalidState {

@@ -8,7 +8,7 @@ use crate::agent::{
 };
 use crate::package::{PackageCommandCategory, PackageId};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 18;
+pub const COMMAND_MANIFEST_VERSION: u32 = 19;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -459,6 +459,7 @@ command_specs! {
     "get_inspiration_history" => args_get_inspiration_history, result_inspiration_history, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
+    "get_model_usage_report" => args_get_model_usage_report, result_get_model_usage_report, "cost", effect(READ_EFFECT);
     "get_optimize_session" => args_optimize_session, result_optimization_session, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_package_operation" => args_get_package_operation, result_package_lifecycle, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_package_overview" => empty_args_schema, result_package_overview, "system", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -1675,6 +1676,10 @@ fn args_get_chapter_shooting_script() -> Value {
 
 fn args_get_generation_call_analytics() -> Value {
     strict_typed_input_schema::<crate::admin::GenerationCallAnalyticsInput>()
+}
+
+fn args_get_model_usage_report() -> Value {
+    strict_typed_input_schema::<crate::cost::ModelUsageReportInput>()
 }
 
 fn args_get_implicit_review() -> Value {
@@ -2948,6 +2953,10 @@ fn result_get_galgame_script() -> Value {
 
 fn result_get_generation_call_analytics() -> Value {
     typed_schema::<crate::admin::GenerationCallAnalytics>()
+}
+
+fn result_get_model_usage_report() -> Value {
+    typed_schema::<crate::cost::ModelUsageReport>()
 }
 
 fn result_get_implicit_review() -> Value {

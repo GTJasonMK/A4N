@@ -3,6 +3,17 @@
 
 export type VideoDurationMode = "range" | "fixed";
 
+export interface PricingPlan {
+  currency: string;
+  embedding_input_per_million: string | null;
+  image_per_generation: string | null;
+  llm_cache_read_per_million: string | null;
+  llm_cache_write_per_million: string | null;
+  llm_input_per_million: string | null;
+  llm_output_per_million: string | null;
+  video_per_second: string | null;
+}
+
 export interface ModelDiscoveryInput {
   api_key?: string | null;
   base_url: string;
@@ -32,6 +43,7 @@ export interface EmbeddingConfigSummary {
   local_model_path: string | null;
   model: string;
   name: string;
+  pricing: PricingPlan;
 }
 
 export interface CreateEmbeddingInput {
@@ -43,6 +55,7 @@ export interface CreateEmbeddingInput {
   local_model_path?: string | null;
   model: string;
   name: string;
+  pricing?: PricingPlan;
 }
 
 export interface UpdateEmbeddingInput {
@@ -54,6 +67,7 @@ export interface UpdateEmbeddingInput {
   local_model_path: string | null;
   model: string;
   name: string;
+  pricing?: PricingPlan;
 }
 
 export interface ImageSize {
@@ -80,6 +94,7 @@ export interface ImageConfigSummary {
   max_concurrent: number;
   model: string;
   name: string;
+  pricing: PricingPlan;
   supported_sizes: ImageSize[];
 }
 
@@ -90,6 +105,7 @@ export interface ImageConfigInput {
   max_concurrent: number;
   model: string;
   name: string;
+  pricing?: PricingPlan;
   supported_sizes: ImageSize[];
 }
 
@@ -100,6 +116,7 @@ export interface UpdateImageConfigInput {
   max_concurrent: number;
   model: string;
   name: string;
+  pricing?: PricingPlan;
   supported_sizes: ImageSize[];
 }
 
@@ -114,6 +131,7 @@ export interface LlmConfigSummary {
   max_output_tokens: number;
   model: string;
   name: string;
+  pricing: PricingPlan;
   provider: string;
   timeout_secs: number;
 }
@@ -127,6 +145,7 @@ export interface CreateLlmInput {
   max_output_tokens: number;
   model: string;
   name: string;
+  pricing?: PricingPlan;
   provider: string;
   timeout_secs: number;
 }
@@ -140,6 +159,7 @@ export interface UpdateLlmInput {
   max_output_tokens: number;
   model: string;
   name: string;
+  pricing?: PricingPlan;
   provider: string;
   timeout_secs: number;
 }
@@ -164,6 +184,7 @@ export interface VideoConfigSummary {
   min_duration_secs: number;
   model: string;
   name: string;
+  pricing: PricingPlan;
   supported_durations_json: unknown;
 }
 
@@ -181,6 +202,7 @@ export interface VideoConfigInput {
   min_duration_secs: number;
   model: string;
   name: string;
+  pricing?: PricingPlan;
   supported_durations_json?: unknown;
 }
 
@@ -198,6 +220,7 @@ export interface UpdateVideoConfigInput {
   min_duration_secs: number;
   model: string;
   name: string;
+  pricing?: PricingPlan;
   supported_durations_json?: unknown;
 }
 

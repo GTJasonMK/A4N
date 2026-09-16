@@ -104,5 +104,6 @@ fn test_llm_config_model(id: i64, max_output_tokens: i32) -> LlmProviderConfig {
         max_context_tokens: 128_000,
         max_output_tokens,
         extra_body_json: None,
+        pricing: Default::default(),
     }
 }

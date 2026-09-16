@@ -22,12 +22,31 @@ impl DynamicLlmProvider {
             request,
             trace,
             task,
+            cost_record,
             started,
         } = prepared;
         let trace =
             require_sidecar_business_trace(trace.as_ref(), "LLM sidecar stream 请求")?.clone();
         let model_name = model.model_name().to_string();
-        let request = sidecar_chat_request(model, request, &trace, "LLM sidecar stream")?;
+        let request = match sidecar_chat_request(model, request, &trace, "LLM sidecar stream") {
+            Ok(request) => request,
+            Err(error) => {
+                let _ = task.fail(error.to_string()).await;
+                let _ = self
+                    .facade
+                    .finish_model_usage(
+                        cost_record,
+                        a4n_domain::cost::ModelUsageRecordCompletion {
+                            status: "failed".to_string(),
+                            meter: Default::default(),
+                            error_kind: Some("request".to_string()),
+                            error_message: Some(error.to_string()),
+                        },
+                    )
+                    .await;
+                return Err(error);
+            }
+        };
         let request_id = request.request_id.clone();
         let cancel = task.cancellation_token();
         let (tx, rx) =
@@ -50,6 +69,7 @@ impl DynamicLlmProvider {
             rx,
             self.facade.clone(),
             task,
+            cost_record,
             Some(trace),
             model_name,
             started,

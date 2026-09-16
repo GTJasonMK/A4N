@@ -4,6 +4,9 @@ use crate::actions::request_preview::{
 };
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::config::ImageConfigForConnectivityTest;
+use a4n_domain::cost::{
+    ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
+};
 use a4n_error::AppError;
 use a4n_image_contract::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
@@ -18,9 +21,30 @@ pub async fn test_image_config(
 ) -> Result<(), String> {
     let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_image_connectivity_test_request(&config)?;
+    let cost_record = state
+        .provider_runtime()
+        .start_model_usage(ModelUsageRecordStart {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            user_id: Some(user_id),
+            project_id: None,
+            root_project_id: None,
+            workflow_run_id: None,
+            generation_run_id: None,
+            workflow: "image_connectivity_test".to_string(),
+            step_key: "connectivity".to_string(),
+            call_key: None,
+            source: Some("connection_test".to_string()),
+            capability: ModelCapability::Image,
+            provider_config_id: Some(config.id),
+            provider: Some(config.backend.clone()),
+            model: Some(config.model.clone()),
+            pricing: config.pricing.clone(),
+        })
+        .await
+        .map_err(|error| error.to_string())?;
     let profile = state.runtime_profile();
     let image_client = state.capabilities().image.clone();
-    state
+    let result = state
         .provider_runtime()
         .queue_run_tracked(
             QueueTaskKind::ImageGeneration,
@@ -42,8 +66,29 @@ pub async fn test_image_config(
                 .map_err(AppError::ConfigError)
             },
         )
+        .await;
+    let status = if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    };
+    state
+        .provider_runtime()
+        .finish_model_usage(
+            cost_record,
+            ModelUsageRecordCompletion {
+                status: status.to_string(),
+                meter: ModelUsageMeter {
+                    image_count: Some(1),
+                    ..Default::default()
+                },
+                error_kind: result.as_ref().err().map(|_| "provider".to_string()),
+                error_message: result.as_ref().err().map(ToString::to_string),
+            },
+        )
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|error| error.to_string())?;
+    result.map_err(|e| e.to_string())
 }
 
 pub async fn preview_test_image_config_request(
@@ -123,6 +168,7 @@ fn image_provider_config_from_connectivity_config(
         model: config.model,
         max_concurrent: config.max_concurrent,
         supported_sizes_json: config.supported_sizes_json,
+        pricing: config.pricing,
     }
 }
 

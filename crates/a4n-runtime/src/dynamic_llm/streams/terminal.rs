@@ -12,7 +12,7 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{
     ChatChunk, LlmTraceContext, UsageInfo, classify_finish_reason,
 };
-use a4n_provider_runtime_contract::TaskLease;
+use a4n_provider_runtime_contract::{ModelUsageRecordHandle, TaskLease};
 
 use crate::provider_runtime::DynamicProviderFacade;
 
@@ -23,6 +23,7 @@ pub(super) struct QueueTrackedStreamTerminal {
     kind: StreamKind,
     facade: DynamicProviderFacade,
     running_task: Option<Box<dyn TaskLease>>,
+    cost_record: Option<ModelUsageRecordHandle>,
     trace_context: Option<LlmTraceContext>,
     model_name: String,
     started: Instant,
@@ -38,6 +39,7 @@ impl QueueTrackedStreamTerminal {
         kind: StreamKind,
         facade: DynamicProviderFacade,
         running_task: Box<dyn TaskLease>,
+        cost_record: ModelUsageRecordHandle,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,
@@ -47,6 +49,7 @@ impl QueueTrackedStreamTerminal {
             facade,
             cancelled: Box::pin(running_task.cancellation_token().cancelled_owned()),
             running_task: Some(running_task),
+            cost_record: Some(cost_record),
             trace_context,
             model_name,
             started,
@@ -93,6 +96,9 @@ impl QueueTrackedStreamTerminal {
         let Some(running_task) = self.running_task.take() else {
             return;
         };
+        let Some(cost_record) = self.cost_record.take() else {
+            return;
+        };
         let kind = self.kind;
         let facade = self.facade.clone();
         let trace_context = self.trace_context.clone();
@@ -101,6 +107,7 @@ impl QueueTrackedStreamTerminal {
         self.terminal_task = Some(start_completed_sync(TerminalSyncContext {
             kind,
             running_task,
+            cost_record,
             facade,
             trace_context,
             model_name,
@@ -117,6 +124,9 @@ impl QueueTrackedStreamTerminal {
         let Some(running_task) = self.running_task.take() else {
             return;
         };
+        let Some(cost_record) = self.cost_record.take() else {
+            return;
+        };
         let kind = self.kind;
         let message = error.to_string();
         let facade = self.facade.clone();
@@ -127,6 +137,7 @@ impl QueueTrackedStreamTerminal {
             TerminalSyncContext {
                 kind,
                 running_task,
+                cost_record,
                 facade,
                 trace_context,
                 model_name,
@@ -146,6 +157,9 @@ impl QueueTrackedStreamTerminal {
         let Some(running_task) = self.running_task.take() else {
             return;
         };
+        let Some(cost_record) = self.cost_record.take() else {
+            return;
+        };
         let kind = self.kind;
         let message = error.to_string();
         let facade = self.facade.clone();
@@ -156,6 +170,7 @@ impl QueueTrackedStreamTerminal {
             TerminalSyncContext {
                 kind,
                 running_task,
+                cost_record,
                 facade,
                 trace_context,
                 model_name,

@@ -3,6 +3,7 @@ use super::super::{
     reject_unknown_command_args, storage_paths_actions, to_value,
 };
 use crate::state::ServerState;
+use a4n_runtime::host_api::model_usage as model_usage_actions;
 use serde_json::{Value, json};
 
 pub(in crate::routes::commands) async fn get_storage_paths(
@@ -90,5 +91,18 @@ pub(in crate::routes::commands) async fn get_generation_call_analytics(
         input,
     )
     .await?;
+    to_value(result)
+}
+
+pub(in crate::routes::commands) async fn get_model_usage_report(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    reject_unknown_command_args(args, "get_model_usage_report", &["input"])?;
+    let input: a4n_api_contract::cost::ModelUsageReportInput =
+        command_input(args, "get_model_usage_report")?;
+    let result =
+        model_usage_actions::get_model_usage_report(state.runtime(), user_id, input).await?;
     to_value(result)
 }

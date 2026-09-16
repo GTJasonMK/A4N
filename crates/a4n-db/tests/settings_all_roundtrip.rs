@@ -20,6 +20,7 @@ fn settings_rows() -> SettingsAllConfigRows {
             max_context_tokens: 8192,
             max_output_tokens: 2048,
             extra_body_json: None,
+            pricing_json: json!({}),
             is_default: true,
         }],
         embedding_configs: vec![SettingsAllEmbeddingConfigRow {
@@ -31,6 +32,7 @@ fn settings_rows() -> SettingsAllConfigRows {
             dimension: 512,
             batch_size: 16,
             local_model_path: None,
+            pricing_json: json!({}),
             is_default: true,
         }],
         image_configs: vec![SettingsAllImageConfigRow {
@@ -41,6 +43,7 @@ fn settings_rows() -> SettingsAllConfigRows {
             model: "test-image".to_string(),
             max_concurrent: 1,
             supported_sizes: vec![ImageSize::new(1024, 1024)],
+            pricing_json: json!({}),
             is_default: true,
         }],
         video_configs: vec![SettingsAllVideoConfigRow {
@@ -58,6 +61,7 @@ fn settings_rows() -> SettingsAllConfigRows {
             duration_mode: "range".to_string(),
             supported_durations_json: None,
             default_fps: 24,
+            pricing_json: json!({}),
             is_default: true,
         }],
         themes: vec![SettingsAllThemeRow {

@@ -27,6 +27,7 @@ pub async fn insert_baseline_embedding_config_if_empty(
             dimension: 384,
             batch_size: 100,
             local_model_path: None,
+            pricing_json: serde_json::json!({}),
         },
         true,
     )

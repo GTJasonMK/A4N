@@ -6,6 +6,7 @@ use std::{
 
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatChunk, LlmTraceContext};
+use a4n_provider_runtime_contract::ModelUsageRecordHandle;
 use a4n_provider_runtime_contract::TaskLease;
 use a4n_service_protocol::CapabilityTaskEvent;
 use futures::Stream;
@@ -24,6 +25,7 @@ impl QueueTrackedSidecarLlmStream {
         events: tokio::sync::mpsc::Receiver<CapabilityTaskEvent>,
         facade: DynamicProviderFacade,
         running_task: Box<dyn TaskLease>,
+        cost_record: ModelUsageRecordHandle,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,
@@ -34,6 +36,7 @@ impl QueueTrackedSidecarLlmStream {
                 StreamKind::Sidecar,
                 facade,
                 running_task,
+                cost_record,
                 trace_context,
                 model_name,
                 started,

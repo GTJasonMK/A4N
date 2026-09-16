@@ -7,6 +7,10 @@ pub(crate) fn is_retired_system_setting_key(key: &str) -> bool {
     key == "web_search"
 }
 
+fn default_pricing_json() -> Value {
+    serde_json::json!({})
+}
+
 #[derive(Clone, Debug)]
 pub struct SettingsAllConfigImportInput {
     pub overwrite: bool,
@@ -38,6 +42,8 @@ pub struct SettingsAllLlmConfigRow {
     pub max_output_tokens: i32,
     #[serde(deserialize_with = "deserialize_required_option")]
     pub extra_body_json: Option<Value>,
+    #[serde(default = "default_pricing_json")]
+    pub pricing_json: Value,
     pub is_default: bool,
 }
 
@@ -55,6 +61,8 @@ pub struct SettingsAllEmbeddingConfigRow {
     pub batch_size: i32,
     #[serde(deserialize_with = "deserialize_required_option")]
     pub local_model_path: Option<String>,
+    #[serde(default = "default_pricing_json")]
+    pub pricing_json: Value,
     pub is_default: bool,
 }
 
@@ -69,6 +77,8 @@ pub struct SettingsAllImageConfigRow {
     pub model: String,
     pub max_concurrent: i32,
     pub supported_sizes: Vec<ImageSize>,
+    #[serde(default = "default_pricing_json")]
+    pub pricing_json: Value,
     pub is_default: bool,
 }
 
@@ -91,6 +101,8 @@ pub struct SettingsAllVideoConfigRow {
     #[serde(deserialize_with = "deserialize_required_option")]
     pub supported_durations_json: Option<Value>,
     pub default_fps: i32,
+    #[serde(default = "default_pricing_json")]
+    pub pricing_json: Value,
     pub is_default: bool,
 }
 

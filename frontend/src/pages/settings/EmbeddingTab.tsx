@@ -430,6 +430,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
                 batch_size: f.batch_size,
                 local_model_path:
                   f.backend === "fastembed" ? f.local_model_path || null : null,
+                pricing: f.pricing,
               },
               scope,
             );
@@ -453,6 +454,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
                 batch_size: f.batch_size,
                 local_model_path:
                   f.backend === "fastembed" ? f.local_model_path || null : null,
+                pricing: f.pricing,
               },
               scope,
             );

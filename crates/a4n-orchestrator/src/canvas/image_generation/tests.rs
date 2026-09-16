@@ -182,6 +182,7 @@ fn image_config() -> ImageProviderConfig {
         model: "configured-canvas-image-model".to_string(),
         max_concurrent: 1,
         supported_sizes_json: json!([{"width": 1024, "height": 576}]),
+        pricing: Default::default(),
     }
 }
 

@@ -7,6 +7,7 @@ import type {
 import type { ConfigItem } from "../ConfigListPanel";
 import type { EmbeddingForm } from "./types";
 import { formatNumber, type Locale, type MessageKey, type MessageParams } from "../../../i18n";
+import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
 
@@ -33,6 +34,7 @@ export const DEFAULT_FORM: EmbeddingForm = {
   dimension: 384,
   batch_size: 100,
   local_model_path: "",
+  pricing: DEFAULT_PRICING_PLAN,
 };
 
 export function toItem(raw: EmbeddingConfig): ConfigItem<EmbeddingForm> {
@@ -50,6 +52,7 @@ export function toItem(raw: EmbeddingConfig): ConfigItem<EmbeddingForm> {
       dimension: raw.dimension,
       batch_size: raw.batch_size,
       local_model_path: raw.local_model_path ?? "",
+      pricing: clonePricingPlan(raw.pricing),
     },
   };
 }

@@ -159,6 +159,7 @@ mod tests {
             supported_durations_json: None,
             default_fps: 24,
             is_default: true,
+            pricing: Default::default(),
         }
     }
 

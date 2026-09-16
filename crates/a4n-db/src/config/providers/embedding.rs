@@ -16,6 +16,7 @@ pub struct EmbeddingConfigRecordInput {
     pub dimension: i32,
     pub batch_size: i32,
     pub local_model_path: Option<String>,
+    pub pricing_json: serde_json::Value,
 }
 
 pub fn validate_embedding_config_model(
@@ -105,6 +106,7 @@ where
         base_url: Set(input.base_url),
         api_key_encrypted: Set(input.api_key_encrypted),
         local_model_path: Set(input.local_model_path),
+        pricing_json: Set(input.pricing_json),
         is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
@@ -134,6 +136,7 @@ where
     active.base_url = Set(input.base_url);
     active.api_key_encrypted = Set(input.api_key_encrypted);
     active.local_model_path = Set(input.local_model_path);
+    active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
 }
@@ -195,6 +198,7 @@ mod tests {
             dimension: 384,
             batch_size: 32,
             local_model_path: Some("  /models/embedding  ".to_string()),
+            pricing_json: serde_json::json!({}),
             is_default: true,
             created_at: chrono::NaiveDateTime::MIN,
             updated_at: chrono::NaiveDateTime::MIN,

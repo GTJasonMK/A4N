@@ -8,6 +8,7 @@ import type { ConfigItem } from "../ConfigListPanel";
 import type { VideoForm } from "./types";
 import type { VideoProviderDescriptor } from "../../../api/generated/config";
 import type { MessageKey, MessageParams } from "../../../i18n";
+import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
 
@@ -27,6 +28,7 @@ export const DEFAULT_VIDEO_FORM: VideoForm = {
   supported_durations_text: "",
   fps: 24,
   max_concurrent: 1,
+  pricing: DEFAULT_PRICING_PLAN,
 };
 
 export const VIDEO_SIZE_OPTIONS = [
@@ -98,6 +100,7 @@ export function toVideoItem(raw: VideoGenConfig): ConfigItem<VideoForm> {
           : "",
       fps: raw.default_fps,
       max_concurrent: raw.max_concurrent,
+      pricing: clonePricingPlan(raw.pricing),
     },
   };
 }
@@ -169,6 +172,7 @@ function buildVideoConfigInput(
     duration_mode: form.duration_mode,
     supported_durations_json: form.duration_mode === "fixed" ? fixedDurations : null,
     default_fps: ensureIntRange(form.fps, t("settingsForm.fps"), 1, 120, t),
+    pricing: form.pricing,
   };
 }
 

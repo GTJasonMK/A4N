@@ -76,5 +76,6 @@ fn public_image_seed(fallback: &ImageGenConfig) -> Result<Option<ImageConfigInpu
             usize_to_i32(fallback.max_concurrent, "A4N_PUBLIC_IMAGE_MAX_CONCURRENT")?,
         )?,
         supported_sizes: fallback.supported_sizes.clone(),
+        pricing: Default::default(),
     }))
 }

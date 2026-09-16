@@ -3,6 +3,7 @@
 //! Kept separate from provider configuration contracts so API and UI contract
 //! crates do not inherit queue or Tokio dependencies.
 
+use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_domain::llm::{
     ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput,
 };
@@ -17,6 +18,11 @@ pub enum ProviderTaskPriority {
     High,
     Medium,
     Low,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelUsageRecordHandle {
+    pub id: i64,
 }
 
 #[async_trait]
@@ -43,6 +49,17 @@ pub trait ProviderRuntimePort: Send + Sync {
     async fn project_root_id(&self, project_id: i64) -> Result<Option<i64>, AppError>;
 
     async fn record_llm_call_trace(&self, input: RecordLlmCallTraceInput) -> Result<(), AppError>;
+
+    async fn start_model_usage(
+        &self,
+        input: ModelUsageRecordStart,
+    ) -> Result<ModelUsageRecordHandle, AppError>;
+
+    async fn finish_model_usage(
+        &self,
+        handle: ModelUsageRecordHandle,
+        input: ModelUsageRecordCompletion,
+    ) -> Result<(), AppError>;
 
     async fn record_or_reuse_context_pack_reference(
         &self,

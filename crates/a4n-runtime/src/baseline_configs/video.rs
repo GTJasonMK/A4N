@@ -60,5 +60,6 @@ fn public_video_seed() -> Result<Option<VideoConfigInput>, AppError> {
         duration_mode,
         supported_durations_json: optional_env_json("A4N_PUBLIC_VIDEO_SUPPORTED_DURATIONS_JSON")?,
         default_fps: env_i32_or("A4N_PUBLIC_VIDEO_DEFAULT_FPS", 24)?,
+        pricing: Default::default(),
     }))
 }

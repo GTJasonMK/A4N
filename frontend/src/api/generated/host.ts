@@ -134,6 +134,7 @@ export const HOST_API_COMMANDS = [
   "get_inspiration_history",
   "get_log_dir",
   "get_manga_pipeline_status",
+  "get_model_usage_report",
   "get_optimize_session",
   "get_package_operation",
   "get_package_overview",
@@ -1013,6 +1014,7 @@ export interface RuntimeLlmConfig {
   max_output_tokens: number;
   model: string;
   name: string;
+  pricing: PricingPlan;
   provider: string;
   timeout_secs: number;
 }
@@ -1026,6 +1028,7 @@ export interface RuntimeImageConfig {
   max_concurrent: number;
   model: string;
   name: string;
+  pricing: PricingPlan;
   supported_sizes: ImageSize[];
 }
 
@@ -1045,6 +1048,7 @@ export interface RuntimeVideoConfig {
   min_duration_secs: number;
   model: string;
   name: string;
+  pricing: PricingPlan;
   supported_durations_json: unknown;
 }
 
@@ -1059,6 +1063,7 @@ export interface RuntimeEmbeddingConfig {
   local_model_path: string | null;
   model: string;
   name: string;
+  pricing: PricingPlan;
 }
 
 export interface RuntimeWebFetchConfig {
@@ -1080,6 +1085,17 @@ export interface RuntimeWebSearchConfig {
   protocol: string;
   provider: string;
   timeout_secs: number;
+}
+
+export interface PricingPlan {
+  currency: string;
+  embedding_input_per_million: string | null;
+  image_per_generation: string | null;
+  llm_cache_read_per_million: string | null;
+  llm_cache_write_per_million: string | null;
+  llm_input_per_million: string | null;
+  llm_output_per_million: string | null;
+  video_per_second: string | null;
 }
 
 export interface RuntimeConfigSnapshot {
@@ -1839,6 +1855,55 @@ export interface GenerationCallAnalytics {
   recent_llm_calls: RecentLlmCall[];
   recent_media_calls: RecentMediaCall[];
   since_at: string;
+}
+
+export interface ModelUsageReportInput {
+  days: number;
+  limit: number;
+  projectId?: number | null;
+}
+
+export interface ModelUsageCurrencyTotal {
+  amountMicros: string;
+  currency: string;
+  pricedCalls: number;
+  unpricedCalls: number;
+}
+
+export interface ModelUsageCapabilityTotal {
+  amountMicros: string;
+  calls: number;
+  capability: string;
+  currency: string;
+}
+
+export interface ModelUsageEntry {
+  amountMicros: string | null;
+  capability: string;
+  completedAt: string | null;
+  confidence: string;
+  currency: string;
+  errorKind: string | null;
+  errorMessage: string | null;
+  id: number;
+  meter: unknown;
+  model: string | null;
+  provider: string | null;
+  requestId: string;
+  source: string | null;
+  startedAt: string;
+  status: string;
+}
+
+export interface ModelUsageReport {
+  capabilities: ModelUsageCapabilityTotal[];
+  projectId: number | null;
+  recent: ModelUsageEntry[];
+  since: string;
+  totals: ModelUsageCurrencyTotal[];
+  unpricedCalls: number;
+  unsettledCalls: number;
+  until: string;
 }
 
 export interface ListImagesByProjectInput {

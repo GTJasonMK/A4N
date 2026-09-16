@@ -14,6 +14,7 @@ pub mod character;
 pub mod collaboration;
 pub mod command_manifest;
 pub mod config;
+pub mod cost;
 pub mod embedding;
 pub mod error;
 pub mod export;

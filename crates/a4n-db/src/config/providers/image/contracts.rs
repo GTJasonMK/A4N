@@ -8,4 +8,5 @@ pub struct ImageConfigRecordInput {
     pub model: String,
     pub max_concurrent: i32,
     pub supported_sizes_json: Value,
+    pub pricing_json: Value,
 }
