@@ -561,18 +561,18 @@ pub struct AppState {
         Arc<dyn a4n_api_contract::portrait::PortraitRecordMutationApplicationPort>,
     /// Portrait prompt request preview owner.
     portrait_prompt_request_preview_application:
-        Arc<dyn a4n_orchestrator::portrait::PortraitPromptRequestPreviewApplicationPort>,
+        Arc<dyn a4n_portrait_host_contract::PortraitPromptRequestPreviewApplicationPort>,
     /// Portrait image request preview owner.
     portrait_image_request_preview_application:
-        Arc<dyn a4n_orchestrator::portrait::PortraitImageRequestPreviewApplicationPort>,
+        Arc<dyn a4n_portrait_host_contract::PortraitImageRequestPreviewApplicationPort>,
     /// Portrait prompt generation owner. Runtime supplies prompt rendering.
-    portrait_prompt_application: Arc<dyn a4n_orchestrator::portrait::PortraitPromptApplicationPort>,
+    portrait_prompt_application: Arc<dyn a4n_portrait_host_contract::PortraitPromptApplicationPort>,
     /// Portrait upload owner. Runtime supplies image/file adapters.
-    portrait_upload_application: Arc<dyn a4n_orchestrator::portrait::PortraitUploadApplicationPort>,
+    portrait_upload_application: Arc<dyn a4n_portrait_host_contract::PortraitUploadApplicationPort>,
     /// Portrait generation task owner. Runtime supplies prompt and media
     /// adapters when a worker is started.
     portrait_generation_application:
-        Arc<dyn a4n_orchestrator::portrait::PortraitGenerationApplicationPort>,
+        Arc<dyn a4n_portrait_host_contract::PortraitGenerationApplicationPort>,
     /// Persisted video provider configuration lookup. Runtime snapshot and
     /// user-scope policy stay outside this port.
     video_provider_config: Arc<dyn a4n_api_contract::video::VideoProviderConfigPort>,
@@ -2434,31 +2434,31 @@ impl AppState {
 
     pub(crate) fn portrait_prompt_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitPromptRequestPreviewApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitPromptRequestPreviewApplicationPort {
         self.portrait_prompt_request_preview_application.as_ref()
     }
 
     pub(crate) fn portrait_image_request_preview_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitImageRequestPreviewApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitImageRequestPreviewApplicationPort {
         self.portrait_image_request_preview_application.as_ref()
     }
 
     pub(crate) fn portrait_prompt_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitPromptApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitPromptApplicationPort {
         self.portrait_prompt_application.as_ref()
     }
 
     pub(crate) fn portrait_upload_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitUploadApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitUploadApplicationPort {
         self.portrait_upload_application.as_ref()
     }
 
     pub(crate) fn portrait_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::portrait::PortraitGenerationApplicationPort {
+    ) -> &dyn a4n_portrait_host_contract::PortraitGenerationApplicationPort {
         self.portrait_generation_application.as_ref()
     }
 

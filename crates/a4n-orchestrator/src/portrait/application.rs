@@ -7,8 +7,10 @@ mod workflow;
 #[cfg(test)]
 mod tests;
 
-pub use contracts::{
+pub(crate) use contracts::PortraitProgress;
+#[cfg(test)]
+pub(crate) use contracts::{
     DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
-    PortraitImageProviderInput, PortraitProgress,
+    PortraitImageProviderInput,
 };
 pub use image::portrait_summary;

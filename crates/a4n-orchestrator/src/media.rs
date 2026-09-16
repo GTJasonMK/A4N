@@ -13,9 +13,10 @@ pub(crate) use a4n_image_host_contract::{
     ImageCanvasRequestPreviewApplicationPort, ImageGenerationHostPort, ImageGenerationProgress,
     ImageObjectProfileRequestPreviewApplicationPort, ImagePageRequestPreviewApplicationPort,
     ImageSceneRequestPreviewApplicationPort, PersistGeneratedImageFileInput,
-    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
-    PreparedImageGenerationRequest,
+    PrepareGeneratedImageFileInput, PreparedImageGenerationRequest,
 };
+#[cfg(test)]
+pub(crate) use a4n_image_host_contract::{PersistedGeneratedImageFile, PreparedGeneratedImageFile};
 pub(crate) use batch_image_application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };

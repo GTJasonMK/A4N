@@ -1,17 +1,7 @@
-use std::collections::HashMap;
-
-use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle,
-    portrait::{
-        GeneratePortraitInput as ApiGeneratePortraitInput,
-        GeneratePortraitPromptInput as ApiGeneratePortraitPromptInput, PortraitSummary,
-        PortraitType, StartPortraitGenerationInput, UploadPortraitInput,
-    },
-};
+use a4n_api_contract::portrait::PortraitType;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, is_truncated_finish_reason};
-use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
@@ -26,12 +16,13 @@ mod prompt_generation;
 mod prompt_rules;
 mod workflow_rules;
 
+pub(crate) use a4n_portrait_host_contract::{
+    PortraitGenerationApplicationPort, PortraitGenerationHostPort,
+    PortraitImageRequestPreviewApplicationPort, PortraitPromptApplicationPort,
+    PortraitPromptRequestPreviewApplicationPort, PortraitUploadApplicationPort,
+};
 pub(crate) use application::PortraitProgress;
 pub(crate) use application::portrait_summary;
-pub use application::{
-    DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
-    PortraitImageProviderInput,
-};
 pub(crate) use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,
     build_generate_prompt_request, normalize_portrait_prompt_response,
@@ -44,71 +35,6 @@ pub(crate) use workflow_rules::{
     portrait_image_workflow_fingerprint, portrait_prompt_business_key,
     portrait_prompt_checkpoint_fingerprint, portrait_prompt_workflow_fingerprint,
 };
-
-/// Host-facing boundary for portrait prompt request previews.
-#[async_trait::async_trait]
-pub trait PortraitPromptRequestPreviewApplicationPort: Send + Sync {
-    async fn prepare_portrait_prompt_request(
-        &self,
-        input: &ApiGeneratePortraitPromptInput,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-    ) -> Result<ChatRequest, AppError>;
-}
-
-/// Host-facing boundary for portrait image request previews.
-#[async_trait::async_trait]
-pub trait PortraitImageRequestPreviewApplicationPort: Send + Sync {
-    async fn prepare_portrait_request(
-        &self,
-        input: &ApiGeneratePortraitInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ChatRequest, AppError>;
-}
-
-/// Host-facing boundary for generating a portrait prompt.
-#[async_trait::async_trait]
-pub trait PortraitPromptApplicationPort: Send + Sync {
-    async fn generate_portrait_prompt(
-        &self,
-        input: ApiGeneratePortraitPromptInput,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-    ) -> Result<String, AppError>;
-}
-
-/// Host-facing boundary for publishing an uploaded portrait.
-#[async_trait::async_trait]
-pub trait PortraitUploadApplicationPort: Send + Sync {
-    async fn upload_portrait(
-        &self,
-        user_id: i64,
-        input: UploadPortraitInput,
-        host_port: &dyn PortraitGenerationHostPort,
-    ) -> Result<PortraitSummary, AppError>;
-}
-
-/// Host-facing boundary for portrait generation workers.
-///
-/// Runtime owns task scheduling and supplies prompt/file/provider adapters;
-/// portrait validation, persistence and workflow state stay here.
-#[async_trait::async_trait]
-pub trait PortraitGenerationApplicationPort: Send + Sync {
-    async fn start_task(
-        &self,
-        user_id: i64,
-        input: &StartPortraitGenerationInput,
-    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
-
-    async fn run_task(
-        &self,
-        user_id: i64,
-        input: StartPortraitGenerationInput,
-        handle: GenerationTaskHandle,
-        prompt_renderer: &dyn PromptRenderer,
-        host_port: &dyn PortraitGenerationHostPort,
-    ) -> Result<(), String>;
-}
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 use a4n_db_models::models::generation::workflow_run;

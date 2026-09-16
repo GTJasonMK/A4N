@@ -21,6 +21,11 @@ use a4n_db_models::models::{
 use a4n_domain::{media::GeneratedMediaArtifactFile, project::ProjectKind};
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
+use a4n_image_host_contract::{
+    ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
+    ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+};
 use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -36,10 +41,7 @@ use crate::{
 };
 
 use super::{
-    ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationWorkflowBinding, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+    ImageGenerationExecutionInput, ImageGenerationPostCommitAction, ImageGenerationWorkflowBinding,
     application::{check_progress_cancelled, collect_bound_reference_images},
     image_generation_request_trace_json,
     trace::test_image_request_aspect_ratio,

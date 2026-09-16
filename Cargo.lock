@@ -856,6 +856,7 @@ dependencies = [
  "a4n-migration",
  "a4n-optimize-host-contract",
  "a4n-outline-contract",
+ "a4n-portrait-host-contract",
  "a4n-progress",
  "a4n-prompt",
  "a4n-prompt-client",
@@ -901,6 +902,21 @@ dependencies = [
  "a4n-error",
  "a4n-llm-provider-contract",
  "async-trait",
+]
+
+[[package]]
+name = "a4n-portrait-host-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-image-host-contract",
+ "a4n-llm-provider-contract",
+ "a4n-prompt-contract",
+ "async-trait",
+ "serde_json",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1164,6 +1180,7 @@ dependencies = [
  "a4n-optimize-host-contract",
  "a4n-orchestrator",
  "a4n-outline-contract",
+ "a4n-portrait-host-contract",
  "a4n-process-catalog",
  "a4n-prompt",
  "a4n-prompt-client",

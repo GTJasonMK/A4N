@@ -10,7 +10,7 @@ use a4n_image_host_contract::{
     PreparedGeneratedImageFile,
 };
 use a4n_media::{decode_uploaded_image_data, image_dimensions_from_bytes};
-use a4n_orchestrator::portrait::{
+use a4n_portrait_host_contract::{
     DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
     PortraitImageProviderInput,
 };

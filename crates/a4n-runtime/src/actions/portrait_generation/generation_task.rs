@@ -1,6 +1,5 @@
-use a4n_api_contract::generation_tasks::GenerationTaskHandle;
+use a4n_api_contract::generation_tasks::{GenerationTaskHandle, GenerationTaskStartError};
 use a4n_api_contract::portrait::StartPortraitGenerationInput;
-use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::{AppState, actions::portrait_generation::host_port::RuntimePortraitGenerationHostPort};
 
@@ -8,7 +7,7 @@ pub async fn start_portrait_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartPortraitGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
         .portrait_generation_application()
         .start_task(user_id, &input)
