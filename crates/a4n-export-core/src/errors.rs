@@ -12,4 +12,8 @@ pub enum ExportRenderError {
     Contract(#[from] a4n_export_contract::ExportContractError),
     #[error("导出归档失败：{0}")]
     Archive(#[from] a4n_archive_core::ArchiveWriteError),
+    #[error("文档格式渲染失败：{0}")]
+    Document(#[from] a4n_document_export_core::DocumentExportError),
+    #[error("文档导出输入无效：{0}")]
+    InvalidDocument(String),
 }

@@ -4,21 +4,10 @@ use a4n_db_models::models::project::novel_project;
 use a4n_error::AppError;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
+pub use a4n_export_contract::{ExportChapter, ExportDocument};
+
 #[cfg(test)]
 mod tests;
-
-#[derive(Debug)]
-pub struct ExportChapter {
-    pub chapter_number: i32,
-    pub title: Option<String>,
-    pub content: String,
-}
-
-#[derive(Debug)]
-pub struct ExportDocument {
-    pub title: String,
-    pub chapters: Vec<ExportChapter>,
-}
 
 async fn export_project_title(
     db: &DatabaseConnection,
@@ -159,41 +148,4 @@ pub async fn export_characters_json(
         "project_id": project_id,
         "profiles": profiles,
     }))
-}
-
-pub fn render_txt_document(chapters: &[ExportChapter]) -> String {
-    let mut output = String::new();
-    for chapter in chapters {
-        output.push_str("\n\n");
-        output.push_str(&chapter_heading(
-            chapter.chapter_number,
-            chapter.title.as_deref(),
-        ));
-        output.push_str("\n\n");
-        output.push_str(&chapter.content);
-        output.push('\n');
-    }
-    output
-}
-
-pub fn render_markdown_document(chapters: &[ExportChapter], title: &str, author: &str) -> String {
-    let mut markdown = format!("# {title}\n\n作者：{author}\n\n---\n");
-    for chapter in chapters {
-        markdown.push_str("\n## ");
-        markdown.push_str(&chapter_heading(
-            chapter.chapter_number,
-            chapter.title.as_deref(),
-        ));
-        markdown.push_str("\n\n");
-        markdown.push_str(&chapter.content);
-        markdown.push('\n');
-    }
-    markdown
-}
-
-pub fn chapter_heading(chapter_number: i32, title: Option<&str>) -> String {
-    match title.map(str::trim).filter(|title| !title.is_empty()) {
-        Some(title) => format!("第{chapter_number}章 {title}"),
-        None => format!("第{chapter_number}章"),
-    }
 }

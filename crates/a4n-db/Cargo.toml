@@ -10,7 +10,8 @@ a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-progress = { path = "../a4n-progress" }
- a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-export-contract = { path = "../a4n-export-contract" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-video-contract = { path = "../a4n-video-contract" }
@@ -28,6 +29,7 @@ thiserror = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+a4n-document-export-core = { path = "../a4n-document-export-core" }
 a4n-migration = { path = "../a4n-migration" }
 a4n-test-support = { path = "../a4n-test-support" }
 tokio = { workspace = true }

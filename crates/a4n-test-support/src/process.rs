@@ -30,8 +30,9 @@ pub const SIDECAR_PROCESS_TEST_TOKEN: &str = "a4n-process-test-token";
 pub use a4n_embedding_client::{EmbeddingClient, HttpEmbeddingClient};
 pub use a4n_export_client::{ExportClient, HttpExportClient};
 pub use a4n_export_contract::{
-    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderJsonInput,
-    ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportChapter, ExportDocument,
+    ExportDocumentFormat, ExportRenderDocumentInput, ExportRenderJsonInput, ExportRenderZipInput,
+    ExportZipEntryBytes, ExportZipPackageInput,
 };
 pub use a4n_image_client::{HttpImageClient, ImageClient};
 pub use a4n_import_client::{HttpImportClient, ImportClient};

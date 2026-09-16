@@ -1,8 +1,8 @@
 //! Typed client for the export sidecar service.
 
 use a4n_export_contract::{
-    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderJsonInput,
-    ExportRenderZipInput, ExportRenderZipOutput,
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderDocumentInput,
+    ExportRenderDocumentOutput, ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -56,6 +56,10 @@ impl ServiceClient for HttpExportClient {
 
 #[async_trait]
 pub trait ExportClient: ServiceClient {
+    async fn render_document(
+        &self,
+        request: ServiceRequest<ExportRenderDocumentInput>,
+    ) -> ServiceClientResult<ServiceResponse<ExportRenderDocumentOutput>>;
     async fn render_json(
         &self,
         request: ServiceRequest<ExportRenderJsonInput>,
@@ -68,6 +72,15 @@ pub trait ExportClient: ServiceClient {
 
 #[async_trait]
 impl ExportClient for HttpExportClient {
+    async fn render_document(
+        &self,
+        request: ServiceRequest<ExportRenderDocumentInput>,
+    ) -> ServiceClientResult<ServiceResponse<ExportRenderDocumentOutput>> {
+        self.transport
+            .post("/export/render_document", request)
+            .await
+    }
+
     async fn render_json(
         &self,
         request: ServiceRequest<ExportRenderJsonInput>,

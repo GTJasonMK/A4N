@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-archive-core = { path = "../a4n-archive-core" }
+a4n-document-export-core = { path = "../a4n-document-export-core" }
 a4n-export-contract = { path = "../a4n-export-contract" }
 base64 = { workspace = true }
 serde = { workspace = true }

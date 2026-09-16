@@ -2264,6 +2264,17 @@ impl RuntimeBootstrap {
         self.snapshot_store.clone()
     }
 
+    pub fn document_export_renderer(
+        &self,
+    ) -> Result<Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>, a4n_error::AppError>
+    {
+        crate::sidecar_clients::document_export_renderer(
+            self.runtime_profile,
+            self.capabilities.export.clone(),
+        )
+        .map_err(a4n_error::AppError::ConfigError)
+    }
+
     pub fn create_provider(
         &self,
         provider_port: Arc<dyn a4n_provider_runtime_contract::ProviderRuntimePort>,

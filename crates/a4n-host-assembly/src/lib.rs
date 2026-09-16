@@ -27,6 +27,7 @@ pub async fn initialize_runtime(
         bootstrap.task_queue(),
         bootstrap.prompt_engine(),
         bootstrap.snapshot_store(),
+        bootstrap.document_export_renderer()?,
         |provider_port| {
             let (provider_facade, llm, embedding) = bootstrap.create_provider(provider_port)?;
             provider_runtime = Some(provider_facade);

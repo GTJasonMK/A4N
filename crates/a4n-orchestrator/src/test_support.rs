@@ -106,6 +106,7 @@ impl TestOrchestratorBuilder {
             task_queue,
             engine,
             snapshot_store,
+            None,
             move |_| Ok((llm, embedding)),
         )
         .expect("test providers should initialize")

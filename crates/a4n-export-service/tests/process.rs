@@ -1,5 +1,6 @@
 use a4n_test_support::process::{
-    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportClient, ExportRenderJsonInput,
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportChapter, ExportClient,
+    ExportDocument, ExportDocumentFormat, ExportRenderDocumentInput, ExportRenderJsonInput,
     ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput, HttpExportClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceRequestContext, ServiceStatus, TraceContext,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
@@ -58,6 +59,40 @@ async fn export_service_process_serves_typed_render_and_stops() {
         .expect("typed export render should cross the independent process");
     assert_eq!(response.status, ServiceStatus::Ok);
     assert_eq!(response.payload.expect("export payload"), "{\"value\":1}");
+
+    let document_request = ServiceRequestContext::new(
+        "export-process-document",
+        TraceContext {
+            trace_id: "export-process-document-trace".to_string(),
+            parent_span_id: None,
+        },
+        a4n_service_protocol::SecretForwardingPolicy::trusted_remote_no_secrets(),
+    )
+    .with_payload(
+        EXPORT_RENDER_CAPABILITY_VERSION,
+        ExportRenderDocumentInput {
+            document: ExportDocument {
+                title: "测试作品".to_string(),
+                chapters: vec![ExportChapter {
+                    chapter_number: 1,
+                    title: Some("开端".to_string()),
+                    content: "正文".to_string(),
+                }],
+            },
+            format: ExportDocumentFormat::Markdown,
+            author: Some("作者".to_string()),
+        },
+    )
+    .expect("typed document render request should be valid");
+    let document = client
+        .render_document(document_request)
+        .await
+        .expect("document render should cross the independent process");
+    assert_eq!(document.status, ServiceStatus::Ok);
+    let document = document.payload.expect("document render payload");
+    assert_eq!(document.extension, "md");
+    assert_eq!(document.content_type, "text/markdown;charset=utf-8");
+    assert!(!document.bytes_base64.is_empty());
 
     disconnect_during_request_body(addr, "/export/render_zip").await;
     let invalid_zip = client

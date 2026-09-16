@@ -23,6 +23,7 @@ a4n-canvas-host-contract = { path = "../a4n-canvas-host-contract" }
 a4n-outline-contract = { path = "../a4n-outline-contract" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-document-export-core = { path = "../a4n-document-export-core" }
+a4n-export-contract = { path = "../a4n-export-contract" }
 a4n-domain = { path = "../a4n-domain" }
  a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }

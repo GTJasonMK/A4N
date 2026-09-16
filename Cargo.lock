@@ -291,8 +291,10 @@ dependencies = [
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db-models",
+ "a4n-document-export-core",
  "a4n-domain",
  "a4n-error",
+ "a4n-export-contract",
  "a4n-migration",
  "a4n-progress",
  "a4n-queue",
@@ -341,6 +343,7 @@ dependencies = [
 name = "a4n-document-export-core"
 version = "0.1.0"
 dependencies = [
+ "a4n-export-contract",
  "chrono",
  "thiserror 2.0.18",
  "uuid",
@@ -504,6 +507,7 @@ dependencies = [
 name = "a4n-export-contract"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "serde",
  "serde_json",
@@ -515,6 +519,7 @@ name = "a4n-export-core"
 version = "0.1.0"
 dependencies = [
  "a4n-archive-core",
+ "a4n-document-export-core",
  "a4n-export-contract",
  "base64 0.22.1",
  "serde",
@@ -954,6 +959,7 @@ dependencies = [
  "a4n-embedding-provider-contract",
  "a4n-error",
  "a4n-event",
+ "a4n-export-contract",
  "a4n-galgame-host-contract",
  "a4n-generation-host-contract",
  "a4n-image-contract",
