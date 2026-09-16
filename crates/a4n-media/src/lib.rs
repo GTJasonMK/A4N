@@ -11,7 +11,6 @@ mod postprocess;
 mod probe;
 mod upload;
 
-pub use a4n_domain::media::{DecodedUploadedAudio, DecodedUploadedImage};
 pub use assembly::{
     VideoAssemblyClip, VideoAssemblyError, VideoAssemblyRequest, assemble_videos,
     build_video_assembly_filter,
