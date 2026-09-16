@@ -25,6 +25,7 @@ pub(super) fn assemble_chapter_shooting_script(
         scenes,
         visual_plan_record,
         visual_plan,
+        false,
     )?;
     script
         .validate()
@@ -50,6 +51,7 @@ pub(super) fn assemble_available_shooting_script(
         scenes,
         visual_plan_record,
         visual_plan,
+        true,
     )
 }
 
@@ -59,12 +61,14 @@ fn assemble_script(
     scenes: Vec<ShootingSceneV1>,
     record: &ParsedChapterVisualPlan,
     plan: &DirectorScriptPlan,
+    allow_partial: bool,
 ) -> Result<ChapterShootingScriptV1, AppError> {
-    if scenes.len() != units.len() || units.len() != plan.narrative_units.len() {
-        return Err(AppError::InvalidArgument(
-            "拍摄设计与 confirmed 导演编排的单元数量不一致".into(),
-        ));
-    }
+    validate_unit_counts(
+        scenes.len(),
+        units.len(),
+        plan.narrative_units.len(),
+        allow_partial,
+    )?;
     let scenes = scenes
         .into_iter()
         .zip(units.iter().zip(&plan.narrative_units))
@@ -84,12 +88,38 @@ fn assemble_script(
     })
 }
 
+fn validate_unit_counts(
+    scene_count: usize,
+    unit_count: usize,
+    planned_count: usize,
+    allow_partial: bool,
+) -> Result<(), AppError> {
+    let valid = scene_count == unit_count
+        && if allow_partial {
+            unit_count <= planned_count
+        } else {
+            unit_count == planned_count
+        };
+    if valid {
+        return Ok(());
+    }
+    Err(AppError::InvalidArgument(format!(
+        "拍摄设计与 confirmed 导演编排的单元数量不一致：scenes={scene_count}, units={unit_count}, planned={planned_count}"
+    )))
+}
+
 fn assemble_scene(
     index: usize,
     mut scene: ShootingSceneV1,
     unit: &ScreenplayPlanUnit,
     planned: &DirectorScriptUnit,
 ) -> Result<ShootingSceneV1, AppError> {
+    if unit.scene_identity != planned.id || unit.sequence_index != planned.sequence_index {
+        return Err(AppError::InvalidArgument(format!(
+            "拍摄设计单元 {} 的顺序与 confirmed 导演编排不一致",
+            unit.narrative_unit_index
+        )));
+    }
     if scene.shots.len() != planned.shots.len() {
         return Err(AppError::InvalidArgument(format!(
             "拍摄设计 unit {} 的镜头数量与导演编排不一致",
@@ -122,6 +152,19 @@ fn assemble_scene(
         .into_iter()
         .collect();
     Ok(scene)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_unit_counts;
+
+    #[test]
+    fn available_script_accepts_a_confirmed_plan_prefix() {
+        assert!(validate_unit_counts(2, 2, 5, true).is_ok());
+        assert!(validate_unit_counts(2, 2, 5, false).is_err());
+        assert!(validate_unit_counts(2, 3, 5, true).is_err());
+        assert!(validate_unit_counts(2, 6, 5, true).is_err());
+    }
 }
 
 fn apply_visual_shot_plan(
