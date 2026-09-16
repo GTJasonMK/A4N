@@ -11,8 +11,10 @@ use super::compact_required_text;
 
 const FOCUSED_OUTLINE_HEAD_CHAR_LIMIT: usize = 8_000;
 const FOCUSED_OUTLINE_TAIL_CHAR_LIMIT: usize = 2_000;
-const MINIMAL_OUTLINE_HEAD_CHAR_LIMIT: usize = 4_000;
-const MINIMAL_OUTLINE_TAIL_CHAR_LIMIT: usize = 1_000;
+// Context budgets use a conservative UTF-8 byte bound, so the minimal
+// variant must remain small enough for CJK text in compact model windows.
+const MINIMAL_OUTLINE_HEAD_CHAR_LIMIT: usize = 600;
+const MINIMAL_OUTLINE_TAIL_CHAR_LIMIT: usize = 200;
 
 pub(super) fn chapter_outline_pack(outline: &str) -> LlmContextLedgerPackInput {
     let hash = source_content_sha256(outline);

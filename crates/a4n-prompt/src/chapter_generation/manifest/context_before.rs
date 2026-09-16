@@ -11,8 +11,10 @@ use super::compact_required_text;
 
 const FOCUSED_CONTEXT_HEAD_CHAR_LIMIT: usize = 5_000;
 const FOCUSED_CONTEXT_TAIL_CHAR_LIMIT: usize = 3_000;
-const MINIMAL_CONTEXT_HEAD_CHAR_LIMIT: usize = 1_200;
-const MINIMAL_CONTEXT_TAIL_CHAR_LIMIT: usize = 600;
+// Match the conservative UTF-8 byte budget used by the context planner while
+// retaining the opening constraint and the previous-chapter ending state.
+const MINIMAL_CONTEXT_HEAD_CHAR_LIMIT: usize = 300;
+const MINIMAL_CONTEXT_TAIL_CHAR_LIMIT: usize = 100;
 
 pub(super) fn context_before_pack(context: &str) -> LlmContextLedgerPackInput {
     let hash = source_content_sha256(context);
