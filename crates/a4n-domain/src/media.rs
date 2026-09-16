@@ -51,6 +51,27 @@ pub struct CreateGeneratedImageRecordDraftInput {
     pub created_at: Option<NaiveDateTime>,
 }
 
+/// Pure input for creating a generated-video record. Database validation,
+/// source ownership checks, locking and persistence stay in `a4n-db`.
+#[derive(Debug, Clone)]
+pub struct CreateGeneratedVideoRecordDraftInput {
+    pub project_id: i64,
+    pub chapter_id: Option<i64>,
+    pub video_type: String,
+    pub workflow_mode: Option<String>,
+    pub prompt: String,
+    pub negative_prompt: Option<String>,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub duration_secs: f32,
+    pub fps: i32,
+    pub source_video_id: Option<i64>,
+    pub source_image_id: Option<i64>,
+    pub provider_job_id: Option<String>,
+    pub metadata_json: Option<Value>,
+}
+
 /// Durable facts needed to recover an image publication without exposing ORM
 /// rows to the Runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]

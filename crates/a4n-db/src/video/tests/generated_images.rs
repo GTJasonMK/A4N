@@ -6,16 +6,17 @@ use a4n_db_models::models::{
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, IMAGE_TYPE_VIDEO_KEY_FRAME,
 };
-use a4n_domain::media::CreateGeneratedImageRecordDraftInput;
+use a4n_domain::media::{
+    CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
+};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use serde_json::json;
 
 use crate::video::{
-    CreateGeneratedVideoRecordDraftInput, UpdateGeneratedImageRecordInput, VideoDbError,
-    create_generated_image_record, create_generated_video_record,
-    delete_generated_image_record_with_cleanup, generated_image_ids_by_ids,
-    update_generated_image_record,
+    UpdateGeneratedImageRecordInput, VideoDbError, create_generated_image_record,
+    create_generated_video_record, delete_generated_image_record_with_cleanup,
+    generated_image_ids_by_ids, update_generated_image_record,
 };
 
 async fn setup_db() -> DatabaseConnection {

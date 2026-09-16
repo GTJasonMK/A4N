@@ -140,7 +140,7 @@ pub(super) async fn generated_video_with_asset(
 ) -> (generated_video::Model, media_asset::Model) {
     let video = crate::video::create_generated_video_record(
         db,
-        crate::video::CreateGeneratedVideoRecordDraftInput {
+        a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),

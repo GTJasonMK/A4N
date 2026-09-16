@@ -1502,7 +1502,7 @@ mod tests {
             .unwrap();
         let video = crate::video::create_generated_video_record(
             &db,
-            crate::video::CreateGeneratedVideoRecordDraftInput {
+            a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: Some(chapter.id),
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),

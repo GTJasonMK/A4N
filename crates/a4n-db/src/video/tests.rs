@@ -7,7 +7,9 @@ use a4n_db_models::models::{
     project::novel_project,
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
-use a4n_domain::media::CreateGeneratedImageRecordDraftInput;
+use a4n_domain::media::{
+    CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
+};
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
 use sea_orm::{

@@ -55,9 +55,8 @@ pub(crate) use generated_images::{
 mod generated_videos;
 pub(crate) use generated_videos::clear_generated_video_references_by_ids;
 pub use generated_videos::{
-    CreateGeneratedVideoRecordDraftInput, GeneratedVideoErrorStatusBatchInput,
-    UpdateGeneratedVideoRecordInput, create_generated_video_record,
-    create_generated_video_record_with_generation_run,
+    GeneratedVideoErrorStatusBatchInput, UpdateGeneratedVideoRecordInput,
+    create_generated_video_record, create_generated_video_record_with_generation_run,
     create_prompt_generated_video_record_with_generation_run,
     delete_generated_video_record_with_cleanup, delete_missing_generated_video_references_record,
     generated_video_by_id, generated_videos_by_ids, generated_videos_by_provider_job_id,

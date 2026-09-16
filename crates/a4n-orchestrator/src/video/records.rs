@@ -147,7 +147,7 @@ impl crate::OrchestratorContext {
         &self,
         input: VideoGenerationRecordInput,
     ) -> Result<generated_video::Model, a4n_error::AppError> {
-        let video_record = a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        let video_record = a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id: input.project_id,
             chapter_id: input.chapter_id,
             video_type: input.video_type,
@@ -629,7 +629,7 @@ impl crate::OrchestratorContext {
         let anchor_label = insert_after_video_id
             .map(|id| format!("视频 #{id} 之后"))
             .unwrap_or_else(|| "成片开头".to_string());
-        self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT.to_string(),
@@ -725,7 +725,7 @@ impl crate::OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
         let video = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: plan.push.project_id,
                 chapter_id: plan.push.chapter_id,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT
@@ -939,7 +939,7 @@ impl crate::OrchestratorContext {
             .map(|clip| clip.sort_order)
             .collect::<Vec<_>>();
         let video = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: Some(chapter_id),
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH.to_string(),
@@ -998,7 +998,7 @@ impl crate::OrchestratorContext {
             ));
         }
         let video = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: Some(chapter_id),
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
@@ -1086,7 +1086,7 @@ impl crate::OrchestratorContext {
             Some(&recipe),
             target,
         )?;
-        self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
@@ -1133,7 +1133,7 @@ impl crate::OrchestratorContext {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<generated_video::Model, AppError> {
-        self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
@@ -1393,7 +1393,7 @@ impl crate::OrchestratorContext {
             .map(|video| video.id)
             .collect::<Vec<_>>();
         let record = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: None,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),
@@ -1490,7 +1490,7 @@ impl crate::OrchestratorContext {
         plan: VideoTrimPlan,
     ) -> Result<GeneratedVideoSummary, AppError> {
         let record = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: plan.source.project_id,
                 chapter_id: plan.source.chapter_id,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_TRIMMED_CLIP.to_string(),
