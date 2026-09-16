@@ -7,6 +7,7 @@ import {
   CircleUserRound,
   FileText,
   Film,
+  Globe2,
   Image as ImageIcon,
   Palette,
   ScrollText,
@@ -19,6 +20,7 @@ export type TabId =
   | "embedding"
   | "image"
   | "video"
+  | "web-search"
   | "queue"
   | "prompt"
   | "theme"
@@ -36,6 +38,7 @@ interface TabDef {
 
 export const TABS: TabDef[] = [
   { id: "llm", labelKey: "settings.llm", icon: <Bot size={14} />, groupKey: "settings.local" },
+  { id: "web-search", labelKey: "settings.webSearch", icon: <Globe2 size={14} />, groupKey: "settings.local" },
   { id: "embedding", labelKey: "settings.embedding", icon: <Brain size={14} />, groupKey: "settings.local" },
   { id: "image", labelKey: "settings.image", icon: <ImageIcon size={14} />, groupKey: "settings.local" },
   { id: "video", labelKey: "settings.video", icon: <Film size={14} />, groupKey: "settings.local" },

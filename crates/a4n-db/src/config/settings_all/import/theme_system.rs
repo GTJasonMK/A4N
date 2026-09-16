@@ -1,6 +1,6 @@
 use super::super::types::{
     SettingsAllConfigImportError, SettingsAllSystemSettingRow, SettingsAllThemeRow,
-    settings_all_config_database,
+    is_retired_system_setting_key, settings_all_config_database,
 };
 use a4n_db_models::models::{ai::system_settings, user::theme_config};
 use a4n_domain::validate_theme_document;
@@ -87,6 +87,10 @@ pub(super) async fn import_system_setting_row<C>(
 where
     C: ConnectionTrait,
 {
+    if is_retired_system_setting_key(&row.key) {
+        return Ok(false);
+    }
+
     let existing = system_settings::Entity::find()
         .filter(system_settings::Column::Key.eq(&row.key))
         .one(db)

@@ -3,6 +3,10 @@ use sea_orm::DbErr;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+pub(crate) fn is_retired_system_setting_key(key: &str) -> bool {
+    key == "web_search"
+}
+
 #[derive(Clone, Debug)]
 pub struct SettingsAllConfigImportInput {
     pub overwrite: bool,

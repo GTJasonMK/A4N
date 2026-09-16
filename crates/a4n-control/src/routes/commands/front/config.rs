@@ -4,6 +4,7 @@ mod llm;
 mod settings_all;
 mod shared;
 mod video;
+mod web_fetch;
 mod web_search;
 
 pub(in crate::routes::commands) use embedding::{
@@ -25,9 +26,8 @@ pub(in crate::routes::commands) use video::{
     add_video_config, detect_video_config_models, list_video_configs, remove_video_config,
     set_default_video_config, update_video_config,
 };
-pub(in crate::routes::commands) use web_search::{
-    get_web_search_config, update_web_search_config, web_search,
-};
+pub(in crate::routes::commands) use web_fetch::web_fetch;
+pub(in crate::routes::commands) use web_search::web_search;
 
 #[cfg(test)]
 mod tests;

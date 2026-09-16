@@ -1627,6 +1627,23 @@ mod tests {
             serde_json::json!({"llm": {}})
         );
 
+        let web_search = AgentHostCommandPayload {
+            command: "web_search".into(),
+            arguments: serde_json::json!({"query": "A4N"}),
+            runtime_config_snapshot: Some(serde_json::json!({
+                "schema_version": 2,
+                "web_search": {"api_key_encrypted": "personal-key"}
+            })),
+            ..payload.clone()
+        };
+        assert_eq!(
+            web_search
+                .arguments_with_runtime_snapshot()
+                .expect("personal web search snapshot should be forwarded")["runtime_config_snapshot"]
+                ["web_search"]["api_key_encrypted"],
+            serde_json::json!("personal-key")
+        );
+
         let mut without_secrets = payload;
         without_secrets.command = "preview_chapter_prompt".into();
         without_secrets.runtime_config_snapshot = Some(serde_json::json!({

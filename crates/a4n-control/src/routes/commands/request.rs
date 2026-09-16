@@ -68,6 +68,8 @@ mod tests {
             video: None,
             video_configs: Vec::new(),
             embedding: None,
+            web_fetch: None,
+            web_search: None,
             llm_default_source: None,
             image_default_source: None,
             video_default_source: None,

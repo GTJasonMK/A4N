@@ -396,7 +396,7 @@ fn ensure_argument_scope(
     // command such as create_project from a bound scope.
     if (scope.project_id.is_some() || scope.chapter_id.is_some() || scope.resource_kind.is_some())
         && a4n_api_contract::agent::synthetic_agent_tool_descriptor(&descriptor.name).is_none()
-        && descriptor.name != "web_search"
+        && !matches!(descriptor.name.as_str(), "web_search" | "web_fetch")
         && project_ids.is_empty()
         && chapter_ids.is_empty()
     {
@@ -2855,10 +2855,12 @@ fn available_runtime_tools(
         .map(|name| (*name).to_string())
         .take(MAX_BASE_AGENT_TOOLS)
         .collect::<Vec<_>>();
-    if a4n_api_contract::agent::initial_agent_tools(capability).contains(&"web_search")
-        && !names.iter().any(|name| name == "web_search")
-    {
-        names.push("web_search".into());
+    for tool in ["web_search", "web_fetch"] {
+        if a4n_api_contract::agent::initial_agent_tools(capability).contains(&tool)
+            && !names.iter().any(|name| name == tool)
+        {
+            names.push(tool.into());
+        }
     }
     names.retain(|name| ensure_scope_allows_tool(scope, name).is_ok());
     let pending = executions

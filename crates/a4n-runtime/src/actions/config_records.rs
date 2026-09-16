@@ -5,6 +5,7 @@ mod image;
 mod llm;
 mod shared;
 mod video;
+mod web_fetch;
 mod web_search;
 
 pub use catalog::model_provider_catalog;
@@ -28,4 +29,5 @@ pub use video::{
     add_video_config, list_video_configs, remove_video_config, set_default_video_config,
     update_video_config,
 };
-pub use web_search::{get_web_search_config, update_web_search_config, web_search};
+pub use web_fetch::web_fetch;
+pub use web_search::web_search;

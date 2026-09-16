@@ -9,6 +9,8 @@ import {
   listLocalImageConfigs,
   listLocalLlmConfigs,
   listLocalVideoConfigs,
+  getLocalWebFetchConfig,
+  getLocalWebSearchConfig,
   usesSystemDefaultLlmConfig,
   usesSystemDefaultImageConfig,
   usesSystemDefaultVideoConfig,
@@ -22,6 +24,8 @@ export interface RuntimeConfigSnapshot {
   image?: unknown;
   video?: unknown;
   embedding?: unknown;
+  web_search?: unknown;
+  web_fetch?: unknown;
   llm_default_source?: "system" | "local";
   image_default_source?: "system" | "local";
   video_default_source?: "system" | "local";
@@ -92,10 +96,14 @@ export function buildRuntimeConfigSnapshot(
   const rawImage = hasImageOverride ? overrides.image : activeLocalImageConfig();
   const rawVideo = hasVideoOverride ? overrides.video : activeLocalVideoConfig();
   const rawEmbedding = hasEmbeddingOverride ? overrides.embedding : activeLocalEmbeddingConfig();
+  const rawWebSearch = getLocalWebSearchConfig();
+  const rawWebFetch = getLocalWebFetchConfig();
   const llm = runtimeConfigPayload(rawLlm, includeLlmApiKeys);
   const image = runtimeConfigPayload(rawImage, includeProviderApiKeys);
   const video = runtimeConfigPayload(rawVideo, includeProviderApiKeys);
   const embedding = runtimeConfigPayload(rawEmbedding, includeProviderApiKeys);
+  const webSearch = runtimeConfigPayload(rawWebSearch, includeProviderApiKeys);
+  const webFetch = runtimeConfigPayload(rawWebFetch, false);
   const llmDefaultSource = usesSystemDefaultLlmConfig() ? "system" : "local";
   const imageDefaultSource = usesSystemDefaultImageConfig() ? "system" : "local";
   const videoDefaultSource = usesSystemDefaultVideoConfig() ? "system" : "local";
@@ -144,6 +152,8 @@ export function buildRuntimeConfigSnapshot(
     ...(image ? { image } : {}),
     ...(video ? { video } : {}),
     ...(embedding ? { embedding } : {}),
+    ...(webSearch ? { web_search: webSearch } : {}),
+    ...(webFetch ? { web_fetch: webFetch } : {}),
     llm_configs: llmConfigs,
     image_configs: imageConfigs,
     video_configs: videoConfigs,

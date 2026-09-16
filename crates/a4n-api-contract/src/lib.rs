@@ -49,5 +49,6 @@ pub mod task;
 pub mod temp_media;
 pub mod theme;
 pub mod video;
+pub mod web_fetch;
 pub mod web_search;
 pub mod workflow;

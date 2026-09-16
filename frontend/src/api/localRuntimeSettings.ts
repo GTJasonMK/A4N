@@ -30,6 +30,8 @@ const LOCAL_RUNTIME_SETTINGS_KEYS = [
   "embedding",
   "image",
   "video",
+  "web_search",
+  "web_fetch",
   "default_source",
 ] as const;
 const RETIRED_LOCAL_RUNTIME_SETTINGS_KEYS = ["llm_max_tokens"] as const;
@@ -44,6 +46,39 @@ interface LocalLlmConfig extends LlmConfigSummary {
   api_key_encrypted?: string | null;
 }
 
+interface LocalWebSearchConfigFields {
+  protocol: string;
+  provider: string;
+  base_url: string;
+  model: string;
+  max_results: number;
+  max_uses: number;
+  max_tokens: number;
+  timeout_secs: number;
+}
+
+export interface LocalWebSearchConfigSummary extends LocalWebSearchConfigFields {
+  has_api_key: boolean;
+}
+
+export interface LocalWebSearchConfig extends LocalWebSearchConfigFields {
+  api_key_encrypted: string | null;
+  has_api_key: boolean;
+}
+
+export interface LocalWebSearchConfigInput extends LocalWebSearchConfigFields {
+  api_key_encrypted?: string | null;
+}
+
+export interface LocalWebFetchConfig {
+  enabled: boolean;
+  timeout_secs: number;
+  max_redirects: number;
+  max_response_bytes: number;
+  max_body_chars: number;
+  max_output_chars: number;
+}
+
 interface LocalRuntimeSettings {
   schema_version: 1;
   next_id: number;
@@ -54,6 +89,8 @@ interface LocalRuntimeSettings {
   embedding: LocalEmbeddingConfig[];
   image: ImageGenConfig[];
   video: VideoGenConfig[];
+  web_search: LocalWebSearchConfig | null;
+  web_fetch: LocalWebFetchConfig;
   default_source: LocalRuntimeDefaultSource;
 }
 
@@ -67,6 +104,8 @@ interface LocalRuntimeSettingsInput {
   embedding: unknown[];
   image: unknown[];
   video: unknown[];
+  web_search: unknown;
+  web_fetch: unknown;
   default_source: unknown;
 }
 
@@ -81,6 +120,25 @@ type LocalRuntimeProviderKind = keyof LocalRuntimeDefaultSource;
 const DEFAULT_LOCAL_EMBEDDING_NAME = "基础本地哈希向量";
 const DEFAULT_LOCAL_EMBEDDING_MODEL = "local-sha256-hash";
 const DEFAULT_LOCAL_EMBEDDING_DIMENSION = 384;
+const DEFAULT_LOCAL_WEB_SEARCH_CONFIG: Omit<LocalWebSearchConfig, "has_api_key"> = {
+  protocol: "anthropic",
+  provider: "deepseek-official",
+  base_url: "https://api.deepseek.com/anthropic/v1",
+  api_key_encrypted: null,
+  model: "deepseek-v4-flash",
+  max_results: 5,
+  max_uses: 5,
+  max_tokens: 4096,
+  timeout_secs: 60,
+};
+const DEFAULT_LOCAL_WEB_FETCH_CONFIG: LocalWebFetchConfig = {
+  enabled: true,
+  timeout_secs: 30,
+  max_redirects: 5,
+  max_response_bytes: 5_000_000,
+  max_body_chars: 100_000,
+  max_output_chars: 200_000,
+};
 
 function defaultSettings(): LocalRuntimeSettings {
   return {
@@ -107,6 +165,8 @@ function defaultSettings(): LocalRuntimeSettings {
     ],
     image: [],
     video: [],
+    web_search: null,
+    web_fetch: DEFAULT_LOCAL_WEB_FETCH_CONFIG,
     default_source: {
       llm: "system",
       image: "system",
@@ -144,6 +204,8 @@ function parseSettings(raw: string | null): LocalRuntimeSettings {
     embedding: requiredArraySection<LocalEmbeddingConfig>(payload, "embedding"),
     image: requiredArraySection<ImageGenConfig>(payload, "image"),
     video: requiredArraySection<VideoGenConfig>(payload, "video"),
+    web_search: payload.web_search,
+    web_fetch: payload.web_fetch,
     default_source: payload.default_source,
   });
 }
@@ -165,11 +227,10 @@ function requiredIntRange(
   min: number,
   max: number,
 ): number {
-  const parsed = requiredPositiveInt(value, field);
-  if (parsed < min || parsed > max) {
+  if (!Number.isInteger(value) || Number(value) < min || Number(value) > max) {
     throw new Error(`${field} 必须在 ${min}-${max} 之间`);
   }
-  return parsed;
+  return Number(value);
 }
 
 function requiredBoolean(value: unknown, field: string): boolean {
@@ -270,6 +331,14 @@ function normalizeSettings(
     embedding: settings.embedding.map(normalizeLocalEmbeddingConfig),
     image: settings.image.map(normalizeLocalImageConfig),
     video: settings.video.map(normalizeLocalVideoConfig),
+    web_search:
+      settings.web_search == null
+        ? null
+        : normalizeLocalWebSearchConfig(settings.web_search),
+    web_fetch:
+      settings.web_fetch == null
+        ? DEFAULT_LOCAL_WEB_FETCH_CONFIG
+        : normalizeLocalWebFetchConfig(settings.web_fetch),
     default_source: normalizeDefaultSource(settings.default_source, settings),
   };
   if (normalized.embedding.length === 0) {
@@ -550,6 +619,94 @@ function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
   };
 }
 
+function normalizeLocalWebSearchConfig(value: unknown): LocalWebSearchConfig {
+  const item = requiredObject(value, "本机联网搜索配置");
+  const apiKey = optionalTrimmedString(
+    item.api_key_encrypted,
+    "本机联网搜索配置 api_key_encrypted",
+  );
+  const maxResults = requiredIntRange(
+    item.max_results,
+    "本机联网搜索配置 max_results",
+    1,
+    20,
+  );
+  const maxUses = requiredIntRange(
+    item.max_uses,
+    "本机联网搜索配置 max_uses",
+    1,
+    20,
+  );
+  const maxTokens = requiredIntRange(
+    item.max_tokens,
+    "本机联网搜索配置 max_tokens",
+    1,
+    32768,
+  );
+  const timeout = requiredIntRange(
+    item.timeout_secs,
+    "本机联网搜索配置 timeout_secs",
+    1,
+    300,
+  );
+  const protocol = requiredTrimmedString(
+    item.protocol,
+    "本机联网搜索配置 protocol",
+  );
+  if (!["anthropic", "openai_responses", "tavily", "brave", "serper", "bing"].includes(protocol)) {
+    throw new Error(`本机联网搜索配置 protocol 不支持：${protocol}`);
+  }
+  return {
+    protocol,
+    provider: requiredTrimmedString(item.provider, "本机联网搜索配置 provider"),
+    base_url: requiredTrimmedString(item.base_url, "本机联网搜索配置 base_url"),
+    api_key_encrypted: apiKey,
+    has_api_key: Boolean(apiKey),
+    model: requiredTrimmedString(item.model, "本机联网搜索配置 model"),
+    max_results: maxResults,
+    max_uses: maxUses,
+    max_tokens: maxTokens,
+    timeout_secs: timeout,
+  };
+}
+
+function normalizeLocalWebFetchConfig(value: unknown): LocalWebFetchConfig {
+  const item = requiredObject(value, "本机网页读取配置");
+  return {
+    enabled: requiredBoolean(item.enabled, "本机网页读取配置 enabled"),
+    timeout_secs: requiredIntRange(
+      item.timeout_secs,
+      "本机网页读取配置 timeout_secs",
+      1,
+      300,
+    ),
+    max_redirects: requiredIntRange(
+      item.max_redirects,
+      "本机网页读取配置 max_redirects",
+      0,
+      10,
+    ),
+    max_response_bytes: requiredIntRange(
+      item.max_response_bytes,
+      "本机网页读取配置 max_response_bytes",
+      1,
+      10_000_000,
+    ),
+    max_body_chars: requiredIntRange(
+      item.max_body_chars,
+      "本机网页读取配置 max_body_chars",
+      1,
+      200_000,
+    ),
+    max_output_chars: requiredIntRange(
+      item.max_output_chars,
+      "本机网页读取配置 max_output_chars",
+      1,
+      200_000,
+    ),
+  };
+}
+
 function normalizeVideoDurationCapability(
   item: Record<string, unknown>,
   label: string,
@@ -823,6 +980,71 @@ export function updateSystemDefaultVideoApiKey(
   apiKey: string | null | undefined,
 ): void {
   updateSystemDefaultApiKey("video", apiKey);
+}
+
+export function getLocalWebSearchConfig(): LocalWebSearchConfig | null {
+  return readLocalRuntimeSettings().web_search;
+}
+
+export function getLocalWebSearchConfigSummary(): LocalWebSearchConfigSummary {
+  const config = getLocalWebSearchConfig();
+  const normalized = config ?? normalizeLocalWebSearchConfig(DEFAULT_LOCAL_WEB_SEARCH_CONFIG);
+  return webSearchSummary(normalized);
+}
+
+export function updateLocalWebSearchConfig(
+  input: LocalWebSearchConfigInput,
+): LocalWebSearchConfigSummary {
+  return mutateSettings((settings) => {
+    const current = settings.web_search;
+    const apiKey =
+      input.api_key_encrypted === undefined
+        ? current?.api_key_encrypted ?? null
+        : input.api_key_encrypted?.trim() || null;
+    const normalized = normalizeLocalWebSearchConfig({
+      protocol: input.protocol,
+      provider: input.provider,
+      base_url: input.base_url,
+      api_key_encrypted: apiKey,
+      model: input.model,
+      max_results: input.max_results,
+      max_uses: input.max_uses,
+      max_tokens: input.max_tokens,
+      timeout_secs: input.timeout_secs,
+    });
+    settings.web_search = normalized;
+    return webSearchSummary(normalized);
+  });
+}
+
+export function getLocalWebFetchConfig(): LocalWebFetchConfig {
+  return readLocalRuntimeSettings().web_fetch;
+}
+
+export function updateLocalWebFetchConfig(
+  input: Partial<LocalWebFetchConfig>,
+): LocalWebFetchConfig {
+  return mutateSettings((settings) => {
+    settings.web_fetch = normalizeLocalWebFetchConfig({
+      ...settings.web_fetch,
+      ...input,
+    });
+    return settings.web_fetch;
+  });
+}
+
+function webSearchSummary(config: LocalWebSearchConfig): LocalWebSearchConfigSummary {
+  return {
+    protocol: config.protocol,
+    provider: config.provider,
+    base_url: config.base_url,
+    has_api_key: config.has_api_key,
+    model: config.model,
+    max_results: config.max_results,
+    max_uses: config.max_uses,
+    max_tokens: config.max_tokens,
+    timeout_secs: config.timeout_secs,
+  };
 }
 
 export function getLocalLlmConfig(id: number): LocalLlmConfig {

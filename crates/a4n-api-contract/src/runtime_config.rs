@@ -23,6 +23,10 @@ pub struct RuntimeConfigSnapshot {
     #[serde(default)]
     pub embedding: Option<RuntimeEmbeddingConfig>,
     #[serde(default)]
+    pub web_search: Option<RuntimeWebSearchConfig>,
+    #[serde(default)]
+    pub web_fetch: Option<RuntimeWebFetchConfig>,
+    #[serde(default)]
     pub llm_default_source: Option<String>,
     #[serde(default)]
     pub image_default_source: Option<String>,
@@ -63,6 +67,9 @@ impl RuntimeConfigSnapshot {
             config.api_key_encrypted = None;
         }
         if let Some(config) = snapshot.embedding.as_mut() {
+            config.api_key_encrypted = None;
+        }
+        if let Some(config) = snapshot.web_search.as_mut() {
             config.api_key_encrypted = None;
         }
         snapshot.system_llm_api_key_encrypted = None;
@@ -157,6 +164,32 @@ pub struct RuntimeEmbeddingConfig {
     pub is_default: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeWebSearchConfig {
+    pub protocol: String,
+    pub provider: String,
+    pub base_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_results: u32,
+    pub max_uses: u32,
+    pub max_tokens: u32,
+    pub timeout_secs: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeWebFetchConfig {
+    pub enabled: bool,
+    pub timeout_secs: u32,
+    pub max_redirects: u32,
+    pub max_response_bytes: u64,
+    pub max_body_chars: u32,
+    pub max_output_chars: u32,
+}
+
 fn deserialize_runtime_schema_version<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
     D: Deserializer<'de>,
@@ -197,6 +230,7 @@ mod tests {
             "image": runtime_image(2, "image"),
             "video": runtime_video(3, "video"),
             "embedding": runtime_embedding(4, "embedding"),
+            "web_search": runtime_web_search("web-search"),
             "system_llm_api_key_encrypted": "system-llm",
             "system_image_api_key_encrypted": "system-image",
             "system_video_api_key_encrypted": "system-video"
@@ -210,6 +244,7 @@ mod tests {
             "/image/api_key_encrypted",
             "/video/api_key_encrypted",
             "/embedding/api_key_encrypted",
+            "/web_search/api_key_encrypted",
             "/system_llm_api_key_encrypted",
             "/system_image_api_key_encrypted",
             "/system_video_api_key_encrypted",
@@ -253,6 +288,15 @@ mod tests {
         json!({
             "id": id, "name": "embedding", "backend": "remote", "base_url": "https://example.test/v1",
             "api_key_encrypted": key, "model": "model", "dimension": 384, "batch_size": 32
+        })
+    }
+
+    fn runtime_web_search(key: &str) -> serde_json::Value {
+        json!({
+            "protocol": "tavily", "provider": "tavily",
+            "base_url": "https://api.tavily.com", "api_key_encrypted": key,
+            "model": "search", "max_results": 5, "max_uses": 5,
+            "max_tokens": 4096, "timeout_secs": 60
         })
     }
 }

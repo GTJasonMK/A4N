@@ -224,16 +224,16 @@ impl VideoSegmentExecutionRecipeV1 {
                 self.segment_number
             ));
         }
-        if let Some(director) = &segment.director_constraints {
-            if director.image_ids().iter().any(|id| {
+        if let Some(director) = &segment.director_constraints
+            && director.image_ids().iter().any(|id| {
                 !self.reference_image_ids.contains(id)
                     && !self.guidance_reference_image_ids.contains(id)
-            }) {
-                return Err(format!(
-                    "镜头 {} 必须保留导演编排绑定的图片",
-                    director.segment_id
-                ));
-            }
+            })
+        {
+            return Err(format!(
+                "镜头 {} 必须保留导演编排绑定的图片",
+                director.segment_id
+            ));
         }
         Ok(())
     }

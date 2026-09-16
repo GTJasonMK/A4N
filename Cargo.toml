@@ -170,6 +170,8 @@ zip = "2"
 # 文本处理
 similar = "2"
 regex = "1"
+htmd = "0.5"
+encoding_rs = "0.8"
 
 # 图片处理
 image = "0.25"

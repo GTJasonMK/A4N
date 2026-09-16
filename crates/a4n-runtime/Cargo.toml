@@ -92,7 +92,9 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 chrono = { workspace = true }
+encoding_rs = { workspace = true }
 futures = { workspace = true }
+htmd = { workspace = true }
 jsonwebtoken = { workspace = true }
 reqwest = { workspace = true }
 sea-orm = { workspace = true }
@@ -102,6 +104,7 @@ sha2 = { workspace = true }
 tera = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+url = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true }

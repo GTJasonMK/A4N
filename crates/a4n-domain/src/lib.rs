@@ -87,17 +87,12 @@ pub enum ThemeAppearance {
     Dark,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ThemeStreamDisplayMode {
+    #[default]
     Fixed,
     Adaptive,
-}
-
-impl Default for ThemeStreamDisplayMode {
-    fn default() -> Self {
-        Self::Fixed
-    }
 }
 
 pub const THEME_STREAM_DISPLAY_MIN_RATE: u16 = 1;

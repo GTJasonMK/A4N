@@ -1,7 +1,6 @@
 export * from "./config/types";
 export * from "./config/llm";
 export * from "./config/embedding";
-export * from "./config/webSearch";
 
 import type { ImportAllConfigsInput } from "./generated/config";
 import { apiInvoke } from "./index";

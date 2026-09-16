@@ -25,6 +25,7 @@ use a4n_api_contract::chapter_visual_plan::{
 };
 use a4n_api_contract::image_generation::StartImageGenerationInput;
 use a4n_api_contract::package::PackageId;
+use a4n_api_contract::web_fetch::WebFetchInput;
 use a4n_api_contract::web_search::WebSearchInput;
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
@@ -476,9 +477,11 @@ impl RuntimeAgentToolExecutor {
             }
             "web_search" => {
                 let input = parse_arguments::<WebSearchInput>(arguments, name)?;
-                serde_json::to_value(
-                    crate::actions::config_records::web_search(&self.state, input).await?,
-                )
+                serde_json::to_value(crate::actions::config_records::web_search(input).await?)
+            }
+            "web_fetch" => {
+                let input = parse_arguments::<WebFetchInput>(arguments, name)?;
+                serde_json::to_value(crate::actions::config_records::web_fetch(input).await?)
             }
             "get_canvas_graph" => {
                 let input =
@@ -830,7 +833,7 @@ fn ensure_argument_scope(
     // command such as create_project from a bound scope.
     if (scope.project_id.is_some() || scope.chapter_id.is_some() || scope.resource_kind.is_some())
         && a4n_api_contract::agent::synthetic_agent_tool_descriptor(&descriptor.name).is_none()
-        && descriptor.name != "web_search"
+        && !matches!(descriptor.name.as_str(), "web_search" | "web_fetch")
         && project_ids.is_empty()
         && chapter_ids.is_empty()
     {
@@ -4233,10 +4236,12 @@ fn available_runtime_tools(
         .map(|name| (*name).to_string())
         .take(MAX_BASE_AGENT_TOOLS)
         .collect::<Vec<_>>();
-    if a4n_api_contract::agent::initial_agent_tools(capability).contains(&"web_search")
-        && !names.iter().any(|name| name == "web_search")
-    {
-        names.push("web_search".into());
+    for tool in ["web_search", "web_fetch"] {
+        if a4n_api_contract::agent::initial_agent_tools(capability).contains(&tool)
+            && !names.iter().any(|name| name == tool)
+        {
+            names.push(tool.into());
+        }
     }
     names.retain(|name| ensure_scope_allows_tool(scope, name).is_ok());
     let pending = executions
@@ -4878,6 +4883,11 @@ mod tests {
             tools
                 .iter()
                 .any(|tool| tool.pointer("/function/name") == Some(&json!("web_search")))
+        );
+        assert!(
+            tools
+                .iter()
+                .any(|tool| tool.pointer("/function/name") == Some(&json!("web_fetch")))
         );
         let refs = tool_result_refs("save_canvas_graph", &json!({
             "graph":{"id":7,"name":"graph","version":4,"graph_kind":"video","viewport_json":null},"nodes":[],"edges":[]

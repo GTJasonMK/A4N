@@ -1,6 +1,5 @@
 mod providers;
 mod settings_all;
-mod system_settings;
 mod theme;
 
 pub(crate) use providers::clear_provider_config_defaults;
@@ -26,9 +25,6 @@ pub use settings_all::{
     SettingsAllImportTableCounts, SettingsAllLlmConfigRow, SettingsAllSystemSettingRow,
     SettingsAllThemeRow, SettingsAllVideoConfigRow, import_settings_all_configs,
     settings_all_config_rows, validate_settings_all_config_import_defaults,
-};
-pub use system_settings::{
-    WEB_SEARCH_SETTING_KEY, WebSearchConfigRecord, save_web_search_config, web_search_config,
 };
 pub use theme::{
     activate_theme, create_theme, delete_theme, delete_theme_resource, list_theme_resources,

@@ -19,6 +19,11 @@ const ImageTab = lazy(() =>
 const VideoTab = lazy(() =>
   import("./VideoTab").then((module) => ({ default: module.VideoTab })),
 );
+const WebSearchTab = lazy(() =>
+  import("./WebSearchConfigPanel").then((module) => ({
+    default: module.WebSearchConfigPanel,
+  })),
+);
 const PromptTab = lazy(() =>
   import("./PromptTab").then((module) => ({ default: module.PromptTab })),
 );
@@ -175,6 +180,7 @@ export const SettingsPage: React.FC = () => {
               {tab === "embedding" && <EmbeddingTab />}
               {tab === "image" && <ImageTab />}
               {tab === "video" && <VideoTab />}
+              {tab === "web-search" && <WebSearchTab />}
               {tab === "prompt" && <PromptTab />}
               {tab === "theme" && <ThemeTab />}
               {tab === "queue" && <QueueTab />}

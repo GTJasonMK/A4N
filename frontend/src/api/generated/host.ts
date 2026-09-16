@@ -154,7 +154,6 @@ export const HOST_API_COMMANDS = [
   "get_token_summary",
   "get_usage_trends",
   "get_user_usage",
-  "get_web_search_config",
   "get_workflow_progress_events",
   "get_workflow_run_detail",
   "health_check",
@@ -400,7 +399,6 @@ export const HOST_API_COMMANDS = [
   "update_video",
   "update_video_config",
   "update_video_segment_plan_draft_recipe",
-  "update_web_search_config",
   "update_world_setting",
   "upload_assembly_insert_video",
   "upload_chapter_video",
@@ -410,6 +408,7 @@ export const HOST_API_COMMANDS = [
   "upload_reference_media_video",
   "upload_theme_resource",
   "validate_chapter_visual_plan",
+  "web_fetch",
   "web_search",
 ] as const;
 
@@ -558,6 +557,8 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "update_foreshadowing": "full",
   "update_scene_profile": "full",
   "update_world_setting": "full",
+  "web_fetch": "without_secrets",
+  "web_search": "full",
 };
 
 export const AGENT_API_PROTOCOL_VERSION = 1;
@@ -1060,6 +1061,27 @@ export interface RuntimeEmbeddingConfig {
   name: string;
 }
 
+export interface RuntimeWebFetchConfig {
+  enabled: boolean;
+  max_body_chars: number;
+  max_output_chars: number;
+  max_redirects: number;
+  max_response_bytes: number;
+  timeout_secs: number;
+}
+
+export interface RuntimeWebSearchConfig {
+  api_key_encrypted: string | null;
+  base_url: string;
+  max_results: number;
+  max_tokens: number;
+  max_uses: number;
+  model: string;
+  protocol: string;
+  provider: string;
+  timeout_secs: number;
+}
+
 export interface RuntimeConfigSnapshot {
   client_context: unknown;
   embedding: RuntimeEmbeddingConfig | null;
@@ -1076,6 +1098,8 @@ export interface RuntimeConfigSnapshot {
   video: RuntimeVideoConfig | null;
   video_configs: RuntimeVideoConfig[];
   video_default_source: string | null;
+  web_fetch: RuntimeWebFetchConfig | null;
+  web_search: RuntimeWebSearchConfig | null;
 }
 
 export interface SendAgentMessageInput {

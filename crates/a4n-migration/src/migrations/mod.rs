@@ -105,5 +105,6 @@ pub mod video_canvas_workflow;
 pub mod video_execution_contract_v5_reset;
 pub mod video_workflow_exclusive_claim;
 pub mod video_workflow_task_binding;
+pub mod web_search_global_config_retirement;
 pub mod workflow_checkpoint_fingerprint_repair;
 pub mod workflow_runs;

@@ -1,3 +1,4 @@
+use super::types::is_retired_system_setting_key;
 use super::types::{SettingsAllConfigImportError, SettingsAllEmbeddingConfigRow};
 use super::validation::{DefaultImportPolicy, DefaultStateRow, ensure_single_default_after_import};
 use sea_orm::DbErr;
@@ -23,6 +24,12 @@ fn settings_all_config_import_rule_error_is_invalid_argument() {
 
     assert_eq!(error.to_string(), "必须保留默认配置");
     assert!(error.source().is_none());
+}
+
+#[test]
+fn retired_global_web_search_setting_is_not_importable() {
+    assert!(is_retired_system_setting_key("web_search"));
+    assert!(!is_retired_system_setting_key("prompt_override:1:active"));
 }
 
 fn existing_default_state(name: &str, is_default: bool) -> DefaultStateRow {

@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, EntityTrait};
 use super::types::{
     SettingsAllConfigRows, SettingsAllEmbeddingConfigRow, SettingsAllImageConfigRow,
     SettingsAllLlmConfigRow, SettingsAllSystemSettingRow, SettingsAllThemeRow,
-    SettingsAllVideoConfigRow,
+    SettingsAllVideoConfigRow, is_retired_system_setting_key,
 };
 
 pub async fn settings_all_config_rows(
@@ -130,6 +130,7 @@ pub async fn settings_all_config_rows(
         .await
         .map_err(AppError::Database)?
         .into_iter()
+        .filter(|row| !is_retired_system_setting_key(&row.key))
         .map(|row| SettingsAllSystemSettingRow {
             key: row.key,
             value: row.value,

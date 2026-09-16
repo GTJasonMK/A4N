@@ -13,7 +13,12 @@ vi.mock("../utils/portableStorage", () => ({
 import {
   activeLocalEmbeddingConfig,
   deleteLocalEmbeddingConfig,
+  getLocalWebFetchConfig,
+  getLocalWebSearchConfig,
+  getLocalWebSearchConfigSummary,
   listLocalEmbeddingConfigs,
+  updateLocalWebSearchConfig,
+  updateLocalWebFetchConfig,
   updateSystemDefaultLlmApiKey,
 } from "./localRuntimeSettings";
 
@@ -53,6 +58,55 @@ it("creates one canonical baseline embedding config when storage is absent", () 
     "不能删除本机默认配置，请先设置其它默认配置",
   );
   expect(listLocalEmbeddingConfigs()).toEqual(configs);
+});
+
+it("stores personal web search settings without exposing the saved key in the summary", () => {
+  expect(getLocalWebSearchConfig()).toBeNull();
+  expect(getLocalWebSearchConfigSummary()).toMatchObject({
+    protocol: "anthropic",
+    has_api_key: false,
+  });
+
+  const saved = updateLocalWebSearchConfig({
+    protocol: "tavily",
+    provider: "tavily",
+    base_url: "https://api.tavily.com",
+    api_key_encrypted: "tvly-secret",
+    model: "search",
+    max_results: 5,
+    max_uses: 5,
+    max_tokens: 4096,
+    timeout_secs: 60,
+  });
+
+  expect(saved).toMatchObject({ provider: "tavily", has_api_key: true });
+  expect(getLocalWebSearchConfig()).toMatchObject({
+    api_key_encrypted: "tvly-secret",
+  });
+});
+
+it("stores bounded personal web fetch settings and migrates missing settings", () => {
+  expect(getLocalWebFetchConfig()).toMatchObject({
+    enabled: true,
+    timeout_secs: 30,
+    max_redirects: 5,
+  });
+
+  const legacyPayload = currentPayload();
+  delete legacyPayload.web_fetch;
+  storage.raw = JSON.stringify(legacyPayload);
+  expect(getLocalWebFetchConfig()).toMatchObject({ enabled: true, max_redirects: 5 });
+
+  const saved = updateLocalWebFetchConfig({
+    enabled: false,
+    timeout_secs: 45,
+    max_redirects: 2,
+    max_response_bytes: 2_000_000,
+    max_body_chars: 50_000,
+    max_output_chars: 80_000,
+  });
+  expect(saved).toMatchObject({ enabled: false, timeout_secs: 45 });
+  expect(JSON.parse(storage.raw ?? "null")).toHaveProperty("web_fetch");
 });
 
 it("ignores the retired local llm_max_tokens field and removes it on write", () => {

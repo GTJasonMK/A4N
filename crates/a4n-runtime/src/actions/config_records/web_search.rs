@@ -1,8 +1,5 @@
-use crate::{AppState, actions::app_error_message};
-use a4n_api_contract::web_search::{
-    WebSearchConfigSummary, WebSearchInput, WebSearchResult, WebSearchRuntimeConfig,
-    WebSearchSource,
-};
+use a4n_api_contract::runtime_config::RuntimeWebSearchConfig;
+use a4n_api_contract::web_search::{WebSearchInput, WebSearchResult, WebSearchSource};
 use a4n_error::AppError;
 use futures::StreamExt;
 use serde_json::{Value, json};
@@ -11,39 +8,13 @@ use std::time::Duration;
 
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
-pub async fn get_web_search_config(
-    state: &AppState,
-    caller_user_id: i64,
-) -> Result<WebSearchConfigSummary, String> {
-    state
-        .config_read_application()
-        .web_search_config_summary(caller_user_id)
-        .await
-        .map_err(app_error_message)
-}
-
-pub async fn update_web_search_config(
-    state: &AppState,
-    caller_user_id: i64,
-    input: a4n_api_contract::web_search::UpdateWebSearchConfigInput,
-) -> Result<WebSearchConfigSummary, AppError> {
-    state
-        .config_mutation_application()
-        .update_web_search_config(caller_user_id, input)
-        .await
-}
-
-pub async fn web_search(
-    state: &AppState,
-    input: WebSearchInput,
-) -> Result<WebSearchResult, AppError> {
+pub async fn web_search(input: WebSearchInput) -> Result<WebSearchResult, AppError> {
     let query = input
         .normalized_query()
         .map_err(AppError::InvalidArgument)?;
-    let config = state
-        .config_read_application()
-        .web_search_runtime_config()
-        .await?;
+    let config = current_web_search_config()?;
+    a4n_api_contract::web_search::validate_web_search_config(&config)
+        .map_err(AppError::ConfigError)?;
     let api_key = config
         .api_key_encrypted
         .as_deref()
@@ -84,6 +55,12 @@ pub async fn web_search(
     protocol.parse_response(&query, max_results, &body)
 }
 
+fn current_web_search_config() -> Result<RuntimeWebSearchConfig, AppError> {
+    crate::runtime_config::current_snapshot()
+        .and_then(|snapshot| snapshot.web_search)
+        .ok_or_else(|| AppError::ConfigError("个人联网搜索尚未配置".into()))
+}
+
 #[derive(Debug, Clone, Copy)]
 enum SearchProtocol {
     Anthropic,
@@ -112,7 +89,7 @@ impl SearchProtocol {
     fn request<'a>(
         self,
         client: &'a reqwest::Client,
-        config: &'a WebSearchRuntimeConfig,
+        config: &'a RuntimeWebSearchConfig,
         api_key: &'a str,
         query: &'a str,
         max_results: u32,
@@ -355,7 +332,7 @@ fn parse_openai_responses(
     })
 }
 
-fn citation_snippets<'a>(blocks: &'a [Value]) -> HashMap<&'a str, &'a str> {
+fn citation_snippets(blocks: &[Value]) -> HashMap<&str, &str> {
     let mut snippets = HashMap::new();
     for block in blocks {
         if block.get("type").and_then(Value::as_str) != Some("text") {

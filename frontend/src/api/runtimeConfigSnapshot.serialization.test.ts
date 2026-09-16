@@ -64,6 +64,26 @@ const embedding = {
   local_model_path: null,
   is_default: true,
 };
+const webSearch = {
+  protocol: "tavily",
+  provider: "tavily",
+  base_url: "https://api.tavily.com",
+  api_key_encrypted: "search-key",
+  has_api_key: true,
+  model: "search",
+  max_results: 5,
+  max_uses: 5,
+  max_tokens: 4096,
+  timeout_secs: 60,
+};
+const webFetch = {
+  enabled: true,
+  timeout_secs: 30,
+  max_redirects: 5,
+  max_response_bytes: 5_000_000,
+  max_body_chars: 100_000,
+  max_output_chars: 200_000,
+};
 
 vi.mock("./localRuntimeSettings", () => ({
   activeLocalEmbeddingConfig: () => embedding,
@@ -77,6 +97,8 @@ vi.mock("./localRuntimeSettings", () => ({
   listLocalImageConfigs: () => [image],
   listLocalLlmConfigs: () => [llm],
   listLocalVideoConfigs: () => [video],
+  getLocalWebSearchConfig: () => webSearch,
+  getLocalWebFetchConfig: () => webFetch,
   usesSystemDefaultImageConfig: () => false,
   usesSystemDefaultLlmConfig: () => snapshotState.usesSystemDefaultLlm,
   usesSystemDefaultVideoConfig: () => false,
@@ -107,6 +129,8 @@ it("serializes runtime configs without view-only has_api_key fields", () => {
     snapshot?.image,
     snapshot?.video,
     snapshot?.embedding,
+    snapshot?.web_search,
+    snapshot?.web_fetch,
     ...(snapshot?.llm_configs ?? []),
     ...(snapshot?.image_configs ?? []),
     ...(snapshot?.video_configs ?? []),
@@ -114,6 +138,14 @@ it("serializes runtime configs without view-only has_api_key fields", () => {
     expect(config).not.toHaveProperty("has_api_key");
   }
   expect(snapshot?.llm).toHaveProperty("api_key_encrypted", "llm-key");
+  expect(snapshot?.web_search).toMatchObject({
+    provider: "tavily",
+    api_key_encrypted: "search-key",
+  });
+  expect(snapshot?.web_fetch).toMatchObject({
+    enabled: true,
+    max_redirects: 5,
+  });
 });
 
 it("injects the personal key for the system-default inspiration command", async () => {
@@ -134,4 +166,35 @@ it("injects the personal key for the system-default inspiration command", async 
     system_llm_api_key_encrypted: "personal-key",
   });
   expect(effectiveArgs?.runtime_config_snapshot).not.toHaveProperty("llm");
+});
+
+it("injects the personal web search config for direct searches", async () => {
+  const { withRuntimeConfigSnapshot } = await import("./runtimeConfigSnapshot");
+  const effectiveArgs = withRuntimeConfigSnapshot("web_search", {
+    input: { query: "A4N" },
+  });
+
+  expect(effectiveArgs?.runtime_config_snapshot).toMatchObject({
+    web_search: {
+      provider: "tavily",
+      api_key_encrypted: "search-key",
+    },
+  });
+});
+
+it("injects web fetch limits without any provider secret", async () => {
+  const { withRuntimeConfigSnapshot } = await import("./runtimeConfigSnapshot");
+  const effectiveArgs = withRuntimeConfigSnapshot("web_fetch", {
+    input: { url: "https://example.com" },
+  });
+
+  expect(effectiveArgs?.runtime_config_snapshot).toMatchObject({
+    web_fetch: {
+      enabled: true,
+      max_body_chars: 100_000,
+    },
+  });
+  expect(effectiveArgs?.runtime_config_snapshot).not.toHaveProperty(
+    "web_fetch.api_key_encrypted",
+  );
 });
