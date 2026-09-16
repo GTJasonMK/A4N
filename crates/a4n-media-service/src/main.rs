@@ -78,7 +78,7 @@ async fn execute_route(
     let result = tokio::task::spawn_blocking(move || {
         request.execute_known_service(
             MEDIA_SERVICE_NAME,
-            |input| a4n_media_render_core::execute(&state.roots, input),
+            |input| a4n_media_processing_core::execute(&state.roots, input),
             operation_error,
         )
     })

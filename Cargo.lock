@@ -870,6 +870,7 @@ name = "a4n-media"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-media-processing-core",
  "a4n-media-render-core",
  "base64 0.22.1",
  "image",
@@ -896,6 +897,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-media-processing-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-domain",
+ "a4n-media-contract",
+ "a4n-media-render-core",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "a4n-media-render-core"
 version = "0.1.0"
 dependencies = [
@@ -909,6 +922,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-media-client",
  "a4n-media-contract",
+ "a4n-media-processing-core",
  "a4n-media-render-core",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",

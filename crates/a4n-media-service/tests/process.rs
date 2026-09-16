@@ -50,14 +50,10 @@ async fn media_service_process_enforces_local_paths_and_returns_typed_errors() {
     )
     .with_payload(
         MEDIA_FFMPEG_CAPABILITY_VERSION,
-        MediaExecuteInput::GenerateVideoScrubFrames {
+        MediaExecuteInput::ProbeVideoProperties {
             input: MediaFileRef {
                 root: MediaRoot::Data,
                 relative_path: "note.txt".to_string(),
-            },
-            output: MediaFileRef {
-                root: MediaRoot::Temp,
-                relative_path: "scrub.mjpeg".to_string(),
             },
         },
     )
@@ -81,14 +77,10 @@ async fn media_service_process_enforces_local_paths_and_returns_typed_errors() {
     )
     .with_payload(
         MEDIA_FFMPEG_CAPABILITY_VERSION,
-        MediaExecuteInput::GenerateVideoScrubFrames {
+        MediaExecuteInput::ProbeVideoProperties {
             input: MediaFileRef {
                 root: MediaRoot::Data,
                 relative_path: "../note.txt".to_string(),
-            },
-            output: MediaFileRef {
-                root: MediaRoot::Temp,
-                relative_path: "traversal.mjpeg".to_string(),
             },
         },
     )

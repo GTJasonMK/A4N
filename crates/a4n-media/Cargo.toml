@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { path = "../a4n-domain" }
+a4n-media-processing-core = { path = "../a4n-media-processing-core" }
 a4n-media-render-core = { path = "../a4n-media-render-core" }
 base64 = { workspace = true }
 image = { workspace = true }

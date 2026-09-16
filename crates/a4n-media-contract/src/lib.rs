@@ -41,6 +41,15 @@ impl MediaFileRef {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MediaExecuteInput {
+    ProbeVideoProperties {
+        input: MediaFileRef,
+    },
+    ProbeVideoHasAudio {
+        input: MediaFileRef,
+    },
+    ProbeAudioDuration {
+        input: MediaFileRef,
+    },
     GenerateVideoScrubProxy {
         input: MediaFileRef,
         output: MediaFileRef,
@@ -50,12 +59,85 @@ pub enum MediaExecuteInput {
         input: MediaFileRef,
         output: MediaFileRef,
     },
+    ExtractVideoFrame {
+        input: MediaFileRef,
+        output: MediaFileRef,
+        at_secs: f32,
+    },
+    ExtractVideoTailFrame {
+        input: MediaFileRef,
+        output: MediaFileRef,
+    },
+    GenerateVideoThumbnail {
+        input: MediaFileRef,
+        output: MediaFileRef,
+    },
+    TrimVideoSegment {
+        input: MediaFileRef,
+        output: MediaFileRef,
+        start_secs: f32,
+        end_secs: f32,
+    },
+    AssembleVideos {
+        clips: Vec<MediaAssemblyClip>,
+        output: MediaFileRef,
+        width: i32,
+        height: i32,
+        fps: i32,
+        audio_enabled: bool,
+    },
+    PostprocessVideo {
+        base: MediaFileRef,
+        source: Option<MediaFileRef>,
+        output: MediaFileRef,
+        operation: MediaPostprocessOperation,
+        start_secs: f32,
+        end_secs: f32,
+        base_duration_secs: f32,
+        base_has_audio: bool,
+        source_duration_secs: Option<f32>,
+        source_has_audio: bool,
+        width: i32,
+        height: i32,
+        fps: i32,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MediaAssemblyClip {
+    pub input: MediaFileRef,
+    pub duration_secs: f32,
+    pub has_audio: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum MediaPostprocessOperation {
+    Insert,
+    Delete,
+    Replace,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum MediaExecuteOutput {
     Unit,
+    VideoProbeProperties {
+        width: i32,
+        height: i32,
+        duration_secs: f32,
+        fps: i32,
+        codec_name: Option<String>,
+        profile: Option<String>,
+        has_b_frames: Option<i32>,
+    },
+    HasAudio {
+        has_audio: bool,
+    },
+    AudioDuration {
+        duration_secs: f32,
+    },
 }
 
 pub fn validate_relative_media_path(path: &str) -> Result<(), String> {

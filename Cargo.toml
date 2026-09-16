@@ -68,6 +68,7 @@ members = [
     "crates/a4n-image-service",
     "crates/a4n-media",
     "crates/a4n-media-render-core",
+    "crates/a4n-media-processing-core",
     "crates/a4n-media-contract",
     "crates/a4n-media-client",
     "crates/a4n-media-service",

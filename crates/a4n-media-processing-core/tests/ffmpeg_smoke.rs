@@ -5,7 +5,7 @@ use std::{
 };
 
 use a4n_domain::AssemblyPostprocessOperation;
-use a4n_media::{
+use a4n_media_processing_core::{
     VIDEO_SCRUB_FRAMES_PER_SECOND, VideoAssemblyClip, VideoAssemblyRequest,
     VideoPostprocessRequest, assemble_videos, extract_video_frame, extract_video_tail_frame,
     generate_video_scrub_frames, generate_video_scrub_proxy, generate_video_thumbnail,

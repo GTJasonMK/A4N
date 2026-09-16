@@ -39,6 +39,7 @@ pub fn execute(roots: &MediaRoots, input: MediaExecuteInput) -> Result<MediaExec
             let output = roots.output(&output)?;
             generate_video_scrub_frames(&input, &output).map_err(|error| error.to_string())?;
         }
+        _ => return Err("media operation is not owned by render core".to_string()),
     }
     Ok(MediaExecuteOutput::Unit)
 }

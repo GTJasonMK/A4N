@@ -575,6 +575,7 @@ impl AppState {
                 .map_err(|error| error.message)?;
             match typed_response_payload(response, "media")? {
                 a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+                output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
             }
         } else {
             let input_path = input_path.to_path_buf();
@@ -627,6 +628,7 @@ impl AppState {
                 .map_err(|error| error.message)?;
             match typed_response_payload(response, "media")? {
                 a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+                output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
             }
         } else {
             let input_path = input_path.to_path_buf();
