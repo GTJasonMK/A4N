@@ -76,6 +76,13 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertIn("-p a4n-agent-worker", commands[0])
         self.assertNotIn("a4n-control", commands[0])
 
+    def test_edge_change_builds_only_edge(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/a4n-edge/src/lib.rs")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-edge", commands[0])
+        self.assertNotIn("a4n-control", commands[0])
+        self.assertNotIn("a4n-agent-worker", commands[0])
+
     def test_shared_crate_change_builds_both_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)

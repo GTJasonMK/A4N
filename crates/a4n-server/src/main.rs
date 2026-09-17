@@ -3,10 +3,6 @@ use std::{
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -22,7 +18,10 @@ use std::os::unix::process::CommandExt;
 
 #[cfg(feature = "test-embedded-processes")]
 const CONTROL_PROCESS_ENV: &str = "A4N_CONTROL_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const EDGE_PROCESS_ENV: &str = "A4N_EDGE_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
+const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
 const AGENT_WORKER_CATALOG_NAME: &str = "agent-worker";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
@@ -44,8 +43,10 @@ struct BinaryFingerprint {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ChildWatchEvent {
+    EdgeExited(ExitStatus),
     ControlExited(ExitStatus),
     WorkerExited(ExitStatus),
+    EdgeChanged,
     ControlChanged,
     WorkerChanged,
     ReloadMarkerChanged,
@@ -57,12 +58,16 @@ fn main() -> anyhow::Result<()> {
         if env::var(CONTROL_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_control::run();
         }
+        if env::var(EDGE_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_edge::run();
+        }
         if env::var("A4N_AGENT_WORKER_PROCESS").as_deref() == Ok("1") {
             return a4n_agent_worker::run();
         }
     }
 
-    let control_addr = control_addr()?;
+    let web_addr = web_addr()?;
+    let control_addr = control_addr_from_web(web_addr)?;
     let agent_worker_addr = agent_worker_addr()?;
     let worker_token = worker_token()?;
     let control_binary = control_binary()?;
@@ -98,13 +103,11 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_control(&mut control);
         return Err(error);
     }
-    let edge_stop = Arc::new(AtomicBool::new(false));
-    let edge_stop_for_thread = edge_stop.clone();
-    let edge_thread = std::thread::spawn(move || {
-        a4n_edge::run_with_control_addr_until(Some(control_addr), edge_stop_for_thread)
-    });
+    let edge_binary = edge_binary()?;
+    let mut edge_fingerprint = binary_fingerprint(&edge_binary)?;
+    let mut edge = spawn_edge(&edge_binary, control_addr)?;
     let watch_result = supervise_runtime_children(
-        &edge_thread,
+        &mut edge,
         &mut control,
         &mut agent_worker,
         control_addr,
@@ -114,22 +117,19 @@ fn main() -> anyhow::Result<()> {
         &mut control_fingerprint,
         &worker_binary,
         &mut worker_fingerprint,
+        &edge_binary,
+        &mut edge_fingerprint,
         reload_marker.as_deref(),
         &mut reload_marker_fingerprint,
     );
-    edge_stop.store(true, Ordering::Release);
-    let edge_result = match edge_thread.join() {
-        Ok(result) => result,
-        Err(_) => Err(anyhow::anyhow!("A4N Edge 线程异常退出")),
-    };
-    let edge_result = merge_watch_result(watch_result, edge_result);
+    let edge_result = stop_edge(&mut edge).and(watch_result.map(|_| ()));
     let worker_result = stop_agent_worker(&mut agent_worker);
     let control_result = stop_control(&mut control);
     finish_shutdown(edge_result, worker_result, control_result)
 }
 
 fn supervise_runtime_children(
-    edge_thread: &std::thread::JoinHandle<anyhow::Result<()>>,
+    edge: &mut Child,
     control: &mut Child,
     agent_worker: &mut Child,
     control_addr: SocketAddr,
@@ -139,18 +139,22 @@ fn supervise_runtime_children(
     control_fingerprint: &mut BinaryFingerprint,
     worker_binary: &Path,
     worker_fingerprint: &mut BinaryFingerprint,
+    edge_binary: &Path,
+    edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
     reload_marker_fingerprint: &mut Option<BinaryFingerprint>,
 ) -> anyhow::Result<Option<String>> {
     loop {
         let Some(event) = wait_for_edge_or_child(
-            edge_thread,
+            edge,
             control,
             agent_worker,
             control_binary,
             *control_fingerprint,
             worker_binary,
             *worker_fingerprint,
+            edge_binary,
+            *edge_fingerprint,
             reload_marker,
             *reload_marker_fingerprint,
         )?
@@ -159,6 +163,12 @@ fn supervise_runtime_children(
         };
 
         match event {
+            ChildWatchEvent::EdgeExited(status) => {
+                eprintln!("A4N Edge 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *edge = spawn_edge(edge_binary, control_addr)?;
+                *edge_fingerprint = binary_fingerprint(edge_binary)?;
+            }
             ChildWatchEvent::ControlExited(status) => {
                 eprintln!("A4N Control 意外退出: {status}；准备重启");
                 std::thread::sleep(WORKER_RESTART_DELAY);
@@ -177,6 +187,13 @@ fn supervise_runtime_children(
                 )?;
                 wait_for_agent_worker(agent_worker, agent_worker_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
+            }
+            ChildWatchEvent::EdgeChanged => {
+                eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
+                stop_edge(edge)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *edge = spawn_edge(edge_binary, control_addr)?;
+                *edge_fingerprint = binary_fingerprint(edge_binary)?;
             }
             ChildWatchEvent::ControlChanged => {
                 eprintln!("检测到 A4N Control 构建完成；只替换 Control");
@@ -209,25 +226,30 @@ fn supervise_runtime_children(
 }
 
 fn wait_for_edge_or_child(
-    edge_thread: &std::thread::JoinHandle<anyhow::Result<()>>,
+    edge: &mut Child,
     control: &mut Child,
     agent_worker: &mut Child,
     control_binary: &Path,
     control_fingerprint: BinaryFingerprint,
     worker_binary: &Path,
     worker_fingerprint: BinaryFingerprint,
+    edge_binary: &Path,
+    edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
     reload_marker_fingerprint: Option<BinaryFingerprint>,
 ) -> anyhow::Result<Option<ChildWatchEvent>> {
     loop {
-        if edge_thread.is_finished() {
-            return Ok(None);
+        if let Some(status) = edge.try_wait()? {
+            return Ok(Some(ChildWatchEvent::EdgeExited(status)));
         }
         if let Some(status) = control.try_wait()? {
             return Ok(Some(ChildWatchEvent::ControlExited(status)));
         }
         if let Some(status) = agent_worker.try_wait()? {
             return Ok(Some(ChildWatchEvent::WorkerExited(status)));
+        }
+        if binary_fingerprint(edge_binary)? != edge_fingerprint {
+            return Ok(Some(ChildWatchEvent::EdgeChanged));
         }
         let control_changed = binary_fingerprint(control_binary)? != control_fingerprint;
         let worker_changed = binary_fingerprint(worker_binary)? != worker_fingerprint;
@@ -289,24 +311,6 @@ fn reload_marker_path() -> Option<PathBuf> {
         .filter(|path| !path.as_os_str().is_empty())
 }
 
-fn merge_watch_result(
-    watch_result: anyhow::Result<Option<String>>,
-    edge_result: anyhow::Result<()>,
-) -> anyhow::Result<()> {
-    let watch_result = match watch_result {
-        Ok(Some(reason)) => Err(anyhow::anyhow!(reason)),
-        Ok(None) => Ok(()),
-        Err(error) => Err(error),
-    };
-    match (watch_result, edge_result) {
-        (Ok(()), edge_result) => edge_result,
-        (Err(watch_error), Ok(())) => Err(watch_error),
-        (Err(watch_error), Err(edge_error)) => {
-            Err(anyhow::anyhow!("{watch_error:#}；Edge: {edge_error:#}"))
-        }
-    }
-}
-
 fn wait_for_control(child: &mut Child, address: SocketAddr) -> anyhow::Result<()> {
     let started = Instant::now();
     let mut last_error = None;
@@ -337,6 +341,13 @@ fn wait_for_control(child: &mut Child, address: SocketAddr) -> anyhow::Result<()
     )
 }
 
+fn web_addr() -> anyhow::Result<SocketAddr> {
+    env::var("A4N_WEB_ADDR")
+        .unwrap_or_else(|_| "127.0.0.1:8080".to_string())
+        .parse::<SocketAddr>()
+        .map_err(|error| anyhow::anyhow!("A4N_WEB_ADDR 无效: {error}"))
+}
+
 fn control_addr() -> anyhow::Result<SocketAddr> {
     if let Some(value) = env::var_os("A4N_CONTROL_ADDR") {
         let value = value
@@ -347,17 +358,20 @@ fn control_addr() -> anyhow::Result<SocketAddr> {
             .map_err(|error| anyhow::anyhow!("A4N_CONTROL_ADDR 无效: {error}"))?;
         ensure_nonzero_port("A4N_CONTROL_ADDR", address)
     } else {
-        let web_addr = env::var("A4N_WEB_ADDR")
-            .unwrap_or_else(|_| "127.0.0.1:8080".to_string())
-            .parse::<SocketAddr>()
-            .map_err(|error| anyhow::anyhow!("A4N_WEB_ADDR 无效: {error}"))?;
-        let control_port = web_addr
-            .port()
-            .checked_add(1)
-            .filter(|port| *port != 0)
-            .unwrap_or(18080);
-        Ok(SocketAddr::from(([127, 0, 0, 1], control_port)))
+        control_addr_from_web(web_addr()?)
     }
+}
+
+fn control_addr_from_web(web_addr: SocketAddr) -> anyhow::Result<SocketAddr> {
+    if web_addr.port() == 0 {
+        return Ok(SocketAddr::from(([127, 0, 0, 1], 18080)));
+    }
+    let control_port = web_addr
+        .port()
+        .checked_add(1)
+        .filter(|port| *port != 0)
+        .unwrap_or(18080);
+    Ok(SocketAddr::from(([127, 0, 0, 1], control_port)))
 }
 
 fn agent_worker_addr() -> anyhow::Result<SocketAddr> {
@@ -400,6 +414,21 @@ fn spawn_control(binary: &Path, address: SocketAddr, worker_token: &str) -> anyh
     command
         .spawn()
         .map_err(|error| anyhow::anyhow!("启动 A4N Control 失败: {}: {error}", binary.display()))
+}
+
+fn spawn_edge(binary: &Path, control_addr: SocketAddr) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    command
+        .env("A4N_CONTROL_ADDR", control_addr.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(EDGE_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command
+        .spawn()
+        .map_err(|error| anyhow::anyhow!("启动 A4N Edge 失败: {}: {error}", binary.display()))
 }
 
 fn spawn_agent_worker(
@@ -518,6 +547,10 @@ fn control_binary() -> anyhow::Result<PathBuf> {
     child_binary(CONTROL_BINARY_ENV, "a4n-control")
 }
 
+fn edge_binary() -> anyhow::Result<PathBuf> {
+    child_binary(EDGE_BINARY_ENV, "a4n-edge")
+}
+
 fn agent_worker_binary() -> anyhow::Result<PathBuf> {
     child_binary(AGENT_WORKER_BINARY_ENV, &agent_worker_metadata()?.binary)
 }
@@ -578,6 +611,10 @@ fn stop_agent_worker(child: &mut Child) -> anyhow::Result<()> {
 }
 
 fn stop_control(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
+fn stop_edge(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
@@ -697,11 +734,7 @@ mod tests {
 
     #[test]
     fn reports_child_exit_while_edge_is_running() {
-        let (release, wait) = std::sync::mpsc::channel();
-        let edge_thread = std::thread::spawn(move || {
-            let _ = wait.recv();
-            Ok(())
-        });
+        let mut edge = live_child();
         let mut control = exited_child();
         let mut worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
@@ -713,15 +746,21 @@ mod tests {
         std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
         let worker_fingerprint =
             super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
 
         let result = super::wait_for_edge_or_child(
-            &edge_thread,
+            &mut edge,
             &mut control,
             &mut worker,
             &control_binary,
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
             None,
             None,
         )
@@ -731,8 +770,8 @@ mod tests {
             result,
             Some(super::ChildWatchEvent::ControlExited(_))
         ));
-        let _ = release.send(());
-        let _ = edge_thread.join();
+        edge.kill().expect("test edge should stop");
+        edge.wait().expect("test edge should be reaped");
         worker.kill().expect("test worker should stop");
         worker.wait().expect("test worker should be reaped");
     }
@@ -753,11 +792,7 @@ mod tests {
 
     #[test]
     fn control_binary_change_only_selects_control_replacement() {
-        let (release, wait) = std::sync::mpsc::channel();
-        let edge_thread = std::thread::spawn(move || {
-            let _ = wait.recv();
-            Ok(())
-        });
+        let mut edge = live_child();
         let mut control = live_child();
         let mut worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
@@ -769,16 +804,22 @@ mod tests {
             super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
         let worker_fingerprint =
             super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
         std::fs::write(&control_binary, b"new-control").expect("control replacement should work");
 
         let result = super::wait_for_edge_or_child(
-            &edge_thread,
+            &mut edge,
             &mut control,
             &mut worker,
             &control_binary,
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
             None,
             None,
         )
@@ -788,8 +829,8 @@ mod tests {
             result,
             Some(super::ChildWatchEvent::ControlChanged)
         ));
-        let _ = release.send(());
-        let _ = edge_thread.join();
+        edge.kill().expect("test edge should stop");
+        edge.wait().expect("test edge should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -798,11 +839,7 @@ mod tests {
 
     #[test]
     fn worker_binary_change_only_selects_worker_replacement() {
-        let (release, wait) = std::sync::mpsc::channel();
-        let edge_thread = std::thread::spawn(move || {
-            let _ = wait.recv();
-            Ok(())
-        });
+        let mut edge = live_child();
         let mut control = live_child();
         let mut worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
@@ -814,16 +851,22 @@ mod tests {
             super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
         let worker_fingerprint =
             super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
         std::fs::write(&worker_binary, b"new-worker").expect("worker replacement should work");
 
         let result = super::wait_for_edge_or_child(
-            &edge_thread,
+            &mut edge,
             &mut control,
             &mut worker,
             &control_binary,
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
             None,
             None,
         )
@@ -833,8 +876,52 @@ mod tests {
             result,
             Some(super::ChildWatchEvent::WorkerChanged)
         ));
-        let _ = release.send(());
-        let _ = edge_thread.join();
+        edge.kill().expect("test edge should stop");
+        edge.wait().expect("test edge should be reaped");
+        control.kill().expect("test control should stop");
+        control.wait().expect("test control should be reaped");
+        worker.kill().expect("test worker should stop");
+        worker.wait().expect("test worker should be reaped");
+    }
+
+    #[test]
+    fn edge_binary_change_only_selects_edge_replacement() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        std::fs::write(&control_binary, b"control").expect("control fixture should be written");
+        std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
+        std::fs::write(&edge_binary, b"old-edge").expect("edge fixture should be written");
+        let control_fingerprint =
+            super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
+        let worker_fingerprint =
+            super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        std::fs::write(&edge_binary, b"new-edge").expect("edge replacement should work");
+
+        let result = super::wait_for_edge_or_child(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(result, Some(super::ChildWatchEvent::EdgeChanged)));
+        edge.kill().expect("test edge should stop");
+        edge.wait().expect("test edge should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -864,11 +951,7 @@ mod tests {
 
     #[test]
     fn marker_change_without_binary_change_does_not_select_a_process() {
-        let (release, wait) = std::sync::mpsc::channel();
-        let edge_thread = std::thread::spawn(move || {
-            let _ = wait.recv();
-            Ok(())
-        });
+        let mut edge = live_child();
         let mut control = live_child();
         let mut worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
@@ -881,17 +964,23 @@ mod tests {
             super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
         let worker_fingerprint =
             super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
         let marker_fingerprint = None;
         std::fs::write(&marker, b"published").expect("marker should be published");
 
         let result = super::wait_for_edge_or_child(
-            &edge_thread,
+            &mut edge,
             &mut control,
             &mut worker,
             &control_binary,
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
             Some(&marker),
             marker_fingerprint,
         )
@@ -901,8 +990,8 @@ mod tests {
             result,
             Some(super::ChildWatchEvent::ReloadMarkerChanged)
         ));
-        let _ = release.send(());
-        let _ = edge_thread.join();
+        edge.kill().expect("test edge should stop");
+        edge.wait().expect("test edge should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
