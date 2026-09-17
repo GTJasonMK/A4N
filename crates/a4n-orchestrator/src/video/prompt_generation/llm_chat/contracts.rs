@@ -224,10 +224,7 @@ mod tests {
         assert_eq!(update.item_key.as_deref(), Some("storyboard_prompt:2"));
         assert_eq!(update.item_index, Some(1));
         assert_eq!(update.item_total, Some(4));
-        assert_eq!(
-            update.phase_kind,
-            a4n_domain::progress::ProgressPhaseKind::Save
-        );
+        assert_eq!(update.phase_kind, a4n_progress::ProgressPhaseKind::Save);
 
         let single =
             VideoPromptProgressUpdate::committed(100, 100, "frame_segment_plan", 0, 1, 1, "已保存");

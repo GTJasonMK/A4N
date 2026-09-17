@@ -1,4 +1,4 @@
-use a4n_domain::progress::ProgressMeta;
+use a4n_progress::ProgressMeta;
 use serde::Serialize;
 
 pub(super) const MAX_TASK_PROGRESS_EVENTS: usize = 200;

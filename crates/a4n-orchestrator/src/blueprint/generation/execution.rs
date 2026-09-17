@@ -4,12 +4,12 @@ use std::sync::{Arc, Mutex};
 use a4n_api_contract::{
     blueprint::StartBlueprintGenerationInput, generation_tasks::GenerationTaskHandle,
 };
-use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_domain::project::{
     BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_RAW_JSON_STREAM_ID,
     CHAPTERS_PER_PART, build_blueprint_generation_payload, needs_part_outlines_for_chapters,
 };
 use a4n_error::AppError;
+use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, ProgressEvent, StreamTextHash,

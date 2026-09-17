@@ -931,7 +931,7 @@ fn committed_terminal_events_with_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
+    use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
     use a4n_service_protocol::{GenerationArtifactRef, GenerationDeliveryMode, StartedEvent};
 
     use crate::generation::artifacts::GenerationArtifactCoordinator;

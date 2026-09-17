@@ -2,8 +2,8 @@ use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizePatchGenerationInput,
 };
 use a4n_db::optimize::{OptimizationPatchCreateInput, OptimizationPatchSetCreateInput};
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
+use a4n_progress::ProgressPhaseKind;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationFinishReason, GenerationResultRef, GenerationTaskStatus, StreamTextHash,

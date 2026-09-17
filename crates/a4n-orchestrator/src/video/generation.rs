@@ -13,8 +13,8 @@ use a4n_api_contract::{
 };
 use a4n_canvas_contract::GenerateCanvasVideoInput;
 use a4n_db_models::models::ai::generated_video;
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_error::AppError;
+use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
 };
