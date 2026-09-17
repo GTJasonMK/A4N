@@ -43,6 +43,7 @@ pub const SIDECAR_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 pub const SIDECAR_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 pub const SIDECAR_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 pub const SIDECAR_EVENT_QUEUE_CAPACITY: usize = 256;
+const LLM_VISION_JSON_BODY_LIMIT_BYTES: usize = 24 * 1024 * 1024;
 
 const fn policy(
     json_body_limit_bytes: usize,
@@ -64,9 +65,15 @@ const fn policy(
 
 pub fn sidecar_resource_policy(service: &str) -> Option<SidecarResourcePolicy> {
     match service {
-        PROMPT_SERVICE_NAME | LLM_SERVICE_NAME => {
-            Some(policy(8 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024, 8))
-        }
+        PROMPT_SERVICE_NAME => Some(policy(8 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024, 8)),
+        // read_image permits a 16 MiB batch of raw images. Base64 expands it
+        // beyond 21 MiB before the LLM sidecar receives the JSON envelope.
+        LLM_SERVICE_NAME => Some(policy(
+            LLM_VISION_JSON_BODY_LIMIT_BYTES,
+            8 * 1024 * 1024,
+            LLM_VISION_JSON_BODY_LIMIT_BYTES,
+            8,
+        )),
         EMBEDDING_SERVICE_NAME => Some(policy(
             16 * 1024 * 1024,
             16 * 1024 * 1024,
@@ -98,7 +105,7 @@ pub fn sidecar_resource_policy(service: &str) -> Option<SidecarResourcePolicy> {
 #[cfg(test)]
 mod tests {
     use super::{BodyLimitKind, sidecar_resource_policy};
-    use crate::SIDECAR_REQUEST_TIMEOUT;
+    use crate::{LLM_SERVICE_NAME, SIDECAR_REQUEST_TIMEOUT};
 
     #[test]
     fn every_registered_sidecar_has_one_resource_policy() {
@@ -127,5 +134,17 @@ mod tests {
                 policy.body_limit(BodyLimitKind::Media) >= policy.body_limit(BodyLimitKind::Json)
             );
         }
+    }
+
+    #[test]
+    fn llm_json_limit_covers_the_maximum_read_image_batch() {
+        let policy = sidecar_resource_policy(LLM_SERVICE_NAME).expect("llm policy");
+        let raw_bytes: usize = 16 * 1024 * 1024;
+        let base64_bytes = raw_bytes.div_ceil(3) * 4;
+
+        assert!(
+            policy.body_limit(BodyLimitKind::Json) >= base64_bytes + 64 * 1024,
+            "LLM JSON limit must cover Base64 vision input and its envelope"
+        );
     }
 }

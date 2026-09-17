@@ -56,7 +56,13 @@ mark_changed_targets() {
     "$PROJECT_ROOT/crates/a4n-control/"*)
       build_control=true
       ;;
+    "$PROJECT_ROOT/crates/a4n-runtime/"*|"$PROJECT_ROOT/crates/a4n-orchestrator/"*)
+      build_control=true
+      ;;
     "$PROJECT_ROOT/crates/a4n-agent-worker/"*)
+      build_agent_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-agent-runtime/"*)
       build_agent_worker=true
       ;;
     "$PROJECT_ROOT/crates/a4n-server/"*|"$PROJECT_ROOT/crates/a4n-tauri/"*)
