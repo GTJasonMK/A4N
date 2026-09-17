@@ -266,7 +266,7 @@ pub(super) async fn render_segment_plan_shots(
             .ok_or_else(|| {
                 AppError::InvalidArgument("视频片段规划镜头序号超出 i32 范围".to_string())
             })?;
-        let (trace, segment_shot) = render_json_with_validation_with_context(
+        let (mut trace, segment_shot) = render_json_with_validation_with_context(
             RenderOrRestoreJsonWithValidationInput {
                 service,
                 workflow_run_id,
@@ -300,6 +300,12 @@ pub(super) async fn render_segment_plan_shots(
             },
         )
         .await?;
+        if serde_json::from_str::<Value>(trace.response_text.trim()).is_err() {
+            trace.response_text = json!({
+                "segments": segment_shot.input_values.clone(),
+            })
+            .to_string();
+        }
         let stage_output = json!({
             "source_shot_id": source_shot_id.clone(),
             "prompt_name": trace.prompt_name.clone(),

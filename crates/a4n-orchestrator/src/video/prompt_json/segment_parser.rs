@@ -37,7 +37,7 @@ pub(in crate::video) fn parse_video_segment_plan_input_values(
     raw: &str,
     context: &str,
 ) -> Result<Vec<Value>, AppError> {
-    let response: VideoSegmentPlanResponse = parse_strict_json_response(raw, context)?;
+    let response = parse_video_segment_plan_json(raw, context)?;
     if response.segments.is_empty() {
         return Err(AppError::InvalidArgument(format!(
             "{context} 响应必须包含至少一个 segments 条目"
@@ -131,7 +131,7 @@ fn parse_video_segment_plan_inner(
     source_spans: &[SourceSpan],
     defaults: VideoSegmentPlanDefaults<'_>,
 ) -> Result<Vec<VideoSegmentPlan>, AppError> {
-    let response: VideoSegmentPlanResponse = serde_json::from_str(raw.trim())?;
+    let response = parse_video_segment_plan_json(raw, "视频分段规划")?;
     if response.segments.is_empty() {
         return Err(AppError::InvalidArgument(
             "视频分段规划响应必须包含至少一个 segments 条目".to_string(),
@@ -242,6 +242,97 @@ fn parse_video_segment_plan_inner(
     }
     apply_segment_transitions(&mut segments, defaults.shooting_script_projection)?;
     Ok(segments)
+}
+
+fn parse_video_segment_plan_json(
+    raw: &str,
+    context: &str,
+) -> Result<VideoSegmentPlanResponse, AppError> {
+    match parse_strict_json_response(raw, context) {
+        Ok(response) => Ok(response),
+        Err(original_error) => {
+            let Some(repaired) = repair_terminal_delimiters(raw) else {
+                return Err(original_error);
+            };
+            match parse_strict_json_response(&repaired, context) {
+                Ok(response) => {
+                    tracing::warn!(
+                        target: "a4n::video_prompt",
+                        context,
+                        original_bytes = raw.len(),
+                        repaired_bytes = repaired.len(),
+                        "视频分段规划模型响应只包含末尾 JSON 分隔符错误，已规范化后继续校验"
+                    );
+                    Ok(response)
+                }
+                Err(_) => Err(original_error),
+            }
+        }
+    }
+}
+
+fn repair_terminal_delimiters(raw: &str) -> Option<String> {
+    let mut stack = Vec::<char>::new();
+    let mut repaired = String::with_capacity(raw.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut changed = false;
+
+    for (index, character) in raw.char_indices() {
+        if in_string {
+            repaired.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if character == '"' {
+            in_string = true;
+            repaired.push(character);
+            continue;
+        }
+
+        match character {
+            '{' | '[' => {
+                stack.push(character);
+                repaired.push(character);
+            }
+            '}' | ']' => {
+                let expected_open = if character == '}' { '{' } else { '[' };
+                if stack.last().copied() == Some(expected_open) {
+                    stack.pop();
+                    repaired.push(character);
+                    continue;
+                }
+                if !raw[index..]
+                    .chars()
+                    .all(|value| value == '}' || value == ']' || value.is_whitespace())
+                {
+                    return None;
+                }
+                if let Some(target_index) = stack.iter().rposition(|open| *open == expected_open) {
+                    while stack.len() > target_index + 1 {
+                        let open = stack.pop()?;
+                        repaired.push(if open == '{' { '}' } else { ']' });
+                    }
+                    stack.pop();
+                    repaired.push(character);
+                }
+                changed = true;
+            }
+            _ => repaired.push(character),
+        }
+    }
+
+    if in_string || !stack.is_empty() || !changed {
+        return None;
+    }
+    Some(repaired)
 }
 
 fn apply_segment_transitions(

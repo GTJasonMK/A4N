@@ -47,7 +47,15 @@ impl DynamicLlmProvider {
             require_sidecar_business_trace(trace.as_ref(), "LLM sidecar stream 请求")?;
         }
         request.stream_include_usage = true;
-        tracing::debug!(target: "a4n::llm", model = model.model_name(), config_id = model.model.id, max_tokens = ?request.max_tokens, "LLM stream 请求");
+        tracing::info!(
+            target: "a4n::llm",
+            model = model.model_name(),
+            config_id = model.model.id,
+            max_context_tokens = model.capabilities.max_context_tokens,
+            configured_max_output_tokens = model.capabilities.max_output_tokens,
+            request_max_tokens = ?request.max_tokens,
+            "LLM stream 使用运行时配置"
+        );
         let started = Instant::now();
         let trace_for_cost = trace.as_ref();
         let cost_record = self

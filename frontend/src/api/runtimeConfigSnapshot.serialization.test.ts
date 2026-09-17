@@ -113,7 +113,10 @@ vi.mock("../utils/runtimeMode", () => ({
   }),
 }));
 
-import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
+import {
+  buildRuntimeConfigSnapshot,
+  withRuntimeConfigSnapshot,
+} from "./runtimeConfigSnapshot";
 
 beforeEach(() => {
   snapshotState.usesSystemDefaultLlm = false;
@@ -197,4 +200,20 @@ it("injects web fetch limits without any provider secret", async () => {
   expect(effectiveArgs?.runtime_config_snapshot).not.toHaveProperty(
     "web_fetch.api_key_encrypted",
   );
+});
+
+it("attaches the configured LLM limits to video generation", () => {
+  const effectiveArgs = withRuntimeConfigSnapshot("start_video_generation", {
+    input: { project_id: 7, operation: { kind: "prompt_segment_plan" } },
+  });
+  const snapshot = effectiveArgs?.runtime_config_snapshot as
+    | { llm?: Record<string, unknown> }
+    | undefined;
+
+  expect(snapshot?.llm).toMatchObject({
+    id: 1,
+    model: "gpt-test",
+    max_context_tokens: 128_000,
+    max_output_tokens: 8_192,
+  });
 });
