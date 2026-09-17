@@ -1000,6 +1000,7 @@ dependencies = [
  "chrono",
  "sea-orm",
  "serde",
+ "serde_json",
  "subtle",
  "tokio",
  "tower 0.5.3",

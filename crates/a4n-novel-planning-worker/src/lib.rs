@@ -712,7 +712,12 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request};
+    use a4n_worker_contract::WorkerResponse;
+    use axum::{
+        body::Body,
+        http::{Request, header},
+    };
+    use serde_json::json;
     use tower::ServiceExt;
 
     fn worker() -> NovelPlanningWorker {
@@ -734,6 +739,53 @@ mod tests {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         }
+    }
+
+    #[tokio::test]
+    async fn current_command_rejects_operation_mismatch_before_database_access() {
+        let request = json!({
+            "schema_version": WORKER_SCHEMA_VERSION,
+            "request_id": "request-1",
+            "trace_id": "trace-1",
+            "principal": {"kind": "user", "subject": "7"},
+            "operation_id": "wrong.operation",
+            "idempotency_key": "idempotency-1",
+            "project_id": 99,
+            "root_project_id": null,
+            "target_revision": null,
+            "runtime_config_snapshot_ref": null,
+            "lease": {
+                "worker_id": NOVEL_PLANNING_WORKER_ID,
+                "epoch": 1,
+                "fence_token": "fence-1",
+                "expires_at": "2099-01-01T00:00:00Z"
+            },
+            "payload": {"project_id": 1, "source_chapter_id": 2, "visual_plan_id": null}
+        });
+        let response = worker()
+            .router()
+            .oneshot(
+                Request::post("/v1/commands/novel_planning.shooting_script.current")
+                    .header(WORKER_AUTH_HEADER, "worker-token")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let response: WorkerResponse<Option<ChapterShootingScriptView>> =
+            serde_json::from_slice(&body).unwrap();
+        response
+            .validate()
+            .expect("worker failure response contract");
+        assert_eq!(response.status, WorkerOperationStatus::Failed);
+        assert_eq!(
+            response.error.as_ref().map(|error| error.code),
+            Some(WorkerErrorCode::InvalidRequest)
+        );
     }
 
     #[test]
