@@ -259,6 +259,39 @@ impl a4n_artifact_media_contract::ArtifactMediaPublicationPort for ArtifactMedia
     }
 }
 
+#[async_trait::async_trait]
+impl a4n_artifact_media_contract::ArtifactMediaReferencePort for ArtifactMediaWorkerClient {
+    async fn unreferenced_paths(&self, request: MediaPathsRequest) -> Result<Vec<String>, String> {
+        ArtifactMediaWorkerClient::unreferenced_paths(self, request)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    async fn path_prefix_has_reference(
+        &self,
+        request: MediaPathPrefixRequest,
+    ) -> Result<bool, String> {
+        ArtifactMediaWorkerClient::path_prefix_has_reference(self, request)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    async fn project_has_publication(
+        &self,
+        request: ProjectPublicationRequest,
+    ) -> Result<bool, String> {
+        ArtifactMediaWorkerClient::project_has_publication(self, request)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
+    async fn protected_paths(&self, request: ProjectPathsRequest) -> Result<Vec<String>, String> {
+        ArtifactMediaWorkerClient::protected_paths(self, request)
+            .await
+            .map_err(|error| error.to_string())
+    }
+}
+
 pub fn default_client_config() -> WorkerClientConfig {
     WorkerClientConfig::new(Duration::from_secs(5), Duration::from_secs(90))
 }

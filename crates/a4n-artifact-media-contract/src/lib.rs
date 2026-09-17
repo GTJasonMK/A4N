@@ -151,6 +151,23 @@ pub trait ArtifactMediaPublicationPort: Send + Sync {
     ) -> Result<PublishedImageResponse, String>;
 }
 
+#[async_trait::async_trait]
+pub trait ArtifactMediaReferencePort: Send + Sync {
+    async fn unreferenced_paths(&self, request: MediaPathsRequest) -> Result<Vec<String>, String>;
+
+    async fn path_prefix_has_reference(
+        &self,
+        request: MediaPathPrefixRequest,
+    ) -> Result<bool, String>;
+
+    async fn project_has_publication(
+        &self,
+        request: ProjectPublicationRequest,
+    ) -> Result<bool, String>;
+
+    async fn protected_paths(&self, request: ProjectPathsRequest) -> Result<Vec<String>, String>;
+}
+
 impl ProjectPathsRequest {
     pub fn validate(&self) -> Result<(), ArtifactMediaContractError> {
         ProjectPublicationRequest {

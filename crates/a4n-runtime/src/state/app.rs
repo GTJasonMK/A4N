@@ -1916,6 +1916,29 @@ impl AppState {
         self.artifact_media_publication_application.as_deref()
     }
 
+    pub(crate) fn artifact_media_reference_application(
+        &self,
+    ) -> Option<&dyn a4n_artifact_media_contract::ArtifactMediaReferencePort> {
+        self.artifact_media_reference_application.as_deref()
+    }
+
+    pub(crate) async fn persisted_media_path_prefix_has_reference(
+        &self,
+        prefix: &str,
+    ) -> Result<bool, String> {
+        if let Some(worker) = self.artifact_media_reference_application() {
+            return worker
+                .path_prefix_has_reference(a4n_artifact_media_contract::MediaPathPrefixRequest {
+                    prefix: prefix.to_string(),
+                })
+                .await;
+        }
+        self.image_media_reference_application()
+            .media_path_prefix_has_persisted_reference(prefix)
+            .await
+            .map_err(|error| error.to_string())
+    }
+
     pub(crate) fn image_publication_recovery_application(
         &self,
     ) -> &dyn a4n_image_host_contract::ImagePublicationRecoveryPort {
