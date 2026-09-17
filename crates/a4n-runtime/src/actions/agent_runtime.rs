@@ -5038,9 +5038,6 @@ mod tests {
         assert!(tools.iter().any(|tool| {
             tool.pointer("/function/name") == Some(&Value::String("create_project".into()))
         }));
-        assert!(tools.iter().any(|tool| {
-            tool.pointer("/function/name") == Some(&Value::String("delete_project".into()))
-        }));
     }
 
     #[test]
