@@ -35,7 +35,10 @@ build_children() {
   [[ "$build_control" == true ]] && cargo_command+=(-p a4n-control)
   [[ "$build_agent_worker" == true ]] && cargo_command+=(-p a4n-agent-worker)
   [[ "$build_edge" == true ]] && cargo_command+=(-p a4n-edge)
-  $FULL_HOST && cargo_command+=(--features embedded-capabilities)
+  $FULL_HOST && {
+    [[ "$build_control" == true || "$build_agent_worker" == true ]] \
+      && cargo_command+=(--features embedded-capabilities)
+  }
   CARGO_ARTIFACTS_DISABLED=1 CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}" \
     "${cargo_command[@]}"
 }
