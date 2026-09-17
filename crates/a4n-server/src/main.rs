@@ -12,8 +12,9 @@ use std::{
 
 use a4n_process_catalog::stateful_worker_catalog_entry_ref;
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities,
-    WorkerHealth, WorkerHealthStatus,
+    AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
+    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities, WorkerHealth,
+    WorkerHealthStatus,
 };
 
 #[cfg(target_os = "linux")]
@@ -476,6 +477,15 @@ fn wait_for_agent_worker(
                     capabilities.validate().map_err(|error| {
                         anyhow::anyhow!("Agent worker capabilities 合同无效: {error}")
                     })?;
+                    for required in [AGENT_RUN_OPERATION, AGENT_HOST_COMMAND_OPERATION] {
+                        if !capabilities
+                            .capabilities
+                            .iter()
+                            .any(|capability| capability.enabled && capability.name == required)
+                        {
+                            anyhow::bail!("Agent worker capabilities 缺少已启用操作: {required}");
+                        }
+                    }
                     return Ok(());
                 }
                 last_error = Some(anyhow::anyhow!(
