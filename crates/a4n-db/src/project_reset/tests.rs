@@ -66,7 +66,7 @@ async fn generated_image_record(
 ) -> generated_image::Model {
     crate::video::create_generated_image_record(
         db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
             image_type: "chapter_image".to_string(),
             file_path: file_path.to_string(),
@@ -94,7 +94,7 @@ async fn completed_generated_video_record(
 ) -> generated_video::Model {
     let video = crate::video::create_generated_video_record(
         db,
-        crate::video::CreateGeneratedVideoRecordDraftInput {
+        a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),

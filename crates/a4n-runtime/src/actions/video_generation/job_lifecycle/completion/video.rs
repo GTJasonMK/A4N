@@ -35,12 +35,13 @@ pub(in crate::actions::video_generation) async fn persist_video_result(
     })
     .await?;
     let thumbnail_path = best_effort_video_thumbnail_path(
-        state.data_dir(),
+        state,
         target.project_id,
         chapter_id,
         target.video_id,
         &path,
-    );
+    )
+    .await;
     let mut tail_frame_capture_error = None;
     let tail_frame_metadata = if should_capture_video_tail_frame_fields(
         &target.video_type,

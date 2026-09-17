@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::UpdateChapterVideoPromptRecordInput;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -87,7 +88,7 @@ pub(super) async fn sync_boundary_frame_previous_image_ref(
     a4n_db::video::update_chapter_video_prompt_record(
         service.database.connection(),
         row,
-        a4n_db::video::UpdateChapterVideoPromptRecordInput {
+        UpdateChapterVideoPromptRecordInput {
             reference_image_ids_json: Some(Some(json!(updated_refs))),
             metadata_json,
             ..Default::default()

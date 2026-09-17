@@ -14,7 +14,7 @@ pub use deletion::{
     delete_generated_video_record_with_cleanup, delete_missing_generated_video_references_record,
 };
 pub use lifecycle::{
-    GeneratedVideoErrorStatusBatchInput, mark_generated_video_completed_and_link_prompt_record,
+    mark_generated_video_completed_and_link_prompt_record,
     mark_generated_video_error_status_and_prompt_record,
     mark_generated_video_job_and_prompt_record,
     mark_generated_videos_error_status_and_prompt_records,
@@ -45,34 +45,4 @@ pub(in crate::video::generated_videos) struct CreateGeneratedVideoRecordInput {
     pub source_image_id: Option<i64>,
     pub provider_job_id: Option<String>,
     pub metadata_json: Option<Value>,
-}
-
-/// 业务侧创建草稿：`workflow_mode` 可选，写库前由 `create_generated_video_record` 校验规范化。
-#[derive(Debug, Clone)]
-pub struct CreateGeneratedVideoRecordDraftInput {
-    pub project_id: i64,
-    pub chapter_id: Option<i64>,
-    pub video_type: String,
-    pub workflow_mode: Option<String>,
-    pub prompt: String,
-    pub negative_prompt: Option<String>,
-    pub model: String,
-    pub width: i32,
-    pub height: i32,
-    pub duration_secs: f32,
-    pub fps: i32,
-    pub source_video_id: Option<i64>,
-    pub source_image_id: Option<i64>,
-    pub provider_job_id: Option<String>,
-    pub metadata_json: Option<Value>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct UpdateGeneratedVideoRecordInput {
-    pub prompt: Option<String>,
-    pub negative_prompt: Option<String>,
-    pub clear_negative_prompt: bool,
-    pub metadata_json: Option<Value>,
-    pub clear_metadata_json: bool,
-    pub is_favorite: Option<bool>,
 }

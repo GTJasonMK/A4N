@@ -102,7 +102,7 @@ pub(super) async fn generated_image_with_asset(
 ) -> (generated_image::Model, media_asset::Model) {
     let image = crate::video::create_generated_image_record(
         db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
             image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: format!("projects/{project_id}/images/{file_name}"),
@@ -140,7 +140,7 @@ pub(super) async fn generated_video_with_asset(
 ) -> (generated_video::Model, media_asset::Model) {
     let video = crate::video::create_generated_video_record(
         db,
-        crate::video::CreateGeneratedVideoRecordDraftInput {
+        a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),

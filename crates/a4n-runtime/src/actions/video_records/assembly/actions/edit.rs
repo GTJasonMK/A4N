@@ -12,6 +12,7 @@ use crate::actions::video_records::{
     complete_video_record, probe_video_properties, video_record_output_path,
 };
 use a4n_api_contract::video::AssemblyPostprocessEditRecordInput;
+use a4n_media_contract::MediaRoot;
 use a4n_storage::canonicalize_data_file_path;
 
 pub async fn apply_assembly_postprocess_edit(
@@ -44,11 +45,26 @@ pub async fn apply_assembly_postprocess_edit(
         &format!("后处理基底视频 #{}", plan.base.id),
     )?;
     let source = postprocess_edit_source(state, &plan, &input).await?;
-    let source_duration_secs = source
-        .as_ref()
-        .map(|source| probe_video_properties(&source.path, "后处理来源视频"))
-        .transpose()?
-        .map(|properties| properties.duration_secs);
+    let source_root = source.as_ref().map(|source| {
+        if source.source_video_id.is_some() {
+            MediaRoot::Data
+        } else {
+            MediaRoot::Temp
+        }
+    });
+    let source_duration_secs = match source.as_ref() {
+        Some(source) => Some(
+            probe_video_properties(
+                state,
+                &source.path,
+                source_root.ok_or_else(|| "后处理来源视频缺少根目录".to_string())?,
+                "后处理来源视频",
+            )
+            .await?
+            .duration_secs,
+        ),
+        None => None,
+    };
     let source_video_id = source.as_ref().and_then(|source| source.source_video_id);
     let prepared = state
         .video_assembly_postprocess_application()
@@ -70,6 +86,7 @@ pub async fn apply_assembly_postprocess_edit(
     let operation = prepared.operation;
     let start_secs = prepared.start_secs;
     let end_secs = prepared.end_secs;
+    let source_path = source.as_ref().map(|source| source.path.clone());
     let (output, output_path_str, size) = persist_assembly_record_output(
         state,
         record.id,
@@ -84,32 +101,37 @@ pub async fn apply_assembly_postprocess_edit(
             )
         },
         |output| {
-            run_media_postprocess_edit(MediaPostprocessEditInput {
-                base_path: &base_path,
-                source_path: source.as_ref().map(|source| source.path.as_path()),
-                output_path: output,
-                operation,
-                start_secs,
-                end_secs,
-                base_duration_secs: base.duration_secs,
-                source_duration_secs,
-                width: base.width,
-                height: base.height,
-                fps: base.fps,
-            })
+            let state = state.clone();
+            let base_path = base_path.clone();
+            let source_path = source_path.clone();
+            async move {
+                run_media_postprocess_edit(
+                    &state,
+                    MediaPostprocessEditInput {
+                        base_path: &base_path,
+                        source_path: source_path.as_deref(),
+                        source_root,
+                        output_path: &output,
+                        operation,
+                        start_secs,
+                        end_secs,
+                        base_duration_secs: base.duration_secs,
+                        source_duration_secs,
+                        width: base.width,
+                        height: base.height,
+                        fps: base.fps,
+                    },
+                )
+                .await
+            }
         },
         "后处理编辑视频文件",
         "后处理编辑视频",
         "后处理编辑视频文件",
     )
     .await?;
-    let thumbnail_path = best_effort_video_thumbnail_path(
-        state.data_dir(),
-        project_id,
-        chapter_id,
-        record.id,
-        &output,
-    );
+    let thumbnail_path =
+        best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let updated = complete_video_record(
         state,
         record.id,

@@ -5,3 +5,5 @@
 //! `a4n-queue`.
 
 pub mod channel;
+#[cfg(any(feature = "persistent", test))]
+pub mod persistent;

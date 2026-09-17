@@ -1,8 +1,5 @@
 use super::{
-    super::{
-        UpdateGeneratedImageRecordInput, VideoDbError, normalize_optional_video_record_text,
-        required_video_record_text,
-    },
+    super::{VideoDbError, normalize_optional_video_record_text, required_video_record_text},
     validation::{
         validate_generated_image_update_chapter_binding_fields,
         validate_generated_image_update_clear_flags, validate_generated_image_update_image_type,
@@ -10,6 +7,7 @@ use super::{
     },
 };
 use a4n_db_models::models::ai::generated_image;
+use a4n_domain::media::UpdateGeneratedImageRecordInput;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect, Set};
 
 #[derive(Debug, FromQueryResult)]

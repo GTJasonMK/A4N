@@ -1,4 +1,5 @@
 use a4n_db_models::models::{ai::generated_image, project::novel_blueprint};
+use a4n_domain::media::CreateGeneratedImageRecordDraftInput;
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;
 use serde_json::Value;
@@ -18,9 +19,8 @@ pub use create::{
 };
 pub(crate) use publication::reclaim_image_publications_for_deleted_images;
 pub use publication::{
-    CreateImagePublicationIntentInput, ImagePublicationFileFacts, create_image_publication_intent,
-    image_publication_by_id, image_publications_for_recovery, mark_image_publication_reclaimed,
-    mark_image_publication_reclaiming, publish_image_publication,
+    create_image_publication_intent, image_publication_by_id, image_publications_for_recovery,
+    mark_image_publication_reclaimed, mark_image_publication_reclaiming, publish_image_publication,
     publish_image_publication_with_generation_run_checkpoint, update_image_publication_metadata,
 };
 pub(crate) use records::clear_generated_image_references_record;
@@ -60,35 +60,6 @@ pub(in crate::video::generated_images) struct CreateGeneratedImageRecordInput {
     pub panel_id: Option<String>,
     pub metadata_json: Option<Value>,
     pub created_at: NaiveDateTime,
-}
-
-#[derive(Debug, Clone)]
-pub struct CreateGeneratedImageRecordDraftInput {
-    pub project_id: i64,
-    pub image_type: String,
-    pub file_path: String,
-    pub prompt: String,
-    pub model: String,
-    pub width: i32,
-    pub height: i32,
-    pub file_size: Option<i64>,
-    pub chapter_id: Option<i64>,
-    pub panel_id: Option<String>,
-    pub metadata_json: Option<Value>,
-    pub created_at: Option<NaiveDateTime>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct UpdateGeneratedImageRecordInput {
-    pub prompt: Option<String>,
-    pub image_type: Option<String>,
-    pub chapter_id: Option<i64>,
-    pub clear_chapter_id: bool,
-    pub panel_id: Option<String>,
-    pub clear_panel_id: bool,
-    pub ai_score: Option<f32>,
-    pub clear_ai_score: bool,
-    pub is_favorite: Option<bool>,
 }
 
 #[derive(Debug, Clone)]

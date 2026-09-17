@@ -6,7 +6,7 @@ use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::{ConnectionTrait, Set};
 
 use crate::video::{self, VideoDbError};
-use crate::video_prompt::ChapterVideoPromptSyncDraft;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
 pub(in crate::video_prompt::sync) fn prompt_active_model(
     draft: &ChapterVideoPromptSyncDraft,

@@ -11,6 +11,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::media::MediaAudioProbeHostPort;
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -237,6 +238,7 @@ pub trait GalgameMediaMutationApplicationPort: Send + Sync {
 
     async fn import_audio(
         &self,
+        host_port: &dyn MediaAudioProbeHostPort,
         user_id: i64,
         input: ImportGalgameAudioInput,
     ) -> Result<GalgameMediaBindingSummary, a4n_error::AppError>;

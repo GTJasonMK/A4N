@@ -1,7 +1,7 @@
 //! 视频 provider 生成开始时 generation_run 账本纯组装。
 
 use a4n_db::generation::RecordStartedGenerationRunInput;
-use a4n_db::video::CreateGeneratedVideoRecordDraftInput;
+use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
 use serde_json::{Map, Value, json};
 
 /// 组装「视频 provider 生成已开始」的 generation_run 输入。
@@ -73,7 +73,7 @@ fn copy_json_field(source: &Value, target: &mut Map<String, Value>, key: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db::video::CreateGeneratedVideoRecordDraftInput;
+    use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
     fn draft() -> CreateGeneratedVideoRecordDraftInput {
         CreateGeneratedVideoRecordDraftInput {
             project_id: 7,

@@ -2,11 +2,15 @@ mod logging;
 mod routes;
 mod state;
 
+#[cfg(test)]
+mod media_lifecycle_tests;
+
 use a4n_error::AppError;
 use a4n_runtime::AppState;
 use axum::{Router, routing::get};
 use std::sync::Arc;
 
+pub use a4n_host_assembly::initialize_runtime;
 pub use logging::init_tracing;
 pub use routes::{
     api_router, dispatch_agent_host_command, dispatch_agent_host_command_value,

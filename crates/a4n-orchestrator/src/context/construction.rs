@@ -24,9 +24,15 @@ use super::{
 use crate::agent::AgentApplication;
 use crate::chapter_generation::ChapterGenerationService;
 use crate::context::dynamic_provider::ProviderRuntimeAdapter;
-use crate::task_queue::PersistentTaskQueue;
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 impl OrchestratorContext {
+    pub(crate) fn document_export_renderer(
+        &self,
+    ) -> Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>> {
+        self.document_export_renderer.clone()
+    }
+
     pub(crate) fn prompt_client(&self) -> Option<Arc<dyn PromptClient>> {
         self.prompt_client.clone()
     }
@@ -47,6 +53,7 @@ impl OrchestratorContext {
         task_queue: Arc<PersistentTaskQueue>,
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
         snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
+        document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
         provider_factory: impl FnOnce(
             Arc<dyn ProviderRuntimePort>,
         ) -> Result<
@@ -155,6 +162,7 @@ impl OrchestratorContext {
             engine,
             embedding,
             snapshot_store,
+            document_export_renderer,
         })
     }
 

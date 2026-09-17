@@ -168,10 +168,11 @@ impl CanvasVideoImportApplicationPort for OrchestratorContext {
 impl CanvasAudioImportApplicationPort for OrchestratorContext {
     async fn import_audio(
         &self,
+        host_port: &dyn a4n_api_contract::media::MediaAudioProbeHostPort,
         user_id: i64,
         input: CanvasAudioImportHostInput,
     ) -> Result<CanvasMediaAssetSummary, AppError> {
-        self.import_canvas_audio_validated(user_id, input)
+        self.import_canvas_audio_validated(host_port, user_id, input)
             .await
             .map(canvas_media_asset_summary)
     }

@@ -1,10 +1,14 @@
-use std::path::Path;
-
+use crate::AppState;
 use a4n_domain::AssemblyPostprocessOperation;
+use a4n_media_contract::{
+    MediaExecuteInput, MediaExecuteOutput, MediaPostprocessOperation, MediaRoot,
+};
+use std::path::Path;
 
 pub(in crate::actions::video_records::assembly) struct MediaPostprocessEditInput<'a> {
     pub(in crate::actions::video_records::assembly) base_path: &'a Path,
     pub(in crate::actions::video_records::assembly) source_path: Option<&'a Path>,
+    pub(in crate::actions::video_records::assembly) source_root: Option<MediaRoot>,
     pub(in crate::actions::video_records::assembly) output_path: &'a Path,
     pub(in crate::actions::video_records::assembly) operation: AssemblyPostprocessOperation,
     pub(in crate::actions::video_records::assembly) start_secs: f32,
@@ -16,12 +20,14 @@ pub(in crate::actions::video_records::assembly) struct MediaPostprocessEditInput
     pub(in crate::actions::video_records::assembly) fps: i32,
 }
 
-pub(in crate::actions::video_records::assembly) fn run_media_postprocess_edit(
+pub(in crate::actions::video_records::assembly) async fn run_media_postprocess_edit(
+    state: &AppState,
     input: MediaPostprocessEditInput<'_>,
 ) -> Result<(), String> {
     let MediaPostprocessEditInput {
         base_path,
         source_path,
+        source_root,
         output_path,
         operation,
         start_secs,
@@ -32,54 +38,58 @@ pub(in crate::actions::video_records::assembly) fn run_media_postprocess_edit(
         height,
         fps,
     } = input;
-    let base_has_audio = a4n_media::probe_video_has_audio(base_path)
-        .map_err(|error| format!("无法探测后处理基底视频音频：{error}"))?;
-    let source_has_audio = source_path
-        .map(a4n_media::probe_video_has_audio)
-        .transpose()
-        .map_err(|error| format!("无法探测后处理来源视频音频：{error}"))?
-        .unwrap_or(false);
-    a4n_media::postprocess_video(a4n_media::VideoPostprocessRequest {
-        base_path,
-        source_path,
-        output_path,
-        operation,
-        start_secs,
-        end_secs,
-        base_duration_secs,
-        base_has_audio,
-        source_duration_secs,
-        source_has_audio,
-        width,
-        height,
-        fps,
-    })
-    .map_err(|error| match error {
-        a4n_media::VideoPostprocessError::InvalidBaseDuration { duration_secs } => {
-            format!("后处理基底视频时长无效：{duration_secs}")
+    let base = state.data_media_file_ref(base_path, "后处理基底视频")?;
+    let source = match (source_path, source_root) {
+        (Some(path), Some(MediaRoot::Data)) => {
+            Some(state.data_media_file_ref(path, "后处理来源视频")?)
         }
-        a4n_media::VideoPostprocessError::InvalidTimeRange {
+        (Some(path), Some(MediaRoot::Temp)) => {
+            Some(state.temp_media_file_ref(path, "后处理来源视频")?)
+        }
+        (None, None) => None,
+        _ => return Err("后处理来源视频路径与根目录不匹配".to_string()),
+    };
+    let base_has_audio = state
+        .probe_media_has_audio(base_path, MediaRoot::Data, "后处理基底视频")
+        .await
+        .map_err(|error| format!("无法探测后处理基底视频音频：{error}"))?;
+    let source_has_audio = match source_path {
+        Some(path) => state
+            .probe_media_has_audio(
+                path,
+                source_root.ok_or_else(|| "后处理来源视频缺少根目录".to_string())?,
+                "后处理来源视频",
+            )
+            .await
+            .map_err(|error| format!("无法探测后处理来源视频音频：{error}"))?,
+        None => false,
+    };
+    let operation = match operation {
+        AssemblyPostprocessOperation::Insert => MediaPostprocessOperation::Insert,
+        AssemblyPostprocessOperation::Delete => MediaPostprocessOperation::Delete,
+        AssemblyPostprocessOperation::Replace => MediaPostprocessOperation::Replace,
+    };
+    match state
+        .execute_media(MediaExecuteInput::PostprocessVideo {
+            base,
+            source,
+            output: state.data_media_file_ref(output_path, "后处理输出视频")?,
+            operation,
             start_secs,
             end_secs,
             base_duration_secs,
-        } => format!("后处理时间范围无效：{start_secs}..{end_secs}，基底时长 {base_duration_secs}"),
-        a4n_media::VideoPostprocessError::InvalidDimensions { width, height } => {
-            format!("后处理视频尺寸无效：{width}x{height}")
-        }
-        a4n_media::VideoPostprocessError::InvalidFps { fps } => {
-            format!("后处理视频帧率无效：{fps}")
-        }
-        a4n_media::VideoPostprocessError::MissingSource => "插入或替换操作缺少来源视频".to_string(),
-        a4n_media::VideoPostprocessError::UnexpectedSource => "删除操作不接受来源视频".to_string(),
-        a4n_media::VideoPostprocessError::SourceNotFile => "插入或替换来源视频不是文件".to_string(),
-        a4n_media::VideoPostprocessError::InvalidSourceDuration => {
-            "插入或替换来源视频时长无效".to_string()
-        }
-        a4n_media::VideoPostprocessError::Unavailable { source } => {
-            format!("后处理剪辑失败：未能启动 FFmpeg：{source}")
-        }
-        a4n_media::VideoPostprocessError::Failed { stderr } => {
-            format!("后处理剪辑失败：{stderr}")
-        }
-    })
+            base_has_audio,
+            source_duration_secs,
+            source_has_audio,
+            width,
+            height,
+            fps,
+        })
+        .await?
+    {
+        MediaExecuteOutput::Unit => Ok(()),
+        output => Err(format!(
+            "后处理剪辑失败：media worker 返回了不匹配的输出：{output:?}"
+        )),
+    }
 }

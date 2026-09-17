@@ -23,6 +23,7 @@ a4n-canvas-host-contract = { path = "../a4n-canvas-host-contract" }
 a4n-outline-contract = { path = "../a4n-outline-contract" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-document-export-core = { path = "../a4n-document-export-core" }
+a4n-export-contract = { path = "../a4n-export-contract" }
 a4n-domain = { path = "../a4n-domain" }
  a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-event = { path = "../a4n-event" }
@@ -32,7 +33,7 @@ a4n-db = { path = "../a4n-db" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
 a4n-storage = { path = "../a4n-storage" }
-a4n-task-runtime = { path = "../a4n-task-runtime" }
+a4n-task-runtime = { path = "../a4n-task-runtime", features = ["persistent"] }
 a4n-llm-context = { path = "../a4n-llm-context" }
 a4n-llm-provider-contract = { path = "../a4n-llm-provider-contract" }
 a4n-novel-host-contract = { path = "../a4n-novel-host-contract" }

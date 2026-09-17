@@ -16,7 +16,7 @@ use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use a4n_test_support::llm::UnavailableLlmProvider;
 
 use crate::OrchestratorContext;
-use crate::task_queue::PersistentTaskQueue;
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM 流响应";
 const DEFAULT_EMBEDDING_ERROR: &str = "测试 OrchestratorContext 未配置 embedding 响应";
@@ -106,6 +106,7 @@ impl TestOrchestratorBuilder {
             task_queue,
             engine,
             snapshot_store,
+            None,
             move |_| Ok((llm, embedding)),
         )
         .expect("test providers should initialize")

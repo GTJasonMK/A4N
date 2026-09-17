@@ -82,9 +82,9 @@ use crate::generation::{
         GenerationTerminalWriteOutcome,
     },
 };
-use crate::task_queue::PersistentTaskQueue;
 use crate::video::validate_reference_media_start_input;
 pub(crate) use a4n_api_contract::generation_tasks::GenerationTaskStart;
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 /// 生成运行账本 owner；章节生成服务可持有克隆以写 generation run。
 #[derive(Clone)]

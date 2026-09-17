@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use crate::registry::{
     EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME,
-    LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, RAG_SERVICE_NAME, VIDEO_SERVICE_NAME,
+    LLM_SERVICE_NAME, MEDIA_SERVICE_NAME, PROMPT_SERVICE_NAME, RAG_SERVICE_NAME,
+    VIDEO_SERVICE_NAME,
 };
 
 /// 统一的 sidecar 资源合同。
@@ -98,14 +99,21 @@ pub fn sidecar_resource_policy(service: &str) -> Option<SidecarResourcePolicy> {
             8 * 1024 * 1024,
             4,
         )),
+        MEDIA_SERVICE_NAME => {
+            let mut policy = policy(8 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024, 2);
+            policy.request_timeout = Duration::from_secs(900);
+            Some(policy)
+        }
         _ => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::{BodyLimitKind, sidecar_resource_policy};
-    use crate::{LLM_SERVICE_NAME, SIDECAR_REQUEST_TIMEOUT};
+    use crate::{LLM_SERVICE_NAME, MEDIA_SERVICE_NAME, SIDECAR_REQUEST_TIMEOUT};
 
     #[test]
     fn every_registered_sidecar_has_one_resource_policy() {
@@ -118,9 +126,15 @@ mod tests {
             "video",
             "import",
             "export",
+            MEDIA_SERVICE_NAME,
         ] {
             let policy = sidecar_resource_policy(service).expect("registered policy");
-            assert_eq!(policy.request_timeout, SIDECAR_REQUEST_TIMEOUT);
+            let expected_timeout = if service == "media" {
+                Duration::from_secs(900)
+            } else {
+                SIDECAR_REQUEST_TIMEOUT
+            };
+            assert_eq!(policy.request_timeout, expected_timeout);
             assert!(policy.max_concurrent_requests > 0);
             assert!(policy.body_limit(BodyLimitKind::Json) > 0);
         }
@@ -146,5 +160,12 @@ mod tests {
             policy.body_limit(BodyLimitKind::Json) >= base64_bytes + 64 * 1024,
             "LLM JSON limit must cover Base64 vision input and its envelope"
         );
+    }
+
+    #[test]
+    fn media_worker_uses_a_long_request_timeout_and_bounded_concurrency() {
+        let policy = sidecar_resource_policy(MEDIA_SERVICE_NAME).expect("media worker policy");
+        assert_eq!(policy.request_timeout, Duration::from_secs(900));
+        assert_eq!(policy.max_concurrent_requests, 2);
     }
 }

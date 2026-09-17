@@ -15,7 +15,7 @@ pub(crate) mod jwt;
 pub(crate) mod oauth_provider;
 mod prompt_resources;
 pub(crate) mod provider_error;
-pub(crate) mod provider_runtime;
+mod provider_runtime;
 pub(crate) mod rag_ingest;
 pub(crate) mod runtime_config;
 mod service_health;
@@ -24,7 +24,5 @@ pub(crate) mod state;
 mod task_queue;
 pub(crate) mod workflow;
 
-pub use state::{AppState, RuntimeProfile};
-
-#[cfg(test)]
-mod media_lifecycle_tests;
+pub use provider_runtime::DynamicProviderFacade;
+pub use state::{AppState, ApplicationPorts, RuntimeBootstrap, RuntimeProfile, RuntimeRole};

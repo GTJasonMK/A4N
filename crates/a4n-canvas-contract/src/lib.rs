@@ -258,6 +258,7 @@ pub trait CanvasVideoImportApplicationPort: Send + Sync {
 pub trait CanvasAudioImportApplicationPort: Send + Sync {
     async fn import_audio(
         &self,
+        host_port: &dyn a4n_api_contract::media::MediaAudioProbeHostPort,
         user_id: i64,
         input: CanvasAudioImportHostInput,
     ) -> Result<a4n_api_contract::canvas::CanvasMediaAssetSummary, AppError>;

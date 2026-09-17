@@ -407,8 +407,8 @@ async fn insert_generated_image_with_binding(
     .unwrap()
 }
 
-fn video_record_input(project_id: i64) -> a4n_db::video::CreateGeneratedVideoRecordDraftInput {
-    a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+fn video_record_input(project_id: i64) -> a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
+    a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
         project_id,
         chapter_id: None,
         video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),

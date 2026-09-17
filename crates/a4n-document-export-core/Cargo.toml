@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-export-contract = { path = "../a4n-export-contract" }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }

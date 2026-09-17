@@ -15,7 +15,6 @@ pub(crate) use a4n_character_host_contract::{
 };
 
 pub use context::character_llm_chapter_context;
-pub use execution::validate_character_discovery_input;
 pub use identity::{character_identity_key, profile_character_keys};
 
 #[cfg(test)]

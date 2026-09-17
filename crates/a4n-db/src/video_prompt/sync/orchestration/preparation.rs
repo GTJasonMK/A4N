@@ -12,15 +12,16 @@ use super::super::{
     validation::{validate_prompt_output_language_metadata, validate_prompt_workflow_mode},
 };
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncPolicy;
 use sea_orm::ConnectionTrait;
 use std::collections::{BTreeSet, HashMap};
 
 use crate::video::{self, VideoDbError};
 use crate::video_prompt::{
-    ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy, PromptIdentity,
-    ensure_chapter_video_prompt_stages_mutable,
+    PromptIdentity, ensure_chapter_video_prompt_stages_mutable,
     ensure_chapter_video_prompt_stages_mutable_ignoring, lock_chapter_video_prompt_scope,
 };
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
 pub(super) struct PlannedPromptSyncRow {
     pub(super) existing: Option<chapter_video_prompt::Model>,

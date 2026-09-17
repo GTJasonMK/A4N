@@ -2,7 +2,7 @@ use super::super::contracts::ImportedVideoSource;
 use a4n_video::import_video_extension;
 use std::path::PathBuf;
 
-pub(in crate::actions::video_records::imports) fn import_video_source(
+pub(in crate::actions::video_records) fn import_video_source(
     file_path: &str,
     label: &str,
 ) -> Result<ImportedVideoSource, String> {

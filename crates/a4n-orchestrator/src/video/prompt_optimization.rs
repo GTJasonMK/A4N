@@ -2,14 +2,12 @@ use std::collections::HashMap;
 
 use a4n_api_contract::video::VideoPromptDownstreamCleanupPort;
 
-use a4n_db::{
-    generation::{
-        GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
-        RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
-    },
-    video_prompt::ChapterVideoPromptPatch,
+use a4n_db::generation::{
+    GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
+    RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
 };
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptPatch;
 use a4n_domain::{
     prompt_language::{
         PromptOutputLanguage, prompt_output_language_from_instruction,

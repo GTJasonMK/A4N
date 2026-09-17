@@ -11,6 +11,7 @@ pub(super) async fn import_canvas_audio(
     let asset = state
         .canvas_audio_import_application()
         .import_audio(
+            state,
             user_id,
             CanvasAudioImportHostInput {
                 project_id: input.project_id,

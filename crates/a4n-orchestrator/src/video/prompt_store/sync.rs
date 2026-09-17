@@ -1,4 +1,7 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{
+    ChapterVideoPromptRecordFields, ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy,
+};
 use a4n_error::AppError;
 
 use super::contracts::NewChapterVideoPrompt;
@@ -12,12 +15,8 @@ impl OrchestratorContext {
         chapter_id: i64,
         drafts: Vec<NewChapterVideoPrompt>,
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        self.write_chapter_prompts(
-            chapter_id,
-            drafts,
-            a4n_db::video_prompt::ChapterVideoPromptSyncPolicy::default(),
-        )
-        .await
+        self.write_chapter_prompts(chapter_id, drafts, ChapterVideoPromptSyncPolicy::default())
+            .await
     }
 
     pub(in crate::video) async fn sync_chapter_prompts_preserving_generated_video_prompts(
@@ -28,7 +27,7 @@ impl OrchestratorContext {
         self.write_chapter_prompts(
             chapter_id,
             drafts,
-            a4n_db::video_prompt::ChapterVideoPromptSyncPolicy {
+            ChapterVideoPromptSyncPolicy {
                 preserve_generated_video_prompts: true,
                 ..Default::default()
             },
@@ -44,7 +43,7 @@ impl OrchestratorContext {
         self.write_chapter_prompts(
             chapter_id,
             drafts,
-            a4n_db::video_prompt::ChapterVideoPromptSyncPolicy {
+            ChapterVideoPromptSyncPolicy {
                 preserve_frame_prompts_with_generated_images: true,
                 ..Default::default()
             },
@@ -56,7 +55,7 @@ impl OrchestratorContext {
         &self,
         chapter_id: i64,
         drafts: Vec<NewChapterVideoPrompt>,
-        policy: a4n_db::video_prompt::ChapterVideoPromptSyncPolicy,
+        policy: ChapterVideoPromptSyncPolicy,
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
         if drafts.is_empty() {
             return Ok(Vec::new());
@@ -78,14 +77,14 @@ impl OrchestratorContext {
 
 fn prepare_prompt_sync_draft(
     draft: NewChapterVideoPrompt,
-) -> Result<a4n_db::video_prompt::ChapterVideoPromptSyncDraft, AppError> {
+) -> Result<ChapterVideoPromptSyncDraft, AppError> {
     let generation_trace = draft
         .generation_trace
         .map(prepare_generation_trace)
         .transpose()?;
     let workflow_mode = draft.workflow_mode.as_str().to_string();
-    Ok(a4n_db::video_prompt::ChapterVideoPromptSyncDraft {
-        fields: a4n_db::video::ChapterVideoPromptRecordFields {
+    Ok(ChapterVideoPromptSyncDraft {
+        fields: ChapterVideoPromptRecordFields {
             project_id: draft.project_id,
             chapter_id: draft.chapter_id,
             style: draft.style,

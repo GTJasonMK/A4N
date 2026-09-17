@@ -7,6 +7,7 @@
 use a4n_db_models::models::chapter::{
     chapter_video_prompt, chapter_video_timeline, chapter_video_timeline_item,
 };
+use a4n_domain::video_prompt::ChapterVideoPromptRecordFields;
 use a4n_domain::video_timeline::{
     NativeVideoTimelineKey, VideoTimelineGap, move_inserted_timeline_item,
     remove_inserted_timeline_item, timeline_gap_index,
@@ -39,7 +40,7 @@ pub struct CommitInsertedTimelineItemInput {
     pub timeline_id: i64,
     pub expected_revision: i64,
     pub gap: VideoTimelineGap,
-    pub prompt: super::ChapterVideoPromptRecordFields,
+    pub prompt: ChapterVideoPromptRecordFields,
     pub workflow_run_id: i64,
 }
 
@@ -1463,7 +1464,7 @@ mod tests {
                     previous_item_id: None,
                     next_item_id: None,
                 },
-                prompt: crate::video::ChapterVideoPromptRecordFields {
+                prompt: ChapterVideoPromptRecordFields {
                     project_id: project.id,
                     chapter_id: chapter.id,
                     style: Some("电影感".to_string()),
@@ -1502,7 +1503,7 @@ mod tests {
             .unwrap();
         let video = crate::video::create_generated_video_record(
             &db,
-            crate::video::CreateGeneratedVideoRecordDraftInput {
+            a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: Some(chapter.id),
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),

@@ -14,10 +14,10 @@ use a4n_api_contract::image_generation::{
 };
 use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
 use a4n_canvas_contract::GenerateCanvasImageInput;
+use a4n_domain::media::DecodedUploadedImage;
 use a4n_domain::media::{GeneratedMediaArtifactFile, ImagePublicationRecoveryRecord};
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
-use a4n_media::DecodedUploadedImage;
 use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use serde_json::Value;

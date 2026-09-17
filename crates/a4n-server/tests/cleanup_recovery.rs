@@ -530,7 +530,7 @@ async fn server_process_keeps_referenced_file_artifact_during_cleanup() {
     std::fs::write(&absolute_path, b"referenced").unwrap();
     let image = a4n_db::video::create_generated_image_record(
         &db,
-        a4n_db::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: "imported".to_string(),
             file_path: referenced_path.clone(),
@@ -1628,7 +1628,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
         .unwrap();
         a4n_db::video::create_generated_video_record(
             &db,
-            a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: None,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),

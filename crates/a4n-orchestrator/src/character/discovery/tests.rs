@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::character::DiscoverCharacterProfilesInput;
+use a4n_character_host_contract::validate_character_discovery_input;
 use a4n_db_models::models::{
     chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
@@ -18,7 +19,6 @@ use crate::character::{
 
 use super::{
     context::character_llm_chapter_context,
-    execution::validate_character_discovery_input,
     identity::existing_profile_for_prompt,
     output::{discovered_character_base_attributes, parse_character_discovery_output},
     request::build_character_discovery_manifest_user_prompt,

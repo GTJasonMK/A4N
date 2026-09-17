@@ -9,7 +9,7 @@ use super::validation::{
     validate_generated_image_update_chapter_binding, validate_generated_image_update_clear_flags,
     validate_generated_image_update_image_type, validate_generated_image_update_panel_binding,
 };
-use crate::video::UpdateGeneratedImageRecordInput;
+use a4n_domain::media::UpdateGeneratedImageRecordInput;
 
 fn image_model() -> generated_image::Model {
     let now = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)

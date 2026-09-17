@@ -104,8 +104,6 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
 
 pub(crate) use attribute_lifecycle::implicit_review_attribute_event;
 
-pub use conflict::validate_character_conflict_input;
-
 #[async_trait::async_trait]
 impl CharacterDiscoveryApplicationPort for crate::OrchestratorContext {
     async fn preview_discovery(
@@ -238,7 +236,6 @@ impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
         .await
     }
 }
-pub use discovery::validate_character_discovery_input;
 pub(crate) use discovery::{CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND};
 pub(crate) use discovery::{
     character_identity_key, character_llm_chapter_context, profile_character_keys,

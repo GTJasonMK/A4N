@@ -63,6 +63,7 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
     let output_path = chapter_videos_dir.join(format!("assembled_{}.mp4", prepared.workflow_mode));
     let manifest_path = output_path.with_extension("mp4.cache.json");
     let manifest = build_assembly_cache_manifest(
+        state,
         project_id,
         chapter_id,
         &prepared.workflow_mode,
@@ -70,7 +71,8 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
         height,
         fps,
         &clips,
-    )?;
+    )
+    .await?;
     Ok(Some(AssemblyRequestContext {
         clips,
         duration_secs,

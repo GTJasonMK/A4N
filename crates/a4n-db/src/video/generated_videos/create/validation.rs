@@ -1,9 +1,9 @@
 use super::super::CreateGeneratedVideoRecordInput;
 use crate::video::{
-    CreateGeneratedVideoRecordDraftInput, VideoDbError,
-    ensure_video_chapter_belongs_to_project_record, generated_image_by_id, generated_video_by_id,
-    validate_positive_video_i64,
+    VideoDbError, ensure_video_chapter_belongs_to_project_record, generated_image_by_id,
+    generated_video_by_id, validate_positive_video_i64,
 };
+use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
 use a4n_domain::video_workflow::is_generated_video_workflow_mode;
 use sea_orm::ConnectionTrait;
 

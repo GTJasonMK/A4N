@@ -4,9 +4,9 @@ use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
 use super::metadata::validate_video_metadata_update_preserves_system_fields;
 use crate::video::{
-    UpdateGeneratedVideoRecordInput, VideoDbError, normalize_optional_video_record_text,
-    required_video_record_text,
+    VideoDbError, normalize_optional_video_record_text, required_video_record_text,
 };
+use a4n_domain::media::UpdateGeneratedVideoRecordInput;
 
 pub async fn update_generated_video_record<C>(
     db: &C,

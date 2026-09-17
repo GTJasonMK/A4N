@@ -147,7 +147,7 @@ impl crate::OrchestratorContext {
         &self,
         input: VideoGenerationRecordInput,
     ) -> Result<generated_video::Model, a4n_error::AppError> {
-        let video_record = a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        let video_record = a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id: input.project_id,
             chapter_id: input.chapter_id,
             video_type: input.video_type,
@@ -294,7 +294,7 @@ impl crate::OrchestratorContext {
 
         self.update_generated_video_record(
             video_id,
-            a4n_db::video::UpdateGeneratedVideoRecordInput {
+            a4n_domain::media::UpdateGeneratedVideoRecordInput {
                 prompt: input.prompt,
                 negative_prompt,
                 clear_negative_prompt,
@@ -364,7 +364,7 @@ impl crate::OrchestratorContext {
             next_assembly_push_status(input.action, pushes[latest_index].status.as_str())?;
         self.update_generated_video_record(
             existing.id,
-            a4n_db::video::UpdateGeneratedVideoRecordInput {
+            a4n_domain::media::UpdateGeneratedVideoRecordInput {
                 prompt: None,
                 negative_prompt: None,
                 clear_negative_prompt: false,
@@ -629,7 +629,7 @@ impl crate::OrchestratorContext {
         let anchor_label = insert_after_video_id
             .map(|id| format!("视频 #{id} 之后"))
             .unwrap_or_else(|| "成片开头".to_string());
-        self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT.to_string(),
@@ -725,7 +725,7 @@ impl crate::OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
         let video = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: plan.push.project_id,
                 chapter_id: plan.push.chapter_id,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT
@@ -939,7 +939,7 @@ impl crate::OrchestratorContext {
             .map(|clip| clip.sort_order)
             .collect::<Vec<_>>();
         let video = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: Some(chapter_id),
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH.to_string(),
@@ -998,7 +998,7 @@ impl crate::OrchestratorContext {
             ));
         }
         let video = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: Some(chapter_id),
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
@@ -1086,7 +1086,7 @@ impl crate::OrchestratorContext {
             Some(&recipe),
             target,
         )?;
-        self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
@@ -1133,7 +1133,7 @@ impl crate::OrchestratorContext {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<generated_video::Model, AppError> {
-        self.create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+        self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
@@ -1293,29 +1293,31 @@ impl crate::OrchestratorContext {
         file_size: i64,
     ) -> Result<GeneratedImageSummary, AppError> {
         let image = self
-            .create_generated_image_record(a4n_db::video::CreateGeneratedImageRecordDraftInput {
-                project_id: plan.video.project_id,
-                image_type: IMAGE_TYPE_CANVAS_FRAME.to_string(),
-                file_path,
-                prompt: format!("视频 #{} 画布抽帧 {}", plan.video.id, plan.frame_kind),
-                model: "ffmpeg".to_string(),
-                width: plan.video.width,
-                height: plan.video.height,
-                file_size: Some(file_size),
-                chapter_id: None,
-                panel_id: None,
-                metadata_json: Some(serde_json::json!({
-                    "canvas_frame": {
-                        "source_video_id": plan.video.id,
-                        "frame_kind": plan.frame_kind,
-                        "at_secs": plan.timestamp,
-                        "source_workflow_mode": plan.video.workflow_mode,
-                        "extracted_at": Utc::now().to_rfc3339(),
-                    },
-                    "source": "video_canvas",
-                })),
-                created_at: None,
-            })
+            .create_generated_image_record(
+                a4n_domain::media::CreateGeneratedImageRecordDraftInput {
+                    project_id: plan.video.project_id,
+                    image_type: IMAGE_TYPE_CANVAS_FRAME.to_string(),
+                    file_path,
+                    prompt: format!("视频 #{} 画布抽帧 {}", plan.video.id, plan.frame_kind),
+                    model: "ffmpeg".to_string(),
+                    width: plan.video.width,
+                    height: plan.video.height,
+                    file_size: Some(file_size),
+                    chapter_id: None,
+                    panel_id: None,
+                    metadata_json: Some(serde_json::json!({
+                        "canvas_frame": {
+                            "source_video_id": plan.video.id,
+                            "frame_kind": plan.frame_kind,
+                            "at_secs": plan.timestamp,
+                            "source_workflow_mode": plan.video.workflow_mode,
+                            "extracted_at": Utc::now().to_rfc3339(),
+                        },
+                        "source": "video_canvas",
+                    })),
+                    created_at: None,
+                },
+            )
             .await?;
         Ok(crate::media::generated_image_summary(&image))
     }
@@ -1351,30 +1353,32 @@ impl crate::OrchestratorContext {
             .as_ref()
             .and_then(|metadata| metadata.get("source"))
             .cloned();
-        self.create_generated_image_record(a4n_db::video::CreateGeneratedImageRecordDraftInput {
-            project_id: video.project_id,
-            image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.to_string(),
-            file_path,
-            prompt: format!("视频 #{} 第 {} 段真实尾帧采集", video.id, shot_number),
-            model: "ffmpeg".to_string(),
-            width: video.width.max(1),
-            height: video.height.max(1),
-            file_size: Some(file_size),
-            chapter_id: Some(chapter_id),
-            panel_id: None,
-            metadata_json: Some(serde_json::json!({
-                "generation_context": {
-                    "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
-                    "video_id": video.id,
-                    "shot_number": shot_number,
-                    "source_content_sha256": metadata_source_content_sha256(
-                        video.metadata_json.as_ref()
-                    ),
-                },
-                "source": source,
-            })),
-            created_at: None,
-        })
+        self.create_generated_image_record(
+            a4n_domain::media::CreateGeneratedImageRecordDraftInput {
+                project_id: video.project_id,
+                image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.to_string(),
+                file_path,
+                prompt: format!("视频 #{} 第 {} 段真实尾帧采集", video.id, shot_number),
+                model: "ffmpeg".to_string(),
+                width: video.width.max(1),
+                height: video.height.max(1),
+                file_size: Some(file_size),
+                chapter_id: Some(chapter_id),
+                panel_id: None,
+                metadata_json: Some(serde_json::json!({
+                    "generation_context": {
+                        "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+                        "video_id": video.id,
+                        "shot_number": shot_number,
+                        "source_content_sha256": metadata_source_content_sha256(
+                            video.metadata_json.as_ref()
+                        ),
+                    },
+                    "source": source,
+                })),
+                created_at: None,
+            },
+        )
         .await
     }
 
@@ -1389,7 +1393,7 @@ impl crate::OrchestratorContext {
             .map(|video| video.id)
             .collect::<Vec<_>>();
         let record = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id,
                 chapter_id: None,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),
@@ -1486,7 +1490,7 @@ impl crate::OrchestratorContext {
         plan: VideoTrimPlan,
     ) -> Result<GeneratedVideoSummary, AppError> {
         let record = self
-            .create_video_record(a4n_db::video::CreateGeneratedVideoRecordDraftInput {
+            .create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: plan.source.project_id,
                 chapter_id: plan.source.chapter_id,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_TRIMMED_CLIP.to_string(),

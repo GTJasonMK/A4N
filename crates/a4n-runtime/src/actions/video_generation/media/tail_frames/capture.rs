@@ -23,7 +23,7 @@ pub(crate) async fn capture_video_tail_frame_asset(
         target.video_id,
     )?;
     let result = async {
-        capture_video_tail_frame(video_path, &output)?;
+        capture_video_tail_frame(state, video_path, &output).await?;
         let (output_path_str, file_size) =
             data_file_record_facts(state.data_dir(), &output, "尾帧图片", "尾帧图片")?;
         let image = state

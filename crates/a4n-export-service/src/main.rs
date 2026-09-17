@@ -9,9 +9,10 @@ use std::{
 
 use a4n_export_contract::{
     EXPORT_SERVICE_ADDR_ENV, EXPORT_SERVICE_DEFAULT_ADDR, EXPORT_SERVICE_NAME,
-    ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput,
+    ExportRenderDocumentInput, ExportRenderDocumentOutput, ExportRenderJsonInput,
+    ExportRenderZipInput, ExportRenderZipOutput,
 };
-use a4n_export_core::{render_json, render_zip};
+use a4n_export_core::{render_document, render_json, render_zip};
 use a4n_service_protocol::{
     HealthStatus, SIDECAR_HEALTH_PATH, SIDECAR_TRACE_ID_HEADER, ServiceError, ServiceErrorCode,
     ServiceHealth, ServiceRequest, ServiceResponse, known_service_health, redact_sensitive_message,
@@ -203,6 +204,12 @@ async fn main() -> anyhow::Result<()> {
                 policy.body_limit(a4n_service_protocol::BodyLimitKind::Media),
             )),
         )
+        .route(
+            "/export/render_document",
+            post(render_document_route).layer(DefaultBodyLimit::max(
+                policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),
+            )),
+        )
         .layer(a4n_sidecar_bootstrap::concurrency_limit(
             policy.max_concurrent_requests,
         ))
@@ -255,6 +262,20 @@ async fn render_zip_route(
     ))
 }
 
+async fn render_document_route(
+    State(metrics): State<ExportRenderMetrics>,
+    Json(request): Json<ServiceRequest<ExportRenderDocumentInput>>,
+) -> Json<ServiceResponse<ExportRenderDocumentOutput>> {
+    Json(request.execute_known_service(
+        EXPORT_SERVICE_NAME,
+        |input| {
+            let _guard = metrics.begin();
+            render_document(input)
+        },
+        operation_error,
+    ))
+}
+
 async fn render_metrics_route(
     State(metrics): State<ExportRenderMetrics>,
 ) -> Json<serde_json::Value> {
@@ -277,7 +298,7 @@ async fn admit_render_request(
 ) -> Response {
     if !matches!(
         request.uri().path(),
-        "/export/render_json" | "/export/render_zip"
+        "/export/render_json" | "/export/render_zip" | "/export/render_document"
     ) {
         return next.run(request).await;
     }

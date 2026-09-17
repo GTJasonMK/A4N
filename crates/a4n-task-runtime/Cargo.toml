@@ -4,15 +4,32 @@ version = "0.1.0"
 edition = "2024"
 license.workspace = true
 
+[features]
+default = []
+persistent = ["dep:a4n-db", "a4n-error/database"]
+
 [dependencies]
+a4n-db = { path = "../a4n-db", optional = true }
 a4n-domain = { path = "../a4n-domain" }
 a4n-progress = { path = "../a4n-progress" }
 a4n-error = { path = "../a4n-error" }
+a4n-queue = { path = "../a4n-queue" }
+anyhow = { workspace = true }
 chrono = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
 serde = { workspace = true }
+tokio = { workspace = true }
 tokio-util = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
+a4n-db = { path = "../a4n-db" }
+a4n-api-contract = { path = "../a4n-api-contract" }
+a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-db-models = { path = "../a4n-db-models" }
+a4n-migration = { path = "../a4n-migration" }
 serde_json = { workspace = true }
+sea-orm = { workspace = true }
+tokio = { workspace = true }

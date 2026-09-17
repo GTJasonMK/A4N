@@ -7,7 +7,7 @@ use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
 use crate::chapter_generation::ChapterGenerationService;
-use crate::task_queue::PersistentTaskQueue;
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 mod admin;
 mod asset;
@@ -156,4 +156,5 @@ pub struct OrchestratorContext {
     engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     embedding: Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
     snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
+    document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
 }

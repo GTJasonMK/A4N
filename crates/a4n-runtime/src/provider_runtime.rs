@@ -19,7 +19,7 @@ use a4n_queue::{
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
-pub(crate) struct DynamicProviderFacade {
+pub struct DynamicProviderFacade {
     port: Arc<dyn ProviderRuntimePort>,
 }
 

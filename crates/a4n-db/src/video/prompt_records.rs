@@ -28,10 +28,7 @@ pub(crate) use queries::{
     frame_chapter_video_prompt_record,
 };
 pub(crate) use types::PromptDependencyRecord;
-pub use types::{
-    ChapterVideoPromptCandidateRecord, ChapterVideoPromptRecordFields,
-    ChapterVideoPromptTimelineRecord, UpdateChapterVideoPromptRecordInput,
-};
+pub use types::{ChapterVideoPromptCandidateRecord, ChapterVideoPromptTimelineRecord};
 
 #[cfg(test)]
 mod tests;

@@ -1,0 +1,20 @@
+[package]
+name = "a4n-media-service"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-media-contract = { path = "../a4n-media-contract" }
+a4n-media-processing-core = { path = "../a4n-media-processing-core" }
+a4n-sidecar-bootstrap = { path = "../a4n-sidecar-bootstrap" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+a4n-media-client = { path = "../a4n-media-client" }
+a4n-test-support = { path = "../a4n-test-support" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }

@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
 pub(super) fn validate_prompt_sync_draft(
     project_id: i64,

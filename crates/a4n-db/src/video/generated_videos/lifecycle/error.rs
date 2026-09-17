@@ -3,6 +3,7 @@ use a4n_db_models::models::{
     chapter::{chapter, chapter_video_prompt},
     project::novel_project,
 };
+use a4n_domain::media::GeneratedVideoErrorStatusBatchInput;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
@@ -85,13 +86,6 @@ pub(super) fn normalize_generated_video_error_message(message: &str) -> Result<&
     } else {
         Ok(message)
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct GeneratedVideoErrorStatusBatchInput {
-    pub video_id: i64,
-    pub prompt_id: Option<i64>,
-    pub status: String,
 }
 
 /// 在一个事务内批量终止相互独立的视频记录。

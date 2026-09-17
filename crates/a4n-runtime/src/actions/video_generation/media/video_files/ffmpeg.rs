@@ -1,36 +1,42 @@
+use crate::AppState;
+use a4n_media_contract::MediaExecuteInput;
 use std::path::Path;
 
-pub(in crate::actions::video_generation::media) fn capture_video_tail_frame(
+pub(in crate::actions::video_generation::media) async fn capture_video_tail_frame(
+    state: &AppState,
     video_path: &Path,
     output: &Path,
 ) -> Result<(), String> {
-    a4n_media::extract_video_tail_frame(video_path, output).map_err(|error| match error {
-        a4n_media::FfmpegCommandError::Unavailable { source } => {
-            format!("采集视频尾帧失败：未能启动 FFmpeg：{source}")
-        }
-        a4n_media::FfmpegCommandError::Failed { stderr } => {
-            format!("采集视频尾帧失败：{stderr}")
-        }
-    })
+    let input = state.data_media_file_ref(video_path, "尾帧源视频")?;
+    let output = state.data_media_file_ref(output, "尾帧输出图片")?;
+    match state
+        .execute_media(MediaExecuteInput::ExtractVideoTailFrame { input, output })
+        .await?
+    {
+        a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+        output => Err(format!("采集视频尾帧返回了不匹配的输出：{output:?}")),
+    }
 }
 
-pub(crate) fn run_ffmpeg_trim(
+pub(crate) async fn run_ffmpeg_trim(
+    state: &AppState,
     input: &Path,
     output: &Path,
     start_secs: f32,
     end_secs: f32,
 ) -> Result<(), String> {
-    a4n_media::trim_video_segment(input, output, start_secs, end_secs).map_err(
-        |error| match error {
-            a4n_media::FfmpegTrimError::InvalidTimeRange => {
-                "FFmpeg 裁剪失败：裁剪时间范围无效".to_string()
-            }
-            a4n_media::FfmpegTrimError::Unavailable { source } => {
-                format!("启动 FFmpeg 失败：{source}")
-            }
-            a4n_media::FfmpegTrimError::Failed { stderr } => {
-                format!("FFmpeg 裁剪失败：{stderr}")
-            }
-        },
-    )
+    let input = state.data_media_file_ref(input, "裁剪源视频")?;
+    let output = state.data_media_file_ref(output, "裁剪输出视频")?;
+    match state
+        .execute_media(MediaExecuteInput::TrimVideoSegment {
+            input,
+            output,
+            start_secs,
+            end_secs,
+        })
+        .await?
+    {
+        a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+        output => Err(format!("FFmpeg 裁剪返回了不匹配的输出：{output:?}")),
+    }
 }

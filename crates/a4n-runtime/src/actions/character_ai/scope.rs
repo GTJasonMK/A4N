@@ -5,8 +5,8 @@ use super::{
 use crate::{AppState, actions::access};
 use a4n_character_host_contract::{
     CHARACTER_DISCOVERY_PROGRESS_TOTAL, CHARACTER_PROFILE_SYNC_STEPS,
+    validate_character_discovery_input,
 };
-use a4n_orchestrator::character::validate_character_discovery_input;
 
 pub async fn character_discovery_task_scope(
     state: &AppState,

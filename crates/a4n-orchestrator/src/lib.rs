@@ -39,7 +39,6 @@ pub mod scene_profile;
 pub mod shooting_script;
 pub mod source_sync;
 mod structured_llm;
-pub mod task_queue;
 mod text_anchor;
 mod theme;
 pub mod video;

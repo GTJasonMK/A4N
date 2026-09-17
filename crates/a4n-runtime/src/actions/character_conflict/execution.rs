@@ -1,7 +1,8 @@
 use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
-use a4n_character_host_contract::CHARACTER_CONFLICT_PROGRESS_TOTAL;
+use a4n_character_host_contract::{
+    CHARACTER_CONFLICT_PROGRESS_TOTAL, validate_character_conflict_input,
+};
 use a4n_error::AppError;
-use a4n_orchestrator::character::validate_character_conflict_input;
 
 use crate::{
     AppState,

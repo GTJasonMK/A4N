@@ -1,3 +1,4 @@
+use a4n_api_contract::media::MediaAudioProbeHostPort;
 use a4n_error::AppError;
 use a4n_media::decode_uploaded_audio_data;
 use a4n_storage::remove_existing_data_file;
@@ -89,6 +90,7 @@ impl OrchestratorContext {
 
     pub async fn import_galgame_audio_validated(
         &self,
+        host_port: &dyn MediaAudioProbeHostPort,
         input: ImportGalgameAudioInput,
     ) -> Result<GalgameMediaBindingSummary, AppError> {
         let role = match input.role {
@@ -118,12 +120,14 @@ impl OrchestratorContext {
             source.extension,
             "Galgame 音频",
             "Galgame 音频文件",
+            host_port,
             |output| {
                 output
                     .write_all(&source.bytes)
                     .map_err(|error| format!("写入 Galgame 音频文件失败：{error}"))
             },
         )
+        .await
         .map_err(|operation| AppError::InvalidState {
             current: "galgame_audio_persist".to_string(),
             operation,

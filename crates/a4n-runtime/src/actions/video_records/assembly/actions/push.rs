@@ -63,6 +63,7 @@ pub async fn push_assembled_chapter_video(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let manifest = build_assembly_cache_manifest(
+        state,
         project_id,
         chapter_id,
         &context.manifest.workflow_mode,
@@ -70,8 +71,10 @@ pub async fn push_assembled_chapter_video(
         prepared.video.height,
         prepared.video.fps,
         &source_clips,
-    )?;
+    )
+    .await?;
     let record = prepared.video;
+    let (width, height, fps) = (record.width, record.height, record.fps);
     let (output, output_path_str, size) = persist_assembly_record_output(
         state,
         record.id,
@@ -86,27 +89,29 @@ pub async fn push_assembled_chapter_video(
             )
         },
         |output| {
-            run_ffmpeg_assemble_videos(
-                &source_clips,
-                output,
-                record.width,
-                record.height,
-                record.fps,
-                &manifest,
-            )
+            let state = state.clone();
+            let source_clips = source_clips.clone();
+            let manifest = manifest.clone();
+            async move {
+                run_ffmpeg_assemble_videos(
+                    &state,
+                    &source_clips,
+                    &output,
+                    width,
+                    height,
+                    fps,
+                    &manifest,
+                )
+                .await
+            }
         },
         "推送成片文件",
         "推送成片",
         "推送成片文件",
     )
     .await?;
-    let thumbnail_path = best_effort_video_thumbnail_path(
-        state.data_dir(),
-        project_id,
-        chapter_id,
-        record.id,
-        &output,
-    );
+    let thumbnail_path =
+        best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let updated = complete_video_record(
         state,
         record.id,

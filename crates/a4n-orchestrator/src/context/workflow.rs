@@ -13,6 +13,7 @@ use a4n_db::DbHandle;
 use a4n_db_models::models::generation::{
     workflow_checkpoint, workflow_progress_event, workflow_run,
 };
+use a4n_domain::media::GeneratedVideoErrorStatusBatchInput;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -674,7 +675,7 @@ impl OrchestratorContext {
             if is_video_status_final_for_cancel_interrupt(&video.status) {
                 continue;
             }
-            inputs.push(a4n_db::video::GeneratedVideoErrorStatusBatchInput {
+            inputs.push(GeneratedVideoErrorStatusBatchInput {
                 video_id: video.id,
                 prompt_id: a4n_domain::video::generated_video_prompt_id(
                     video.metadata_json.as_ref(),

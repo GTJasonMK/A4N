@@ -30,8 +30,9 @@ pub const SIDECAR_PROCESS_TEST_TOKEN: &str = "a4n-process-test-token";
 pub use a4n_embedding_client::{EmbeddingClient, HttpEmbeddingClient};
 pub use a4n_export_client::{ExportClient, HttpExportClient};
 pub use a4n_export_contract::{
-    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportRenderJsonInput,
-    ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
+    EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportChapter, ExportDocument,
+    ExportDocumentFormat, ExportRenderDocumentInput, ExportRenderJsonInput, ExportRenderZipInput,
+    ExportZipEntryBytes, ExportZipPackageInput,
 };
 pub use a4n_image_client::{HttpImageClient, ImageClient};
 pub use a4n_import_client::{HttpImportClient, ImportClient};
@@ -39,6 +40,10 @@ pub use a4n_import_contract::{
     IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportReadMediaPackageZipInput,
 };
 pub use a4n_llm_client::{HttpLlmClient, LlmClient};
+pub use a4n_media_client::{HttpMediaClient, MediaClient};
+pub use a4n_media_contract::{
+    MEDIA_FFMPEG_CAPABILITY_VERSION, MEDIA_SERVICE_NAME, MediaExecuteInput, MediaExecuteOutput,
+};
 pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
 pub type JsonRequest = ServiceRequest<Value>;
 

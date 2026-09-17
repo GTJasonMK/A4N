@@ -11,6 +11,62 @@ pub const EXPORT_RENDER_CAPABILITY_VERSION: &str = "export-render-v3";
 pub const EXPORT_SERVICE_ADDR_ENV: &str = "A4N_EXPORT_SERVICE_ADDR";
 pub const EXPORT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47648";
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExportChapter {
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExportDocument {
+    pub title: String,
+    pub chapters: Vec<ExportChapter>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportDocumentFormat {
+    Txt,
+    Markdown,
+    Epub,
+    Pdf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExportRenderDocumentInput {
+    pub document: ExportDocument,
+    pub format: ExportDocumentFormat,
+    pub author: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExportRenderDocumentOutput {
+    pub bytes_base64: String,
+    pub extension: String,
+    pub content_type: String,
+}
+
+impl ExportRenderDocumentOutput {
+    pub fn into_bytes(self) -> Result<Vec<u8>, ExportContractError> {
+        decode_base64("导出文档", &self.bytes_base64)
+    }
+}
+
+#[async_trait::async_trait]
+pub trait ExportDocumentRenderer: Send + Sync {
+    async fn render_document(
+        &self,
+        input: ExportRenderDocumentInput,
+        project_id: Option<i64>,
+        root_project_id: Option<i64>,
+    ) -> Result<ExportRenderDocumentOutput, String>;
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExportContractError {
     #[error("{label} base64 解码失败：{source}")]
@@ -169,5 +225,18 @@ mod tests {
             .into_package_input()
             .expect_err("invalid entry base64 must fail");
         assert!(error.to_string().contains("media file base64 解码失败"));
+    }
+
+    #[test]
+    fn document_contract_reports_invalid_base64() {
+        let error = ExportRenderDocumentOutput {
+            bytes_base64: "not base64".to_string(),
+            extension: "txt".to_string(),
+            content_type: "text/plain;charset=utf-8".to_string(),
+        }
+        .into_bytes()
+        .expect_err("invalid document base64 must fail");
+
+        assert!(error.to_string().contains("导出文档 base64 解码失败"));
     }
 }

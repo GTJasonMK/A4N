@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use a4n_api_contract::character::{
     DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
 };
+use a4n_character_host_contract::validate_character_discovery_input;
 use a4n_error::AppError;
 use a4n_llm_context::chat_request_with_workflow_run_id;
 use a4n_llm_structured_stream::StructuredLlmProgress;
@@ -327,23 +328,6 @@ impl OrchestratorContext {
             analyzed_chapters,
         })
     }
-}
-
-pub fn validate_character_discovery_input(
-    input: &DiscoverCharacterProfilesInput,
-) -> Result<(), AppError> {
-    if input.project_id <= 0 {
-        return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
-    }
-    if input
-        .chapter_number
-        .is_some_and(|chapter_number| chapter_number <= 0)
-    {
-        return Err(AppError::InvalidArgument(
-            "角色发现章节号必须大于 0".to_string(),
-        ));
-    }
-    Ok(())
 }
 
 pub(super) fn report_character_discovery_progress(

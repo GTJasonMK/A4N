@@ -1,4 +1,4 @@
-use super::{read_import_media_package_zip, render_export_zip_package};
+use super::{document_export_renderer, read_import_media_package_zip, render_export_zip_package};
 use crate::state::RuntimeProfile;
 use a4n_archive_core::{ArchiveEntry, write_zip};
 use a4n_export_contract::{ExportRenderZipOutput, ExportZipPackageInput};
@@ -45,6 +45,15 @@ async fn export_package_io_sidecar_missing_capability_fails_without_local_fallba
     )
     .await
     .expect_err("missing export capability must fail before local zip rendering");
+
+    assert!(error.contains("export sidecar capability 未配置"));
+}
+
+#[test]
+fn document_export_sidecar_missing_capability_fails_without_local_fallback() {
+    let error = document_export_renderer(RuntimeProfile::Sidecar, None)
+        .err()
+        .expect("missing document export capability must fail");
 
     assert!(error.contains("export sidecar capability 未配置"));
 }

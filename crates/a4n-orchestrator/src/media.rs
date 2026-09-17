@@ -50,6 +50,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use a4n_api_contract::media::MediaAudioProbeHostPort;
 use a4n_db::media::MediaDbError;
 use a4n_db_models::models::media::media_asset;
 use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
@@ -57,7 +58,7 @@ use a4n_error::AppError;
 use a4n_storage::{
     create_unique_timestamped_file,
     paths::{ProjectPaths, data_dir_relative_file_path},
-    remove_created_file_on_error_sync,
+    remove_created_file_on_error,
 };
 use sha2::{Digest, Sha256};
 
@@ -69,36 +70,40 @@ pub(crate) struct PersistedAudioFile {
     pub duration_secs: f32,
 }
 
-pub(crate) fn persist_audio_file<F>(
+pub(crate) async fn persist_audio_file<F>(
     data_dir: &Path,
     project_id: i64,
     prefix: &str,
     extension: &str,
     directory_label: &str,
     file_label: &str,
+    host_port: &dyn MediaAudioProbeHostPort,
     write_file: F,
 ) -> Result<PersistedAudioFile, String>
 where
-    F: FnOnce(&mut File) -> Result<(), String>,
+    F: FnOnce(&mut File) -> Result<(), String> + Send,
 {
     let dir = ProjectPaths::new(data_dir, project_id).audio_dir();
     std::fs::create_dir_all(&dir)
         .map_err(|error| format!("无法创建{directory_label}目录：{error}"))?;
     let (path, mut output_file) = create_unique_timestamped_file(&dir, prefix, extension)
         .map_err(|error| format!("创建{file_label}失败：{error}"))?;
-    remove_created_file_on_error_sync(&path, file_label, || {
+    remove_created_file_on_error(&path, file_label, async {
         write_file(&mut output_file)?;
         output_file
             .flush()
             .map_err(|error| format!("刷新{file_label}失败：{error}"))?;
         let relative_path = data_dir_relative_file_path(data_dir, &path, file_label)?;
-        let duration_secs = a4n_media::probe_audio_duration_secs(&path)
+        let duration_secs = host_port
+            .probe_audio_duration_secs(&relative_path)
+            .await
             .map_err(|error| format!("无法读取{file_label}时长：{error}"))?;
         Ok(PersistedAudioFile {
             relative_path,
             duration_secs,
         })
     })
+    .await
 }
 
 impl OrchestratorContext {
@@ -288,6 +293,50 @@ fn media_db_error(error: MediaDbError) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestAudioProbe;
+
+    #[async_trait::async_trait]
+    impl MediaAudioProbeHostPort for TestAudioProbe {
+        async fn probe_audio_duration_secs(
+            &self,
+            _relative_data_path: &str,
+        ) -> Result<f32, AppError> {
+            Ok(1.25)
+        }
+    }
+
+    #[tokio::test]
+    async fn persist_audio_file_delegates_duration_probe_to_host() {
+        let root = std::env::temp_dir().join(format!(
+            "a4n-audio-probe-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock must be after UNIX_EPOCH")
+                .as_nanos()
+        ));
+        let persisted = persist_audio_file(
+            &root,
+            7,
+            "audio",
+            "mp3",
+            "项目音频",
+            "音频文件",
+            &TestAudioProbe,
+            |file| file.write_all(b"audio").map_err(|error| error.to_string()),
+        )
+        .await
+        .expect("audio persistence should use host probe");
+
+        assert_eq!(persisted.duration_secs, 1.25);
+        assert_eq!(
+            std::fs::read(root.join(&persisted.relative_path)).expect("read persisted audio"),
+            b"audio"
+        );
+        std::fs::remove_dir_all(root).expect("remove audio test directory");
+    }
+
     #[test]
     fn media_thumbnail_path_must_be_relative_to_data_dir() {
         let error = resolve_data_file(

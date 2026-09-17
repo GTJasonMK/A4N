@@ -3,10 +3,9 @@ use super::generation::{record_video_generation_run, validate_generation_run_for
 use super::record::insert_generated_video_record;
 use super::validation::validate_create_generated_video_record_input;
 use crate::generation::RecordStartedGenerationRunInput;
-use crate::video::{
-    CreateGeneratedVideoRecordDraftInput, VideoDbError, lock_generated_media_project,
-};
+use crate::video::{VideoDbError, lock_generated_media_project};
 use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 /// 校验项目、章节和源媒体归属后写入 generated_video。

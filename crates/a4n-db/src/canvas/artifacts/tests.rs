@@ -34,7 +34,7 @@ async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
     .unwrap();
     let image = crate::video::create_generated_image_record(
         &db,
-        crate::video::CreateGeneratedImageRecordDraftInput {
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id: project.id,
             image_type: IMAGE_TYPE_CANVAS.to_string(),
             file_path: format!("projects/{}/images/rollback.png", project.id),
@@ -140,7 +140,7 @@ async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips(
     for index in 0..3 {
         let video = crate::video::create_generated_video_record(
             &db,
-            crate::video::CreateGeneratedVideoRecordDraftInput {
+            a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: None,
                 video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
@@ -176,7 +176,7 @@ async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips(
     source_video_ids.push(source_video_ids[0]);
     let assembly = crate::video::create_generated_video_record(
         &db,
-        crate::video::CreateGeneratedVideoRecordDraftInput {
+        a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
             video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),

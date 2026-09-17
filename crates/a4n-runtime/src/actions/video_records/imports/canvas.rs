@@ -4,7 +4,7 @@ mod frame;
 use super::contracts::ImportedVideoSource;
 use super::source::{
     import_video_source, persist_imported_video_file, probe_imported_video_properties,
-    uploaded_video_source,
+    stage_imported_video_source, uploaded_video_source,
 };
 use crate::AppState;
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
@@ -26,7 +26,10 @@ pub(crate) async fn import_canvas_video(
         (Some(_), None) if input.file_name.is_some() || input.mime_type.is_some() => {
             return Err("file_path 画布视频导入不能同时提供 file_name 或 mime_type".to_string());
         }
-        (Some(file_path), None) => import_video_source(file_path, "画布视频导入")?,
+        (Some(file_path), None) => stage_imported_video_source(
+            state.temp_dir(),
+            import_video_source(file_path, "画布视频导入")?,
+        )?,
         (None, Some(data_base64)) => {
             let file_name = input
                 .file_name
@@ -54,7 +57,7 @@ async fn create_imported_canvas_video(
     project_id: i64,
     source: ImportedVideoSource,
 ) -> Result<i64, String> {
-    let properties = probe_imported_video_properties(&source, "画布导入视频")?;
+    let properties = probe_imported_video_properties(state, &source, "画布导入视频").await?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
         .video_canvas_import_application()

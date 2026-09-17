@@ -14,6 +14,7 @@ runtime-client	a4n-runtime	a4n-prompt-client	normal
 runtime-client	a4n-runtime	a4n-rag-client	normal
 runtime-client	a4n-runtime	a4n-service-client	normal
 runtime-client	a4n-runtime	a4n-video-client	normal
+runtime-client	a4n-runtime	a4n-media-client	normal
 
 # Future capability clients point at their own contract, shared transport, and protocol identity.
 client-dependency	a4n-prompt-client	a4n-prompt-contract	normal
@@ -42,6 +43,9 @@ client-dependency	a4n-video-client	a4n-service-client	normal
 client-dependency	a4n-video-client	a4n-service-client	dev
 client-dependency	a4n-video-client	a4n-model-discovery-contract	normal
 client-dependency	a4n-video-client	a4n-video-sidecar-contract	normal
+client-dependency	a4n-media-client	a4n-media-contract	normal
+client-dependency	a4n-media-client	a4n-service-client	normal
+client-dependency	a4n-media-client	a4n-service-protocol	normal
 client-dependency	a4n-import-client	a4n-import-contract	normal
 client-dependency	a4n-import-client	a4n-service-client	normal
 client-dependency	a4n-export-client	a4n-export-contract	normal

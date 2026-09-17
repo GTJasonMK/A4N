@@ -7,18 +7,19 @@ use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
-use a4n_db::video::{
-    ChapterVideoPromptTimelineRecord, CreateGeneratedImageRecordDraftInput,
-    CreateGeneratedVideoRecordDraftInput, CreateImagePublicationIntentInput,
-    ImagePublicationFileFacts, UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
-};
-use a4n_db::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
+use a4n_db::video::ChapterVideoPromptTimelineRecord;
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{chapter_video_prompt, chapter_video_timeline},
     media::image_publication,
 };
+use a4n_domain::media::{
+    CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
+    CreateImagePublicationIntentInput, GeneratedVideoErrorStatusBatchInput,
+    ImagePublicationFileFacts, UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
+};
 use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_domain::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
 use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap};
 use a4n_error::AppError;
 use a4n_video::validate_video_max_concurrent;
@@ -530,7 +531,7 @@ impl VideoApplication {
 
     pub(super) async fn mark_generated_videos_error_status_and_prompt_records(
         &self,
-        inputs: &[a4n_db::video::GeneratedVideoErrorStatusBatchInput],
+        inputs: &[GeneratedVideoErrorStatusBatchInput],
         message: &str,
     ) -> Result<Vec<i64>, AppError> {
         a4n_db::video::mark_generated_videos_error_status_and_prompt_records(

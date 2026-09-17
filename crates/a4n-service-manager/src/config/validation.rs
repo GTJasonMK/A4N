@@ -38,6 +38,12 @@ impl ManagedServiceConfig {
     }
 
     fn validate_remote(&self) -> Result<(), ServiceManagerError> {
+        if service_catalog_entry(&self.name).is_some_and(|service| service.local_only) {
+            return Err(ServiceManagerError::InvalidConfig(format!(
+                "remote service {} requires access to the Host local filesystem and must run as a managed sidecar",
+                self.name
+            )));
+        }
         let url =
             parse_remote_service_url(self.url.as_deref().unwrap_or("")).map_err(|reason| {
                 ServiceManagerError::InvalidConfig(format!("remote service {} {reason}", self.name))

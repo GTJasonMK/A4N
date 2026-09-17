@@ -1,12 +1,132 @@
 use serde_json::Value;
 use std::path::Path;
 
+use chrono::NaiveDateTime;
+
 /// Facts inspected from a generated media file before publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedMediaArtifactFile {
     pub content_type: String,
     pub sha256: String,
     pub byte_size: u64,
+}
+
+/// Decoded image facts passed from media parsing to the image publication
+/// owner. The parser owns validation; this pure value carries no image crate
+/// or file-system implementation dependency.
+#[derive(Debug)]
+pub struct DecodedUploadedImage {
+    pub bytes: Vec<u8>,
+    pub extension: &'static str,
+    pub mime_type: &'static str,
+    pub width: i32,
+    pub height: i32,
+    pub source_file_name: String,
+}
+
+/// Decoded audio facts passed from upload validation to the owning workflow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedUploadedAudio {
+    pub file_name: String,
+    pub mime_type: &'static str,
+    pub extension: &'static str,
+    pub bytes: Vec<u8>,
+}
+
+/// Pure input for creating a generated-image record. Database validation,
+/// project ownership, locking and persistence stay in `a4n-db`.
+#[derive(Debug, Clone)]
+pub struct CreateGeneratedImageRecordDraftInput {
+    pub project_id: i64,
+    pub image_type: String,
+    pub file_path: String,
+    pub prompt: String,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: Option<i64>,
+    pub chapter_id: Option<i64>,
+    pub panel_id: Option<String>,
+    pub metadata_json: Option<Value>,
+    pub created_at: Option<NaiveDateTime>,
+}
+
+/// Pure input for creating a generated-video record. Database validation,
+/// source ownership checks, locking and persistence stay in `a4n-db`.
+#[derive(Debug, Clone)]
+pub struct CreateGeneratedVideoRecordDraftInput {
+    pub project_id: i64,
+    pub chapter_id: Option<i64>,
+    pub video_type: String,
+    pub workflow_mode: Option<String>,
+    pub prompt: String,
+    pub negative_prompt: Option<String>,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub duration_secs: f32,
+    pub fps: i32,
+    pub source_video_id: Option<i64>,
+    pub source_image_id: Option<i64>,
+    pub provider_job_id: Option<String>,
+    pub metadata_json: Option<Value>,
+}
+
+/// Pure patch input for a generated-image record. Database ownership checks,
+/// normalization and persistence stay in `a4n-db`.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateGeneratedImageRecordInput {
+    pub prompt: Option<String>,
+    pub image_type: Option<String>,
+    pub chapter_id: Option<i64>,
+    pub clear_chapter_id: bool,
+    pub panel_id: Option<String>,
+    pub clear_panel_id: bool,
+    pub ai_score: Option<f32>,
+    pub clear_ai_score: bool,
+    pub is_favorite: Option<bool>,
+}
+
+/// Pure patch input for a generated-video record. Database ownership checks,
+/// normalization and persistence stay in `a4n-db`.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateGeneratedVideoRecordInput {
+    pub prompt: Option<String>,
+    pub negative_prompt: Option<String>,
+    pub clear_negative_prompt: bool,
+    pub metadata_json: Option<Value>,
+    pub clear_metadata_json: bool,
+    pub is_favorite: Option<bool>,
+}
+
+/// Input for recording a pending image publication. The database owns the
+/// transaction and state machine; this value only carries the request facts.
+#[derive(Debug, Clone)]
+pub struct CreateImagePublicationIntentInput {
+    pub publication_id: String,
+    pub project_id: i64,
+    pub requested_by_user_id: i64,
+    pub staging_path: String,
+    pub final_path: String,
+    pub image: CreateGeneratedImageRecordDraftInput,
+    pub expected_file_size: i64,
+    pub expected_sha256: String,
+}
+
+/// File facts recorded by the media adapter during image publication.
+#[derive(Debug, Clone)]
+pub struct ImagePublicationFileFacts {
+    pub file_size: i64,
+    pub sha256: String,
+}
+
+/// One video transition in a batch terminal-status update. The database owns
+/// status validation, prompt linkage and the transaction.
+#[derive(Debug, Clone)]
+pub struct GeneratedVideoErrorStatusBatchInput {
+    pub video_id: i64,
+    pub prompt_id: Option<i64>,
+    pub status: String,
 }
 
 /// Durable facts needed to recover an image publication without exposing ORM
