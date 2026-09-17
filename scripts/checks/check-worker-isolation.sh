@@ -77,6 +77,11 @@ if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$ser
     echo "default Server dependency tree unexpectedly contains Novel Planning Worker implementation" >&2
     exit 1
 fi
+control_tree="$(cargo tree --locked -e normal,build -p a4n-control --no-default-features)"
+if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$control_tree"; then
+    echo "Control dependency tree unexpectedly contains Novel Planning Worker implementation" >&2
+    exit 1
+fi
 
 if rg -n 'a4n[-_]export[-_]core' crates/a4n-test-support/Cargo.toml crates/a4n-test-support/src; then
     echo "shared test support must not pull the export Worker implementation" >&2
