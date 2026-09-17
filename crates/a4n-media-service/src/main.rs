@@ -19,7 +19,7 @@ const TEMP_DIR_ENV: &str = "A4N_TEMP_DIR";
 
 #[derive(Clone)]
 struct MediaState {
-    roots: a4n_media_render_core::MediaRoots,
+    roots: a4n_media_processing_core::MediaRoots,
 }
 
 #[tokio::main]
@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     if !temp_dir.is_dir() {
         anyhow::bail!("{TEMP_DIR_ENV} 不是目录: {}", temp_dir.display());
     }
-    let roots = a4n_media_render_core::MediaRoots::new(&data_dir, &temp_dir)
+    let roots = a4n_media_processing_core::MediaRoots::new(&data_dir, &temp_dir)
         .map_err(|error| anyhow::anyhow!(error))?;
     let policy = a4n_service_protocol::sidecar_resource_policy(MEDIA_SERVICE_NAME)
         .expect("media service must have a resource policy");

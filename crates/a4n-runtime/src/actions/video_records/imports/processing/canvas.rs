@@ -19,21 +19,3 @@ pub(in crate::actions::video_records::imports) fn canvas_frame_output_path(
     drop(file);
     Ok(path)
 }
-
-pub(in crate::actions::video_records::imports) fn run_ffmpeg_extract_frame(
-    video_path: &Path,
-    output: &Path,
-    at_secs: f32,
-) -> Result<(), String> {
-    a4n_media::extract_video_frame(video_path, output, at_secs).map_err(|error| match error {
-        a4n_media::FfmpegFrameError::InvalidTimestamp => "画布抽帧失败：抽帧时间无效".to_string(),
-        a4n_media::FfmpegFrameError::Command(a4n_media::FfmpegCommandError::Unavailable {
-            source,
-        }) => {
-            format!("画布抽帧失败：未能启动 FFmpeg：{source}")
-        }
-        a4n_media::FfmpegFrameError::Command(a4n_media::FfmpegCommandError::Failed { stderr }) => {
-            format!("画布抽帧失败：{stderr}")
-        }
-    })
-}

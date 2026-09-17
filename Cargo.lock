@@ -874,7 +874,6 @@ dependencies = [
  "a4n-media-render-core",
  "base64 0.22.1",
  "image",
- "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -904,7 +903,6 @@ dependencies = [
  "a4n-media-contract",
  "a4n-media-render-core",
  "serde_json",
- "tempfile",
  "thiserror 2.0.18",
 ]
 
@@ -923,7 +921,6 @@ dependencies = [
  "a4n-media-client",
  "a4n-media-contract",
  "a4n-media-processing-core",
- "a4n-media-render-core",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
@@ -1361,7 +1358,7 @@ dependencies = [
  "a4n-media",
  "a4n-media-client",
  "a4n-media-contract",
- "a4n-media-render-core",
+ "a4n-media-processing-core",
  "a4n-migration",
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
@@ -1535,8 +1532,8 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
- "a4n-progress",
  "a4n-migration",
+ "a4n-progress",
  "a4n-queue",
  "anyhow",
  "chrono",
@@ -1545,6 +1542,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "tokio",
  "tokio-util",
  "tracing",
  "uuid",

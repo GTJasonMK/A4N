@@ -30,7 +30,7 @@ pub async fn load_video_scrub_playback_data(
     let source_path = authorized_video_path(state, user_id, video_id).await?;
     let (proxy_path, frames_path, current_prefix) =
         scrub_cache_paths(state.temp_dir(), video_id, &source_path, include_audio)?;
-    if !is_valid_scrub_proxy(&proxy_path) {
+    if !is_valid_scrub_proxy(state, &proxy_path).await {
         remove_scrub_temp_file(&proxy_path);
         generate_scrub_proxy(state, &source_path, &proxy_path, include_audio).await?;
     }
@@ -189,8 +189,12 @@ fn is_non_empty_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn is_valid_scrub_proxy(path: &Path) -> bool {
-    is_non_empty_file(path) && a4n_media::probe_video_properties(path).is_ok()
+async fn is_valid_scrub_proxy(state: &AppState, path: &Path) -> bool {
+    is_non_empty_file(path)
+        && state
+            .probe_media_video_properties(path, a4n_media_contract::MediaRoot::Temp, "剪辑预览代理")
+            .await
+            .is_ok()
 }
 
 fn remove_scrub_temp_file(path: &Path) {

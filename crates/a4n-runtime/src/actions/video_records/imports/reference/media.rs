@@ -45,7 +45,7 @@ async fn create_imported_reference_media_video(
     source: ImportedVideoSource,
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let properties = probe_imported_video_properties(&source, "导入参考媒体视频")?;
+    let properties = probe_imported_video_properties(state, &source, "导入参考媒体视频").await?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
         .video_reference_media_import_application()
@@ -83,13 +83,8 @@ async fn create_imported_reference_media_video(
         "导入参考媒体视频文件",
     )
     .await?;
-    let thumbnail_path = best_effort_video_thumbnail_path(
-        state.data_dir(),
-        project_id,
-        chapter_id,
-        record.id,
-        &output,
-    );
+    let thumbnail_path =
+        best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let updated = complete_video_record(
         state,
         record.id,

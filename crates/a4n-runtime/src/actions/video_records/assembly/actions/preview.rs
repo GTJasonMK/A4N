@@ -15,6 +15,7 @@ use a4n_domain::media::video_mime_from_path;
 use a4n_storage::data_file_record_facts;
 use base64::Engine;
 use chrono::Utc;
+use std::future::Future;
 use std::path::Path;
 
 impl AssemblyRequestContext {
@@ -59,18 +60,21 @@ pub async fn assemble_chapter_videos(
         return context.preview(state.data_dir(), true);
     }
 
-    persist_assembly_preview_cache(&context.output_path, &context.manifest_path, || {
+    persist_assembly_preview_cache_async(&context.output_path, &context.manifest_path, async {
         run_ffmpeg_assemble_videos(
+            state,
             &context.clips,
             &context.output_path,
             context.manifest.width,
             context.manifest.height,
             context.manifest.fps,
             &context.manifest,
-        )?;
+        )
+        .await?;
         write_assembly_cache_manifest(&context.manifest_path, &context.manifest)?;
         context.preview(state.data_dir(), false)
     })
+    .await
 }
 
 pub async fn load_cached_assembled_chapter_video_preview(
@@ -140,6 +144,7 @@ fn read_assembled_video_preview(
     })
 }
 
+#[cfg(test)]
 pub(in crate::actions::video_records) fn persist_assembly_preview_cache<T, F>(
     output_path: &Path,
     manifest_path: &Path,
@@ -150,12 +155,33 @@ where
 {
     match operation() {
         Ok(value) => Ok(value),
-        Err(error) => {
-            let cleanup_error = combine_optional_errors(
-                remove_partial_video_file(output_path, "成片预览文件").err(),
-                remove_partial_video_file(manifest_path, "成片预览缓存清单").err(),
-            );
-            Err(append_secondary_error(error, cleanup_error))
-        }
+        Err(error) => Err(append_secondary_error(
+            error,
+            cleanup_assembly_preview_cache(output_path, manifest_path),
+        )),
     }
+}
+
+pub(in crate::actions::video_records) async fn persist_assembly_preview_cache_async<T, F>(
+    output_path: &Path,
+    manifest_path: &Path,
+    operation: F,
+) -> Result<T, String>
+where
+    F: Future<Output = Result<T, String>>,
+{
+    match operation.await {
+        Ok(value) => Ok(value),
+        Err(error) => Err(append_secondary_error(
+            error,
+            cleanup_assembly_preview_cache(output_path, manifest_path),
+        )),
+    }
+}
+
+fn cleanup_assembly_preview_cache(output_path: &Path, manifest_path: &Path) -> Option<String> {
+    combine_optional_errors(
+        remove_partial_video_file(output_path, "成片预览文件").err(),
+        remove_partial_video_file(manifest_path, "成片预览缓存清单").err(),
+    )
 }

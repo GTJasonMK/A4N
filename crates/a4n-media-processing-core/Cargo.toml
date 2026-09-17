@@ -10,6 +10,3 @@ a4n-media-contract = { path = "../a4n-media-contract" }
 a4n-media-render-core = { path = "../a4n-media-render-core" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-
-[dev-dependencies]
-tempfile = { workspace = true }

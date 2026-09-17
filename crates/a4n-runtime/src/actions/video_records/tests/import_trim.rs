@@ -30,6 +30,31 @@ fn import_video_source_path_rejects_unsupported_extension() {
 }
 
 #[test]
+fn staged_imported_video_source_is_owned_by_temp_directory_until_drop() {
+    let root = unique_temp_dir("a4n_staged_video_source");
+    let temp_dir = root.join("temp");
+    let source_path = root.join("external.mp4");
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    std::fs::write(&source_path, b"video-bytes").expect("write source video");
+    let source = super::imports::import_video_source(
+        &source_path.to_string_lossy(),
+        "导入视频",
+    )
+    .expect("load external video source");
+
+    let staged = super::imports::stage_imported_video_source(&temp_dir, source)
+        .expect("stage external video source");
+    let staged_path = staged.path.clone();
+    assert!(staged_path.starts_with(&temp_dir));
+    assert_eq!(std::fs::read(&staged_path).expect("read staged video"), b"video-bytes");
+    assert!(source_path.is_file());
+
+    drop(staged);
+    assert!(!staged_path.exists());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn uploaded_video_source_keeps_temp_file_until_drop_and_writes_all_bytes() {
     let temp_dir = unique_temp_dir("a4n_uploaded_video_source");
 

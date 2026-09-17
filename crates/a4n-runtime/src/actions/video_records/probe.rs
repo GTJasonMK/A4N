@@ -1,12 +1,20 @@
+use crate::AppState;
+use a4n_media_contract::MediaRoot;
 use std::path::Path;
 
-pub(in crate::actions::video_records) fn probe_video_properties(
+pub(in crate::actions::video_records) async fn probe_video_properties(
+    state: &AppState,
     path: &Path,
+    root: MediaRoot,
     label: &str,
-) -> Result<a4n_media::VideoProbeProperties, String> {
-    a4n_media::probe_video_properties(path).map_err(|error| video_probe_error_message(label, error))
+) -> Result<a4n_media_processing_core::VideoProbeProperties, String> {
+    state
+        .probe_media_video_properties(path, root, label)
+        .await
+        .map_err(|error| format!("读取{label}元数据失败：{error}"))
 }
 
+#[cfg(test)]
 pub(in crate::actions::video_records) fn video_probe_error_message(
     label: &str,
     error: a4n_media::VideoProbeError,

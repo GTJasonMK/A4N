@@ -6,7 +6,8 @@ mod upload;
 #[cfg(test)]
 pub(in crate::actions::video_records) use copying::copy_imported_video_file;
 pub(super) use copying::persist_imported_video_file;
-pub(super) use paths::import_video_source;
+pub(in crate::actions::video_records) use copying::stage_imported_video_source;
+pub(in crate::actions::video_records) use paths::import_video_source;
 #[cfg(test)]
 pub(in crate::actions::video_records) use paths::import_video_source_path;
 pub(in crate::actions::video_records) use probe::probe_imported_video_properties;

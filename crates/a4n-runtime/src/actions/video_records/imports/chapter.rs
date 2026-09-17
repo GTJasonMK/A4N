@@ -53,7 +53,7 @@ async fn create_imported_chapter_video(
     source: ImportedVideoSource,
 ) -> Result<GeneratedVideoSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
-    let properties = probe_imported_video_properties(&source, "导入视频")?;
+    let properties = probe_imported_video_properties(state, &source, "导入视频").await?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
         .video_chapter_import_application()
@@ -89,13 +89,8 @@ async fn create_imported_chapter_video(
         "导入视频文件",
     )
     .await?;
-    let thumbnail_path = best_effort_video_thumbnail_path(
-        state.data_dir(),
-        project_id,
-        chapter_id,
-        record.id,
-        &output,
-    );
+    let thumbnail_path =
+        best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let mut tail_frame_capture_error = None;
     let tail_frame_metadata = if should_capture_video_tail_frame_fields(
         &record.video_type,

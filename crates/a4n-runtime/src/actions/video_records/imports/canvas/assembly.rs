@@ -6,8 +6,11 @@ use crate::actions::video_records::assembly::{
     AssemblyClip, build_assembly_cache_manifest, run_ffmpeg_assemble_videos,
 };
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
-use a4n_storage::{canonicalize_data_file_path, persist_created_media_file};
-use std::path::{Path, PathBuf};
+use a4n_storage::{
+    canonicalize_data_file_path, data_file_record_facts, remove_created_file_on_error,
+};
+use std::future::Future;
+use std::path::PathBuf;
 
 pub(crate) async fn assemble_canvas_videos(
     state: &AppState,
@@ -58,6 +61,7 @@ pub(crate) async fn assemble_canvas_videos(
         .await
         .map_err(crate::actions::app_error_message)?;
     let manifest = build_assembly_cache_manifest(
+        state,
         project_id,
         0,
         "canvas_assembly",
@@ -65,7 +69,8 @@ pub(crate) async fn assemble_canvas_videos(
         height,
         fps,
         &clips,
-    )?;
+    )
+    .await?;
     let (output_path_str, file_size) = persist_canvas_assembly_output(
         state,
         record.id,
@@ -79,7 +84,15 @@ pub(crate) async fn assemble_canvas_videos(
                 "mp4",
             )
         },
-        |output| run_ffmpeg_assemble_videos(&clips, output, width, height, fps, &manifest),
+        |output| {
+            let state = state.clone();
+            let clips = clips.clone();
+            let manifest = manifest.clone();
+            async move {
+                run_ffmpeg_assemble_videos(&state, &clips, &output, width, height, fps, &manifest)
+                    .await
+            }
+        },
     )
     .await?;
     let updated = complete_video_record(
@@ -96,7 +109,7 @@ pub(crate) async fn assemble_canvas_videos(
     Ok(updated)
 }
 
-async fn persist_canvas_assembly_output<B, R>(
+async fn persist_canvas_assembly_output<B, R, F>(
     state: &AppState,
     record_id: i64,
     build_output: B,
@@ -104,18 +117,20 @@ async fn persist_canvas_assembly_output<B, R>(
 ) -> Result<(String, i64), String>
 where
     B: FnOnce() -> Result<PathBuf, String>,
-    R: FnOnce(&Path) -> Result<(), String>,
+    R: FnOnce(PathBuf) -> F,
+    F: Future<Output = Result<(), String>> + Send,
 {
-    let result = build_output().and_then(|output| {
-        persist_created_media_file(
-            state.data_dir(),
-            &output,
-            render,
-            "画布成片文件",
-            "画布成片",
-            "画布成片文件",
-        )
-    });
+    let result = match build_output() {
+        Err(error) => Err(error),
+        Ok(output) => {
+            let render_output = output.clone();
+            remove_created_file_on_error(&output, "画布成片文件", async {
+                render(render_output).await?;
+                data_file_record_facts(state.data_dir(), &output, "画布成片", "画布成片文件")
+            })
+            .await
+        }
+    };
     match result {
         Ok(result) => Ok(result),
         Err(error) => {

@@ -538,34 +538,17 @@ impl AppState {
         &self.config.data_dir
     }
 
-    pub(crate) async fn render_media_scrub_proxy(
+    pub(crate) async fn execute_media(
         &self,
-        input_path: &Path,
-        output_path: &Path,
-        include_audio: bool,
-    ) -> Result<(), String> {
-        let input = self.media_file_ref(
-            input_path,
-            a4n_media_contract::MediaRoot::Data,
-            "剪辑源视频",
-        )?;
-        let output = self.media_file_ref(
-            output_path,
-            a4n_media_contract::MediaRoot::Temp,
-            "剪辑输出媒体",
-        )?;
-        let request_input = a4n_media_contract::MediaExecuteInput::GenerateVideoScrubProxy {
-            input,
-            output,
-            include_audio,
-        };
+        input: a4n_media_contract::MediaExecuteInput,
+    ) -> Result<a4n_media_contract::MediaExecuteOutput, String> {
         if self.runtime_profile.uses_sidecars() {
             let client = self.capabilities.media.as_ref().ok_or_else(|| {
-                "media sidecar capability 未配置，无法生成剪辑预览代理".to_string()
+                "media sidecar capability 未配置，无法执行本地媒体处理".to_string()
             })?;
             let request = pure_transform_typed_service_request(
                 a4n_media_contract::MEDIA_FFMPEG_CAPABILITY_VERSION,
-                request_input,
+                input,
                 None,
                 None,
             )?;
@@ -573,24 +556,99 @@ impl AppState {
                 .execute(request)
                 .await
                 .map_err(|error| error.message)?;
-            match typed_response_payload(response, "media")? {
-                a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
-                output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
-            }
-        } else {
-            let input_path = input_path.to_path_buf();
-            let output_path = output_path.to_path_buf();
-            tokio::task::spawn_blocking(move || {
-                a4n_media_render_core::generate_video_scrub_proxy(
-                    &input_path,
-                    &output_path,
-                    include_audio,
-                )
-                .map_err(|error| error.to_string())
-            })
-            .await
-            .map_err(|error| format!("剪辑预览代理生成任务异常终止：{error}"))??;
-            Ok(())
+            return typed_response_payload(response, "media");
+        }
+
+        let data_dir = self.config.data_dir.clone();
+        let temp_dir = self.config.temp_dir.clone();
+        tokio::task::spawn_blocking(move || {
+            let roots = a4n_media_processing_core::MediaRoots::new(&data_dir, &temp_dir)?;
+            a4n_media_processing_core::execute(&roots, input)
+        })
+        .await
+        .map_err(|error| format!("本地媒体处理任务异常终止：{error}"))?
+    }
+
+    pub(crate) fn data_media_file_ref(
+        &self,
+        path: &Path,
+        label: &str,
+    ) -> Result<a4n_media_contract::MediaFileRef, String> {
+        self.media_file_ref(path, a4n_media_contract::MediaRoot::Data, label)
+    }
+
+    pub(crate) fn temp_media_file_ref(
+        &self,
+        path: &Path,
+        label: &str,
+    ) -> Result<a4n_media_contract::MediaFileRef, String> {
+        self.media_file_ref(path, a4n_media_contract::MediaRoot::Temp, label)
+    }
+
+    pub(crate) async fn probe_media_video_properties(
+        &self,
+        path: &Path,
+        root: a4n_media_contract::MediaRoot,
+        label: &str,
+    ) -> Result<a4n_media_processing_core::VideoProbeProperties, String> {
+        let input = self.media_file_ref(path, root, label)?;
+        let output = self
+            .execute_media(a4n_media_contract::MediaExecuteInput::ProbeVideoProperties { input })
+            .await?;
+        match output {
+            a4n_media_contract::MediaExecuteOutput::VideoProbeProperties {
+                width,
+                height,
+                duration_secs,
+                fps,
+                codec_name,
+                profile,
+                has_b_frames,
+            } => Ok(a4n_media_processing_core::VideoProbeProperties {
+                width,
+                height,
+                duration_secs,
+                fps,
+                codec_name,
+                profile,
+                has_b_frames,
+            }),
+            output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
+        }
+    }
+
+    pub(crate) async fn probe_media_has_audio(
+        &self,
+        path: &Path,
+        root: a4n_media_contract::MediaRoot,
+        label: &str,
+    ) -> Result<bool, String> {
+        let input = self.media_file_ref(path, root, label)?;
+        let output = self
+            .execute_media(a4n_media_contract::MediaExecuteInput::ProbeVideoHasAudio { input })
+            .await?;
+        match output {
+            a4n_media_contract::MediaExecuteOutput::HasAudio { has_audio } => Ok(has_audio),
+            output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
+        }
+    }
+
+    pub(crate) async fn render_media_scrub_proxy(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+        include_audio: bool,
+    ) -> Result<(), String> {
+        let input = self.data_media_file_ref(input_path, "剪辑源视频")?;
+        let output = self.temp_media_file_ref(output_path, "剪辑输出媒体")?;
+        let request = a4n_media_contract::MediaExecuteInput::GenerateVideoScrubProxy {
+            input,
+            output,
+            include_audio,
+        };
+        match self.execute_media(request).await? {
+            a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+            output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
         }
     }
 
@@ -599,47 +657,13 @@ impl AppState {
         input_path: &Path,
         output_path: &Path,
     ) -> Result<(), String> {
-        let input = self.media_file_ref(
-            input_path,
-            a4n_media_contract::MediaRoot::Data,
-            "剪辑源视频",
-        )?;
-        let output = self.media_file_ref(
-            output_path,
-            a4n_media_contract::MediaRoot::Temp,
-            "剪辑输出媒体",
-        )?;
-        let request_input =
+        let input = self.data_media_file_ref(input_path, "剪辑源视频")?;
+        let output = self.temp_media_file_ref(output_path, "剪辑输出媒体")?;
+        let request =
             a4n_media_contract::MediaExecuteInput::GenerateVideoScrubFrames { input, output };
-        if self.runtime_profile.uses_sidecars() {
-            let client =
-                self.capabilities.media.as_ref().ok_or_else(|| {
-                    "media sidecar capability 未配置，无法生成剪辑拖动帧".to_string()
-                })?;
-            let request = pure_transform_typed_service_request(
-                a4n_media_contract::MEDIA_FFMPEG_CAPABILITY_VERSION,
-                request_input,
-                None,
-                None,
-            )?;
-            let response = client
-                .execute(request)
-                .await
-                .map_err(|error| error.message)?;
-            match typed_response_payload(response, "media")? {
-                a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
-                output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
-            }
-        } else {
-            let input_path = input_path.to_path_buf();
-            let output_path = output_path.to_path_buf();
-            tokio::task::spawn_blocking(move || {
-                a4n_media_render_core::generate_video_scrub_frames(&input_path, &output_path)
-                    .map_err(|error| error.to_string())
-            })
-            .await
-            .map_err(|error| format!("剪辑拖动帧生成任务异常终止：{error}"))??;
-            Ok(())
+        match self.execute_media(request).await? {
+            a4n_media_contract::MediaExecuteOutput::Unit => Ok(()),
+            output => Err(format!("media worker 返回了不匹配的输出：{output:?}")),
         }
     }
 

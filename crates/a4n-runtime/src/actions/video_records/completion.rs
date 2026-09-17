@@ -10,6 +10,7 @@ use a4n_api_contract::video::{
 };
 use a4n_domain::media::{MEDIA_STATUS_CANCELLED, MEDIA_STATUS_COMPLETED, MEDIA_STATUS_FAILED};
 use a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED;
+use a4n_media_contract::MediaRoot;
 use a4n_storage::canonicalize_data_file_path;
 use serde_json::Value;
 
@@ -74,12 +75,16 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         state.data_dir(),
         output_path_str,
         &format!("{failure_prefix}输出文件"),
-    )
-    .and_then(|output_path| {
-        probe_video_properties(&output_path, failure_prefix)
-            .map(|properties| properties.duration_secs)
-            .map_err(|error| format!("{failure_prefix}：{error}"))
-    }) {
+    ) {
+        Err(error) => Err(error),
+        Ok(output_path) => {
+            probe_video_properties(state, &output_path, MediaRoot::Data, failure_prefix)
+                .await
+                .map(|properties| properties.duration_secs)
+                .map_err(|error| format!("{failure_prefix}：{error}"))
+        }
+    };
+    let duration_secs = match duration_secs {
         Ok(duration_secs) => duration_secs,
         Err(error) => {
             let cleanup_error = enqueue_unadopted_video_file_cleanup(

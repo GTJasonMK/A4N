@@ -5,9 +5,12 @@ use crate::actions::video_generation::media::{
 };
 use crate::actions::video_records::complete_video_record;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+#[cfg(test)]
+use a4n_storage::remove_created_file_on_error_sync;
 use a4n_storage::{
-    canonicalize_data_file_path, data_file_record_facts, remove_created_file_on_error_sync,
+    canonicalize_data_file_path, data_file_record_facts, remove_created_file_on_error,
 };
+#[cfg(test)]
 use std::path::Path;
 
 pub async fn trim_video(
@@ -40,9 +43,11 @@ pub async fn trim_video(
         source.chapter_id,
         source.id,
     )?;
-    let (size, output_path_str) = persist_trimmed_video_output(state.data_dir(), &output, || {
-        run_ffmpeg_trim(&source_path, &output, start_secs, end_secs)
-    })?;
+    let (output_path_str, size) = remove_created_file_on_error(&output, "裁剪输出文件", async {
+        run_ffmpeg_trim(state, &source_path, &output, start_secs, end_secs).await?;
+        data_file_record_facts(state.data_dir(), &output, "裁剪视频", "裁剪视频文件")
+    })
+    .await?;
 
     let source_id = source.id;
     let source_project_id = source.project_id;
@@ -64,15 +69,19 @@ pub async fn trim_video(
             return Err(append_secondary_error(err.to_string(), cleanup_error));
         }
     };
-    let thumbnail_path = source_chapter_id.and_then(|chapter_id| {
-        best_effort_video_thumbnail_path(
-            state.data_dir(),
-            source_project_id,
-            chapter_id,
-            record.id,
-            &output,
-        )
-    });
+    let thumbnail_path = match source_chapter_id {
+        Some(chapter_id) => {
+            best_effort_video_thumbnail_path(
+                state,
+                source_project_id,
+                chapter_id,
+                record.id,
+                &output,
+            )
+            .await
+        }
+        None => None,
+    };
     let updated = complete_video_record(
         state,
         record.id,
@@ -87,6 +96,7 @@ pub async fn trim_video(
     Ok(updated)
 }
 
+#[cfg(test)]
 pub(in crate::actions::video_records) fn persist_trimmed_video_output<F>(
     data_dir: &Path,
     output: &Path,

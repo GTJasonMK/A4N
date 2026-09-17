@@ -1,8 +1,12 @@
 use super::super::contracts::{AssemblyCacheClip, AssemblyCacheManifest, AssemblyClip};
+use crate::AppState;
+use a4n_media_contract::MediaRoot;
+#[cfg(test)]
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-pub(in crate::actions::video_records) fn build_assembly_cache_manifest(
+pub(in crate::actions::video_records) async fn build_assembly_cache_manifest(
+    state: &AppState,
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
@@ -11,18 +15,31 @@ pub(in crate::actions::video_records) fn build_assembly_cache_manifest(
     fps: i32,
     clips: &[AssemblyClip],
 ) -> Result<AssemblyCacheManifest, String> {
-    build_assembly_cache_manifest_with_audio_probe(
+    let mut cached_clips = Vec::with_capacity(clips.len());
+    for clip in clips {
+        let has_audio = state
+            .probe_media_has_audio(
+                &clip.path,
+                MediaRoot::Data,
+                &format!("成片片段视频 #{}", clip.video_id),
+            )
+            .await?;
+        cached_clips.push(assembly_cache_clip_with_audio(clip, has_audio)?);
+    }
+    Ok(AssemblyCacheManifest {
+        version: 2,
         project_id,
         chapter_id,
-        workflow_mode,
+        workflow_mode: workflow_mode.to_string(),
         width,
         height,
         fps,
-        clips,
-        &video_file_has_audio,
-    )
+        audio_enabled: cached_clips.iter().any(|clip| clip.has_audio),
+        clips: cached_clips,
+    })
 }
 
+#[cfg(test)]
 pub(in crate::actions::video_records) fn build_assembly_cache_manifest_with_audio_probe<F>(
     project_id: i64,
     chapter_id: i64,
@@ -38,7 +55,10 @@ where
 {
     let clips = clips
         .iter()
-        .map(|clip| assembly_cache_clip(clip, has_audio))
+        .map(|clip| {
+            let has_audio = has_audio(&clip.path)?;
+            assembly_cache_clip_with_audio(clip, has_audio)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let audio_enabled = clips.iter().any(|clip| clip.has_audio);
     Ok(AssemblyCacheManifest {
@@ -54,10 +74,10 @@ where
     })
 }
 
-fn assembly_cache_clip<F>(clip: &AssemblyClip, has_audio: &F) -> Result<AssemblyCacheClip, String>
-where
-    F: Fn(&Path) -> Result<bool, String>,
-{
+fn assembly_cache_clip_with_audio(
+    clip: &AssemblyClip,
+    has_audio: bool,
+) -> Result<AssemblyCacheClip, String> {
     let metadata = std::fs::metadata(&clip.path)
         .map_err(|e| format!("无法读取成片片段视频 #{} 文件元数据：{e}", clip.video_id))?;
     if !metadata.is_file() {
@@ -74,22 +94,11 @@ where
         file_path: clip.file_path.clone(),
         file_size: metadata.len(),
         modified_unix_millis,
-        has_audio: has_audio(&clip.path)?,
+        has_audio,
         duration_secs: clip.duration_secs,
         width: clip.width,
         height: clip.height,
         fps: clip.fps,
-    })
-}
-
-fn video_file_has_audio(path: &Path) -> Result<bool, String> {
-    a4n_media::probe_video_has_audio(path).map_err(|error| match error {
-        a4n_media::FfprobeCommandError::Unavailable { .. } => {
-            "未检测到 FFprobe，无法判断成片片段是否包含音频".to_string()
-        }
-        a4n_media::FfprobeCommandError::Failed { stderr } => {
-            format!("判断成片片段音频失败：{stderr}")
-        }
     })
 }
 

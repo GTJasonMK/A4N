@@ -7,7 +7,7 @@ mod probe;
 mod worker;
 
 pub use a4n_media_render_core::{
-    VIDEO_SCRUB_FRAMES_PER_SECOND, VideoScrubProxyError, generate_video_scrub_frames,
+    MediaRoots, VIDEO_SCRUB_FRAMES_PER_SECOND, VideoScrubProxyError, generate_video_scrub_frames,
     generate_video_scrub_proxy,
 };
 pub use assembly::{
