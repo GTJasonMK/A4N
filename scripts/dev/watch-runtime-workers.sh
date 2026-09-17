@@ -88,7 +88,11 @@ mark_changed_targets() {
       build_novel_planning_worker=true
       ;;
     "$PROJECT_ROOT/crates/a4n-artifact-media-contract/"*)
+      build_control=true
       build_artifact_media_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-artifact-media-client/"*)
+      build_control=true
       ;;
     "$PROJECT_ROOT/crates/a4n-artifact-media-worker/"*)
       build_artifact_media_worker=true
@@ -100,6 +104,7 @@ mark_changed_targets() {
       build_agent_worker=true
       build_edge=true
       build_novel_planning_worker=true
+      build_artifact_media_worker=true
       ;;
   esac
 }

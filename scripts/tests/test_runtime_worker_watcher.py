@@ -126,13 +126,14 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         )
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-artifact-media-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-control", commands[0])
 
-    def test_shared_crate_change_builds_both_workers(self) -> None:
+    def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
         self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertIn("-p a4n-artifact-media-worker", commands[0])
 
 
 if __name__ == "__main__":

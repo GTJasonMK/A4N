@@ -161,9 +161,7 @@ pub async fn recover_cleanup_outbox(state: &AppState) {
     if let Err(error) = drain_cleanup_outbox(state, None, STARTUP_DRAIN_LIMIT).await {
         tracing::warn!(error = %error, "启动恢复 cleanup outbox 失败");
     }
-    if !artifact_media_worker_is_enabled() {
-        recover_image_publications(state, &mut None).await;
-    }
+    recover_image_publications(state, &mut None, artifact_media_worker_is_enabled()).await;
     expire_generation_snapshot_bodies(state).await;
     purge_expired_generation_task_trees(state).await;
     purge_completed_cleanup_audits(state).await;
@@ -179,9 +177,12 @@ pub fn spawn_cleanup_worker(state: AppState) {
             if let Err(error) = drain_cleanup_outbox(&state, None, STARTUP_DRAIN_LIMIT).await {
                 tracing::warn!(error = %error, "后台恢复 cleanup outbox 失败");
             }
-            if !artifact_media_worker_is_enabled() {
-                recover_image_publications(&state, &mut published_after).await;
-            }
+            recover_image_publications(
+                &state,
+                &mut published_after,
+                artifact_media_worker_is_enabled(),
+            )
+            .await;
             expire_generation_snapshot_bodies(&state).await;
             purge_expired_generation_task_trees(&state).await;
             purge_completed_cleanup_audits(&state).await;
