@@ -53,7 +53,7 @@ pub async fn initialize_runtime(
         source_sync_read_application: Arc::new(orchestrator.clone()),
         source_sync_mutation_application: Arc::new(orchestrator.clone()),
         shooting_script_current_application: novel_planning_worker.clone(),
-        shooting_script_record_read_application: Arc::new(orchestrator.clone()),
+        shooting_script_unit_progress_application: Arc::new(orchestrator.clone()),
         shooting_script_record_mutation_application: novel_planning_worker,
         shooting_script_full_generation_application: Arc::new(orchestrator.clone()),
         shooting_script_next_unit_generation_application: Arc::new(orchestrator.clone()),

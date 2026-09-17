@@ -2167,10 +2167,10 @@ impl AppState {
         self.source_sync_mutation_application.as_ref()
     }
 
-    pub(crate) fn shooting_script_record_read_application(
+    pub(crate) fn shooting_script_unit_progress_application(
         &self,
-    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort {
-        self.shooting_script_record_read_application.as_ref()
+    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptUnitProgressReadApplicationPort {
+        self.shooting_script_unit_progress_application.as_ref()
     }
 
     pub(crate) fn shooting_script_current_application(

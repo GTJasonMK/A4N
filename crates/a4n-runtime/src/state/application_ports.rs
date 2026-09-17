@@ -21,10 +21,10 @@ pub struct ApplicationPorts {
         Arc<dyn a4n_api_contract::source_sync::SourceSyncMutationApplicationPort>,
     pub shooting_script_current_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptCurrentReadApplicationPort>,
-    /// Persisted shooting-script reads stay behind the API contract;
-    /// generation workers use a separate execution boundary.
-    pub shooting_script_record_read_application:
-        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort>,
+    /// Workflow checkpoint progress remains on the generation owner until its
+    /// worker contract carries the reconstruction state explicitly.
+    pub shooting_script_unit_progress_application:
+        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptUnitProgressReadApplicationPort>,
     pub shooting_script_record_mutation_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
     pub shooting_script_full_generation_application:

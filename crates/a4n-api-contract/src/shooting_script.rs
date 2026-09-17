@@ -103,18 +103,12 @@ pub trait ShootingScriptCurrentReadApplicationPort: Send + Sync {
     ) -> Result<Option<ChapterShootingScriptView>, a4n_error::AppError>;
 }
 
-/// Host-facing read boundary for persisted shooting-script records.
+/// Host-facing read boundary for generation progress.
 ///
-/// Source resolution, visual-plan consistency and persistence stay with the
-/// shooting-script owner; hosts only route typed reads.
+/// Workflow checkpoint reconstruction remains with the generation owner until
+/// the generation worker contract carries that state explicitly.
 #[async_trait::async_trait]
-pub trait ShootingScriptRecordReadApplicationPort: Send + Sync {
-    async fn current(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptView>, a4n_error::AppError>;
-
+pub trait ShootingScriptUnitProgressReadApplicationPort: Send + Sync {
     async fn unit_progress(
         &self,
         user_id: i64,
