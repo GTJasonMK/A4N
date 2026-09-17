@@ -1494,6 +1494,7 @@ dependencies = [
  "a4n-process-catalog",
  "a4n-queue",
  "a4n-service-protocol",
+ "a4n-worker-client",
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",

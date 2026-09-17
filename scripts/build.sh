@@ -110,6 +110,7 @@ cargo_target_args() {
             # Server supervises Edge as a sibling process; building the Server
             # alone would produce an unusable runtime bundle.
             printf '%s\n' "-p" "a4n-edge"
+            printf '%s\n' "-p" "a4n-novel-planning-worker"
         fi
     fi
 

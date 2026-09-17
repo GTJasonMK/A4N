@@ -7,6 +7,7 @@ use std::{
 };
 
 use a4n_process_catalog::stateful_worker_catalog_entry_ref;
+use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities, WorkerHealth,
@@ -24,6 +25,10 @@ const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
 const AGENT_WORKER_CATALOG_NAME: &str = "agent-worker";
+const NOVEL_PLANNING_WORKER_CATALOG_NAME: &str = "novel-planning-worker";
+const NOVEL_PLANNING_WORKER_BINARY_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_BINARY";
+const NOVEL_PLANNING_WORKER_TOKEN_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_TOKEN";
+const NOVEL_PLANNING_WORKER_URL_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -46,9 +51,11 @@ enum ChildWatchEvent {
     EdgeExited(ExitStatus),
     ControlExited(ExitStatus),
     WorkerExited(ExitStatus),
+    NovelPlanningWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
+    NovelPlanningWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -69,17 +76,47 @@ fn main() -> anyhow::Result<()> {
     let control_addr = control_addr()?;
     let agent_worker_addr = agent_worker_addr()?;
     let worker_token = worker_token()?;
+    let novel_planning_worker_addr = novel_planning_worker_addr()?;
+    let novel_planning_worker_token = worker_token_for_env(NOVEL_PLANNING_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
     let mut worker_fingerprint = binary_fingerprint(&worker_binary)?;
     let edge_binary = edge_binary()?;
     let mut edge_fingerprint = binary_fingerprint(&edge_binary)?;
+    let novel_planning_worker_binary = novel_planning_worker_binary()?;
+    let mut novel_planning_worker_fingerprint = binary_fingerprint(&novel_planning_worker_binary)?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
-    let mut control = spawn_control(&control_binary, control_addr, &worker_token)?;
+    let mut novel_planning_worker = spawn_novel_planning_worker(
+        &novel_planning_worker_binary,
+        novel_planning_worker_addr,
+        &novel_planning_worker_token,
+    )?;
+    if let Err(error) = wait_for_novel_planning_worker(
+        &mut novel_planning_worker,
+        novel_planning_worker_addr,
+        &novel_planning_worker_token,
+    ) {
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        return Err(error);
+    }
+    let mut control = match spawn_control(
+        &control_binary,
+        control_addr,
+        &worker_token,
+        novel_planning_worker_addr,
+        &novel_planning_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            return Err(error);
+        }
+    };
     if let Err(error) = wait_for_control(&mut control, control_addr) {
         let cleanup_result = stop_control(&mut control);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
         return match cleanup_result {
             Ok(()) => Err(error),
             Err(cleanup_error) => Err(anyhow::anyhow!(
@@ -96,12 +133,14 @@ fn main() -> anyhow::Result<()> {
         Ok(child) => child,
         Err(error) => {
             let _ = stop_control(&mut control);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             return Err(error);
         }
     };
     if let Err(error) = wait_for_agent_worker(&mut agent_worker, agent_worker_addr, &worker_token) {
         let _ = stop_agent_worker(&mut agent_worker);
         let _ = stop_control(&mut control);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
         return Err(error);
     }
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
@@ -109,6 +148,7 @@ fn main() -> anyhow::Result<()> {
         Err(error) => {
             let _ = stop_agent_worker(&mut agent_worker);
             let _ = stop_control(&mut control);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             return Err(error);
         }
     };
@@ -123,6 +163,11 @@ fn main() -> anyhow::Result<()> {
         &mut control_fingerprint,
         &worker_binary,
         &mut worker_fingerprint,
+        novel_planning_worker_addr,
+        &novel_planning_worker_token,
+        &mut novel_planning_worker,
+        &novel_planning_worker_binary,
+        &mut novel_planning_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -131,7 +176,13 @@ fn main() -> anyhow::Result<()> {
     let edge_result = stop_edge(&mut edge).and(watch_result.map(|_| ()));
     let worker_result = stop_agent_worker(&mut agent_worker);
     let control_result = stop_control(&mut control);
-    finish_shutdown(edge_result, worker_result, control_result)
+    let novel_planning_worker_result = stop_novel_planning_worker(&mut novel_planning_worker);
+    finish_shutdown(
+        edge_result,
+        worker_result,
+        control_result,
+        novel_planning_worker_result,
+    )
 }
 
 fn supervise_runtime_children(
@@ -145,6 +196,11 @@ fn supervise_runtime_children(
     control_fingerprint: &mut BinaryFingerprint,
     worker_binary: &Path,
     worker_fingerprint: &mut BinaryFingerprint,
+    novel_planning_worker_addr: SocketAddr,
+    novel_planning_worker_token: &str,
+    novel_planning_worker: &mut Child,
+    novel_planning_worker_binary: &Path,
+    novel_planning_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -159,6 +215,9 @@ fn supervise_runtime_children(
             *control_fingerprint,
             worker_binary,
             *worker_fingerprint,
+            novel_planning_worker,
+            novel_planning_worker_binary,
+            *novel_planning_worker_fingerprint,
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -178,7 +237,13 @@ fn supervise_runtime_children(
             ChildWatchEvent::ControlExited(status) => {
                 eprintln!("A4N Control 意外退出: {status}；准备重启");
                 std::thread::sleep(WORKER_RESTART_DELAY);
-                *control = spawn_control(control_binary, control_addr, worker_token)?;
+                *control = spawn_control(
+                    control_binary,
+                    control_addr,
+                    worker_token,
+                    novel_planning_worker_addr,
+                    novel_planning_worker_token,
+                )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
             }
@@ -194,6 +259,22 @@ fn supervise_runtime_children(
                 wait_for_agent_worker(agent_worker, agent_worker_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
+            ChildWatchEvent::NovelPlanningWorkerExited(status) => {
+                eprintln!("A4N Novel Planning worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *novel_planning_worker = spawn_novel_planning_worker(
+                    novel_planning_worker_binary,
+                    novel_planning_worker_addr,
+                    novel_planning_worker_token,
+                )?;
+                wait_for_novel_planning_worker(
+                    novel_planning_worker,
+                    novel_planning_worker_addr,
+                    novel_planning_worker_token,
+                )?;
+                *novel_planning_worker_fingerprint =
+                    binary_fingerprint(novel_planning_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -204,7 +285,13 @@ fn supervise_runtime_children(
             ChildWatchEvent::ControlChanged => {
                 eprintln!("检测到 A4N Control 构建完成；只替换 Control");
                 stop_control(control)?;
-                *control = spawn_control(control_binary, control_addr, worker_token)?;
+                *control = spawn_control(
+                    control_binary,
+                    control_addr,
+                    worker_token,
+                    novel_planning_worker_addr,
+                    novel_planning_worker_token,
+                )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
             }
@@ -220,6 +307,25 @@ fn supervise_runtime_children(
                 )?;
                 wait_for_agent_worker(agent_worker, agent_worker_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
+            }
+            ChildWatchEvent::NovelPlanningWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Novel Planning worker 构建完成；只替换 Novel Planning worker"
+                );
+                stop_novel_planning_worker(novel_planning_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *novel_planning_worker = spawn_novel_planning_worker(
+                    novel_planning_worker_binary,
+                    novel_planning_worker_addr,
+                    novel_planning_worker_token,
+                )?;
+                wait_for_novel_planning_worker(
+                    novel_planning_worker,
+                    novel_planning_worker_addr,
+                    novel_planning_worker_token,
+                )?;
+                *novel_planning_worker_fingerprint =
+                    binary_fingerprint(novel_planning_worker_binary)?;
             }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
@@ -239,6 +345,9 @@ fn wait_for_edge_or_child(
     control_fingerprint: BinaryFingerprint,
     worker_binary: &Path,
     worker_fingerprint: BinaryFingerprint,
+    novel_planning_worker: &mut Child,
+    novel_planning_worker_binary: &Path,
+    novel_planning_worker_fingerprint: BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -254,16 +363,24 @@ fn wait_for_edge_or_child(
         if let Some(status) = agent_worker.try_wait()? {
             return Ok(Some(ChildWatchEvent::WorkerExited(status)));
         }
+        if let Some(status) = novel_planning_worker.try_wait()? {
+            return Ok(Some(ChildWatchEvent::NovelPlanningWorkerExited(status)));
+        }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
         }
         let control_changed = binary_fingerprint(control_binary)? != control_fingerprint;
         let worker_changed = binary_fingerprint(worker_binary)? != worker_fingerprint;
+        let novel_planning_worker_changed =
+            binary_fingerprint(novel_planning_worker_binary)? != novel_planning_worker_fingerprint;
         if control_changed {
             return Ok(Some(ChildWatchEvent::ControlChanged));
         }
         if worker_changed {
             return Ok(Some(ChildWatchEvent::WorkerChanged));
+        }
+        if novel_planning_worker_changed {
+            return Ok(Some(ChildWatchEvent::NovelPlanningWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -399,6 +516,25 @@ fn agent_worker_metadata()
     })
 }
 
+fn novel_planning_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(NOVEL_PLANNING_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            NOVEL_PLANNING_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn novel_planning_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = novel_planning_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -406,11 +542,22 @@ fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<Socket
     Ok(address)
 }
 
-fn spawn_control(binary: &Path, address: SocketAddr, worker_token: &str) -> anyhow::Result<Child> {
+fn spawn_control(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+    novel_planning_worker_addr: SocketAddr,
+    novel_planning_worker_token: &str,
+) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
         .env("A4N_CONTROL_ADDR", address.to_string())
         .env(AGENT_WORKER_TOKEN_ENV, worker_token)
+        .env(
+            NOVEL_PLANNING_WORKER_URL_ENV,
+            format!("http://{novel_planning_worker_addr}"),
+        )
+        .env(NOVEL_PLANNING_WORKER_TOKEN_ENV, novel_planning_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -420,6 +567,28 @@ fn spawn_control(binary: &Path, address: SocketAddr, worker_token: &str) -> anyh
     command
         .spawn()
         .map_err(|error| anyhow::anyhow!("启动 A4N Control 失败: {}: {error}", binary.display()))
+}
+
+fn spawn_novel_planning_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = novel_planning_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(NOVEL_PLANNING_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Novel Planning worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
 }
 
 fn spawn_edge(binary: &Path, control_addr: SocketAddr) -> anyhow::Result<Child> {
@@ -465,6 +634,48 @@ fn wait_for_agent_worker(
     address: SocketAddr,
     worker_token: &str,
 ) -> anyhow::Result<()> {
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        AGENT_WORKER_AUTH_HEADER,
+        None,
+        &[AGENT_RUN_OPERATION, AGENT_HOST_COMMAND_OPERATION],
+        "A4N Agent worker",
+    )
+}
+
+fn wait_for_novel_planning_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = novel_planning_worker_metadata()?;
+    let required = metadata
+        .data_scope
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(NOVEL_PLANNING_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Novel Planning worker",
+    )
+}
+
+fn wait_for_worker_contract(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+    auth_header: &str,
+    expected_worker_id: Option<&str>,
+    required_capabilities: &[&str],
+    worker_name: &str,
+) -> anyhow::Result<()> {
     let client = reqwest::blocking::Client::builder()
         .connect_timeout(WORKER_READY_CONNECT_TIMEOUT)
         .timeout(WORKER_READY_CONNECT_TIMEOUT)
@@ -477,7 +688,7 @@ fn wait_for_agent_worker(
     while started.elapsed() < WORKER_READY_TIMEOUT {
         if let Some(status) = child.try_wait()? {
             anyhow::bail!(
-                "A4N Agent worker 在健康检查通过前退出: {status}; 最后一次错误: {}",
+                "{worker_name} 在健康检查通过前退出: {status}; 最后一次错误: {}",
                 last_error
                     .as_ref()
                     .map(ToString::to_string)
@@ -487,50 +698,64 @@ fn wait_for_agent_worker(
 
         match client
             .get(&health_url)
-            .header(AGENT_WORKER_AUTH_HEADER, worker_token)
+            .header(auth_header, worker_token)
             .send()
         {
             Ok(response) if response.status().is_success() => {
                 let health = response.json::<WorkerHealth>().map_err(|error| {
-                    anyhow::anyhow!("Agent worker health 响应不是有效合同: {error}")
+                    anyhow::anyhow!("{worker_name} health 响应不是有效合同: {error}")
                 })?;
-                health
-                    .validate()
-                    .map_err(|error| anyhow::anyhow!("Agent worker health 合同无效: {error}"))?;
+                if let Some(expected_worker_id) = expected_worker_id {
+                    health.validate_for(expected_worker_id).map_err(|error| {
+                        anyhow::anyhow!("{worker_name} health 合同无效: {error}")
+                    })?;
+                } else {
+                    health.validate().map_err(|error| {
+                        anyhow::anyhow!("{worker_name} health 合同无效: {error}")
+                    })?;
+                }
                 if health.status == WorkerHealthStatus::Healthy {
                     let capabilities = client
                         .get(&capabilities_url)
-                        .header(AGENT_WORKER_AUTH_HEADER, worker_token)
+                        .header(auth_header, worker_token)
                         .send()
                         .map_err(|error| {
-                            anyhow::anyhow!("Agent worker capabilities 请求失败: {error}")
+                            anyhow::anyhow!("{worker_name} capabilities 请求失败: {error}")
                         })?
                         .json::<WorkerCapabilities>()
                         .map_err(|error| {
-                            anyhow::anyhow!("Agent worker capabilities 响应不是有效合同: {error}")
+                            anyhow::anyhow!("{worker_name} capabilities 响应不是有效合同: {error}")
                         })?;
-                    capabilities.validate().map_err(|error| {
-                        anyhow::anyhow!("Agent worker capabilities 合同无效: {error}")
-                    })?;
-                    for required in [AGENT_RUN_OPERATION, AGENT_HOST_COMMAND_OPERATION] {
+                    if let Some(expected_worker_id) = expected_worker_id {
+                        capabilities
+                            .validate_for(expected_worker_id)
+                            .map_err(|error| {
+                                anyhow::anyhow!("{worker_name} capabilities 合同无效: {error}")
+                            })?;
+                    } else {
+                        capabilities.validate().map_err(|error| {
+                            anyhow::anyhow!("{worker_name} capabilities 合同无效: {error}")
+                        })?;
+                    }
+                    for required in required_capabilities {
                         if !capabilities
                             .capabilities
                             .iter()
-                            .any(|capability| capability.enabled && capability.name == required)
+                            .any(|capability| capability.enabled && capability.name == *required)
                         {
-                            anyhow::bail!("Agent worker capabilities 缺少已启用操作: {required}");
+                            anyhow::bail!("{worker_name} capabilities 缺少已启用操作: {required}");
                         }
                     }
                     return Ok(());
                 }
                 last_error = Some(anyhow::anyhow!(
-                    "Agent worker health 状态为 {:?}",
+                    "{worker_name} health 状态为 {:?}",
                     health.status
                 ));
             }
             Ok(response) => {
                 last_error = Some(anyhow::anyhow!(
-                    "Agent worker health 返回 {}",
+                    "{worker_name} health 返回 {}",
                     response.status()
                 ));
             }
@@ -540,7 +765,7 @@ fn wait_for_agent_worker(
     }
 
     anyhow::bail!(
-        "A4N Agent worker 在 {} 秒内未通过健康检查 {health_url}: {}",
+        "{worker_name} 在 {} 秒内未通过健康检查 {health_url}: {}",
         WORKER_READY_TIMEOUT.as_secs(),
         last_error
             .as_ref()
@@ -559,6 +784,13 @@ fn edge_binary() -> anyhow::Result<PathBuf> {
 
 fn agent_worker_binary() -> anyhow::Result<PathBuf> {
     child_binary(AGENT_WORKER_BINARY_ENV, &agent_worker_metadata()?.binary)
+}
+
+fn novel_planning_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        NOVEL_PLANNING_WORKER_BINARY_ENV,
+        &novel_planning_worker_metadata()?.binary,
+    )
 }
 
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
@@ -599,13 +831,17 @@ fn executable_name(name: &str) -> PathBuf {
 }
 
 fn worker_token() -> anyhow::Result<String> {
-    if let Some(value) = env::var_os(AGENT_WORKER_TOKEN_ENV) {
+    worker_token_for_env(AGENT_WORKER_TOKEN_ENV)
+}
+
+fn worker_token_for_env(env_name: &str) -> anyhow::Result<String> {
+    if let Some(value) = env::var_os(env_name) {
         let value = value
             .into_string()
-            .map_err(|_| anyhow::anyhow!("{AGENT_WORKER_TOKEN_ENV} 必须是有效 UTF-8"))?;
+            .map_err(|_| anyhow::anyhow!("{env_name} 必须是有效 UTF-8"))?;
         let value = value.trim().to_string();
         if value.is_empty() {
-            anyhow::bail!("{AGENT_WORKER_TOKEN_ENV} 不能为空");
+            anyhow::bail!("{env_name} 不能为空");
         }
         return Ok(value);
     }
@@ -613,6 +849,10 @@ fn worker_token() -> anyhow::Result<String> {
 }
 
 fn stop_agent_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
+fn stop_novel_planning_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
@@ -651,12 +891,14 @@ fn finish_shutdown(
     edge_result: anyhow::Result<()>,
     worker_result: anyhow::Result<()>,
     control_result: anyhow::Result<()>,
+    novel_planning_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
         ("Edge", edge_result),
         ("Agent worker", worker_result),
         ("Control", control_result),
+        ("Novel Planning worker", novel_planning_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
@@ -711,6 +953,18 @@ mod tests {
             .expect("test child should start")
     }
 
+    fn novel_planning_fixture(
+        tempdir: &tempfile::TempDir,
+    ) -> (Child, std::path::PathBuf, super::BinaryFingerprint) {
+        let child = live_child();
+        let binary = tempdir.path().join("a4n-novel-planning-worker");
+        std::fs::write(&binary, b"novel-planning-worker")
+            .expect("novel planning worker fixture should be written");
+        let fingerprint =
+            super::binary_fingerprint(&binary).expect("novel planning fingerprint should work");
+        (child, binary, fingerprint)
+    }
+
     #[test]
     fn waits_for_control_listener() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
@@ -756,6 +1010,11 @@ mod tests {
         std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
         let edge_fingerprint =
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let (
+            mut novel_planning_worker,
+            novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
+        ) = novel_planning_fixture(&tempdir);
 
         let result = super::wait_for_edge_or_child(
             &mut edge,
@@ -765,6 +1024,9 @@ mod tests {
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -778,6 +1040,12 @@ mod tests {
         ));
         edge.kill().expect("test edge should stop");
         edge.wait().expect("test edge should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
         worker.kill().expect("test worker should stop");
         worker.wait().expect("test worker should be reaped");
     }
@@ -814,6 +1082,11 @@ mod tests {
         std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
         let edge_fingerprint =
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let (
+            mut novel_planning_worker,
+            novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
+        ) = novel_planning_fixture(&tempdir);
         std::fs::write(&control_binary, b"new-control").expect("control replacement should work");
 
         let result = super::wait_for_edge_or_child(
@@ -824,6 +1097,9 @@ mod tests {
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -837,6 +1113,12 @@ mod tests {
         ));
         edge.kill().expect("test edge should stop");
         edge.wait().expect("test edge should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -861,6 +1143,11 @@ mod tests {
         std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
         let edge_fingerprint =
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let (
+            mut novel_planning_worker,
+            novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
+        ) = novel_planning_fixture(&tempdir);
         std::fs::write(&worker_binary, b"new-worker").expect("worker replacement should work");
 
         let result = super::wait_for_edge_or_child(
@@ -871,6 +1158,9 @@ mod tests {
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -884,6 +1174,12 @@ mod tests {
         ));
         edge.kill().expect("test edge should stop");
         edge.wait().expect("test edge should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -908,6 +1204,11 @@ mod tests {
             super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
         let edge_fingerprint =
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let (
+            mut novel_planning_worker,
+            novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
+        ) = novel_planning_fixture(&tempdir);
         std::fs::write(&edge_binary, b"new-edge").expect("edge replacement should work");
 
         let result = super::wait_for_edge_or_child(
@@ -918,6 +1219,9 @@ mod tests {
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -928,6 +1232,12 @@ mod tests {
         assert!(matches!(result, Some(super::ChildWatchEvent::EdgeChanged)));
         edge.kill().expect("test edge should stop");
         edge.wait().expect("test edge should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -974,6 +1284,11 @@ mod tests {
         std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
         let edge_fingerprint =
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let (
+            mut novel_planning_worker,
+            novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
+        ) = novel_planning_fixture(&tempdir);
         let marker_fingerprint = None;
         std::fs::write(&marker, b"published").expect("marker should be published");
 
@@ -985,6 +1300,9 @@ mod tests {
             control_fingerprint,
             &worker_binary,
             worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_planning_worker_binary,
+            novel_planning_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             Some(&marker),
@@ -998,6 +1316,12 @@ mod tests {
         ));
         edge.kill().expect("test edge should stop");
         edge.wait().expect("test edge should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");

@@ -28,6 +28,7 @@ a4n-agent-worker = { path = "../a4n-agent-worker", optional = true }
 a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge", optional = true }
 a4n-process-catalog = { path = "../a4n-process-catalog" }
+a4n-worker-client = { path = "../a4n-worker-client" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 anyhow = { workspace = true }
