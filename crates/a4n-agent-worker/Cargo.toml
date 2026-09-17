@@ -21,10 +21,15 @@ a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+axum = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+subtle = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
