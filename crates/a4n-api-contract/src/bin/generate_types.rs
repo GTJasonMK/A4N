@@ -273,15 +273,15 @@ use a4n_api_contract::{
     shooting_script::{
         ChapterShootingScriptRecordSummary, ChapterShootingScriptSchemaVersion,
         ChapterShootingScriptSourceInput, ChapterShootingScriptUnitProgressView,
-        ChapterShootingScriptV1, ChapterShootingScriptView, EditChapterShootingScriptInput,
-        EditedChapterShootingScriptView, GenerateChapterShootingScriptInput, ShootingBlockingV1,
-        ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
-        ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
-        ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
-        ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
-        ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
-        ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV3,
-        ShootingVisualPlanSourceV1,
+        ChapterShootingScriptV1, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
+        EditChapterShootingScriptInput, EditedChapterShootingScriptView,
+        GenerateChapterShootingScriptInput, ShootingBlockingV1, ShootingCameraAngleV1,
+        ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
+        ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1,
+        ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
+        ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
+        ShootingTransitionContractV1, ShootingTransitionTypeV1, ShootingViewpointModeV1,
+        ShootingViewpointV1, ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
     },
     source_sync::{
         ApplySourceSyncInput, SourceSyncChangeKind, SourceSyncConflictSeverity,
@@ -1190,6 +1190,9 @@ fn main() {
         ),
         &typescript_interface::<GenerateChapterShootingScriptInput>(
             "GenerateChapterShootingScriptInput",
+        ),
+        &typescript_interface::<DeleteChapterShootingScriptInput>(
+            "DeleteChapterShootingScriptInput",
         ),
         &typescript_interface::<EditChapterShootingScriptInput>("EditChapterShootingScriptInput"),
         &typescript_interface::<ChapterShootingScriptRecordSummary>(

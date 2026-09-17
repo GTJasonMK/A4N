@@ -48,6 +48,19 @@ pub struct EditChapterShootingScriptInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteChapterShootingScriptInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub record_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_revision: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct ChapterShootingScriptRecordSummary {
     pub id: i64,
     pub revision: i32,
@@ -104,4 +117,10 @@ pub trait ShootingScriptRecordMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: EditChapterShootingScriptInput,
     ) -> Result<EditedChapterShootingScriptView, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteChapterShootingScriptInput,
+    ) -> Result<(), a4n_error::AppError>;
 }

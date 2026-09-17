@@ -147,12 +147,14 @@ impl OrchestratorContext {
             let (_, current) = self
                 .load_current_chapter_shooting_script_source(&source)
                 .await?;
+            // A deleted published record can keep its completed workflow audit row;
+            // that row is history, not resumable progress.
+            let Some(current) = current else {
+                return Ok(None);
+            };
             Some(ResolvedChapterShootingScript {
                 source: requested_source,
-                shooting_script: current.ok_or_else(|| AppError::InvalidState {
-                    current: "completed_workflow_without_shooting_script".to_string(),
-                    operation: "读取已完成拍摄剧本".to_string(),
-                })?,
+                shooting_script: current,
             })
         } else {
             None

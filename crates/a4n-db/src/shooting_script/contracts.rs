@@ -36,6 +36,12 @@ pub struct UpdateChapterShootingScriptInput {
     pub workflow_run_id: Option<i64>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct DeleteStoredChapterShootingScriptInput {
+    pub record_id: i64,
+    pub expected_revision: i32,
+}
+
 #[derive(Debug, Clone)]
 pub struct EditChapterShootingScriptOutcome {
     pub shooting_script: ParsedChapterShootingScript,

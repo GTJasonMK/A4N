@@ -4,6 +4,7 @@ import type {
   ChapterShootingScriptUnitProgressView,
   ChapterShootingScriptV1,
   ChapterShootingScriptView,
+  DeleteChapterShootingScriptInput,
   EditChapterShootingScriptInput,
   EditedChapterShootingScriptView,
   GenerateChapterShootingScriptInput,
@@ -15,6 +16,7 @@ export type {
   ChapterShootingScriptUnitProgressView,
   ChapterShootingScriptV1,
   ChapterShootingScriptView,
+  DeleteChapterShootingScriptInput,
   ShootingBlockingV1,
   ShootingCameraAngleV1,
   ShootingCameraHeightV1,
@@ -109,3 +111,15 @@ export const editChapterShootingScript = (
     } satisfies EditChapterShootingScriptInput,
   },
 );
+
+export const deleteChapterShootingScript = (
+  projectId: number,
+  sourceChapterId: number,
+  view: ChapterShootingScriptView,
+) => apiInvoke<void>("delete_chapter_shooting_script", {
+  input: {
+    ...sourceInput(projectId, sourceChapterId),
+    record_id: view.record.id,
+    expected_revision: view.record.revision,
+  } satisfies DeleteChapterShootingScriptInput,
+});

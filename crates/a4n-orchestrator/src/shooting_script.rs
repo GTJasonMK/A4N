@@ -9,8 +9,9 @@ mod stage;
 mod workflow_rules;
 
 pub(crate) use a4n_api_contract::shooting_script::{
-    ChapterShootingScriptSourceInput, EditChapterShootingScriptInput,
-    EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
+    ChapterShootingScriptSourceInput, DeleteChapterShootingScriptInput,
+    EditChapterShootingScriptInput, EditedChapterShootingScriptView,
+    GenerateChapterShootingScriptInput,
 };
 pub(crate) use contracts::{
     ChapterShootingScriptUnitProgress, EditedChapterShootingScript, ResolvedChapterShootingScript,
@@ -65,6 +66,15 @@ impl ShootingScriptRecordMutationApplicationPort for crate::OrchestratorContext 
         self.edit_current_chapter_shooting_script_for_user_validated(user_id, input)
             .await
             .map(edited_chapter_shooting_script_view)
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteChapterShootingScriptInput,
+    ) -> Result<(), AppError> {
+        self.delete_current_chapter_shooting_script_for_user_validated(user_id, input)
+            .await
     }
 }
 
