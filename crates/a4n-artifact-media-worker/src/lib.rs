@@ -611,7 +611,10 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     let status = match state
         .db
         .connection()
-        .execute(Statement::from_string(DatabaseBackend::Postgres, "SELECT 1"))
+        .execute(Statement::from_string(
+            DatabaseBackend::Postgres,
+            "SELECT 1",
+        ))
         .await
     {
         Ok(_) => WorkerHealthStatus::Healthy,
