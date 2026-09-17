@@ -5,6 +5,7 @@ use crate::{
     file_utils::{inspect_data_file_facts, promote_data_file},
 };
 use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_artifact_media_contract::PublishImageRequest;
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_image_host_contract::PreparedImportedImageUpload;
 use sha2::{Digest, Sha256};
@@ -104,17 +105,37 @@ pub(super) async fn persist_imported_image(
     if !facts_match(&final_facts, file_size, &sha256) {
         return Err("导入图片最终文件在发布前被修改".to_string());
     }
-    let record = state
-        .image_import_publication_application()
-        .publish_imported_image(
-            user_id,
-            project_id,
-            &publication.publication_id,
-            final_facts.1,
-            final_facts.2,
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+    let record = if let Some(worker) = state.artifact_media_publication_application() {
+        let published = worker
+            .publish_image(
+                user_id,
+                PublishImageRequest {
+                    project_id,
+                    publication_id: publication.publication_id.clone(),
+                    file_size: final_facts.1,
+                    sha256: final_facts.2,
+                },
+            )
+            .await?;
+        state
+            .image_record_read_application()
+            .by_id(user_id, published.image_id)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("已发布图片不存在: {}", published.image_id))?
+    } else {
+        state
+            .image_import_publication_application()
+            .publish_imported_image(
+                user_id,
+                project_id,
+                &publication.publication_id,
+                final_facts.1,
+                final_facts.2,
+            )
+            .await
+            .map_err(|error| error.to_string())?
+    };
     if inspect_data_file_facts(
         state.data_dir(),
         &publication.staging_path,

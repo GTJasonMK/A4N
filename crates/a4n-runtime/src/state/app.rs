@@ -1910,6 +1910,12 @@ impl AppState {
         self.image_import_publication_application.as_ref()
     }
 
+    pub(crate) fn artifact_media_publication_application(
+        &self,
+    ) -> Option<&dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort> {
+        self.artifact_media_publication_application.as_deref()
+    }
+
     pub(crate) fn image_publication_recovery_application(
         &self,
     ) -> &dyn a4n_image_host_contract::ImagePublicationRecoveryPort {

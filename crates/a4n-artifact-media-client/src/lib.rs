@@ -62,6 +62,16 @@ impl ArtifactMediaWorkerClient {
         }
     }
 
+    pub fn from_env() -> Option<Self> {
+        let base_url = std::env::var(a4n_artifact_media_contract::ARTIFACT_MEDIA_WORKER_URL_ENV)
+            .ok()
+            .filter(|value| !value.trim().is_empty())?;
+        let token = std::env::var(a4n_artifact_media_contract::ARTIFACT_MEDIA_WORKER_TOKEN_ENV)
+            .ok()
+            .filter(|value| !value.trim().is_empty())?;
+        Some(Self::new(base_url, token))
+    }
+
     pub async fn health(
         &self,
     ) -> Result<a4n_worker_client::WorkerHealth, ArtifactMediaClientError> {
@@ -233,6 +243,19 @@ impl ArtifactMediaWorkerClient {
             )),
             status => Err(ArtifactMediaClientError::UnexpectedStatus(status)),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_artifact_media_contract::ArtifactMediaPublicationPort for ArtifactMediaWorkerClient {
+    async fn publish_image(
+        &self,
+        actor_user_id: i64,
+        request: PublishImageRequest,
+    ) -> Result<PublishedImageResponse, String> {
+        self.publish_image(actor_user_id, request)
+            .await
+            .map_err(|error| error.to_string())
     }
 }
 

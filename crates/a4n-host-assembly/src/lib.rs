@@ -45,6 +45,10 @@ pub async fn initialize_runtime(
     let rag_ingest = Arc::new(orchestrator.clone());
     let novel_planning_worker =
         Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
+    let artifact_media_publication_application =
+        a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().map(|client| {
+            Arc::new(client) as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>
+        });
     let application_ports = ApplicationPorts {
         generation_task_read_application: Arc::new(orchestrator.clone()),
         generation_task_mutation_application: Arc::new(orchestrator.clone()),
@@ -212,6 +216,7 @@ pub async fn initialize_runtime(
         image_record_mutation_application: Arc::new(orchestrator.clone()),
         image_import_preparation_application: Arc::new(orchestrator.clone()),
         image_import_publication_application: Arc::new(orchestrator.clone()),
+        artifact_media_publication_application,
         image_publication_recovery_application: Arc::new(orchestrator.clone()),
         image_publication_recovery_read_application: Arc::new(orchestrator.clone()),
         image_media_reference_application: Arc::new(orchestrator.clone()),

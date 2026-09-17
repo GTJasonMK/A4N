@@ -7,6 +7,8 @@ license.workspace = true
 [dependencies]
 a4n-config = { path = "../a4n-config" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-artifact-media-client = { path = "../a4n-artifact-media-client" }
+a4n-artifact-media-contract = { path = "../a4n-artifact-media-contract" }
 a4n-novel-planning-worker-client = { path = "../a4n-novel-planning-worker-client" }
 a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }

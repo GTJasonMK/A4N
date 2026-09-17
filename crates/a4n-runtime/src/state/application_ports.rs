@@ -494,6 +494,10 @@ pub struct ApplicationPorts {
         Arc<dyn a4n_image_host_contract::ImageImportPreparationApplicationPort>,
     pub image_import_publication_application:
         Arc<dyn a4n_image_host_contract::ImageImportPublicationApplicationPort>,
+    /// Final imported-image publication is delegated to the Artifact/Media
+    /// worker when the HTTP host supplies its endpoint.
+    pub artifact_media_publication_application:
+        Option<Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>>,
     /// Image publication recovery and state-transition owner.
     pub image_publication_recovery_application:
         Arc<dyn a4n_image_host_contract::ImagePublicationRecoveryPort>,

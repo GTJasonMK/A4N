@@ -142,6 +142,15 @@ pub struct PublishedImageResponse {
     pub revision: i64,
 }
 
+#[async_trait::async_trait]
+pub trait ArtifactMediaPublicationPort: Send + Sync {
+    async fn publish_image(
+        &self,
+        actor_user_id: i64,
+        request: PublishImageRequest,
+    ) -> Result<PublishedImageResponse, String>;
+}
+
 impl ProjectPathsRequest {
     pub fn validate(&self) -> Result<(), ArtifactMediaContractError> {
         ProjectPublicationRequest {

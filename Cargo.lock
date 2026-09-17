@@ -139,6 +139,7 @@ dependencies = [
 name = "a4n-artifact-media-contract"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -639,6 +640,8 @@ dependencies = [
 name = "a4n-host-assembly"
 version = "0.1.0"
 dependencies = [
+ "a4n-artifact-media-client",
+ "a4n-artifact-media-contract",
  "a4n-config",
  "a4n-error",
  "a4n-novel-planning-worker-client",
@@ -1427,6 +1430,7 @@ dependencies = [
  "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-archive-core",
+ "a4n-artifact-media-contract",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-canvas-host-contract",
