@@ -1245,6 +1245,67 @@ mod tests {
     }
 
     #[test]
+    fn novel_planning_worker_binary_change_only_selects_novel_planning_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        std::fs::write(&control_binary, b"control").expect("control fixture should be written");
+        std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
+        std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
+        std::fs::write(&novel_binary, b"old-novel").expect("novel fixture should be written");
+        let control_fingerprint =
+            super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
+        let worker_fingerprint =
+            super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let novel_fingerprint =
+            super::binary_fingerprint(&novel_binary).expect("novel fingerprint should work");
+        std::fs::write(&novel_binary, b"new-novel").expect("novel replacement should be written");
+
+        let result = super::wait_for_edge_or_child(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::NovelPlanningWorkerChanged)
+        ));
+        edge.kill().expect("test edge should stop");
+        edge.wait().expect("test edge should be reaped");
+        control.kill().expect("test control should stop");
+        control.wait().expect("test control should be reaped");
+        worker.kill().expect("test worker should stop");
+        worker.wait().expect("test worker should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
+    }
+
+    #[test]
     fn reload_marker_is_optional_and_detects_publication() {
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
         let marker = tempdir.path().join("runtime-workers.ready");
@@ -1326,5 +1387,11 @@ mod tests {
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
         worker.wait().expect("test worker should be reaped");
+        novel_planning_worker
+            .kill()
+            .expect("test novel planning worker should stop");
+        novel_planning_worker
+            .wait()
+            .expect("test novel planning worker should be reaped");
     }
 }
