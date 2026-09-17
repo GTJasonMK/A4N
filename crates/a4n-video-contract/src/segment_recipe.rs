@@ -556,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn director_images_can_be_configured_in_steps_but_not_dropped_at_execution() {
+    fn director_image_bindings_can_be_overridden_in_execution_recipe() {
         use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
         let mut plan = ChapterVisualPlanV3::starter();
         plan.points[1].at_ms = 6000;
@@ -589,26 +589,19 @@ mod tests {
             recipe
                 .validate_director_generation(&segment)
                 .unwrap_err()
-                .contains("未使用全部导演图片")
-        );
-        recipe.guidance_mode = VideoSegmentGuidanceModeV1::Keyframes;
-        recipe.guidance_reference_image_ids = vec![11];
-        assert!(
-            recipe
-                .validate_director_generation(&segment)
-                .unwrap_err()
                 .contains("显式关联目标尾帧")
         );
+        recipe.workflow_mode = VideoSegmentWorkflowModeV1::ChatVideo;
+        recipe.reference_image_ids.clear();
+        recipe.guidance_reference_image_ids.clear();
+        assert!(recipe.validate_for_plan(&segment, "cinematic").is_ok());
+        assert!(recipe.validate_director_generation(&segment).is_ok());
+
         recipe.workflow_mode = VideoSegmentWorkflowModeV1::FirstFrameChain;
         assert!(recipe.validate_director_generation(&segment).is_ok());
         recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
         recipe.continuity_source_video_id = Some(7);
-        assert!(
-            recipe
-                .validate_director_generation(&segment)
-                .unwrap_err()
-                .contains("替换当前起点")
-        );
+        assert!(recipe.validate_director_generation(&segment).is_ok());
         let director = segment.director_constraints.as_mut().unwrap();
         assert_eq!(director.video_duration_secs(), Ok(6));
         director.end_ms = 6500;

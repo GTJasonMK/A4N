@@ -224,17 +224,6 @@ impl VideoSegmentExecutionRecipeV1 {
                 self.segment_number
             ));
         }
-        if let Some(director) = &segment.director_constraints
-            && director.image_ids().iter().any(|id| {
-                !self.reference_image_ids.contains(id)
-                    && !self.guidance_reference_image_ids.contains(id)
-            })
-        {
-            return Err(format!(
-                "镜头 {} 必须保留导演编排绑定的图片",
-                director.segment_id
-            ));
-        }
         Ok(())
     }
 
@@ -244,30 +233,11 @@ impl VideoSegmentExecutionRecipeV1 {
         let Some(director) = &segment.director_constraints else {
             return Ok(());
         };
-        let references = self.provider_reference_image_ids();
-        if director
-            .image_ids()
-            .iter()
-            .any(|id| !references.contains(id))
-        {
-            return Err(
-                "当前引导方式未使用全部导演图片；请选择 Chat、关键帧或系统帧引导并保留绑定图片"
-                    .into(),
-            );
-        }
         if self.workflow_mode == VideoSegmentWorkflowModeV1::BoundaryFrames
             && director.end_frame.is_none()
         {
             return Err(
                 "首尾帧方式需要在导演编排中显式关联目标尾帧，不能把下一镜头的起点自动作为尾帧"
-                    .into(),
-            );
-        }
-        if self.guidance_mode == VideoSegmentGuidanceModeV1::Continuity
-            && !director.image_ids().is_empty()
-        {
-            return Err(
-                "导演镜头已绑定图片，请使用关键帧引导；视频续接会以另一段视频的尾帧替换当前起点"
                     .into(),
             );
         }
