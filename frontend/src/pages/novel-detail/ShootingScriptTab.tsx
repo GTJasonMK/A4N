@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Save, Trash2, Wand2 } from "lucide-react";
+import { Pencil, RefreshCw, Save, Trash2, Wand2, X } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 import { extractErrorMessage } from "../../api";
@@ -16,8 +16,7 @@ import {
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../components/ui/BookButton";
-import { Dropdown } from "../../components/ui/Dropdown";
-import { cancelWorkflowTask } from "../../api/streaming";
+import { cancelWorkflow, cancelWorkflowTask } from "../../api/streaming";
 import {
   createWorkflowTaskId,
   useProgressTask,
@@ -28,6 +27,32 @@ import { StructuredScriptEditor } from "./shooting-script/StructuredScriptEditor
 import { EmptyHint } from "./shared";
 import { useI18n } from "../../i18n";
 import { loadShootingScriptData } from "./loadShootingScriptData";
+
+const mergePartialScriptEdits = (
+  generated: ChapterShootingScriptV1,
+  partial: ChapterShootingScriptV1,
+): ChapterShootingScriptV1 => {
+  const partialScenes = new Map(
+    partial.scenes.map((scene) => [scene.scene_identity, scene]),
+  );
+  return {
+    ...generated,
+    directing_statement: structuredClone(partial.directing_statement),
+    user_additions: structuredClone(partial.user_additions),
+    scenes: generated.scenes.map((scene) => {
+      const edited = partialScenes.get(scene.scene_identity);
+      if (!edited) return scene;
+      const editedShots = new Map(
+        edited.shots.map((shot) => [shot.shot_id, shot]),
+      );
+      return {
+        ...scene,
+        ...structuredClone(edited),
+        shots: scene.shots.map((shot) => editedShots.get(shot.shot_id) ?? shot),
+      };
+    }),
+  };
+};
 
 interface ShootingScriptTabProps {
   projectId: number;
@@ -51,17 +76,21 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmedVisualPlanId, setConfirmedVisualPlanId] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [confirmedVisualPlanId, setConfirmedVisualPlanId] = useState<
+    number | null
+  >(null);
   const [draft, setDraft] = useState<ChapterShootingScriptV1 | null>(null);
   const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
     [],
   );
   const isDirty = useMemo(
     () =>
-      view != null &&
       draft != null &&
-      JSON.stringify(view.script) !== JSON.stringify(draft),
-    [draft, view],
+      (view != null || unitProgress != null) &&
+      JSON.stringify(view?.script ?? unitProgress?.script) !==
+        JSON.stringify(draft),
+    [draft, unitProgress, view],
   );
 
   useEffect(() => {
@@ -69,6 +98,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setView(null);
       setUnitProgress(null);
       setDraft(null);
+      setEditing(false);
       setInvalidatedProjectIds([]);
       setConfirmedVisualPlanId(null);
       setScriptLoading(false);
@@ -76,19 +106,29 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     }
     let active = true;
     setView(null);
+    setEditing(false);
     setScriptLoading(true);
     void loadShootingScriptData(projectId, chapterId)
       .then(({ view: value, unitProgress: progress, visualPlan }) => {
         if (!active) return;
         setView(value);
         setUnitProgress(value ? null : progress);
-        setDraft(value ? structuredClone(value.script) : null);
+        setDraft(
+          value
+            ? structuredClone(value.script)
+            : progress
+              ? structuredClone(progress.script)
+              : null,
+        );
         setInvalidatedProjectIds([]);
         setConfirmedVisualPlanId(visualPlan.confirmed?.record.id ?? null);
       })
       .catch((error) => {
         if (active) {
-          addToast(extractErrorMessage(error, t("shootingScript.loadFailed")), "error");
+          addToast(
+            extractErrorMessage(error, t("shootingScript.loadFailed")),
+            "error",
+          );
         }
       })
       .finally(() => {
@@ -106,7 +146,10 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       generating ||
       saving ||
       scriptLoading
-    ) return;
+    )
+      return;
+    const partialDraft =
+      editing && !view && unitProgress && draft ? structuredClone(draft) : null;
     if (view) {
       const confirmed = await confirmDialog({
         title: t("shootingScript.regenerate"),
@@ -135,16 +178,23 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           cancelLabel: t("workflow.stop"),
           runningHint: t("shootingScript.stopHint"),
         },
-        () => generateChapterShootingScript(
+        () =>
+          generateChapterShootingScript(
           projectId,
           chapterId,
           taskId,
           confirmedVisualPlanId,
         ),
       );
-      setView(generated);
+      const script = partialDraft
+        ? mergePartialScriptEdits(generated.script, partialDraft)
+        : generated.script;
+      const completedView =
+        script === generated.script ? generated : { ...generated, script };
+      setView(completedView);
       setUnitProgress(null);
-      setDraft(structuredClone(generated.script));
+      setDraft(structuredClone(script));
+      setEditing(false);
       setInvalidatedProjectIds([]);
       addToast(t("shootingScript.completed"), "success");
     } catch (error) {
@@ -165,10 +215,17 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       generating ||
       saving ||
       scriptLoading
-    ) return;
+    )
+      return;
+    const wasEditing = editing;
+    const partialDraft =
+      wasEditing && unitProgress && draft ? structuredClone(draft) : null;
     setGenerating(true);
     try {
-      const taskId = createWorkflowTaskId("chapter-shooting-script-unit", projectId);
+      const taskId = createWorkflowTaskId(
+        "chapter-shooting-script-unit",
+        projectId,
+      );
       const generated = await runProgressTask(
         {
           cancelTaskId: taskId,
@@ -183,29 +240,38 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           cancelLabel: t("workflow.stop"),
           runningHint: t("shootingScript.nextSceneHint"),
         },
-        () => generateNextChapterShootingScriptUnit(
+        () =>
+          generateNextChapterShootingScriptUnit(
           projectId,
           chapterId,
           taskId,
           confirmedVisualPlanId,
         ),
       );
+      const script = partialDraft
+        ? mergePartialScriptEdits(generated.script, partialDraft)
+        : generated.script;
       if (generated.completed_record) {
         const completedView = {
           record: generated.completed_record,
-          script: generated.script,
+          script,
         } satisfies ChapterShootingScriptView;
         setView(completedView);
         setUnitProgress(null);
-        setDraft(structuredClone(generated.script));
+        setDraft(structuredClone(script));
       } else {
-        setUnitProgress(generated);
+        setUnitProgress({ ...generated, script });
+        setDraft(structuredClone(script));
       }
+      setEditing(wasEditing);
       setInvalidatedProjectIds([]);
       addToast(
         generated.completed_record
           ? t("shootingScript.allScenesCompleted")
-          : t("shootingScript.sceneProgress", { current: generated.completed_unit_count, total: generated.total_unit_count }),
+          : t("shootingScript.sceneProgress", {
+              current: generated.completed_unit_count,
+              total: generated.total_unit_count,
+            }),
         "success",
       );
     } catch (error) {
@@ -220,7 +286,15 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   };
 
   const save = async () => {
-    if (!view || !draft || chapterId == null || saving || generating || scriptLoading) return;
+    if (
+      !view ||
+      !draft ||
+      chapterId == null ||
+      saving ||
+      generating ||
+      scriptLoading
+    )
+      return;
     setSaving(true);
     try {
       const result = await editChapterShootingScript(
@@ -234,19 +308,86 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setInvalidatedProjectIds(result.invalidated_project_ids);
       addToast(
         result.invalidated_project_ids.length > 0
-          ? t("shootingScript.downstreamInvalidated", { count: result.invalidated_project_ids.length })
+          ? t("shootingScript.downstreamInvalidated", {
+              count: result.invalidated_project_ids.length,
+            })
           : t("shootingScript.saveCompleted"),
         "success",
       );
     } catch (error) {
-      addToast(extractErrorMessage(error, t("shootingScript.saveFailed")), "error");
+      addToast(
+        extractErrorMessage(error, t("shootingScript.saveFailed")),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  const enterEdit = () => {
+    const source = view?.script ?? unitProgress?.script;
+    if (!source || actionsDisabled) return;
+    setDraft(structuredClone(source));
+    setEditing(true);
+  };
+
+  const cancelEdit = async () => {
+    if (!editing || actionsDisabled) return;
+    if (isDirty) {
+      const confirmed = await confirmDialog({
+        title: t("shootingScript.cancelEditTitle"),
+        message: t("shootingScript.cancelEditMessage"),
+        confirmText: t("shootingScript.cancelEdit"),
+        dialogType: "warning",
+      });
+      if (!confirmed) return;
+    }
+    const source = view?.script ?? unitProgress?.script;
+    setDraft(source ? structuredClone(source) : null);
+    setEditing(false);
+  };
+
+  const removeProgress = async () => {
+    if (!unitProgress || deleting || generating || saving || scriptLoading)
+      return;
+    const confirmed = await confirmDialog({
+      title: t("shootingScript.discardProgressTitle"),
+      message: t("shootingScript.discardProgressMessage"),
+      confirmText: t("shootingScript.discardProgress"),
+      dialogType: "danger",
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await cancelWorkflow({
+        task_id: null,
+        workflow_run_id: unitProgress.workflow_run_id,
+      });
+      setUnitProgress(null);
+      setDraft(null);
+      setEditing(false);
+      setInvalidatedProjectIds([]);
+      addToast(t("shootingScript.discardProgressCompleted"), "success");
+    } catch (error) {
+      addToast(
+        extractErrorMessage(error, t("shootingScript.discardProgressFailed")),
+        "error",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const remove = async () => {
-    if (!view || chapterId == null || deleting || generating || saving || scriptLoading) return;
+    if (
+      !view ||
+      chapterId == null ||
+      deleting ||
+      generating ||
+      saving ||
+      scriptLoading
+    )
+      return;
     const confirmed = await confirmDialog({
       title: t("shootingScript.deleteTitle"),
       message: t("shootingScript.deleteMessage"),
@@ -261,9 +402,13 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setDraft(null);
       setUnitProgress(null);
       setInvalidatedProjectIds([]);
+      setEditing(false);
       addToast(t("shootingScript.deleteCompleted"), "success");
     } catch (error) {
-      addToast(extractErrorMessage(error, t("shootingScript.deleteFailed")), "error");
+      addToast(
+        extractErrorMessage(error, t("shootingScript.deleteFailed")),
+        "error",
+      );
     } finally {
       setDeleting(false);
     }
@@ -289,10 +434,17 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 ? t("shootingScript.saving")
                 : deleting
                   ? t("shootingScript.deleting")
+                  : editing
+                    ? t("shootingScript.editing")
                   : view
-                  ? t("shootingScript.currentRevision", { revision: view.record.revision, dirty: isDirty ? ` · ${t("writing.unsavedChanges")}` : "" })
+                    ? t("shootingScript.currentRevision", {
+                        revision: view.record.revision,
+                        dirty: isDirty
+                          ? ` · ${t("writing.unsavedChanges")}`
+                          : "",
+                      })
                   : unitProgress
-                    ? t("shootingScript.completedScenes", { current: unitProgress.completed_unit_count, total: unitProgress.total_unit_count })
+                      ? `${t("shootingScript.completedScenes", { current: unitProgress.completed_unit_count, total: unitProgress.total_unit_count })}${isDirty ? ` · ${t("writing.unsavedChanges")}` : ""}`
                   : confirmedVisualPlanId == null
                     ? t("shootingScript.choosePlan")
                     : t("shootingScript.notGenerated")}
@@ -301,61 +453,113 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           <div className="ml-auto flex items-center gap-2">
             {view && draft ? (
               <>
-                <Dropdown
-                  items={[
-                    {
-                      label: generating ? t("shootingScript.regenerating") : t("shootingScript.regenerate"),
-                      onClick: () => void generate(),
-                      disabled: actionsDisabled,
-                      icon: generating ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <RefreshCw size={12} />
-                      ),
-                    },
-                    { type: "divider" },
-                    {
-                      label: deleting ? t("shootingScript.deleting") : t("shootingScript.delete"),
-                      onClick: () => void remove(),
-                      disabled: actionsDisabled,
-                      danger: true,
-                      icon: deleting ? <LoadingSpinner size="sm" /> : <Trash2 size={12} />,
-                    },
-                  ]}
-                />
                 <BookButton
                   size="sm"
-                  onClick={() => void save()}
-                  disabled={actionsDisabled || !isDirty}
+                  variant={editing ? "ghost" : "primary"}
+                  onClick={() => void (editing ? cancelEdit() : enterEdit())}
+                  disabled={actionsDisabled}
                 >
-                  {saving ? (
+                  {editing ? <X size={13} /> : <Pencil size={13} />}
+                  {editing
+                    ? t("shootingScript.cancelEdit")
+                    : t("shootingScript.edit")}
+                </BookButton>
+                <BookButton
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void generate()}
+                  disabled={actionsDisabled}
+                >
+                  {generating ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                    <RefreshCw size={13} />
+                  )}
+                  {generating
+                    ? t("shootingScript.regenerating")
+                    : t("shootingScript.regenerate")}
+                </BookButton>
+                <BookButton
+                  size="sm"
+                  variant="danger"
+                  onClick={() => void remove()}
+                  disabled={actionsDisabled}
+                >
+                  {deleting ? (
                     <LoadingSpinner size="sm" />
                   ) : (
-                    <Save size={13} />
+                    <Trash2 size={13} />
                   )}
-                  {saving ? t("shootingScript.saving") : t("shootingScript.saveAdaptation")}
+                  {deleting
+                    ? t("shootingScript.deleting")
+                    : t("shootingScript.delete")}
                 </BookButton>
+                {editing ? (
+                  <BookButton
+                    size="sm"
+                    onClick={() => void save()}
+                    disabled={actionsDisabled || !isDirty}
+                  >
+                    {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
+                    {saving
+                      ? t("shootingScript.saving")
+                      : t("shootingScript.saveAdaptation")}
+                </BookButton>
+                ) : null}
               </>
             ) : (
               <>
                 {unitProgress ? (
-                  <Dropdown
-                    items={[
-                      {
-                        label: t("shootingScript.generateRemaining"),
-                        onClick: () => void generate(),
-                        disabled: actionsDisabled,
-                        icon: <RefreshCw size={12} />,
-                      },
-                    ]}
-                  />
+                  <>
+                    <BookButton
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void generate()}
+                      disabled={actionsDisabled}
+                    >
+                      <RefreshCw size={13} />
+                      {t("shootingScript.generateRemaining")}
+                    </BookButton>
+                    <BookButton
+                      size="sm"
+                      variant="danger"
+                      onClick={() => void removeProgress()}
+                      disabled={actionsDisabled}
+                    >
+                      {deleting ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <Trash2 size={13} />
+                      )}
+                      {deleting
+                        ? t("shootingScript.deleting")
+                        : t("shootingScript.discardProgress")}
+                    </BookButton>
+                  </>
+                ) : null}
+                {unitProgress ? (
+                  <BookButton
+                    size="sm"
+                    variant={editing ? "ghost" : "primary"}
+                    onClick={() => void (editing ? cancelEdit() : enterEdit())}
+                    disabled={actionsDisabled}
+                  >
+                    {editing ? <X size={13} /> : <Pencil size={13} />}
+                    {editing
+                      ? t("shootingScript.cancelEdit")
+                      : t("shootingScript.edit")}
+                  </BookButton>
                 ) : null}
                 <BookButton
                   size="sm"
                   onClick={() => void generateNextUnit()}
                   disabled={actionsDisabled || confirmedVisualPlanId == null}
                 >
-                  {generating ? <LoadingSpinner size="sm" /> : <Wand2 size={13} />}
+                  {generating ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Wand2 size={13} />
+                  )}
                   {generating
                     ? t("shootingScript.generatingShort")
                       : unitProgress
@@ -369,7 +573,11 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       </div>
       {scriptLoading ? (
         <div className="a4n-flat-surface py-12 text-center">
-          <LoadingSpinner size="md" text={t("shootingScript.loading")} inline={false} />
+          <LoadingSpinner
+            size="md"
+            text={t("shootingScript.loading")}
+            inline={false}
+          />
         </div>
       ) : !view && !unitProgress ? (
         <div className="a4n-flat-surface p-3 sm:p-4">
@@ -383,7 +591,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         </div>
       ) : view ? (
         <>
-          {canEdit && draft ? (
+          {canEdit && editing && draft ? (
             <StructuredScriptEditor
               script={draft}
               onChange={setDraft}
@@ -395,21 +603,42 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           {invalidatedProjectIds.length > 0 ? (
             <div className="px-1 text-small leading-relaxed text-book-text-muted">
               <p>
-                {t("shootingScript.invalidatedHint", { count: invalidatedProjectIds.length })}
+                {t("shootingScript.invalidatedHint", {
+                  count: invalidatedProjectIds.length,
+                })}
               </p>
               <details className="mt-1">
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">
                   {t("writing.diagnostics")}
                 </summary>
                 <p className="mt-1 break-all font-mono text-caption">
-                  {t("shootingScript.downstreamIds", { ids: invalidatedProjectIds.join(", ") })}
+                  {t("shootingScript.downstreamIds", {
+                    ids: invalidatedProjectIds.join(", "),
+                  })}
                 </p>
               </details>
             </div>
           ) : null}
         </>
       ) : unitProgress ? (
+        <>
+          <p className="px-1 text-small leading-relaxed text-book-text-muted">
+            {canEdit
+              ? editing
+                ? t("shootingScript.partialEditHint")
+                : t("shootingScript.partialViewHint")
+              : t("shootingScript.partialReadOnlyHint")}
+          </p>
+          {canEdit && editing && draft ? (
+            <StructuredScriptEditor
+              script={draft}
+              onChange={setDraft}
+              disabled={actionsDisabled}
+            />
+          ) : (
         <ScriptContent script={unitProgress.script} />
+          )}
+        </>
       ) : null}
     </section>
   );

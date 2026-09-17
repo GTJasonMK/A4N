@@ -81,6 +81,7 @@ impl OrchestratorContext {
             .into_iter()
             .find(|run| {
                 run.chapter_id == Some(workflow_source_input.source_chapter_id)
+                    && run.can_resume
                     && run.status != crate::workflow::WORKFLOW_STATUS_SUPERSEDED
             });
         let Some(run) = run else {

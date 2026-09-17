@@ -16,10 +16,16 @@ export const ScriptContent: React.FC<{
   const { locale, t } = useI18n();
   return (
   <div className="space-y-3">
-    <section className="a4n-flat-surface overflow-hidden">
-      <div className="border-b border-book-border/45 px-3 py-2.5 sm:px-4">
-        <h3 className="text-sm font-semibold text-book-text-main">{t("shootingScript.editor.directingIntent")}</h3>
-      </div>
+    <details className="group a4n-flat-surface overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 border-b border-book-border/45 px-3 py-2.5 [&::-webkit-details-marker]:hidden sm:px-4">
+        <ChevronRight
+          size={15}
+          className="shrink-0 text-book-text-muted transition-transform group-open:rotate-90"
+        />
+        <h3 className="text-sm font-semibold text-book-text-main">
+          {t("shootingScript.editor.directingIntent")}
+        </h3>
+      </summary>
       <div className="divide-y divide-book-border/45 px-3 sm:px-4">
         <Info
           label={t("shootingScript.editor.centralDramaticQuestion")}
@@ -65,15 +71,20 @@ export const ScriptContent: React.FC<{
           />
         </div>
       </details>
-    </section>
+    </details>
 
     <div className="space-y-3">
       {script.scenes.map((scene) => (
-        <article
+        <details
           key={scene.scene_index}
-          className="a4n-flat-surface overflow-hidden"
+          className="group/scene a4n-flat-surface overflow-hidden"
         >
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-book-border/45 px-3 py-2.5 sm:px-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 border-b border-book-border/45 px-3 py-2.5 [&::-webkit-details-marker]:hidden sm:px-4">
+            <ChevronRight
+              size={15}
+              className="shrink-0 text-book-text-muted transition-transform group-open/scene:rotate-90"
+            />
+            <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-book-text-main">
               {t("shootingScript.editor.scene", { index: scene.scene_index })} · {scene.title}
             </h3>
@@ -83,7 +94,8 @@ export const ScriptContent: React.FC<{
             <div className="w-full text-small text-book-text-muted">
               {scene.slugline}
             </div>
-          </div>
+            </div>
+          </summary>
           <div className="grid gap-2 border-b border-book-border/40 px-3 py-3 text-xs sm:grid-cols-2 sm:px-4">
             <Info label={t("shootingScript.editor.sceneObjective")} value={scene.scene_objective} compact />
             <Info label={t("shootingScript.editor.sceneObstacle")} value={scene.scene_obstacle} compact />
@@ -151,7 +163,7 @@ export const ScriptContent: React.FC<{
               {t("shootingScript.noShots")}
             </div>
           )}
-        </article>
+        </details>
       ))}
     </div>
   </div>
