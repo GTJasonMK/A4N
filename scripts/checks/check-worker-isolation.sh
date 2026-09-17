@@ -56,12 +56,25 @@ if grep -q 'a4n-export-core v' <<<"$host_tree"; then
     exit 1
 fi
 
+server_tree="$(cargo tree --locked -e normal,build -p a4n-server --no-default-features)"
+if grep -Eq '(^|[[:space:]])(a4n-edge|a4n-agent-worker|a4n-control)([[:space:]]|v|$)' <<<"$server_tree"; then
+    echo "default Server dependency tree unexpectedly contains supervised process implementation" >&2
+    exit 1
+fi
+
+worker_client_tree="$(cargo tree --locked -e normal,build -p a4n-worker-client)"
+if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|runtime|orchestrator)|sea-orm|sqlx)([[:space:]]|v|$)' <<<"$worker_client_tree"; then
+    echo "Worker client must remain free of business persistence and orchestrator implementations" >&2
+    exit 1
+fi
+
 if rg -n 'a4n[-_]export[-_]core' crates/a4n-test-support/Cargo.toml crates/a4n-test-support/src; then
     echo "shared test support must not pull the export Worker implementation" >&2
     exit 1
 fi
 
 cargo check --locked -p "$WORKER_PACKAGE" >/dev/null
+cargo check --locked -p a4n-worker-client >/dev/null
 cargo test --locked -p a4n-service-protocol --lib >/dev/null
 
 worker_main="crates/$WORKER_PACKAGE/src/main.rs"
