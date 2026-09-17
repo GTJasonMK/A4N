@@ -20,6 +20,8 @@ use std::os::unix::process::CommandExt;
 const CONTROL_PROCESS_ENV: &str = "A4N_CONTROL_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const EDGE_PROCESS_ENV: &str = "A4N_EDGE_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const ARTIFACT_MEDIA_WORKER_PROCESS_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -28,6 +30,10 @@ const NOVEL_PLANNING_WORKER_CATALOG_NAME: &str = "novel-planning-worker";
 const NOVEL_PLANNING_WORKER_BINARY_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_BINARY";
 const NOVEL_PLANNING_WORKER_TOKEN_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_TOKEN";
 const NOVEL_PLANNING_WORKER_URL_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_URL";
+const ARTIFACT_MEDIA_WORKER_CATALOG_NAME: &str = "artifact-media-worker";
+const ARTIFACT_MEDIA_WORKER_BINARY_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_BINARY";
+const ARTIFACT_MEDIA_WORKER_TOKEN_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_TOKEN";
+const ARTIFACT_MEDIA_WORKER_URL_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -51,10 +57,12 @@ enum ChildWatchEvent {
     ControlExited(ExitStatus),
     WorkerExited(ExitStatus),
     NovelPlanningWorkerExited(ExitStatus),
+    ArtifactMediaWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
     NovelPlanningWorkerChanged,
+    ArtifactMediaWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -70,6 +78,9 @@ fn main() -> anyhow::Result<()> {
         if env::var("A4N_AGENT_WORKER_PROCESS").as_deref() == Ok("1") {
             return a4n_agent_worker::run();
         }
+        if env::var(ARTIFACT_MEDIA_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_artifact_media_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -77,6 +88,8 @@ fn main() -> anyhow::Result<()> {
     let worker_token = worker_token()?;
     let novel_planning_worker_addr = novel_planning_worker_addr()?;
     let novel_planning_worker_token = worker_token_for_env(NOVEL_PLANNING_WORKER_TOKEN_ENV)?;
+    let artifact_media_worker_addr = artifact_media_worker_addr()?;
+    let artifact_media_worker_token = worker_token_for_env(ARTIFACT_MEDIA_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -85,19 +98,41 @@ fn main() -> anyhow::Result<()> {
     let mut edge_fingerprint = binary_fingerprint(&edge_binary)?;
     let novel_planning_worker_binary = novel_planning_worker_binary()?;
     let mut novel_planning_worker_fingerprint = binary_fingerprint(&novel_planning_worker_binary)?;
+    let artifact_media_worker_binary = artifact_media_worker_binary()?;
+    let mut artifact_media_worker_fingerprint = binary_fingerprint(&artifact_media_worker_binary)?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
-    let mut novel_planning_worker = spawn_novel_planning_worker(
+    let mut artifact_media_worker = spawn_artifact_media_worker(
+        &artifact_media_worker_binary,
+        artifact_media_worker_addr,
+        &artifact_media_worker_token,
+    )?;
+    if let Err(error) = wait_for_artifact_media_worker(
+        &mut artifact_media_worker,
+        artifact_media_worker_addr,
+        &artifact_media_worker_token,
+    ) {
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        return Err(error);
+    }
+    let mut novel_planning_worker = match spawn_novel_planning_worker(
         &novel_planning_worker_binary,
         novel_planning_worker_addr,
         &novel_planning_worker_token,
-    )?;
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            return Err(error);
+        }
+    };
     if let Err(error) = wait_for_novel_planning_worker(
         &mut novel_planning_worker,
         novel_planning_worker_addr,
         &novel_planning_worker_token,
     ) {
         let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         return Err(error);
     }
     let mut control = match spawn_control(
@@ -106,15 +141,19 @@ fn main() -> anyhow::Result<()> {
         &worker_token,
         novel_planning_worker_addr,
         &novel_planning_worker_token,
+        artifact_media_worker_addr,
+        &artifact_media_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
             let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             return Err(error);
         }
     };
     if let Err(error) = wait_for_control(&mut control, control_addr) {
         let cleanup_result = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         let _ = stop_novel_planning_worker(&mut novel_planning_worker);
         return match cleanup_result {
             Ok(()) => Err(error),
@@ -132,6 +171,7 @@ fn main() -> anyhow::Result<()> {
         Ok(child) => child,
         Err(error) => {
             let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
             let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             return Err(error);
         }
@@ -139,6 +179,7 @@ fn main() -> anyhow::Result<()> {
     if let Err(error) = wait_for_agent_worker(&mut agent_worker, agent_worker_addr, &worker_token) {
         let _ = stop_agent_worker(&mut agent_worker);
         let _ = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         let _ = stop_novel_planning_worker(&mut novel_planning_worker);
         return Err(error);
     }
@@ -147,6 +188,7 @@ fn main() -> anyhow::Result<()> {
         Err(error) => {
             let _ = stop_agent_worker(&mut agent_worker);
             let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
             let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             return Err(error);
         }
@@ -167,6 +209,11 @@ fn main() -> anyhow::Result<()> {
         &mut novel_planning_worker,
         &novel_planning_worker_binary,
         &mut novel_planning_worker_fingerprint,
+        artifact_media_worker_addr,
+        &artifact_media_worker_token,
+        &mut artifact_media_worker,
+        &artifact_media_worker_binary,
+        &mut artifact_media_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -176,11 +223,13 @@ fn main() -> anyhow::Result<()> {
     let worker_result = stop_agent_worker(&mut agent_worker);
     let control_result = stop_control(&mut control);
     let novel_planning_worker_result = stop_novel_planning_worker(&mut novel_planning_worker);
+    let artifact_media_worker_result = stop_artifact_media_worker(&mut artifact_media_worker);
     finish_shutdown(
         edge_result,
         worker_result,
         control_result,
         novel_planning_worker_result,
+        artifact_media_worker_result,
     )
 }
 
@@ -200,6 +249,11 @@ fn supervise_runtime_children(
     novel_planning_worker: &mut Child,
     novel_planning_worker_binary: &Path,
     novel_planning_worker_fingerprint: &mut BinaryFingerprint,
+    artifact_media_worker_addr: SocketAddr,
+    artifact_media_worker_token: &str,
+    artifact_media_worker: &mut Child,
+    artifact_media_worker_binary: &Path,
+    artifact_media_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -217,6 +271,9 @@ fn supervise_runtime_children(
             novel_planning_worker,
             novel_planning_worker_binary,
             *novel_planning_worker_fingerprint,
+            artifact_media_worker,
+            artifact_media_worker_binary,
+            *artifact_media_worker_fingerprint,
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -242,6 +299,8 @@ fn supervise_runtime_children(
                     worker_token,
                     novel_planning_worker_addr,
                     novel_planning_worker_token,
+                    artifact_media_worker_addr,
+                    artifact_media_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -274,6 +333,22 @@ fn supervise_runtime_children(
                 *novel_planning_worker_fingerprint =
                     binary_fingerprint(novel_planning_worker_binary)?;
             }
+            ChildWatchEvent::ArtifactMediaWorkerExited(status) => {
+                eprintln!("A4N Artifact/Media worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *artifact_media_worker = spawn_artifact_media_worker(
+                    artifact_media_worker_binary,
+                    artifact_media_worker_addr,
+                    artifact_media_worker_token,
+                )?;
+                wait_for_artifact_media_worker(
+                    artifact_media_worker,
+                    artifact_media_worker_addr,
+                    artifact_media_worker_token,
+                )?;
+                *artifact_media_worker_fingerprint =
+                    binary_fingerprint(artifact_media_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -290,6 +365,8 @@ fn supervise_runtime_children(
                     worker_token,
                     novel_planning_worker_addr,
                     novel_planning_worker_token,
+                    artifact_media_worker_addr,
+                    artifact_media_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -326,6 +403,25 @@ fn supervise_runtime_children(
                 *novel_planning_worker_fingerprint =
                     binary_fingerprint(novel_planning_worker_binary)?;
             }
+            ChildWatchEvent::ArtifactMediaWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Artifact/Media worker 构建完成；只替换 Artifact/Media worker"
+                );
+                stop_artifact_media_worker(artifact_media_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *artifact_media_worker = spawn_artifact_media_worker(
+                    artifact_media_worker_binary,
+                    artifact_media_worker_addr,
+                    artifact_media_worker_token,
+                )?;
+                wait_for_artifact_media_worker(
+                    artifact_media_worker,
+                    artifact_media_worker_addr,
+                    artifact_media_worker_token,
+                )?;
+                *artifact_media_worker_fingerprint =
+                    binary_fingerprint(artifact_media_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -347,6 +443,9 @@ fn wait_for_edge_or_child(
     novel_planning_worker: &mut Child,
     novel_planning_worker_binary: &Path,
     novel_planning_worker_fingerprint: BinaryFingerprint,
+    artifact_media_worker: &mut Child,
+    artifact_media_worker_binary: &Path,
+    artifact_media_worker_fingerprint: BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -365,6 +464,9 @@ fn wait_for_edge_or_child(
         if let Some(status) = novel_planning_worker.try_wait()? {
             return Ok(Some(ChildWatchEvent::NovelPlanningWorkerExited(status)));
         }
+        if let Some(status) = artifact_media_worker.try_wait()? {
+            return Ok(Some(ChildWatchEvent::ArtifactMediaWorkerExited(status)));
+        }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
         }
@@ -380,6 +482,11 @@ fn wait_for_edge_or_child(
         }
         if novel_planning_worker_changed {
             return Ok(Some(ChildWatchEvent::NovelPlanningWorkerChanged));
+        }
+        let artifact_media_worker_changed =
+            binary_fingerprint(artifact_media_worker_binary)? != artifact_media_worker_fingerprint;
+        if artifact_media_worker_changed {
+            return Ok(Some(ChildWatchEvent::ArtifactMediaWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -534,6 +641,25 @@ fn novel_planning_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn artifact_media_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(ARTIFACT_MEDIA_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            ARTIFACT_MEDIA_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn artifact_media_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = artifact_media_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -547,6 +673,8 @@ fn spawn_control(
     worker_token: &str,
     novel_planning_worker_addr: SocketAddr,
     novel_planning_worker_token: &str,
+    artifact_media_worker_addr: SocketAddr,
+    artifact_media_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -557,6 +685,11 @@ fn spawn_control(
             format!("http://{novel_planning_worker_addr}"),
         )
         .env(NOVEL_PLANNING_WORKER_TOKEN_ENV, novel_planning_worker_token)
+        .env(
+            ARTIFACT_MEDIA_WORKER_URL_ENV,
+            format!("http://{artifact_media_worker_addr}"),
+        )
+        .env(ARTIFACT_MEDIA_WORKER_TOKEN_ENV, artifact_media_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -585,6 +718,30 @@ fn spawn_novel_planning_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Novel Planning worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_artifact_media_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = artifact_media_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(ARTIFACT_MEDIA_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(ARTIFACT_MEDIA_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Artifact/Media worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -669,6 +826,28 @@ fn wait_for_novel_planning_worker(
         Some(NOVEL_PLANNING_WORKER_CATALOG_NAME),
         &required,
         "A4N Novel Planning worker",
+    )
+}
+
+fn wait_for_artifact_media_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = artifact_media_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(ARTIFACT_MEDIA_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Artifact/Media worker",
     )
 }
 
@@ -798,6 +977,13 @@ fn novel_planning_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn artifact_media_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        ARTIFACT_MEDIA_WORKER_BINARY_ENV,
+        &artifact_media_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -861,6 +1047,10 @@ fn stop_novel_planning_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_artifact_media_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_control(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -897,6 +1087,7 @@ fn finish_shutdown(
     worker_result: anyhow::Result<()>,
     control_result: anyhow::Result<()>,
     novel_planning_worker_result: anyhow::Result<()>,
+    artifact_media_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -904,6 +1095,7 @@ fn finish_shutdown(
         ("Agent worker", worker_result),
         ("Control", control_result),
         ("Novel Planning worker", novel_planning_worker_result),
+        ("Artifact/Media worker", artifact_media_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
@@ -970,6 +1162,18 @@ mod tests {
         (child, binary, fingerprint)
     }
 
+    fn artifact_media_fixture(
+        tempdir: &tempfile::TempDir,
+    ) -> (Child, std::path::PathBuf, super::BinaryFingerprint) {
+        let child = live_child();
+        let binary = tempdir.path().join("a4n-artifact-media-worker");
+        std::fs::write(&binary, b"artifact-media-worker")
+            .expect("artifact media worker fixture should be written");
+        let fingerprint =
+            super::binary_fingerprint(&binary).expect("artifact media fingerprint should work");
+        (child, binary, fingerprint)
+    }
+
     #[test]
     fn waits_for_control_listener() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
@@ -1020,6 +1224,11 @@ mod tests {
             novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
         ) = novel_planning_fixture(&tempdir);
+        let (
+            mut artifact_media_worker,
+            artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
+        ) = artifact_media_fixture(&tempdir);
 
         let result = super::wait_for_edge_or_child(
             &mut edge,
@@ -1032,6 +1241,9 @@ mod tests {
             &mut novel_planning_worker,
             &novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -1051,6 +1263,12 @@ mod tests {
         novel_planning_worker
             .wait()
             .expect("test novel planning worker should be reaped");
+        artifact_media_worker
+            .kill()
+            .expect("test artifact media worker should stop");
+        artifact_media_worker
+            .wait()
+            .expect("test artifact media worker should be reaped");
         worker.kill().expect("test worker should stop");
         worker.wait().expect("test worker should be reaped");
     }
@@ -1092,6 +1310,11 @@ mod tests {
             novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
         ) = novel_planning_fixture(&tempdir);
+        let (
+            mut artifact_media_worker,
+            artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
+        ) = artifact_media_fixture(&tempdir);
         std::fs::write(&control_binary, b"new-control").expect("control replacement should work");
 
         let result = super::wait_for_edge_or_child(
@@ -1105,6 +1328,9 @@ mod tests {
             &mut novel_planning_worker,
             &novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -1124,6 +1350,12 @@ mod tests {
         novel_planning_worker
             .wait()
             .expect("test novel planning worker should be reaped");
+        artifact_media_worker
+            .kill()
+            .expect("test artifact media worker should stop");
+        artifact_media_worker
+            .wait()
+            .expect("test artifact media worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -1153,6 +1385,11 @@ mod tests {
             novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
         ) = novel_planning_fixture(&tempdir);
+        let (
+            mut artifact_media_worker,
+            artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
+        ) = artifact_media_fixture(&tempdir);
         std::fs::write(&worker_binary, b"new-worker").expect("worker replacement should work");
 
         let result = super::wait_for_edge_or_child(
@@ -1166,6 +1403,9 @@ mod tests {
             &mut novel_planning_worker,
             &novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -1185,6 +1425,12 @@ mod tests {
         novel_planning_worker
             .wait()
             .expect("test novel planning worker should be reaped");
+        artifact_media_worker
+            .kill()
+            .expect("test artifact media worker should stop");
+        artifact_media_worker
+            .wait()
+            .expect("test artifact media worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -1214,6 +1460,11 @@ mod tests {
             novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
         ) = novel_planning_fixture(&tempdir);
+        let (
+            mut artifact_media_worker,
+            artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
+        ) = artifact_media_fixture(&tempdir);
         std::fs::write(&edge_binary, b"new-edge").expect("edge replacement should work");
 
         let result = super::wait_for_edge_or_child(
@@ -1227,6 +1478,9 @@ mod tests {
             &mut novel_planning_worker,
             &novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -1243,6 +1497,12 @@ mod tests {
         novel_planning_worker
             .wait()
             .expect("test novel planning worker should be reaped");
+        artifact_media_worker
+            .kill()
+            .expect("test artifact media worker should stop");
+        artifact_media_worker
+            .wait()
+            .expect("test artifact media worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
@@ -1255,15 +1515,19 @@ mod tests {
         let mut control = live_child();
         let mut worker = live_child();
         let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
         let control_binary = tempdir.path().join("a4n-control");
         let worker_binary = tempdir.path().join("a4n-agent-worker");
         let edge_binary = tempdir.path().join("a4n-edge");
         let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_media_worker_binary = tempdir.path().join("a4n-artifact-media-worker");
         std::fs::write(&control_binary, b"control").expect("control fixture should be written");
         std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
         std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
         std::fs::write(&novel_binary, b"old-novel").expect("novel fixture should be written");
+        std::fs::write(&artifact_media_worker_binary, b"artifact-media-worker")
+            .expect("artifact media fixture should be written");
         let control_fingerprint =
             super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
         let worker_fingerprint =
@@ -1272,6 +1536,9 @@ mod tests {
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
         let novel_fingerprint =
             super::binary_fingerprint(&novel_binary).expect("novel fingerprint should work");
+        let artifact_media_worker_fingerprint =
+            super::binary_fingerprint(&artifact_media_worker_binary)
+                .expect("artifact media fingerprint should work");
         std::fs::write(&novel_binary, b"new-novel").expect("novel replacement should be written");
 
         let result = super::wait_for_edge_or_child(
@@ -1285,6 +1552,9 @@ mod tests {
             &mut novel_planning_worker,
             &novel_binary,
             novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -1308,6 +1578,79 @@ mod tests {
         novel_planning_worker
             .wait()
             .expect("test novel planning worker should be reaped");
+        artifact_media_worker
+            .kill()
+            .expect("test artifact media worker should stop");
+        artifact_media_worker
+            .wait()
+            .expect("test artifact media worker should be reaped");
+    }
+
+    #[test]
+    fn artifact_media_worker_binary_change_only_selects_artifact_media_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        std::fs::write(&control_binary, b"control").expect("control fixture should be written");
+        std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
+        std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
+        let control_fingerprint =
+            super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
+        let worker_fingerprint =
+            super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let edge_fingerprint =
+            super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        let (mut novel_planning_worker, novel_binary, novel_fingerprint) =
+            novel_planning_fixture(&tempdir);
+        let artifact_media_worker_binary = tempdir.path().join("a4n-artifact-media-worker");
+        std::fs::write(&artifact_media_worker_binary, b"old-artifact")
+            .expect("artifact fixture should be written");
+        let artifact_media_worker_fingerprint =
+            super::binary_fingerprint(&artifact_media_worker_binary)
+                .expect("artifact fingerprint should work");
+        std::fs::write(&artifact_media_worker_binary, b"new-artifact")
+            .expect("artifact replacement should be written");
+
+        let result = super::wait_for_edge_or_child(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ArtifactMediaWorkerChanged)
+        ));
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
     }
 
     #[test]
@@ -1336,6 +1679,7 @@ mod tests {
         let mut edge = live_child();
         let mut control = live_child();
         let mut worker = live_child();
+        let mut artifact_media_worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
         let control_binary = tempdir.path().join("a4n-control");
         let worker_binary = tempdir.path().join("a4n-agent-worker");
@@ -1347,9 +1691,15 @@ mod tests {
         let worker_fingerprint =
             super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
         let edge_binary = tempdir.path().join("a4n-edge");
+        let artifact_media_worker_binary = tempdir.path().join("a4n-artifact-media-worker");
         std::fs::write(&edge_binary, b"edge").expect("edge fixture should be written");
         let edge_fingerprint =
             super::binary_fingerprint(&edge_binary).expect("edge fingerprint should work");
+        std::fs::write(&artifact_media_worker_binary, b"artifact-media-worker")
+            .expect("artifact media fixture should be written");
+        let artifact_media_worker_fingerprint =
+            super::binary_fingerprint(&artifact_media_worker_binary)
+                .expect("artifact media fingerprint should work");
         let (
             mut novel_planning_worker,
             novel_planning_worker_binary,
@@ -1369,6 +1719,9 @@ mod tests {
             &mut novel_planning_worker,
             &novel_planning_worker_binary,
             novel_planning_worker_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_media_worker_binary,
+            artifact_media_worker_fingerprint,
             &edge_binary,
             edge_fingerprint,
             Some(&marker),
@@ -1388,15 +1741,15 @@ mod tests {
         novel_planning_worker
             .wait()
             .expect("test novel planning worker should be reaped");
+        artifact_media_worker
+            .kill()
+            .expect("test artifact media worker should stop");
+        artifact_media_worker
+            .wait()
+            .expect("test artifact media worker should be reaped");
         control.kill().expect("test control should stop");
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
         worker.wait().expect("test worker should be reaped");
-        novel_planning_worker
-            .kill()
-            .expect("test novel planning worker should stop");
-        novel_planning_worker
-            .wait()
-            .expect("test novel planning worker should be reaped");
     }
 }

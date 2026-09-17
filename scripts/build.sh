@@ -111,6 +111,7 @@ cargo_target_args() {
             # alone would produce an unusable runtime bundle.
             printf '%s\n' "-p" "a4n-edge"
             printf '%s\n' "-p" "a4n-novel-planning-worker"
+            printf '%s\n' "-p" "a4n-artifact-media-worker"
         fi
     fi
 

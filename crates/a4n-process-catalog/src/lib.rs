@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 2);
+        assert_eq!(entries.len(), 3);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -389,12 +389,22 @@ mod tests {
             ]
         );
         assert_eq!(novel.migration.current.as_deref(), Some("shooting_script"));
+        let artifact = entries
+            .iter()
+            .find(|entry| entry.name == "artifact-media-worker")
+            .expect("artifact media worker entry");
+        assert_eq!(artifact.kind, ProcessKind::StatefulWorker);
+        assert_eq!(artifact.binary, "a4n-artifact-media-worker");
+        assert_eq!(artifact.contract_version, "artifact-media-v1");
+        assert_eq!(artifact.addr_env, "A4N_ARTIFACT_MEDIA_WORKER_ADDR");
+        assert_eq!(artifact.default_addr, "127.0.0.1:47652");
+        assert_eq!(artifact.capabilities, vec!["artifact-media".to_string()]);
     }
 
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 11);
+        assert_eq!(entries.len(), 12);
         assert_eq!(
             entries
                 .iter()

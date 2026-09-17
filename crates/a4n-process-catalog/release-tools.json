@@ -5,5 +5,6 @@
   {"package":"a4n-control","binary":"a4n-control"},
   {"package":"a4n-agent-worker","binary":"a4n-agent-worker"},
   {"package":"a4n-novel-planning-worker","binary":"a4n-novel-planning-worker"},
+  {"package":"a4n-artifact-media-worker","binary":"a4n-artifact-media-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}
 ]

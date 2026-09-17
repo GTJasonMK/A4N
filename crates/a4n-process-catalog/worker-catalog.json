@@ -60,5 +60,28 @@
       "min_compatible": "shooting_script",
       "max_compatible": "shooting_script"
     }
+  },
+  {
+    "name": "artifact-media-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-artifact-media-worker",
+    "contract_version": "artifact-media-v1",
+    "capability_version": "artifact-media-v1",
+    "addr_env": "A4N_ARTIFACT_MEDIA_WORKER_ADDR",
+    "url_env": "A4N_ARTIFACT_MEDIA_WORKER_URL",
+    "default_addr": "127.0.0.1:47652",
+    "local_only": true,
+    "data_scope": [
+      "image_publication",
+      "cleanup_outbox",
+      "media_artifact"
+    ],
+    "capabilities": ["artifact-media"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "image_publication",
+      "min_compatible": "image_publication",
+      "max_compatible": "image_publication"
+    }
   }
 ]

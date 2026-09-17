@@ -449,7 +449,7 @@ build_local_server_targets() {
   local sidecar_package_lines package
   local -a sidecar_packages=()
   $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-novel-planning-worker -p a4n-edge -p a4n-server)
+  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-novel-planning-worker -p a4n-artifact-media-worker -p a4n-edge -p a4n-server)
   $SERVER && build_command+=(-p a4n-cli)
   if $MANAGED_SIDECARS && ! $FULL_HOST; then
     sidecar_package_lines="$(sidecar_catalog_binaries)"

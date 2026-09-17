@@ -31,7 +31,7 @@ use sea_orm::{ConnectOptions, Database};
 use serde_json::{Value, json};
 use tokio::time::MissedTickBehavior;
 
-const DEFAULT_ADDR: &str = "127.0.0.1:47651";
+const DEFAULT_ADDR: &str = "127.0.0.1:47652";
 const RECOVERY_LIMIT: usize = 64;
 const CLEANUP_LIMIT: usize = 64;
 const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(30);

@@ -1544,6 +1544,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-agent-worker",
  "a4n-api-contract",
+ "a4n-artifact-media-worker",
  "a4n-control",
  "a4n-db",
  "a4n-db-models",
