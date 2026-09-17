@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Save, Wand2 } from "lucide-react";
+import { RefreshCw, Save, Trash2, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
 import {
+  deleteChapterShootingScript,
   editChapterShootingScript,
   generateChapterShootingScript,
   generateNextChapterShootingScriptUnit,
@@ -49,6 +50,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [scriptLoading, setScriptLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [confirmedVisualPlanId, setConfirmedVisualPlanId] = useState<number | null>(null);
   const [draft, setDraft] = useState<ChapterShootingScriptV1 | null>(null);
   const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
@@ -243,11 +245,35 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     }
   };
 
+  const remove = async () => {
+    if (!view || chapterId == null || deleting || generating || saving || scriptLoading) return;
+    const confirmed = await confirmDialog({
+      title: t("shootingScript.deleteTitle"),
+      message: t("shootingScript.deleteMessage"),
+      confirmText: t("shootingScript.delete"),
+      dialogType: "danger",
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await deleteChapterShootingScript(projectId, chapterId, view);
+      setView(null);
+      setDraft(null);
+      setUnitProgress(null);
+      setInvalidatedProjectIds([]);
+      addToast(t("shootingScript.deleteCompleted"), "success");
+    } catch (error) {
+      addToast(extractErrorMessage(error, t("shootingScript.deleteFailed")), "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!chapter) {
     return <EmptyHint text={t("shootingScript.chooseChapter")} />;
   }
 
-  const actionsDisabled = generating || saving || scriptLoading;
+  const actionsDisabled = generating || saving || deleting || scriptLoading;
 
   return (
     <section className="min-w-0 space-y-3">
@@ -261,7 +287,9 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 : t("shootingScript.generating")
               : saving
                 ? t("shootingScript.saving")
-                : view
+                : deleting
+                  ? t("shootingScript.deleting")
+                  : view
                   ? t("shootingScript.currentRevision", { revision: view.record.revision, dirty: isDirty ? ` · ${t("writing.unsavedChanges")}` : "" })
                   : unitProgress
                     ? t("shootingScript.completedScenes", { current: unitProgress.completed_unit_count, total: unitProgress.total_unit_count })
@@ -284,6 +312,14 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                       ) : (
                         <RefreshCw size={12} />
                       ),
+                    },
+                    { type: "divider" },
+                    {
+                      label: deleting ? t("shootingScript.deleting") : t("shootingScript.delete"),
+                      onClick: () => void remove(),
+                      disabled: actionsDisabled,
+                      danger: true,
+                      icon: deleting ? <LoadingSpinner size="sm" /> : <Trash2 size={12} />,
                     },
                   ]}
                 />

@@ -54,6 +54,7 @@ export const HOST_API_COMMANDS = [
   "create_user",
   "decline_project_invite",
   "delete_chapter_scene",
+  "delete_chapter_shooting_script",
   "delete_chapter_video_prompt",
   "delete_embedding_config",
   "delete_foreshadowing",
@@ -5142,6 +5143,13 @@ export interface GenerateChapterShootingScriptInput {
   project_id: number;
   source_chapter_id: number;
   visual_plan_id: number;
+}
+
+export interface DeleteChapterShootingScriptInput {
+  expected_revision: number;
+  project_id: number;
+  record_id: number;
+  source_chapter_id: number;
 }
 
 export interface EditChapterShootingScriptInput {

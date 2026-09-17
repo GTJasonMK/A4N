@@ -1,13 +1,15 @@
 mod contracts;
+mod delete;
 mod edit;
 mod generation;
 mod read;
 
 pub use contracts::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptUnitProgressView,
-    ChapterShootingScriptView, EditChapterShootingScriptInput, EditedChapterShootingScriptView,
-    GenerateChapterShootingScriptInput,
+    ChapterShootingScriptView, DeleteChapterShootingScriptInput, EditChapterShootingScriptInput,
+    EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
 };
+pub use delete::delete_chapter_shooting_script;
 pub use edit::edit_chapter_shooting_script;
 pub use generation::{
     generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit,

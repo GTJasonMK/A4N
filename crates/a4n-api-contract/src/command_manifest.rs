@@ -379,6 +379,7 @@ command_specs! {
     "create_user" => args_create_user, result_get_current_user, "auth", identity(ADMIN_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "decline_project_invite" => args_invite_id, result_unit, "project", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_chapter_scene" => args_delete_chapter_scene, result_unit, "chapter", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "delete_chapter_shooting_script" => args_delete_chapter_shooting_script, result_unit, "chapter", effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "delete_chapter_video_prompt" => args_delete_chapter_video_prompt, result_unit, "video", effect(DESTRUCTIVE_EFFECT);
     "delete_embedding_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "delete_foreshadowing" => args_delete_foreshadowing, result_foreshadowing_write, "profile", effect(DESTRUCTIVE_EFFECT);
@@ -1320,6 +1321,10 @@ fn args_delete_chapter_scene() -> Value {
         "additionalProperties": false,
         "x-a4n-schema-quality": "typed",
     })
+}
+
+fn args_delete_chapter_shooting_script() -> Value {
+    strict_typed_input_schema::<crate::shooting_script::DeleteChapterShootingScriptInput>()
 }
 
 fn args_delete_galgame_line() -> Value {

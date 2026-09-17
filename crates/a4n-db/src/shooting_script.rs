@@ -1,14 +1,17 @@
 mod codec;
 mod contracts;
+mod deletion;
 mod editing;
 mod mutations;
 mod queries;
 mod validation;
 
 pub use contracts::{
-    ChapterVisualPlanIdentity, EditChapterShootingScriptOutcome, InsertChapterShootingScriptInput,
+    ChapterVisualPlanIdentity, DeleteStoredChapterShootingScriptInput,
+    EditChapterShootingScriptOutcome, InsertChapterShootingScriptInput,
     ParsedChapterShootingScript, ShootingScriptDbError, UpdateChapterShootingScriptInput,
 };
+pub use deletion::delete_chapter_shooting_script_and_invalidate;
 pub use editing::edit_chapter_shooting_script_and_invalidate;
 pub use mutations::{insert_chapter_shooting_script, update_chapter_shooting_script};
 pub use queries::{
