@@ -12,7 +12,8 @@ use std::{
 
 use a4n_process_catalog::stateful_worker_catalog_entry_ref;
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, WORKER_HEALTH_PATH, WorkerHealth, WorkerHealthStatus,
+    AGENT_WORKER_AUTH_HEADER, WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities,
+    WorkerHealth, WorkerHealthStatus,
 };
 
 #[cfg(target_os = "linux")]
@@ -435,6 +436,7 @@ fn wait_for_agent_worker(
         .map_err(|error| anyhow::anyhow!("初始化 Agent worker health client 失败: {error}"))?;
     let started = Instant::now();
     let health_url = format!("http://{address}{WORKER_HEALTH_PATH}");
+    let capabilities_url = format!("http://{address}{WORKER_CAPABILITIES_PATH}");
     let mut last_error = None;
     while started.elapsed() < WORKER_READY_TIMEOUT {
         if let Some(status) = child.try_wait()? {
@@ -460,6 +462,20 @@ fn wait_for_agent_worker(
                     .validate()
                     .map_err(|error| anyhow::anyhow!("Agent worker health 合同无效: {error}"))?;
                 if health.status == WorkerHealthStatus::Healthy {
+                    let capabilities = client
+                        .get(&capabilities_url)
+                        .header(AGENT_WORKER_AUTH_HEADER, worker_token)
+                        .send()
+                        .map_err(|error| {
+                            anyhow::anyhow!("Agent worker capabilities 请求失败: {error}")
+                        })?
+                        .json::<WorkerCapabilities>()
+                        .map_err(|error| {
+                            anyhow::anyhow!("Agent worker capabilities 响应不是有效合同: {error}")
+                        })?;
+                    capabilities.validate().map_err(|error| {
+                        anyhow::anyhow!("Agent worker capabilities 合同无效: {error}")
+                    })?;
                     return Ok(());
                 }
                 last_error = Some(anyhow::anyhow!(

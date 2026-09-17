@@ -2,7 +2,8 @@ use std::{net::SocketAddr, sync::Arc};
 
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
-    WORKER_SCHEMA_VERSION,
+    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
+    WorkerCapability, WorkerHealth, WorkerHealthStatus,
 };
 use anyhow::anyhow;
 use axum::{
@@ -12,42 +13,19 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use serde::Serialize;
 use subtle::ConstantTimeEq;
 use tokio::{net::TcpListener, sync::oneshot};
 
-// Keep these local until a4n-worker-contract publishes the shared worker
-// health paths and response types; the wire fields already use its stable
-// schema version and Agent worker auth header.
 const WORKER_ADDR_ENV: &str = "A4N_AGENT_WORKER_ADDR";
-const WORKER_NAME: &str = "agent";
-const WORKER_KIND: &str = "stateful_worker";
-const HEALTH_PATH: &str = "/healthz";
-const CAPABILITIES_PATH: &str = "/capabilities";
-const READY_STATUS: &str = "ready";
+const HEALTH_PATH: &str = WORKER_HEALTH_PATH;
+const CAPABILITIES_PATH: &str = WORKER_CAPABILITIES_PATH;
+const CAPABILITY_VERSION: &str = "agent-worker-v1";
 const WORKER_OPERATIONS: &[&str] = &[AGENT_RUN_OPERATION, AGENT_HOST_COMMAND_OPERATION];
 
 #[derive(Clone)]
 struct HealthState {
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug, Serialize)]
-struct HealthResponse {
-    worker: &'static str,
-    worker_id: String,
-    status: &'static str,
-    schema_version: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct CapabilitiesResponse {
-    worker: &'static str,
-    worker_id: String,
-    kind: &'static str,
-    schema_version: u32,
-    capabilities: &'static [&'static str],
 }
 
 pub(crate) fn router(worker_id: String, auth_token: String) -> Router {
@@ -108,11 +86,11 @@ async fn healthz(State(state): State<HealthState>, headers: HeaderMap) -> Respon
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    Json(HealthResponse {
-        worker: WORKER_NAME,
-        worker_id: state.worker_id.to_string(),
-        status: READY_STATUS,
+    Json(WorkerHealth {
         schema_version: WORKER_SCHEMA_VERSION,
+        worker_id: state.worker_id.to_string(),
+        status: WorkerHealthStatus::Healthy,
+        version: env!("CARGO_PKG_VERSION").to_string(),
     })
     .into_response()
 }
@@ -121,12 +99,17 @@ async fn capabilities(State(state): State<HealthState>, headers: HeaderMap) -> R
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    Json(CapabilitiesResponse {
-        worker: WORKER_NAME,
-        worker_id: state.worker_id.to_string(),
-        kind: WORKER_KIND,
+    Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
-        capabilities: WORKER_OPERATIONS,
+        worker_id: state.worker_id.to_string(),
+        capabilities: WORKER_OPERATIONS
+            .iter()
+            .map(|name| WorkerCapability {
+                name: (*name).to_string(),
+                version: CAPABILITY_VERSION.to_string(),
+                enabled: true,
+            })
+            .collect(),
     })
     .into_response()
 }
@@ -209,23 +192,41 @@ mod tests {
     #[tokio::test]
     async fn health_reports_ready_worker_schema_without_sidecar_fields() {
         let value = json_body(request(test_router(), HEALTH_PATH, Some(TOKEN)).await).await;
-        assert_eq!(value["worker"], WORKER_NAME);
         assert_eq!(value["worker_id"], WORKER_ID);
-        assert_eq!(value["status"], READY_STATUS);
+        assert_eq!(value["status"], "healthy");
         assert_eq!(value["schema_version"], WORKER_SCHEMA_VERSION);
+        assert_eq!(value["version"], env!("CARGO_PKG_VERSION"));
         assert!(value.get("service").is_none());
-        assert!(value.get("version").is_none());
+        let decoded: WorkerHealth = serde_json::from_value(value).expect("health contract");
+        decoded.validate().expect("health contract should validate");
     }
 
     #[tokio::test]
     async fn capabilities_report_worker_operations_and_schema() {
         let value = json_body(request(test_router(), CAPABILITIES_PATH, Some(TOKEN)).await).await;
-        assert_eq!(value["worker"], WORKER_NAME);
         assert_eq!(value["worker_id"], WORKER_ID);
-        assert_eq!(value["kind"], WORKER_KIND);
         assert_eq!(value["schema_version"], WORKER_SCHEMA_VERSION);
-        assert_eq!(value["capabilities"], serde_json::json!(WORKER_OPERATIONS));
+        assert_eq!(
+            value["capabilities"],
+            serde_json::json!([
+                {
+                    "name": AGENT_RUN_OPERATION,
+                    "version": CAPABILITY_VERSION,
+                    "enabled": true
+                },
+                {
+                    "name": AGENT_HOST_COMMAND_OPERATION,
+                    "version": CAPABILITY_VERSION,
+                    "enabled": true
+                }
+            ])
+        );
         assert!(value.get("capability_version").is_none());
+        let decoded: WorkerCapabilities =
+            serde_json::from_value(value).expect("capabilities contract");
+        decoded
+            .validate()
+            .expect("capabilities contract should validate");
     }
 
     #[test]
