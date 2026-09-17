@@ -118,6 +118,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-artifact-media-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-artifact-media-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "axum 0.8.9",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-artifact-media-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "a4n-artifact-media-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-artifact-media-contract",
+ "a4n-cleanup-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-migration",
+ "a4n-storage",
+ "a4n-test-support",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "chrono",
+ "futures",
+ "reqwest 0.12.28",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "a4n-blueprint-contract"
 version = "0.1.0"
 dependencies = [
@@ -1576,6 +1634,7 @@ name = "a4n-storage"
 version = "0.1.0"
 dependencies = [
  "a4n-error",
+ "sha2",
 ]
 
 [[package]]

@@ -416,24 +416,44 @@ pub async fn image_publications_for_recovery<C>(
 where
     C: ConnectionTrait,
 {
+    image_publications_for_recovery_for_image_type(db, limit, published_after, None).await
+}
+
+pub async fn image_publications_for_recovery_for_image_type<C>(
+    db: &C,
+    limit: usize,
+    published_after: Option<&str>,
+    image_type: Option<&str>,
+) -> Result<Vec<image_publication::Model>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
     let limit = u64::try_from(limit)
         .map_err(|_| VideoDbError::InvalidArgument("图片发布恢复 limit 无效".to_string()))?;
-    let mut publications = image_publication::Entity::find()
+    let mut pending_query = image_publication::Entity::find()
         .filter(image_publication::Column::Status.is_in([
             IMAGE_PUBLICATION_STATUS_PENDING,
             IMAGE_PUBLICATION_STATUS_RECLAIMING,
         ]))
         .order_by_asc(image_publication::Column::UpdatedAt)
-        .limit(limit)
+        .limit(limit);
+    if let Some(image_type) = image_type {
+        pending_query = pending_query.filter(image_publication::Column::ImageType.eq(image_type));
+    }
+    let mut publications = pending_query
         .all(db)
         .await
         .map_err(VideoDbError::Database)?;
     if publications.len() < limit as usize {
         let published_limit = limit as usize - publications.len();
-        let published_query = image_publication::Entity::find()
+        let mut published_query = image_publication::Entity::find()
             .filter(image_publication::Column::Status.eq(IMAGE_PUBLICATION_STATUS_PUBLISHED))
             .order_by_asc(image_publication::Column::PublicationId)
             .limit(published_limit as u64);
+        if let Some(image_type) = image_type {
+            published_query =
+                published_query.filter(image_publication::Column::ImageType.eq(image_type));
+        }
         let page_query = match published_after {
             Some(after) => published_query
                 .clone()

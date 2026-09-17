@@ -1,0 +1,35 @@
+[package]
+name = "a4n-artifact-media-worker"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-artifact-media-contract = { path = "../a4n-artifact-media-contract" }
+a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
+a4n-config = { path = "../a4n-config" }
+a4n-db = { path = "../a4n-db" }
+a4n-db-models = { path = "../a4n-db-models" }
+a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-storage = { path = "../a4n-storage" }
+a4n-worker-contract = { path = "../a4n-worker-contract" }
+anyhow = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+uuid = { workspace = true }
+
+[dev-dependencies]
+a4n-migration = { path = "../a4n-migration" }
+a4n-test-support = { path = "../a4n-test-support" }
+reqwest = { workspace = true }
+tempfile = { workspace = true }
+tower = { workspace = true, features = ["util"] }
