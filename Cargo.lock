@@ -1737,6 +1737,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-worker-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "a4n-worker-contract"
 version = "0.1.0"
 dependencies = [

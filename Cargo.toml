@@ -10,6 +10,7 @@ members = [
     "crates/a4n-service-protocol",
     "crates/a4n-process-catalog",
     "crates/a4n-worker-contract",
+    "crates/a4n-worker-client",
     "crates/a4n-agent-runtime-contract",
     "crates/a4n-agent-application",
     "crates/a4n-agent-runtime",
