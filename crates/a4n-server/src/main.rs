@@ -66,14 +66,15 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    let web_addr = web_addr()?;
-    let control_addr = control_addr_from_web(web_addr)?;
+    let control_addr = control_addr()?;
     let agent_worker_addr = agent_worker_addr()?;
     let worker_token = worker_token()?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
     let mut worker_fingerprint = binary_fingerprint(&worker_binary)?;
+    let edge_binary = edge_binary()?;
+    let mut edge_fingerprint = binary_fingerprint(&edge_binary)?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut control = spawn_control(&control_binary, control_addr, &worker_token)?;
@@ -103,9 +104,14 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_control(&mut control);
         return Err(error);
     }
-    let edge_binary = edge_binary()?;
-    let mut edge_fingerprint = binary_fingerprint(&edge_binary)?;
-    let mut edge = spawn_edge(&edge_binary, control_addr)?;
+    let mut edge = match spawn_edge(&edge_binary, control_addr) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_agent_worker(&mut agent_worker);
+            let _ = stop_control(&mut control);
+            return Err(error);
+        }
+    };
     let watch_result = supervise_runtime_children(
         &mut edge,
         &mut control,
