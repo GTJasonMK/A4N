@@ -68,6 +68,16 @@ if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|runtime|orchestrator)|sea-orm|sql
     exit 1
 fi
 
+novel_client_tree="$(cargo tree --locked -e normal,build -p a4n-novel-planning-worker-client)"
+if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$novel_client_tree"; then
+    echo "Novel Planning client must not pull the Worker implementation" >&2
+    exit 1
+fi
+if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$server_tree"; then
+    echo "default Server dependency tree unexpectedly contains Novel Planning Worker implementation" >&2
+    exit 1
+fi
+
 if rg -n 'a4n[-_]export[-_]core' crates/a4n-test-support/Cargo.toml crates/a4n-test-support/src; then
     echo "shared test support must not pull the export Worker implementation" >&2
     exit 1
