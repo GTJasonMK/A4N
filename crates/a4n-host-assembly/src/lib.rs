@@ -43,6 +43,8 @@ pub async fn initialize_runtime(
     let package_mutation_application = Arc::new(orchestrator.clone());
     let rag_search = Arc::new(orchestrator.clone());
     let rag_ingest = Arc::new(orchestrator.clone());
+    let novel_planning_worker =
+        Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
     let application_ports = ApplicationPorts {
         generation_task_read_application: Arc::new(orchestrator.clone()),
         generation_task_mutation_application: Arc::new(orchestrator.clone()),
@@ -50,8 +52,9 @@ pub async fn initialize_runtime(
         generation_cleanup_application: Arc::new(orchestrator.clone()),
         source_sync_read_application: Arc::new(orchestrator.clone()),
         source_sync_mutation_application: Arc::new(orchestrator.clone()),
+        shooting_script_current_application: novel_planning_worker.clone(),
         shooting_script_record_read_application: Arc::new(orchestrator.clone()),
-        shooting_script_record_mutation_application: Arc::new(orchestrator.clone()),
+        shooting_script_record_mutation_application: novel_planning_worker,
         shooting_script_full_generation_application: Arc::new(orchestrator.clone()),
         shooting_script_next_unit_generation_application: Arc::new(orchestrator.clone()),
         auth_read_application: Arc::new(orchestrator.clone()),

@@ -338,8 +338,11 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 1);
-        let entry = &entries[0];
+        assert_eq!(entries.len(), 2);
+        let entry = entries
+            .iter()
+            .find(|entry| entry.name == "agent-worker")
+            .expect("agent worker entry");
         assert_eq!(entry.name, "agent-worker");
         assert_eq!(entry.kind, ProcessKind::StatefulWorker);
         assert_eq!(entry.binary, "a4n-agent-worker");
@@ -353,12 +356,26 @@ mod tests {
             entry.migration.min_compatible.as_deref(),
             Some("agent_runtime")
         );
+        let novel = entries
+            .iter()
+            .find(|entry| entry.name == "novel-planning-worker")
+            .expect("novel planning worker entry");
+        assert_eq!(novel.kind, ProcessKind::StatefulWorker);
+        assert_eq!(novel.binary, "a4n-novel-planning-worker");
+        assert_eq!(novel.contract_version, "novel-planning-shooting-script-v1");
+        assert_eq!(novel.addr_env, "A4N_NOVEL_PLANNING_WORKER_ADDR");
+        assert_eq!(
+            novel.url_env.as_deref(),
+            Some("A4N_NOVEL_PLANNING_WORKER_URL")
+        );
+        assert_eq!(novel.default_addr, "127.0.0.1:47651");
+        assert_eq!(novel.migration.current.as_deref(), Some("shooting_script"));
     }
 
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 10);
+        assert_eq!(entries.len(), 11);
         assert_eq!(
             entries
                 .iter()

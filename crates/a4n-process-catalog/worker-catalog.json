@@ -29,5 +29,28 @@
       "min_compatible": "agent_runtime",
       "max_compatible": "agent_runtime"
     }
+  },
+  {
+    "name": "novel-planning-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-novel-planning-worker",
+    "contract_version": "novel-planning-shooting-script-v1",
+    "addr_env": "A4N_NOVEL_PLANNING_WORKER_ADDR",
+    "url_env": "A4N_NOVEL_PLANNING_WORKER_URL",
+    "default_addr": "127.0.0.1:47651",
+    "local_only": true,
+    "data_scope": [
+      "chapter_shooting_script",
+      "chapter_visual_plan",
+      "cleanup_outbox"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
+    "migration": {
+      "current": "shooting_script",
+      "min_compatible": "shooting_script",
+      "max_compatible": "shooting_script"
+    }
   }
 ]

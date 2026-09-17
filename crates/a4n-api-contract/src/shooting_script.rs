@@ -90,6 +90,19 @@ pub struct EditedChapterShootingScriptView {
     pub invalidated_project_ids: Vec<i64>,
 }
 
+/// Host-facing read boundary for the persisted current record.
+///
+/// The unit-progress read remains a separate transitional port because its
+/// workflow state is still owned by the generation application.
+#[async_trait::async_trait]
+pub trait ShootingScriptCurrentReadApplicationPort: Send + Sync {
+    async fn current(
+        &self,
+        user_id: i64,
+        input: ChapterShootingScriptSourceInput,
+    ) -> Result<Option<ChapterShootingScriptView>, a4n_error::AppError>;
+}
+
 /// Host-facing read boundary for persisted shooting-script records.
 ///
 /// Source resolution, visual-plan consistency and persistence stay with the

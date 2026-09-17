@@ -2173,6 +2173,12 @@ impl AppState {
         self.shooting_script_record_read_application.as_ref()
     }
 
+    pub(crate) fn shooting_script_current_application(
+        &self,
+    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptCurrentReadApplicationPort {
+        self.shooting_script_current_application.as_ref()
+    }
+
     pub(crate) fn shooting_script_record_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort {

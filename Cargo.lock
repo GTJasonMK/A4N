@@ -583,6 +583,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-config",
  "a4n-error",
+ "a4n-novel-planning-worker-client",
  "a4n-orchestrator",
  "a4n-runtime",
 ]
@@ -979,6 +980,53 @@ dependencies = [
  "a4n-prompt-contract",
  "async-trait",
  "tokio-util",
+]
+
+[[package]]
+name = "a4n-novel-planning-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-novel-planning-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "chrono",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-novel-planning-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-novel-planning-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-novel-planning-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
 ]
 
 [[package]]
