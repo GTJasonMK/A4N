@@ -219,12 +219,13 @@ impl OrchestratorContext {
 
     pub async fn import_galgame_audio_for_user_validated(
         &self,
+        host_port: &dyn a4n_api_contract::media::MediaAudioProbeHostPort,
         user_id: i64,
         input: super::ImportGalgameAudioInput,
     ) -> Result<super::GalgameMediaBindingSummary, AppError> {
         self.verify_galgame_project_access(user_id, input.project_id, ProjectAccessRole::Editor)
             .await?;
-        self.import_galgame_audio_validated(input).await
+        self.import_galgame_audio_validated(host_port, input).await
     }
 
     pub async fn run_export_galgame_webgal_for_user_validated(
@@ -534,10 +535,11 @@ impl a4n_api_contract::galgame::GalgameMediaMutationApplicationPort for Orchestr
 
     async fn import_audio(
         &self,
+        host_port: &dyn a4n_api_contract::media::MediaAudioProbeHostPort,
         user_id: i64,
         input: ImportGalgameAudioInput,
     ) -> Result<GalgameMediaBindingSummary, AppError> {
-        self.import_galgame_audio_for_user_validated(user_id, input)
+        self.import_galgame_audio_for_user_validated(host_port, user_id, input)
             .await
     }
 }

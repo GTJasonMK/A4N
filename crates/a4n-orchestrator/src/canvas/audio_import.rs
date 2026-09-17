@@ -1,3 +1,4 @@
+use a4n_api_contract::media::MediaAudioProbeHostPort;
 use a4n_canvas_contract::CanvasAudioImportHostInput;
 use a4n_db_models::models::media::media_asset;
 use a4n_error::AppError;
@@ -144,6 +145,7 @@ impl CanvasAudioImportSource {
 impl OrchestratorContext {
     pub async fn import_canvas_audio_validated(
         &self,
+        host_port: &dyn MediaAudioProbeHostPort,
         user_id: i64,
         input: CanvasAudioImportHostInput,
     ) -> Result<media_asset::Model, AppError> {
@@ -161,7 +163,7 @@ impl OrchestratorContext {
         }
 
         let project_id = input.project_id;
-        let persisted = persist_canvas_audio(self.data_dir(), input)?;
+        let persisted = persist_canvas_audio(self.data_dir(), host_port, input).await?;
         let create_result = self
             .create_media_asset(CreateMediaAssetInput {
                 project_id,
@@ -217,8 +219,9 @@ impl OrchestratorContext {
     }
 }
 
-fn persist_canvas_audio(
+async fn persist_canvas_audio(
     data_dir: &Path,
+    host_port: &dyn MediaAudioProbeHostPort,
     input: CanvasAudioImportHostInput,
 ) -> Result<PersistedCanvasAudioFile, AppError> {
     let source = CanvasAudioImportSource::from_input(&input).map_err(AppError::InvalidArgument)?;
@@ -229,8 +232,10 @@ fn persist_canvas_audio(
         source.extension(),
         "项目音频",
         "画布音频文件",
+        host_port,
         |output| source.write_to(output),
     )
+    .await
     .map_err(|operation| AppError::InvalidState {
         current: "canvas_audio_import".to_string(),
         operation,
