@@ -71,34 +71,33 @@ impl OrchestratorContext {
         let (requested_source, _) = self
             .load_chapter_shooting_script_source_record(&source)
             .await?;
-        let workflow_source = shared_workflow_source(&requested_source);
+        let workflow_source_input = shared_workflow_source(&requested_source);
         let run = self
             .workflow_runs_by_project_kind(
-                workflow_source.project_id,
+                workflow_source_input.project_id,
                 CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
             )
             .await?
             .into_iter()
             .find(|run| {
-                run.chapter_id == Some(workflow_source.source_chapter_id)
+                run.chapter_id == Some(workflow_source_input.source_chapter_id)
                     && run.status != crate::workflow::WORKFLOW_STATUS_SUPERSEDED
             });
         let Some(run) = run else {
             return Ok(None);
         };
+        let (workflow_source, _) = self
+            .load_chapter_shooting_script_source_record(&workflow_source_input)
+            .await?;
+        let visual_plan = self
+            .confirmed_visual_plan_for_shooting_script(&workflow_source, None)
+            .await?;
         let prepared = self
             .prepare_chapter_shooting_script_request(RegenerateChapterShootingScriptInput {
-                project_id: workflow_source.project_id,
+                project_id: workflow_source.requested_project_id,
                 source_chapter_id: workflow_source.source_chapter_id,
                 workflow_run_id: run.id,
-                visual_plan_id: self
-                    .confirmed_visual_plan_for_shooting_script(
-                        &requested_source,
-                        source.visual_plan_id,
-                    )
-                    .await?
-                    .record
-                    .id,
+                visual_plan_id: visual_plan.record.id,
             })
             .await?;
         if prepared.source.content_sha256 != requested_source.content_sha256 {
@@ -145,10 +144,10 @@ impl OrchestratorContext {
             && run.status == crate::workflow::WORKFLOW_STATUS_COMPLETED
         {
             let (_, current) = self
-                .load_current_chapter_shooting_script_source(&source)
+                .load_current_chapter_shooting_script_source(&workflow_source_input)
                 .await?;
             Some(ResolvedChapterShootingScript {
-                source: requested_source,
+                source: workflow_source,
                 shooting_script: current.ok_or_else(|| AppError::InvalidState {
                     current: "completed_workflow_without_shooting_script".to_string(),
                     operation: "读取已完成拍摄剧本".to_string(),

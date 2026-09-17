@@ -39,6 +39,14 @@ use sea_orm::{
 use serde_json::json;
 use uuid::Uuid;
 
+async fn connect_generation_test_database() -> DatabaseConnection {
+    let db = connect_test_database().await;
+    a4n_db::package::ensure_host_package_states(&db, &["ai-workflow".to_string()])
+        .await
+        .unwrap();
+    db
+}
+
 fn reservation_input(
     user_id: i64,
     project_id: i64,
@@ -136,7 +144,7 @@ async fn set_generation_task_requester(
 
 #[tokio::test]
 async fn generation_reservation_resolves_derived_project_root() {
-    let db = connect_test_database().await;
+    let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let user = a4n_db::auth::create_user(
         &db,
@@ -242,6 +250,12 @@ async fn generation_reservation_resolves_derived_project_root() {
         .unwrap();
     assert_eq!(queue_task.root_project_id, Some(root.id));
     assert_eq!(queue_task.workflow_run_id, Some(workflow.id));
+    let bound_task = load_generation_task(&db, &task_id).await.unwrap();
+    assert_eq!(bound_task.checkpoint.workflow_run_id, Some(workflow.id));
+    assert_eq!(
+        bound_task.public_snapshot.unwrap().started.workflow_run_id,
+        Some(workflow.id)
+    );
 
     mark_workflow_status(&db, workflow.id, WORKFLOW_STATUS_COMPLETED, false, None)
         .await
@@ -313,7 +327,7 @@ async fn generation_reservation_resolves_derived_project_root() {
 
 #[tokio::test]
 async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgres() {
-    let db = connect_test_database().await;
+    let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let user = a4n_db::auth::create_user(
         &db,
@@ -573,7 +587,7 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
 
 #[tokio::test]
 async fn generation_cancel_batch_updates_checkpoints_and_queue_rows() {
-    let db = connect_test_database().await;
+    let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let user = a4n_db::auth::create_user(
         &db,
@@ -656,7 +670,7 @@ async fn generation_cancel_batch_updates_checkpoints_and_queue_rows() {
 
 #[tokio::test]
 async fn generation_task_tree_ttl_waits_for_descendants_and_audit_before_deleting() {
-    let db = connect_test_database().await;
+    let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let user = a4n_db::auth::create_user(
         &db,
@@ -843,7 +857,7 @@ WHERE id = $1
 
 #[tokio::test]
 async fn generation_task_lists_filter_access_before_cursor_and_limit() {
-    let db = connect_test_database().await;
+    let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let owner = a4n_db::auth::create_user(
         &db,

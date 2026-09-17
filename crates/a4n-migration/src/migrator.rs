@@ -121,6 +121,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::chapter_visual_plan_v2_retirement::Migration),
             Box::new(crate::migrations::model_cost_pricing::Migration),
             Box::new(crate::migrations::model_usage_ledger::Migration),
+            Box::new(crate::migrations::generation_task_workflow_binding_repair::Migration),
         ]
     }
 }
@@ -170,7 +171,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(57)
+                .take(58)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -232,6 +233,7 @@ mod tests {
                 "chapter_visual_plan_v2_retirement",
                 "model_cost_pricing",
                 "model_usage_ledger",
+                "generation_task_workflow_binding_repair",
             ],
             "deployed migration history must remain registered in execution order"
         );

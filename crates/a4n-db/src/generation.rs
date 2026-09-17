@@ -85,7 +85,7 @@ pub use tasks::{
     GENERATION_SEQUENCE_LEASE_SIZE, GenerationPublicSnapshot, GenerationSequenceLease,
     GenerationTaskCheckpointPage, GenerationTaskPersistenceError, GenerationTaskReservation,
     PersistGenerationCheckpointInput, PersistedGenerationCheckpoint, PersistedGenerationTask,
-    ReserveGenerationTaskInput, extend_generation_sequence_lease,
+    ReserveGenerationTaskInput, bind_generation_task_to_workflow, extend_generation_sequence_lease,
     generation_public_snapshot_for_summary, list_active_generation_task_checkpoints,
     list_generation_task_history_checkpoints, load_generation_task,
     load_generation_task_checkpoint, persist_generation_checkpoint,

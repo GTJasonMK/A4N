@@ -43,6 +43,18 @@ pub async fn claim_exclusive_workflow_run(
         None => upsert_workflow_run_in_transaction(&tx, input.run).await?,
     };
     persist_claimed_video_task(&tx, &run).await?;
+    if let Some(task_id) = run.active_task_id.as_deref() {
+        crate::generation::bind_generation_task_to_workflow(&tx, task_id, run.id)
+            .await
+            .map_err(|error| match error {
+                crate::generation::GenerationTaskPersistenceError::Database(error) => {
+                    WorkflowWriteError::Database(error)
+                }
+                error => WorkflowWriteError::InvalidData(format!(
+                    "绑定视频 workflow {task_id} 的 generation task 失败: {error}"
+                )),
+            })?;
+    }
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
 }

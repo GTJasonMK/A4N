@@ -743,7 +743,15 @@ impl OrchestratorContext {
         &self,
         input: ClaimExclusiveWorkflowRunInput,
     ) -> Result<workflow_run::Model, AppError> {
-        self.workflow.claim_exclusive_workflow_run(input).await
+        let run = self.workflow.claim_exclusive_workflow_run(input).await?;
+        self.generation
+            .refresh_session_after_workflow_binding(run.active_task_id.as_deref())
+            .await
+            .map_err(|error| AppError::InvalidState {
+                current: "generation_session_workflow_binding".to_string(),
+                operation: error.to_string(),
+            })?;
+        Ok(run)
     }
 
     pub(crate) async fn mark_workflow_status(

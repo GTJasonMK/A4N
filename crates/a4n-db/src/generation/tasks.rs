@@ -27,6 +27,7 @@ use super::{
     lifecycle_gate::{require_generation_owner_gates_active, resolve_generation_root_project_id},
     verify_canonical_json_sha256,
 };
+use crate::workflow::WORKFLOW_STATUS_COMPLETED;
 
 pub const GENERATION_SEQUENCE_LEASE_SIZE: i64 = 256;
 const INITIAL_RESERVED_THROUGH_SEQUENCE: i64 = 257;
@@ -443,6 +444,67 @@ pub async fn load_generation_task_checkpoint(
                 "generation task checkpoint 不存在: {task_id}"
             ))
         })
+}
+
+/// Binds a reserved generation task to the workflow created by its worker.
+///
+/// Generation reservations happen before the worker can create its workflow;
+/// keep the normalized checkpoint columns and public snapshot in sync once the
+/// workflow claim succeeds.
+pub async fn bind_generation_task_to_workflow(
+    tx: &DatabaseTransaction,
+    task_id: &str,
+    workflow_run_id: i64,
+) -> Result<(), GenerationTaskPersistenceError> {
+    let task_id = canonical_uuid_v4(task_id, "task_id")?;
+    validate_safe_id(workflow_run_id, "workflow_run_id")?;
+    let Some(checkpoint) = generation_task_checkpoint::Entity::find_by_id(task_id.clone())
+        .lock_exclusive()
+        .one(tx)
+        .await?
+    else {
+        return Ok(());
+    };
+    match checkpoint.workflow_run_id {
+        Some(current) if current == workflow_run_id => return Ok(()),
+        Some(current) => {
+            let previous = workflow_run::Entity::find_by_id(current).one(tx).await?;
+            if !previous.is_some_and(|run| run.status == WORKFLOW_STATUS_COMPLETED) {
+                return Err(GenerationTaskPersistenceError::Corrupt(format!(
+                    "generation task {task_id} 已绑定未完成 workflow {current}，不能改绑 {workflow_run_id}"
+                )));
+            }
+        }
+        None => {}
+    }
+    let snapshot_json = checkpoint.public_snapshot_json.as_ref().ok_or_else(|| {
+        GenerationTaskPersistenceError::Corrupt(format!(
+            "generation task {task_id} 缺少 public snapshot，不能绑定 workflow"
+        ))
+    })?;
+    let mut snapshot: GenerationTaskSnapshot = serde_json::from_value(snapshot_json.clone())?;
+    snapshot.started.workflow_run_id = Some(workflow_run_id);
+    snapshot
+        .validate()
+        .map_err(|error| GenerationTaskPersistenceError::Corrupt(error.to_string()))?;
+    let public_snapshot_json = serde_json::to_value(&snapshot)?;
+    let public_snapshot_sha256 = canonical_json_sha256(&public_snapshot_json)?;
+    let checkpoint_revision = checkpoint
+        .checkpoint_revision
+        .checked_add(1)
+        .ok_or_else(|| {
+            GenerationTaskPersistenceError::Corrupt(format!(
+                "generation task {task_id} checkpoint_revision 超出范围"
+            ))
+        })?;
+    let mut update: generation_task_checkpoint::ActiveModel = checkpoint.into();
+    update.workflow_run_id = Set(Some(workflow_run_id));
+    update.public_snapshot_json = Set(Some(public_snapshot_json));
+    update.public_snapshot_sha256 = Set(Some(public_snapshot_sha256));
+    update.checkpoint_revision = Set(checkpoint_revision);
+    update.updated_at = Set(Utc::now().naive_utc());
+    update.update(tx).await?;
+    Ok(())
 }
 
 /// Summary/list 的 snapshot 判定不校验 execution checkpoint，也不因 public snapshot 损坏而丢失规范列。

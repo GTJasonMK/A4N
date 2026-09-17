@@ -1325,6 +1325,49 @@ impl GenerationApplication {
             .map_err(Into::into)
     }
 
+    pub(crate) async fn refresh_session_after_workflow_binding(
+        &self,
+        task_id: Option<&str>,
+    ) -> Result<(), GenerationTaskAccessError> {
+        let Some(task_id) = task_id else {
+            return Ok(());
+        };
+        let loaded = a4n_db::generation::load_generation_task(self.connection(), task_id).await?;
+        let Some(snapshot) = loaded.public_snapshot.as_ref() else {
+            return Ok(());
+        };
+        let Some(session) = self.session(&snapshot.task_id, snapshot.attempt)? else {
+            return Ok(());
+        };
+        let _guard = session.checkpoint_write_guard().await;
+        let loaded = a4n_db::generation::load_generation_task(self.connection(), task_id).await?;
+        let Some(snapshot) = loaded.public_snapshot else {
+            return Ok(());
+        };
+        let covers_through_sequence = u64::try_from(loaded.checkpoint.covers_through_sequence)
+            .map_err(|_| {
+                GenerationSessionError::InvalidSession(
+                    "数据库 generation covers 为负数".to_string(),
+                )
+            })?;
+        let reserved_through_sequence = u64::try_from(loaded.checkpoint.reserved_through_sequence)
+            .map_err(|_| {
+                GenerationSessionError::InvalidSession(
+                    "数据库 generation high-water 为负数".to_string(),
+                )
+            })?;
+        session.rebuild_from_persisted_snapshot(
+            snapshot,
+            crate::generation::events::GenerationDurableCommit {
+                checkpoint_revision: loaded.checkpoint.checkpoint_revision,
+                covers_through_sequence,
+                reserved_through_sequence,
+                persisted_at_ms: loaded.checkpoint.updated_at.and_utc().timestamp_millis(),
+            },
+        )?;
+        Ok(())
+    }
+
     fn session_for_authorized_task(
         &self,
         task: &PersistedGenerationTask,
@@ -3200,5 +3243,105 @@ mod video_prompt_generation_tests {
         invalid = options();
         invalid.duration_secs = 0;
         assert!(validate_start(&invalid).is_err());
+    }
+
+    #[tokio::test]
+    async fn workflow_binding_refreshes_live_session_before_cancel() {
+        let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+        a4n_db::package::ensure_host_package_states(
+            database.as_ref(),
+            &["ai-workflow".into(), "video".into()],
+        )
+        .await
+        .unwrap();
+        let context = crate::test_support::TestOrchestratorBuilder::new(Arc::clone(&database))
+            .build()
+            .await;
+        let user_id = crate::test_support::create_test_user(database.as_ref()).await;
+        let project = a4n_db::project::create_project_record(
+            database.as_ref(),
+            a4n_db::project::CreateProjectRecordInput {
+                user_id,
+                title: "workflow binding cancellation".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let meta = GenerationStartRequestMeta {
+            start_request_id: uuid::Uuid::new_v4().to_string(),
+            retry_of_task_id: None,
+        };
+        let start = context
+            .generation
+            .reserve_root_generation_task(RootGenerationTaskReservationInput {
+                requested_by_user_id: user_id,
+                meta: &meta,
+                business_key_json: serde_json::json!({"version": 1, "test": "workflow-binding"}),
+                input_fingerprint_json: serde_json::json!({"test": "workflow-binding"}),
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: project.id,
+                task_scope: "video_prompt_generation",
+                target: GenerationTargetRef {
+                    kind: "video_prompt_segment_plan".to_string(),
+                    id: "workflow-binding-test".to_string(),
+                    revision: None,
+                },
+            })
+            .await
+            .unwrap();
+        assert!(start.should_run);
+        let task_id = start.handle.task_id.clone();
+        let workflow = context
+            .claim_exclusive_workflow_run(crate::workflow::ClaimExclusiveWorkflowRunInput {
+                run: crate::workflow::UpsertWorkflowRunInput {
+                    business_key: "workflow-binding-cancellation".to_string(),
+                    workflow_kind: "video_prompts".to_string(),
+                    project_id: Some(project.id),
+                    root_project_id: Some(project.id),
+                    source_snapshot_id: None,
+                    scope_table: Some("chapter".to_string()),
+                    scope_id: Some(1),
+                    chapter_id: Some(1),
+                    mode: Some("storyboard".to_string()),
+                    input_fingerprint_json: Some(serde_json::json!({"version": 1})),
+                    status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
+                    current_step_key: Some("video_prompts".to_string()),
+                    active_task_id: Some(task_id.clone()),
+                    can_resume: false,
+                    resume_block_reason: None,
+                    error_message: None,
+                },
+                resume_from_task_id: None,
+            })
+            .await
+            .unwrap();
+        let session = context
+            .generation
+            .session(&task_id, start.handle.attempt)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            session.snapshot().started.workflow_run_id,
+            Some(workflow.id)
+        );
+        assert_eq!(session.checkpoint_candidate().checkpoint_revision, 2);
+
+        let execution = context
+            .generation
+            .acquire_task_execution(&start.handle)
+            .await
+            .unwrap()
+            .unwrap();
+        let cancelled = context
+            .request_generation_cancel(user_id, &task_id, start.handle.attempt)
+            .await
+            .unwrap();
+        assert_eq!(cancelled.status, GenerationTaskStatus::Cancelling);
+        drop(execution);
     }
 }

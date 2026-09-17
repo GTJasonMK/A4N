@@ -9,4 +9,4 @@ mod source_adapters;
 /// 当前应用代码要求数据库至少已经执行到的最后一项迁移。
 ///
 /// Migration 注册顺序测试会阻止该合同与实际迁移列表漂移。
-pub const REQUIRED_SCHEMA_MIGRATION: &str = "model_usage_ledger";
+pub const REQUIRED_SCHEMA_MIGRATION: &str = "generation_task_workflow_binding_repair";
