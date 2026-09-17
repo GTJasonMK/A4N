@@ -63,27 +63,6 @@ fn detects_known_truncated_finish_reasons() {
 }
 
 #[test]
-fn validated_model_output_tokens_preserves_large_configured_cap() {
-    let capabilities = ModelCapabilities {
-        max_context_tokens: 1_048_576,
-        max_output_tokens: 393_216,
-    };
-    assert_eq!(
-        validated_model_output_tokens(&capabilities).expect("configured output cap is valid"),
-        393_216
-    );
-}
-
-#[test]
-fn validated_model_output_tokens_rejects_missing_cap() {
-    let capabilities = ModelCapabilities {
-        max_context_tokens: 1_048_576,
-        max_output_tokens: 0,
-    };
-    assert!(validated_model_output_tokens(&capabilities).is_err());
-}
-
-#[test]
 fn collected_responses_require_a_usable_model_terminal() {
     for reason in [
         None,

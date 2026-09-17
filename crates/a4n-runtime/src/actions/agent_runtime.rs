@@ -267,7 +267,8 @@ const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_TOOL_PROJECT_PAGE_SIZE: u64 = 100;
 const MAX_BASE_AGENT_TOOLS: usize = 8;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
-const MAX_AGENT_TOOL_SCHEMAS: usize = 12;
+// 8 base tools + 3 read-only runtime tools + 2 discovered tools.
+const MAX_AGENT_TOOL_SCHEMAS: usize = 13;
 const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
@@ -5037,6 +5038,9 @@ mod tests {
         assert!(tools.iter().any(|tool| {
             tool.pointer("/function/name") == Some(&Value::String("create_project".into()))
         }));
+        assert!(tools.iter().any(|tool| {
+            tool.pointer("/function/name") == Some(&Value::String("delete_project".into()))
+        }));
     }
 
     #[test]
@@ -5130,9 +5134,15 @@ mod tests {
             &[],
         )
         .expect("scoped static tools should be serializable");
-        assert!(tools.iter().all(|tool| {
-            tool.pointer("/function/name") == Some(&Value::String("list_projects".into()))
-        }));
+        let tool_names = tools
+            .iter()
+            .filter_map(|tool| tool.pointer("/function/name").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert!(tool_names.contains(&"list_projects"));
+        assert!(tool_names.iter().all(|name| matches!(
+            *name,
+            "list_projects" | "search_agent_skills" | "load_agent_skill"
+        )));
         let mut unrestricted = Vec::new();
         assert!(
             extend_discovered_tools(

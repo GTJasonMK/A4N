@@ -53,7 +53,8 @@ const WORKER_MAX_STEPS: u32 = a4n_api_contract::agent::AGENT_DEFAULT_MAX_STEPS;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_BASE_AGENT_TOOLS: usize = 8;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
-const MAX_AGENT_TOOL_SCHEMAS: usize = 12;
+// 8 base tools + 3 read-only runtime tools + 2 discovered tools.
+const MAX_AGENT_TOOL_SCHEMAS: usize = 13;
 const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
