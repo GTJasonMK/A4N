@@ -173,7 +173,7 @@ impl HttpWorkerClient {
         let response = self
             .request_json(Method::POST, &path, Some(&request))
             .await?;
-        validate_response(&response)?;
+        validate_operation_response(&response, &request.operation.operation_id)?;
         Ok(response)
     }
 
@@ -188,7 +188,7 @@ impl HttpWorkerClient {
         let response = self
             .request_json(Method::POST, &path, Some(&request))
             .await?;
-        validate_response(&response)?;
+        validate_operation_response(&response, &request.operation.operation_id)?;
         Ok(response)
     }
 
@@ -274,6 +274,19 @@ fn validate_command_response<I, O>(
     }
     if response.trace_id != request.trace_id {
         return Err(WorkerClientError::ResponseIdentityMismatch { field: "trace_id" });
+    }
+    Ok(())
+}
+
+fn validate_operation_response<T>(
+    response: &WorkerResponse<T>,
+    operation_id: &str,
+) -> Result<(), WorkerClientError> {
+    validate_response(response)?;
+    if response.operation.operation_id != operation_id {
+        return Err(WorkerClientError::ResponseIdentityMismatch {
+            field: "operation.operation_id",
+        });
     }
     Ok(())
 }
