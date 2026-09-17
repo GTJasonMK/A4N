@@ -806,6 +806,8 @@ class RuntimeRunner:
                 "-p",
                 "a4n-export-service",
                 "-p",
+                "a4n-novel-planning-worker",
+                "-p",
                 "a4n-migration",
                 "--target-dir",
                 str(self.target_dir),
