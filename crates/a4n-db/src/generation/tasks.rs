@@ -469,7 +469,7 @@ pub async fn bind_generation_task_to_workflow(
         Some(current) if current == workflow_run_id => return Ok(()),
         Some(current) => {
             let previous = workflow_run::Entity::find_by_id(current).one(tx).await?;
-            if !previous.is_some_and(|run| run.status == WORKFLOW_STATUS_COMPLETED) {
+            if previous.is_none_or(|run| run.status != WORKFLOW_STATUS_COMPLETED) {
                 return Err(GenerationTaskPersistenceError::Corrupt(format!(
                     "generation task {task_id} 已绑定未完成 workflow {current}，不能改绑 {workflow_run_id}"
                 )));

@@ -84,8 +84,7 @@ fn embedding_payload_rejects_removed_host_cache_path() {
         "cache_dir": "/host/private/cache",
         "texts": ["测试"]
     }))
-    .err()
-    .expect("embedding v2 must reject host filesystem paths");
+    .expect_err("embedding v2 must reject host filesystem paths");
 
     assert!(error.to_string().contains("unknown field `cache_dir`"));
 }
@@ -98,8 +97,7 @@ fn embedding_payload_requires_batch_size() {
         "dimension": 64,
         "texts": ["测试"]
     }))
-    .err()
-    .expect("embedding v4 requires an explicit batch_size");
+    .expect_err("embedding v4 requires an explicit batch_size");
 
     assert!(error.to_string().contains("missing field `batch_size`"));
 }
@@ -108,8 +106,7 @@ fn embedding_payload_requires_batch_size() {
 #[cfg(feature = "fastembed")]
 fn model_operation_requires_a_nonblank_model() {
     let missing = serde_json::from_value::<EmbeddingModelPayload>(serde_json::json!({}))
-        .err()
-        .expect("model operation payload requires a model field");
+        .expect_err("model operation payload requires a model field");
     assert!(missing.to_string().contains("missing field `model`"));
 
     let blank =

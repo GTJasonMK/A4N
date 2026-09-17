@@ -89,8 +89,7 @@ async fn probe_rejects_empty_stream_response() {
 
     let error = probe_existing_provider(&provider, request)
         .await
-        .err()
-        .expect("empty probe response must fail");
+        .expect_err("empty probe response must fail");
 
     assert!(error.to_string().contains("未收到有效响应"));
 }

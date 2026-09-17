@@ -80,8 +80,7 @@ mod strict_output_tests {
             "embeddings": [[0.0, 1.0]],
             "legacy_cache_dir": "/tmp/cache"
         }))
-        .err()
-        .expect("embedding output must reject unknown fields");
+        .expect_err("embedding output must reject unknown fields");
         assert!(error.to_string().contains("legacy_cache_dir"));
     }
 }

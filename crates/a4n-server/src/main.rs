@@ -322,7 +322,7 @@ fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<Socket
 }
 
 fn spawn_control(binary: &Path, address: SocketAddr, worker_token: &str) -> anyhow::Result<Child> {
-    let mut command = Command::new(&binary);
+    let mut command = Command::new(binary);
     command
         .env("A4N_CONTROL_ADDR", address.to_string())
         .env(AGENT_WORKER_TOKEN_ENV, worker_token)
@@ -342,7 +342,7 @@ fn spawn_agent_worker(
     address: SocketAddr,
     worker_token: &str,
 ) -> anyhow::Result<Child> {
-    let mut command = Command::new(&binary);
+    let mut command = Command::new(binary);
     command
         .env("A4N_CONTROL_ADDR", address.to_string())
         .env(AGENT_WORKER_TOKEN_ENV, worker_token)

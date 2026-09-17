@@ -290,7 +290,7 @@ mod tests {
                 message_index: 1,
                 byte_offset: task.len(),
             }));
-            assert!(request.cache_breakpoints.len() <= MAX_CACHE_WRITES - 1);
+            assert!(request.cache_breakpoints.len() < MAX_CACHE_WRITES);
         }
         let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
         request

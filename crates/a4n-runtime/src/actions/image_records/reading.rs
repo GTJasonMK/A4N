@@ -50,7 +50,7 @@ pub async fn read_image(
             current: error,
             operation: "读取 Agent 图片".into(),
         })?;
-        let bytes = fs::read(&path).map_err(|error| AppError::Io(error))?;
+        let bytes = fs::read(&path).map_err(AppError::Io)?;
         let byte_len = u64::try_from(bytes.len()).map_err(|_| AppError::InvalidState {
             current: format!("图片 {image_id} 大小超出系统范围"),
             operation: "读取 Agent 图片".into(),

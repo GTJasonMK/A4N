@@ -101,9 +101,7 @@ pub(super) fn start_failed_sync(
             context.finish_reason.as_deref(),
         )
         .await;
-        if let Err(cost_error) = cost_result {
-            return Err(cost_error);
-        }
+        cost_result?;
         match status_result {
             Ok(()) => Err(error),
             Err(status_error) => Err(context.kind.failed_queue_error(error, status_error)),

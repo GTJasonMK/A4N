@@ -171,9 +171,7 @@ fn blocked_ipv6(ip: Ipv6Addr) -> bool {
         || ip.is_unique_local()
         || ip.is_unicast_link_local()
         || ip.segments()[0] == 0x2001 && ip.segments()[1] == 0x0db8
-        || ip
-            .to_ipv4_mapped()
-            .is_some_and(|mapped| blocked_ipv4(mapped))
+        || ip.to_ipv4_mapped().is_some_and(blocked_ipv4)
 }
 
 fn validate_redirect(current: &Url, next: &Url) -> Result<(), AppError> {

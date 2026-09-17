@@ -48,10 +48,10 @@ impl DynamicLlmProvider {
         #[cfg(not(feature = "embedded-llm-provider"))]
         {
             let _ = (model, request);
-            return Err(AppError::ConfigError(
+            Err(AppError::ConfigError(
                 "当前 runtime 未编译 embedded LLM provider，无法执行 LLM stream；请启用 sidecar stream endpoint 或以 --features embedded-capabilities 显式构建 full profile"
                     .to_string(),
-            ));
+            ))
         }
 
         #[cfg(feature = "embedded-llm-provider")]

@@ -16,13 +16,13 @@ use crate::project::{
 };
 
 impl OrchestratorContext {
-    pub(crate) async fn export_video_studio_project_validated<Host: ?Sized>(
+    pub(crate) async fn export_video_studio_project_validated<Host>(
         &self,
         input: ExportVideoStudioProjectApplicationInput,
         host_port: &Host,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort,
+        Host: ProjectPackageTransferHostPort + ?Sized,
     {
         self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Owner)
             .await?;
@@ -58,13 +58,13 @@ impl OrchestratorContext {
         })
     }
 
-    pub(crate) async fn import_video_studio_project_validated<Host: ?Sized>(
+    pub(crate) async fn import_video_studio_project_validated<Host>(
         &self,
         input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
     ) -> Result<novel_project::Model, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort,
+        Host: ProjectPackageTransferHostPort + ?Sized,
     {
         if input.package_bytes.is_empty() {
             return Err(ProjectPackageTransferError::Message(
@@ -141,10 +141,9 @@ struct VideoStudioImportMediaWriter<'a, Host: ?Sized> {
     media_payload: &'a ImportMediaPayload,
 }
 
-impl<Host: ?Sized> VideoStudioProjectImportMediaFileWriter
-    for VideoStudioImportMediaWriter<'_, Host>
+impl<Host> VideoStudioProjectImportMediaFileWriter for VideoStudioImportMediaWriter<'_, Host>
 where
-    Host: ProjectPackageTransferHostPort,
+    Host: ProjectPackageTransferHostPort + ?Sized,
 {
     fn write_imported_media_file(
         &mut self,

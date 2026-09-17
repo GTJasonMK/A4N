@@ -243,7 +243,7 @@ impl RuntimeAgentToolExecutor {
                 .await;
         }
 
-        let result = match name {
+        match name {
             "search_agent_tools" => {
                 let mut input = parse_arguments::<SearchAgentToolsInput>(arguments, name)?;
                 if a4n_api_contract::agent::capability_has_restricted_tool_catalog(
@@ -347,8 +347,7 @@ impl RuntimeAgentToolExecutor {
                     )
                     .await
             }
-        };
-        result
+        }
     }
 }
 
@@ -1226,7 +1225,7 @@ async fn process_claimed_run_inner(
                 }
             })?)?
         } else {
-            (&execution_application)
+            execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
                     lease_token: claimed.lease_token.clone(),
@@ -1259,7 +1258,7 @@ async fn process_claimed_run_inner(
                 cancel,
             )
             .await?;
-            (&execution_application)
+            execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
                     lease_token: claimed.lease_token.clone(),

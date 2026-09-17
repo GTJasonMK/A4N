@@ -1,9 +1,7 @@
 use a4n_db::{
     generation::RecordStartedGenerationRunInput,
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
-    video::{
-        CreateGeneratedVideoRecordDraftInput, create_generated_video_record_with_generation_run,
-    },
+    video::create_generated_video_record_with_generation_run,
     workflow::{UpsertWorkflowRunInput, upsert_workflow_run},
 };
 use a4n_db_models::models::{
@@ -11,6 +9,7 @@ use a4n_db_models::models::{
     generation::{generation_run, generation_run_target, workflow_run},
     task::task_queue,
 };
+use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::workflow::{WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING};
 use sea_orm::{ActiveModelTrait, Set};

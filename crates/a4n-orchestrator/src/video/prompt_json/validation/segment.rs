@@ -44,8 +44,8 @@ pub(in crate::video::prompt_json) fn validate_segment_plan(
             "视频分段规划 source_span_ids 不能为空".to_string(),
         ));
     }
-    if let Some(director) = &segment.director_constraints {
-        if director.segment_id != segment.source_shot_id
+    if let Some(director) = &segment.director_constraints
+        && (director.segment_id != segment.source_shot_id
             || director
                 .video_duration_secs()
                 .map_err(AppError::InvalidArgument)?
@@ -56,12 +56,11 @@ pub(in crate::video::prompt_json) fn validate_segment_plan(
                 .map_err(AppError::InvalidArgument)?
                 != segment.aspect_ratio
             || segment.shot_segment_count != 1
-            || segment.transition_to_next.is_some()
-        {
-            return Err(AppError::InvalidArgument(
-                "视频片段偏离已确认导演编排的身份或时长".into(),
-            ));
-        }
+            || segment.transition_to_next.is_some())
+    {
+        return Err(AppError::InvalidArgument(
+            "视频片段偏离已确认导演编排的身份或时长".into(),
+        ));
     }
     segment.aspect_ratio = required_text(segment.aspect_ratio, "视频分段规划 aspect_ratio")?;
     validate_covered_beat_ids(&segment.covered_beat_ids)?;

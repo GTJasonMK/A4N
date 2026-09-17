@@ -79,9 +79,7 @@ pub async fn test_embedding_config(
                 TaskPriority::High,
                 None,
                 || async move {
-                    crate::sidecar_clients::test_embedding_config_via_sidecar(client, payload)
-                        .await
-                        .map_err(a4n_error::AppError::from)
+                    crate::sidecar_clients::test_embedding_config_via_sidecar(client, payload).await
                 },
             )
             .await
