@@ -864,7 +864,7 @@ fn wait_for_worker_contract(
         .connect_timeout(WORKER_READY_CONNECT_TIMEOUT)
         .timeout(WORKER_READY_CONNECT_TIMEOUT)
         .build()
-        .map_err(|error| anyhow::anyhow!("初始化 Agent worker health client 失败: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("初始化 worker health client 失败: {error}"))?;
     let started = Instant::now();
     let health_url = format!("http://{address}{WORKER_HEALTH_PATH}");
     let capabilities_url = format!("http://{address}{WORKER_CAPABILITIES_PATH}");

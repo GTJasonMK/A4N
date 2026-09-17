@@ -27,7 +27,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, Database};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseBackend, Statement};
 use serde_json::{Value, json};
 use tokio::time::MissedTickBehavior;
 
@@ -608,10 +608,19 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !authorized(&state, &headers) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
+    let status = match state
+        .db
+        .connection()
+        .execute(Statement::from_string(DatabaseBackend::Postgres, "SELECT 1"))
+        .await
+    {
+        Ok(_) => WorkerHealthStatus::Healthy,
+        Err(_) => WorkerHealthStatus::Degraded,
+    };
     Json(WorkerHealth {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: ARTIFACT_MEDIA_WORKER_ID.to_string(),
-        status: WorkerHealthStatus::Healthy,
+        status,
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
     .into_response()
