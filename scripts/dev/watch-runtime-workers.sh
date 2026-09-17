@@ -19,10 +19,20 @@ done
 require_command inotifywait
 require_command cargo
 
+path_is_relevant() {
+  case "$1" in
+    *.rs|*/Cargo.toml|*/build.rs|*/Cargo.lock) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 build_children() {
+  local build_control="$1"
+  local build_agent_worker="$2"
   local -a cargo_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && cargo_command+=(--release)
-  cargo_command+=(-p a4n-control -p a4n-agent-worker)
+  [[ "$build_control" == true ]] && cargo_command+=(-p a4n-control)
+  [[ "$build_agent_worker" == true ]] && cargo_command+=(-p a4n-agent-worker)
   $FULL_HOST && cargo_command+=(--features embedded-capabilities)
   CARGO_ARTIFACTS_DISABLED=1 CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}" \
     "${cargo_command[@]}"
@@ -39,16 +49,27 @@ publish_reload_marker() {
     mv -f "$temporary_marker" "$marker"
 }
 
-changed_path_is_relevant() {
-  case "$1" in
-    "$PROJECT_ROOT/crates/a4n-server/"*|"$PROJECT_ROOT/crates/a4n-tauri/"*) return 1 ;;
-    *.rs|*/Cargo.toml|*/build.rs|*/Cargo.lock) return 0 ;;
-    *) return 1 ;;
+mark_changed_targets() {
+  local changed_path="$1"
+  path_is_relevant "$changed_path" || return 0
+  case "$changed_path" in
+    "$PROJECT_ROOT/crates/a4n-control/"*)
+      build_control=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-agent-worker/"*)
+      build_agent_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-server/"*|"$PROJECT_ROOT/crates/a4n-tauri/"*)
+      ;;
+    *.rs|*/Cargo.toml|*/build.rs|*/Cargo.lock)
+      build_control=true
+      build_agent_worker=true
+      ;;
   esac
 }
 
 watch_paths=("$PROJECT_ROOT/crates" "$PROJECT_ROOT/Cargo.toml" "$PROJECT_ROOT/Cargo.lock")
-log_info "监听 Rust/Cargo 变更，按需重编译 Control 与 Agent worker"
+log_info "监听 Rust/Cargo 变更，按需重编译受影响的 Runtime worker"
 
 watch_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/a4n-runtime-workers.XXXXXX")"
 watch_fifo="$watch_tmp_dir/events"
@@ -74,18 +95,28 @@ inotifywait --monitor --recursive --quiet \
 inotify_pid=$!
 
 while IFS= read -r changed_path; do
-    changed_path_is_relevant "$changed_path" || continue
+    build_control=false
+    build_agent_worker=false
+    mark_changed_targets "$changed_path"
 
     # 合并同一轮编辑器保存产生的 close_write/create/moved_to 事件。
+    changed_paths=("$changed_path")
     while IFS= read -r -t 0.3 pending_path; do
-        changed_path="$pending_path"
+        changed_paths+=("$pending_path")
+        mark_changed_targets "$pending_path"
     done || true
 
-    log_info "检测到源码变更: ${changed_path#"$PROJECT_ROOT/"}"
-    if ! build_children; then
+    if [[ "$build_control" == false && "$build_agent_worker" == false ]]; then
+        continue
+    fi
+    log_info "检测到源码变更: ${changed_paths[*]}；构建目标:$(
+        [[ "$build_control" == true ]] && printf ' a4n-control'
+        [[ "$build_agent_worker" == true ]] && printf ' a4n-agent-worker'
+    )"
+    if ! build_children "$build_control" "$build_agent_worker"; then
         log_warn "Control/Agent worker 编译失败；保留当前运行产物，等待下一次源码变更"
     else
         publish_reload_marker
-        log_ok "Control/Agent worker 已重新编译"
+        log_ok "受影响的 Runtime worker 已重新编译"
     fi
 done <"$watch_fifo"

@@ -141,32 +141,37 @@ if ! $DRY_RUN; then
     require_onnxruntime
 fi
 
+build_external_binaries() {
+    local package spec
+    local -a cargo_args=(cargo build)
+    [[ "$BUILD_MODE" == "release" ]] && cargo_args+=(--release)
+    [[ -n "$TARGET_TRIPLE" ]] && cargo_args+=(--target "$TARGET_TRIPLE")
+    for package in "${SIDECAR_PACKAGES[@]}"; do
+        cargo_args+=(-p "$package")
+    done
+    for spec in "${TOOL_SPECS[@]}"; do
+        cargo_args+=(-p "${spec%%:*}")
+    done
+
+    if $SKIP_BUILD; then
+        $DRY_RUN && log_info "build externalBin: skipped (--no-build)"
+        return 0
+    fi
+    if $DRY_RUN; then
+        log_info "build externalBin:"
+        print_command "${cargo_args[@]}"
+    else
+        (
+            cd "$PROJECT_ROOT"
+            "${cargo_args[@]}"
+        )
+    fi
+}
+
 prepare_external_binary() {
     local package="$1"
     local binary_name="$2"
-    local cargo_args source_binary target_binary runtime_dependency
-
-    cargo_args=(cargo build -p "$package")
-    if [[ "$BUILD_MODE" == "release" ]]; then
-        cargo_args+=(--release)
-    fi
-    if [[ -n "$TARGET_TRIPLE" ]]; then
-        cargo_args+=(--target "$TARGET_TRIPLE")
-    fi
-
-    if ! $SKIP_BUILD; then
-        if $DRY_RUN; then
-            log_info "build $package:"
-            print_command "${cargo_args[@]}"
-        else
-            (
-                cd "$PROJECT_ROOT"
-                "${cargo_args[@]}"
-            )
-        fi
-    elif $DRY_RUN; then
-        log_info "build $package: skipped (--no-build)"
-    fi
+    local source_binary target_binary runtime_dependency
 
     source_binary="$PROFILE_DIR/${binary_name}${BINARY_EXT}"
     target_binary="$EXTERNAL_BIN_DIR/${binary_name}-${TARGET_TRIPLE}${BINARY_EXT}"
@@ -190,6 +195,7 @@ prepare_external_binary() {
     fi
 }
 
+build_external_binaries
 for package in "${SIDECAR_PACKAGES[@]}"; do
     prepare_external_binary "$package" "$package"
 done
