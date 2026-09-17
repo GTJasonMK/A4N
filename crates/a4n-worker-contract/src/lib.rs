@@ -16,6 +16,17 @@ use a4n_api_contract::command_manifest::{RuntimeConfigPolicy, command_runtime_co
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use chrono::NaiveDateTime;
 
+mod common;
+
+pub use common::{
+    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCancelRequest, WorkerCapabilities,
+    WorkerCapability, WorkerContractError, WorkerEnvelope, WorkerError, WorkerErrorCode,
+    WorkerHealth, WorkerHealthStatus, WorkerLease, WorkerOperationRef, WorkerOperationStatus,
+    WorkerPagination, WorkerPrincipal, WorkerPrincipalKind, WorkerRecoveryRequest, WorkerRequest,
+    WorkerResourceRef, WorkerResponse, WorkerRevision, WorkerScope, validate_worker_schema_version,
+};
+use common::{validate_non_blank, validate_positive_id, validate_positive_optional_id};
+
 // Bump this whenever the Control/worker HTTP payload changes.  The server
 // rejects a mixed pair before a stale worker can reach a stricter command
 // route with an incompatible payload.
@@ -23,27 +34,6 @@ pub const WORKER_SCHEMA_VERSION: u32 = 6;
 pub const AGENT_RUN_OPERATION: &str = "agent.run";
 pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
 pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct WorkerRequest<T> {
-    pub schema_version: u32,
-    pub request_id: String,
-    pub trace_id: String,
-    pub principal: WorkerPrincipal,
-    pub operation_id: String,
-    pub idempotency_key: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub project_id: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub root_project_id: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_revision: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runtime_config_snapshot_ref: Option<String>,
-    pub lease: WorkerLease,
-    pub payload: T,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -1414,133 +1404,6 @@ impl AgentWorkerChatRequest {
 #[serde(deny_unknown_fields)]
 pub struct AgentWorkerPackageExecutionResponse {
     pub enabled: bool,
-}
-
-impl<T> WorkerRequest<T> {
-    pub fn validate(&self) -> Result<(), WorkerContractError> {
-        validate_worker_schema_version(self.schema_version)?;
-        validate_non_blank("request_id", &self.request_id)?;
-        validate_non_blank("trace_id", &self.trace_id)?;
-        validate_non_blank("operation_id", &self.operation_id)?;
-        validate_non_blank("idempotency_key", &self.idempotency_key)?;
-        self.principal.validate()?;
-        self.lease.validate()?;
-        validate_positive_optional_id("project_id", self.project_id)?;
-        validate_positive_optional_id("root_project_id", self.root_project_id)?;
-        if self.root_project_id.is_some() && self.project_id.is_none() {
-            return Err(WorkerContractError::InvalidRelation(
-                "root_project_id requires project_id",
-            ));
-        }
-        if self.target_revision == Some(0) {
-            return Err(WorkerContractError::InvalidValue {
-                field: "target_revision",
-                reason: "must be positive when present",
-            });
-        }
-        if let Some(snapshot_ref) = &self.runtime_config_snapshot_ref {
-            validate_non_blank("runtime_config_snapshot_ref", snapshot_ref)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct WorkerPrincipal {
-    pub kind: WorkerPrincipalKind,
-    pub subject: String,
-}
-
-impl WorkerPrincipal {
-    fn validate(&self) -> Result<(), WorkerContractError> {
-        validate_non_blank("principal.subject", &self.subject)
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum WorkerPrincipalKind {
-    User,
-    Service,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct WorkerLease {
-    pub worker_id: String,
-    pub epoch: u64,
-    pub fence_token: String,
-    pub expires_at: String,
-}
-
-impl WorkerLease {
-    pub fn validate(&self) -> Result<(), WorkerContractError> {
-        validate_non_blank("lease.worker_id", &self.worker_id)?;
-        if self.epoch == 0 {
-            return Err(WorkerContractError::InvalidValue {
-                field: "lease.epoch",
-                reason: "must be positive",
-            });
-        }
-        validate_non_blank("lease.fence_token", &self.fence_token)?;
-        validate_non_blank("lease.expires_at", &self.expires_at)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum WorkerContractError {
-    #[error("unsupported worker schema version: expected {expected}, got {actual}")]
-    SchemaVersion { expected: u32, actual: u32 },
-    #[error("{field} must not be blank")]
-    BlankField { field: &'static str },
-    #[error("{field} {reason}")]
-    InvalidValue {
-        field: &'static str,
-        reason: &'static str,
-    },
-    #[error("{0}")]
-    InvalidRelation(&'static str),
-}
-
-fn validate_non_blank(field: &'static str, value: &str) -> Result<(), WorkerContractError> {
-    if value.trim().is_empty() {
-        return Err(WorkerContractError::BlankField { field });
-    }
-    Ok(())
-}
-
-fn validate_worker_schema_version(actual: u32) -> Result<(), WorkerContractError> {
-    if actual != WORKER_SCHEMA_VERSION {
-        return Err(WorkerContractError::SchemaVersion {
-            expected: WORKER_SCHEMA_VERSION,
-            actual,
-        });
-    }
-    Ok(())
-}
-
-fn validate_positive_optional_id(
-    field: &'static str,
-    value: Option<i64>,
-) -> Result<(), WorkerContractError> {
-    if value.is_some_and(|value| value <= 0) {
-        return Err(WorkerContractError::InvalidValue {
-            field,
-            reason: "must be positive when present",
-        });
-    }
-    Ok(())
-}
-
-fn validate_positive_id(field: &'static str, value: i64) -> Result<(), WorkerContractError> {
-    if value <= 0 {
-        return Err(WorkerContractError::InvalidValue {
-            field,
-            reason: "must be positive",
-        });
-    }
-    Ok(())
 }
 
 #[cfg(test)]
