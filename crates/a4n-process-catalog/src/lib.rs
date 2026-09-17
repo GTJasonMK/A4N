@@ -56,6 +56,8 @@ pub struct ProcessMetadata {
     #[serde(default)]
     pub data_scope: Vec<String>,
     #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
     pub dependencies: Vec<String>,
     #[serde(default)]
     pub migration: MigrationCompatibility,
@@ -130,6 +132,7 @@ pub struct StatefulWorkerCatalogEntry {
     pub kind: ProcessKind,
     pub binary: String,
     pub contract_version: String,
+    pub capability_version: String,
     pub addr_env: String,
     #[serde(default)]
     pub url_env: Option<String>,
@@ -138,6 +141,8 @@ pub struct StatefulWorkerCatalogEntry {
     pub local_only: bool,
     #[serde(default)]
     pub data_scope: Vec<String>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
     #[serde(default)]
     pub dependencies: Vec<String>,
     #[serde(default)]
@@ -206,6 +211,7 @@ impl From<&ServiceCatalogWire> for ProcessMetadata {
             default_addr: entry.default_addr.clone(),
             local_only: entry.local_only,
             data_scope: entry.data_scope.clone(),
+            capabilities: Vec::new(),
             dependencies: entry.dependencies.clone(),
             migration: entry.migration.clone(),
         }
@@ -218,13 +224,14 @@ impl From<&StatefulWorkerCatalogEntry> for ProcessMetadata {
             name: entry.name.clone(),
             kind: entry.kind,
             binary: entry.binary.clone(),
-            capability_version: None,
+            capability_version: Some(entry.capability_version.clone()),
             contract_version: Some(entry.contract_version.clone()),
             addr_env: entry.addr_env.clone(),
             url_env: entry.url_env.clone(),
             default_addr: entry.default_addr.clone(),
             local_only: entry.local_only,
             data_scope: entry.data_scope.clone(),
+            capabilities: entry.capabilities.clone(),
             dependencies: entry.dependencies.clone(),
             migration: entry.migration.clone(),
         }
@@ -351,6 +358,10 @@ mod tests {
         assert_eq!(entry.url_env.as_deref(), Some("A4N_AGENT_WORKER_URL"));
         assert_eq!(entry.default_addr, "127.0.0.1:47650");
         assert!(!entry.data_scope.is_empty());
+        assert_eq!(
+            entry.capabilities,
+            vec!["agent.run".to_string(), "agent.host_command".to_string()]
+        );
         assert_eq!(entry.migration.current.as_deref(), Some("agent_runtime"));
         assert_eq!(
             entry.migration.min_compatible.as_deref(),
@@ -369,6 +380,14 @@ mod tests {
             Some("A4N_NOVEL_PLANNING_WORKER_URL")
         );
         assert_eq!(novel.default_addr, "127.0.0.1:47651");
+        assert_eq!(
+            novel.capabilities,
+            vec![
+                "shooting_script.current".to_string(),
+                "shooting_script.edit".to_string(),
+                "shooting_script.delete".to_string()
+            ]
+        );
         assert_eq!(novel.migration.current.as_deref(), Some("shooting_script"));
     }
 
@@ -398,7 +417,10 @@ mod tests {
         let worker = process_catalog_entry("agent-worker").expect("agent worker metadata");
         assert_eq!(worker.kind, ProcessKind::StatefulWorker);
         assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
-        assert!(worker.capability_version.is_none());
+        assert_eq!(
+            worker.capability_version.as_deref(),
+            Some("agent-worker-v1")
+        );
     }
 
     #[test]

@@ -586,7 +586,10 @@ fn manager_exposes_sidecar_and_stateful_worker_metadata() {
         .process_metadata("agent-worker")
         .expect("stateful worker metadata should be available");
     assert_eq!(worker.kind, ProcessKind::StatefulWorker);
-    assert_eq!(worker.capability_version, None);
+    assert_eq!(
+        worker.capability_version.as_deref(),
+        Some("agent-worker-v1")
+    );
     assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
     assert_eq!(worker.binary, "a4n-agent-worker");
     assert_eq!(worker.addr_env, "A4N_AGENT_WORKER_ADDR");

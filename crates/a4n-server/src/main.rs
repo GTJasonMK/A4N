@@ -9,9 +9,8 @@ use std::{
 use a4n_process_catalog::stateful_worker_catalog_entry_ref;
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
-    AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
-    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities, WorkerHealth,
-    WorkerHealthStatus,
+    AGENT_WORKER_AUTH_HEADER, WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities,
+    WorkerHealth, WorkerHealthStatus,
 };
 
 #[cfg(target_os = "linux")]
@@ -634,13 +633,19 @@ fn wait_for_agent_worker(
     address: SocketAddr,
     worker_token: &str,
 ) -> anyhow::Result<()> {
+    let metadata = agent_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     wait_for_worker_contract(
         child,
         address,
         worker_token,
         AGENT_WORKER_AUTH_HEADER,
         None,
-        &[AGENT_RUN_OPERATION, AGENT_HOST_COMMAND_OPERATION],
+        &required,
         "A4N Agent worker",
     )
 }
@@ -652,7 +657,7 @@ fn wait_for_novel_planning_worker(
 ) -> anyhow::Result<()> {
     let metadata = novel_planning_worker_metadata()?;
     let required = metadata
-        .data_scope
+        .capabilities
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>();
