@@ -1,30 +1,9 @@
-use super::super::{VideoDbError, validate_positive_video_i64, validate_positive_video_ids};
+use super::super::{VideoDbError, validate_positive_video_ids};
 use a4n_db_models::models::ai::generated_image;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,
 };
-
-pub async fn generated_images_for_video_prompt_references(
-    db: &DatabaseConnection,
-    project_id: i64,
-    chapter_id: i64,
-) -> Result<Vec<generated_image::Reference>, VideoDbError> {
-    validate_positive_video_i64(project_id, "project_id")?;
-    validate_positive_video_i64(chapter_id, "chapter_id")?;
-    generated_image::Entity::find()
-        .select_only()
-        .column(generated_image::Column::Id)
-        .column(generated_image::Column::ImageType)
-        .column(generated_image::Column::MetadataJson)
-        .filter(generated_image::Column::ProjectId.eq(project_id))
-        .filter(generated_image::Column::ChapterId.eq(chapter_id))
-        .order_by_desc(generated_image::Column::Id)
-        .into_model::<generated_image::Reference>()
-        .all(db)
-        .await
-        .map_err(VideoDbError::Database)
-}
 
 pub async fn generated_images_by_ids(
     db: &DatabaseConnection,

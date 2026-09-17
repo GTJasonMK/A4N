@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use super::{
     VideoDbError, lock_generated_media_project, normalize_optional_video_record_text,
-    required_video_record_text, validate_positive_video_i64, validate_positive_video_ids,
+    required_video_record_text, validate_positive_video_ids,
 };
 
 mod create;
@@ -30,9 +30,9 @@ pub use records::{
     generated_image_by_id, generated_image_exists, generated_image_ids_by_ids,
     generated_images_by_ids, generated_images_for_chapter, generated_images_for_project,
     generated_images_for_projects, generated_images_for_projects_chapter_by_id_desc,
-    generated_images_for_video_prompt_references, update_generated_image_record,
-    video_library_chapter_image_records, video_library_explicit_image_records,
-    video_profile_material_read_model, video_project_context_read_model,
+    update_generated_image_record, video_library_chapter_image_records,
+    video_library_explicit_image_records, video_profile_material_read_model,
+    video_project_context_read_model,
 };
 pub(crate) use references::validated_video_reference_image_records_batch;
 pub(crate) use references::video_project_record;

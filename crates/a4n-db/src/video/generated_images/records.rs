@@ -20,5 +20,4 @@ pub use queries::{
     generated_image_by_id, generated_image_exists, generated_image_ids_by_ids,
     generated_images_by_ids, generated_images_for_chapter, generated_images_for_project,
     generated_images_for_projects, generated_images_for_projects_chapter_by_id_desc,
-    generated_images_for_video_prompt_references,
 };

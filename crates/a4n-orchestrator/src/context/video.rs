@@ -113,13 +113,14 @@ impl VideoApplication {
         project_id: i64,
         chapter_id: i64,
     ) -> Result<Vec<generated_image::Reference>, AppError> {
-        a4n_db::video::generated_images_for_video_prompt_references(
+        let project_ids = self.video_asset_project_ids_record(project_id).await?;
+        a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
             self.connection(),
-            project_id,
+            &project_ids,
             chapter_id,
         )
         .await
-        .map_err(video_db_error)
+        .map_err(AppError::Database)
     }
 
     pub(super) async fn generated_images_by_ids(
