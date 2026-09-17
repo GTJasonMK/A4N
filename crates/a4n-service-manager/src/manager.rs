@@ -3,6 +3,7 @@ use super::errors::ServiceManagerError;
 use super::health::http_health;
 use super::integrity::BinaryIntegrityVerifier;
 use super::process::ManagedSidecarProcess;
+use a4n_process_catalog::{ProcessMetadata, process_catalog_entry};
 use a4n_service_protocol::{SIDECAR_CONNECT_TIMEOUT, SIDECAR_HEALTH_TIMEOUT, ServiceHealth};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -90,6 +91,14 @@ impl ServiceManager {
         let mut configs = self.configs.values().cloned().collect::<Vec<_>>();
         configs.sort_by(|left, right| left.name.cmp(&right.name));
         configs
+    }
+
+    /// Return normalized metadata for either a capability sidecar or a
+    /// stateful worker. Metadata is catalog-owned and does not require the
+    /// process to be present in this manager's active configuration.
+    pub fn process_metadata(&self, name: &str) -> Result<ProcessMetadata, ServiceManagerError> {
+        process_catalog_entry(name)
+            .ok_or_else(|| ServiceManagerError::UnknownService(name.to_string()))
     }
 
     pub fn auth_token(&self, name: &str) -> Result<Option<String>, ServiceManagerError> {

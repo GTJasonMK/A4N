@@ -1,0 +1,33 @@
+[
+  {
+    "name": "agent-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-agent-worker",
+    "contract_version": "worker-schema-v6",
+    "addr_env": "A4N_AGENT_WORKER_ADDR",
+    "url_env": "A4N_AGENT_WORKER_URL",
+    "default_addr": "127.0.0.1:47650",
+    "local_only": true,
+    "data_scope": [
+      "agent_thread",
+      "agent_message",
+      "agent_turn",
+      "agent_run",
+      "agent_execution",
+      "agent_event",
+      "agent_inbox",
+      "agent_delegation",
+      "agent_approval",
+      "agent_memory"
+    ],
+    "dependencies": [
+      "a4n-control",
+      "a4n-migration"
+    ],
+    "migration": {
+      "current": "agent_runtime",
+      "min_compatible": "agent_runtime",
+      "max_compatible": "agent_runtime"
+    }
+  }
+]
