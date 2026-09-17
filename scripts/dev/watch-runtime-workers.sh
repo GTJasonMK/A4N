@@ -75,7 +75,14 @@ mark_changed_targets() {
     "$PROJECT_ROOT/crates/a4n-edge/"*)
       build_edge=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-novel-planning-worker-contract/"*|"$PROJECT_ROOT/crates/a4n-novel-planning-worker-client/"*|"$PROJECT_ROOT/crates/a4n-novel-planning-worker/"*)
+    "$PROJECT_ROOT/crates/a4n-novel-planning-worker-contract/"*)
+      build_control=true
+      build_novel_planning_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-novel-planning-worker-client/"*)
+      build_control=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-novel-planning-worker/"*)
       build_novel_planning_worker=true
       ;;
     "$PROJECT_ROOT/crates/a4n-server/"*|"$PROJECT_ROOT/crates/a4n-tauri/"*)
@@ -83,6 +90,8 @@ mark_changed_targets() {
     *.rs|*/Cargo.toml|*/build.rs|*/Cargo.lock)
       build_control=true
       build_agent_worker=true
+      build_edge=true
+      build_novel_planning_worker=true
       ;;
   esac
 }

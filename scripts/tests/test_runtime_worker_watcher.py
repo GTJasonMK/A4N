@@ -93,6 +93,24 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertNotIn("a4n-agent-worker", commands[0])
         self.assertNotIn("-p a4n-edge", commands[0])
 
+    def test_novel_planning_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-novel-planning-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-novel-planning-worker", commands[0])
+        self.assertNotIn("a4n-agent-worker", commands[0])
+
+    def test_novel_planning_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-novel-planning-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("a4n-novel-planning-worker ", commands[0])
+        self.assertNotIn("a4n-agent-worker", commands[0])
+
     def test_shared_crate_change_builds_both_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
