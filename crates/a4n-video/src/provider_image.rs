@@ -20,9 +20,11 @@ pub fn provider_image_input_transport_with_override(
     match override_value.as_deref() {
         Some("public_url") => Ok(ProviderImageInputTransport::PublicUrl),
         Some("remote_temp_upload") => Ok(ProviderImageInputTransport::RemoteTempUpload),
-        Some("inline_data_url") | None => Ok(ProviderImageInputTransport::InlineDataUrl),
+        Some("auto") | Some("inline_data_url") | None => {
+            Ok(ProviderImageInputTransport::InlineDataUrl)
+        }
         Some(other) => Err(format!(
-            "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 inline_data_url、public_url 或 remote_temp_upload"
+            "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
         )),
     }
 }
@@ -100,6 +102,10 @@ mod tests {
         assert_eq!(
             provider_image_input_transport_with_override(Some("remote_temp_upload")).unwrap(),
             ProviderImageInputTransport::RemoteTempUpload
+        );
+        assert_eq!(
+            provider_image_input_transport_with_override(Some("auto")).unwrap(),
+            ProviderImageInputTransport::InlineDataUrl
         );
         assert!(provider_image_input_transport_with_override(Some("bad")).is_err());
     }
