@@ -10,6 +10,11 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+use a4n_process_catalog::stateful_worker_catalog_entry_ref;
+use a4n_worker_contract::{
+    AGENT_WORKER_AUTH_HEADER, WORKER_HEALTH_PATH, WorkerHealth, WorkerHealthStatus,
+};
+
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
 
@@ -17,11 +22,15 @@ use std::os::unix::process::CommandExt;
 const CONTROL_PROCESS_ENV: &str = "A4N_CONTROL_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
+const AGENT_WORKER_CATALOG_NAME: &str = "agent-worker";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
 const CONTROL_READY_RETRY_INTERVAL: Duration = Duration::from_millis(50);
 const CONTROL_READY_CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
+const WORKER_READY_TIMEOUT: Duration = Duration::from_secs(30);
+const WORKER_READY_RETRY_INTERVAL: Duration = Duration::from_millis(50);
+const WORKER_READY_CONNECT_TIMEOUT: Duration = Duration::from_millis(250);
 const CHILD_MONITOR_INTERVAL: Duration = Duration::from_millis(100);
 const WORKER_RESTART_DELAY: Duration = Duration::from_millis(250);
 
@@ -52,6 +61,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let control_addr = control_addr()?;
+    let agent_worker_addr = agent_worker_addr()?;
     let worker_token = worker_token()?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
@@ -69,13 +79,23 @@ fn main() -> anyhow::Result<()> {
             )),
         };
     }
-    let mut agent_worker = match spawn_agent_worker(&worker_binary, control_addr, &worker_token) {
+    let mut agent_worker = match spawn_agent_worker(
+        &worker_binary,
+        control_addr,
+        agent_worker_addr,
+        &worker_token,
+    ) {
         Ok(child) => child,
         Err(error) => {
             let _ = stop_control(&mut control);
             return Err(error);
         }
     };
+    if let Err(error) = wait_for_agent_worker(&mut agent_worker, agent_worker_addr, &worker_token) {
+        let _ = stop_agent_worker(&mut agent_worker);
+        let _ = stop_control(&mut control);
+        return Err(error);
+    }
     let edge_stop = Arc::new(AtomicBool::new(false));
     let edge_stop_for_thread = edge_stop.clone();
     let edge_thread = std::thread::spawn(move || {
@@ -86,6 +106,7 @@ fn main() -> anyhow::Result<()> {
         &mut control,
         &mut agent_worker,
         control_addr,
+        agent_worker_addr,
         &worker_token,
         &control_binary,
         &mut control_fingerprint,
@@ -110,6 +131,7 @@ fn supervise_runtime_children(
     control: &mut Child,
     agent_worker: &mut Child,
     control_addr: SocketAddr,
+    agent_worker_addr: SocketAddr,
     worker_token: &str,
     control_binary: &Path,
     control_fingerprint: &mut BinaryFingerprint,
@@ -145,7 +167,13 @@ fn supervise_runtime_children(
             ChildWatchEvent::WorkerExited(status) => {
                 eprintln!("A4N Agent worker 意外退出: {status}；准备重启");
                 std::thread::sleep(WORKER_RESTART_DELAY);
-                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
+                *agent_worker = spawn_agent_worker(
+                    worker_binary,
+                    control_addr,
+                    agent_worker_addr,
+                    worker_token,
+                )?;
+                wait_for_agent_worker(agent_worker, agent_worker_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
             ChildWatchEvent::ControlChanged => {
@@ -159,7 +187,13 @@ fn supervise_runtime_children(
                 eprintln!("检测到 A4N Agent worker 构建完成；只替换 Agent worker");
                 stop_agent_worker(agent_worker)?;
                 std::thread::sleep(WORKER_RESTART_DELAY);
-                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
+                *agent_worker = spawn_agent_worker(
+                    worker_binary,
+                    control_addr,
+                    agent_worker_addr,
+                    worker_token,
+                )?;
+                wait_for_agent_worker(agent_worker, agent_worker_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
             ChildWatchEvent::ReloadMarkerChanged => {
@@ -324,6 +358,25 @@ fn control_addr() -> anyhow::Result<SocketAddr> {
     }
 }
 
+fn agent_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = agent_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
+fn agent_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(AGENT_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            AGENT_WORKER_CATALOG_NAME
+        )
+    })
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -350,11 +403,14 @@ fn spawn_control(binary: &Path, address: SocketAddr, worker_token: &str) -> anyh
 fn spawn_agent_worker(
     binary: &Path,
     address: SocketAddr,
+    worker_address: SocketAddr,
     worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
+    let worker_addr_env = agent_worker_metadata()?.addr_env.clone();
     command
         .env("A4N_CONTROL_ADDR", address.to_string())
+        .env(worker_addr_env, worker_address.to_string())
         .env(AGENT_WORKER_TOKEN_ENV, worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
@@ -367,12 +423,77 @@ fn spawn_agent_worker(
     })
 }
 
+fn wait_for_agent_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let client = reqwest::blocking::Client::builder()
+        .connect_timeout(WORKER_READY_CONNECT_TIMEOUT)
+        .timeout(WORKER_READY_CONNECT_TIMEOUT)
+        .build()
+        .map_err(|error| anyhow::anyhow!("初始化 Agent worker health client 失败: {error}"))?;
+    let started = Instant::now();
+    let health_url = format!("http://{address}{WORKER_HEALTH_PATH}");
+    let mut last_error = None;
+    while started.elapsed() < WORKER_READY_TIMEOUT {
+        if let Some(status) = child.try_wait()? {
+            anyhow::bail!(
+                "A4N Agent worker 在健康检查通过前退出: {status}; 最后一次错误: {}",
+                last_error
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "无".to_string())
+            );
+        }
+
+        match client
+            .get(&health_url)
+            .header(AGENT_WORKER_AUTH_HEADER, worker_token)
+            .send()
+        {
+            Ok(response) if response.status().is_success() => {
+                let health = response.json::<WorkerHealth>().map_err(|error| {
+                    anyhow::anyhow!("Agent worker health 响应不是有效合同: {error}")
+                })?;
+                health
+                    .validate()
+                    .map_err(|error| anyhow::anyhow!("Agent worker health 合同无效: {error}"))?;
+                if health.status == WorkerHealthStatus::Healthy {
+                    return Ok(());
+                }
+                last_error = Some(anyhow::anyhow!(
+                    "Agent worker health 状态为 {:?}",
+                    health.status
+                ));
+            }
+            Ok(response) => {
+                last_error = Some(anyhow::anyhow!(
+                    "Agent worker health 返回 {}",
+                    response.status()
+                ));
+            }
+            Err(error) => last_error = Some(anyhow::anyhow!(error)),
+        }
+        std::thread::sleep(WORKER_READY_RETRY_INTERVAL);
+    }
+
+    anyhow::bail!(
+        "A4N Agent worker 在 {} 秒内未通过健康检查 {health_url}: {}",
+        WORKER_READY_TIMEOUT.as_secs(),
+        last_error
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "无".to_string())
+    )
+}
+
 fn control_binary() -> anyhow::Result<PathBuf> {
     child_binary(CONTROL_BINARY_ENV, "a4n-control")
 }
 
 fn agent_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(AGENT_WORKER_BINARY_ENV, "a4n-agent-worker")
+    child_binary(AGENT_WORKER_BINARY_ENV, &agent_worker_metadata()?.binary)
 }
 
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
