@@ -106,6 +106,11 @@ should_build_frontend() {
 cargo_target_args() {
     if ! $BUILD_ALL; then
         printf '%s\n' "-p" "$TARGET_CRATE"
+        if [[ "$TARGET_CRATE" == "a4n-server" ]]; then
+            # Server supervises Edge as a sibling process; building the Server
+            # alone would produce an unusable runtime bundle.
+            printf '%s\n' "-p" "a4n-edge"
+        fi
     fi
 
     if $NO_DEFAULT_FEATURES; then
