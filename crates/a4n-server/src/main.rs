@@ -35,7 +35,9 @@ struct BinaryFingerprint {
 enum ChildWatchEvent {
     ControlExited(ExitStatus),
     WorkerExited(ExitStatus),
-    RuntimeWorkersChanged,
+    ControlChanged,
+    WorkerChanged,
+    ReloadMarkerChanged,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -79,7 +81,7 @@ fn main() -> anyhow::Result<()> {
     let edge_thread = std::thread::spawn(move || {
         a4n_edge::run_with_control_addr_until(Some(control_addr), edge_stop_for_thread)
     });
-    let watch_result = supervise_agent_worker(
+    let watch_result = supervise_runtime_children(
         &edge_thread,
         &mut control,
         &mut agent_worker,
@@ -103,7 +105,7 @@ fn main() -> anyhow::Result<()> {
     finish_shutdown(edge_result, worker_result, control_result)
 }
 
-fn supervise_agent_worker(
+fn supervise_runtime_children(
     edge_thread: &std::thread::JoinHandle<anyhow::Result<()>>,
     control: &mut Child,
     agent_worker: &mut Child,
@@ -135,13 +137,10 @@ fn supervise_agent_worker(
         match event {
             ChildWatchEvent::ControlExited(status) => {
                 eprintln!("A4N Control 意外退出: {status}；准备重启");
-                stop_agent_worker(agent_worker)?;
                 std::thread::sleep(WORKER_RESTART_DELAY);
                 *control = spawn_control(control_binary, control_addr, worker_token)?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
-                *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
-                *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
             ChildWatchEvent::WorkerExited(status) => {
                 eprintln!("A4N Agent worker 意外退出: {status}；准备重启");
@@ -149,15 +148,24 @@ fn supervise_agent_worker(
                 *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
             }
-            ChildWatchEvent::RuntimeWorkersChanged => {
-                eprintln!("检测到 A4N Control/Agent worker 成对构建完成；执行热替换");
-                stop_agent_worker(agent_worker)?;
+            ChildWatchEvent::ControlChanged => {
+                eprintln!("检测到 A4N Control 构建完成；只替换 Control");
                 stop_control(control)?;
                 *control = spawn_control(control_binary, control_addr, worker_token)?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
+            }
+            ChildWatchEvent::WorkerChanged => {
+                eprintln!("检测到 A4N Agent worker 构建完成；只替换 Agent worker");
+                stop_agent_worker(agent_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
                 *agent_worker = spawn_agent_worker(worker_binary, control_addr, worker_token)?;
                 *worker_fingerprint = binary_fingerprint(worker_binary)?;
+            }
+            ChildWatchEvent::ReloadMarkerChanged => {
+                // The marker is a publication hint from the development watcher.
+                // The binary fingerprints above decide which process actually
+                // needs replacement; a marker-only change must not restart either.
                 *reload_marker_fingerprint = optional_binary_fingerprint(reload_marker)?;
             }
         }
@@ -185,16 +193,18 @@ fn wait_for_edge_or_child(
         if let Some(status) = agent_worker.try_wait()? {
             return Ok(Some(ChildWatchEvent::WorkerExited(status)));
         }
-        if reload_marker.is_some() {
-            if optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint {
-                return Ok(Some(ChildWatchEvent::RuntimeWorkersChanged));
-            }
-        } else {
-            if binary_fingerprint(control_binary)? != control_fingerprint
-                || binary_fingerprint(worker_binary)? != worker_fingerprint
-            {
-                return Ok(Some(ChildWatchEvent::RuntimeWorkersChanged));
-            }
+        let control_changed = binary_fingerprint(control_binary)? != control_fingerprint;
+        let worker_changed = binary_fingerprint(worker_binary)? != worker_fingerprint;
+        if control_changed {
+            return Ok(Some(ChildWatchEvent::ControlChanged));
+        }
+        if worker_changed {
+            return Ok(Some(ChildWatchEvent::WorkerChanged));
+        }
+        if reload_marker.is_some()
+            && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ReloadMarkerChanged));
         }
         std::thread::sleep(CHILD_MONITOR_INTERVAL);
     }
@@ -595,6 +605,96 @@ mod tests {
     }
 
     #[test]
+    fn control_binary_change_only_selects_control_replacement() {
+        let (release, wait) = std::sync::mpsc::channel();
+        let edge_thread = std::thread::spawn(move || {
+            let _ = wait.recv();
+            Ok(())
+        });
+        let mut control = live_child();
+        let mut worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        std::fs::write(&control_binary, b"old-control").expect("control fixture should be written");
+        std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
+        let control_fingerprint =
+            super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
+        let worker_fingerprint =
+            super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        std::fs::write(&control_binary, b"new-control").expect("control replacement should work");
+
+        let result = super::wait_for_edge_or_child(
+            &edge_thread,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ControlChanged)
+        ));
+        let _ = release.send(());
+        let _ = edge_thread.join();
+        control.kill().expect("test control should stop");
+        control.wait().expect("test control should be reaped");
+        worker.kill().expect("test worker should stop");
+        worker.wait().expect("test worker should be reaped");
+    }
+
+    #[test]
+    fn worker_binary_change_only_selects_worker_replacement() {
+        let (release, wait) = std::sync::mpsc::channel();
+        let edge_thread = std::thread::spawn(move || {
+            let _ = wait.recv();
+            Ok(())
+        });
+        let mut control = live_child();
+        let mut worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        std::fs::write(&control_binary, b"control").expect("control fixture should be written");
+        std::fs::write(&worker_binary, b"old-worker").expect("worker fixture should be written");
+        let control_fingerprint =
+            super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
+        let worker_fingerprint =
+            super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        std::fs::write(&worker_binary, b"new-worker").expect("worker replacement should work");
+
+        let result = super::wait_for_edge_or_child(
+            &edge_thread,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::WorkerChanged)
+        ));
+        let _ = release.send(());
+        let _ = edge_thread.join();
+        control.kill().expect("test control should stop");
+        control.wait().expect("test control should be reaped");
+        worker.kill().expect("test worker should stop");
+        worker.wait().expect("test worker should be reaped");
+    }
+
+    #[test]
     fn reload_marker_is_optional_and_detects_publication() {
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
         let marker = tempdir.path().join("runtime-workers.ready");
@@ -613,5 +713,52 @@ mod tests {
             .expect("republished marker should exist");
 
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn marker_change_without_binary_change_does_not_select_a_process() {
+        let (release, wait) = std::sync::mpsc::channel();
+        let edge_thread = std::thread::spawn(move || {
+            let _ = wait.recv();
+            Ok(())
+        });
+        let mut control = live_child();
+        let mut worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let marker = tempdir.path().join("runtime-workers.ready");
+        std::fs::write(&control_binary, b"control").expect("control fixture should be written");
+        std::fs::write(&worker_binary, b"worker").expect("worker fixture should be written");
+        let control_fingerprint =
+            super::binary_fingerprint(&control_binary).expect("control fingerprint should work");
+        let worker_fingerprint =
+            super::binary_fingerprint(&worker_binary).expect("worker fingerprint should work");
+        let marker_fingerprint = None;
+        std::fs::write(&marker, b"published").expect("marker should be published");
+
+        let result = super::wait_for_edge_or_child(
+            &edge_thread,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            Some(&marker),
+            marker_fingerprint,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ReloadMarkerChanged)
+        ));
+        let _ = release.send(());
+        let _ = edge_thread.join();
+        control.kill().expect("test control should stop");
+        control.wait().expect("test control should be reaped");
+        worker.kill().expect("test worker should stop");
+        worker.wait().expect("test worker should be reaped");
     }
 }
