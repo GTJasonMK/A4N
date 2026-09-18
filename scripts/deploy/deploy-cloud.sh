@@ -419,7 +419,7 @@ build_backend() {
         [[ -d "$HOME/.cargo/registry" ]] || die "离线构建需要 $HOME/.cargo/registry，或使用 --online"
         [[ -d "$HOME/.cargo/git" ]] || die "离线构建需要 $HOME/.cargo/git，或使用 --online"
         offline_flag=(--offline)
-        docker_cache_mounts=(
+        docker_cache_mounts+=(
             -v "$HOME/.cargo/registry:/usr/local/cargo/registry:ro"
             -v "$HOME/.cargo/git:/usr/local/cargo/git:ro"
         )
