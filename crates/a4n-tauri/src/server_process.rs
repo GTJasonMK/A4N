@@ -15,6 +15,7 @@ const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
 const NOVEL_PLANNING_WORKER_BINARY_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_BINARY";
 const ARTIFACT_MEDIA_WORKER_BINARY_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_BINARY";
+const OUTLINE_WORKER_BINARY_ENV: &str = "A4N_OUTLINE_WORKER_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -63,6 +64,7 @@ impl LocalServerProcess {
             "a4n-artifact-media-worker",
             ARTIFACT_MEDIA_WORKER_BINARY_ENV,
         )?;
+        let outline_worker = resolve_binary(app, "a4n-outline-worker", OUTLINE_WORKER_BINARY_ENV)?;
         let migration = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
         run_migration(&migration)?;
 
@@ -74,6 +76,7 @@ impl LocalServerProcess {
             .env(AGENT_WORKER_BINARY_ENV, &agent_worker)
             .env(NOVEL_PLANNING_WORKER_BINARY_ENV, &novel_planning_worker)
             .env(ARTIFACT_MEDIA_WORKER_BINARY_ENV, &artifact_media_worker)
+            .env(OUTLINE_WORKER_BINARY_ENV, &outline_worker)
             .env("A4N_RUNTIME_PROFILE", "sidecar")
             .env("A4N_MANAGED_SIDECARS", "1")
             .env("A4N_PORTABLE_HOME", server_portable_home())
@@ -454,6 +457,7 @@ mod tests {
             "a4n-agent-worker",
             "a4n-novel-planning-worker",
             "a4n-artifact-media-worker",
+            "a4n-outline-worker",
             "a4n-migration",
         ] {
             std::fs::write(directory.path().join(name), name).expect("binary fixture should write");

@@ -49,6 +49,7 @@ pub async fn initialize_runtime(
     let artifact_media_worker =
         a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().map(Arc::new);
     let agent_worker = Arc::new(a4n_agent_worker_client::AgentWorkerClient::from_env());
+    let outline_worker = Arc::new(a4n_outline_worker_client::OutlineWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -129,8 +130,8 @@ pub async fn initialize_runtime(
         chapter_generation_request_preview_application: Arc::new(orchestrator.clone()),
         chapter_generation_rag_preparation_application: Arc::new(orchestrator.clone()),
         chapter_generation_application: Arc::new(orchestrator.clone()),
-        outline_read_application: Arc::new(orchestrator.clone()),
-        outline_mutation_application: Arc::new(orchestrator.clone()),
+        outline_read_application: outline_worker.clone(),
+        outline_mutation_application: outline_worker.clone(),
         outline_generation_application: Arc::new(orchestrator.clone()),
         outline_part_generation_preview_application: Arc::new(orchestrator.clone()),
         outline_part_mutation_preview_application: Arc::new(orchestrator.clone()),

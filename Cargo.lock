@@ -665,6 +665,7 @@ dependencies = [
  "a4n-error",
  "a4n-novel-planning-worker-client",
  "a4n-orchestrator",
+ "a4n-outline-worker-client",
  "a4n-runtime",
 ]
 
@@ -1211,6 +1212,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-outline-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-outline-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "chrono",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "subtle",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-outline-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-outline-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-outline-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-portrait-host-contract"
 version = "0.1.0"
 dependencies = [
@@ -1574,6 +1624,7 @@ dependencies = [
  "a4n-domain",
  "a4n-edge",
  "a4n-migration",
+ "a4n-outline-worker",
  "a4n-process-catalog",
  "a4n-queue",
  "a4n-service-protocol",
