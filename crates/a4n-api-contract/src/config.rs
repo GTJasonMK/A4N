@@ -2,6 +2,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use a4n_domain::agent::{
+    AGENT_PROTOCOL_JSON_COMPAT, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, valid_agent_protocol,
+};
+
 pub use a4n_domain::cost::PricingPlan;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 
@@ -379,6 +383,8 @@ pub struct LlmConfigSummary {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
+    #[serde(default = "default_agent_protocol")]
+    pub agent_protocol: String,
     pub extra_body_json: Option<Value>,
     pub is_default: bool,
     pub pricing: PricingPlan,
@@ -396,6 +402,8 @@ pub struct CreateLlmInput {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
+    #[serde(default = "default_agent_protocol")]
+    pub agent_protocol: String,
     pub extra_body_json: Option<Value>,
     #[serde(default)]
     pub pricing: PricingPlan,
@@ -427,10 +435,16 @@ pub struct UpdateLlmInput {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
+    #[serde(default = "default_agent_protocol")]
+    pub agent_protocol: String,
     #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub extra_body_json: Option<Value>,
     #[serde(default)]
     pub pricing: PricingPlan,
+}
+
+fn default_agent_protocol() -> String {
+    AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

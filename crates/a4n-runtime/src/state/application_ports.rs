@@ -91,6 +91,8 @@ pub struct ApplicationPorts {
     /// Content-optimization session reads stay behind the API contract.
     pub optimize_session_read_application:
         Arc<dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort>,
+    pub optimize_agent_tool_application:
+        Arc<dyn a4n_optimize_host_contract::OptimizeAgentToolApplicationPort>,
     /// Content-optimization session mutations stay in the optimize owner.
     pub optimize_session_mutation_application:
         Arc<dyn a4n_optimize_host_contract::OptimizeSessionMutationApplicationPort>,

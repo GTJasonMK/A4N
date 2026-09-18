@@ -78,6 +78,7 @@ async fn discarding_pending_patch_sets_updates_patches_and_records_one_event() {
         database.as_ref(),
         OptimizationTurnCreateInput {
             session_id: session.id,
+            agent_turn_id: None,
             user_text: "生成局部补丁".to_string(),
             status: "completed".to_string(),
             permissions_snapshot: Some(permissions.as_value()),

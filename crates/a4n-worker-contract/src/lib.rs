@@ -1261,6 +1261,7 @@ pub struct AgentWorkerInboxPersistSnapshotWire {
 #[serde(deny_unknown_fields)]
 pub struct AgentHostCommandPayload {
     pub run_id: i64,
+    pub turn_id: i64,
     pub scope: AgentScope,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub execution_id: Option<i64>,
@@ -1277,6 +1278,12 @@ impl AgentHostCommandPayload {
         if self.run_id <= 0 {
             return Err(WorkerContractError::InvalidValue {
                 field: "run_id",
+                reason: "must be positive",
+            });
+        }
+        if self.turn_id <= 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "turn_id",
                 reason: "must be positive",
             });
         }
@@ -1495,6 +1502,7 @@ mod tests {
     fn host_command_arguments_follow_runtime_snapshot_policy() {
         let payload = AgentHostCommandPayload {
             run_id: 7,
+            turn_id: 8,
             scope: AgentScope::default(),
             execution_id: None,
             command: "read_chapter_visual_plan".into(),

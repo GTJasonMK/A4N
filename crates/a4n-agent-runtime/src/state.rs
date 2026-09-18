@@ -811,6 +811,7 @@ impl AgentRuntimeState {
         };
         let payload = AgentHostCommandPayload {
             run_id: worker_request.payload.run_id,
+            turn_id: worker_request.payload.turn_id,
             scope: scope.clone(),
             execution_id,
             command: command.clone(),

@@ -38,6 +38,7 @@ pub struct OptimizationSessionMessageInsertInput {
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationTurnCreateInput {
     pub session_id: i64,
+    pub agent_turn_id: Option<i64>,
     pub user_text: String,
     pub status: String,
     pub permissions_snapshot: Option<Value>,

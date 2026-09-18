@@ -7,6 +7,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     pub session_id: i64,
+    pub agent_turn_id: Option<i64>,
 
     #[sea_orm(column_type = "Text")]
     pub user_text: String,

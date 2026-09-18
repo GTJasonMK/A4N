@@ -408,6 +408,7 @@ async fn dispatch_agent_host_command_inner(
             AgentHostDispatchContext {
                 scope: request.payload.scope.clone(),
                 run_id: request.payload.run_id,
+                turn_id: request.payload.turn_id,
                 execution_id: request.payload.execution_id,
                 lease_token: request.lease.fence_token.clone(),
                 start_request_id: generation_start_request_id,
@@ -419,6 +420,7 @@ async fn dispatch_agent_host_command_inner(
 struct AgentHostDispatchContext {
     scope: a4n_api_contract::agent::AgentScope,
     run_id: i64,
+    turn_id: i64,
     execution_id: Option<i64>,
     lease_token: String,
     start_request_id: Option<String>,
@@ -454,6 +456,7 @@ async fn dispatch_runtime_command_inner(
                 user_id,
                 context.scope,
                 context.run_id,
+                context.turn_id,
                 context.execution_id,
                 context.lease_token,
                 context.start_request_id,

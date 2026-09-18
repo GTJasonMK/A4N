@@ -38,6 +38,7 @@ where
             active.timeout_secs = Set(row.timeout_secs);
             active.max_context_tokens = Set(row.max_context_tokens);
             active.max_output_tokens = Set(row.max_output_tokens);
+            active.agent_protocol = Set(row.agent_protocol);
             active.extra_body_json = Set(row.extra_body_json);
             active.pricing_json = Set(row.pricing_json);
             active.is_default = Set(row.is_default);
@@ -59,6 +60,7 @@ where
                 timeout_secs: Set(row.timeout_secs),
                 max_context_tokens: Set(row.max_context_tokens),
                 max_output_tokens: Set(row.max_output_tokens),
+                agent_protocol: Set(row.agent_protocol),
                 extra_body_json: Set(row.extra_body_json),
                 pricing_json: Set(row.pricing_json),
                 is_default: Set(row.is_default),

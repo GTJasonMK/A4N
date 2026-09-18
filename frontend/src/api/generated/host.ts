@@ -1046,6 +1046,7 @@ export interface ArchiveAgentThreadInput {
 }
 
 export interface RuntimeLlmConfig {
+  agent_protocol: string;
   api_key_encrypted: string | null;
   base_url: string;
   extra_body_json: unknown;
@@ -3090,6 +3091,7 @@ export interface OptimizationTurnEventSummary {
 }
 
 export interface OptimizationTurnSummary {
+  agent_turn_id: number | null;
   created_at: string;
   error: string | null;
   events: OptimizationTurnEventSummary[];

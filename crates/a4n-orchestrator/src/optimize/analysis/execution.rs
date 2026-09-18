@@ -69,7 +69,7 @@ impl OrchestratorContext {
             .filter(|text| !text.is_empty())
             .unwrap_or("分析当前章节");
         let turn = self
-            .create_turn(session.id, turn_text, &permissions)
+            .create_turn(session.id, turn_text, &permissions, None)
             .await?;
 
         match self

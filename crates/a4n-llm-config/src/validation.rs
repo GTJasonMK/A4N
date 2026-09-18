@@ -3,6 +3,7 @@ use a4n_error::AppError;
 use serde_json::Value;
 use url::{Host, Url};
 
+use a4n_domain::agent::valid_agent_protocol;
 use a4n_llm_provider_contract::{
     LlmProtocolKind, normalize_extra_body_json, validate_prompt_cache_options,
 };
@@ -82,6 +83,12 @@ pub fn validate_llm_config(model: &super::contracts::LlmConfigSnapshot) -> Resul
     positive_i32(model.max_output_tokens, "LLM配置 max_output_tokens")
         .map_err(AppError::InvalidArgument)?;
     ensure_output_tokens_below_context(model.max_output_tokens, model.max_context_tokens)?;
+    if !valid_agent_protocol(&model.agent_protocol) {
+        return Err(AppError::ConfigError(format!(
+            "LLM 配置 {} 使用不支持的 agent_protocol: {}",
+            model.name, model.agent_protocol
+        )));
+    }
     normalize_llm_extra_body_json(&model.provider, &model.model, model.extra_body_json.clone())?;
     Ok(())
 }

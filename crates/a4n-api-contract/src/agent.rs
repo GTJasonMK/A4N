@@ -10,8 +10,9 @@ use serde_json::{Value, json};
 use crate::runtime_config::RuntimeConfigSnapshot;
 
 pub use a4n_domain::agent::{
-    AGENT_DEFAULT_MAX_STEPS, AGENT_DEFAULT_MAX_TOOLS, AgentApprovalDecision, AgentApprovalStatus,
-    AgentBudget, AgentControlAction, AgentDelegationStatus, AgentDeliveryMode, AgentExecutionKind,
+    AGENT_DEFAULT_MAX_STEPS, AGENT_DEFAULT_MAX_TOOLS, AGENT_PROTOCOL_JSON_COMPAT,
+    AGENT_PROTOCOL_NATIVE_TOOL_CALLING, AgentApprovalDecision, AgentApprovalStatus, AgentBudget,
+    AgentControlAction, AgentDelegationStatus, AgentDeliveryMode, AgentExecutionKind,
     AgentExecutionMode, AgentExecutionStatus, AgentInboxKind, AgentInboxStatus,
     AgentMemoryScopeKind, AgentMemoryStatus, AgentMessageRole, AgentMessageStatus, AgentRunStatus,
     AgentThreadKind, AgentThreadStatus, AgentToolCostClass, AgentToolExposure,
@@ -74,8 +75,10 @@ pub const CONTENT_OPTIMIZATION_AGENT_TOOLS: &[&str] = &[
     "read_image",
     "web_search",
     "web_fetch",
-    "ensure_content_optimization_session",
-    "send_content_optimization_message",
+    "inspect_project_context",
+    "read_project_context",
+    "search_project_context",
+    "edit_article",
     "get_optimize_session",
     "list_optimize_turns",
     "list_optimize_patch_sets",
@@ -225,7 +228,11 @@ pub fn synthetic_agent_tool_descriptor(
     name: &str,
 ) -> Option<crate::command_manifest::CommandDescriptor> {
     let domain = match name {
-        "apply_optimization_patches"
+        "inspect_project_context"
+        | "read_project_context"
+        | "search_project_context"
+        | "edit_article"
+        | "apply_optimization_patches"
         | "ensure_content_optimization_session"
         | "send_content_optimization_message" => "optimize",
         "run_canvas_graph" | "run_canvas_node" => "canvas",
@@ -294,6 +301,18 @@ pub fn synthetic_agent_tool_descriptor(
         },
     };
     descriptor.summary = match name {
+        "inspect_project_context" => {
+            "Inspect the available optimization context, including chapter paragraphs, object fields and array items, so the model can choose what to read.".into()
+        }
+        "read_project_context" => {
+            "Read the model-selected project context paths, chapter paragraphs or array items with a stable source hash and complete evidence spans.".into()
+        }
+        "search_project_context" => {
+            "Search the accessible optimization context and return selectors that can be passed to read_project_context.".into()
+        }
+        "edit_article" => {
+            "Create a reviewable local article patch. It never writes the chapter without user approval.".into()
+        }
         "wait_generation_task" => "Wait for this exact generation task_id and attempt. Pending work suspends this Agent Run and releases the worker; no model polling. Returns the authoritative terminal state, error and result reference. Observing a task does not grant cancellation ownership.".into(),
         "wait_workflow_run" => "Wait for this workflow run to finish, fail or stop. Suspends the Agent and releases its worker while pending. Returns authoritative checkpoints and artifacts; a failed or interrupted workflow is not a successful result.".into(),
         "apply_optimization_patches" => {
@@ -341,6 +360,9 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     descriptor.effect = match name {
+        "inspect_project_context" | "read_project_context" | "search_project_context" => {
+            "read".into()
+        }
         "search_agent_tools"
         | "describe_agent_tool"
         | "search_agent_skills"
@@ -366,6 +388,14 @@ pub fn synthetic_agent_tool_descriptor(
         _ => "immediate".into(),
     };
     descriptor.args_schema = match name {
+        "inspect_project_context" => {
+            typed_schema::<crate::optimize::InspectOptimizationContextInput>()
+        }
+        "read_project_context" => typed_schema::<crate::optimize::ReadOptimizationContextInput>(),
+        "search_project_context" => {
+            typed_schema::<crate::optimize::SearchOptimizationContextInput>()
+        }
+        "edit_article" => typed_schema::<crate::optimize::OptimizationArticlePatchToolInput>(),
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
@@ -464,6 +494,14 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     descriptor.result_schema = match name {
+        "inspect_project_context"
+        | "read_project_context"
+        | "search_project_context"
+        | "edit_article" => json!({
+            "type": "object",
+            "additionalProperties": true,
+            "x-a4n-schema-quality": "typed"
+        }),
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
@@ -507,6 +545,20 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     let (exposure, risk, reversibility, replay_policy, tags) = match name {
+        "inspect_project_context" | "read_project_context" | "search_project_context" => (
+            AgentToolExposure::Preloaded,
+            AgentToolRisk::Low,
+            AgentToolReversibility::Reversible,
+            AgentToolReplayPolicy::Safe,
+            vec!["optimize".into(), "read".into()],
+        ),
+        "edit_article" => (
+            AgentToolExposure::Preloaded,
+            AgentToolRisk::Medium,
+            AgentToolReversibility::Compensatable,
+            AgentToolReplayPolicy::Idempotent,
+            vec!["optimize".into(), "write".into()],
+        ),
         "delegate" => (
             AgentToolExposure::Preloaded,
             AgentToolRisk::Low,
@@ -605,6 +657,10 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
         "load_agent_skill",
         "read_agent_memory",
         "read_agent_execution_result",
+        "inspect_project_context",
+        "read_project_context",
+        "search_project_context",
+        "edit_article",
         "inspect_editor_target",
         "read_editor_draft",
         "save_editor_draft",

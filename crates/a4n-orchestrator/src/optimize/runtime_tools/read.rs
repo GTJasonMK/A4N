@@ -129,7 +129,7 @@ fn check_offset(offset: usize, total: usize) -> Result<(), AppError> {
     Ok(())
 }
 
-pub(super) fn source_hash(value: &Value) -> Result<String, AppError> {
+pub(in crate::optimize) fn source_hash(value: &Value) -> Result<String, AppError> {
     Ok(source_text_hash(&serde_json::to_string(value)?))
 }
 

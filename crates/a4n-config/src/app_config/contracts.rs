@@ -93,6 +93,14 @@ pub struct LlmConfig {
     /// Provider-specific extra JSON fields merged into chat/completions requests.
     #[serde(default)]
     pub extra_body_json: Option<Value>,
+
+    /// Protocol used by interactive Agent loops.
+    #[serde(default = "default_agent_protocol")]
+    pub agent_protocol: String,
+}
+
+fn default_agent_protocol() -> String {
+    a4n_domain::agent::AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string()
 }
 
 /// 嵌入模型配置

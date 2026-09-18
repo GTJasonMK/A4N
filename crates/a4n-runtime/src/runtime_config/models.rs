@@ -53,6 +53,7 @@ pub(super) fn llm_provider_config_from_runtime(cfg: RuntimeLlmConfig) -> LlmProv
         timeout_secs: cfg.timeout_secs,
         max_context_tokens: cfg.max_context_tokens,
         max_output_tokens: cfg.max_output_tokens,
+        agent_protocol: cfg.agent_protocol,
         extra_body_json: cfg.extra_body_json,
         pricing: cfg.pricing,
     }

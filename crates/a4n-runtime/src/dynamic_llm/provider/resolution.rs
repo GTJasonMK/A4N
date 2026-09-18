@@ -10,6 +10,20 @@ use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 use crate::runtime_config;
 
 impl DynamicLlmProvider {
+    pub(crate) async fn agent_protocol_for_config_id(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        let model = self.resolve_model_by_id(config_id).await?;
+        if !a4n_domain::agent::valid_agent_protocol(&model.agent_protocol) {
+            return Err(AppError::ConfigError(format!(
+                "LLM 配置 {} 使用不支持的 agent_protocol: {}",
+                model.name, model.agent_protocol
+            )));
+        }
+        Ok(model.agent_protocol)
+    }
+
     pub(crate) async fn capabilities_for_config_id(
         &self,
         config_id: Option<i64>,

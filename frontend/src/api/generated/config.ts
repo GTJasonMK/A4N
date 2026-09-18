@@ -121,6 +121,7 @@ export interface UpdateImageConfigInput {
 }
 
 export interface LlmConfigSummary {
+  agent_protocol: string;
   base_url: string;
   extra_body_json: unknown;
   has_api_key: boolean;
@@ -137,6 +138,7 @@ export interface LlmConfigSummary {
 }
 
 export interface CreateLlmInput {
+  agent_protocol?: string;
   api_key_encrypted?: string | null;
   base_url: string;
   extra_body_json?: unknown;
@@ -151,6 +153,7 @@ export interface CreateLlmInput {
 }
 
 export interface UpdateLlmInput {
+  agent_protocol?: string;
   api_key_encrypted?: string | null;
   base_url: string;
   extra_body_json: unknown;
@@ -166,6 +169,8 @@ export interface UpdateLlmInput {
 
 export const DEFAULT_LLM_MAX_CONTEXT_TOKENS = 128000;
 export const DEFAULT_LLM_MAX_OUTPUT_TOKENS = 8192;
+export const AGENT_PROTOCOL_NATIVE_TOOL_CALLING = "native_tool_calling";
+export const AGENT_PROTOCOL_JSON_COMPAT = "json_compat";
 export const LLM_RESERVED_REQUEST_OPTION_KEYS: readonly string[] = ["model", "messages", "stream", "temperature", "max_tokens", "max_completion_tokens", "response_format", "prompt_cache_key", "tools", "tool_choice", "stop", "stop_sequences", "system", "anthropic_version", "cache_control", "input", "max_output_tokens", "text", "include", "store", "contents", "systeminstruction", "toolconfig"];
 
 export interface VideoConfigSummary {

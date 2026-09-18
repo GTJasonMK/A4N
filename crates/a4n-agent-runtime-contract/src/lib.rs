@@ -14,7 +14,7 @@ use a4n_api_contract::agent::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::{ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerBudgetSnapshotWire,
@@ -41,7 +41,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod ports;
+mod protocol;
 pub use ports::*;
+pub use protocol::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentLlmCapabilities {
+    pub model: ModelCapabilities,
+    pub agent_protocol: String,
+}
 
 pub const AGENT_WORKER_ID: &str = "agent-worker";
 pub const AGENT_THREAD_ENSURE_MAIN_OPERATION: &str = "agent.thread.ensure_main";

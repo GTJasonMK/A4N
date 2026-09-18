@@ -12,6 +12,7 @@ pub struct LlmConfigSnapshot {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    pub agent_protocol: String,
 }
 
 #[derive(Debug)]
@@ -26,6 +27,7 @@ pub struct CreateLlmConfigInput<'a> {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    pub agent_protocol: String,
 }
 
 #[derive(Debug)]
@@ -40,6 +42,7 @@ pub struct UpdateLlmConfigInput<'a> {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    pub agent_protocol: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,5 +57,6 @@ pub struct NormalizedLlmConfig {
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
     pub extra_body_json: Option<Value>,
+    pub agent_protocol: String,
     pub pricing_json: Value,
 }

@@ -6,6 +6,7 @@ import type {
 import {
   DEFAULT_LLM_MAX_CONTEXT_TOKENS,
   DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+  AGENT_PROTOCOL_NATIVE_TOOL_CALLING,
   LLM_RESERVED_REQUEST_OPTION_KEYS,
   type LlmProviderDescriptor,
 } from "../../../api/generated/config";
@@ -17,6 +18,7 @@ import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 export const DEFAULT_LLM_FORM: LlmForm = {
   name: "",
   provider: "deepseek",
+  agent_protocol: AGENT_PROTOCOL_NATIVE_TOOL_CALLING,
   model: "",
   api_base_url: "",
   api_key: "",
@@ -127,6 +129,7 @@ export function toLlmItem(raw: LlmConfigSummary): ConfigItem<LlmForm> {
     config: {
       name: raw.name,
       provider: raw.provider,
+      agent_protocol: raw.agent_protocol,
       model: raw.model,
       api_base_url: raw.base_url,
       api_key: "",
@@ -146,6 +149,7 @@ export function toCreateLlmInput(form: LlmForm, t: MessageTranslator): CreateLlm
   return {
     name: form.name,
     provider: form.provider,
+    agent_protocol: form.agent_protocol,
     base_url: form.api_base_url,
     api_key_encrypted: form.api_key.trim() ? form.api_key.trim() : undefined,
     model: form.model,
@@ -163,6 +167,7 @@ export function toUpdateLlmInput(form: LlmForm, t: MessageTranslator): UpdateLlm
   return {
     name: form.name,
     provider: form.provider,
+    agent_protocol: form.agent_protocol,
     base_url: form.api_base_url,
     api_key_encrypted: form.clear_api_key ? null : apiKey || undefined,
     model: form.model,

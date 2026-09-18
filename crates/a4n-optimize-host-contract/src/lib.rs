@@ -8,8 +8,10 @@ use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskStart, GenerationTaskStartError},
     optimize::{
         AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
-        CreateOptimizationChatSessionInput, OptimizationSessionSummary,
-        PrepareOptimizationAnalysisSessionInput, RecordOptimizeAgentEventInput,
+        CreateOptimizationChatSessionInput, InspectOptimizationContextInput,
+        OptimizationArticlePatchToolInput, OptimizationSessionSummary,
+        PrepareOptimizationAnalysisSessionInput, ReadOptimizationContextInput,
+        RecordOptimizeAgentEventInput, SearchOptimizationContextInput,
         SendOptimizationMessageInput, StartOptimizeAnalysisGenerationInput,
         StartOptimizeChatGenerationInput, StartOptimizePatchGenerationInput,
     },
@@ -25,6 +27,45 @@ pub trait OptimizePatchApplyHostPort: Send + Sync {
         &self,
         chapter_id: i64,
     ) -> Result<(), AppError>;
+}
+
+/// Runtime-facing Agent tools owned by the content-optimization application.
+/// The Runtime owns the Agent loop and approvals; Orchestrator owns context,
+/// evidence and patch persistence.
+#[async_trait]
+pub trait OptimizeAgentToolApplicationPort: Send + Sync {
+    async fn inspect_context(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        input: InspectOptimizationContextInput,
+    ) -> Result<serde_json::Value, AppError>;
+
+    async fn read_context(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        input: ReadOptimizationContextInput,
+    ) -> Result<serde_json::Value, AppError>;
+
+    async fn search_context(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        input: SearchOptimizationContextInput,
+    ) -> Result<serde_json::Value, AppError>;
+
+    async fn propose_article_patch(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        agent_turn_id: i64,
+        input: OptimizationArticlePatchToolInput,
+    ) -> Result<serde_json::Value, AppError>;
 }
 
 #[async_trait]

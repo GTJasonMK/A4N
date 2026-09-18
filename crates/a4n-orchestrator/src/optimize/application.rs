@@ -17,9 +17,9 @@ use a4n_db_models::models::ai::{
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_optimize_host_contract::{
-    OptimizeAnalysisGenerationApplicationPort, OptimizeAnalysisPreviewApplicationPort,
-    OptimizeChatGenerationApplicationPort, OptimizeChatPreviewApplicationPort,
-    OptimizePatchApplicationPort, OptimizePatchApplyHostPort,
+    OptimizeAgentToolApplicationPort, OptimizeAnalysisGenerationApplicationPort,
+    OptimizeAnalysisPreviewApplicationPort, OptimizeChatGenerationApplicationPort,
+    OptimizeChatPreviewApplicationPort, OptimizePatchApplicationPort, OptimizePatchApplyHostPort,
     OptimizePatchGenerationApplicationPort, OptimizePatchPreviewApplicationPort,
     OptimizeSessionMutationApplicationPort,
 };
@@ -452,6 +452,220 @@ impl a4n_api_contract::optimize::OptimizeSessionReadApplicationPort for Orchestr
 }
 
 #[async_trait]
+impl OptimizeAgentToolApplicationPort for OrchestratorContext {
+    async fn inspect_context(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        input: a4n_api_contract::optimize::InspectOptimizationContextInput,
+    ) -> Result<serde_json::Value, AppError> {
+        crate::optimize::runtime_tools::inspect_project_context(
+            self, user_id, project_id, chapter_id, input,
+        )
+        .await
+    }
+
+    async fn read_context(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        input: a4n_api_contract::optimize::ReadOptimizationContextInput,
+    ) -> Result<serde_json::Value, AppError> {
+        crate::optimize::runtime_tools::read_project_context(
+            self, user_id, project_id, chapter_id, input,
+        )
+        .await
+    }
+
+    async fn search_context(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        input: a4n_api_contract::optimize::SearchOptimizationContextInput,
+    ) -> Result<serde_json::Value, AppError> {
+        crate::optimize::runtime_tools::search_project_context(
+            self, user_id, project_id, chapter_id, input,
+        )
+        .await
+    }
+
+    async fn propose_article_patch(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        agent_turn_id: i64,
+        input: a4n_api_contract::optimize::OptimizationArticlePatchToolInput,
+    ) -> Result<serde_json::Value, AppError> {
+        let existing_session = self
+            .optimize_sessions_for_user(user_id, project_id, Some(chapter_id))
+            .await?
+            .into_iter()
+            .find(|session| session.status != "cancelled");
+        let session = match existing_session {
+            Some(session) => session,
+            None => {
+                let chapter = self
+                    .optimization_chapter_by_id(chapter_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
+                self.create_optimize_chat_session_for_user_validated(
+                    user_id,
+                    project_id,
+                    chapter.chapter_number,
+                    "章节内容优化 Agent",
+                    &crate::optimize::permissions::optimization_agent_variables(
+                        &default_agent_permissions(),
+                    ),
+                )
+                .await?
+            }
+        };
+        let permissions =
+            crate::optimize::permissions::optimization_permissions_from_session(&session)?;
+        let turn = if let Some(existing) = a4n_db::optimize::optimization_turn_by_agent_turn_id(
+            self.database.connection(),
+            agent_turn_id,
+        )
+        .await
+        .map_err(crate::optimize::optimize_db_error)?
+        {
+            if existing.session_id != session.id {
+                return Err(AppError::InvalidArgument(
+                    "Agent Turn 已绑定到其他内容优化会话".into(),
+                ));
+            }
+            if let Some(patch_set) = a4n_db::optimize::optimization_patch_set_by_turn_id(
+                self.database.connection(),
+                existing.id,
+            )
+            .await
+            .map_err(crate::optimize::optimize_db_error)?
+            {
+                return persisted_article_patch_result(self, patch_set).await;
+            }
+            existing
+        } else {
+            self.create_turn(
+                session.id,
+                &format!("Agent turn {agent_turn_id}"),
+                &permissions,
+                Some(agent_turn_id),
+            )
+            .await?
+        };
+        let chapter = self
+            .optimization_chapter_by_id(chapter_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
+        if chapter.status == "deleted" {
+            return Err(AppError::InvalidArgument(
+                "已删除章节不能生成正文补丁".into(),
+            ));
+        }
+        if chapter.content.trim().is_empty() {
+            return Err(AppError::InvalidArgument(
+                "章节正文为空，无法生成正文补丁".into(),
+            ));
+        }
+        let base_content_hash = a4n_domain::source_text_hash(&chapter.content);
+        let raw = serde_json::to_string(&serde_json::json!({
+            "summary": input.summary,
+            "patches": input.patches,
+        }))?;
+        let proposal = crate::optimize::patch::parse_content_optimization_patch_response(
+            session.id,
+            project_id,
+            chapter_id,
+            &base_content_hash,
+            &chapter.content,
+            &raw,
+        )?;
+        let mut result = serde_json::json!({
+            "tool": "edit_article",
+            "mode": "pending_confirmation",
+            "requires_user_confirmation": true,
+            "chapter_id": chapter_id,
+            "base_content_hash": proposal.base_content_hash,
+            "patch_count": proposal.patches.len(),
+            "summary": proposal.summary,
+            "patches": proposal.patches,
+        });
+        if let Some(patch_set) = self
+            .persist_patch_tool_result(turn.id, session.id, project_id, chapter_id, &result)
+            .await?
+        {
+            result["patch_set_id"] = serde_json::json!(patch_set.id);
+            result["resource"] = serde_json::json!({
+                "kind": "optimization_patch_set",
+                "id": patch_set.id.to_string(),
+                "revision": patch_set.updated_at.and_utc().to_rfc3339(),
+                "hash": patch_set.base_content_hash,
+            });
+        }
+        Ok(result)
+    }
+}
+
+fn default_agent_permissions() -> crate::optimize::permissions::OptimizeAgentPermissions {
+    crate::optimize::permissions::OptimizeAgentPermissions {
+        read_project_detail: true,
+        read_blueprint: true,
+        read_outlines: true,
+        read_character_profiles: true,
+        read_foreshadowing: true,
+        automatic_writeback: false,
+    }
+}
+
+async fn persisted_article_patch_result(
+    context: &OrchestratorContext,
+    patch_set: a4n_db_models::models::ai::optimization_patch_set::Model,
+) -> Result<serde_json::Value, AppError> {
+    let rows = a4n_db::optimize::optimization_patch_set_patches(
+        context.database.connection(),
+        patch_set.id,
+    )
+    .await
+    .map_err(crate::optimize::optimize_db_error)?;
+    let patches = rows
+        .into_iter()
+        .map(|patch| {
+            Ok(serde_json::json!({
+                "patch_id": patch.patch_id,
+                "issue_id": patch.issue_id,
+                "operation": patch.operation,
+                "old_text": patch.old_text,
+                "new_text": patch.new_text,
+                "reason": patch.reason,
+                "risk": patch.risk,
+            }))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    let base_content_hash = patch_set.base_content_hash.clone();
+    Ok(serde_json::json!({
+        "tool": "edit_article",
+        "mode": "pending_confirmation",
+        "requires_user_confirmation": true,
+        "chapter_id": patch_set.chapter_id,
+        "base_content_hash": base_content_hash,
+        "patch_count": patches.len(),
+        "summary": patch_set.summary,
+        "patches": patches,
+        "patch_set_id": patch_set.id,
+        "resource": {
+            "kind": "optimization_patch_set",
+            "id": patch_set.id.to_string(),
+            "revision": patch_set.updated_at.and_utc().to_rfc3339(),
+            "hash": patch_set.base_content_hash,
+        },
+    }))
+}
+
+#[async_trait]
 impl OptimizeSessionMutationApplicationPort for OrchestratorContext {
     async fn create_analysis_session(
         &self,
@@ -793,6 +1007,7 @@ fn optimization_turn_summary(
     Ok(OptimizationTurnSummary {
         id: turn.id,
         session_id: turn.session_id,
+        agent_turn_id: turn.agent_turn_id,
         user_text: turn.user_text.clone(),
         status: turn.status.clone(),
         permissions_snapshot: required_permissions(

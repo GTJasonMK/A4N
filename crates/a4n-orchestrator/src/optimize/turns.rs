@@ -26,6 +26,7 @@ impl OrchestratorContext {
         session_id: i64,
         user_text: &str,
         permissions: &OptimizeAgentPermissions,
+        agent_turn_id: Option<i64>,
     ) -> Result<optimization_turn::Model, AppError> {
         let text = user_text.trim();
         if text.is_empty() {
@@ -37,6 +38,7 @@ impl OrchestratorContext {
             self.database.connection(),
             OptimizationTurnCreateInput {
                 session_id,
+                agent_turn_id,
                 user_text: text.to_string(),
                 status: TURN_STATUS_RUNNING.to_string(),
                 permissions_snapshot: Some(permissions.as_value()),

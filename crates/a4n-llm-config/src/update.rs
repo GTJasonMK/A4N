@@ -23,6 +23,7 @@ pub fn normalize_update_llm_config_input(
         timeout_secs: input.timeout_secs,
         max_context_tokens: input.max_context_tokens,
         max_output_tokens: input.max_output_tokens,
+        agent_protocol: input.agent_protocol,
         extra_body_json: input.extra_body_json,
     })
 }
@@ -45,6 +46,7 @@ mod tests {
                 timeout_secs: 60,
                 max_context_tokens: 8192,
                 max_output_tokens: 2048,
+                agent_protocol: "native_tool_calling".into(),
                 extra_body_json: None,
             },
         )

@@ -1,3 +1,4 @@
+use a4n_agent_runtime_contract::AgentLlmCapabilities;
 use a4n_api_contract::agent::{
     AgentExecutionResultPage, AgentSkillContent, AgentSkillSearchResult, AgentToolDescriptor,
     AgentToolSearchResult,
@@ -7,7 +8,7 @@ use a4n_api_contract::chapter_visual_plan::{
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::{ChatChunk, ChatRequest, ModelCapabilities};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
 use a4n_worker_contract::{
     AgentRunPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalExpiryRequest, AgentWorkerApprovalRequest, AgentWorkerBudgetRequest,
@@ -279,7 +280,7 @@ pub trait AgentRuntimeHost: Send + Sync {
         user_id: i64,
         snapshot: Option<&RuntimeConfigSnapshot>,
         config_id: Option<i64>,
-    ) -> Result<ModelCapabilities, AppError>;
+    ) -> Result<AgentLlmCapabilities, AppError>;
 
     async fn chat_stream(
         &self,

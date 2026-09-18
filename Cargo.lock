@@ -1291,6 +1291,7 @@ dependencies = [
  "a4n-llm-provider-contract",
  "a4n-prompt-contract",
  "async-trait",
+ "serde_json",
 ]
 
 [[package]]

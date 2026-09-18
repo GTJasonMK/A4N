@@ -17,7 +17,11 @@ import type {
   VideoGenConfig,
 } from "./video";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
-import { LLM_RESERVED_REQUEST_OPTION_KEYS } from "./generated/config";
+import {
+  AGENT_PROTOCOL_JSON_COMPAT,
+  AGENT_PROTOCOL_NATIVE_TOOL_CALLING,
+  LLM_RESERVED_REQUEST_OPTION_KEYS,
+} from "./generated/config";
 import type { PricingPlan } from "./generated/config";
 
 const STORE_KEY = "a4n:local-runtime-settings:v1";
@@ -498,6 +502,16 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
     item.max_output_tokens,
     `本机 LLM 配置 ${label} max_output_tokens`,
   );
+  const agentProtocol =
+    typeof item.agent_protocol === "string" && item.agent_protocol.trim()
+      ? item.agent_protocol.trim()
+      : AGENT_PROTOCOL_NATIVE_TOOL_CALLING;
+  if (
+    agentProtocol !== AGENT_PROTOCOL_NATIVE_TOOL_CALLING &&
+    agentProtocol !== AGENT_PROTOCOL_JSON_COMPAT
+  ) {
+    throw new Error(`本机 LLM 配置 ${label} agent_protocol 无效`);
+  }
   if (max_output_tokens >= max_context_tokens) {
     throw new Error(
       `本机 LLM 配置 ${label} max_output_tokens 必须小于 max_context_tokens`,
@@ -510,6 +524,7 @@ function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
       item.provider,
       `本机 LLM 配置 ${label} provider`,
     ),
+    agent_protocol: agentProtocol,
     base_url: requiredTrimmedString(
       item.base_url,
       `本机 LLM 配置 ${label} base_url`,
@@ -1149,6 +1164,7 @@ export function createLocalLlmConfig(input: {
   max_context_tokens: number;
   max_output_tokens: number;
   extra_body_json?: unknown | null;
+  agent_protocol?: string;
 }): LocalLlmConfig {
   return mutateSettings((settings) => {
     const isFirstLlmConfig = settings.llm.length === 0;
@@ -1159,6 +1175,7 @@ export function createLocalLlmConfig(input: {
       id: allocateId(settings),
       name: input.name.trim(),
       provider: input.provider.trim(),
+      agent_protocol: input.agent_protocol ?? AGENT_PROTOCOL_NATIVE_TOOL_CALLING,
       base_url: input.base_url.trim(),
       api_key_encrypted: input.api_key_encrypted?.trim() || null,
       model: input.model.trim(),
@@ -1197,6 +1214,7 @@ export function updateLocalLlmConfig(
     item.timeout_secs = input.timeout_secs;
     item.max_context_tokens = input.max_context_tokens;
     item.max_output_tokens = input.max_output_tokens;
+    if (input.agent_protocol) item.agent_protocol = input.agent_protocol;
     item.extra_body_json = input.extra_body_json;
     const normalized = normalizeLocalLlmConfig(item);
     Object.assign(item, normalized);

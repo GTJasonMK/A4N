@@ -60,7 +60,7 @@ impl OrchestratorContext {
             }
         };
         let turn = self
-            .create_turn(session_id, user_text, &chat_context.permissions)
+            .create_turn(session_id, user_text, &chat_context.permissions, None)
             .await?;
         let reply = match self
             .run_chat_agent_loop(ChatAgentLoopInput {

@@ -247,6 +247,7 @@ fn llm_input_from_row(row: &SettingsAllLlmConfigRow) -> CreateLlmConfigInput<'_>
         timeout_secs: row.timeout_secs,
         max_context_tokens: row.max_context_tokens,
         max_output_tokens: row.max_output_tokens,
+        agent_protocol: row.agent_protocol.clone(),
         extra_body_json: row.extra_body_json.clone(),
     }
 }
@@ -429,6 +430,7 @@ mod tests {
             timeout_secs: 30,
             max_context_tokens: 8192,
             max_output_tokens: 2048,
+            agent_protocol: "native_tool_calling".to_string(),
             extra_body_json: Some(json!({})),
             pricing_json: json!({}),
             is_default: true,

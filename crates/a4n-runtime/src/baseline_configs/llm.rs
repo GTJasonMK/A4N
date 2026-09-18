@@ -91,6 +91,7 @@ fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<CreateLlmInput>, AppEr
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
+        agent_protocol: a4n_domain::agent::AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string(),
         extra_body_json: optional_env_json("A4N_PUBLIC_LLM_EXTRA_BODY_JSON")?
             .or_else(|| fallback.extra_body_json.clone()),
         pricing: Default::default(),
