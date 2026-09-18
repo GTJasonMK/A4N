@@ -119,7 +119,6 @@ pub async fn initialize_runtime(
         task_read_application: Arc::new(orchestrator.clone()),
         workflow_cancellation_application: Arc::new(orchestrator.clone()),
         object_profile_read_application: object_profile_worker,
-        object_profile_mutation_application: Arc::new(orchestrator.clone()),
         scene_profile_read_application: scene_profile_worker,
         character_profile_read_application: Arc::new(orchestrator.clone()),
         character_profile_mutation_application: Arc::new(orchestrator.clone()),
