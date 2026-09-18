@@ -52,6 +52,16 @@ const SOURCE_SYNC_CONFLICT: &str = "conflict";
 const SOURCE_SYNC_DETACHED: &str = "detached";
 
 #[test]
+fn validate_package_manifest_accepts_unified_project_bundle_family_modes() {
+    for mode in ["project_bundle_family", "project_bundle_derived"] {
+        let mut package = package_with_derived_project();
+        package.mode = mode.to_string();
+        validate_package_manifest(&package)
+            .unwrap_or_else(|error| panic!("统一项目包嵌套项目族模式 {mode} 应通过校验: {error}"));
+    }
+}
+
+#[test]
 fn validate_package_manifest_rejects_blank_project_title() {
     let mut package = package_with_derived_project();
     package.projects[0].title = " ".to_string();
