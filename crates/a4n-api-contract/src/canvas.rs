@@ -586,7 +586,7 @@ pub fn canvas_node_contracts() -> Vec<CanvasNodeContract> {
             "output",
             true,
             vec![canvas_input("image", "图片", "image", true, false)],
-            vec![],
+            vec![canvas_output("image", "图片", "image")],
         ),
         canvas_node(
             "VideoOutputNode",
