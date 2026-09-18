@@ -3,8 +3,8 @@ use super::claim::{
     process_claimed_generation_cleanup, process_claimed_media_workflow_reset,
 };
 use super::publication::recover_image_publications;
-use crate::AppState;
 use crate::actions::app_error_message;
+use crate::{AppState, state::RuntimeProfile};
 use std::time::Duration;
 
 const STARTUP_DRAIN_LIMIT: usize = 100;
@@ -12,9 +12,6 @@ const CLEANUP_AUDIT_TTL_LIMIT: usize = 100;
 const GENERATION_SNAPSHOT_TTL_LIMIT: usize = 100;
 const GENERATION_TASK_TREE_TTL_LIMIT: usize = 32;
 const WORKER_INTERVAL: Duration = Duration::from_secs(30);
-const ARTIFACT_MEDIA_WORKER_URL_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_URL";
-const ARTIFACT_MEDIA_WORKER_TOKEN_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_TOKEN";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CleanupKind {
     FileArtifact,
@@ -35,19 +32,6 @@ const HOST_CLEANUP_KINDS: [CleanupKind; 3] = [
     CleanupKind::Generation,
 ];
 
-fn artifact_media_worker_is_enabled() -> bool {
-    [
-        ARTIFACT_MEDIA_WORKER_URL_ENV,
-        ARTIFACT_MEDIA_WORKER_TOKEN_ENV,
-    ]
-    .into_iter()
-    .all(|name| {
-        std::env::var(name)
-            .ok()
-            .is_some_and(|value| !value.trim().is_empty())
-    })
-}
-
 fn cleanup_kinds_for(artifact_media_worker_enabled: bool) -> &'static [CleanupKind] {
     if artifact_media_worker_enabled {
         &HOST_CLEANUP_KINDS
@@ -56,12 +40,12 @@ fn cleanup_kinds_for(artifact_media_worker_enabled: bool) -> &'static [CleanupKi
     }
 }
 
-fn cleanup_kinds() -> &'static [CleanupKind] {
-    cleanup_kinds_for(artifact_media_worker_is_enabled())
+fn artifact_media_worker_owns_file_artifacts(runtime_profile: RuntimeProfile) -> bool {
+    matches!(runtime_profile, RuntimeProfile::Sidecar)
 }
 
-fn next_cleanup_kind(index: &mut usize) -> CleanupKind {
-    let kinds = cleanup_kinds();
+fn next_cleanup_kind(index: &mut usize, artifact_media_worker_enabled: bool) -> CleanupKind {
+    let kinds = cleanup_kinds_for(artifact_media_worker_enabled);
     let kind = kinds[*index];
     *index = (*index + 1) % kinds.len();
     kind
@@ -76,9 +60,11 @@ pub async fn drain_cleanup_outbox(
     let mut first_error = None;
     let mut next_kind = 0;
     let mut empty_kinds = 0;
-    let kinds = cleanup_kinds();
+    let artifact_media_worker_enabled =
+        artifact_media_worker_owns_file_artifacts(state.runtime_profile());
+    let kinds = cleanup_kinds_for(artifact_media_worker_enabled);
     while processed < limit && empty_kinds < kinds.len() {
-        let kind = next_cleanup_kind(&mut next_kind);
+        let kind = next_cleanup_kind(&mut next_kind, artifact_media_worker_enabled);
         let mut claimed = false;
         match kind {
             CleanupKind::FileArtifact => {
@@ -161,7 +147,12 @@ pub async fn recover_cleanup_outbox(state: &AppState) {
     if let Err(error) = drain_cleanup_outbox(state, None, STARTUP_DRAIN_LIMIT).await {
         tracing::warn!(error = %error, "启动恢复 cleanup outbox 失败");
     }
-    recover_image_publications(state, &mut None, artifact_media_worker_is_enabled()).await;
+    recover_image_publications(
+        state,
+        &mut None,
+        artifact_media_worker_owns_file_artifacts(state.runtime_profile()),
+    )
+    .await;
     expire_generation_snapshot_bodies(state).await;
     purge_expired_generation_task_trees(state).await;
     purge_completed_cleanup_audits(state).await;
@@ -171,18 +162,16 @@ pub fn spawn_cleanup_worker(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(WORKER_INTERVAL);
         let mut published_after = None;
+        let artifact_media_worker_enabled =
+            artifact_media_worker_owns_file_artifacts(state.runtime_profile());
         interval.tick().await;
         loop {
             interval.tick().await;
             if let Err(error) = drain_cleanup_outbox(&state, None, STARTUP_DRAIN_LIMIT).await {
                 tracing::warn!(error = %error, "后台恢复 cleanup outbox 失败");
             }
-            recover_image_publications(
-                &state,
-                &mut published_after,
-                artifact_media_worker_is_enabled(),
-            )
-            .await;
+            recover_image_publications(&state, &mut published_after, artifact_media_worker_enabled)
+                .await;
             expire_generation_snapshot_bodies(&state).await;
             purge_expired_generation_task_trees(&state).await;
             purge_completed_cleanup_audits(&state).await;
@@ -234,13 +223,17 @@ async fn purge_completed_cleanup_audits(state: &AppState) {
 
 #[cfg(test)]
 mod tests {
-    use super::{CleanupKind, cleanup_kinds_for, next_cleanup_kind};
+    use super::{
+        CleanupKind, artifact_media_worker_owns_file_artifacts, cleanup_kinds_for,
+        next_cleanup_kind,
+    };
+    use crate::state::RuntimeProfile;
 
     #[test]
     fn cleanup_kinds_rotate_before_repeating() {
         let mut index = 0;
         let order = (0..8)
-            .map(|_| next_cleanup_kind(&mut index))
+            .map(|_| next_cleanup_kind(&mut index, false))
             .collect::<Vec<_>>();
         assert_eq!(
             order,
@@ -263,5 +256,18 @@ mod tests {
         assert_eq!(kinds.len(), 3);
         assert!(!kinds.contains(&CleanupKind::FileArtifact));
         assert_eq!(cleanup_kinds_for(false).len(), 4);
+    }
+
+    #[test]
+    fn artifact_owner_is_selected_by_runtime_profile() {
+        assert!(!artifact_media_worker_owns_file_artifacts(
+            RuntimeProfile::Minimal
+        ));
+        assert!(!artifact_media_worker_owns_file_artifacts(
+            RuntimeProfile::Full
+        ));
+        assert!(artifact_media_worker_owns_file_artifacts(
+            RuntimeProfile::Sidecar
+        ));
     }
 }

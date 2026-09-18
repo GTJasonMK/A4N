@@ -48,8 +48,7 @@ pub async fn initialize_runtime(
     let package_mutation_application = Arc::new(orchestrator.clone());
     let rag_search = Arc::new(orchestrator.clone());
     let rag_ingest = Arc::new(orchestrator.clone());
-    let artifact_media_worker =
-        a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().map(Arc::new);
+    let artifact_media_worker = artifact_media_worker_for_profile(runtime_profile)?;
     let agent_worker = Arc::new(a4n_agent_worker_client::AgentWorkerClient::from_env());
     let blueprint_worker = Arc::new(a4n_blueprint_worker_client::BlueprintWorkerClient::from_env());
     let outline_worker = Arc::new(a4n_outline_worker_client::OutlineWorkerClient::from_env());
@@ -297,4 +296,22 @@ pub async fn initialize_runtime(
     bootstrap
         .finish(application_ports, provider_runtime, rag_search, rag_ingest)
         .await
+}
+
+fn artifact_media_worker_for_profile(
+    runtime_profile: RuntimeProfile,
+) -> Result<Option<Arc<a4n_artifact_media_client::ArtifactMediaWorkerClient>>, AppError> {
+    if !matches!(runtime_profile, RuntimeProfile::Sidecar) {
+        return Ok(None);
+    }
+
+    let client = a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().ok_or_else(
+        || {
+            AppError::ConfigError(
+                "sidecar runtime requires A4N_ARTIFACT_MEDIA_WORKER_URL and A4N_ARTIFACT_MEDIA_WORKER_TOKEN"
+                    .to_string(),
+            )
+        },
+    )?;
+    Ok(Some(Arc::new(client)))
 }
