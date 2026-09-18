@@ -7,8 +7,6 @@ use serde_json::{Value, json};
 use crate::workflow::workflow_checkpoint_contract_app_error;
 use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 
-mod design_brief;
-
 mod application;
 mod generation;
 mod llm_stream;
@@ -22,7 +20,6 @@ pub(crate) use a4n_portrait_host_contract::{
     PortraitPromptRequestPreviewApplicationPort, PortraitUploadApplicationPort,
 };
 pub(crate) use application::PortraitProgress;
-pub(crate) use application::portrait_summary;
 pub(crate) use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,
     build_generate_prompt_request, normalize_portrait_prompt_response,

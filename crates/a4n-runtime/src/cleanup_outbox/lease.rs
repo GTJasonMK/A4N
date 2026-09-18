@@ -5,6 +5,8 @@ use std::time::Duration;
 
 const LEASE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 
+pub(super) use a4n_cleanup_contract::cleanup_retry_after_seconds;
+
 pub(super) async fn renew_cleanup_lease(
     state: &AppState,
     id: i64,
@@ -70,10 +72,4 @@ where
             }
         }
     }
-}
-
-pub(super) fn cleanup_retry_after_seconds(attempt_count: i32) -> i64 {
-    let exponent = u32::try_from((i64::from(attempt_count) - 1).clamp(0, 6))
-        .expect("cleanup retry exponent is clamped to 0..=6");
-    (5_i64 * (1_i64 << exponent)).min(300)
 }

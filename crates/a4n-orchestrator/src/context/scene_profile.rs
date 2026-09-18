@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use a4n_api_contract::{
     collaboration::ProjectAccessRole,
     profile::{
@@ -129,60 +127,9 @@ impl SceneProfileApplication {
         .await
         .map_err(scene_profile_db_error)
     }
-
-    async fn scene_occurrence_counts_by_profile(
-        &self,
-        project_id: i64,
-        profile_ids: &[i64],
-    ) -> Result<BTreeMap<i64, u64>, AppError> {
-        a4n_db::scene_profile::scene_occurrence_counts_by_profile(
-            self.database.connection(),
-            project_id,
-            profile_ids,
-        )
-        .await
-        .map_err(scene_profile_db_error)
-    }
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn list_scene_profiles_for_user(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<SceneProfileSummary>, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        let profiles = self.scene_profiles_by_project(project_id).await?;
-        let profile_ids = profiles
-            .iter()
-            .map(|profile| profile.id)
-            .collect::<Vec<_>>();
-        let occurrence_counts = self
-            .scene_occurrence_counts_by_profile(project_id, &profile_ids)
-            .await?;
-        let image_counts = self
-            .count_profile_material_images_by_profile(
-                project_id,
-                ProfileMaterialKind::Scene,
-                &profile_ids,
-            )
-            .await?;
-        Ok(profiles
-            .iter()
-            .map(|profile| {
-                scene_profile_summary(
-                    profile,
-                    occurrence_counts
-                        .get(&profile.id)
-                        .copied()
-                        .unwrap_or_default(),
-                    image_counts.get(&profile.id).copied().unwrap_or_default(),
-                )
-            })
-            .collect())
-    }
-
     pub(crate) async fn scene_profiles_by_project(
         &self,
         project_id: i64,
@@ -271,16 +218,6 @@ impl OrchestratorContext {
             .scene_occurrence_count(project_id, scene_profile_id)
             .await
     }
-
-    pub(crate) async fn scene_occurrence_counts_by_profile(
-        &self,
-        project_id: i64,
-        profile_ids: &[i64],
-    ) -> Result<BTreeMap<i64, u64>, AppError> {
-        self.scene_profile
-            .scene_occurrence_counts_by_profile(project_id, profile_ids)
-            .await
-    }
 }
 
 fn scene_profile_summary(
@@ -313,17 +250,6 @@ fn scene_profile_summary(
         generated_image_count,
         created_at: Some(profile.created_at.to_string()),
         updated_at: Some(profile.updated_at.to_string()),
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::profile::SceneProfileReadApplicationPort for OrchestratorContext {
-    async fn list(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<SceneProfileSummary>, AppError> {
-        self.list_scene_profiles_for_user(user_id, project_id).await
     }
 }
 

@@ -35,6 +35,28 @@ pub struct GenerateChapterShootingScriptInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct PublishChapterShootingScriptInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
+    #[schemars(length(min = 64, max = 64))]
+    pub input_fingerprint_sha256: String,
+    #[schemars(range(min = 1))]
+    pub visual_plan_id: i64,
+    #[schemars(range(min = 1))]
+    pub visual_plan_version: i32,
+    #[schemars(length(min = 64, max = 64))]
+    pub visual_plan_sha256: String,
+    pub script: ChapterShootingScriptV1,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_revision: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EditChapterShootingScriptInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
@@ -84,24 +106,42 @@ pub struct ChapterShootingScriptUnitProgressView {
     pub completed_record: Option<ChapterShootingScriptRecordSummary>,
 }
 
+/// Durable snapshot written when scene-level generation pauses at a unit
+/// boundary. The Worker reads this instead of reconstructing LLM checkpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ChapterShootingScriptUnitProgressCheckpoint {
+    pub version: u32,
+    #[schemars(length(min = 64, max = 64))]
+    pub source_content_sha256: String,
+    pub progress: ChapterShootingScriptUnitProgressView,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct EditedChapterShootingScriptView {
     pub shooting_script: ChapterShootingScriptView,
     pub invalidated_project_ids: Vec<i64>,
 }
 
-/// Host-facing read boundary for persisted shooting-script records.
+/// Host-facing read boundary for the persisted current record.
 ///
-/// Source resolution, visual-plan consistency and persistence stay with the
-/// shooting-script owner; hosts only route typed reads.
+/// The unit-progress read remains separate because it returns a durable
+/// scene-level generation snapshot rather than a published record.
 #[async_trait::async_trait]
-pub trait ShootingScriptRecordReadApplicationPort: Send + Sync {
+pub trait ShootingScriptCurrentReadApplicationPort: Send + Sync {
     async fn current(
         &self,
         user_id: i64,
         input: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptView>, a4n_error::AppError>;
+}
 
+/// Host-facing read boundary for generation progress.
+///
+/// The generation owner persists the snapshot; the planning Worker reads and
+/// validates it for Host callers.
+#[async_trait::async_trait]
+pub trait ShootingScriptUnitProgressReadApplicationPort: Send + Sync {
     async fn unit_progress(
         &self,
         user_id: i64,
@@ -112,6 +152,12 @@ pub trait ShootingScriptRecordReadApplicationPort: Send + Sync {
 /// Host-facing mutation boundary for persisted shooting-script records.
 #[async_trait::async_trait]
 pub trait ShootingScriptRecordMutationApplicationPort: Send + Sync {
+    async fn publish(
+        &self,
+        user_id: i64,
+        input: PublishChapterShootingScriptInput,
+    ) -> Result<ChapterShootingScriptView, a4n_error::AppError>;
+
     async fn edit(
         &self,
         user_id: i64,

@@ -1,16 +1,10 @@
-use a4n_db_models::models::character::protagonist_profile;
-use a4n_orchestrator::portrait::{portrait_profile_context, profile_portrait_seed_prompt};
-use chrono::NaiveDate;
+use a4n_domain::character::{
+    CharacterPortraitProfile, portrait_profile_context, profile_portrait_seed_prompt,
+};
 use serde_json::json;
 
-fn profile_for_test() -> protagonist_profile::Model {
-    let now = NaiveDate::from_ymd_opt(2026, 5, 31)
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap();
-    protagonist_profile::Model {
-        id: 42,
-        project_id: 7,
+fn profile_for_test() -> CharacterPortraitProfile {
+    CharacterPortraitProfile {
         name: "陈恪".to_string(),
         gender: Some("男".to_string()),
         age: Some("二十余岁".to_string()),
@@ -21,9 +15,6 @@ fn profile_for_test() -> protagonist_profile::Model {
         appearance: Some("清瘦".to_string()),
         background: Some("隋唐史博士".to_string()),
         personality: Some("冷静".to_string()),
-        last_synced_chapter: 3,
-        created_at: now,
-        updated_at: now,
     }
 }
 

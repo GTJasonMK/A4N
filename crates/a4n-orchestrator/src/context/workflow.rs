@@ -439,6 +439,20 @@ impl WorkflowApplication {
             .map_err(workflow_write_app_error)
     }
 
+    async fn persist_workflow_progress_snapshot(
+        &self,
+        workflow_run_id: i64,
+        snapshot: serde_json::Value,
+    ) -> Result<workflow_run::Model, AppError> {
+        a4n_db::workflow::persist_workflow_progress_snapshot(
+            self.database.connection(),
+            workflow_run_id,
+            snapshot,
+        )
+        .await
+        .map_err(workflow_write_app_error)
+    }
+
     /// 保存已完成的 LLM call checkpoint。
     async fn save_completed_llm_call_checkpoint(
         &self,
@@ -942,6 +956,16 @@ impl OrchestratorContext {
         input: WorkflowProgressEventInput<'_>,
     ) -> Result<workflow_progress_event::Model, AppError> {
         self.workflow.record_workflow_progress_event(input).await
+    }
+
+    pub(crate) async fn persist_workflow_progress_snapshot(
+        &self,
+        workflow_run_id: i64,
+        snapshot: serde_json::Value,
+    ) -> Result<workflow_run::Model, AppError> {
+        self.workflow
+            .persist_workflow_progress_snapshot(workflow_run_id, snapshot)
+            .await
     }
 
     /// 保存已完成的 LLM call checkpoint。

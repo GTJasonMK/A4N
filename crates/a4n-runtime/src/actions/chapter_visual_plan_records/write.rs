@@ -15,7 +15,7 @@ pub async fn save_chapter_visual_plan_draft(
     input: SaveChapterVisualPlanDraftInput,
 ) -> Result<ChapterVisualPlanView, String> {
     state
-        .chapter_visual_plan_mutation_application()
+        .chapter_visual_plan_record_persistence_application()
         .save_draft(user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -38,7 +38,7 @@ pub async fn confirm_chapter_visual_plan(
     input: ChapterVisualPlanRecordInput,
 ) -> Result<ConfirmedChapterVisualPlanView, String> {
     state
-        .chapter_visual_plan_mutation_application()
+        .chapter_visual_plan_record_persistence_application()
         .confirm(user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -50,7 +50,7 @@ pub async fn discard_chapter_visual_plan_draft(
     input: ChapterVisualPlanRecordInput,
 ) -> Result<(), String> {
     state
-        .chapter_visual_plan_mutation_application()
+        .chapter_visual_plan_record_persistence_application()
         .discard(user_id, input)
         .await
         .map_err(|error| error.to_string())

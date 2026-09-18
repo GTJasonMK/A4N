@@ -106,6 +106,21 @@ should_build_frontend() {
 cargo_target_args() {
     if ! $BUILD_ALL; then
         printf '%s\n' "-p" "$TARGET_CRATE"
+        if [[ "$TARGET_CRATE" == "a4n-server" ]]; then
+            # Server supervises Edge as a sibling process; building the Server
+            # alone would produce an unusable runtime bundle.
+            printf '%s\n' "-p" "a4n-edge"
+            printf '%s\n' "-p" "a4n-novel-planning-worker"
+            printf '%s\n' "-p" "a4n-artifact-media-worker"
+            printf '%s\n' "-p" "a4n-outline-worker"
+            printf '%s\n' "-p" "a4n-blueprint-worker"
+            printf '%s\n' "-p" "a4n-asset-graph-worker"
+            printf '%s\n' "-p" "a4n-foreshadowing-worker"
+            printf '%s\n' "-p" "a4n-object-profile-worker"
+            printf '%s\n' "-p" "a4n-scene-profile-worker"
+            printf '%s\n' "-p" "a4n-portrait-worker"
+            printf '%s\n' "-p" "a4n-source-snapshot-worker"
+        fi
     fi
 
     if $NO_DEFAULT_FEATURES; then

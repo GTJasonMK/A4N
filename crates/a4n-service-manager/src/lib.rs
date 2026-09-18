@@ -9,6 +9,7 @@ mod process;
 #[cfg(test)]
 mod tests;
 
+pub use a4n_process_catalog::{MigrationCompatibility, ProcessKind, ProcessMetadata};
 pub use config::{
     ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode, is_loopback_http_url,
     normalize_remote_service_url,

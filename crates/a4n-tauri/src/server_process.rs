@@ -9,6 +9,16 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 const LOCAL_SERVER_URL: &str = "http://127.0.0.1:8080";
+const SERVER_BINARY_ENV: &str = "A4N_SERVER_BINARY";
+const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
+const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
+const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
+const NOVEL_PLANNING_WORKER_BINARY_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_BINARY";
+const ARTIFACT_MEDIA_WORKER_BINARY_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_BINARY";
+const OUTLINE_WORKER_BINARY_ENV: &str = "A4N_OUTLINE_WORKER_BINARY";
+const BLUEPRINT_WORKER_BINARY_ENV: &str = "A4N_BLUEPRINT_WORKER_BINARY";
+const ASSET_GRAPH_WORKER_BINARY_ENV: &str = "A4N_ASSET_GRAPH_WORKER_BINARY";
+const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
 
 #[derive(Debug, PartialEq, Eq)]
 enum ServerProbe {
@@ -42,17 +52,39 @@ impl LocalServerProcess {
             ServerProbe::Unreachable => {}
         }
 
-        let server = resolve_binary(app, "a4n-server", "A4N_SERVER_BINARY")?;
-        let control = resolve_binary(app, "a4n-control", "A4N_CONTROL_BINARY")?;
-        let agent_worker = resolve_binary(app, "a4n-agent-worker", "A4N_AGENT_WORKER_BINARY")?;
-        let migration = resolve_binary(app, "a4n-migration", "A4N_MIGRATION_BINARY")?;
+        let server = resolve_binary(app, "a4n-server", SERVER_BINARY_ENV)?;
+        let control = resolve_binary(app, "a4n-control", CONTROL_BINARY_ENV)?;
+        let edge = resolve_binary(app, "a4n-edge", EDGE_BINARY_ENV)?;
+        let agent_worker = resolve_binary(app, "a4n-agent-worker", AGENT_WORKER_BINARY_ENV)?;
+        let novel_planning_worker = resolve_binary(
+            app,
+            "a4n-novel-planning-worker",
+            NOVEL_PLANNING_WORKER_BINARY_ENV,
+        )?;
+        let artifact_media_worker = resolve_binary(
+            app,
+            "a4n-artifact-media-worker",
+            ARTIFACT_MEDIA_WORKER_BINARY_ENV,
+        )?;
+        let outline_worker = resolve_binary(app, "a4n-outline-worker", OUTLINE_WORKER_BINARY_ENV)?;
+        let blueprint_worker =
+            resolve_binary(app, "a4n-blueprint-worker", BLUEPRINT_WORKER_BINARY_ENV)?;
+        let asset_graph_worker =
+            resolve_binary(app, "a4n-asset-graph-worker", ASSET_GRAPH_WORKER_BINARY_ENV)?;
+        let migration = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
         run_migration(&migration)?;
 
         let mut command = Command::new(&server);
         command
             .env("A4N_WEB_ADDR", "127.0.0.1:8080")
-            .env("A4N_CONTROL_BINARY", &control)
-            .env("A4N_AGENT_WORKER_BINARY", &agent_worker)
+            .env(CONTROL_BINARY_ENV, &control)
+            .env(EDGE_BINARY_ENV, &edge)
+            .env(AGENT_WORKER_BINARY_ENV, &agent_worker)
+            .env(NOVEL_PLANNING_WORKER_BINARY_ENV, &novel_planning_worker)
+            .env(ARTIFACT_MEDIA_WORKER_BINARY_ENV, &artifact_media_worker)
+            .env(OUTLINE_WORKER_BINARY_ENV, &outline_worker)
+            .env(BLUEPRINT_WORKER_BINARY_ENV, &blueprint_worker)
+            .env(ASSET_GRAPH_WORKER_BINARY_ENV, &asset_graph_worker)
             .env("A4N_RUNTIME_PROFILE", "sidecar")
             .env("A4N_MANAGED_SIDECARS", "1")
             .env("A4N_PORTABLE_HOME", server_portable_home())
@@ -260,6 +292,14 @@ fn resolve_binary(
         directories.push(resource_dir.join("bin"));
     }
 
+    resolve_binary_in_directories(name, env_name, directories)
+}
+
+fn resolve_binary_in_directories(
+    name: &str,
+    env_name: &str,
+    directories: impl IntoIterator<Item = PathBuf>,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     for directory in directories {
         for candidate in [directory.join(name), directory.join(format!("{name}.exe"))] {
             if candidate.is_file() {
@@ -396,7 +436,7 @@ fn runtime_loader_path_var() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{ServerProbe, classify_server_response};
+    use super::{ServerProbe, classify_server_response, resolve_binary_in_directories};
     use reqwest::StatusCode;
 
     #[test]
@@ -413,5 +453,31 @@ mod tests {
             classify_server_response(StatusCode::OK, None),
             ServerProbe::Occupied
         );
+    }
+
+    #[test]
+    fn resolves_every_supervised_binary_from_one_bundle_directory() {
+        let directory = tempfile::tempdir().expect("temporary directory should be created");
+        for name in [
+            "a4n-server",
+            "a4n-control",
+            "a4n-edge",
+            "a4n-agent-worker",
+            "a4n-novel-planning-worker",
+            "a4n-artifact-media-worker",
+            "a4n-outline-worker",
+            "a4n-blueprint-worker",
+            "a4n-asset-graph-worker",
+            "a4n-migration",
+        ] {
+            std::fs::write(directory.path().join(name), name).expect("binary fixture should write");
+            let resolved = resolve_binary_in_directories(
+                name,
+                "A4N_TEST_BINARY",
+                [directory.path().to_path_buf()],
+            )
+            .expect("bundle binary should resolve");
+            assert_eq!(resolved, directory.path().join(name));
+        }
     }
 }

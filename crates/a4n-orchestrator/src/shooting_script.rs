@@ -9,13 +9,9 @@ mod stage;
 mod workflow_rules;
 
 pub(crate) use a4n_api_contract::shooting_script::{
-    ChapterShootingScriptSourceInput, DeleteChapterShootingScriptInput,
-    EditChapterShootingScriptInput, EditedChapterShootingScriptView,
-    GenerateChapterShootingScriptInput,
+    ChapterShootingScriptSourceInput, GenerateChapterShootingScriptInput,
 };
-pub(crate) use contracts::{
-    ChapterShootingScriptUnitProgress, EditedChapterShootingScript, ResolvedChapterShootingScript,
-};
+pub(crate) use contracts::{ChapterShootingScriptUnitProgress, ResolvedChapterShootingScript};
 pub(in crate::shooting_script) use contracts::{
     ShootingScriptProgressReporter, ShootingScriptStreamReporter,
 };
@@ -25,58 +21,12 @@ pub(in crate::shooting_script) use workflow_rules::chapter_shooting_script_workf
 
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-    ShootingScriptRecordMutationApplicationPort, ShootingScriptRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_novel_host_contract::{
     ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
 };
 use tokio_util::sync::CancellationToken;
-
-#[async_trait::async_trait]
-impl ShootingScriptRecordReadApplicationPort for crate::OrchestratorContext {
-    async fn current(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptView>, AppError> {
-        self.current_chapter_shooting_script_for_user_validated(user_id, input)
-            .await
-            .map(|resolved| resolved.map(chapter_shooting_script_view))
-    }
-
-    async fn unit_progress(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptUnitProgressView>, AppError> {
-        self.current_chapter_shooting_script_unit_progress_for_user_validated(user_id, input)
-            .await
-            .map(|progress| progress.map(chapter_shooting_script_unit_progress_view))
-    }
-}
-
-#[async_trait::async_trait]
-impl ShootingScriptRecordMutationApplicationPort for crate::OrchestratorContext {
-    async fn edit(
-        &self,
-        user_id: i64,
-        input: EditChapterShootingScriptInput,
-    ) -> Result<EditedChapterShootingScriptView, AppError> {
-        self.edit_current_chapter_shooting_script_for_user_validated(user_id, input)
-            .await
-            .map(edited_chapter_shooting_script_view)
-    }
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteChapterShootingScriptInput,
-    ) -> Result<(), AppError> {
-        self.delete_current_chapter_shooting_script_for_user_validated(user_id, input)
-            .await
-    }
-}
 
 #[async_trait::async_trait]
 impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext {
@@ -146,18 +96,6 @@ fn chapter_shooting_script_unit_progress_view(
         completed_record: progress.resolved.map(|resolved| {
             chapter_shooting_script_record_summary(resolved.shooting_script.record)
         }),
-    }
-}
-
-fn edited_chapter_shooting_script_view(
-    edited: EditedChapterShootingScript,
-) -> EditedChapterShootingScriptView {
-    EditedChapterShootingScriptView {
-        shooting_script: ChapterShootingScriptView {
-            record: chapter_shooting_script_record_summary(edited.shooting_script.record),
-            script: edited.shooting_script.script,
-        },
-        invalidated_project_ids: edited.invalidated_project_ids,
     }
 }
 

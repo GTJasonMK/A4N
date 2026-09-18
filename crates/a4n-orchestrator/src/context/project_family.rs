@@ -10,10 +10,9 @@ use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ChapterMangaSourceSummary, ProjectFamilyContext, ProjectFamilyExportRows,
     ProjectFamilyExportSelection, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
-    ProjectGeneratedDataResetApplicationResult, SourceSnapshotChapterSummary,
-    ensure_positive_project_id, project_family_error_to_app_error,
-    project_family_export_error_to_app_error, project_family_import_error_to_app_error,
-    project_mutation_error_to_app_error, project_reset_error_to_app_error,
+    ProjectGeneratedDataResetApplicationResult, ensure_positive_project_id,
+    project_family_error_to_app_error, project_family_export_error_to_app_error,
+    project_family_import_error_to_app_error, project_reset_error_to_app_error,
 };
 
 #[derive(Clone)]
@@ -24,12 +23,6 @@ pub(super) struct ProjectFamilyApplication {
 impl ProjectFamilyApplication {
     pub(super) fn new(database: DbHandle) -> Self {
         Self { database }
-    }
-
-    async fn protagonist_profile_project_id(&self, profile_id: i64) -> Result<i64, AppError> {
-        a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
-            .await
-            .map_err(project_family_error_to_app_error)
     }
 
     async fn primary_material_image_ids_for_projects(
@@ -120,15 +113,6 @@ impl ProjectFamilyApplication {
         )
         .await
         .map_err(project_family_error_to_app_error)
-    }
-
-    async fn source_snapshot_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<SourceSnapshotChapterSummary>, AppError> {
-        a4n_db::project::source_snapshot_chapters(self.database.connection(), project_id)
-            .await
-            .map_err(project_mutation_error_to_app_error)
     }
 
     pub(super) async fn export_selection(
@@ -501,15 +485,6 @@ impl OrchestratorContext {
         Ok(context)
     }
 
-    pub(crate) async fn protagonist_profile_project_id(
-        &self,
-        profile_id: i64,
-    ) -> Result<i64, AppError> {
-        self.project_family
-            .protagonist_profile_project_id(profile_id)
-            .await
-    }
-
     pub(crate) async fn primary_material_image_ids_for_projects(
         &self,
         project_ids: &[i64],
@@ -567,15 +542,6 @@ impl OrchestratorContext {
     ) -> Result<Vec<ChapterMangaSourceSummary>, AppError> {
         self.project_family
             .chapter_manga_sources_by_ids(project_id, chapter_ids, require_content)
-            .await
-    }
-
-    pub(crate) async fn source_snapshot_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<SourceSnapshotChapterSummary>, AppError> {
-        self.project_family
-            .source_snapshot_chapters(project_id)
             .await
     }
 

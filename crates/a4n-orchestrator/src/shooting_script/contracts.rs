@@ -295,9 +295,3 @@ pub(crate) async fn seed_visual_plan_scene(
     .unwrap()
     .id
 }
-
-#[derive(Debug, Clone)]
-pub struct EditedChapterShootingScript {
-    pub shooting_script: ParsedChapterShootingScript,
-    pub invalidated_project_ids: Vec<i64>,
-}

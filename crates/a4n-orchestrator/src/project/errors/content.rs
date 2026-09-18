@@ -1,8 +1,7 @@
 use super::lifecycle::project_status_write_error_to_app_error;
 use a4n_db::project::{
     BlueprintRestoreError, BlueprintSyncError, ForeshadowingDbError, ProjectChapterContextError,
-    ProjectChapterOutlineUpdateError, ProjectChapterSceneRecordError,
-    ProjectChapterSceneWriteError, ProjectOutlineRecordError,
+    ProjectChapterSceneRecordError, ProjectChapterSceneWriteError, ProjectOutlineRecordError,
 };
 use a4n_error::AppError;
 
@@ -26,26 +25,6 @@ pub(crate) fn blueprint_restore_error_to_app(error: BlueprintRestoreError) -> Ap
         }
         BlueprintRestoreError::Serialization { source } => AppError::Serialization(source),
         BlueprintRestoreError::Database { source, .. } => AppError::Database(source),
-    }
-}
-
-pub(crate) fn project_chapter_outline_update_error_to_app_error(
-    error: ProjectChapterOutlineUpdateError,
-) -> AppError {
-    match error {
-        ProjectChapterOutlineUpdateError::InvalidArgument(message) => {
-            AppError::InvalidArgument(message)
-        }
-        ProjectChapterOutlineUpdateError::NotFound(message) => AppError::NotFound(message),
-        ProjectChapterOutlineUpdateError::Forbidden(message) => AppError::Forbidden(message),
-        ProjectChapterOutlineUpdateError::InvalidState { current, operation } => {
-            AppError::InvalidState { current, operation }
-        }
-        ProjectChapterOutlineUpdateError::SourceChanged => AppError::InvalidState {
-            current: "outline_source_changed".to_string(),
-            operation: error.to_string(),
-        },
-        ProjectChapterOutlineUpdateError::Database(error) => AppError::Database(error),
     }
 }
 

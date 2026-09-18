@@ -15,6 +15,8 @@ pub async fn initialize_runtime(
     runtime_role: RuntimeRole,
 ) -> Result<AppState, AppError> {
     let bootstrap = RuntimeBootstrap::prepare(config, runtime_profile, runtime_role).await?;
+    let novel_planning_worker =
+        Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
     let mut provider_runtime = None;
     let orchestrator = OrchestratorContext::bootstrap(
         bootstrap.database(),
@@ -28,6 +30,7 @@ pub async fn initialize_runtime(
         bootstrap.prompt_engine(),
         bootstrap.snapshot_store(),
         bootstrap.document_export_renderer()?,
+        novel_planning_worker.clone(),
         |provider_port| {
             let (provider_facade, llm, embedding) = bootstrap.create_provider(provider_port)?;
             provider_runtime = Some(provider_facade);
@@ -43,6 +46,27 @@ pub async fn initialize_runtime(
     let package_mutation_application = Arc::new(orchestrator.clone());
     let rag_search = Arc::new(orchestrator.clone());
     let rag_ingest = Arc::new(orchestrator.clone());
+    let artifact_media_worker =
+        a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().map(Arc::new);
+    let agent_worker = Arc::new(a4n_agent_worker_client::AgentWorkerClient::from_env());
+    let blueprint_worker = Arc::new(a4n_blueprint_worker_client::BlueprintWorkerClient::from_env());
+    let outline_worker = Arc::new(a4n_outline_worker_client::OutlineWorkerClient::from_env());
+    let asset_graph_worker =
+        Arc::new(a4n_asset_graph_worker_client::AssetGraphWorkerClient::from_env());
+    let foreshadowing_worker =
+        Arc::new(a4n_foreshadowing_worker_client::ForeshadowingWorkerClient::from_env());
+    let object_profile_worker =
+        Arc::new(a4n_object_profile_worker_client::ObjectProfileWorkerClient::from_env());
+    let scene_profile_worker =
+        Arc::new(a4n_scene_profile_worker_client::SceneProfileWorkerClient::from_env());
+    let portrait_worker = Arc::new(a4n_portrait_worker_client::PortraitWorkerClient::from_env());
+    let source_snapshot_worker =
+        Arc::new(a4n_source_snapshot_worker_client::SourceSnapshotWorkerClient::from_env());
+    let artifact_media_publication_application = artifact_media_worker
+        .clone()
+        .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
+    let artifact_media_reference_application = artifact_media_worker
+        .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>);
     let application_ports = ApplicationPorts {
         generation_task_read_application: Arc::new(orchestrator.clone()),
         generation_task_mutation_application: Arc::new(orchestrator.clone()),
@@ -50,8 +74,9 @@ pub async fn initialize_runtime(
         generation_cleanup_application: Arc::new(orchestrator.clone()),
         source_sync_read_application: Arc::new(orchestrator.clone()),
         source_sync_mutation_application: Arc::new(orchestrator.clone()),
-        shooting_script_record_read_application: Arc::new(orchestrator.clone()),
-        shooting_script_record_mutation_application: Arc::new(orchestrator.clone()),
+        shooting_script_current_application: novel_planning_worker.clone(),
+        shooting_script_unit_progress_application: novel_planning_worker.clone(),
+        shooting_script_record_mutation_application: novel_planning_worker.clone(),
         shooting_script_full_generation_application: Arc::new(orchestrator.clone()),
         shooting_script_next_unit_generation_application: Arc::new(orchestrator.clone()),
         auth_read_application: Arc::new(orchestrator.clone()),
@@ -63,8 +88,9 @@ pub async fn initialize_runtime(
         project_collaboration_application: Arc::new(orchestrator.clone()),
         project_access_application: Arc::new(orchestrator.clone()),
         project_read_application: Arc::new(orchestrator.clone()),
+        project_source_snapshot_read_application: source_snapshot_worker,
         project_mutation_application: Arc::new(orchestrator.clone()),
-        project_asset_graph_application: Arc::new(orchestrator.clone()),
+        project_asset_graph_application: asset_graph_worker,
         project_duplication_application: Arc::new(orchestrator.clone()),
         project_family_transfer_application: Arc::new(orchestrator.clone()),
         video_studio_transfer_application: Arc::new(orchestrator.clone()),
@@ -88,9 +114,9 @@ pub async fn initialize_runtime(
         workflow_task_lookup_application: Arc::new(orchestrator.clone()),
         task_read_application: Arc::new(orchestrator.clone()),
         workflow_cancellation_application: Arc::new(orchestrator.clone()),
-        object_profile_read_application: Arc::new(orchestrator.clone()),
+        object_profile_read_application: object_profile_worker,
         object_profile_mutation_application: Arc::new(orchestrator.clone()),
-        scene_profile_read_application: Arc::new(orchestrator.clone()),
+        scene_profile_read_application: scene_profile_worker,
         character_profile_read_application: Arc::new(orchestrator.clone()),
         character_profile_mutation_application: Arc::new(orchestrator.clone()),
         character_profile_timeline_mutation_application: Arc::new(orchestrator.clone()),
@@ -103,9 +129,9 @@ pub async fn initialize_runtime(
         character_profile_deletion_application: Arc::new(orchestrator.clone()),
         character_conflict_application: Arc::new(orchestrator.clone()),
         scene_profile_mutation_application: Arc::new(orchestrator.clone()),
-        foreshadowing_read_application: Arc::new(orchestrator.clone()),
+        foreshadowing_read_application: foreshadowing_worker,
         foreshadowing_mutation_application: Arc::new(orchestrator.clone()),
-        blueprint_read_application: Arc::new(orchestrator.clone()),
+        blueprint_read_application: blueprint_worker.clone(),
         blueprint_generation_preview_application: Arc::new(orchestrator.clone()),
         blueprint_refinement_preview_application: Arc::new(orchestrator.clone()),
         blueprint_generation_application: Arc::new(orchestrator.clone()),
@@ -117,8 +143,8 @@ pub async fn initialize_runtime(
         chapter_generation_request_preview_application: Arc::new(orchestrator.clone()),
         chapter_generation_rag_preparation_application: Arc::new(orchestrator.clone()),
         chapter_generation_application: Arc::new(orchestrator.clone()),
-        outline_read_application: Arc::new(orchestrator.clone()),
-        outline_mutation_application: Arc::new(orchestrator.clone()),
+        outline_read_application: outline_worker.clone(),
+        outline_mutation_application: outline_worker.clone(),
         outline_generation_application: Arc::new(orchestrator.clone()),
         outline_part_generation_preview_application: Arc::new(orchestrator.clone()),
         outline_part_mutation_preview_application: Arc::new(orchestrator.clone()),
@@ -135,17 +161,17 @@ pub async fn initialize_runtime(
         settings_import_application: Arc::new(orchestrator.clone()),
         prompt_read_application,
         prompt_mutation_application,
-        agent_thread_mutation_application: Arc::new(orchestrator.agent().clone()),
-        agent_thread_read_application: Arc::new(orchestrator.agent().clone()),
-        agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
-        agent_run_read_application: Arc::new(orchestrator.agent().clone()),
-        agent_delegation_application: Arc::new(orchestrator.agent().clone()),
-        agent_tool_read_application: Arc::new(orchestrator.agent().clone()),
-        agent_skill_application: Arc::new(orchestrator.agent().clone()),
-        agent_event_read_application: Arc::new(orchestrator.agent().clone()),
-        agent_memory_read_application: Arc::new(orchestrator.agent().clone()),
-        agent_memory_mutation_application: Arc::new(orchestrator.agent().clone()),
-        agent_approval_application: Arc::new(orchestrator.agent().clone()),
+        agent_thread_mutation_application: agent_worker.clone(),
+        agent_thread_read_application: agent_worker.clone(),
+        agent_run_mutation_application: agent_worker.clone(),
+        agent_run_read_application: agent_worker.clone(),
+        agent_delegation_application: agent_worker.clone(),
+        agent_tool_read_application: agent_worker.clone(),
+        agent_skill_application: agent_worker.clone(),
+        agent_event_read_application: agent_worker.clone(),
+        agent_memory_read_application: agent_worker.clone(),
+        agent_memory_mutation_application: agent_worker.clone(),
+        agent_approval_application: agent_worker.clone(),
         agent_resource_access_application: Arc::new(orchestrator.agent().clone()),
         agent_worker_application: Arc::new(orchestrator.agent().clone()),
         canvas_read_application: Arc::new(orchestrator.clone()),
@@ -200,7 +226,9 @@ pub async fn initialize_runtime(
         video_record_lifecycle_application: Arc::new(orchestrator.clone()),
         video_canvas_media_application: Arc::new(orchestrator.clone()),
         chapter_visual_plan_read_application: Arc::new(orchestrator.clone()),
+        chapter_visual_plan_record_read_application: novel_planning_worker.clone(),
         chapter_visual_plan_mutation_application: Arc::new(orchestrator.clone()),
+        chapter_visual_plan_record_persistence_application: novel_planning_worker.clone(),
         video_prompt_read_application: Arc::new(orchestrator.clone()),
         video_prompt_mutation_application: Arc::new(orchestrator.clone()),
         video_prompt_timeline_application: Arc::new(orchestrator.clone()),
@@ -209,6 +237,8 @@ pub async fn initialize_runtime(
         image_record_mutation_application: Arc::new(orchestrator.clone()),
         image_import_preparation_application: Arc::new(orchestrator.clone()),
         image_import_publication_application: Arc::new(orchestrator.clone()),
+        artifact_media_publication_application,
+        artifact_media_reference_application,
         image_publication_recovery_application: Arc::new(orchestrator.clone()),
         image_publication_recovery_read_application: Arc::new(orchestrator.clone()),
         image_media_reference_application: Arc::new(orchestrator.clone()),
@@ -224,7 +254,7 @@ pub async fn initialize_runtime(
         profile_material_read_application: Arc::new(orchestrator.clone()),
         profile_material_mutation_application: Arc::new(orchestrator.clone()),
         profile_material_upload_application: Arc::new(orchestrator.clone()),
-        portrait_record_read_application: Arc::new(orchestrator.clone()),
+        portrait_record_read_application: portrait_worker,
         portrait_record_mutation_application: Arc::new(orchestrator.clone()),
         portrait_prompt_request_preview_application: Arc::new(orchestrator.clone()),
         portrait_image_request_preview_application: Arc::new(orchestrator.clone()),

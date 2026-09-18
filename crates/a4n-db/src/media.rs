@@ -18,7 +18,10 @@ pub(crate) use bindings::{
 };
 pub use creation::create_media_asset_with_provenance_record;
 pub(crate) use paths::media_path_has_persisted_reference;
-pub use paths::{filter_unreferenced_media_paths, media_path_prefix_has_persisted_reference};
+pub use paths::{
+    filter_unreferenced_media_paths, media_path_prefix_has_persisted_reference,
+    project_has_active_image_publication, protected_image_publication_cleanup_paths,
+};
 pub use types::MediaDbError;
 
 pub(crate) async fn schedule_unreferenced_media_cleanup<C>(

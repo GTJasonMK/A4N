@@ -90,6 +90,8 @@ impl TestOrchestratorBuilder {
                 .expect("test prompts should load"),
         );
         let snapshot_store = Arc::new(Sha256SnapshotStore::new(self.db));
+        let shooting_script_publication =
+            crate::context::test_shooting_script_publication(db_handle.clone());
 
         let llm = self.llm;
         let embedding = self.embedding;
@@ -107,6 +109,7 @@ impl TestOrchestratorBuilder {
             engine,
             snapshot_store,
             None,
+            shooting_script_publication,
             move |_| Ok((llm, embedding)),
         )
         .expect("test providers should initialize")

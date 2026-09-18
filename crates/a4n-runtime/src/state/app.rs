@@ -796,6 +796,12 @@ impl AppState {
         self.project_read_application.as_ref()
     }
 
+    pub(crate) fn project_source_snapshot_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::project::ProjectSourceSnapshotReadApplicationPort {
+        self.project_source_snapshot_read_application.as_ref()
+    }
+
     pub(crate) fn project_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::project::ProjectMutationApplicationPort {
@@ -1856,10 +1862,25 @@ impl AppState {
         self.chapter_visual_plan_read_application.as_ref()
     }
 
+    pub(crate) fn chapter_visual_plan_record_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordReadApplicationPort
+    {
+        self.chapter_visual_plan_record_read_application.as_ref()
+    }
+
     pub(crate) fn chapter_visual_plan_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort {
         self.chapter_visual_plan_mutation_application.as_ref()
+    }
+
+    pub(crate) fn chapter_visual_plan_record_persistence_application(
+        &self,
+    ) -> &dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordPersistenceApplicationPort
+    {
+        self.chapter_visual_plan_record_persistence_application
+            .as_ref()
     }
 
     pub(crate) fn video_prompt_read_application(
@@ -1908,6 +1929,35 @@ impl AppState {
         &self,
     ) -> &dyn a4n_image_host_contract::ImageImportPublicationApplicationPort {
         self.image_import_publication_application.as_ref()
+    }
+
+    pub(crate) fn artifact_media_publication_application(
+        &self,
+    ) -> Option<&dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort> {
+        self.artifact_media_publication_application.as_deref()
+    }
+
+    pub(crate) fn artifact_media_reference_application(
+        &self,
+    ) -> Option<&dyn a4n_artifact_media_contract::ArtifactMediaReferencePort> {
+        self.artifact_media_reference_application.as_deref()
+    }
+
+    pub(crate) async fn persisted_media_path_prefix_has_reference(
+        &self,
+        prefix: &str,
+    ) -> Result<bool, String> {
+        if let Some(worker) = self.artifact_media_reference_application() {
+            return worker
+                .path_prefix_has_reference(a4n_artifact_media_contract::MediaPathPrefixRequest {
+                    prefix: prefix.to_string(),
+                })
+                .await;
+        }
+        self.image_media_reference_application()
+            .media_path_prefix_has_persisted_reference(prefix)
+            .await
+            .map_err(|error| error.to_string())
     }
 
     pub(crate) fn image_publication_recovery_application(
@@ -2167,10 +2217,16 @@ impl AppState {
         self.source_sync_mutation_application.as_ref()
     }
 
-    pub(crate) fn shooting_script_record_read_application(
+    pub(crate) fn shooting_script_unit_progress_application(
         &self,
-    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort {
-        self.shooting_script_record_read_application.as_ref()
+    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptUnitProgressReadApplicationPort {
+        self.shooting_script_unit_progress_application.as_ref()
+    }
+
+    pub(crate) fn shooting_script_current_application(
+        &self,
+    ) -> &dyn a4n_api_contract::shooting_script::ShootingScriptCurrentReadApplicationPort {
+        self.shooting_script_current_application.as_ref()
     }
 
     pub(crate) fn shooting_script_record_mutation_application(

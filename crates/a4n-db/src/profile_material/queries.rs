@@ -1,8 +1,11 @@
 use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
+use std::collections::{BTreeMap, HashSet};
+
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::{
     contracts::{ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows},
+    identity::profile_material_identity,
     validation::{database, require_positive, require_text},
 };
 
@@ -83,4 +86,28 @@ pub async fn profile_material_image_identity_rows_by_type(
         .all(db)
         .await
         .map_err(|source| database("按类型读取档案素材身份失败", source))
+}
+
+pub async fn profile_material_image_counts_by_profile(
+    db: &DatabaseConnection,
+    project_id: i64,
+    image_type: &str,
+    profile_ids: &[i64],
+) -> Result<BTreeMap<i64, i64>, ProfileMaterialDbError> {
+    let project_id = require_positive(project_id, "project_id")?;
+    let image_type = require_text(image_type, "image_type")?;
+    if profile_ids.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let requested = profile_ids.iter().copied().collect::<HashSet<_>>();
+    let mut counts = BTreeMap::new();
+    for image in profile_material_image_identity_rows_by_type(db, project_id, image_type).await? {
+        if let Some((_, profile_id)) =
+            profile_material_identity(&image.image_type, image.metadata_json.as_ref())
+            && requested.contains(&profile_id)
+        {
+            *counts.entry(profile_id).or_insert(0) += 1;
+        }
+    }
+    Ok(counts)
 }

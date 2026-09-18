@@ -19,33 +19,6 @@ mod persistence;
 mod raw_call;
 
 impl OrchestratorContext {
-    pub(super) async fn restore_completed_shooting_script_stage<T>(
-        &self,
-        workflow_run_id: i64,
-        step_key: &str,
-        request: &ChatRequest,
-        validate_output: impl Fn(&T) -> Result<(), AppError>,
-    ) -> Result<Option<T>, AppError>
-    where
-        T: Serialize + DeserializeOwned,
-    {
-        let fingerprint_json = a4n_llm_trace::context_aware_chat_request_trace_json(request)?;
-        let Some(checkpoint) = self
-            .load_completed_llm_call_checkpoint(workflow_run_id, step_key, &fingerprint_json)
-            .await?
-        else {
-            return Ok(None);
-        };
-        let output = parse_strict_json_response::<T>(&checkpoint.response_content, step_key)?;
-        validate_output(&output)?;
-        ensure_checkpoint_parsed_output_matches(
-            &checkpoint.parsed_output,
-            &serde_json::to_value(&output)?,
-            &format!("分镜脚本 {step_key}"),
-        )?;
-        Ok(Some(output))
-    }
-
     pub(super) async fn run_shooting_script_stage<T>(
         &self,
         workflow_run_id: i64,

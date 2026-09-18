@@ -19,10 +19,12 @@ pub struct ApplicationPorts {
     /// source-sync owner.
     pub source_sync_mutation_application:
         Arc<dyn a4n_api_contract::source_sync::SourceSyncMutationApplicationPort>,
-    /// Persisted shooting-script reads stay behind the API contract;
-    /// generation workers use a separate execution boundary.
-    pub shooting_script_record_read_application:
-        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordReadApplicationPort>,
+    pub shooting_script_current_application:
+        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptCurrentReadApplicationPort>,
+    /// Workflow checkpoint progress remains on the generation owner until its
+    /// worker contract carries the reconstruction state explicitly.
+    pub shooting_script_unit_progress_application:
+        Arc<dyn a4n_api_contract::shooting_script::ShootingScriptUnitProgressReadApplicationPort>,
     pub shooting_script_record_mutation_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
     pub shooting_script_full_generation_application:
@@ -54,6 +56,8 @@ pub struct ApplicationPorts {
     /// Host-facing project read boundary. Runtime receives complete API
     /// summaries and does not assemble them from ORM projections.
     pub project_read_application: Arc<dyn a4n_api_contract::project::ProjectReadApplicationPort>,
+    pub project_source_snapshot_read_application:
+        Arc<dyn a4n_api_contract::project::ProjectSourceSnapshotReadApplicationPort>,
     /// Host-facing project mutation boundary. Project validation and summary
     /// projection remain in the project owner.
     pub project_mutation_application:
@@ -462,8 +466,14 @@ pub struct ApplicationPorts {
     /// and DTO projection stay outside Runtime.
     pub chapter_visual_plan_read_application:
         Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadApplicationPort>,
+    pub chapter_visual_plan_record_read_application: Arc<
+        dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordReadApplicationPort,
+    >,
     pub chapter_visual_plan_mutation_application:
         Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort>,
+    pub chapter_visual_plan_record_persistence_application: Arc<
+        dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordPersistenceApplicationPort,
+    >,
     /// Host-facing video-prompt read boundary. Prompt authorization and DTO
     /// projection stay in the video owner.
     pub video_prompt_read_application:
@@ -492,6 +502,12 @@ pub struct ApplicationPorts {
         Arc<dyn a4n_image_host_contract::ImageImportPreparationApplicationPort>,
     pub image_import_publication_application:
         Arc<dyn a4n_image_host_contract::ImageImportPublicationApplicationPort>,
+    /// Final imported-image publication is delegated to the Artifact/Media
+    /// worker when the HTTP host supplies its endpoint.
+    pub artifact_media_publication_application:
+        Option<Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>>,
+    pub artifact_media_reference_application:
+        Option<Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>>,
     /// Image publication recovery and state-transition owner.
     pub image_publication_recovery_application:
         Arc<dyn a4n_image_host_contract::ImagePublicationRecoveryPort>,

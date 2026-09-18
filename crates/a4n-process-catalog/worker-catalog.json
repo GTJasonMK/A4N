@@ -1,0 +1,279 @@
+[
+  {
+    "name": "agent-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-agent-worker",
+    "contract_version": "worker-schema-v6",
+    "capability_version": "agent-worker-v1",
+    "addr_env": "A4N_AGENT_WORKER_ADDR",
+    "url_env": "A4N_AGENT_WORKER_URL",
+    "default_addr": "127.0.0.1:47650",
+    "local_only": true,
+    "data_scope": [
+      "agent_thread",
+      "agent_message",
+      "agent_turn",
+      "agent_run",
+      "agent_execution",
+      "agent_event",
+      "agent_inbox",
+      "agent_delegation",
+      "agent_approval",
+      "agent_memory"
+    ],
+    "capabilities": [
+      "agent.run",
+      "agent.host_command",
+      "agent.thread.ensure_main",
+      "agent.thread.create",
+      "agent.thread.fork",
+      "agent.thread.update",
+      "agent.thread.archive",
+      "agent.thread.list",
+      "agent.thread.show",
+      "agent.thread.messages",
+      "agent.run.show",
+      "agent.event.list",
+      "agent.memory.list",
+      "agent.memory.create",
+      "agent.memory.retract",
+      "agent.approval.resolve",
+      "agent.delegation.spawn",
+      "agent.delegation.review",
+      "agent.skill.settings.list",
+      "agent.skill.settings.update",
+      "agent.skill.search",
+      "agent.skill.load",
+      "agent.run.send",
+      "agent.run.control",
+      "agent.run.send_child",
+      "agent.run.control_child"
+    ],
+    "dependencies": [
+      "a4n-control",
+      "a4n-migration"
+    ],
+    "migration": {
+      "current": "agent_runtime",
+      "min_compatible": "agent_runtime",
+      "max_compatible": "agent_runtime"
+    }
+  },
+  {
+    "name": "novel-planning-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-novel-planning-worker",
+    "contract_version": "novel-planning-shooting-script-v1",
+    "capability_version": "novel-planning-shooting-script-v1",
+    "addr_env": "A4N_NOVEL_PLANNING_WORKER_ADDR",
+    "url_env": "A4N_NOVEL_PLANNING_WORKER_URL",
+    "default_addr": "127.0.0.1:47651",
+    "local_only": true,
+    "data_scope": [
+      "chapter_shooting_script",
+      "chapter_visual_plan",
+      "cleanup_outbox"
+    ],
+    "capabilities": [
+      "shooting_script.current",
+      "shooting_script.unit_progress",
+      "shooting_script.edit",
+      "shooting_script.delete",
+      "shooting_script.publish",
+      "visual_plan.persistence"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
+    "migration": {
+      "current": "shooting_script",
+      "min_compatible": "shooting_script",
+      "max_compatible": "shooting_script"
+    }
+  },
+  {
+    "name": "artifact-media-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-artifact-media-worker",
+    "contract_version": "artifact-media-v1",
+    "capability_version": "artifact-media-v1",
+    "addr_env": "A4N_ARTIFACT_MEDIA_WORKER_ADDR",
+    "url_env": "A4N_ARTIFACT_MEDIA_WORKER_URL",
+    "default_addr": "127.0.0.1:47652",
+    "local_only": true,
+    "data_scope": [
+      "image_publication",
+      "cleanup_outbox",
+      "media_artifact"
+    ],
+    "capabilities": ["artifact-media"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "image_publication",
+      "min_compatible": "image_publication",
+      "max_compatible": "image_publication"
+    }
+  },
+  {
+    "name": "outline-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-outline-worker",
+    "contract_version": "outline-records-v1",
+    "capability_version": "outline-records-v1",
+    "addr_env": "A4N_OUTLINE_WORKER_ADDR",
+    "url_env": "A4N_OUTLINE_WORKER_URL",
+    "default_addr": "127.0.0.1:47653",
+    "local_only": true,
+    "data_scope": [
+      "chapter_outline",
+      "part_outline",
+      "outline_generation_progress"
+    ],
+    "capabilities": [
+      "outline.records.read",
+      "outline.records.mutation"
+    ],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "outline_records",
+      "min_compatible": "outline_records",
+      "max_compatible": "outline_records"
+    }
+  },
+  {
+    "name": "blueprint-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-blueprint-worker",
+    "contract_version": "blueprint-read-v1",
+    "capability_version": "blueprint-read-v1",
+    "addr_env": "A4N_BLUEPRINT_WORKER_ADDR",
+    "url_env": "A4N_BLUEPRINT_WORKER_URL",
+    "default_addr": "127.0.0.1:47654",
+    "local_only": true,
+    "data_scope": [
+      "novel_blueprint",
+      "blueprint_version"
+    ],
+    "capabilities": ["blueprint.records.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "blueprint_read",
+      "min_compatible": "blueprint_read",
+      "max_compatible": "blueprint_read"
+    }
+  },
+  {
+    "name": "asset-graph-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-asset-graph-worker",
+    "contract_version": "project-asset-graph-v1",
+    "capability_version": "project-asset-graph-v1",
+    "addr_env": "A4N_ASSET_GRAPH_WORKER_ADDR",
+    "url_env": "A4N_ASSET_GRAPH_WORKER_URL",
+    "default_addr": "127.0.0.1:47655",
+    "local_only": true,
+    "data_scope": ["project_dependency_graph"],
+    "capabilities": ["project.asset_graph.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_asset_graph",
+      "min_compatible": "project_asset_graph",
+      "max_compatible": "project_asset_graph"
+    }
+  },
+  {
+    "name": "foreshadowing-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-foreshadowing-worker",
+    "contract_version": "foreshadowing-read-v1",
+    "capability_version": "foreshadowing-read-v1",
+    "addr_env": "A4N_FORESHADOWING_WORKER_ADDR",
+    "url_env": "A4N_FORESHADOWING_WORKER_URL",
+    "default_addr": "127.0.0.1:47656",
+    "local_only": true,
+    "data_scope": ["foreshadowing_index"],
+    "capabilities": ["profile.foreshadowing.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "foreshadowing_read",
+      "min_compatible": "foreshadowing_read",
+      "max_compatible": "foreshadowing_read"
+    }
+  },
+  {
+    "name": "object-profile-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-object-profile-worker",
+    "contract_version": "object-profile-read-v1",
+    "capability_version": "object-profile-read-v1",
+    "addr_env": "A4N_OBJECT_PROFILE_WORKER_ADDR",
+    "url_env": "A4N_OBJECT_PROFILE_WORKER_URL",
+    "default_addr": "127.0.0.1:47657",
+    "local_only": true,
+    "data_scope": ["object_profile"],
+    "capabilities": ["profile.object.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "object_profile_read",
+      "min_compatible": "object_profile_read",
+      "max_compatible": "object_profile_read"
+    }
+  },
+  {
+    "name": "scene-profile-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-scene-profile-worker",
+    "contract_version": "scene-profile-read-v1",
+    "capability_version": "scene-profile-read-v1",
+    "addr_env": "A4N_SCENE_PROFILE_WORKER_ADDR",
+    "url_env": "A4N_SCENE_PROFILE_WORKER_URL",
+    "default_addr": "127.0.0.1:47658",
+    "local_only": true,
+    "data_scope": ["scene_profile"],
+    "capabilities": ["profile.scene.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "scene_profile_read",
+      "min_compatible": "scene_profile_read",
+      "max_compatible": "scene_profile_read"
+    }
+  },
+  {
+    "name": "portrait-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-portrait-worker",
+    "contract_version": "portrait-read-v1",
+    "capability_version": "portrait-read-v1",
+    "addr_env": "A4N_PORTRAIT_WORKER_ADDR",
+    "url_env": "A4N_PORTRAIT_WORKER_URL",
+    "default_addr": "127.0.0.1:47659",
+    "local_only": true,
+    "data_scope": ["character_portrait"],
+    "capabilities": ["portrait.records.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "portrait_read",
+      "min_compatible": "portrait_read",
+      "max_compatible": "portrait_read"
+    }
+  },
+  {
+    "name": "source-snapshot-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-source-snapshot-worker",
+    "contract_version": "source-snapshot-read-v1",
+    "capability_version": "source-snapshot-read-v1",
+    "addr_env": "A4N_SOURCE_SNAPSHOT_WORKER_ADDR",
+    "url_env": "A4N_SOURCE_SNAPSHOT_WORKER_URL",
+    "default_addr": "127.0.0.1:47660",
+    "local_only": true,
+    "data_scope": ["source_snapshot_chapter"],
+    "capabilities": ["project.source_snapshot.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "source_snapshot_read",
+      "min_compatible": "source_snapshot_read",
+      "max_compatible": "source_snapshot_read"
+    }
+  }
+]

@@ -157,6 +157,148 @@ pub enum VisualPlanProjection {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum VisualPlanProjectionError {
+    #[error("{0}")]
+    InvalidRequest(String),
+    #[error("{0}")]
+    NotFound(String),
+}
+
+/// Projects a persisted or in-memory visual plan for editor reads.
+///
+/// Source-text paging is owned by the chapter source owner; all plan-based
+/// projections share this function so Worker and local editor paths cannot
+/// drift apart.
+pub fn project_visual_plan(
+    plan: &ChapterVisualPlanV3,
+    view: &VisualPlanReadView,
+) -> Result<VisualPlanProjection, VisualPlanProjectionError> {
+    plan.validate_draft()
+        .map_err(|error| VisualPlanProjectionError::InvalidRequest(error.to_string()))?;
+    match view {
+        VisualPlanReadView::Outline { offset, limit } => {
+            let total = plan.segments.len();
+            let (start, end) = projection_page_range(*offset, *limit, total, 20, 100)?;
+            let items = plan.segments[start..end]
+                .iter()
+                .map(|segment| {
+                    let start_ms = plan
+                        .point(&segment.start_point_id)
+                        .ok_or_else(|| {
+                            VisualPlanProjectionError::InvalidRequest(format!(
+                                "镜头段起点不存在: {}",
+                                segment.start_point_id
+                            ))
+                        })?
+                        .at_ms;
+                    let end_ms = plan
+                        .point(&segment.end_point_id)
+                        .ok_or_else(|| {
+                            VisualPlanProjectionError::InvalidRequest(format!(
+                                "镜头段终点不存在: {}",
+                                segment.end_point_id
+                            ))
+                        })?
+                        .at_ms;
+                    Ok(VisualPlanOutlineItem {
+                        segment_id: segment.id.clone(),
+                        title: segment.title.clone(),
+                        start_ms,
+                        end_ms,
+                        scene_binding: segment.scene_binding.clone(),
+                        point_count: plan
+                            .points
+                            .iter()
+                            .filter(|point| point.at_ms >= start_ms && point.at_ms < end_ms)
+                            .count(),
+                    })
+                })
+                .collect::<Result<Vec<_>, VisualPlanProjectionError>>()?;
+            Ok(VisualPlanProjection::Outline {
+                items,
+                total,
+                next_offset: projection_next_offset(end, total)?,
+            })
+        }
+        VisualPlanReadView::Point { point_id } => {
+            let point = plan.point(point_id).ok_or_else(|| {
+                VisualPlanProjectionError::NotFound(format!("图片点不存在: {point_id}"))
+            })?;
+            Ok(VisualPlanProjection::Point {
+                point: point.clone(),
+            })
+        }
+        VisualPlanReadView::Segment { segment_id } => {
+            let segment = plan
+                .segments
+                .iter()
+                .find(|segment| segment.id == *segment_id)
+                .ok_or_else(|| {
+                    VisualPlanProjectionError::NotFound(format!("镜头段不存在: {segment_id}"))
+                })?;
+            let start = plan
+                .point(&segment.start_point_id)
+                .ok_or_else(|| {
+                    VisualPlanProjectionError::InvalidRequest(format!(
+                        "镜头段起点不存在: {}",
+                        segment.start_point_id
+                    ))
+                })?
+                .at_ms;
+            let end = plan
+                .point(&segment.end_point_id)
+                .ok_or_else(|| {
+                    VisualPlanProjectionError::InvalidRequest(format!(
+                        "镜头段终点不存在: {}",
+                        segment.end_point_id
+                    ))
+                })?
+                .at_ms;
+            let points = plan
+                .points
+                .iter()
+                .filter(|point| point.at_ms >= start && point.at_ms <= end)
+                .cloned()
+                .collect();
+            Ok(VisualPlanProjection::Segment {
+                segment: segment.clone(),
+                points,
+            })
+        }
+        VisualPlanReadView::Source { .. } => Err(VisualPlanProjectionError::InvalidRequest(
+            "原文由章节 source owner 读取".into(),
+        )),
+    }
+}
+
+fn projection_page_range(
+    offset: u32,
+    limit: Option<u32>,
+    total: usize,
+    default: u32,
+    max: u32,
+) -> Result<(usize, usize), VisualPlanProjectionError> {
+    let limit = limit.unwrap_or(default);
+    if limit == 0 || limit > max || offset as usize > total {
+        return Err(VisualPlanProjectionError::InvalidRequest(format!(
+            "分页范围无效：offset={offset}，limit 须为 1..={max}，total={total}"
+        )));
+    }
+    let start = offset as usize;
+    Ok((start, start.saturating_add(limit as usize).min(total)))
+}
+
+fn projection_next_offset(
+    end: usize,
+    total: usize,
+) -> Result<Option<u32>, VisualPlanProjectionError> {
+    (end < total)
+        .then(|| u32::try_from(end))
+        .transpose()
+        .map_err(|_| VisualPlanProjectionError::InvalidRequest("分页长度超出 u32".into()))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanReadResult {
     pub resource: Option<crate::agent::AgentResourceRef>,
@@ -317,7 +459,11 @@ pub trait ChapterVisualPlanReadApplicationPort: Send + Sync {
         plan: &ChapterVisualPlanV3,
         view: &VisualPlanReadView,
     ) -> Result<VisualPlanProjection, a4n_error::AppError>;
+}
 
+/// Host-facing read boundary for persisted visual-plan records.
+#[async_trait::async_trait]
+pub trait ChapterVisualPlanRecordReadApplicationPort: Send + Sync {
     async fn get(
         &self,
         user_id: i64,
@@ -381,4 +527,74 @@ pub trait ChapterVisualPlanMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: ChapterVisualPlanRecordInput,
     ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing persistence boundary for ordinary visual-plan records.
+///
+/// Collaborative local editing remains on the richer mutation port until its
+/// projection and validation contracts are extracted without duplication.
+#[async_trait::async_trait]
+pub trait ChapterVisualPlanRecordPersistenceApplicationPort: Send + Sync {
+    async fn save_draft(
+        &self,
+        user_id: i64,
+        input: SaveChapterVisualPlanDraftInput,
+    ) -> Result<ChapterVisualPlanView, a4n_error::AppError>;
+
+    async fn confirm(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanRecordInput,
+    ) -> Result<ConfirmedChapterVisualPlanView, a4n_error::AppError>;
+
+    async fn discard(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanRecordInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_projection_keeps_read_bounds_and_missing_object_errors() {
+        let plan = ChapterVisualPlanV3::starter();
+        assert!(
+            project_visual_plan(
+                &plan,
+                &VisualPlanReadView::Outline {
+                    offset: 0,
+                    limit: Some(101),
+                },
+            )
+            .is_err()
+        );
+        assert!(matches!(
+            project_visual_plan(
+                &plan,
+                &VisualPlanReadView::Point {
+                    point_id: "missing".into(),
+                },
+            ),
+            Err(VisualPlanProjectionError::NotFound(_))
+        ));
+        let VisualPlanProjection::Segment { points, .. } = project_visual_plan(
+            &plan,
+            &VisualPlanReadView::Segment {
+                segment_id: "shot-1".into(),
+            },
+        )
+        .expect("starter segment projection") else {
+            panic!("segment projection expected")
+        };
+        assert_eq!(points.len(), 2);
+        assert!(
+            serde_json::from_str::<VisualPlanEditOperation>(
+                r#"{"kind":"move_point","point_id":"start","at_ms":1,"unknown":true}"#
+            )
+            .is_err()
+        );
+    }
 }

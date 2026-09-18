@@ -6,6 +6,7 @@ use super::errors::ServiceManagerError;
 use super::health::validate_service_health;
 use super::manager::{HttpClientFactory, ServiceManager};
 use super::process::ManagedSidecarState;
+use a4n_process_catalog::ProcessKind;
 use a4n_process_catalog::service_catalog;
 use a4n_service_protocol::{
     HealthStatus, LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME,
@@ -559,6 +560,53 @@ fn known_services_have_expected_capability_versions() {
         );
     }
     assert_eq!(expected_capability_version_for_service("demo"), None);
+}
+
+#[test]
+fn manager_exposes_sidecar_and_stateful_worker_metadata() {
+    let manager = ServiceManager::new(vec![ManagedServiceConfig::embedded(PROMPT_SERVICE_NAME)])
+        .expect("known sidecar should be accepted");
+
+    let sidecar = manager
+        .process_metadata(PROMPT_SERVICE_NAME)
+        .expect("sidecar metadata should be available");
+    assert_eq!(sidecar.kind, ProcessKind::CapabilitySidecar);
+    assert_eq!(
+        sidecar.capability_version.as_deref(),
+        Some(PROMPT_RENDER_CAPABILITY_VERSION)
+    );
+    assert_eq!(
+        sidecar.contract_version.as_deref(),
+        Some("service-protocol-v2")
+    );
+    assert_eq!(sidecar.binary, "a4n-prompt-service");
+    assert_eq!(sidecar.default_addr, "127.0.0.1:47641");
+
+    let worker = manager
+        .process_metadata("agent-worker")
+        .expect("stateful worker metadata should be available");
+    assert_eq!(worker.kind, ProcessKind::StatefulWorker);
+    assert_eq!(
+        worker.capability_version.as_deref(),
+        Some("agent-worker-v1")
+    );
+    assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
+    assert_eq!(worker.binary, "a4n-agent-worker");
+    assert_eq!(worker.addr_env, "A4N_AGENT_WORKER_ADDR");
+    assert_eq!(worker.url_env.as_deref(), Some("A4N_AGENT_WORKER_URL"));
+    assert_eq!(worker.default_addr, "127.0.0.1:47650");
+    assert_eq!(worker.migration.current.as_deref(), Some("agent_runtime"));
+}
+
+#[test]
+fn manager_rejects_unknown_process_metadata() {
+    let manager = ServiceManager::new(vec![ManagedServiceConfig::embedded(PROMPT_SERVICE_NAME)])
+        .expect("known sidecar should be accepted");
+
+    assert!(matches!(
+        manager.process_metadata("missing"),
+        Err(ServiceManagerError::UnknownService(name)) if name == "missing"
+    ));
 }
 
 #[test]

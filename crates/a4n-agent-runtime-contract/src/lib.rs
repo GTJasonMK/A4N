@@ -6,11 +6,12 @@
 
 use a4n_api_contract::agent::{
     AgentBudget, AgentDelegationView, AgentEditorRequest, AgentExecutionResultPage,
-    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent, AgentSkillDescriptor,
-    AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult, DescribeAgentToolInput,
-    ReadAgentExecutionResultInput, ReadAgentMemoryInput, RespondAgentEditorInput,
-    ReviewAgentDelegationInput, SearchAgentToolsInput,
+    AgentMemoryScopeKind, AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent,
+    AgentSkillDescriptor, AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult,
+    DescribeAgentToolInput, ReadAgentExecutionResultInput, ReadAgentMemoryInput,
+    RespondAgentEditorInput, ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
+use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -41,6 +42,63 @@ use serde_json::Value;
 
 mod ports;
 pub use ports::*;
+
+pub const AGENT_WORKER_ID: &str = "agent-worker";
+pub const AGENT_THREAD_ENSURE_MAIN_OPERATION: &str = "agent.thread.ensure_main";
+pub const AGENT_THREAD_CREATE_OPERATION: &str = "agent.thread.create";
+pub const AGENT_THREAD_FORK_OPERATION: &str = "agent.thread.fork";
+pub const AGENT_THREAD_UPDATE_OPERATION: &str = "agent.thread.update";
+pub const AGENT_THREAD_ARCHIVE_OPERATION: &str = "agent.thread.archive";
+pub const AGENT_THREAD_LIST_OPERATION: &str = "agent.thread.list";
+pub const AGENT_THREAD_SHOW_OPERATION: &str = "agent.thread.show";
+pub const AGENT_THREAD_MESSAGES_OPERATION: &str = "agent.thread.messages";
+pub const AGENT_RUN_SHOW_OPERATION: &str = "agent.run.show";
+pub const AGENT_EVENT_LIST_OPERATION: &str = "agent.event.list";
+pub const AGENT_MEMORY_LIST_OPERATION: &str = "agent.memory.list";
+pub const AGENT_MEMORY_CREATE_OPERATION: &str = "agent.memory.create";
+pub const AGENT_MEMORY_RETRACT_OPERATION: &str = "agent.memory.retract";
+pub const AGENT_APPROVAL_RESOLVE_OPERATION: &str = "agent.approval.resolve";
+pub const AGENT_DELEGATION_SPAWN_OPERATION: &str = "agent.delegation.spawn";
+pub const AGENT_DELEGATION_REVIEW_OPERATION: &str = "agent.delegation.review";
+pub const AGENT_SKILL_SETTINGS_LIST_OPERATION: &str = "agent.skill.settings.list";
+pub const AGENT_SKILL_SETTINGS_UPDATE_OPERATION: &str = "agent.skill.settings.update";
+pub const AGENT_SKILL_SEARCH_OPERATION: &str = "agent.skill.search";
+pub const AGENT_SKILL_LOAD_OPERATION: &str = "agent.skill.load";
+pub const AGENT_TOOL_SEARCH_OPERATION: &str = "agent.tool.search";
+pub const AGENT_TOOL_DESCRIBE_OPERATION: &str = "agent.tool.describe";
+pub const AGENT_RUN_SEND_OPERATION: &str = "agent.run.send";
+pub const AGENT_RUN_CONTROL_OPERATION: &str = "agent.run.control";
+pub const AGENT_RUN_SEND_CHILD_OPERATION: &str = "agent.run.send_child";
+pub const AGENT_RUN_CONTROL_CHILD_OPERATION: &str = "agent.run.control_child";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentMemoryListInput {
+    pub scope_kind: Option<AgentMemoryScopeKind>,
+    pub scope_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentDelegationReviewCommand {
+    pub input: ReviewAgentDelegationInput,
+    pub parent_run_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillCapabilityCommand<T> {
+    pub capability: String,
+    pub input: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentRunRuntimeCommand<T> {
+    pub input: T,
+    pub runtime_snapshot_required: bool,
+    pub require_runtime_snapshot_for_new_run: bool,
+}
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
 
@@ -717,6 +775,7 @@ pub struct WorkerDelegationInput {
     pub success_criteria: Vec<String>,
     pub budget_json: Value,
     pub parent_execution_id: Option<i64>,
+    pub runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
 #[derive(Debug, Clone)]

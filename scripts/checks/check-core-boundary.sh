@@ -2419,9 +2419,9 @@ if rg -n 'shooting_script_application\(\)|ShootingScriptApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'shooting_script_record_read_application\(\)' \
+if ! rg -n 'shooting_script_unit_progress_application\(\)' \
     crates/a4n-runtime/src/actions/shooting_script_records/read.rs; then
-    printf 'Runtime shooting-script record reads must route through the read port\n' >&2
+    printf 'Runtime shooting-script progress reads must route through the progress port\n' >&2
     exit 1
 fi
 
@@ -2441,7 +2441,7 @@ fi
 
 if ! rg -n 'pub trait ShootingScript(FullGeneration|NextUnitGeneration)ApplicationPort' \
     crates/a4n-novel-host-contract/src/lib.rs || \
-   ! rg -n 'pub trait ShootingScriptRecord(Read|Mutation)ApplicationPort' \
+   ! rg -n 'pub trait ShootingScript(UnitProgressRead|RecordMutation)ApplicationPort' \
     crates/a4n-api-contract/src/shooting_script.rs; then
     printf 'ShootingScriptRecord read/mutation contracts are missing\n' >&2
     exit 1
@@ -4115,7 +4115,7 @@ fi
 
 if ! rg -n 'cleanup_outbox_application\(\)' \
     crates/a4n-runtime/src/actions/storage_paths/orphans.rs || \
-   ! rg -n 'image_media_reference_application\(\)' \
+   ! rg -n 'image_media_reference_application\(\)|persisted_media_path_prefix_has_reference\(' \
     crates/a4n-runtime/src/actions/storage_paths/orphans.rs; then
     printf 'Runtime orphan cleanup must route cleanup and media reference checks through application ports\n' >&2
     exit 1

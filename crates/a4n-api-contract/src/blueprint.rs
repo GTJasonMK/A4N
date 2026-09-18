@@ -65,14 +65,14 @@ pub struct PreviewBlueprintRefinementInput {
     pub variables: Option<BTreeMap<String, Value>>,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ListBlueprintVersionsInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DiffBlueprintVersionsInput {
     #[schemars(range(min = 1))]
@@ -124,7 +124,7 @@ pub struct UpdateWorldSettingInput {
     pub world_setting: Value,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct BlueprintSummary {
     pub id: i64,
     pub project_id: i64,
@@ -142,7 +142,7 @@ pub struct BlueprintSummary {
     pub source_review_status: String,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct BlueprintVersionSummary {
     pub id: i64,
     pub version: String,
@@ -151,7 +151,7 @@ pub struct BlueprintVersionSummary {
     pub created_by: String,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct BlueprintDiffSummary {
     pub diff: Value,
 }

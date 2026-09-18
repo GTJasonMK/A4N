@@ -36,14 +36,6 @@ pub(in crate::shooting_script::generation) fn generate_screenplay_skeleton(
     Ok(skeleton)
 }
 
-pub(in crate::shooting_script) fn restore_screenplay_skeleton(
-    prepared: &PreparedChapterShootingScriptRequest,
-) -> Result<ChapterScreenplaySkeletonV1, AppError> {
-    let skeleton = skeleton_from_visual_plan(prepared)?;
-    validate_skeleton(&skeleton, prepared)?;
-    Ok(skeleton)
-}
-
 fn skeleton_from_visual_plan(
     prepared: &PreparedChapterShootingScriptRequest,
 ) -> Result<ChapterScreenplaySkeletonV1, AppError> {
@@ -128,26 +120,6 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
         ),
     )?;
     Ok(stage)
-}
-
-pub(in crate::shooting_script) async fn restore_screenplay_layout_unit(
-    orchestrator: &OrchestratorContext,
-    workflow_run_id: i64,
-    prepared: &PreparedChapterShootingScriptRequest,
-    skeleton: &ChapterScreenplaySkeletonV1,
-    unit: &ScreenplaySkeletonUnitV1,
-) -> Result<Option<ScreenplayLayoutUnitDetailV1>, AppError> {
-    let request = screenplay_layout_unit_request(prepared, workflow_run_id, skeleton, unit)?;
-    orchestrator
-        .restore_completed_shooting_script_stage(
-            workflow_run_id,
-            &format!("screenplay_layout_unit:{}", unit.narrative_unit_index),
-            &request,
-            |output| {
-                validate_layout_unit_detail(output, unit.narrative_unit_index, skeleton.units.len())
-            },
-        )
-        .await
 }
 
 fn screenplay_layout_unit_request(

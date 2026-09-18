@@ -151,13 +151,15 @@ pub async fn invoke_agent_command(
         }
         "search_agent_tools" => {
             let input = decode::<SearchAgentToolsInput>(args)?;
-            agent_actions::search_tools(&state, input)
+            agent_actions::search_tools(&state, caller_user_id, input)
+                .await
                 .map_err(|error| error.to_string())
                 .and_then(encode)
         }
         "describe_agent_tool" => {
             let input = decode::<DescribeAgentToolInput>(args)?;
-            agent_actions::describe_tool(&state, input)
+            agent_actions::describe_tool(&state, caller_user_id, input)
+                .await
                 .map_err(|error| error.to_string())
                 .and_then(encode)
         }

@@ -1,0 +1,19 @@
+[package]
+name = "a4n-artifact-media-client"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-artifact-media-contract = { path = "../a4n-artifact-media-contract" }
+a4n-worker-client = { path = "../a4n-worker-client" }
+a4n-worker-contract = { path = "../a4n-worker-contract" }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }

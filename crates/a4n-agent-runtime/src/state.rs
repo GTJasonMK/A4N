@@ -449,6 +449,7 @@ impl AgentRuntimeState {
         claimed: &AgentWorkerRun,
         input: a4n_agent_runtime_contract::WorkerDelegationInput,
     ) -> Result<a4n_agent_runtime_contract::WorkerDelegationResult, AppError> {
+        let runtime_config_snapshot = self.agent_runtime_snapshot(claimed.run.id).await;
         let request = AgentWorkerDelegationStartRequest {
             run_id: claimed.run.id,
             lease: self.agent_worker_lease_request(claimed)?.lease,
@@ -460,15 +461,26 @@ impl AgentRuntimeState {
             success_criteria: input.success_criteria,
             budget_json: input.budget_json,
             parent_execution_id: input.parent_execution_id,
+            runtime_config_snapshot: runtime_config_snapshot.clone(),
         };
         request.validate().map_err(|error| AppError::InvalidState {
             current: format!("Agent delegation start request 无效: {error}"),
             operation: "创建 Agent child run".into(),
         })?;
-        self.host
+        let result = self
+            .host
             .create_child_run(&request)
             .await
-            .map(worker_delegation_result_from_wire)
+            .map(worker_delegation_result_from_wire)?;
+        if let Some(runtime_config_snapshot) = runtime_config_snapshot {
+            self.store_agent_runtime_snapshot(
+                result.child_run.id,
+                Some(claimed.run.id),
+                runtime_config_snapshot,
+            )
+            .await;
+        }
+        Ok(result)
     }
 
     pub async fn read_agent_execution_result(

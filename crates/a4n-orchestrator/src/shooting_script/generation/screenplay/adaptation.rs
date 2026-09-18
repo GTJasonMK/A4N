@@ -78,29 +78,6 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_adaptati
     Ok(stage)
 }
 
-pub(in crate::shooting_script) async fn restore_screenplay_adaptation_unit(
-    orchestrator: &OrchestratorContext,
-    workflow_run_id: i64,
-    prepared: &PreparedChapterShootingScriptRequest,
-    unit: &ScreenplayLayoutUnitV1,
-) -> Result<Option<ScreenplayUnitAdaptationV1>, AppError> {
-    let request = unit_adaptation_request(prepared, workflow_run_id, unit)?;
-    orchestrator
-        .restore_completed_shooting_script_stage(
-            workflow_run_id,
-            &format!("screenplay_unit_adaptation:{}", unit.narrative_unit_index),
-            &request,
-            |output| {
-                validate_unit_adaptation(
-                    output,
-                    unit,
-                    prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?,
-                )
-            },
-        )
-        .await
-}
-
 fn unit_adaptation_request(
     prepared: &PreparedChapterShootingScriptRequest,
     workflow_run_id: i64,

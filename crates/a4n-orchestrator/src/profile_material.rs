@@ -38,7 +38,7 @@ use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
@@ -509,35 +509,6 @@ impl OrchestratorContext {
             .await?;
         }
         Ok(())
-    }
-
-    pub(crate) async fn count_profile_material_images_by_profile(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_ids: &[i64],
-    ) -> Result<BTreeMap<i64, i64>, AppError> {
-        if profile_ids.is_empty() {
-            return Ok(BTreeMap::new());
-        }
-        let requested = profile_ids.iter().copied().collect::<HashSet<_>>();
-        let mut counts = HashMap::new();
-        for image in self
-            .profile_material_image_identity_rows_by_type(
-                project_id,
-                image_type_for_profile_material_kind(kind),
-            )
-            .await?
-        {
-            if let Some((image_kind, profile_id)) =
-                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
-                && image_kind == kind.as_str()
-                && requested.contains(&profile_id)
-            {
-                *counts.entry(profile_id).or_insert(0) += 1;
-            }
-        }
-        Ok(counts.into_iter().collect())
     }
 
     pub(crate) async fn profile_material_image_ids(

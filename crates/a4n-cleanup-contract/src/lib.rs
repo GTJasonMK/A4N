@@ -11,6 +11,12 @@ use thiserror::Error;
 
 pub const CLEANUP_PAYLOAD_VERSION: u32 = 1;
 
+pub fn cleanup_retry_after_seconds(attempt_count: i32) -> i64 {
+    let exponent = u32::try_from((i64::from(attempt_count) - 1).clamp(0, 6))
+        .expect("cleanup retry exponent is clamped to 0..=6");
+    (5_i64 * (1_i64 << exponent)).min(300)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{0}")]
 pub struct CleanupContractError(String);

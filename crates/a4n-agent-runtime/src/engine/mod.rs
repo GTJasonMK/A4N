@@ -667,7 +667,15 @@ pub async fn claim_agent_worker_request(
         current: format!("Agent worker claim request 无效: {error}"),
         operation: "领取 Agent worker run".into(),
     })?;
-    state.host().claim_worker(&request).await
+    let Some(mut request) = state.host().claim_worker(&request).await? else {
+        return Ok(None);
+    };
+    if request.payload.runtime_config_snapshot.is_none()
+        && let Some(snapshot) = state.agent_runtime_snapshot(request.payload.run_id).await
+    {
+        request.payload.runtime_config_snapshot = Some(serde_json::to_value(snapshot)?);
+    }
+    Ok(Some(request))
 }
 
 pub async fn execute_claimed_worker_run(
@@ -2325,14 +2333,10 @@ async fn execute_tool_call(
                     success_criteria: input.success_criteria,
                     budget_json: serde_json::to_value(child_budget)?,
                     parent_execution_id: Some(execution.id),
+                    runtime_config_snapshot: None,
                 },
             )
             .await?;
-        if let Some(snapshot) = state.agent_runtime_snapshot(claimed.run.id).await {
-            state
-                .store_agent_runtime_snapshot(result.child_run.id, Some(claimed.run.id), snapshot)
-                .await;
-        }
         tracing::info!(
             parent_run_id = claimed.run.id,
             delegation_id = result.delegation.id,

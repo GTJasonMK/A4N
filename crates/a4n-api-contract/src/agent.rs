@@ -1629,13 +1629,15 @@ pub trait AgentEventReadApplicationPort: Send + Sync {
 /// Host-facing Agent tool discovery boundary.
 #[async_trait::async_trait]
 pub trait AgentToolReadApplicationPort: Send + Sync {
-    fn search_tools(
+    async fn search_tools(
         &self,
+        user_id: i64,
         input: SearchAgentToolsInput,
     ) -> Result<AgentToolSearchResult, a4n_error::AppError>;
 
-    fn describe_tool(
+    async fn describe_tool(
         &self,
+        user_id: i64,
         input: DescribeAgentToolInput,
     ) -> Result<AgentToolDescriptor, a4n_error::AppError>;
 }

@@ -13,4 +13,3 @@ pub(crate) use contracts::{
     DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
     PortraitImageProviderInput,
 };
-pub use image::portrait_summary;

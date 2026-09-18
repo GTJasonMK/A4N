@@ -15,6 +15,7 @@ const RECOVERY_LIMIT: usize = 64;
 pub(super) async fn recover_image_publications(
     state: &AppState,
     published_after: &mut Option<String>,
+    skip_imported: bool,
 ) {
     let publications = match state
         .image_publication_recovery_read_application()
@@ -30,6 +31,9 @@ pub(super) async fn recover_image_publications(
     for publication in publications {
         if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
             *published_after = Some(publication.publication_id.clone());
+        }
+        if should_skip_image_type(&publication.image_type, skip_imported) {
+            continue;
         }
         if let Err(error) = recover_image_publication(state, publication.clone()).await {
             tracing::warn!(
@@ -409,4 +413,20 @@ fn should_reclaim_after_publish_error(error: &AppError) -> bool {
             | AppError::InvalidArgument(_)
             | AppError::InvalidState { .. }
     )
+}
+
+fn should_skip_image_type(image_type: &str, skip_imported: bool) -> bool {
+    skip_imported && image_type == "imported"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_skip_image_type;
+
+    #[test]
+    fn artifact_worker_only_removes_imported_recovery_from_host() {
+        assert!(should_skip_image_type("imported", true));
+        assert!(!should_skip_image_type("object_material", true));
+        assert!(!should_skip_image_type("imported", false));
+    }
 }

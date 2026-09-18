@@ -15,8 +15,7 @@ pub(crate) use a4n_db::project::{
 pub(crate) use a4n_db::project_family_import::{
     ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter, snapshot_profile_key,
 };
-pub(crate) use a4n_domain::project::ProjectSourceMode;
-pub(crate) use a4n_domain::project::{ProjectProgressSummary, SourceSnapshotChapterSummary};
+pub(crate) use a4n_domain::project::{ProjectProgressSummary, ProjectSourceMode};
 use a4n_domain::project_reset::{
     FreeformVideoGeneratedDataResetResult, ProjectGeneratedDataResetOutcome,
 };
@@ -136,7 +135,6 @@ pub(crate) use errors::blueprint_restore_error_to_app;
 pub(crate) use errors::foreshadowing_db_error_to_app_error;
 pub(crate) use errors::project_basic_record_error_to_app_error;
 pub(crate) use errors::project_chapter_context_error_to_app_error;
-pub(crate) use errors::project_chapter_outline_update_error_to_app_error;
 pub(crate) use errors::project_chapter_scene_record_error_to_app_error;
 pub(crate) use errors::project_chapter_scene_write_error_to_app_error;
 pub(crate) use errors::project_duplicate_error_to_app_error;

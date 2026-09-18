@@ -525,6 +525,7 @@ build_backend() {
         [[ -x "$binary" ]] || die "后端构建后未找到二进制: $binary"
     done < <(required_binary_paths)
     log_ok "Host、工具和 ${#SERVICE_BINARIES[@]} 个 sidecar 构建完成"
+
 }
 
 verify_backend_binaries() {

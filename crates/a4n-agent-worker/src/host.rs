@@ -1,4 +1,5 @@
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
+use a4n_agent_runtime_contract::AgentWorkerApplicationPort;
 use a4n_agent_runtime_contract::model_request_wire_value;
 use a4n_api_contract::agent::{
     AgentExecutionResultPage, AgentSkillContent, AgentSkillSearchResult,
@@ -45,12 +46,14 @@ use futures::stream;
 use reqwest::{Client, Method, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct HttpAgentRuntimeHost {
     client: Client,
     base_url: String,
     worker_token: String,
+    application: Option<Arc<dyn AgentWorkerApplicationPort>>,
 }
 
 impl HttpAgentRuntimeHost {
@@ -59,7 +62,25 @@ impl HttpAgentRuntimeHost {
             client,
             base_url: base_url.trim_end_matches('/').to_string(),
             worker_token,
+            application: None,
         }
+    }
+
+    pub(crate) fn with_application(
+        mut self,
+        application: Arc<dyn AgentWorkerApplicationPort>,
+    ) -> Self {
+        self.application = Some(application);
+        self
+    }
+
+    fn application(&self) -> Result<&dyn AgentWorkerApplicationPort, AppError> {
+        self.application
+            .as_deref()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "Agent worker 未配置本地 durable application".into(),
+                operation: "访问 Agent durable owner".into(),
+            })
     }
 
     fn url(&self, path: &str) -> String {
@@ -163,80 +184,81 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &WorkerRequest<AgentRunPayload>,
     ) -> Result<AgentWorkerRunContextWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/context", request)
+        let claimed = a4n_agent_runtime_contract::AgentWorkerRun::from_wire(
+            request.payload.worker_run.clone(),
+        )?;
+        self.application()?
+            .load_run_context(&claimed)
             .await
+            .map(|context| context.to_wire())
     }
 
     async fn renew_worker_lease(
         &self,
         request: &AgentWorkerRunLeaseRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/lease/renew", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .renew_worker_lease_request(request)
+            .await
     }
 
     async fn mark_turn_active(&self, request: &AgentWorkerRunLeaseRequest) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/activation", request)
-            .await?;
-        Ok(())
+        self.application()?.mark_turn_active_request(request).await
     }
 
     async fn update_run_usage(&self, request: &AgentWorkerUsageRequest) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/usage", request)
-            .await?;
-        Ok(())
+        self.application()?.update_run_usage_request(request).await
     }
 
     async fn wait_run(&self, request: &AgentWorkerRunWaitRequest) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/wait-run", request)
-            .await?;
-        Ok(())
+        self.application()?.wait_run_request(request).await
     }
 
     async fn update_context_summary(
         &self,
         request: &AgentWorkerContextSummaryRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/context-summary", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .update_context_summary_request(request)
+            .await
     }
 
     async fn worker_execution_by_key(
         &self,
         request: &AgentWorkerExecutionLookupRequest,
     ) -> Result<Option<AgentWorkerExecutionSnapshotWire>, AppError> {
-        self.request_json(Method::POST, "/internal/agent/execution/lookup", request)
+        self.application()?
+            .worker_execution_by_key_request(request)
             .await
+            .map(|snapshot| snapshot.map(Into::into))
     }
 
     async fn create_prepared_execution(
         &self,
         request: &AgentWorkerExecutionCreateRequest,
     ) -> Result<Option<AgentWorkerExecutionSnapshotWire>, AppError> {
-        self.request_json(Method::POST, "/internal/agent/execution/prepare", request)
+        self.application()?
+            .create_prepared_execution_request(request)
             .await
+            .map(|snapshot| snapshot.map(Into::into))
     }
 
     async fn update_worker_execution(
         &self,
         request: &AgentWorkerExecutionUpdateRequest,
     ) -> Result<AgentWorkerExecutionSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/execution/update", request)
+        self.application()?
+            .update_worker_execution_request(request)
             .await
+            .map(Into::into)
     }
 
     async fn read_execution_result(
         &self,
         request: &AgentWorkerExecutionResultRequest,
     ) -> Result<AgentExecutionResultPage, AppError> {
-        self.request_json(Method::POST, "/internal/agent/execution/result", request)
+        self.application()?
+            .read_execution_result_request(request)
             .await
     }
 
@@ -244,85 +266,81 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerMemoryRequest,
     ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
-        self.request_json(Method::POST, "/internal/agent/memory", request)
-            .await
+        self.application()?.read_memory_request(request).await
     }
 
     async fn search_agent_tools(
         &self,
         request: &AgentWorkerToolSearchRequest,
     ) -> Result<a4n_api_contract::agent::AgentToolSearchResult, AppError> {
-        self.request_json(Method::POST, "/internal/agent/tools/search", request)
-            .await
+        self.application()?
+            .search_tools_for_worker(request.input.clone())
     }
 
     async fn describe_agent_tool(
         &self,
         request: &AgentWorkerToolDescribeRequest,
     ) -> Result<a4n_api_contract::agent::AgentToolDescriptor, AppError> {
-        self.request_json(Method::POST, "/internal/agent/tools/describe", request)
-            .await
+        self.application()?
+            .describe_tool_for_worker(request.input.clone())
     }
 
     async fn search_agent_skills(
         &self,
         request: &AgentWorkerSkillSearchRequest,
     ) -> Result<AgentSkillSearchResult, AppError> {
-        self.request_json(Method::POST, "/internal/agent/skills/search", request)
-            .await
+        self.application()?.search_skills_for_worker(request).await
     }
 
     async fn load_agent_skill(
         &self,
         request: &AgentWorkerSkillLoadRequest,
     ) -> Result<AgentSkillContent, AppError> {
-        self.request_json(Method::POST, "/internal/agent/skills/load", request)
-            .await
+        self.application()?.load_skill_for_worker(request).await
     }
 
     async fn verify_agent_chapters(
         &self,
         request: &AgentWorkerChapterScopeRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/scope/chapters", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .verify_chapters_in_project_for_worker(
+                request.user_id,
+                request.project_id,
+                &request.chapter_ids,
+            )
+            .await
     }
 
     async fn read_worker_history(
         &self,
         request: &AgentWorkerHistoryRequest,
     ) -> Result<AgentWorkerHistorySnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/history", request)
-            .await
+        self.application()?.worker_history_request(request).await
     }
 
     async fn mark_recovery_required(
         &self,
         request: &AgentWorkerRecoveryRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/recovery", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .mark_recovery_required_request(request)
+            .await
     }
 
     async fn wait_for_editor(
         &self,
         request: &AgentWorkerEditorWaitRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/editor/wait", request)
-            .await?;
-        Ok(())
+        self.application()?.wait_for_editor_request(request).await
     }
 
     async fn expire_editor_waits(
         &self,
         request: &AgentWorkerEditorWaitExpiryRequest,
     ) -> Result<usize, AppError> {
-        self.request_json(Method::POST, "/internal/agent/editor/expire", request)
+        self.application()?
+            .expire_editor_requests(request.limit)
             .await
     }
 
@@ -330,7 +348,8 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerApprovalExpiryRequest,
     ) -> Result<usize, AppError> {
-        self.request_json(Method::POST, "/internal/agent/approval/expire", request)
+        self.application()?
+            .expire_pending_approvals(request.limit)
             .await
     }
 
@@ -338,7 +357,8 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerExpiredRunRecoveryRequest,
     ) -> Result<usize, AppError> {
-        self.request_json(Method::POST, "/internal/agent/recovery/expired", request)
+        self.application()?
+            .recover_expired_runs(request.limit, request.error_message.as_deref())
             .await
     }
 
@@ -346,104 +366,131 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerGenerationCancelScanRequest,
     ) -> Result<Vec<AgentWorkerGenerationCancelSnapshotWire>, AppError> {
-        self.request_json(
-            Method::POST,
-            "/internal/agent/generation/cancel/scan",
-            request,
-        )
-        .await
+        self.application()?
+            .generation_cancel_candidates(&request.after_task_id)
+            .await
+            .map(|items| {
+                items
+                    .into_iter()
+                    .map(|item| AgentWorkerGenerationCancelSnapshotWire {
+                        task_id: item.task_id,
+                        attempt: item.attempt,
+                        requested_by_user_id: item.requested_by_user_id,
+                        status: item.status,
+                        owner_stopped: item.owner_stopped,
+                    })
+                    .collect()
+            })
     }
 
     async fn workflow_cancel_candidates(
         &self,
         request: &AgentWorkerWorkflowCancelScanRequest,
     ) -> Result<Vec<AgentWorkerWorkflowCancelSnapshotWire>, AppError> {
-        self.request_json(
-            Method::POST,
-            "/internal/agent/workflow/cancel/scan",
-            request,
-        )
-        .await
+        self.application()?
+            .workflow_cancel_candidates(request.after_workflow_run_id)
+            .await
+            .map(|items| {
+                items
+                    .into_iter()
+                    .map(|item| AgentWorkerWorkflowCancelSnapshotWire {
+                        workflow_run_id: item.workflow_run_id,
+                        owner_stopped: item.owner_stopped,
+                    })
+                    .collect()
+            })
     }
 
     async fn external_task_waits(
         &self,
         request: &AgentWorkerExternalTaskWaitScanRequest,
     ) -> Result<Vec<AgentWorkerExternalTaskWaitSnapshotWire>, AppError> {
-        self.request_json(Method::POST, "/internal/agent/wait/scan", request)
+        self.application()?
+            .external_task_waits(request.after_run_id)
             .await
+            .map(|items| {
+                items
+                    .into_iter()
+                    .map(|item| AgentWorkerExternalTaskWaitSnapshotWire {
+                        run_id: item.run_id,
+                        owner_user_id: item.owner_user_id,
+                        scope: item.scope,
+                        execution_id: item.execution_id,
+                        tool_name: item.tool_name,
+                        arguments_json: item.arguments_json,
+                        duration_exhausted: item.duration_exhausted,
+                    })
+                    .collect()
+            })
     }
 
     async fn wake_external_task_wait(
         &self,
         request: &AgentWorkerExternalTaskWaitWakeRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/wait/wake", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .wake_external_task_wait(request.run_id, request.execution_id)
+            .await
     }
 
     async fn claim_inbox(
         &self,
         request: &AgentWorkerInboxClaimRequest,
     ) -> Result<Option<AgentWorkerInboxSnapshotWire>, AppError> {
-        self.request_json(Method::POST, "/internal/agent/inbox/claim", request)
-            .await
+        self.application()?.claim_inbox_request(request).await
     }
 
     async fn consume_inbox(
         &self,
         request: &AgentWorkerInboxConsumeRequest,
     ) -> Result<AgentWorkerInboxSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/inbox/consume", request)
-            .await
+        self.application()?.consume_inbox_request(request).await
     }
 
     async fn persist_inbox(
         &self,
         request: &AgentWorkerInboxPersistRequest,
     ) -> Result<AgentWorkerInboxPersistSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/inbox/persist", request)
-            .await
+        self.application()?.persist_inbox_request(request).await
     }
 
     async fn load_inbox_message(
         &self,
         request: &AgentWorkerInboxMessageRequest,
     ) -> Result<AgentWorkerMessageSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/inbox/message", request)
-            .await
+        self.application()?.load_message_request(request).await
     }
 
     async fn apply_message_request(
         &self,
         request: &AgentWorkerMessageRequest,
     ) -> Result<Option<AgentWorkerMessageSnapshotWire>, AppError> {
-        self.request_json(Method::POST, "/internal/agent/message", request)
+        self.application()?
+            .apply_message_request(request)
             .await
+            .map(|snapshot| snapshot.map(Into::into))
     }
 
     async fn worker_budget_snapshot(
         &self,
         request: &AgentWorkerBudgetRequest,
     ) -> Result<AgentWorkerBudgetSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/budget", request)
+        self.application()?
+            .worker_budget_snapshot_request(request)
             .await
+            .map(Into::into)
     }
 
     async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/failure", request)
-            .await?;
-        Ok(())
+        self.application()?.fail_worker_run(request).await
     }
 
     async fn result_refs_for_run(
         &self,
         request: &AgentWorkerResultRefsRequest,
     ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/result-refs", request)
+        self.application()?
+            .result_refs_for_run_request(request)
             .await
     }
 
@@ -451,7 +498,8 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerCompletionRequest,
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/completion", request)
+        self.application()?
+            .complete_worker_run_request(request)
             .await
     }
 
@@ -459,38 +507,40 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerApprovalCheckRequest,
     ) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/approval/check", request)
+        self.application()?
+            .approved_execution_request(request)
             .await
     }
 
     async fn request_approval(&self, request: &AgentWorkerApprovalRequest) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/approval/request", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .request_worker_approval_request(request)
+            .await
     }
 
     async fn review_delegation(
         &self,
         request: &AgentWorkerDelegationReviewRequest,
     ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/delegation/review", request)
-            .await
+        self.application()?.review_delegation_request(request).await
     }
 
     async fn inherit_agent_delegation_scope(
         &self,
         request: &AgentWorkerDelegationScopeRequest,
     ) -> Result<AgentWorkerDelegationScopeSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/delegation/scope", request)
-            .await
+        let mut scope = request.child_scope.clone();
+        self.application()?
+            .inherit_subagent_allowlists(&request.parent_scope, &mut scope)?;
+        Ok(AgentWorkerDelegationScopeSnapshotWire { scope })
     }
 
     async fn ensure_canonical_subagent_thread(
         &self,
         request: &AgentWorkerDelegationThreadRequest,
     ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/delegation/thread", request)
+        self.application()?
+            .ensure_canonical_subagent_thread_request(request)
             .await
     }
 
@@ -498,26 +548,23 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         &self,
         request: &AgentWorkerEventRequest,
     ) -> Result<(), AppError> {
-        let _: Value = self
-            .request_json(Method::POST, "/internal/agent/event", request)
-            .await?;
-        Ok(())
+        self.application()?
+            .append_worker_update_request(request)
+            .await
     }
 
     async fn create_child_run(
         &self,
         request: &AgentWorkerDelegationStartRequest,
     ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/delegation/start", request)
-            .await
+        self.application()?.create_child_run_request(request).await
     }
 
     async fn run_is_terminal(
         &self,
         request: &AgentWorkerRunLeaseRequest,
     ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
-        self.request_json(Method::POST, "/internal/agent/run-status", request)
-            .await
+        self.application()?.run_is_terminal_request(request).await
     }
 
     async fn execute_command(

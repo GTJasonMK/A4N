@@ -1,7 +1,18 @@
 [
   {"package":"a4n-cli","binary":"a4n"},
   {"package":"a4n-server","binary":"a4n-server"},
+  {"package":"a4n-edge","binary":"a4n-edge"},
   {"package":"a4n-control","binary":"a4n-control"},
   {"package":"a4n-agent-worker","binary":"a4n-agent-worker"},
+  {"package":"a4n-novel-planning-worker","binary":"a4n-novel-planning-worker"},
+  {"package":"a4n-artifact-media-worker","binary":"a4n-artifact-media-worker"},
+  {"package":"a4n-outline-worker","binary":"a4n-outline-worker"},
+  {"package":"a4n-blueprint-worker","binary":"a4n-blueprint-worker"},
+  {"package":"a4n-asset-graph-worker","binary":"a4n-asset-graph-worker"},
+  {"package":"a4n-foreshadowing-worker","binary":"a4n-foreshadowing-worker"},
+  {"package":"a4n-object-profile-worker","binary":"a4n-object-profile-worker"},
+  {"package":"a4n-scene-profile-worker","binary":"a4n-scene-profile-worker"},
+  {"package":"a4n-portrait-worker","binary":"a4n-portrait-worker"},
+  {"package":"a4n-source-snapshot-worker","binary":"a4n-source-snapshot-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}
 ]
