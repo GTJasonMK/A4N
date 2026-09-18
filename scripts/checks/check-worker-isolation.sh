@@ -26,6 +26,19 @@ VIDEO_SERVICE_PACKAGE="a4n-video-service"
 RAG_CORE_PACKAGE="a4n-rag-core"
 RAG_INDEX_PACKAGE="a4n-rag-index"
 RAG_SERVICE_PACKAGE="a4n-rag-service"
+STATEFUL_WORKER_PACKAGES=(
+    a4n-agent-worker
+    a4n-novel-planning-worker
+    a4n-artifact-media-worker
+    a4n-outline-worker
+    a4n-blueprint-worker
+)
+WORKER_CLIENT_PACKAGES=(
+    a4n-novel-planning-worker-client
+    a4n-artifact-media-client
+    a4n-outline-worker-client
+    a4n-blueprint-worker-client
+)
 
 LEAF_PACKAGES=(
     "$IMAGE_PACKAGE" "$IMAGE_PROVIDER_PACKAGE" "$IMAGE_SERVICE_PACKAGE"
@@ -57,10 +70,16 @@ if grep -q 'a4n-export-core v' <<<"$host_tree"; then
 fi
 
 server_tree="$(cargo tree --locked -e normal,build -p a4n-server --no-default-features)"
-if grep -Eq '(^|[[:space:]])(a4n-edge|a4n-agent-worker|a4n-control)([[:space:]]|v|$)' <<<"$server_tree"; then
+if grep -Eq '(^|[[:space:]])(a4n-edge|a4n-control)([[:space:]]|v|$)' <<<"$server_tree"; then
     echo "default Server dependency tree unexpectedly contains supervised process implementation" >&2
     exit 1
 fi
+for package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
+    if grep -Eq "(^|[[:space:]])${package}([[:space:]]|v|$)" <<<"$server_tree"; then
+        echo "default Server dependency tree unexpectedly contains Worker implementation: $package" >&2
+        exit 1
+    fi
+done
 
 worker_client_tree="$(cargo tree --locked -e normal,build -p a4n-worker-client)"
 if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|runtime|orchestrator)|sea-orm|sqlx)([[:space:]]|v|$)' <<<"$worker_client_tree"; then
@@ -68,20 +87,22 @@ if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|runtime|orchestrator)|sea-orm|sql
     exit 1
 fi
 
-novel_client_tree="$(cargo tree --locked -e normal,build -p a4n-novel-planning-worker-client)"
-if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$novel_client_tree"; then
-    echo "Novel Planning client must not pull the Worker implementation" >&2
-    exit 1
-fi
-if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$server_tree"; then
-    echo "default Server dependency tree unexpectedly contains Novel Planning Worker implementation" >&2
-    exit 1
-fi
 control_tree="$(cargo tree --locked -e normal,build -p a4n-control --no-default-features)"
-if grep -Eq '(^|[[:space:]])a4n-novel-planning-worker([[:space:]]|v|$)' <<<"$control_tree"; then
-    echo "Control dependency tree unexpectedly contains Novel Planning Worker implementation" >&2
-    exit 1
-fi
+for package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
+    if grep -Eq "(^|[[:space:]])${package}([[:space:]]|v|$)" <<<"$control_tree"; then
+        echo "Control dependency tree unexpectedly contains Worker implementation: $package" >&2
+        exit 1
+    fi
+done
+for client in "${WORKER_CLIENT_PACKAGES[@]}"; do
+    client_tree="$(cargo tree --locked -e normal,build -p "$client")"
+    for package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
+        if grep -Eq "(^|[[:space:]])${package}([[:space:]]|v|$)" <<<"$client_tree"; then
+            echo "$client dependency tree unexpectedly contains Worker implementation: $package" >&2
+            exit 1
+        fi
+    done
+done
 
 if rg -n 'a4n[-_]export[-_]core' crates/a4n-test-support/Cargo.toml crates/a4n-test-support/src; then
     echo "shared test support must not pull the export Worker implementation" >&2

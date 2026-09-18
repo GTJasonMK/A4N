@@ -128,12 +128,43 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertIn("-p a4n-artifact-media-worker", commands[0])
         self.assertIn("-p a4n-control", commands[0])
 
+    def test_blueprint_worker_change_builds_only_blueprint_worker(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/a4n-blueprint-worker/src/lib.rs")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-blueprint-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-outline-worker", commands[0])
+
+    def test_blueprint_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-blueprint-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-blueprint-worker", commands[0])
+        self.assertNotIn("-p a4n-agent-worker", commands[0])
+
+    def test_blueprint_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-blueprint-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-blueprint-worker ", commands[0])
+        self.assertNotIn("-p a4n-agent-worker", commands[0])
+
     def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-agent-worker", commands[0])
-        self.assertIn("-p a4n-artifact-media-worker", commands[0])
+        for package in (
+            "a4n-agent-worker",
+            "a4n-novel-planning-worker",
+            "a4n-artifact-media-worker",
+            "a4n-outline-worker",
+            "a4n-blueprint-worker",
+        ):
+            self.assertIn(f"-p {package}", commands[0])
 
 
 if __name__ == "__main__":

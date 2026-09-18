@@ -2077,7 +2077,7 @@ mod tests {
     }
 
     #[test]
-    fn outline_worker_binary_change_only_selects_outline_worker() {
+    fn outline_and_blueprint_worker_changes_select_only_changed_worker() {
         let mut edge = live_child();
         let mut control = live_child();
         let mut worker = live_child();
