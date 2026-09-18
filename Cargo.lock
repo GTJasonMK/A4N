@@ -92,6 +92,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-agent-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-agent-runtime-contract",
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "a4n-api-contract"
 version = "0.1.0"
 dependencies = [
@@ -643,6 +658,7 @@ dependencies = [
 name = "a4n-host-assembly"
 version = "0.1.0"
 dependencies = [
+ "a4n-agent-worker-client",
  "a4n-artifact-media-client",
  "a4n-artifact-media-contract",
  "a4n-config",

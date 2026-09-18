@@ -21,7 +21,18 @@
       "agent_approval",
       "agent_memory"
     ],
-    "capabilities": ["agent.run", "agent.host_command"],
+    "capabilities": [
+      "agent.run",
+      "agent.host_command",
+      "agent.thread.ensure_main",
+      "agent.thread.create",
+      "agent.thread.fork",
+      "agent.thread.update",
+      "agent.thread.archive",
+      "agent.thread.list",
+      "agent.thread.show",
+      "agent.thread.messages"
+    ],
     "dependencies": [
       "a4n-control",
       "a4n-migration"

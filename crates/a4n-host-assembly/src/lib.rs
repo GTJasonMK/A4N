@@ -48,6 +48,7 @@ pub async fn initialize_runtime(
     let rag_ingest = Arc::new(orchestrator.clone());
     let artifact_media_worker =
         a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().map(Arc::new);
+    let agent_worker = Arc::new(a4n_agent_worker_client::AgentWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -146,8 +147,8 @@ pub async fn initialize_runtime(
         settings_import_application: Arc::new(orchestrator.clone()),
         prompt_read_application,
         prompt_mutation_application,
-        agent_thread_mutation_application: Arc::new(orchestrator.agent().clone()),
-        agent_thread_read_application: Arc::new(orchestrator.agent().clone()),
+        agent_thread_mutation_application: agent_worker.clone(),
+        agent_thread_read_application: agent_worker.clone(),
         agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
         agent_run_read_application: Arc::new(orchestrator.agent().clone()),
         agent_delegation_application: Arc::new(orchestrator.agent().clone()),

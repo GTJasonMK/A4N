@@ -38,14 +38,18 @@ async fn async_main() -> anyhow::Result<()> {
         .build()?;
     let host = Arc::new(
         HttpAgentRuntimeHost::new(client, control_base_url.clone(), worker_token.clone())
-            .with_application(application),
+            .with_application(application.clone()),
     );
     let runtime = Arc::new(AgentRuntimeState::new(host));
     let listener = tokio::net::TcpListener::bind(worker_address).await?;
     let (shutdown_sender, shutdown_receiver) = oneshot::channel();
     let mut health_server = tokio::spawn(health::serve(
         listener,
-        health::router(worker_id.clone(), worker_token.clone()),
+        health::router(
+            worker_id.clone(),
+            worker_token.clone(),
+            Some(application.clone()),
+        ),
         shutdown_receiver,
     ));
 

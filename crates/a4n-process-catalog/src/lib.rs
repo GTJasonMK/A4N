@@ -360,7 +360,18 @@ mod tests {
         assert!(!entry.data_scope.is_empty());
         assert_eq!(
             entry.capabilities,
-            vec!["agent.run".to_string(), "agent.host_command".to_string()]
+            vec![
+                "agent.run".to_string(),
+                "agent.host_command".to_string(),
+                "agent.thread.ensure_main".to_string(),
+                "agent.thread.create".to_string(),
+                "agent.thread.fork".to_string(),
+                "agent.thread.update".to_string(),
+                "agent.thread.archive".to_string(),
+                "agent.thread.list".to_string(),
+                "agent.thread.show".to_string(),
+                "agent.thread.messages".to_string(),
+            ]
         );
         assert_eq!(entry.migration.current.as_deref(), Some("agent_runtime"));
         assert_eq!(

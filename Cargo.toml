@@ -18,6 +18,7 @@ members = [
     "crates/a4n-agent-application",
     "crates/a4n-agent-runtime",
     "crates/a4n-agent-worker",
+    "crates/a4n-agent-worker-client",
     "crates/a4n-novel-planning-worker-contract",
     "crates/a4n-novel-planning-worker-client",
     "crates/a4n-novel-planning-worker",

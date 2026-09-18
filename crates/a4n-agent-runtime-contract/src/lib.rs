@@ -43,6 +43,16 @@ use serde_json::Value;
 mod ports;
 pub use ports::*;
 
+pub const AGENT_WORKER_ID: &str = "agent-worker";
+pub const AGENT_THREAD_ENSURE_MAIN_OPERATION: &str = "agent.thread.ensure_main";
+pub const AGENT_THREAD_CREATE_OPERATION: &str = "agent.thread.create";
+pub const AGENT_THREAD_FORK_OPERATION: &str = "agent.thread.fork";
+pub const AGENT_THREAD_UPDATE_OPERATION: &str = "agent.thread.update";
+pub const AGENT_THREAD_ARCHIVE_OPERATION: &str = "agent.thread.archive";
+pub const AGENT_THREAD_LIST_OPERATION: &str = "agent.thread.list";
+pub const AGENT_THREAD_SHOW_OPERATION: &str = "agent.thread.show";
+pub const AGENT_THREAD_MESSAGES_OPERATION: &str = "agent.thread.messages";
+
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
 
 pub fn agent_skill_directory_prompt(skills: &[AgentSkillDescriptor]) -> String {
