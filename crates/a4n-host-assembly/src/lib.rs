@@ -51,6 +51,8 @@ pub async fn initialize_runtime(
     let agent_worker = Arc::new(a4n_agent_worker_client::AgentWorkerClient::from_env());
     let blueprint_worker = Arc::new(a4n_blueprint_worker_client::BlueprintWorkerClient::from_env());
     let outline_worker = Arc::new(a4n_outline_worker_client::OutlineWorkerClient::from_env());
+    let asset_graph_worker =
+        Arc::new(a4n_asset_graph_worker_client::AssetGraphWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -78,7 +80,7 @@ pub async fn initialize_runtime(
         project_access_application: Arc::new(orchestrator.clone()),
         project_read_application: Arc::new(orchestrator.clone()),
         project_mutation_application: Arc::new(orchestrator.clone()),
-        project_asset_graph_application: Arc::new(orchestrator.clone()),
+        project_asset_graph_application: asset_graph_worker,
         project_duplication_application: Arc::new(orchestrator.clone()),
         project_family_transfer_application: Arc::new(orchestrator.clone()),
         video_studio_transfer_application: Arc::new(orchestrator.clone()),

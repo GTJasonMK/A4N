@@ -161,5 +161,24 @@
       "min_compatible": "blueprint_read",
       "max_compatible": "blueprint_read"
     }
+  },
+  {
+    "name": "asset-graph-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-asset-graph-worker",
+    "contract_version": "project-asset-graph-v1",
+    "capability_version": "project-asset-graph-v1",
+    "addr_env": "A4N_ASSET_GRAPH_WORKER_ADDR",
+    "url_env": "A4N_ASSET_GRAPH_WORKER_URL",
+    "default_addr": "127.0.0.1:47655",
+    "local_only": true,
+    "data_scope": ["project_dependency_graph"],
+    "capabilities": ["project.asset_graph.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_asset_graph",
+      "min_compatible": "project_asset_graph",
+      "max_compatible": "project_asset_graph"
+    }
   }
 ]

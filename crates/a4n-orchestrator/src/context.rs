@@ -37,7 +37,6 @@ mod profile_mutation;
 mod project_blueprint;
 mod project_chapter_context;
 mod project_chapter_records;
-mod project_dependency_graph;
 mod project_duplication;
 mod project_family;
 mod project_family_transfer;
@@ -85,7 +84,6 @@ use profile_material::ProfileMaterialApplication;
 use project_blueprint::ProjectBlueprintApplication;
 use project_chapter_context::ProjectChapterContextApplication;
 use project_chapter_records::ProjectChapterRecordsApplication;
-use project_dependency_graph::ProjectDependencyGraphApplication;
 use project_duplication::ProjectDuplicationApplication;
 use project_family::ProjectFamilyApplication;
 use project_mutation::ProjectMutationApplication;
@@ -127,7 +125,6 @@ pub struct OrchestratorContext {
     project_blueprint: ProjectBlueprintApplication,
     project_chapter_context: ProjectChapterContextApplication,
     project_chapter_records: ProjectChapterRecordsApplication,
-    project_dependency_graph: ProjectDependencyGraphApplication,
     project_duplication: ProjectDuplicationApplication,
     project_family: ProjectFamilyApplication,
     project_mutation: ProjectMutationApplication,

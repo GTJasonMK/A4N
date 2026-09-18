@@ -10,6 +10,7 @@ test-embedded-processes = [
     "dep:a4n-agent-worker",
     "dep:a4n-artifact-media-worker",
     "dep:a4n-blueprint-worker",
+    "dep:a4n-asset-graph-worker",
     "dep:a4n-outline-worker",
     "dep:a4n-control",
     "dep:a4n-edge",
@@ -34,6 +35,7 @@ embedded-media-providers = [
 a4n-agent-worker = { path = "../a4n-agent-worker", optional = true }
 a4n-artifact-media-worker = { path = "../a4n-artifact-media-worker", optional = true }
 a4n-blueprint-worker = { path = "../a4n-blueprint-worker", optional = true }
+a4n-asset-graph-worker = { path = "../a4n-asset-graph-worker", optional = true }
 a4n-outline-worker = { path = "../a4n-outline-worker", optional = true }
 a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge", optional = true }

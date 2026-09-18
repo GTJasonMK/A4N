@@ -114,6 +114,7 @@ cargo_target_args() {
             printf '%s\n' "-p" "a4n-artifact-media-worker"
             printf '%s\n' "-p" "a4n-outline-worker"
             printf '%s\n' "-p" "a4n-blueprint-worker"
+            printf '%s\n' "-p" "a4n-asset-graph-worker"
         fi
     fi
 

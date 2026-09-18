@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 5);
+        assert_eq!(entries.len(), 6);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -458,12 +458,25 @@ mod tests {
             blueprint.capabilities,
             vec!["blueprint.records.read".to_string()]
         );
+        let asset_graph = entries
+            .iter()
+            .find(|entry| entry.name == "asset-graph-worker")
+            .expect("asset graph worker entry");
+        assert_eq!(asset_graph.kind, ProcessKind::StatefulWorker);
+        assert_eq!(asset_graph.binary, "a4n-asset-graph-worker");
+        assert_eq!(asset_graph.contract_version, "project-asset-graph-v1");
+        assert_eq!(asset_graph.addr_env, "A4N_ASSET_GRAPH_WORKER_ADDR");
+        assert_eq!(asset_graph.default_addr, "127.0.0.1:47655");
+        assert_eq!(
+            asset_graph.capabilities,
+            vec!["project.asset_graph.read".to_string()]
+        );
     }
 
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 14);
+        assert_eq!(entries.len(), 15);
         assert_eq!(
             entries
                 .iter()

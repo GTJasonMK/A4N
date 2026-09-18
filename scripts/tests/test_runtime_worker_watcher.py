@@ -153,6 +153,31 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertNotIn("-p a4n-blueprint-worker ", commands[0])
         self.assertNotIn("-p a4n-agent-worker", commands[0])
 
+    def test_asset_graph_worker_change_builds_only_asset_graph_worker(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/a4n-asset-graph-worker/src/lib.rs")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-asset-graph-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-blueprint-worker", commands[0])
+
+    def test_asset_graph_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-asset-graph-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-asset-graph-worker", commands[0])
+        self.assertNotIn("-p a4n-agent-worker", commands[0])
+
+    def test_asset_graph_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-asset-graph-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-asset-graph-worker ", commands[0])
+        self.assertNotIn("a4n-agent-worker", commands[0])
+
     def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
@@ -163,6 +188,7 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
             "a4n-artifact-media-worker",
             "a4n-outline-worker",
             "a4n-blueprint-worker",
+            "a4n-asset-graph-worker",
         ):
             self.assertIn(f"-p {package}", commands[0])
 

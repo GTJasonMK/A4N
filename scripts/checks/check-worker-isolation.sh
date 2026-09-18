@@ -32,12 +32,14 @@ STATEFUL_WORKER_PACKAGES=(
     a4n-artifact-media-worker
     a4n-outline-worker
     a4n-blueprint-worker
+    a4n-asset-graph-worker
 )
 WORKER_CLIENT_PACKAGES=(
     a4n-novel-planning-worker-client
     a4n-artifact-media-client
     a4n-outline-worker-client
     a4n-blueprint-worker-client
+    a4n-asset-graph-worker-client
 )
 
 LEAF_PACKAGES=(
