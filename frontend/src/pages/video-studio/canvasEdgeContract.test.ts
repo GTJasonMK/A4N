@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canvasGraphSaveValidationError, validateCanvasConnection } from "./canvasEdgeContract";
 import { translateMessage, type MessageTranslator } from "../../i18n";
-import type { StudioNodeContractMap } from "./nodeContracts";
+import { studioNodeInputPortsForData, type StudioNodeContractMap } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
 
 const t: MessageTranslator = (key, params) =>
@@ -57,7 +57,10 @@ const contracts: StudioNodeContractMap = new Map([
       category: "operation",
       runnable: true,
       inputs: [
+        { id: "text", label: "文本", direction: "input", data_type: "text", multiple: true, required: false },
         { id: "first_frame", label: "首帧", direction: "input", data_type: "image", multiple: false, required: false },
+        { id: "end_frame", label: "尾帧", direction: "input", data_type: "image", multiple: false, required: false },
+        { id: "reference_image", label: "参考图", direction: "input", data_type: "image", multiple: true, required: false },
       ],
       outputs: [],
     },
@@ -119,5 +122,22 @@ describe("canvasGraphSaveValidationError", () => {
         t,
       ),
     ).toMatchObject({ sourcePort: "image", targetPort: "first_frame", role: "first_frame" });
+  });
+
+  it("keeps dynamic video image handles aligned with the selected input mode", () => {
+    const contract = contracts.get("GenerateVideoNode");
+    expect(contract).toBeDefined();
+    expect(
+      studioNodeInputPortsForData(
+        { nodeKind: "GenerateVideoNode", config: { input_mode: "text_only" } },
+        contract!,
+      ).map((port) => port.id),
+    ).toEqual(["text"]);
+    expect(
+      studioNodeInputPortsForData(
+        { nodeKind: "GenerateVideoNode", config: { input_mode: "first_end_frame" } },
+        contract!,
+      ).map((port) => port.id),
+    ).toEqual(["text", "first_frame", "end_frame"]);
   });
 });

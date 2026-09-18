@@ -1,5 +1,5 @@
 import React from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
 import {
   CANVAS_TEXT_OUTPUT_KIND_DIALOGUE,
   CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT,
@@ -63,8 +63,9 @@ export function buildNodeTemplateGroups(contracts: StudioNodeContract[], t: Mess
   })).filter((group) => group.items.length > 0);
 }
 
-const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isConnectable }) => {
+const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ id, data, selected, isConnectable }) => {
   const { locale, t } = useI18n();
+  const updateNodeInternals = useUpdateNodeInternals();
   const meta = nodeKindMeta(data.nodeKind, t);
   const contract = useStudioNodeContract(data.nodeKind);
   const Icon = meta.icon;
@@ -77,6 +78,12 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isC
   const outputPorts = contract
     ? studioNodeOutputPortsForData(data, contract).map((port) => ({ id: port.id, label: studioPortLabel(data.nodeKind, port, t) }))
     : [];
+  const handleSignature = `${inputPorts.map((port) => port.id).join(",")}|${outputPorts.map((port) => port.id).join(",")}`;
+
+  React.useEffect(() => {
+    // React Flow caches handle bounds; refresh them when input_mode changes the handle set.
+    updateNodeInternals(id);
+  }, [handleSignature, id, updateNodeInternals]);
 
   return (
     <div
