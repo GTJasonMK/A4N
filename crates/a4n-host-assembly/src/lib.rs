@@ -37,6 +37,8 @@ pub async fn initialize_runtime(
             Ok((llm, embedding))
         },
     )?;
+    let agent_resource_access_application = orchestrator.agent_resource_access_application();
+    let agent_worker_application = orchestrator.agent_worker_application();
 
     let prompt_read_application = Arc::new(orchestrator.clone());
     let prompt_mutation_application = Arc::new(orchestrator.clone());
@@ -173,8 +175,8 @@ pub async fn initialize_runtime(
         agent_memory_read_application: agent_worker.clone(),
         agent_memory_mutation_application: agent_worker.clone(),
         agent_approval_application: agent_worker.clone(),
-        agent_resource_access_application: Arc::new(orchestrator.agent().clone()),
-        agent_worker_application: Arc::new(orchestrator.agent().clone()),
+        agent_resource_access_application,
+        agent_worker_application,
         canvas_read_application: Arc::new(orchestrator.clone()),
         canvas_mutation_application: Arc::new(orchestrator.clone()),
         canvas_render_text_application: Arc::new(orchestrator.clone()),

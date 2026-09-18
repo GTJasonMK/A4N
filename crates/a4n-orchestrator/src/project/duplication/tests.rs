@@ -31,7 +31,7 @@ use serde_json::json;
 
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
-use super::ProjectDuplicationHostPort;
+use a4n_api_contract::project::ProjectDuplicationHostPort;
 
 #[derive(Default)]
 struct TestProjectDuplicationHost {

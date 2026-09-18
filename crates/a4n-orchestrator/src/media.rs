@@ -7,7 +7,6 @@ mod image_generation;
 mod image_record_lifecycle;
 mod image_workflow_rules;
 
-pub use a4n_api_contract::image::{GeneratedImageIdentity, ImageMediaReferencePort};
 pub(crate) use a4n_image_host_contract::{
     GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
     ImageCanvasRequestPreviewApplicationPort, ImageGenerationHostPort, ImageGenerationProgress,

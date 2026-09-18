@@ -64,7 +64,6 @@ pub(crate) use errors::{
     workflow_checkpoint_contract_app_error, workflow_read_app_error, workflow_write_app_error,
 };
 pub(crate) use rules::require_workflow_can_resume;
-pub use rules::{UnifiedResumeDispatch, plan_unified_resume};
 pub(crate) use rules::{
     WorkflowRunFinalizeOutcome, is_video_status_final_for_cancel_interrupt,
     require_positive_workflow_run_id, validate_begin_workflow_run_input,

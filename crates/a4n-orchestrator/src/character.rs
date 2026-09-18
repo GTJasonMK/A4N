@@ -247,10 +247,6 @@ pub(crate) use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncSubject,
 };
-pub use profile_sync_batch::{
-    analysis_sync_character_names, character_names_from_chapter_analysis,
-    character_names_from_discovery_result,
-};
 pub(crate) use profile_sync_stages::{
     CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
     CharacterProfileSyncStageInput,
@@ -259,11 +255,9 @@ pub(crate) use sync_projection::{
     CharacterSyncAttributeEventDraft, pending_character_sync_attribute_events,
     project_character_attribute_changes,
 };
-pub use sync_rules::{
-    CharacterSyncRange, CharacterSyncRangeMode, analysis_profile_sync_skip_reason,
-    character_profile_skipped_result, character_sync_range, character_sync_start_chapter,
-    profile_first_seen_chapter, profile_sync_skip_reason, validate_character_sync_target_chapter,
-    validate_contiguous_character_sync_range,
+pub(crate) use sync_rules::{
+    CharacterSyncRangeMode, character_profile_skipped_result, profile_first_seen_chapter,
+    validate_character_sync_target_chapter, validate_contiguous_character_sync_range,
 };
 pub(crate) use sync_rules::{
     character_profile_sync_business_key, character_profile_sync_mode_label,

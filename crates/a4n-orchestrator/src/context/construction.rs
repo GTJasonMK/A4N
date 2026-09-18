@@ -21,9 +21,9 @@ use super::{
     ShootingScriptApplication, SourceSyncApplication, TextAnchorApplication, VideoApplication,
     WorkflowApplication,
 };
-use crate::agent::AgentApplication;
 use crate::chapter_generation::ChapterGenerationService;
 use crate::context::dynamic_provider::ProviderRuntimeAdapter;
+use a4n_agent_application::agent::AgentApplication;
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 impl OrchestratorContext {
@@ -70,7 +70,7 @@ impl OrchestratorContext {
         let chapter =
             crate::chapter_generation::ChapterGenerationService::new(db.shared_connection());
         let admin = AdminApplication::new(db.clone());
-        let agent = AgentApplication::new(db.clone());
+        let agent = Arc::new(AgentApplication::new(db.clone()));
         let asset = AssetApplication::new(db.clone());
         let auth = AuthApplication::new(db.clone());
         let canvas = CanvasApplication::new(db.clone());
@@ -168,8 +168,20 @@ impl OrchestratorContext {
         })
     }
 
-    pub fn agent(&self) -> &AgentApplication {
-        &self.agent
+    pub(crate) fn agent(&self) -> &AgentApplication {
+        self.agent.as_ref()
+    }
+
+    pub fn agent_resource_access_application(
+        &self,
+    ) -> Arc<dyn a4n_api_contract::agent::AgentResourceAccessApplicationPort> {
+        self.agent.clone()
+    }
+
+    pub fn agent_worker_application(
+        &self,
+    ) -> Arc<dyn a4n_agent_runtime_contract::AgentWorkerApplicationPort> {
+        self.agent.clone()
     }
 
     /// 发布内部事件（状态/蓝图等），统一经 EventBus，避免旁路直连。
@@ -199,20 +211,6 @@ impl OrchestratorContext {
         &self.config.data_dir
     }
 
-    /// 日志目录。
-    pub fn log_dir(&self) -> &std::path::Path {
-        &self.config.log_dir
-    }
-
-    /// 临时目录。
-    pub fn temp_dir(&self) -> &std::path::Path {
-        &self.config.temp_dir
-    }
-
-    /// Embedding 模型缓存目录。
-    pub fn embedding_models_dir(&self) -> std::path::PathBuf {
-        self.config.embedding_models_dir()
-    }
     /// 取消已注册任务句柄。
     pub(crate) fn cancel_task_handle(&self, task_id: &str) -> bool {
         self.task_manager.cancel(task_id)

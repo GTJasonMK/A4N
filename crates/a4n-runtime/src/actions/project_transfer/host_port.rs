@@ -66,13 +66,13 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
                 ),
             );
         }
-        if !media_sha256.is_empty() {
-            if let Some(manifest) = input.manifest.as_object_mut() {
-                manifest.insert(
-                    "media_sha256".to_string(),
-                    serde_json::Value::Object(media_sha256),
-                );
-            }
+        if !media_sha256.is_empty()
+            && let Some(manifest) = input.manifest.as_object_mut()
+        {
+            manifest.insert(
+                "media_sha256".to_string(),
+                serde_json::Value::Object(media_sha256),
+            );
         }
         let manifest = crate::sidecar_clients::render_export_json_manifest_bytes(
             self.state.runtime_profile(),

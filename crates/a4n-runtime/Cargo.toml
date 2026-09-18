@@ -126,7 +126,6 @@ uuid = { workspace = true }
 zip = { workspace = true, features = ["deflate"] }
 
 [dev-dependencies]
-a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-migration = { path = "../a4n-migration" }
 a4n-prompt = { path = "../a4n-prompt", features = ["test-support"] }
 a4n-test-support = { path = "../a4n-test-support" }

@@ -285,7 +285,7 @@ impl OrchestratorContext {
                 })?;
             if matches!(
                 outcome,
-                crate::generation::GenerationTerminalWriteOutcome::NoLiveSession
+                crate::generation::terminal::GenerationTerminalWriteOutcome::NoLiveSession
             ) {
                 self.interrupt_generation_destructive_task(
                     task,
