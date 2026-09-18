@@ -2084,6 +2084,7 @@ mod tests {
         let mut novel_planning_worker = live_child();
         let mut artifact_media_worker = live_child();
         let mut outline_worker = live_child();
+        let mut blueprint_worker = live_child();
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
         let control_binary = tempdir.path().join("a4n-control");
         let worker_binary = tempdir.path().join("a4n-agent-worker");
@@ -2091,6 +2092,7 @@ mod tests {
         let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
         let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
         let outline_binary = tempdir.path().join("a4n-outline-worker");
+        let blueprint_binary = tempdir.path().join("a4n-blueprint-worker");
         for (path, content) in [
             (&control_binary, b"control".as_slice()),
             (&worker_binary, b"worker".as_slice()),
@@ -2098,6 +2100,7 @@ mod tests {
             (&novel_binary, b"novel".as_slice()),
             (&artifact_binary, b"artifact".as_slice()),
             (&outline_binary, b"old-outline".as_slice()),
+            (&blueprint_binary, b"old-blueprint".as_slice()),
         ] {
             std::fs::write(path, content).expect("worker fixture should be written");
         }
@@ -2107,6 +2110,7 @@ mod tests {
         let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
         let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
         let outline_fingerprint = super::binary_fingerprint(&outline_binary).unwrap();
+        let blueprint_fingerprint = super::binary_fingerprint(&blueprint_binary).unwrap();
         std::fs::write(&outline_binary, b"new-outline").expect("outline replacement should write");
 
         let result = super::wait_for_edge_or_child_with_outline(
@@ -2124,6 +2128,7 @@ mod tests {
             &artifact_binary,
             artifact_fingerprint,
             Some((&mut outline_worker, &outline_binary, outline_fingerprint)),
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -2135,6 +2140,41 @@ mod tests {
             result,
             Some(super::ChildWatchEvent::OutlineWorkerChanged)
         ));
+
+        std::fs::write(&blueprint_binary, b"new-blueprint")
+            .expect("blueprint replacement should write");
+        let outline_fingerprint = super::binary_fingerprint(&outline_binary).unwrap();
+        let result = super::wait_for_edge_or_child_with_outline(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            Some((&mut outline_worker, &outline_binary, outline_fingerprint)),
+            Some((
+                &mut blueprint_worker,
+                &blueprint_binary,
+                blueprint_fingerprint,
+            )),
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::BlueprintWorkerChanged)
+        ));
         for child in [
             &mut edge,
             &mut control,
@@ -2142,6 +2182,7 @@ mod tests {
             &mut novel_planning_worker,
             &mut artifact_media_worker,
             &mut outline_worker,
+            &mut blueprint_worker,
         ] {
             child.kill().expect("test child should stop");
             child.wait().expect("test child should be reaped");
