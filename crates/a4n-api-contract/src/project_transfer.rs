@@ -6,6 +6,14 @@ use serde_json::Value;
 
 pub const PROJECT_FAMILY_PACKAGE_SUFFIX: &str = ".a4n-family.zip";
 pub const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX: &str = ".a4n-video-studio.zip";
+pub const PROJECT_BUNDLE_PACKAGE_SUFFIX: &str = ".a4n-project.zip";
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ExportProjectBundleDataInput {
+    pub project_id: i64,
+    pub include_derived_projects: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -37,6 +45,29 @@ pub struct ExportProjectPackageData {
 pub struct ImportProjectPackageUploadInput {
     pub file_name: String,
     pub data_base64: String,
+}
+
+pub type InspectProjectBundleUploadInput = ImportProjectPackageUploadInput;
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ProjectBundleProviderSlotReport {
+    pub slot_key: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub configuration_fingerprint_sha256: String,
+    pub status: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct ProjectBundleImportReport {
+    pub project_summaries: Vec<crate::project::ProjectSummary>,
+    pub conversations_imported: usize,
+    pub messages_imported: usize,
+    pub workflow_runs_imported: usize,
+    pub workflow_runs_marked_interrupted: usize,
+    pub generation_runs_imported: usize,
+    pub missing_provider_slots: Vec<ProjectBundleProviderSlotReport>,
+    pub warnings: Vec<String>,
 }
 
 /// 项目包内的媒体文件索引。
@@ -180,4 +211,33 @@ pub trait VideoStudioProjectTransferApplicationPort: Send + Sync {
 pub struct ExportVideoStudioProjectApplicationInput {
     pub user_id: i64,
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportProjectBundleApplicationInput {
+    pub user_id: i64,
+    pub project_id: i64,
+    pub include_derived_projects: bool,
+}
+
+/// Unified project/family/canvas transfer boundary.
+#[async_trait::async_trait]
+pub trait ProjectBundleTransferApplicationPort: Send + Sync {
+    async fn export_bundle(
+        &self,
+        input: ExportProjectBundleApplicationInput,
+        host_port: &dyn ProjectPackageTransferHostPort,
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>;
+
+    async fn inspect_bundle(
+        &self,
+        input: ImportProjectPackageApplicationInput,
+        host_port: &mut dyn ProjectPackageTransferHostPort,
+    ) -> Result<ProjectBundleImportReport, ProjectPackageTransferError>;
+
+    async fn import_bundle(
+        &self,
+        input: ImportProjectPackageApplicationInput,
+        host_port: &mut dyn ProjectPackageTransferHostPort,
+    ) -> Result<ProjectBundleImportReport, ProjectPackageTransferError>;
 }

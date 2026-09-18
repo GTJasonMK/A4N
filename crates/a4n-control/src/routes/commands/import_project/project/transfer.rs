@@ -18,6 +18,11 @@ project_web_input_value_command!(
     project_transfer_actions::ExportVideoStudioProjectDataInput,
     project_transfer_actions::export_video_studio_project_data
 );
+project_web_input_value_command!(
+    export_project_bundle_data,
+    project_transfer_actions::ExportProjectBundleDataInput,
+    project_transfer_actions::export_project_bundle_data
+);
 
 pub(in crate::routes::commands) async fn import_project_family_upload(
     state: &ServerState,
@@ -41,4 +46,14 @@ project_web_input_summary_command!(
     import_video_studio_project_upload,
     project_transfer_actions::ImportProjectPackageUploadInput,
     project_transfer_actions::import_video_studio_project_upload_summary
+);
+project_web_input_summary_command!(
+    inspect_project_bundle_upload,
+    project_transfer_actions::ImportProjectPackageUploadInput,
+    project_transfer_actions::inspect_project_bundle_upload
+);
+project_web_input_summary_command!(
+    import_project_bundle_upload,
+    project_transfer_actions::ImportProjectPackageUploadInput,
+    project_transfer_actions::import_project_bundle_upload
 );

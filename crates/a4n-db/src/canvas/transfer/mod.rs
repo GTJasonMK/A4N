@@ -6,7 +6,9 @@ mod remap;
 mod types;
 
 pub use export::video_studio_project_export_rows;
-pub use import_project::import_video_studio_project_record;
+pub use import_project::{
+    import_video_studio_project_record, import_video_studio_project_record_into_existing,
+};
 pub use types::{
     VideoStudioProjectExportRows, VideoStudioProjectImportError,
     VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter,

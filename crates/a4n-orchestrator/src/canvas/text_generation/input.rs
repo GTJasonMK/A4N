@@ -5,7 +5,7 @@ use a4n_db::generation::{
 use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 
 use crate::canvas::{
-    canvas_config_f32, canvas_config_i64, canvas_config_string,
+    canvas_config_f32, canvas_config_i64, canvas_config_string, ensure_canvas_provider_slot_ready,
     source_text::collect_canvas_text_source_context,
 };
 
@@ -16,6 +16,7 @@ pub(super) fn build_canvas_llm_text_input(
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasLlmTextInput, String> {
+    ensure_canvas_provider_slot_ready(&node.config_json, "LLM")?;
     let sources = collect_canvas_text_source_context(node, document, checkpoints, "LlmTextNode")?;
     let config_id = canvas_config_i64(&node.config_json, "llm_config_id");
     let instruction = canvas_config_string(&node.config_json, "instruction")

@@ -7,10 +7,12 @@ import type {
   CreateFreeformVideoProjectInput,
   CreateProjectInput,
   ExportDerivedProjectDataInput,
+  ExportProjectBundleDataInput,
   ExportProjectFamilyDataInput,
   ExportProjectPackageData,
   ExportVideoStudioProjectDataInput,
   ImportProjectPackageUploadInput,
+  ProjectBundleImportReport,
   InviteProjectMemberInput,
   PaginatedProjects as ApiPaginatedProjects,
   ProjectAccessScope as ApiProjectAccessScope,
@@ -29,6 +31,7 @@ import type {
 } from "./generated/host";
 
 export {
+  PROJECT_BUNDLE_PACKAGE_SUFFIX,
   PROJECT_FAMILY_PACKAGE_SUFFIX,
   VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
 } from "./generated/host";
@@ -42,10 +45,12 @@ export type {
   AssetLineageRecord,
   AssetLineageRef,
   ExportDerivedProjectDataInput,
+  ExportProjectBundleDataInput,
   ExportProjectFamilyDataInput,
   ExportProjectPackageData,
   ExportVideoStudioProjectDataInput,
   ImportProjectPackageUploadInput,
+  ProjectBundleImportReport,
   GenerationInputSource,
   PromptSource,
   ProjectRollbackImpactSummary,
@@ -357,6 +362,14 @@ export async function exportProjectFamilyData(
   });
 }
 
+export async function exportProjectBundleData(
+  input: ExportProjectBundleDataInput,
+): Promise<ExportProjectPackageData> {
+  return apiInvoke<ExportProjectPackageData>("export_project_bundle_data", {
+    input,
+  });
+}
+
 export async function exportDerivedProjectData(
   input: ExportDerivedProjectDataInput,
 ): Promise<ExportProjectPackageData> {
@@ -385,6 +398,22 @@ export async function importVideoStudioProjectUpload(
   input: ImportProjectPackageUploadInput,
 ): Promise<NovelProject> {
   return apiInvoke<NovelProject>("import_video_studio_project_upload", {
+    input,
+  });
+}
+
+export async function inspectProjectBundleUpload(
+  input: ImportProjectPackageUploadInput,
+): Promise<ProjectBundleImportReport> {
+  return apiInvoke<ProjectBundleImportReport>("inspect_project_bundle_upload", {
+    input,
+  });
+}
+
+export async function importProjectBundleUpload(
+  input: ImportProjectPackageUploadInput,
+): Promise<ProjectBundleImportReport> {
+  return apiInvoke<ProjectBundleImportReport>("import_project_bundle_upload", {
     input,
   });
 }

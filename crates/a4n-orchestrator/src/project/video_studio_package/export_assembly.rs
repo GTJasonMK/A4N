@@ -11,10 +11,26 @@ use crate::project::{MediaFileEntry, validate_freeform_video_project};
 /// 组装视频画布导出 manifest。
 pub(crate) fn assemble_video_studio_export_package(
     project: novel_project::Model,
-    mut rows: VideoStudioProjectExportRows,
+    rows: VideoStudioProjectExportRows,
     media_files: Vec<MediaFileEntry>,
 ) -> Result<VideoStudioProjectPackage, String> {
     validate_freeform_video_project(&project, "视频画布项目导出")?;
+    assemble_video_studio_project_canvas_package(project, rows, media_files)
+}
+
+/// 组装已属于项目族的 video 项目画布数据。
+pub(crate) fn assemble_video_studio_project_canvas_package(
+    project: novel_project::Model,
+    rows: VideoStudioProjectExportRows,
+    media_files: Vec<MediaFileEntry>,
+) -> Result<VideoStudioProjectPackage, String> {
+    if project.project_kind != "video" {
+        return Err(format!(
+            "画布数据只能挂在 video 项目上: project_id={}",
+            project.id
+        ));
+    }
+    let mut rows = rows;
     for image in &mut rows.generated_images {
         if let Some(metadata) = image.metadata_json.as_mut() {
             clear_canvas_transfer_runtime_identity(metadata);

@@ -2,7 +2,8 @@ use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 
 use crate::canvas::{
-    canvas_config_i64, i64_to_i32, source_text::collect_canvas_text_source_context,
+    canvas_config_i64, ensure_canvas_provider_slot_ready, i64_to_i32,
+    source_text::collect_canvas_text_source_context,
 };
 
 use super::contracts::CanvasImageNodeInput;
@@ -11,6 +12,7 @@ pub fn build_canvas_image_node_input_for_preview(
     node: &canvas_node::Model,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasImageNodeInput, String> {
+    ensure_canvas_provider_slot_ready(&node.config_json, "图片")?;
     build_canvas_image_node_input(node, document, None)
 }
 

@@ -72,6 +72,7 @@ mod generation_params_rules;
 mod json_field_rules;
 mod package_rules;
 mod package_transfer;
+mod project_bundle;
 mod video_studio_package;
 mod video_studio_transfer;
 
@@ -119,11 +120,17 @@ pub(crate) use package_transfer::{
     import_result_with_file_rollback, index_import_media_payload, project_package_export_input,
 };
 
+pub(crate) use project_bundle::{
+    MANIFEST_PATH as PROJECT_BUNDLE_MANIFEST_PATH, ProjectBundlePackage, ProjectBundleProviderSlot,
+    assemble_project_bundle,
+};
+
 pub(crate) use video_studio_package::{MANIFEST_PATH, VideoStudioProjectPackage};
 #[cfg(test)]
 pub(crate) use video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
 pub(crate) use video_studio_package::{
-    assemble_video_studio_export_package, validate_package_manifest,
+    assemble_video_studio_export_package, assemble_video_studio_project_canvas_package,
+    validate_package_manifest,
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 

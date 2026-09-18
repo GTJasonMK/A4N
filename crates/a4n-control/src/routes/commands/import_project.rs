@@ -61,13 +61,13 @@ pub(super) use portrait::{
 pub(super) use project::{
     accept_project_invite, create_derived_project, create_freeform_video_project, create_project,
     decline_project_invite, delete_project, duplicate_project, export_derived_project_data,
-    export_project_family_data, export_video_studio_project_data, forward_project_status,
-    get_project, get_project_asset_dependency_graph,
+    export_project_bundle_data, export_project_family_data, export_video_studio_project_data,
+    forward_project_status, get_project, get_project_asset_dependency_graph,
     get_project_asset_dependency_graph_node_detail, get_project_status_machine,
-    import_project_family_upload, import_video_studio_project_upload, invite_project_member,
-    leave_project, list_my_project_invites, list_project_invites, list_project_members,
-    list_projects, list_source_snapshot_chapters, preview_rollback, remove_project_member,
-    reset_project_generated_data, revoke_project_invite, rollback_project_status, update_project,
-    update_project_member_role,
+    import_project_bundle_upload, import_project_family_upload, import_video_studio_project_upload,
+    inspect_project_bundle_upload, invite_project_member, leave_project, list_my_project_invites,
+    list_project_invites, list_project_members, list_projects, list_source_snapshot_chapters,
+    preview_rollback, remove_project_member, reset_project_generated_data, revoke_project_invite,
+    rollback_project_status, update_project, update_project_member_role,
 };
 pub(super) use reverse::{is_reverse_engineer_web_command, run_reverse_engineer_web_command};

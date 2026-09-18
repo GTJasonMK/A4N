@@ -5,18 +5,19 @@ use super::super::{
     delete_latest_chapter_outlines, delete_optimize_session, delete_project,
     detach_derived_project, diff_blueprint_versions, diff_profile_chapters,
     discard_pending_optimize_patch_sets, duplicate_project, edit_chapter_shooting_script,
-    export_derived_project_data, export_outline_json_data, export_project_family_data,
-    forward_project_status, generate_chapter_analysis, generate_chapter_scene,
-    generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit, get_blueprint,
-    get_chapter_outlines_pacing, get_chapter_shooting_script,
-    get_chapter_shooting_script_unit_progress, get_generation_progress, get_inspiration_history,
-    get_optimize_session, get_profile_state_at_chapter, get_project,
-    get_project_import_analysis_progress, get_project_status_machine, import_chapter,
-    import_project_family_upload, invite_project_member, leave_project, list_blueprint_versions,
-    list_chapter_outlines, list_chapter_scenes, list_chapters, list_my_project_invites,
-    list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
-    list_orphan_project_data_dirs, list_project_invites, list_project_members, list_projects,
-    list_source_snapshot_chapters, preview_apply_beat_mapping_request,
+    export_derived_project_data, export_outline_json_data, export_project_bundle_data,
+    export_project_family_data, forward_project_status, generate_chapter_analysis,
+    generate_chapter_scene, generate_chapter_shooting_script,
+    generate_next_chapter_shooting_script_unit, get_blueprint, get_chapter_outlines_pacing,
+    get_chapter_shooting_script, get_chapter_shooting_script_unit_progress,
+    get_generation_progress, get_inspiration_history, get_optimize_session,
+    get_profile_state_at_chapter, get_project, get_project_import_analysis_progress,
+    get_project_status_machine, import_chapter, import_project_bundle_upload,
+    import_project_family_upload, inspect_project_bundle_upload, invite_project_member,
+    leave_project, list_blueprint_versions, list_chapter_outlines, list_chapter_scenes,
+    list_chapters, list_my_project_invites, list_optimize_patch_sets, list_optimize_sessions,
+    list_optimize_turns, list_orphan_project_data_dirs, list_project_invites, list_project_members,
+    list_projects, list_source_snapshot_chapters, preview_apply_beat_mapping_request,
     preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
     preview_chapter_prompt, preview_chapter_scene_request, preview_continue_part_outlines_request,
     preview_generate_blueprint_request, preview_generate_chapter_outlines_by_count_request,
@@ -118,9 +119,16 @@ async fn try_dispatch_projects(
         "remove_project_member" => remove_project_member(state, user_id, args).await?,
         "leave_project" => leave_project(state, user_id, args).await?,
         "export_project_family_data" => export_project_family_data(state, user_id, args).await?,
+        "export_project_bundle_data" => export_project_bundle_data(state, user_id, args).await?,
         "export_derived_project_data" => export_derived_project_data(state, user_id, args).await?,
         "import_project_family_upload" => {
             import_project_family_upload(state, user_id, args).await?
+        }
+        "inspect_project_bundle_upload" => {
+            inspect_project_bundle_upload(state, user_id, args).await?
+        }
+        "import_project_bundle_upload" => {
+            import_project_bundle_upload(state, user_id, args).await?
         }
         "forward_project_status" => forward_project_status(state, user_id, args).await?,
         "duplicate_project" => duplicate_project(state, user_id, args).await?,

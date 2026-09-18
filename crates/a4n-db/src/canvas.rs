@@ -24,7 +24,7 @@ pub use transfer::{
     VideoStudioProjectExportRows, VideoStudioProjectImportError,
     VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter,
     VideoStudioProjectImportRows, import_video_studio_project_record,
-    video_studio_project_export_rows,
+    import_video_studio_project_record_into_existing, video_studio_project_export_rows,
 };
 
 pub(crate) use references::{

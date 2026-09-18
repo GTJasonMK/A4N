@@ -67,6 +67,7 @@ pub async fn initialize_runtime(
         project_asset_graph_application: Arc::new(orchestrator.clone()),
         project_duplication_application: Arc::new(orchestrator.clone()),
         project_family_transfer_application: Arc::new(orchestrator.clone()),
+        project_bundle_transfer_application: Arc::new(orchestrator.clone()),
         video_studio_transfer_application: Arc::new(orchestrator.clone()),
         chapter_scene_read_application: Arc::new(orchestrator.clone()),
         chapter_scene_mutation_application: Arc::new(orchestrator.clone()),

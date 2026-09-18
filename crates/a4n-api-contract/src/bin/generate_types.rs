@@ -246,9 +246,11 @@ use a4n_api_contract::{
         ProjectSummary, PromptSource, SourceSnapshotChapterSummary, UpdateProjectInput,
     },
     project_transfer::{
-        ExportDerivedProjectDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
-        ExportVideoStudioProjectDataInput, ImportProjectPackageUploadInput,
-        PROJECT_FAMILY_PACKAGE_SUFFIX, VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+        ExportDerivedProjectDataInput, ExportProjectBundleDataInput, ExportProjectFamilyDataInput,
+        ExportProjectPackageData, ExportVideoStudioProjectDataInput,
+        ImportProjectPackageUploadInput, PROJECT_BUNDLE_PACKAGE_SUFFIX,
+        PROJECT_FAMILY_PACKAGE_SUFFIX, ProjectBundleImportReport, ProjectBundleProviderSlotReport,
+        VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
     },
     prompt::{
         AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
@@ -834,12 +836,15 @@ fn main() {
         &typescript_interface::<ClientRagIngestUploadInput>("ClientRagIngestUploadInput"),
         &typescript_interface::<RagIngestResult>("RagIngestResult"),
         &typescript_interface::<ExportProjectFamilyDataInput>("ExportProjectFamilyDataInput"),
+        &typescript_interface::<ExportProjectBundleDataInput>("ExportProjectBundleDataInput"),
         &typescript_interface::<ExportDerivedProjectDataInput>("ExportDerivedProjectDataInput"),
         &typescript_interface::<ExportVideoStudioProjectDataInput>(
             "ExportVideoStudioProjectDataInput",
         ),
         &typescript_interface::<ExportProjectPackageData>("ExportProjectPackageData"),
         &typescript_interface::<ImportProjectPackageUploadInput>("ImportProjectPackageUploadInput"),
+        &typescript_interface::<ProjectBundleImportReport>("ProjectBundleImportReport"),
+        &typescript_interface::<ProjectBundleProviderSlotReport>("ProjectBundleProviderSlotReport"),
         &typescript_enum::<ImportReviewStatus>("ImportReviewStatus"),
         &typescript_interface::<ImportReviewSummary>("ImportReviewSummary"),
         &typescript_interface::<ImportProjectReviewsInput>("ImportProjectReviewsInput"),
@@ -1435,7 +1440,8 @@ fn typescript_llm_constants() -> String {
 
 fn typescript_project_package_suffixes() -> String {
     format!(
-        "export const PROJECT_FAMILY_PACKAGE_SUFFIX = {PROJECT_FAMILY_PACKAGE_SUFFIX:?};\n\
+        "export const PROJECT_BUNDLE_PACKAGE_SUFFIX = {PROJECT_BUNDLE_PACKAGE_SUFFIX:?};\n\
+         export const PROJECT_FAMILY_PACKAGE_SUFFIX = {PROJECT_FAMILY_PACKAGE_SUFFIX:?};\n\
          export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = {VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX:?};\n\n"
     )
 }
