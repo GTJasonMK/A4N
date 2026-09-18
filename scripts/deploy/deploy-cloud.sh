@@ -465,7 +465,7 @@ ensure_builder_image() {
 build_backend() {
     log_section "本地容器构建后端"
     ensure_builder_image
-    mkdir -p "$CARGO_TARGET_DIR"
+    mkdir -p "$CARGO_TARGET_DIR" "$CACHE_ROOT"
 
     local offline_flag=()
     local docker_cache_mounts=(
