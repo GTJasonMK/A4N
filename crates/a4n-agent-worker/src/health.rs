@@ -2,16 +2,19 @@ use std::{net::SocketAddr, sync::Arc};
 
 use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime_contract::{
-    AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION, AGENT_MEMORY_LIST_OPERATION,
-    AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION, AGENT_THREAD_ARCHIVE_OPERATION,
-    AGENT_THREAD_CREATE_OPERATION, AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION,
-    AGENT_THREAD_LIST_OPERATION, AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION,
-    AGENT_THREAD_UPDATE_OPERATION, AgentMemoryListInput,
+    AGENT_APPROVAL_RESOLVE_OPERATION, AGENT_DELEGATION_REVIEW_OPERATION,
+    AGENT_DELEGATION_SPAWN_OPERATION, AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION,
+    AGENT_MEMORY_LIST_OPERATION, AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION,
+    AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
+    AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
+    AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
+    AgentDelegationReviewCommand, AgentMemoryListInput,
 };
 use a4n_api_contract::agent::{
-    AgentEventReadApplicationPort, AgentMemoryMutationApplicationPort,
-    AgentMemoryReadApplicationPort, AgentRunReadApplicationPort,
-    AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort,
+    AgentApprovalApplicationPort, AgentDelegationApplicationPort, AgentEventReadApplicationPort,
+    AgentMemoryMutationApplicationPort, AgentMemoryReadApplicationPort,
+    AgentRunReadApplicationPort, AgentThreadMutationApplicationPort,
+    AgentThreadReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
@@ -54,6 +57,9 @@ const WORKER_OPERATIONS: &[&str] = &[
     AGENT_MEMORY_LIST_OPERATION,
     AGENT_MEMORY_CREATE_OPERATION,
     AGENT_MEMORY_RETRACT_OPERATION,
+    AGENT_APPROVAL_RESOLVE_OPERATION,
+    AGENT_DELEGATION_SPAWN_OPERATION,
+    AGENT_DELEGATION_REVIEW_OPERATION,
 ];
 
 #[derive(Clone)]
@@ -119,6 +125,18 @@ pub(crate) fn router(
         .route(
             "/v1/commands/agent.memory.retract",
             axum::routing::post(retract_memory),
+        )
+        .route(
+            "/v1/commands/agent.approval.resolve",
+            axum::routing::post(resolve_approval),
+        )
+        .route(
+            "/v1/commands/agent.delegation.spawn",
+            axum::routing::post(spawn_delegation),
+        )
+        .route(
+            "/v1/commands/agent.delegation.review",
+            axum::routing::post(review_delegation),
         )
         .with_state(HealthState {
             worker_id: Arc::<str>::from(worker_id),
@@ -347,6 +365,60 @@ async fn retract_memory(
         AGENT_MEMORY_RETRACT_OPERATION,
         |app, user_id, payload| async move {
             app.retract_memory(user_id, decode_payload(payload)?).await
+        },
+    )
+    .await
+}
+
+async fn resolve_approval(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_APPROVAL_RESOLVE_OPERATION,
+        |app, user_id, payload| async move {
+            app.resolve_approval(user_id, decode_payload(payload)?)
+                .await
+        },
+    )
+    .await
+}
+
+async fn spawn_delegation(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_DELEGATION_SPAWN_OPERATION,
+        |app, user_id, payload| async move {
+            app.spawn_agent(user_id, decode_payload(payload)?).await
+        },
+    )
+    .await
+}
+
+async fn review_delegation(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_DELEGATION_REVIEW_OPERATION,
+        |app, user_id, payload| async move {
+            let command: AgentDelegationReviewCommand = decode_payload(payload)?;
+            app.review_delegation(user_id, command.input, command.parent_run_id)
+                .await
         },
     )
     .await
@@ -700,7 +772,10 @@ mod tests {
                 {"name": AGENT_EVENT_LIST_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_MEMORY_LIST_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_MEMORY_CREATE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
-                {"name": AGENT_MEMORY_RETRACT_OPERATION, "version": CAPABILITY_VERSION, "enabled": true}
+                {"name": AGENT_MEMORY_RETRACT_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_APPROVAL_RESOLVE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_DELEGATION_SPAWN_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_DELEGATION_REVIEW_OPERATION, "version": CAPABILITY_VERSION, "enabled": true}
             ])
         );
         assert!(value.get("capability_version").is_none());

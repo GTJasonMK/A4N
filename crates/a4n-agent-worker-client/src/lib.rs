@@ -1,20 +1,23 @@
 //! Typed Host adapter for the Agent Worker user-facing thread API.
 
 use a4n_agent_runtime_contract::{
-    AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION, AGENT_MEMORY_LIST_OPERATION,
-    AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION, AGENT_THREAD_ARCHIVE_OPERATION,
-    AGENT_THREAD_CREATE_OPERATION, AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION,
-    AGENT_THREAD_LIST_OPERATION, AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION,
-    AGENT_THREAD_UPDATE_OPERATION, AGENT_WORKER_ID, AgentMemoryListInput,
+    AGENT_APPROVAL_RESOLVE_OPERATION, AGENT_DELEGATION_REVIEW_OPERATION,
+    AGENT_DELEGATION_SPAWN_OPERATION, AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION,
+    AGENT_MEMORY_LIST_OPERATION, AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION,
+    AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
+    AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
+    AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
+    AGENT_WORKER_ID, AgentDelegationReviewCommand, AgentMemoryListInput,
 };
 use a4n_api_contract::agent::{
-    AgentEvent, AgentEventReadApplicationPort, AgentMemoryInput,
+    AgentApprovalApplicationPort, AgentApprovalView, AgentDelegationApplicationPort,
+    AgentDelegationView, AgentEvent, AgentEventReadApplicationPort, AgentMemoryInput,
     AgentMemoryMutationApplicationPort, AgentMemoryReadApplicationPort, AgentMemoryScopeKind,
     AgentMemoryView, AgentMessageView, AgentRunReadApplicationPort, AgentRunView,
     AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort, AgentThreadSnapshot,
     AgentThreadView, ArchiveAgentThreadInput, CreateAgentThreadInput, EnsureMainAgentThreadInput,
-    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, RetractAgentMemoryInput,
-    UpdateAgentThreadInput,
+    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, ResolveAgentApprovalInput,
+    RetractAgentMemoryInput, ReviewAgentDelegationInput, SpawnAgentInput, UpdateAgentThreadInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -255,6 +258,47 @@ impl AgentMemoryMutationApplicationPort for AgentWorkerClient {
     ) -> Result<AgentMemoryView, AppError> {
         self.command(user_id, AGENT_MEMORY_RETRACT_OPERATION, input)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentApprovalApplicationPort for AgentWorkerClient {
+    async fn resolve_approval(
+        &self,
+        user_id: i64,
+        input: ResolveAgentApprovalInput,
+    ) -> Result<AgentApprovalView, AppError> {
+        self.command(user_id, AGENT_APPROVAL_RESOLVE_OPERATION, input)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentDelegationApplicationPort for AgentWorkerClient {
+    async fn spawn_agent(
+        &self,
+        user_id: i64,
+        input: SpawnAgentInput,
+    ) -> Result<AgentDelegationView, AppError> {
+        self.command(user_id, AGENT_DELEGATION_SPAWN_OPERATION, input)
+            .await
+    }
+
+    async fn review_delegation(
+        &self,
+        user_id: i64,
+        input: ReviewAgentDelegationInput,
+        parent_run_id: Option<i64>,
+    ) -> Result<AgentDelegationView, AppError> {
+        self.command(
+            user_id,
+            AGENT_DELEGATION_REVIEW_OPERATION,
+            AgentDelegationReviewCommand {
+                input,
+                parent_run_id,
+            },
+        )
+        .await
     }
 }
 

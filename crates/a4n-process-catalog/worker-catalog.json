@@ -36,7 +36,10 @@
       "agent.event.list",
       "agent.memory.list",
       "agent.memory.create",
-      "agent.memory.retract"
+      "agent.memory.retract",
+      "agent.approval.resolve",
+      "agent.delegation.spawn",
+      "agent.delegation.review"
     ],
     "dependencies": [
       "a4n-control",

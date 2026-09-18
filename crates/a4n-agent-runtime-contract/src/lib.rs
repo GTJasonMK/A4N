@@ -57,12 +57,22 @@ pub const AGENT_EVENT_LIST_OPERATION: &str = "agent.event.list";
 pub const AGENT_MEMORY_LIST_OPERATION: &str = "agent.memory.list";
 pub const AGENT_MEMORY_CREATE_OPERATION: &str = "agent.memory.create";
 pub const AGENT_MEMORY_RETRACT_OPERATION: &str = "agent.memory.retract";
+pub const AGENT_APPROVAL_RESOLVE_OPERATION: &str = "agent.approval.resolve";
+pub const AGENT_DELEGATION_SPAWN_OPERATION: &str = "agent.delegation.spawn";
+pub const AGENT_DELEGATION_REVIEW_OPERATION: &str = "agent.delegation.review";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentMemoryListInput {
     pub scope_kind: Option<AgentMemoryScopeKind>,
     pub scope_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentDelegationReviewCommand {
+    pub input: ReviewAgentDelegationInput,
+    pub parent_run_id: Option<i64>,
 }
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
