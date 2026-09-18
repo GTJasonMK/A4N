@@ -49,6 +49,7 @@
     ],
     "capabilities": [
       "shooting_script.current",
+      "shooting_script.unit_progress",
       "shooting_script.edit",
       "shooting_script.delete",
       "shooting_script.publish",

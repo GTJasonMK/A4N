@@ -1,19 +1,20 @@
 mod design;
 mod screenplay;
 
-use a4n_db::project::ResolvedChapterSource;
+use a4n_api_contract::shooting_script::{
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
+};
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
 use crate::{OrchestratorContext, workflow::WORKFLOW_STATUS_INTERRUPTED};
 
 use self::{
-    design::{generate_shooting_scene, restore_shooting_scene},
+    design::generate_shooting_scene,
     screenplay::{
         assemble_screenplay_layout_unit, assemble_screenplay_plan_unit,
         generate_screenplay_adaptation_unit, generate_screenplay_layout_unit,
-        generate_screenplay_skeleton, restore_screenplay_adaptation_unit,
-        restore_screenplay_layout_unit, restore_screenplay_skeleton,
+        generate_screenplay_skeleton,
     },
 };
 use super::{
@@ -32,139 +33,76 @@ enum ShootingScriptGenerationOutcome {
         script: Box<a4n_domain::shooting_script::ChapterShootingScriptV1>,
         completed_unit_count: usize,
         total_unit_count: usize,
+        source_content_sha256: String,
     },
     Complete(Box<ResolvedChapterShootingScript>),
 }
 
-fn progress_source(source: ChapterShootingScriptSourceInput) -> ChapterShootingScriptSourceInput {
-    ChapterShootingScriptSourceInput {
-        visual_plan_id: None,
-        ..source
-    }
-}
-
-fn shared_workflow_source(source: &ResolvedChapterSource) -> ChapterShootingScriptSourceInput {
-    ChapterShootingScriptSourceInput {
-        project_id: source.root_project_id,
-        source_chapter_id: source.source_chapter_id,
-        visual_plan_id: None,
-    }
-}
-
 impl OrchestratorContext {
-    pub async fn current_chapter_shooting_script_unit_progress_for_user_validated(
-        &self,
-        user_id: i64,
-        source: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptUnitProgress>, AppError> {
-        self.verify_project_or_derived_family_access_validated(user_id, source.project_id)
-            .await?;
-        self.current_chapter_shooting_script_unit_progress(source)
-            .await
-    }
-
     pub(crate) async fn current_chapter_shooting_script_unit_progress(
         &self,
         source: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptUnitProgress>, AppError> {
-        let source = progress_source(source);
+        let source = ChapterShootingScriptSourceInput {
+            visual_plan_id: None,
+            ..source
+        };
         let (requested_source, _) = self
             .load_chapter_shooting_script_source_record(&source)
             .await?;
-        let workflow_source_input = shared_workflow_source(&requested_source);
         let run = self
             .workflow_runs_by_project_kind(
-                workflow_source_input.project_id,
+                requested_source.root_project_id,
                 CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
             )
             .await?
             .into_iter()
             .find(|run| {
-                run.chapter_id == Some(workflow_source_input.source_chapter_id)
+                run.chapter_id == Some(requested_source.source_chapter_id)
                     && run.can_resume
                     && run.status != crate::workflow::WORKFLOW_STATUS_SUPERSEDED
             });
         let Some(run) = run else {
             return Ok(None);
         };
-        let (workflow_source, _) = self
-            .load_chapter_shooting_script_source_record(&workflow_source_input)
-            .await?;
-        let visual_plan = self
-            .confirmed_visual_plan_for_shooting_script(&workflow_source, None)
-            .await?;
-        let prepared = self
-            .prepare_chapter_shooting_script_request(RegenerateChapterShootingScriptInput {
-                project_id: workflow_source.requested_project_id,
-                source_chapter_id: workflow_source.source_chapter_id,
-                workflow_run_id: run.id,
-                visual_plan_id: visual_plan.record.id,
-            })
-            .await?;
-        if prepared.source.content_sha256 != requested_source.content_sha256 {
+        let Some(snapshot) = run
+            .progress_json
+            .as_ref()
+            .and_then(|progress| progress.get("snapshot"))
+        else {
             return Ok(None);
-        }
-        let skeleton = restore_screenplay_skeleton(&prepared)?;
-        let total_unit_count = skeleton.units.len();
-        let mut plan_units = Vec::with_capacity(total_unit_count);
-        let mut scenes = Vec::with_capacity(total_unit_count);
-        for offset in 0..total_unit_count {
-            let skeleton_unit = &skeleton.units[offset];
-            let Some(detail) =
-                restore_screenplay_layout_unit(self, run.id, &prepared, &skeleton, skeleton_unit)
-                    .await?
-            else {
-                break;
-            };
-            let layout_unit = assemble_screenplay_layout_unit(skeleton_unit, detail);
-            let Some(adaptation) =
-                restore_screenplay_adaptation_unit(self, run.id, &prepared, &layout_unit).await?
-            else {
-                break;
-            };
-            let plan_unit = assemble_screenplay_plan_unit(&layout_unit, adaptation);
-            let Some(scene) = restore_shooting_scene(self, run.id, &prepared, &plan_unit).await?
-            else {
-                break;
-            };
-            plan_units.push(plan_unit);
-            scenes.push(scene);
-        }
-        if scenes.is_empty() {
-            return Ok(None);
-        }
-        let script = assemble_available_shooting_script(
-            &skeleton.directing_statement,
-            &plan_units,
-            scenes,
-            &prepared.visual_plan,
-            &prepared.visual_plan_projection,
-        )?;
-        let completed_unit_count = script.scenes.len();
-        let resolved = if completed_unit_count == total_unit_count
-            && run.status == crate::workflow::WORKFLOW_STATUS_COMPLETED
-        {
-            let (_, current) = self
-                .load_current_chapter_shooting_script_source(&workflow_source_input)
-                .await?;
-            let Some(current) = current else {
-                // A deleted published record can keep its completed workflow audit row;
-                // that row is history, not resumable progress.
-                return Ok(None);
-            };
-            Some(ResolvedChapterShootingScript {
-                source: workflow_source,
-                shooting_script: current,
-            })
-        } else {
-            None
         };
+        let checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
+            serde_json::from_value(snapshot.clone()).map_err(|error| {
+                AppError::InvalidArgument(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
+            })?;
+        if checkpoint.version != 1
+            || checkpoint.source_content_sha256 != requested_source.content_sha256
+            || checkpoint.progress.workflow_run_id != run.id
+            || checkpoint.progress.completed_unit_count == 0
+            || checkpoint.progress.completed_unit_count != checkpoint.progress.script.scenes.len()
+            || checkpoint.progress.completed_unit_count > checkpoint.progress.total_unit_count
+        {
+            return Ok(None);
+        }
+        let visual_plan = self
+            .confirmed_visual_plan_for_shooting_script(&requested_source, None)
+            .await?;
+        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_ref() else {
+            return Ok(None);
+        };
+        if identity.plan_id != visual_plan.record.id
+            || identity.plan_version != visual_plan.record.plan_version
+            || identity.plan_sha256 != visual_plan.record.plan_sha256
+        {
+            return Ok(None);
+        }
         Ok(Some(ChapterShootingScriptUnitProgress {
             workflow_run_id: run.id,
-            script,
-            completed_unit_count,
-            total_unit_count,
-            resolved,
+            script: checkpoint.progress.script,
+            completed_unit_count: checkpoint.progress.completed_unit_count,
+            total_unit_count: checkpoint.progress.total_unit_count,
+            resolved: None,
         }))
     }
 
@@ -220,6 +158,7 @@ impl OrchestratorContext {
                 script,
                 completed_unit_count,
                 total_unit_count,
+                source_content_sha256,
             }) => {
                 let reason = format!(
                     "已在场景边界暂停：已完成 {completed_unit_count}/{total_unit_count} 个场景"
@@ -229,6 +168,22 @@ impl OrchestratorContext {
                     WORKFLOW_STATUS_INTERRUPTED,
                     true,
                     Some(&reason),
+                )
+                .await?;
+                let checkpoint = ChapterShootingScriptUnitProgressCheckpoint {
+                    version: 1,
+                    source_content_sha256,
+                    progress: ChapterShootingScriptUnitProgressView {
+                        workflow_run_id,
+                        script: (*script).clone(),
+                        completed_unit_count,
+                        total_unit_count,
+                        completed_record: None,
+                    },
+                };
+                self.persist_workflow_progress_snapshot(
+                    workflow_run_id,
+                    serde_json::to_value(checkpoint)?,
                 )
                 .await?;
                 Ok(ChapterShootingScriptUnitProgress {
@@ -434,6 +389,7 @@ impl OrchestratorContext {
                     completed_unit_count: script.scenes.len(),
                     total_unit_count,
                     script: Box::new(script),
+                    source_content_sha256: prepared.source.content_sha256.clone(),
                 });
             }
         }
@@ -469,49 +425,5 @@ impl OrchestratorContext {
         Ok(ShootingScriptGenerationOutcome::Complete(Box::new(
             resolved,
         )))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use a4n_api_contract::shooting_script::ChapterShootingScriptSourceInput;
-    use a4n_db::project::ResolvedChapterSource;
-
-    use super::{progress_source, shared_workflow_source};
-
-    #[test]
-    fn progress_ignores_requested_visual_plan_id() {
-        let source = progress_source(ChapterShootingScriptSourceInput {
-            project_id: 26,
-            source_chapter_id: 11,
-            visual_plan_id: Some(26),
-        });
-
-        assert_eq!(source.project_id, 26);
-        assert_eq!(source.source_chapter_id, 11);
-        assert_eq!(source.visual_plan_id, None);
-    }
-
-    #[test]
-    fn derived_project_reads_partial_workflow_from_shared_root_project() {
-        let source = ResolvedChapterSource {
-            requested_project_id: 25,
-            root_project_id: 24,
-            source_chapter_id: 6,
-            source_snapshot_id: Some(18),
-            source_snapshot_chapter_id: Some(20),
-            chapter_number: 1,
-            title: None,
-            summary: None,
-            analysis_data_json: None,
-            content: "章节正文".to_string(),
-            content_sha256: "hash".to_string(),
-            source_revision_key: "snapshot:18:chapter:20:hash".to_string(),
-        };
-
-        let workflow_source = shared_workflow_source(&source);
-
-        assert_eq!(workflow_source.project_id, 24);
-        assert_eq!(workflow_source.source_chapter_id, 6);
     }
 }

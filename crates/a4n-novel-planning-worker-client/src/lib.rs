@@ -11,17 +11,18 @@ use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
     EditChapterShootingScriptInput, EditedChapterShootingScriptView,
     PublishChapterShootingScriptInput, ShootingScriptCurrentReadApplicationPort,
-    ShootingScriptRecordMutationApplicationPort,
+    ShootingScriptRecordMutationApplicationPort, ShootingScriptUnitProgressReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_novel_planning_worker_contract::{
     CONFIRM_VISUAL_PLAN_OPERATION, ConfirmVisualPlanPayload, CurrentShootingScriptPayload,
     DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION, DeleteShootingScriptPayload,
     DiscardVisualPlanPayload, EDIT_SHOOTING_SCRIPT_OPERATION, EditShootingScriptPayload,
-    GET_CURRENT_SHOOTING_SCRIPT_OPERATION, GET_VISUAL_PLAN_OPERATION, GetVisualPlanPayload,
-    NOVEL_PLANNING_WORKER_ID, PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
-    READ_VISUAL_PLAN_OPERATION, ReadVisualPlanPayload, SAVE_VISUAL_PLAN_DRAFT_OPERATION,
-    SaveVisualPlanDraftPayload, VALIDATE_VISUAL_PLAN_OPERATION, ValidateVisualPlanPayload,
+    GET_CURRENT_SHOOTING_SCRIPT_OPERATION, GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION,
+    GET_VISUAL_PLAN_OPERATION, GetVisualPlanPayload, NOVEL_PLANNING_WORKER_ID,
+    PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload, READ_VISUAL_PLAN_OPERATION,
+    ReadVisualPlanPayload, SAVE_VISUAL_PLAN_DRAFT_OPERATION, SaveVisualPlanDraftPayload,
+    ShootingScriptUnitProgressPayload, VALIDATE_VISUAL_PLAN_OPERATION, ValidateVisualPlanPayload,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -147,6 +148,30 @@ impl ShootingScriptCurrentReadApplicationPort for NovelPlanningWorkerClient {
             input.project_id,
             None,
             GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
+            input,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ShootingScriptUnitProgressReadApplicationPort for NovelPlanningWorkerClient {
+    async fn unit_progress(
+        &self,
+        user_id: i64,
+        input: ChapterShootingScriptSourceInput,
+    ) -> Result<
+        Option<a4n_api_contract::shooting_script::ChapterShootingScriptUnitProgressView>,
+        AppError,
+    > {
+        self.command::<
+            ShootingScriptUnitProgressPayload,
+            Option<a4n_api_contract::shooting_script::ChapterShootingScriptUnitProgressView>,
+        >(
+            user_id,
+            input.project_id,
+            None,
+            GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION,
             input,
         )
         .await

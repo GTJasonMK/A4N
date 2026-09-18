@@ -21,26 +21,12 @@ pub(in crate::shooting_script) use workflow_rules::chapter_shooting_script_workf
 
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-    ShootingScriptUnitProgressReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_novel_host_contract::{
     ShootingScriptFullGenerationApplicationPort, ShootingScriptNextUnitGenerationApplicationPort,
 };
 use tokio_util::sync::CancellationToken;
-
-#[async_trait::async_trait]
-impl ShootingScriptUnitProgressReadApplicationPort for crate::OrchestratorContext {
-    async fn unit_progress(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptUnitProgressView>, AppError> {
-        self.current_chapter_shooting_script_unit_progress_for_user_validated(user_id, input)
-            .await
-            .map(|progress| progress.map(chapter_shooting_script_unit_progress_view))
-    }
-}
 
 #[async_trait::async_trait]
 impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext {

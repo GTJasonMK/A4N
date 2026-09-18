@@ -11,6 +11,7 @@ use a4n_api_contract::chapter_visual_plan::{
 };
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSourceInput,
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
     ChapterShootingScriptView, DeleteChapterShootingScriptInput, EditChapterShootingScriptInput,
     EditedChapterShootingScriptView, PublishChapterShootingScriptInput,
 };
@@ -19,11 +20,13 @@ use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_novel_planning_worker_contract::{
     CONFIRM_VISUAL_PLAN_OPERATION, DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION,
     EDIT_SHOOTING_SCRIPT_OPERATION, GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
-    GET_VISUAL_PLAN_OPERATION, NOVEL_PLANNING_WORKER_CONTRACT_VERSION, NOVEL_PLANNING_WORKER_ID,
+    GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION, GET_VISUAL_PLAN_OPERATION,
+    NOVEL_PLANNING_WORKER_CONTRACT_VERSION, NOVEL_PLANNING_WORKER_ID,
     PUBLISH_SHOOTING_SCRIPT_OPERATION, READ_VISUAL_PLAN_OPERATION,
     SAVE_VISUAL_PLAN_DRAFT_OPERATION, SHOOTING_SCRIPT_CURRENT_CAPABILITY,
     SHOOTING_SCRIPT_DELETE_CAPABILITY, SHOOTING_SCRIPT_EDIT_CAPABILITY,
-    SHOOTING_SCRIPT_PUBLISH_CAPABILITY, VALIDATE_VISUAL_PLAN_OPERATION,
+    SHOOTING_SCRIPT_PUBLISH_CAPABILITY, SHOOTING_SCRIPT_UNIT_PROGRESS_CAPABILITY,
+    SHOOTING_SCRIPT_WORKFLOW_KIND, VALIDATE_VISUAL_PLAN_OPERATION,
     VISUAL_PLAN_PERSISTENCE_CAPABILITY,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
@@ -88,6 +91,10 @@ impl NovelPlanningWorker {
             .route(
                 "/v1/commands/novel_planning.shooting_script.current",
                 post(current),
+            )
+            .route(
+                "/v1/commands/novel_planning.shooting_script.unit_progress",
+                post(unit_progress),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.edit",
@@ -211,6 +218,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 enabled: true,
             },
             WorkerCapability {
+                name: SHOOTING_SCRIPT_UNIT_PROGRESS_CAPABILITY.into(),
+                version: NOVEL_PLANNING_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
                 name: SHOOTING_SCRIPT_EDIT_CAPABILITY.into(),
                 version: NOVEL_PLANNING_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
@@ -244,6 +256,21 @@ async fn current(
         return unauthorized();
     }
     let response = match state.current(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn unit_progress(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ChapterShootingScriptSourceInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.unit_progress(request.clone()).await {
         Ok(payload) => completed(&request, payload),
         Err(error) => failed(&request, error),
     };
@@ -411,6 +438,90 @@ impl WorkerState {
             record: record_summary(record.record),
             script: record.script,
         }))
+    }
+
+    async fn unit_progress(
+        &self,
+        request: WorkerEnvelope<ChapterShootingScriptSourceInput>,
+    ) -> Result<Option<ChapterShootingScriptUnitProgressView>, WorkerFailure> {
+        validate_request(&request, GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = user_id(&request)?;
+        verify_family_permission(
+            self.database.connection(),
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let source = resolve_source(
+            self,
+            request.payload.project_id,
+            request.payload.source_chapter_id,
+        )
+        .await?;
+        let runs = a4n_db::workflow::workflow_runs_by_project_kind(
+            self.database.connection(),
+            source.root_project_id,
+            SHOOTING_SCRIPT_WORKFLOW_KIND,
+        )
+        .await
+        .map_err(workflow_read_error)?;
+        let Some(run) = runs.into_iter().find(|run| {
+            run.chapter_id == Some(source.source_chapter_id)
+                && run.can_resume
+                && run.status != a4n_domain::workflow::WORKFLOW_STATUS_SUPERSEDED
+        }) else {
+            return Ok(None);
+        };
+        let Some(snapshot) = run
+            .progress_json
+            .as_ref()
+            .and_then(|progress| progress.get("snapshot"))
+        else {
+            return Ok(None);
+        };
+        let checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
+            serde_json::from_value(snapshot.clone()).map_err(|error| {
+                WorkerFailure::invalid_request(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
+            })?;
+        if checkpoint.version != 1 {
+            return Err(WorkerFailure::invalid_request(format!(
+                "不支持的章节拍摄剧本进度 snapshot 版本: {}",
+                checkpoint.version
+            )));
+        }
+        if checkpoint.source_content_sha256 != source.content_sha256 {
+            return Ok(None);
+        }
+        if checkpoint.progress.workflow_run_id != run.id
+            || checkpoint.progress.completed_unit_count == 0
+            || checkpoint.progress.completed_unit_count != checkpoint.progress.script.scenes.len()
+            || checkpoint.progress.completed_unit_count > checkpoint.progress.total_unit_count
+        {
+            return Err(WorkerFailure::invalid_request(
+                "章节拍摄剧本进度 snapshot 的场景数量不一致",
+            ));
+        }
+        let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
+            self.database.connection(),
+            &source,
+        )
+        .await
+        .map_err(visual_plan_error)?
+        .ok_or_else(|| WorkerFailure::not_found("当前正文缺少 confirmed 导演编排方案"))?;
+        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_ref() else {
+            return Err(WorkerFailure::invalid_request(
+                "章节拍摄剧本进度 snapshot 缺少视觉编排身份",
+            ));
+        };
+        if identity.plan_id != confirmed.record.id
+            || identity.plan_version != confirmed.record.plan_version
+            || identity.plan_sha256 != confirmed.record.plan_sha256
+        {
+            return Ok(None);
+        }
+        Ok(Some(checkpoint.progress))
     }
 
     async fn edit(
@@ -1305,6 +1416,19 @@ fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerF
             WorkerFailure::not_found(message)
         }
         a4n_db::project::ProjectFamilyDbError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn workflow_read_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
+    match error {
+        a4n_db::workflow::WorkflowReadError::InvalidArgument(message)
+        | a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
+        a4n_db::workflow::WorkflowReadError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }

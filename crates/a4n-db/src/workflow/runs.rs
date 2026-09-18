@@ -21,7 +21,9 @@ pub use mutations::{
     resume_workflow_run, resume_workflow_run_with_active_task, upsert_workflow_run,
     upsert_workflow_run_in_transaction,
 };
-pub use progress::{record_workflow_progress_event, workflow_progress_events};
+pub use progress::{
+    persist_workflow_progress_snapshot, record_workflow_progress_event, workflow_progress_events,
+};
 pub use queries::{
     latest_workflow_run_by_business_key, latest_workflow_run_by_business_key_for_update,
     latest_workflow_run_recovery_records_by_business_keys,

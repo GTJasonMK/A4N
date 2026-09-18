@@ -106,6 +106,17 @@ pub struct ChapterShootingScriptUnitProgressView {
     pub completed_record: Option<ChapterShootingScriptRecordSummary>,
 }
 
+/// Durable snapshot written when scene-level generation pauses at a unit
+/// boundary. The Worker reads this instead of reconstructing LLM checkpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ChapterShootingScriptUnitProgressCheckpoint {
+    pub version: u32,
+    #[schemars(length(min = 64, max = 64))]
+    pub source_content_sha256: String,
+    pub progress: ChapterShootingScriptUnitProgressView,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct EditedChapterShootingScriptView {
     pub shooting_script: ChapterShootingScriptView,
@@ -114,8 +125,8 @@ pub struct EditedChapterShootingScriptView {
 
 /// Host-facing read boundary for the persisted current record.
 ///
-/// The unit-progress read remains a separate transitional port because its
-/// workflow state is still owned by the generation application.
+/// The unit-progress read remains separate because it returns a durable
+/// scene-level generation snapshot rather than a published record.
 #[async_trait::async_trait]
 pub trait ShootingScriptCurrentReadApplicationPort: Send + Sync {
     async fn current(
@@ -127,8 +138,8 @@ pub trait ShootingScriptCurrentReadApplicationPort: Send + Sync {
 
 /// Host-facing read boundary for generation progress.
 ///
-/// Workflow checkpoint reconstruction remains with the generation owner until
-/// the generation worker contract carries that state explicitly.
+/// The generation owner persists the snapshot; the planning Worker reads and
+/// validates it for Host callers.
 #[async_trait::async_trait]
 pub trait ShootingScriptUnitProgressReadApplicationPort: Send + Sync {
     async fn unit_progress(

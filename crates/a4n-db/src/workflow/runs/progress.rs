@@ -90,6 +90,45 @@ pub async fn record_workflow_progress_event(
     Ok(event)
 }
 
+/// Stores a typed, durable snapshot alongside the public progress summary.
+/// Resumable interrupted runs may update this after their final progress event.
+pub async fn persist_workflow_progress_snapshot(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    snapshot: Value,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    if !snapshot.is_object() {
+        return Err(WorkflowWriteError::InvalidData(
+            "工作流 snapshot 必须是 JSON object".to_string(),
+        ));
+    }
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    if !workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: run.status,
+            operation: "保存工作流进度 snapshot".to_string(),
+        });
+    }
+    let mut progress = run.progress_json.clone().unwrap_or_else(|| json!({}));
+    let Some(progress) = progress.as_object_mut() else {
+        return Err(WorkflowWriteError::InvalidData(
+            "工作流 progress_json 必须是 JSON object".to_string(),
+        ));
+    };
+    progress.insert("snapshot".to_string(), snapshot);
+    let mut active: workflow_run::ActiveModel = run.into();
+    active.progress_json = Set(Some(Value::Object(progress.clone())));
+    active.updated_at = Set(Utc::now().naive_utc());
+    let updated = active
+        .update(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(updated)
+}
+
 pub(in crate::workflow) fn validate_workflow_progress_range(
     current: u32,
     total: u32,

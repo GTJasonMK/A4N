@@ -384,6 +384,7 @@ mod tests {
             novel.capabilities,
             vec![
                 "shooting_script.current".to_string(),
+                "shooting_script.unit_progress".to_string(),
                 "shooting_script.edit".to_string(),
                 "shooting_script.delete".to_string(),
                 "shooting_script.publish".to_string(),

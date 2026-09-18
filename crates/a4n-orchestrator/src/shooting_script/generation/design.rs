@@ -94,23 +94,6 @@ fn design_unit_request(
     )
 }
 
-pub(in crate::shooting_script) async fn restore_shooting_scene(
-    orchestrator: &OrchestratorContext,
-    workflow_run_id: i64,
-    prepared: &PreparedChapterShootingScriptRequest,
-    unit: &ScreenplayPlanUnit,
-) -> Result<Option<ShootingSceneV1>, AppError> {
-    let request = design_unit_request(prepared, workflow_run_id, unit)?;
-    orchestrator
-        .restore_completed_shooting_script_stage(
-            workflow_run_id,
-            &format!("shooting_design_unit:{}", unit.narrative_unit_index),
-            &request,
-            |output| validate_design_unit(output, unit, prepared),
-        )
-        .await
-}
-
 fn validate_design_unit(
     scene: &ShootingSceneV1,
     unit: &ScreenplayPlanUnit,
