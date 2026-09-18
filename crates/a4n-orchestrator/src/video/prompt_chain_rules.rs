@@ -84,10 +84,27 @@ pub fn prompt_chain_matches<L: PromptChainFields, R: PromptChainFields>(
     left: &L,
     right: &R,
 ) -> bool {
+    prompt_chain_matches_with_duration(workflow_mode, left, right, true)
+}
+
+pub fn prompt_chain_matches_for_initial_frame_image<L: PromptChainFields, R: PromptChainFields>(
+    workflow_mode: &str,
+    left: &L,
+    right: &R,
+) -> bool {
+    prompt_chain_matches_with_duration(workflow_mode, left, right, false)
+}
+
+fn prompt_chain_matches_with_duration<L: PromptChainFields, R: PromptChainFields>(
+    workflow_mode: &str,
+    left: &L,
+    right: &R,
+    match_duration: bool,
+) -> bool {
     prompt_workflow_matches_chain(left, workflow_mode)
         && prompt_workflow_matches_chain(right, workflow_mode)
         && current_chain_contract_versions_match(workflow_mode, left, right)
-        && video_execution_identity_matches(left, right)
+        && video_execution_identity_matches(left, right, match_duration)
 }
 
 fn prompt_workflow_matches_chain<P: PromptChainFields>(prompt: &P, workflow_mode: &str) -> bool {
@@ -103,6 +120,7 @@ pub fn prompt_source_type_matches<P: PromptChainFields>(prompt: &P, expected: &s
 fn video_execution_identity_matches<L: PromptChainFields, R: PromptChainFields>(
     left: &L,
     right: &R,
+    match_duration: bool,
 ) -> bool {
     let Some(left_identity) = left
         .metadata_json()
@@ -125,16 +143,17 @@ fn video_execution_identity_matches<L: PromptChainFields, R: PromptChainFields>(
     {
         return false;
     }
-    let base_matches = identity_fields_match(
-        left_identity,
-        right_identity,
+    let base_fields: &[&str] = if match_duration {
         &[
             "source_content_sha256",
             "style_sha256",
             "duration_secs",
             "aspect_ratio",
-        ],
-    );
+        ]
+    } else {
+        &["source_content_sha256", "style_sha256", "aspect_ratio"]
+    };
+    let base_matches = identity_fields_match(left_identity, right_identity, base_fields);
     base_matches && segment_execution_scope_matches(left, right, left_identity, right_identity)
 }
 

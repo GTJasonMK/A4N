@@ -111,7 +111,8 @@ pub(crate) use prompt_application::{
     validate_video_segment_plan_generation_options,
 };
 pub(in crate::video) use prompt_chain_rules::{
-    PromptChainFields, prompt_chain_matches, prompt_source_type_matches,
+    PromptChainFields, prompt_chain_matches, prompt_chain_matches_for_initial_frame_image,
+    prompt_source_type_matches,
 };
 pub(crate) use prompt_generation::validate_video_inserted_segment_generation_options;
 pub(in crate::video) use prompt_generation::{
