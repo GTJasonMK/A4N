@@ -5,8 +5,7 @@ use a4n_api_contract::profile::{
     UploadProfileMaterialImageInput,
 };
 use a4n_db::profile_material::{
-    generated_image_profile_material_identity, profile_material_identity,
-    profile_material_identity_from_fields,
+    generated_image_profile_material_identity, profile_material_identity_from_fields,
 };
 
 use a4n_db_models::models::{
@@ -511,16 +510,6 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub(crate) async fn profile_material_image_ids(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_id: i64,
-    ) -> Result<Vec<i64>, AppError> {
-        self.profile_material_image_ids_by_profile(project_id, kind, profile_id)
-            .await
-    }
-
     async fn require_profile_material_editor(
         &self,
         user_id: i64,
@@ -742,7 +731,7 @@ fn profile_material_publication_details(
     let kind = match profile_kind {
         a4n_db::profile_material::PROFILE_KIND_SCENE => ProfileMaterialKind::Scene,
         a4n_db::profile_material::PROFILE_KIND_OBJECT => ProfileMaterialKind::Object,
-        _ => unreachable!("profile_material_identity only returns known profile kinds"),
+        _ => unreachable!("profile material identity only returns known profile kinds"),
     };
     let set_primary = parse_profile_material_set_primary(image_type, metadata.get("set_primary"))?;
     Ok((kind, profile_id, set_primary))

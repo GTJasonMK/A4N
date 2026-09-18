@@ -130,7 +130,6 @@ pub async fn initialize_runtime(
         character_implicit_review_read_application: orchestrator.clone(),
         character_profile_deletion_application: orchestrator.clone(),
         character_conflict_application: orchestrator.clone(),
-        scene_profile_mutation_application: orchestrator.clone(),
         foreshadowing_read_application: foreshadowing_worker,
         foreshadowing_mutation_application: orchestrator.clone(),
         blueprint_read_application: blueprint_worker.clone(),

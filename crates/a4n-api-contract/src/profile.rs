@@ -210,6 +210,28 @@ pub struct SceneProfileDeleteOutcome {
     pub downstream_image_ids: Vec<i64>,
 }
 
+/// Host-facing scene profile mutation boundary implemented by the scene worker client.
+#[async_trait::async_trait]
+pub trait SceneProfileMutationApplicationPort: Send + Sync {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteSceneProfileInput,
+    ) -> Result<SceneProfileDeleteOutcome, a4n_error::AppError>;
+}
+
 /// Host-facing object profile mutation boundary.
 ///
 /// Authorization, conflict policy, persistence and DTO projection stay with
@@ -234,28 +256,6 @@ pub trait ObjectProfileMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: DeleteObjectProfileInput,
     ) -> Result<ObjectProfileDeleteOutcome, a4n_error::AppError>;
-}
-
-/// Host-facing scene profile mutation boundary.
-#[async_trait::async_trait]
-pub trait SceneProfileMutationApplicationPort: Send + Sync {
-    async fn create(
-        &self,
-        user_id: i64,
-        input: CreateSceneProfileInput,
-    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
-
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateSceneProfileInput,
-    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteSceneProfileInput,
-    ) -> Result<SceneProfileDeleteOutcome, a4n_error::AppError>;
 }
 
 /// Host-facing object profile read boundary.

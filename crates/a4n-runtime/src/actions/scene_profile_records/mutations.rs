@@ -8,6 +8,8 @@ use crate::{
         delete_downstream_images_if_requested, downstream_cleanup_warnings,
     },
 };
+use a4n_api_contract::profile::SceneProfileMutationApplicationPort;
+use a4n_scene_profile_worker_client::SceneProfileWorkerClient;
 
 pub async fn create_scene_profile(
     state: &AppState,
@@ -15,8 +17,7 @@ pub async fn create_scene_profile(
     input: CreateSceneProfileInput,
 ) -> Result<SceneProfileMutationResult, String> {
     let project_id = input.project_id;
-    let outcome = state
-        .scene_profile_mutation_application()
+    let outcome = SceneProfileWorkerClient::from_env()
         .create(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -35,8 +36,7 @@ pub async fn update_scene_profile(
     user_id: i64,
     input: UpdateSceneProfileInput,
 ) -> Result<SceneProfileMutationResult, String> {
-    let outcome = state
-        .scene_profile_mutation_application()
+    let outcome = SceneProfileWorkerClient::from_env()
         .update(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -55,8 +55,7 @@ pub async fn delete_scene_profile(
     user_id: i64,
     input: DeleteSceneProfileInput,
 ) -> Result<SceneProfileDeleteResult, String> {
-    let outcome = state
-        .scene_profile_mutation_application()
+    let outcome = SceneProfileWorkerClient::from_env()
         .delete(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)?;

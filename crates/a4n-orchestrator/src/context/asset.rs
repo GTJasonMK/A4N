@@ -1,22 +1,12 @@
-use a4n_api_contract::{
-    collaboration::ProjectAccessRole,
-    profile::{ObjectProfileInput, ObjectProfileSummary},
-};
+use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_db::{DbHandle, asset::ObjectProfileUpsertRecordResult};
 use a4n_db_models::models::asset::object_profile;
-use a4n_domain::{
-    object_profile::ObjectProfileEvidenceRecordInput, profile_material::ProfileMaterialKind,
-};
+use a4n_domain::object_profile::ObjectProfileEvidenceRecordInput;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
 
-use crate::asset::{
-    asset_error,
-    object_profiles::{
-        normalize_object_profile_record_input, normalize_object_profile_record_inputs,
-    },
-};
+use crate::asset::{asset_error, object_profiles::normalize_object_profile_record_inputs};
 
 #[derive(Clone)]
 pub(super) struct AssetApplication {

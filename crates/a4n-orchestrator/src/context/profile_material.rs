@@ -3,10 +3,7 @@
 //! 持有 `DbHandle`，封装资料列表、按类型图片查询与主素材 upsert/delete。
 
 use a4n_db::DbHandle;
-use a4n_db::profile_material::{
-    ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows,
-};
-use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_db::profile_material::{ProfileMaterialDbError, ProfileMaterialListRows};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -34,39 +31,6 @@ impl ProfileMaterialApplication {
             self.connection(),
             project_id,
             image_types,
-        )
-        .await
-        .map_err(profile_material_db_error)
-    }
-
-    async fn profile_material_image_identity_rows_by_type(
-        &self,
-        project_id: i64,
-        image_type: &str,
-    ) -> Result<Vec<ProfileMaterialImageIdentityRow>, AppError> {
-        a4n_db::profile_material::profile_material_image_identity_rows_by_type(
-            self.connection(),
-            project_id,
-            image_type,
-        )
-        .await
-        .map_err(profile_material_db_error)
-    }
-
-    async fn profile_material_image_ids_by_profile(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_id: i64,
-    ) -> Result<Vec<i64>, AppError> {
-        a4n_db::profile_material::profile_material_image_ids_by_profile(
-            self.connection(),
-            project_id,
-            match kind {
-                ProfileMaterialKind::Scene => a4n_domain::image::IMAGE_TYPE_SCENE_MATERIAL,
-                ProfileMaterialKind::Object => a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL,
-            },
-            profile_id,
         )
         .await
         .map_err(profile_material_db_error)
@@ -122,27 +86,6 @@ impl OrchestratorContext {
     ) -> Result<ProfileMaterialListRows, AppError> {
         self.profile_material
             .profile_material_list_rows(project_id, image_types)
-            .await
-    }
-
-    pub(crate) async fn profile_material_image_identity_rows_by_type(
-        &self,
-        project_id: i64,
-        image_type: &str,
-    ) -> Result<Vec<ProfileMaterialImageIdentityRow>, AppError> {
-        self.profile_material
-            .profile_material_image_identity_rows_by_type(project_id, image_type)
-            .await
-    }
-
-    pub(crate) async fn profile_material_image_ids_by_profile(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_id: i64,
-    ) -> Result<Vec<i64>, AppError> {
-        self.profile_material
-            .profile_material_image_ids_by_profile(project_id, kind, profile_id)
             .await
     }
 

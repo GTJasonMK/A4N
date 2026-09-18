@@ -1,9 +1,9 @@
 use super::{
     normalize_movement_type_value, normalize_scene_entity_state_key_value,
-    normalize_scene_entity_type_value, normalize_scene_profile_record_input,
-    normalize_scene_type_value,
+    normalize_scene_entity_type_value, normalize_scene_type_value,
 };
 use a4n_api_contract::profile::SceneProfileInput;
+use a4n_domain::scene_profile::{SceneProfileInputError, normalize_scene_profile_record_input};
 use a4n_error::AppError;
 use serde_json::json;
 
@@ -33,13 +33,17 @@ fn scene_profile_rejects_non_array_entry_points_and_rules() {
     invalid_entry_points.entry_points_json = Some(json!({"name": "正门"}));
     let error = normalize_scene_profile_record_input(invalid_entry_points)
         .expect_err("non-array entry points must remain visible");
-    assert!(matches!(error, AppError::InvalidArgument(message) if message.contains("场景出入口")));
+    assert!(
+        matches!(error, SceneProfileInputError::Invalid(message) if message.contains("场景出入口"))
+    );
 
     let mut invalid_rules = valid_scene_profile_input();
     invalid_rules.rules_json = Some(json!({"access": "需机械钥匙"}));
     let error = normalize_scene_profile_record_input(invalid_rules)
         .expect_err("non-array rules must remain visible");
-    assert!(matches!(error, AppError::InvalidArgument(message) if message.contains("场景规则")));
+    assert!(
+        matches!(error, SceneProfileInputError::Invalid(message) if message.contains("场景规则"))
+    );
 }
 
 #[test]

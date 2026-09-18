@@ -1,7 +1,5 @@
-use a4n_api_contract::profile::SceneProfileInput;
 use a4n_domain::profile_text::{
-    normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
-    validate_importance,
+    normalize_aliases, normalize_required_text_set, required_text, validate_importance,
 };
 use a4n_domain::scene_profile::SceneProfileRecordInput;
 use a4n_error::AppError;
@@ -9,14 +7,6 @@ use serde_json::json;
 
 use super::super::contracts::SceneProfileDraft;
 use super::super::rules::normalize_scene_type_value;
-
-/// 将 API 场景档案输入转换并规范化为 DB 写入 DTO。
-pub fn normalize_scene_profile_record_input(
-    input: SceneProfileInput,
-) -> Result<SceneProfileRecordInput, AppError> {
-    a4n_domain::scene_profile::normalize_scene_profile_record_input(input)
-        .map_err(|error| AppError::InvalidArgument(error.to_string()))
-}
 
 pub(super) fn normalize_scene_name(name: &str) -> Result<String, AppError> {
     let normalized = name.trim().to_lowercase();

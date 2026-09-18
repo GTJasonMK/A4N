@@ -1064,12 +1064,6 @@ impl AppState {
         self.character_conflict_application.as_ref()
     }
 
-    pub(crate) fn scene_profile_mutation_application(
-        &self,
-    ) -> &dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort {
-        self.scene_profile_mutation_application.as_ref()
-    }
-
     pub(crate) fn foreshadowing_read_application(
         &self,
     ) -> &dyn a4n_api_contract::profile::ForeshadowingReadApplicationPort {
