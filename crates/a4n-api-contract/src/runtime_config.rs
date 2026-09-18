@@ -95,12 +95,18 @@ pub struct RuntimeLlmConfig {
     pub timeout_secs: i32,
     pub max_context_tokens: i32,
     pub max_output_tokens: i32,
+    #[serde(default = "default_agent_protocol")]
+    pub agent_protocol: String,
     #[serde(default)]
     pub extra_body_json: Option<Value>,
     #[serde(default)]
     pub is_default: bool,
     #[serde(default)]
     pub pricing: PricingPlan,
+}
+
+fn default_agent_protocol() -> String {
+    crate::config::AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

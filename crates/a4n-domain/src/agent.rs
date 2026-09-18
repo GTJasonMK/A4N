@@ -13,6 +13,15 @@ pub struct AgentWorkflowOrigin {
 
 pub const AGENT_DEFAULT_MAX_STEPS: u32 = 32;
 pub const AGENT_DEFAULT_MAX_TOOLS: u32 = 64;
+pub const AGENT_PROTOCOL_NATIVE_TOOL_CALLING: &str = "native_tool_calling";
+pub const AGENT_PROTOCOL_JSON_COMPAT: &str = "json_compat";
+
+pub fn valid_agent_protocol(value: &str) -> bool {
+    matches!(
+        value.trim(),
+        AGENT_PROTOCOL_NATIVE_TOOL_CALLING | AGENT_PROTOCOL_JSON_COMPAT
+    )
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentDelegationReviewInput {

@@ -165,6 +165,7 @@ async fn optimization_turn_events_for_turns_returns_grouped_ordered_rows() {
         &db,
         OptimizationTurnCreateInput {
             session_id: session.id,
+            agent_turn_id: None,
             user_text: "第一轮".to_string(),
             status: "completed".to_string(),
             permissions_snapshot: None,
@@ -176,6 +177,7 @@ async fn optimization_turn_events_for_turns_returns_grouped_ordered_rows() {
         &db,
         OptimizationTurnCreateInput {
             session_id: session.id,
+            agent_turn_id: None,
             user_text: "第二轮".to_string(),
             status: "completed".to_string(),
             permissions_snapshot: None,

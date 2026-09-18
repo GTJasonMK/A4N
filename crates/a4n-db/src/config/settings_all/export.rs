@@ -30,6 +30,7 @@ pub async fn settings_all_config_rows(
             timeout_secs: row.timeout_secs,
             max_context_tokens: row.max_context_tokens,
             max_output_tokens: row.max_output_tokens,
+            agent_protocol: row.agent_protocol,
             extra_body_json: row.extra_body_json,
             pricing_json: row.pricing_json,
             is_default: row.is_default,

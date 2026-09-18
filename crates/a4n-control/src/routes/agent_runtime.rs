@@ -16,7 +16,7 @@ use a4n_api_contract::agent::{
 };
 use a4n_api_contract::chapter_visual_plan::VisualPlanProjection;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::{ChatChunk, ModelCapabilities};
+use a4n_llm_provider_contract::ChatChunk;
 use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
@@ -788,7 +788,7 @@ pub(super) async fn agent_llm_capabilities(
     State(state): State<ServerState>,
     headers: HeaderMap,
     Json(input): Json<AgentWorkerLlmCapabilitiesRequest>,
-) -> Result<Json<ModelCapabilities>, ApiError> {
+) -> Result<Json<a4n_agent_runtime_contract::AgentLlmCapabilities>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     input
         .validate()

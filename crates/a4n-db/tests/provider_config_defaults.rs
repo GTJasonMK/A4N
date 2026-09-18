@@ -15,6 +15,7 @@ fn llm_input(name: String) -> LlmConfigRecordInput {
         timeout_secs: 30,
         max_context_tokens: 8192,
         max_output_tokens: 2048,
+        agent_protocol: "native_tool_calling".to_string(),
         extra_body_json: None,
         pricing_json: serde_json::json!({}),
     }

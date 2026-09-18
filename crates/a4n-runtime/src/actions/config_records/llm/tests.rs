@@ -103,6 +103,7 @@ fn test_llm_config_model(id: i64, max_output_tokens: i32) -> LlmProviderConfig {
         timeout_secs: 30,
         max_context_tokens: 128_000,
         max_output_tokens,
+        agent_protocol: "native_tool_calling".into(),
         extra_body_json: None,
         pricing: Default::default(),
     }

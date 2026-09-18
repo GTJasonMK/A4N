@@ -60,6 +60,7 @@ where
         max_context_tokens: Set(input.max_context_tokens),
         max_output_tokens: Set(input.max_output_tokens),
         extra_body_json: Set(input.extra_body_json),
+        agent_protocol: Set(input.agent_protocol),
         pricing_json: Set(input.pricing_json),
         is_default: Set(is_default),
         created_at: Set(now),
@@ -92,6 +93,7 @@ where
     active.max_context_tokens = Set(input.max_context_tokens);
     active.max_output_tokens = Set(input.max_output_tokens);
     active.extra_body_json = Set(input.extra_body_json);
+    active.agent_protocol = Set(input.agent_protocol);
     active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)

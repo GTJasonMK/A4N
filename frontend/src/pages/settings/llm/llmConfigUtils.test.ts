@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LLM_FORM, selectLlmProvider, toUpdateLlmInput } from "./llmConfigUtils";
 import type { MessageTranslator } from "../../../i18n";
+import { AGENT_PROTOCOL_JSON_COMPAT } from "../../../api/generated/config";
 
 const providers = [
   { id: "deepseek", display_name: "DeepSeek", default_base_url: "https://api.deepseek.com/v1", protocol: "OpenAI Chat Completions" },
@@ -38,5 +39,10 @@ describe("LLM provider presets", () => {
     expect(selectLlmProvider(previous, "custom-chat-completions", providers).extra_body_text)
       .toBe(previous.extra_body_text);
     expect(previous.extra_body_text).toContain("prompt_cache_options");
+  });
+
+  it("submits the explicitly selected Agent protocol", () => {
+    const form = { ...DEFAULT_LLM_FORM, agent_protocol: AGENT_PROTOCOL_JSON_COMPAT };
+    expect(toUpdateLlmInput(form, t).agent_protocol).toBe(AGENT_PROTOCOL_JSON_COMPAT);
   });
 });

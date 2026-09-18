@@ -16,6 +16,21 @@ where
         .map_err(OptimizeDbError::Database)
 }
 
+pub async fn optimization_patch_set_by_turn_id<C>(
+    db: &C,
+    turn_id: i64,
+) -> Result<Option<optimization_patch_set::Model>, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    optimization_patch_set::Entity::find()
+        .filter(optimization_patch_set::Column::TurnId.eq(turn_id))
+        .order_by_desc(optimization_patch_set::Column::Id)
+        .one(db)
+        .await
+        .map_err(OptimizeDbError::Database)
+}
+
 pub async fn optimization_patch_set_patches<C>(
     db: &C,
     patch_set_id: i64,

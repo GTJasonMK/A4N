@@ -206,6 +206,7 @@ impl AppState {
         };
         let payload = AgentHostCommandPayload {
             run_id,
+            turn_id: worker_request.payload.turn_id,
             scope: scope.clone(),
             execution_id,
             command: command.clone(),
@@ -878,6 +879,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_api_contract::optimize::OptimizeSessionReadApplicationPort {
         self.optimize_session_read_application.as_ref()
+    }
+
+    pub(crate) fn optimize_agent_tool_application(
+        &self,
+    ) -> &dyn a4n_optimize_host_contract::OptimizeAgentToolApplicationPort {
+        self.optimize_agent_tool_application.as_ref()
     }
 
     pub(crate) fn optimize_session_mutation_application(

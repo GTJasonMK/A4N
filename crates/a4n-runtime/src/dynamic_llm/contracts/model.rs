@@ -100,6 +100,7 @@ fn llm_config_snapshot(model: &LlmProviderConfig) -> LlmConfigSnapshot {
         timeout_secs: model.timeout_secs,
         max_context_tokens: model.max_context_tokens,
         max_output_tokens: model.max_output_tokens,
+        agent_protocol: model.agent_protocol.clone(),
         extra_body_json: model.extra_body_json.clone(),
     }
 }

@@ -8,22 +8,6 @@ use a4n_api_contract::agent::{
     CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
 };
 
-/// These actions mutate user-owned source or start a billable workflow and
-/// must remain behind the durable approval boundary.
-pub(crate) fn requires_user_approval(tool: &str) -> bool {
-    matches!(
-        tool,
-        "apply_optimization_patches"
-            | "save_canvas_graph"
-            | "edit_canvas_graph"
-            | "run_canvas_graph"
-            | "run_canvas_node"
-            | "save_chapter_visual_plan_draft"
-            | "edit_chapter_visual_plan_draft"
-            | "save_editor_draft"
-    )
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalSubagentBinding {
     /// Keep the capability label supplied by the user.  Registered domains
@@ -265,9 +249,6 @@ mod tests {
             !tools_for_capability(CONTENT_OPTIMIZATION_AGENT_CAPABILITY)
                 .contains(&"save_canvas_graph")
         );
-        assert!(requires_user_approval("run_canvas_graph"));
-        assert!(requires_user_approval("save_chapter_visual_plan_draft"));
-        assert!(!requires_user_approval("send_content_optimization_message"));
     }
 
     #[test]

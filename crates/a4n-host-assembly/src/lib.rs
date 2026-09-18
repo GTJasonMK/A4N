@@ -101,6 +101,7 @@ pub async fn initialize_runtime(
         chapter_scene_mutation_application: Arc::new(orchestrator.clone()),
         chapter_scene_generation_application: Arc::new(orchestrator.clone()),
         optimize_session_read_application: Arc::new(orchestrator.clone()),
+        optimize_agent_tool_application: Arc::new(orchestrator.clone()),
         optimize_session_mutation_application: Arc::new(orchestrator.clone()),
         optimize_patch_application: Arc::new(orchestrator.clone()),
         optimize_patch_preview_application: Arc::new(orchestrator.clone()),

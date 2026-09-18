@@ -1,4 +1,5 @@
 use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
+use a4n_agent_runtime_contract::AgentLlmCapabilities;
 use a4n_agent_runtime_contract::AgentWorkerApplicationPort;
 use a4n_agent_runtime_contract::model_request_wire_value;
 use a4n_api_contract::agent::{
@@ -9,7 +10,7 @@ use a4n_api_contract::chapter_visual_plan::{
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::{ChatChunk, ChatRequest, ModelCapabilities};
+use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
@@ -642,7 +643,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         user_id: i64,
         snapshot: Option<&RuntimeConfigSnapshot>,
         config_id: Option<i64>,
-    ) -> Result<ModelCapabilities, AppError> {
+    ) -> Result<AgentLlmCapabilities, AppError> {
         self.request_json(
             Method::POST,
             "/internal/agent/llm/capabilities",

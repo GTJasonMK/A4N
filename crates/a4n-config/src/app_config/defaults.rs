@@ -105,6 +105,7 @@ impl Default for LlmConfig {
             max_context_tokens: default_llm_max_context_tokens(),
             max_output_tokens: default_llm_max_output_tokens(),
             extra_body_json: None,
+            agent_protocol: a4n_domain::agent::AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string(),
         }
     }
 }

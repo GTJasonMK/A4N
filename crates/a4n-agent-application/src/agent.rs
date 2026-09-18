@@ -4576,8 +4576,7 @@ fn apply_subagent_tool_policy(capability: &str, scope: &mut AgentScope) -> Resul
     }
 
     for tool in &scope.allowed_tools {
-        let descriptor = a4n_api_contract::agent::synthetic_agent_tool_descriptor(tool)
-            .or_else(|| a4n_api_contract::command_manifest::command_descriptor(tool))
+        let descriptor = a4n_api_contract::agent::agent_tool_descriptor(tool)
             .ok_or_else(|| AppError::Forbidden(format!("Agent 工具不存在或不可发现: {tool}")))?;
         if descriptor
             .agent_policy

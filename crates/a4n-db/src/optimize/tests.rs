@@ -87,6 +87,7 @@ async fn complete_chat_turn_persists_formal_exchange_once() {
         &db,
         OptimizationTurnCreateInput {
             session_id: session.id,
+            agent_turn_id: None,
             user_text: "继续优化".to_string(),
             status: "running".to_string(),
             permissions_snapshot: None,

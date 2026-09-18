@@ -10,8 +10,9 @@ use serde_json::{Value, json};
 use crate::runtime_config::RuntimeConfigSnapshot;
 
 pub use a4n_domain::agent::{
-    AGENT_DEFAULT_MAX_STEPS, AGENT_DEFAULT_MAX_TOOLS, AgentApprovalDecision, AgentApprovalStatus,
-    AgentBudget, AgentControlAction, AgentDelegationStatus, AgentDeliveryMode, AgentExecutionKind,
+    AGENT_DEFAULT_MAX_STEPS, AGENT_DEFAULT_MAX_TOOLS, AGENT_PROTOCOL_JSON_COMPAT,
+    AGENT_PROTOCOL_NATIVE_TOOL_CALLING, AgentApprovalDecision, AgentApprovalStatus, AgentBudget,
+    AgentControlAction, AgentDelegationStatus, AgentDeliveryMode, AgentExecutionKind,
     AgentExecutionMode, AgentExecutionStatus, AgentInboxKind, AgentInboxStatus,
     AgentMemoryScopeKind, AgentMemoryStatus, AgentMessageRole, AgentMessageStatus, AgentRunStatus,
     AgentThreadKind, AgentThreadStatus, AgentToolCostClass, AgentToolExposure,
@@ -74,8 +75,10 @@ pub const CONTENT_OPTIMIZATION_AGENT_TOOLS: &[&str] = &[
     "read_image",
     "web_search",
     "web_fetch",
-    "ensure_content_optimization_session",
-    "send_content_optimization_message",
+    "inspect_project_context",
+    "read_project_context",
+    "search_project_context",
+    "edit_article",
     "get_optimize_session",
     "list_optimize_turns",
     "list_optimize_patch_sets",
@@ -160,6 +163,34 @@ pub fn capability_has_restricted_tool_catalog(capability: &str) -> bool {
     )
 }
 
+/// These tool names only exist so persisted pre-unification Runs can finish.
+/// They must never enter a new Agent's discoverable catalog.
+pub fn is_legacy_agent_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "ensure_content_optimization_session" | "send_content_optimization_message"
+    )
+}
+
+pub fn agent_tool_requires_user_approval(name: &str, effect: &str) -> bool {
+    effect == "destructive"
+        || matches!(
+            name,
+            "apply_optimization_patches"
+                | "save_canvas_graph"
+                | "edit_canvas_graph"
+                | "run_canvas_graph"
+                | "run_canvas_node"
+                | "save_chapter_visual_plan_draft"
+                | "edit_chapter_visual_plan_draft"
+                | "save_editor_draft"
+        )
+}
+
+pub fn agent_tool_allowed_in_advice_only(name: &str) -> bool {
+    is_legacy_agent_tool(name)
+}
+
 pub fn is_agent_skill_tool(name: &str) -> bool {
     matches!(name, "search_agent_skills" | "load_agent_skill")
 }
@@ -225,7 +256,11 @@ pub fn synthetic_agent_tool_descriptor(
     name: &str,
 ) -> Option<crate::command_manifest::CommandDescriptor> {
     let domain = match name {
-        "apply_optimization_patches"
+        "inspect_project_context"
+        | "read_project_context"
+        | "search_project_context"
+        | "edit_article"
+        | "apply_optimization_patches"
         | "ensure_content_optimization_session"
         | "send_content_optimization_message" => "optimize",
         "run_canvas_graph" | "run_canvas_node" => "canvas",
@@ -294,6 +329,18 @@ pub fn synthetic_agent_tool_descriptor(
         },
     };
     descriptor.summary = match name {
+        "inspect_project_context" => {
+            "Inspect the available optimization context, including chapter paragraphs, object fields and array items, so the model can choose what to read.".into()
+        }
+        "read_project_context" => {
+            "Read the model-selected project context paths, chapter paragraphs or array items with a stable source hash and complete evidence spans.".into()
+        }
+        "search_project_context" => {
+            "Search the accessible optimization context and return selectors that can be passed to read_project_context.".into()
+        }
+        "edit_article" => {
+            "Create a reviewable local article patch. It never writes the chapter without user approval.".into()
+        }
         "wait_generation_task" => "Wait for this exact generation task_id and attempt. Pending work suspends this Agent Run and releases the worker; no model polling. Returns the authoritative terminal state, error and result reference. Observing a task does not grant cancellation ownership.".into(),
         "wait_workflow_run" => "Wait for this workflow run to finish, fail or stop. Suspends the Agent and releases its worker while pending. Returns authoritative checkpoints and artifacts; a failed or interrupted workflow is not a successful result.".into(),
         "apply_optimization_patches" => {
@@ -341,6 +388,9 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     descriptor.effect = match name {
+        "inspect_project_context" | "read_project_context" | "search_project_context" => {
+            "read".into()
+        }
         "search_agent_tools"
         | "describe_agent_tool"
         | "search_agent_skills"
@@ -366,6 +416,14 @@ pub fn synthetic_agent_tool_descriptor(
         _ => "immediate".into(),
     };
     descriptor.args_schema = match name {
+        "inspect_project_context" => {
+            typed_schema::<crate::optimize::InspectOptimizationContextInput>()
+        }
+        "read_project_context" => typed_schema::<crate::optimize::ReadOptimizationContextInput>(),
+        "search_project_context" => {
+            typed_schema::<crate::optimize::SearchOptimizationContextInput>()
+        }
+        "edit_article" => typed_schema::<crate::optimize::OptimizationArticlePatchToolInput>(),
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
@@ -464,6 +522,14 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     descriptor.result_schema = match name {
+        "inspect_project_context"
+        | "read_project_context"
+        | "search_project_context"
+        | "edit_article" => json!({
+            "type": "object",
+            "additionalProperties": true,
+            "x-a4n-schema-quality": "typed"
+        }),
         "apply_optimization_patches"
         | "run_canvas_graph"
         | "run_canvas_node"
@@ -507,6 +573,20 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     let (exposure, risk, reversibility, replay_policy, tags) = match name {
+        "inspect_project_context" | "read_project_context" | "search_project_context" => (
+            AgentToolExposure::Preloaded,
+            AgentToolRisk::Low,
+            AgentToolReversibility::Reversible,
+            AgentToolReplayPolicy::Safe,
+            vec!["optimize".into(), "read".into()],
+        ),
+        "edit_article" => (
+            AgentToolExposure::Preloaded,
+            AgentToolRisk::Medium,
+            AgentToolReversibility::Compensatable,
+            AgentToolReplayPolicy::Idempotent,
+            vec!["optimize".into(), "write".into()],
+        ),
         "delegate" => (
             AgentToolExposure::Preloaded,
             AgentToolRisk::Low,
@@ -571,7 +651,9 @@ pub fn synthetic_agent_tool_descriptor(
 /// Resolve one command through the Agent exposure gate shared by workers and
 /// Host dispatch. Synthetic domain tools and ordinary manifest commands must
 /// use the same visibility rule.
-pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
+pub fn agent_execution_tool_descriptor(
+    name: &str,
+) -> Option<crate::command_manifest::CommandDescriptor> {
     if let Some(descriptor) = synthetic_agent_tool_descriptor(name) {
         return Some(descriptor);
     }
@@ -585,6 +667,15 @@ pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::Comm
     } else {
         None
     }
+}
+
+/// Resolve a tool that may be exposed to a new Agent. Legacy recovery tools
+/// deliberately remain outside this catalog.
+pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
+    if is_legacy_agent_tool(name) {
+        return None;
+    }
+    agent_execution_tool_descriptor(name)
 }
 
 fn typed_schema<T: JsonSchema>() -> Value {
@@ -605,6 +696,10 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
         "load_agent_skill",
         "read_agent_memory",
         "read_agent_execution_result",
+        "inspect_project_context",
+        "read_project_context",
+        "search_project_context",
+        "edit_article",
         "inspect_editor_target",
         "read_editor_draft",
         "save_editor_draft",
@@ -613,8 +708,6 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
         "apply_optimization_patches",
         "run_canvas_graph",
         "run_canvas_node",
-        "ensure_content_optimization_session",
-        "send_content_optimization_message",
         "get_generation_task_summary",
         "wait_generation_task",
         "wait_workflow_run",
@@ -1722,8 +1815,10 @@ pub trait AgentResourceAccessApplicationPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{
-        AGENT_CAPABILITIES, AgentToolExposure, LocateWritingTargetInput, agent_tool_descriptor,
-        agent_tools_for_capability, synthetic_agent_tool_descriptor,
+        AGENT_CAPABILITIES, AgentToolExposure, LocateWritingTargetInput,
+        agent_execution_tool_descriptor, agent_tool_allowed_in_advice_only, agent_tool_descriptor,
+        agent_tool_requires_user_approval, agent_tools_for_capability, is_legacy_agent_tool,
+        synthetic_agent_tool_descriptor, synthetic_agent_tool_descriptors,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1782,6 +1877,43 @@ mod tests {
         }
         assert!(agent_tool_descriptor("list_agent_skills").is_none());
         assert!(agent_tool_descriptor("update_agent_skill_configuration").is_none());
+    }
+
+    #[test]
+    fn legacy_agent_tools_are_execution_only() {
+        for name in [
+            "ensure_content_optimization_session",
+            "send_content_optimization_message",
+        ] {
+            assert!(is_legacy_agent_tool(name));
+            assert!(agent_execution_tool_descriptor(name).is_some());
+            assert!(agent_tool_descriptor(name).is_none());
+            assert!(
+                !synthetic_agent_tool_descriptors()
+                    .iter()
+                    .any(|descriptor| descriptor.name == name)
+            );
+            assert!(agent_tool_allowed_in_advice_only(name));
+        }
+    }
+
+    #[test]
+    fn approval_policy_is_shared_by_agent_runtimes() {
+        assert!(agent_tool_requires_user_approval(
+            "delete_project",
+            "destructive"
+        ));
+        assert!(agent_tool_requires_user_approval(
+            "run_canvas_graph",
+            "write"
+        ));
+        assert!(!agent_tool_requires_user_approval(
+            "create_project",
+            "write"
+        ));
+        assert!(!agent_tool_allowed_in_advice_only(
+            "apply_optimization_patches"
+        ));
     }
 
     #[test]

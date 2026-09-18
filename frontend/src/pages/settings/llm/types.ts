@@ -3,6 +3,7 @@ import type { PricingPlan } from "../../../api/generated/config";
 export interface LlmForm {
   name: string;
   provider: string;
+  agent_protocol: string;
   model: string;
   api_base_url: string;
   api_key: string;

@@ -91,6 +91,7 @@ pub struct OptimizationTurnEventSummary {
 pub struct OptimizationTurnSummary {
     pub id: i64,
     pub session_id: i64,
+    pub agent_turn_id: Option<i64>,
     pub user_text: String,
     pub status: String,
     pub permissions_snapshot: OptimizationAgentPermissions,
@@ -211,6 +212,68 @@ pub struct RecordOptimizeAgentEventInput {
     pub session_id: i64,
     #[schemars(length(min = 1, max = 32768))]
     pub content: String,
+}
+
+/// Agent context sources are inspected and read through the same domain owner
+/// as the optimization session. The selection is intentionally explicit so a
+/// model can choose paragraphs/fields/items without guessing a character page.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum OptimizationContextSelection {
+    All,
+    Paragraphs { indexes: Vec<u32> },
+    Paths { paths: Vec<String> },
+    Items { indexes: Vec<u32> },
+}
+
+impl Default for OptimizationContextSelection {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct InspectOptimizationContextInput {
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub expected_hash: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ReadOptimizationContextInput {
+    pub source: String,
+    #[serde(default)]
+    pub selection: OptimizationContextSelection,
+    #[serde(default)]
+    pub include: Vec<String>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub expected_hash: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SearchOptimizationContextInput {
+    pub query: String,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OptimizationArticlePatchToolInput {
+    pub summary: String,
+    pub patches: Vec<OptimizationPatch>,
 }
 
 /// Host-facing read boundary for content-optimization sessions.

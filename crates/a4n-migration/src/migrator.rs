@@ -19,6 +19,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::llm_call_trace_status_fields::Migration),
             Box::new(crate::migrations::llm_request_options::Migration),
             Box::new(crate::migrations::llm_model_capabilities::Migration),
+            Box::new(crate::migrations::llm_agent_protocol::Migration),
             Box::new(crate::migrations::object_profile_usage_fields::Migration),
             Box::new(crate::migrations::chapter_video_prompt_language_identity::Migration),
             Box::new(crate::migrations::shared_video_segment_plan::Migration),
@@ -123,6 +124,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::model_usage_ledger::Migration),
             Box::new(crate::migrations::generation_task_workflow_binding_repair::Migration),
             Box::new(crate::migrations::optimization_session_agent_unification::Migration),
+            Box::new(crate::migrations::optimization_turn_agent_idempotency::Migration),
         ]
     }
 }
@@ -172,7 +174,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(59)
+                .take(60)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -236,6 +238,7 @@ mod tests {
                 "model_usage_ledger",
                 "generation_task_workflow_binding_repair",
                 "optimization_session_agent_unification",
+                "optimization_turn_agent_idempotency",
             ],
             "deployed migration history must remain registered in execution order"
         );

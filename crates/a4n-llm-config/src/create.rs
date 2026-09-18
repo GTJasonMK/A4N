@@ -1,3 +1,4 @@
+use a4n_domain::agent::{AGENT_PROTOCOL_NATIVE_TOOL_CALLING, valid_agent_protocol};
 use a4n_domain::config::{normalize_config_name, positive_i32, required_config_value};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::LlmProtocolKind;
@@ -22,6 +23,7 @@ pub fn normalize_create_llm_config_input(
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
+        agent_protocol,
         extra_body_json,
     } = input;
     let name = normalize_config_name(name, "LLM配置").map_err(AppError::InvalidArgument)?;
@@ -44,6 +46,16 @@ pub fn normalize_create_llm_config_input(
     let max_output_tokens = positive_i32(max_output_tokens, "LLM配置 max_output_tokens")
         .map_err(AppError::InvalidArgument)?;
     ensure_output_tokens_below_context(max_output_tokens, max_context_tokens)?;
+    let agent_protocol = if agent_protocol.trim().is_empty() {
+        AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string()
+    } else {
+        agent_protocol.trim().to_string()
+    };
+    if !valid_agent_protocol(&agent_protocol) {
+        return Err(AppError::InvalidArgument(format!(
+            "LLM配置 agent_protocol 不受支持：{agent_protocol}"
+        )));
+    }
     let extra_body_json = normalize_llm_extra_body_json(&provider, &model, extra_body_json)?;
     Ok(NormalizedLlmConfig {
         name,
@@ -55,6 +67,7 @@ pub fn normalize_create_llm_config_input(
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
+        agent_protocol,
         extra_body_json,
         pricing_json: Value::Null,
     })
@@ -77,6 +90,7 @@ mod tests {
             timeout_secs: 30,
             max_context_tokens: 4096,
             max_output_tokens: 1024,
+            agent_protocol: "native_tool_calling".into(),
             extra_body_json: Some(json!({
                 "extra_body": {"reasoning_effort": "low"}
             })),

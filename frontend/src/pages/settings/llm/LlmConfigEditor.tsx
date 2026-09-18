@@ -7,7 +7,11 @@ import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import type { LlmForm } from "./types";
 import { selectLlmProvider } from "./llmConfigUtils";
-import type { LlmProviderDescriptor } from "../../../api/generated/config";
+import {
+  AGENT_PROTOCOL_JSON_COMPAT,
+  AGENT_PROTOCOL_NATIVE_TOOL_CALLING,
+  type LlmProviderDescriptor,
+} from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import { useI18n } from "../../../i18n";
@@ -87,6 +91,28 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           />
         </FormField>
       </div>
+
+      <FormField
+        label={t("settingsForm.agentProtocol")}
+        hint={t("settingsForm.agentProtocolHint")}
+      >
+        <ThemedSelect
+          value={form.agent_protocol}
+          aria-label={t("settingsForm.agentProtocol")}
+          onChange={(event) =>
+            setForm({ ...form, agent_protocol: event.target.value })
+          }
+          className="pyqt-input w-full"
+          disabled={structureDisabled}
+        >
+          <option value={AGENT_PROTOCOL_NATIVE_TOOL_CALLING}>
+            {t("settingsForm.agentProtocolNative")}
+          </option>
+          <option value={AGENT_PROTOCOL_JSON_COMPAT}>
+            {t("settingsForm.agentProtocolJsonCompat")}
+          </option>
+        </ThemedSelect>
+      </FormField>
 
       <FormField label={t("settingsForm.endpoint")} required
         hint={selectedProvider ? t("settingsForm.protocolHint", { protocol: selectedProvider.protocol }) : undefined}>

@@ -47,6 +47,13 @@ impl OrchestratorContext {
         turn_id: i64,
         proposal: &OptimizationPatchProposal,
     ) -> Result<Option<optimization_patch_set::Model>, AppError> {
+        if let Some(existing) =
+            a4n_db::optimize::optimization_patch_set_by_turn_id(self.database.connection(), turn_id)
+                .await
+                .map_err(optimize_db_error)?
+        {
+            return Ok(Some(existing));
+        }
         if proposal.patches.is_empty() {
             return Ok(None);
         }

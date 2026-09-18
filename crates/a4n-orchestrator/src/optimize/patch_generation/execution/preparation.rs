@@ -46,7 +46,7 @@ pub(super) async fn prepare_patch_generation(
         .as_deref()
         .unwrap_or("生成局部修复补丁");
     let turn = service
-        .create_turn(base.session.id, turn_text, &permissions)
+        .create_turn(base.session.id, turn_text, &permissions, None)
         .await?;
     let session = base.session;
     let chapter = base.chapter;

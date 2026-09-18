@@ -10,6 +10,7 @@ where
     let now = chrono::Utc::now().naive_utc();
     optimization_turn::ActiveModel {
         session_id: Set(input.session_id),
+        agent_turn_id: Set(input.agent_turn_id),
         user_text: Set(input.user_text),
         status: Set(input.status),
         permissions_snapshot: Set(input.permissions_snapshot),
@@ -36,6 +37,20 @@ where
         .order_by_asc(optimization_turn::Column::CreatedAt)
         .order_by_asc(optimization_turn::Column::Id)
         .all(db)
+        .await
+        .map_err(OptimizeDbError::Database)
+}
+
+pub async fn optimization_turn_by_agent_turn_id<C>(
+    db: &C,
+    agent_turn_id: i64,
+) -> Result<Option<optimization_turn::Model>, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    optimization_turn::Entity::find()
+        .filter(optimization_turn::Column::AgentTurnId.eq(agent_turn_id))
+        .one(db)
         .await
         .map_err(OptimizeDbError::Database)
 }

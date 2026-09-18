@@ -101,6 +101,7 @@ fn optimization_chat_history_uses_turns_and_truncates_final_reply() {
     let turns = vec![optimization_turn::Model {
         id: 3,
         session_id: 7,
+        agent_turn_id: None,
         user_text: "上一轮用户请求".to_string(),
         status: "completed".to_string(),
         permissions_snapshot: None,

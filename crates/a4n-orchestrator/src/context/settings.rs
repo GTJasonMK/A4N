@@ -230,6 +230,7 @@ impl ConfigApplication {
                 timeout_secs: input.timeout_secs,
                 max_context_tokens: input.max_context_tokens,
                 max_output_tokens: input.max_output_tokens,
+                agent_protocol: input.agent_protocol.clone(),
                 extra_body_json: input.extra_body_json,
             },
         )?;
@@ -1319,6 +1320,7 @@ fn llm_provider_config_from_model(model: llm_config::Model) -> Result<LlmProvide
         timeout_secs: model.timeout_secs,
         max_context_tokens: model.max_context_tokens,
         max_output_tokens: model.max_output_tokens,
+        agent_protocol: model.agent_protocol,
         extra_body_json: model.extra_body_json,
         pricing: pricing_from_json(&model.pricing_json)?,
     })
@@ -1385,6 +1387,7 @@ fn llm_config_summary(config: &llm_config::Model) -> Result<LlmConfigSummary, Ap
         timeout_secs: config.timeout_secs,
         max_context_tokens: config.max_context_tokens,
         max_output_tokens: config.max_output_tokens,
+        agent_protocol: config.agent_protocol.clone(),
         extra_body_json: config.extra_body_json.clone(),
         is_default: config.is_default,
         pricing: pricing_from_json(&config.pricing_json)?,
@@ -1527,6 +1530,7 @@ fn normalize_llm_config_input(input: CreateLlmInput) -> Result<NormalizedLlmConf
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
+        agent_protocol,
         extra_body_json,
         pricing,
     } = input;
@@ -1540,6 +1544,7 @@ fn normalize_llm_config_input(input: CreateLlmInput) -> Result<NormalizedLlmConf
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
+        agent_protocol,
         extra_body_json,
     })?;
     normalized.pricing_json = pricing_json(pricing)?;
@@ -1612,6 +1617,7 @@ fn llm_record_input(normalized: NormalizedLlmConfig) -> LlmConfigRecordInput {
         timeout_secs: normalized.timeout_secs,
         max_context_tokens: normalized.max_context_tokens,
         max_output_tokens: normalized.max_output_tokens,
+        agent_protocol: normalized.agent_protocol,
         extra_body_json: normalized.extra_body_json,
         pricing_json: normalized.pricing_json,
     }
@@ -1628,6 +1634,7 @@ fn llm_config_snapshot(model: &llm_config::Model) -> LlmConfigSnapshot {
         timeout_secs: model.timeout_secs,
         max_context_tokens: model.max_context_tokens,
         max_output_tokens: model.max_output_tokens,
+        agent_protocol: model.agent_protocol.clone(),
         extra_body_json: model.extra_body_json.clone(),
     }
 }
@@ -1732,6 +1739,7 @@ mod tests {
             timeout_secs: 30,
             max_context_tokens: 128_000,
             max_output_tokens: 8_192,
+            agent_protocol: "native_tool_calling".into(),
             extra_body_json: Some(json!({"reasoning": {"effort": "low"}})),
             pricing_json: json!({}),
             is_default: true,

@@ -326,6 +326,7 @@ use a4n_api_contract::{
         WorkflowRunProgressSummary, WorkflowRunSummary, WorkflowStateSummary,
     },
 };
+use a4n_domain::agent::{AGENT_PROTOCOL_JSON_COMPAT, AGENT_PROTOCOL_NATIVE_TOOL_CALLING};
 use a4n_domain::character::{
     AppliedImplicitUpdateAction, CHARACTER_DELETION_THRESHOLD, CharacterAttributeCategory,
     CharacterAttributeOperation, CharacterTimelineSourceKind, DeletionMarkStatus,
@@ -1434,6 +1435,8 @@ fn typescript_llm_constants() -> String {
     format!(
         "export const DEFAULT_LLM_MAX_CONTEXT_TOKENS = {DEFAULT_LLM_MAX_CONTEXT_TOKENS};\n\
          export const DEFAULT_LLM_MAX_OUTPUT_TOKENS = {DEFAULT_LLM_MAX_OUTPUT_TOKENS};\n\
+         export const AGENT_PROTOCOL_NATIVE_TOOL_CALLING = {AGENT_PROTOCOL_NATIVE_TOOL_CALLING:?};\n\
+         export const AGENT_PROTOCOL_JSON_COMPAT = {AGENT_PROTOCOL_JSON_COMPAT:?};\n\
          export const LLM_RESERVED_REQUEST_OPTION_KEYS: readonly string[] = [{reserved}];\n\n"
     )
 }
