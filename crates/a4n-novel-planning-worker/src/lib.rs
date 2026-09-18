@@ -6,8 +6,8 @@ use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary,
     ChapterVisualPlanSetView, ChapterVisualPlanSourceInput, ChapterVisualPlanValidationResult,
     ChapterVisualPlanView, ConfirmedChapterVisualPlanView, ReadChapterVisualPlanInput,
-    SaveChapterVisualPlanDraftInput, ValidateChapterVisualPlanInput, VisualPlanOutlineItem,
-    VisualPlanProjection, VisualPlanReadView,
+    SaveChapterVisualPlanDraftInput, ValidateChapterVisualPlanInput, VisualPlanProjection,
+    VisualPlanReadView,
 };
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSourceInput,
@@ -786,10 +786,11 @@ impl WorkerState {
                     next_offset: next_offset(end, total_chars)?,
                 }
             }
-            view => project_plan(
+            view => a4n_api_contract::chapter_visual_plan::project_visual_plan(
                 current.as_ref().map_or(&starter_plan, |plan| &plan.plan),
                 view,
-            )?,
+            )
+            .map_err(projection_error)?,
         };
         Ok(ChapterVisualPlanReadResult {
             resource,
@@ -1164,83 +1165,16 @@ fn next_offset(end: usize, total: usize) -> Result<Option<u32>, WorkerFailure> {
         .map_err(|_| WorkerFailure::invalid_request("分页长度超出 u32"))
 }
 
-fn project_plan(
-    plan: &a4n_domain::chapter_visual_plan::ChapterVisualPlanV3,
-    view: &VisualPlanReadView,
-) -> Result<VisualPlanProjection, WorkerFailure> {
-    plan.validate_draft()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    match view {
-        VisualPlanReadView::Outline { offset, limit } => {
-            let total = plan.segments.len();
-            let (start, end) = page_range(*offset, *limit, total, 20, 100)?;
-            let items = plan.segments[start..end]
-                .iter()
-                .map(|segment| {
-                    let start_ms = plan
-                        .point(&segment.start_point_id)
-                        .expect("validated start")
-                        .at_ms;
-                    let end_ms = plan
-                        .point(&segment.end_point_id)
-                        .expect("validated end")
-                        .at_ms;
-                    VisualPlanOutlineItem {
-                        segment_id: segment.id.clone(),
-                        title: segment.title.clone(),
-                        start_ms,
-                        end_ms,
-                        scene_binding: segment.scene_binding.clone(),
-                        point_count: plan
-                            .points
-                            .iter()
-                            .filter(|point| point.at_ms >= start_ms && point.at_ms < end_ms)
-                            .count(),
-                    }
-                })
-                .collect();
-            Ok(VisualPlanProjection::Outline {
-                items,
-                total,
-                next_offset: next_offset(end, total)?,
-            })
+fn projection_error(
+    error: a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError,
+) -> WorkerFailure {
+    match error {
+        a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError::InvalidRequest(
+            message,
+        ) => WorkerFailure::invalid_request(message),
+        a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError::NotFound(message) => {
+            WorkerFailure::not_found(message)
         }
-        VisualPlanReadView::Point { point_id } => {
-            let point = plan
-                .point(point_id)
-                .ok_or_else(|| WorkerFailure::not_found(format!("图片点不存在: {point_id}")))?;
-            Ok(VisualPlanProjection::Point {
-                point: point.clone(),
-            })
-        }
-        VisualPlanReadView::Segment { segment_id } => {
-            let segment = plan
-                .segments
-                .iter()
-                .find(|segment| segment.id == *segment_id)
-                .ok_or_else(|| WorkerFailure::not_found(format!("镜头段不存在: {segment_id}")))?;
-            let start = plan
-                .point(&segment.start_point_id)
-                .expect("validated start")
-                .at_ms;
-            let end = plan
-                .point(&segment.end_point_id)
-                .expect("validated end")
-                .at_ms;
-            let points = plan
-                .points
-                .iter()
-                .filter(|point| point.at_ms >= start && point.at_ms <= end)
-                .cloned()
-                .collect();
-            Ok(VisualPlanProjection::Segment {
-                segment: segment.clone(),
-                points,
-            })
-        }
-        VisualPlanReadView::Source { .. } => Err(WorkerFailure::invalid_request(
-            "原文由章节 source owner 读取",
-        )),
     }
 }
 
