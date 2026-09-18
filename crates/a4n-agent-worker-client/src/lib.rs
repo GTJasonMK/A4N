@@ -4,20 +4,25 @@ use a4n_agent_runtime_contract::{
     AGENT_APPROVAL_RESOLVE_OPERATION, AGENT_DELEGATION_REVIEW_OPERATION,
     AGENT_DELEGATION_SPAWN_OPERATION, AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION,
     AGENT_MEMORY_LIST_OPERATION, AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION,
-    AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
-    AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
-    AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
-    AGENT_WORKER_ID, AgentDelegationReviewCommand, AgentMemoryListInput,
+    AGENT_SKILL_LOAD_OPERATION, AGENT_SKILL_SEARCH_OPERATION, AGENT_SKILL_SETTINGS_LIST_OPERATION,
+    AGENT_SKILL_SETTINGS_UPDATE_OPERATION, AGENT_THREAD_ARCHIVE_OPERATION,
+    AGENT_THREAD_CREATE_OPERATION, AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION,
+    AGENT_THREAD_LIST_OPERATION, AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION,
+    AGENT_THREAD_UPDATE_OPERATION, AGENT_WORKER_ID, AgentDelegationReviewCommand,
+    AgentMemoryListInput, AgentSkillCapabilityCommand,
 };
 use a4n_api_contract::agent::{
     AgentApprovalApplicationPort, AgentApprovalView, AgentDelegationApplicationPort,
     AgentDelegationView, AgentEvent, AgentEventReadApplicationPort, AgentMemoryInput,
     AgentMemoryMutationApplicationPort, AgentMemoryReadApplicationPort, AgentMemoryScopeKind,
     AgentMemoryView, AgentMessageView, AgentRunReadApplicationPort, AgentRunView,
-    AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort, AgentThreadSnapshot,
-    AgentThreadView, ArchiveAgentThreadInput, CreateAgentThreadInput, EnsureMainAgentThreadInput,
-    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, ResolveAgentApprovalInput,
-    RetractAgentMemoryInput, ReviewAgentDelegationInput, SpawnAgentInput, UpdateAgentThreadInput,
+    AgentSkillApplicationPort, AgentSkillContent, AgentSkillProfileView, AgentSkillSearchResult,
+    AgentSkillSettingsView, AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort,
+    AgentThreadSnapshot, AgentThreadView, ArchiveAgentThreadInput, CreateAgentThreadInput,
+    EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
+    ListAgentThreadsInput, LoadAgentSkillInput, ResolveAgentApprovalInput, RetractAgentMemoryInput,
+    ReviewAgentDelegationInput, SearchAgentSkillsInput, SpawnAgentInput,
+    UpdateAgentSkillConfigurationInput, UpdateAgentThreadInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -296,6 +301,57 @@ impl AgentDelegationApplicationPort for AgentWorkerClient {
             AgentDelegationReviewCommand {
                 input,
                 parent_run_id,
+            },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentSkillApplicationPort for AgentWorkerClient {
+    async fn list_skill_settings(&self, user_id: i64) -> Result<AgentSkillSettingsView, AppError> {
+        self.command(user_id, AGENT_SKILL_SETTINGS_LIST_OPERATION, ())
+            .await
+    }
+
+    async fn update_skill_configuration(
+        &self,
+        user_id: i64,
+        input: UpdateAgentSkillConfigurationInput,
+    ) -> Result<AgentSkillProfileView, AppError> {
+        self.command(user_id, AGENT_SKILL_SETTINGS_UPDATE_OPERATION, input)
+            .await
+    }
+
+    async fn search_skills(
+        &self,
+        user_id: i64,
+        capability: &str,
+        input: SearchAgentSkillsInput,
+    ) -> Result<AgentSkillSearchResult, AppError> {
+        self.command(
+            user_id,
+            AGENT_SKILL_SEARCH_OPERATION,
+            AgentSkillCapabilityCommand {
+                capability: capability.to_string(),
+                input,
+            },
+        )
+        .await
+    }
+
+    async fn load_skill(
+        &self,
+        user_id: i64,
+        capability: &str,
+        input: LoadAgentSkillInput,
+    ) -> Result<AgentSkillContent, AppError> {
+        self.command(
+            user_id,
+            AGENT_SKILL_LOAD_OPERATION,
+            AgentSkillCapabilityCommand {
+                capability: capability.to_string(),
+                input,
             },
         )
         .await

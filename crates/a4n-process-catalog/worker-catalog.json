@@ -39,7 +39,11 @@
       "agent.memory.retract",
       "agent.approval.resolve",
       "agent.delegation.spawn",
-      "agent.delegation.review"
+      "agent.delegation.review",
+      "agent.skill.settings.list",
+      "agent.skill.settings.update",
+      "agent.skill.search",
+      "agent.skill.load"
     ],
     "dependencies": [
       "a4n-control",

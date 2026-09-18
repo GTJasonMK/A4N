@@ -379,6 +379,10 @@ mod tests {
                 "agent.approval.resolve".to_string(),
                 "agent.delegation.spawn".to_string(),
                 "agent.delegation.review".to_string(),
+                "agent.skill.settings.list".to_string(),
+                "agent.skill.settings.update".to_string(),
+                "agent.skill.search".to_string(),
+                "agent.skill.load".to_string(),
             ]
         );
         assert_eq!(entry.migration.current.as_deref(), Some("agent_runtime"));

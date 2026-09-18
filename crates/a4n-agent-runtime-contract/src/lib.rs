@@ -60,6 +60,10 @@ pub const AGENT_MEMORY_RETRACT_OPERATION: &str = "agent.memory.retract";
 pub const AGENT_APPROVAL_RESOLVE_OPERATION: &str = "agent.approval.resolve";
 pub const AGENT_DELEGATION_SPAWN_OPERATION: &str = "agent.delegation.spawn";
 pub const AGENT_DELEGATION_REVIEW_OPERATION: &str = "agent.delegation.review";
+pub const AGENT_SKILL_SETTINGS_LIST_OPERATION: &str = "agent.skill.settings.list";
+pub const AGENT_SKILL_SETTINGS_UPDATE_OPERATION: &str = "agent.skill.settings.update";
+pub const AGENT_SKILL_SEARCH_OPERATION: &str = "agent.skill.search";
+pub const AGENT_SKILL_LOAD_OPERATION: &str = "agent.skill.load";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -73,6 +77,13 @@ pub struct AgentMemoryListInput {
 pub struct AgentDelegationReviewCommand {
     pub input: ReviewAgentDelegationInput,
     pub parent_run_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillCapabilityCommand<T> {
+    pub capability: String,
+    pub input: T,
 }
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
