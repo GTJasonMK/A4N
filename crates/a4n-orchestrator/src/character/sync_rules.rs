@@ -217,6 +217,7 @@ pub struct CharacterSyncRange {
 }
 
 /// 解析同步范围；不可同步时返回 None。
+#[cfg(test)]
 pub fn character_sync_range(
     profile: &protagonist_profile::Model,
     target_chapter: i32,
@@ -272,6 +273,7 @@ pub fn character_sync_range_with_first_seen(
 }
 
 /// 增量同步起始章。
+#[cfg(test)]
 pub fn character_sync_start_chapter(
     profile: &protagonist_profile::Model,
     target_chapter: i32,
@@ -603,5 +605,309 @@ mod first_seen_source_consistency {
         );
         assert_eq!(summary.first_seen_chapter, Some(7));
         assert_eq!(summary.target_chapter, 5);
+    }
+}
+
+#[cfg(test)]
+mod runtime_scope_regressions {
+    use super::*;
+    use a4n_db_models::models::chapter::chapter;
+    use a4n_domain::character::{
+        analysis_sync_character_names, character_names_from_chapter_analysis,
+        character_names_from_discovery_result,
+    };
+    use serde_json::json;
+    use std::collections::BTreeSet;
+
+    fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> chapter::Model {
+        let now = chrono::Utc::now().naive_utc();
+        chapter::Model {
+            id: i64::from(chapter_number),
+            project_id: 1,
+            outline_id: None,
+            chapter_number,
+            title: Some(format!("第{chapter_number}章")),
+            content: content.to_string(),
+            word_count: content.chars().count() as i32,
+            status: status.to_string(),
+            summary: None,
+            style_tags: None,
+            analysis_data: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    fn character_profile_for_test(name: &str) -> protagonist_profile::Model {
+        let now = chrono::Utc::now().naive_utc();
+        protagonist_profile::Model {
+            id: 1,
+            project_id: 1,
+            name: name.to_string(),
+            gender: None,
+            age: None,
+            base_attributes: json!({}),
+            current_state: json!({
+                "explicit_attributes": {
+                    "personality": "谨慎"
+                },
+                "implicit_attributes": {},
+                "social_attributes": {}
+            }),
+            character_arc: None,
+            voice_fingerprint: None,
+            appearance: None,
+            background: None,
+            personality: None,
+            last_synced_chapter: 0,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn chapter_analysis_character_names_use_appearing_character_fields_only() {
+        let analysis = json!({
+            "metadata": {
+                "characters": ["林岚", "沈砚"],
+                "locations": ["北城门"]
+            },
+            "character_states": {
+                "魏青": {
+                    "location": "北城门",
+                    "status": "受伤",
+                    "changes": [],
+                    "emotional_state": "警惕"
+                }
+            },
+            "foreshadowing": {
+                "planted": [
+                    { "related_entities": ["沈砚", "玉佩"] }
+                ],
+                "resolved": [
+                    { "related_entities": "林岚" }
+                ],
+                "tensions": ["城门守军动向未明"]
+            },
+            "key_events": [
+                { "involved_characters": ["魏青", "  "] }
+            ]
+        });
+
+        let names = character_names_from_chapter_analysis(&analysis);
+
+        assert!(names.contains("林岚"));
+        assert!(names.contains("沈砚"));
+        assert!(names.contains("魏青"));
+        assert!(!names.contains("玉佩"));
+        assert!(!names.contains("北城门"));
+        assert!(!names.contains(""));
+    }
+
+    #[test]
+    fn analysis_sync_character_names_include_discovery_result() {
+        let analysis_names = ["陈恪", "魏征"]
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<BTreeSet<_>>();
+        let discovery = json!({
+            "created": [
+                {
+                    "name": "胡商",
+                    "base_attributes": {
+                        "explicit_attributes": {
+                            "aliases": ["西市胡商"]
+                        }
+                    },
+                    "current_state": {
+                        "explicit_attributes": {
+                            "aliases": ["卖图胡商"]
+                        }
+                    }
+                }
+            ],
+            "existing": [
+                {
+                    "name": "刘先生",
+                    "aliases": ["刘姓旅人"]
+                }
+            ],
+            "skipped": []
+        });
+        let discovery_names = character_names_from_discovery_result(&discovery);
+        let sync_names = analysis_sync_character_names(&analysis_names, &discovery_names);
+
+        assert!(sync_names.contains("陈恪"));
+        assert!(sync_names.contains("魏征"));
+        assert!(sync_names.contains("胡商"));
+        assert!(sync_names.contains("西市胡商"));
+        assert!(sync_names.contains("卖图胡商"));
+        assert!(sync_names.contains("刘先生"));
+        assert!(sync_names.contains("刘姓旅人"));
+    }
+
+    #[test]
+    fn profile_sync_skip_reason_skips_future_synced_profile() {
+        let mut profile = character_profile_for_test("陈恪");
+        profile.last_synced_chapter = 3;
+        let reason = CharacterProfileSyncSkipReason::AlreadySyncedPastTarget;
+
+        let first_seen = profile_first_seen_chapter(&profile);
+        assert_eq!(
+            profile_sync_skip_reason(&profile, 2, first_seen),
+            Some(reason)
+        );
+        let summary = character_profile_skipped_result(&profile, 2, reason, first_seen);
+        assert_eq!(summary.synced_chapter, 3);
+        assert_eq!(summary.target_chapter, 2);
+        assert_eq!(summary.reason, reason);
+    }
+
+    #[test]
+    fn analysis_sync_range_resyncs_already_covered_target_chapter() {
+        let mut profile = character_profile_for_test("陈恪");
+        profile.last_synced_chapter = 5;
+
+        let first_seen = profile_first_seen_chapter(&profile);
+        assert_eq!(character_sync_start_chapter(&profile, 2), None);
+        assert_eq!(
+            profile_sync_skip_reason(&profile, 2, first_seen),
+            Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
+        );
+        assert_eq!(analysis_profile_sync_skip_reason(2, first_seen), None);
+        assert_eq!(
+            character_sync_range(
+                &profile,
+                2,
+                CharacterSyncRangeMode::AnalysisResyncFromTarget,
+            ),
+            Some(CharacterSyncRange {
+                start_chapter: 2,
+                clear_to_chapter: 5,
+            })
+        );
+    }
+
+    #[test]
+    fn character_sync_start_chapter_respects_first_seen_chapter() {
+        let mut profile = character_profile_for_test("西市胡商");
+        profile.base_attributes = json!({
+            "explicit_attributes": {
+                "first_seen_chapter": 2
+            },
+            "implicit_attributes": {},
+            "social_attributes": {}
+        });
+        profile.current_state = profile.base_attributes.clone();
+        profile.last_synced_chapter = 0;
+
+        assert_eq!(profile_first_seen_chapter(&profile), Some(2));
+        assert_eq!(character_sync_start_chapter(&profile, 2), Some(2));
+        assert_eq!(
+            character_sync_range(
+                &profile,
+                2,
+                CharacterSyncRangeMode::AnalysisResyncFromTarget,
+            ),
+            Some(CharacterSyncRange {
+                start_chapter: 2,
+                clear_to_chapter: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn character_sync_start_chapter_skips_target_before_first_seen() {
+        let mut profile = character_profile_for_test("西市胡商");
+        profile.base_attributes = json!({
+            "explicit_attributes": {
+                "first_seen_chapter": 2
+            },
+            "implicit_attributes": {},
+            "social_attributes": {}
+        });
+        profile.current_state = profile.base_attributes.clone();
+        profile.last_synced_chapter = 0;
+        let reason = CharacterProfileSyncSkipReason::TargetBeforeFirstSeen;
+
+        let first_seen = profile_first_seen_chapter(&profile);
+        assert_eq!(
+            profile_sync_skip_reason(&profile, 1, first_seen),
+            Some(reason)
+        );
+        assert_eq!(character_sync_start_chapter(&profile, 1), None);
+        let summary = character_profile_skipped_result(&profile, 1, reason, first_seen);
+        assert_eq!(summary.first_seen_chapter, Some(2));
+        assert_eq!(summary.reason, reason);
+        assert_eq!(
+            analysis_profile_sync_skip_reason(1, first_seen),
+            Some(reason)
+        );
+        assert_eq!(
+            character_sync_range(
+                &profile,
+                1,
+                CharacterSyncRangeMode::AnalysisResyncFromTarget,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn validate_character_sync_target_chapter_accepts_explicit_available_chapter() {
+        let chapters = vec![
+            discovery_chapter(1, "completed", "有效正文"),
+            discovery_chapter(3, "completed", "另一章正文"),
+        ];
+
+        assert_eq!(
+            validate_character_sync_target_chapter(&chapters, 1, 3),
+            Ok(3)
+        );
+    }
+
+    #[test]
+    fn validate_character_sync_target_chapter_rejects_missing_or_invalid_chapter() {
+        let chapters = vec![
+            discovery_chapter(1, "completed", "有效正文"),
+            discovery_chapter(3, "completed", "另一章正文"),
+        ];
+
+        let zero = validate_character_sync_target_chapter(&chapters, 1, 0)
+            .expect_err("sync chapter must be explicit and positive");
+        assert!(zero.contains("同步目标章节必须大于 0"));
+
+        let gap = validate_character_sync_target_chapter(&chapters, 1, 2)
+            .expect_err("missing chapter in range should fail");
+        assert!(gap.contains("没有可同步正文"));
+
+        let beyond = validate_character_sync_target_chapter(&chapters, 1, 4)
+            .expect_err("chapter beyond latest should fail");
+        assert!(beyond.contains("当前最新章节为第 3 章"));
+    }
+
+    #[test]
+    fn validate_character_sync_target_chapter_rejects_empty_project_scope() {
+        let err = validate_character_sync_target_chapter(&[], 9, 1)
+            .expect_err("empty available chapter list should fail");
+
+        assert!(err.contains("项目还没有可同步章节"));
+        assert!(err.contains("project_id=9"));
+    }
+
+    #[test]
+    fn validate_contiguous_sync_range_accepts_complete_range() {
+        validate_contiguous_character_sync_range(2, 4, &[2, 3, 4])
+            .expect("complete sync range should pass");
+    }
+
+    #[test]
+    fn validate_contiguous_sync_range_rejects_missing_chapters() {
+        let err = validate_contiguous_character_sync_range(1, 4, &[1, 3])
+            .expect_err("missing chapters should fail");
+
+        assert!(err.contains("同步范围不完整"));
+        assert!(err.contains("第 2 章"));
+        assert!(err.contains("第 4 章"));
     }
 }

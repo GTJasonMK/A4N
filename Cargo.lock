@@ -1760,7 +1760,6 @@ dependencies = [
  "a4n-model-discovery-contract",
  "a4n-novel-host-contract",
  "a4n-optimize-host-contract",
- "a4n-orchestrator",
  "a4n-outline-contract",
  "a4n-portrait-host-contract",
  "a4n-process-catalog",

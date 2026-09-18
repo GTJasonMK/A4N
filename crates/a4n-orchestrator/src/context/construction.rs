@@ -21,9 +21,9 @@ use super::{
     ShootingScriptApplication, SourceSyncApplication, TextAnchorApplication, VideoApplication,
     WorkflowApplication,
 };
-use crate::agent::AgentApplication;
 use crate::chapter_generation::ChapterGenerationService;
 use crate::context::dynamic_provider::ProviderRuntimeAdapter;
+use a4n_agent_application::agent::AgentApplication;
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 impl OrchestratorContext {

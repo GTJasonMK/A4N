@@ -65,7 +65,7 @@ mod video;
 mod video_studio_transfer;
 mod workflow;
 
-use crate::agent::AgentApplication;
+use a4n_agent_application::agent::AgentApplication;
 use admin::AdminApplication;
 use asset::AssetApplication;
 use auth::AuthApplication;
