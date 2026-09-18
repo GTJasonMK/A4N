@@ -67,10 +67,10 @@ impl ProjectBundlePackage {
         if self.family.is_none() && self.canvas_projects.is_empty() {
             return Err("项目包至少需要一个项目族或画布项目".to_string());
         }
-        if let Some(family) = &self.family {
-            if family.root_project_id != self.root_project_id {
-                return Err("项目包根项目与项目族根项目不一致".to_string());
-            }
+        if let Some(family) = &self.family
+            && family.root_project_id != self.root_project_id
+        {
+            return Err("项目包根项目与项目族根项目不一致".to_string());
         }
         let mut family_project_ids = HashSet::new();
         if let Some(family) = &self.family {

@@ -559,9 +559,7 @@ impl ProjectBundleTransferApplicationPort for OrchestratorContext {
         input: ExportProjectBundleApplicationInput,
         host_port: &dyn ProjectPackageTransferHostPort,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError> {
-        self.export_project_bundle_validated(input, host_port)
-            .await
-            .map_err(Into::into)
+        self.export_project_bundle_validated(input, host_port).await
     }
 
     async fn inspect_bundle(
@@ -571,7 +569,6 @@ impl ProjectBundleTransferApplicationPort for OrchestratorContext {
     ) -> Result<ProjectBundleImportReport, ProjectPackageTransferError> {
         self.inspect_project_bundle_validated(input, host_port)
             .await
-            .map_err(Into::into)
     }
 
     async fn import_bundle(
@@ -582,7 +579,7 @@ impl ProjectBundleTransferApplicationPort for OrchestratorContext {
         match self.import_project_bundle_validated(input, host_port).await {
             Ok(report) => Ok(report),
             Err(error) => match host_port.rollback_imported_media_files().await {
-                Ok(()) => Err(error.into()),
+                Ok(()) => Err(error),
                 Err(cleanup_error) => Err(ProjectPackageTransferError::Message(format!(
                     "{error}；{cleanup_error}"
                 ))),

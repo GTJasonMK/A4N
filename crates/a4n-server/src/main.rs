@@ -1400,10 +1400,10 @@ fn wait_for_edge_or_child_with_workers(
         if let Some(status) = artifact_media_worker.try_wait()? {
             return Ok(Some(ChildWatchEvent::ArtifactMediaWorkerExited(status)));
         }
-        if let Some((outline_worker, _, _)) = outline_worker.as_mut() {
-            if let Some(status) = outline_worker.try_wait()? {
-                return Ok(Some(ChildWatchEvent::OutlineWorkerExited(status)));
-            }
+        if let Some((outline_worker, _, _)) = outline_worker.as_mut()
+            && let Some(status) = outline_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::OutlineWorkerExited(status)));
         }
         if let Some((blueprint_worker, _, _)) = blueprint_worker.as_mut()
             && let Some(status) = blueprint_worker.try_wait()?
@@ -2652,11 +2652,6 @@ fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
 
     if let Some(path) = sibling_binary(name) {
         return Ok(path);
-    }
-
-    #[cfg(feature = "test-embedded-processes")]
-    if env::var("A4N_TEST_EMBEDDED_PROCESS_FALLBACK").as_deref() == Ok("1") {
-        return Ok(env::current_exe()?);
     }
 
     anyhow::bail!("未找到 {name}；请设置 {env_name} 或将其放在 a4n-server 同目录")
