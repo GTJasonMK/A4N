@@ -204,19 +204,19 @@
     "name": "object-profile-worker",
     "kind": "stateful_worker",
     "binary": "a4n-object-profile-worker",
-    "contract_version": "object-profile-read-v1",
-    "capability_version": "object-profile-read-v1",
+    "contract_version": "object-profile-mutation-v1",
+    "capability_version": "object-profile-mutation-v1",
     "addr_env": "A4N_OBJECT_PROFILE_WORKER_ADDR",
     "url_env": "A4N_OBJECT_PROFILE_WORKER_URL",
     "default_addr": "127.0.0.1:47657",
     "local_only": true,
     "data_scope": ["object_profile"],
-    "capabilities": ["profile.object.read"],
+    "capabilities": ["profile.object.read", "profile.object.mutation"],
     "dependencies": ["a4n-migration"],
     "migration": {
-      "current": "object_profile_read",
-      "min_compatible": "object_profile_read",
-      "max_compatible": "object_profile_read"
+      "current": "object_profile_mutation",
+      "min_compatible": "object_profile_mutation",
+      "max_compatible": "object_profile_mutation"
     }
   },
   {

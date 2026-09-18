@@ -989,12 +989,6 @@ impl AppState {
         self.object_profile_read_application.as_ref()
     }
 
-    pub(crate) fn object_profile_mutation_application(
-        &self,
-    ) -> &dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort {
-        self.object_profile_mutation_application.as_ref()
-    }
-
     pub(crate) fn scene_profile_read_application(
         &self,
     ) -> &dyn a4n_api_contract::profile::SceneProfileReadApplicationPort {
