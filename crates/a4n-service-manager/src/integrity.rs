@@ -145,6 +145,10 @@ impl BinaryIntegrityVerifier {
                 "release tool catalog is invalid".to_string(),
             ));
         }
+        let tool_catalog = tool_catalog
+            .into_iter()
+            .filter(|entry| entry.package != manifest.package)
+            .collect::<Vec<_>>();
         let expected_tool_names = tool_catalog
             .iter()
             .map(|entry| format!("{}{extension}", entry.binary))
@@ -537,6 +541,18 @@ mod tests {
         let error = BinaryIntegrityVerifier::new(manifest, None)
             .expect_err("manifest must include every release tool");
         assert!(error.to_string().contains("release tool catalog"));
+    }
+
+    #[test]
+    fn server_manifest_may_omit_host_tool() {
+        let mut manifest = valid_manifest("a".repeat(64));
+        manifest.package = "a4n-server".to_string();
+        manifest.binaries[0].name = "a4n-server".to_string();
+        manifest.binaries[0].path = "bin/a4n-server".to_string();
+        manifest.tools.retain(|entry| entry.name != "a4n-server");
+
+        BinaryIntegrityVerifier::new(manifest, None)
+            .expect("server manifest may omit its host tool entry");
     }
 
     #[test]
