@@ -84,6 +84,8 @@ PACKAGE_SIZE=""
 DEPLOY_RECORD_DIR="${A4N_DEPLOY_RECORD_DIR:-$PROJECT_ROOT/deploy-records}"
 DEPLOY_RECORD_PATH=""
 DEPLOY_STARTED_AT="$(date --iso-8601=seconds)"
+DEPLOY_STARTED_EPOCH="$(date +%s)"
+BUILD_ELAPSED_SECONDS=""
 
 usage() {
     print_script_usage "$0" 23
@@ -129,8 +131,18 @@ required_binary_paths() {
     done
 }
 
+format_elapsed() {
+    local total_seconds="$1"
+    printf '%02dh %02dm %02ds' \
+        "$((total_seconds / 3600))" \
+        "$((total_seconds % 3600 / 60))" \
+        "$((total_seconds % 60))"
+}
+
 start_deploy_record() {
     command -v tee >/dev/null 2>&1 || die "未找到命令: tee"
+    DEPLOY_STARTED_AT="$(date --iso-8601=seconds)"
+    DEPLOY_STARTED_EPOCH="$(date +%s)"
     mkdir -p "$DEPLOY_RECORD_DIR"
     DEPLOY_RECORD_PATH="$DEPLOY_RECORD_DIR/deploy-$(date +%Y%m%d%H%M%S).log"
     exec > >(tee -a "$DEPLOY_RECORD_PATH") 2>&1
@@ -150,15 +162,25 @@ start_deploy_record() {
 
 finish_deploy_record() {
     local status=$?
+    local elapsed_seconds=$(( $(date +%s) - DEPLOY_STARTED_EPOCH ))
     if [[ -n "$DEPLOY_RECORD_PATH" ]]; then
         {
             echo "finished_at=$(date --iso-8601=seconds)"
             echo "status=$([[ "$status" -eq 0 ]] && echo success || echo failed)"
             echo "exit_status=$status"
+            echo "elapsed_seconds=$elapsed_seconds"
+            [[ -n "$BUILD_ELAPSED_SECONDS" ]] && echo "build_elapsed_seconds=$BUILD_ELAPSED_SECONDS"
             [[ -n "$PACKAGE_CREATED_AT" ]] && echo "package_created_at=$PACKAGE_CREATED_AT"
             [[ -n "$PACKAGE_SIZE" ]] && echo "package_size=$PACKAGE_SIZE"
             [[ -n "$PACKAGE_SHA256" ]] && echo "package_sha256=$PACKAGE_SHA256"
         } >> "$DEPLOY_RECORD_PATH"
+    else
+        exit "$status"
+    fi
+    if [[ "$status" -eq 0 ]]; then
+        log_ok "本次部署耗时: $(format_elapsed "$elapsed_seconds")"
+    else
+        log_warn "部署失败，耗时: $(format_elapsed "$elapsed_seconds")"
     fi
     exit "$status"
 }
@@ -411,11 +433,15 @@ build_backend() {
     for package in "${BUILD_PACKAGES[@]}"; do
         cargo_packages+=" -p $package"
     done
+    log_info "Cargo 构建 ${#BUILD_PACKAGES[@]} 个 package，实时显示编译进度"
 
-    docker run --rm \
+    docker run --rm -t \
         -e CARGO_HOME=/usr/local/cargo \
         -e RUSTUP_HOME=/usr/local/rustup \
         -e CARGO_BUILD_JOBS="${A4N_DEPLOY_CARGO_JOBS:-2}" \
+        -e CARGO_TERM_PROGRESS_WHEN=always \
+        -e CARGO_TERM_PROGRESS_WIDTH="${A4N_DEPLOY_CARGO_PROGRESS_WIDTH:-100}" \
+        -e CARGO_TERM_COLOR=always \
         -e ORT_LIB_PATH=/opt/a4n-onnxruntime/lib \
         -e ORT_PREFER_DYNAMIC_LINK=1 \
         -e LD_LIBRARY_PATH=/opt/a4n-onnxruntime/lib \
@@ -818,7 +844,10 @@ main() {
 
     check_prerequisites
     remote_preflight
+    local build_started_epoch="$(date +%s)"
     build_all
+    BUILD_ELAPSED_SECONDS=$(( $(date +%s) - build_started_epoch ))
+    log_info "构建阶段耗时: $(format_elapsed "$BUILD_ELAPSED_SECONDS")"
     verify_backend_binaries
     prepare_package
     upload_package
