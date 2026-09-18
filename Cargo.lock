@@ -1783,7 +1783,6 @@ dependencies = [
  "a4n-rag-sidecar-contract",
  "a4n-scene-host-contract",
  "a4n-scene-profile-worker-client",
- "a4n-scene-profile-worker-contract",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
