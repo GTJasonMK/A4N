@@ -65,6 +65,7 @@ fn content_optimization_analysis_prompt_detection_uses_payload_task_name() {
             summary: None,
             created_at: now,
             updated_at: now,
+            archived_at: None,
         },
         &permissions,
         &json!([]),
