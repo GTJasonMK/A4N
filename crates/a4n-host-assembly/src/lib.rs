@@ -118,7 +118,6 @@ pub async fn initialize_runtime(
         task_read_application: orchestrator.clone(),
         workflow_cancellation_application: orchestrator.clone(),
         object_profile_read_application: object_profile_worker,
-        object_profile_mutation_application: orchestrator.clone(),
         scene_profile_read_application: scene_profile_worker,
         character_profile_read_application: orchestrator.clone(),
         character_profile_mutation_application: orchestrator.clone(),

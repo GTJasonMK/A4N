@@ -149,9 +149,6 @@ pub struct ApplicationPorts {
     /// Host-facing object profile read boundary.
     pub object_profile_read_application:
         Arc<dyn a4n_api_contract::profile::ObjectProfileReadApplicationPort>,
-    /// Host-facing object profile mutation boundary.
-    pub object_profile_mutation_application:
-        Arc<dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort>,
     /// Host-facing scene profile read boundary.
     pub scene_profile_read_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileReadApplicationPort>,
