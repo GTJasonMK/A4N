@@ -594,6 +594,11 @@ describe("UI presentation and workspace continuity", () => {
     assert.match(await meter.getText(), /42%/);
     assert.equal(await $(".agent-monitor-activity-pane").isExisting(), false);
     assert.equal(await $(".agent-monitor-activity-toggle").getAttribute("aria-pressed"), "false");
+    assert.equal(await $('button[aria-label="清空 Agent 上下文"]').isDisplayed(), true);
+    assert.equal(
+      await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      0,
+    );
   });
 
   it("keeps a late Agent send from replacing the selected thread", async () => {

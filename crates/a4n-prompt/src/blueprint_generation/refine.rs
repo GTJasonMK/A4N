@@ -29,6 +29,7 @@ mod tests {
 
         assert!(message.contains(r#""context_refs""#));
         assert!(message.contains("existing_blueprint_context"));
+        assert!(message.contains("inspiration_conversation_context"));
         assert!(!message.contains("星潮档案"));
         assert!(!message.contains(r#""focus""#));
         assert!(!message.contains("全面优化"));
@@ -80,12 +81,19 @@ mod tests {
             "characters": [{"name": "林烬", "motivation": "查明真相"}],
             "relationships": [],
         });
+        let inspiration_context = json!({
+            "messages": [
+                {"role": "user", "content": "我想写一个关于星潮真相的故事。"},
+                {"role": "assistant", "content": "可以从主角的调查动机展开。"}
+            ]
+        });
         let request = build_blueprint_refine_request(
             &engine,
             42,
             Some("强化主角动机"),
             &std::collections::HashMap::new(),
             &blueprint_context,
+            &inspiration_context,
         )
         .await
         .expect("refine request should build");
@@ -101,6 +109,18 @@ mod tests {
             .filter_map(|pack| pack["pack_kind"].as_str())
             .collect::<Vec<_>>();
         assert!(pack_kinds.contains(&"existing_blueprint_context"));
+        assert!(pack_kinds.contains(&"inspiration_conversation_context"));
+        let inspiration_pack = manifest["packs"]
+            .as_array()
+            .expect("packs should be array")
+            .iter()
+            .find(|pack| pack["pack_kind"] == "inspiration_conversation_context")
+            .expect("inspiration pack should exist");
+        assert_eq!(
+            inspiration_pack["variants"][0]["canonical_content_json"]["conversation"]["messages"]
+                [0]["content"],
+            "我想写一个关于星潮真相的故事。"
+        );
 
         let user_message = request
             .messages

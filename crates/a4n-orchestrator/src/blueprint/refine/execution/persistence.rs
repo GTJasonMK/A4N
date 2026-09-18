@@ -4,6 +4,7 @@ use a4n_db::blueprint::{
     insert_blueprint_version_record, next_blueprint_version_record,
     sync_project_after_blueprint_record,
 };
+use a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT;
 use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     merge_blueprint_characters, merge_blueprint_relationships,
@@ -15,8 +16,10 @@ use chrono::Utc;
 use sea_orm::DatabaseTransaction;
 use serde_json::Value;
 
+use super::contracts::blueprint_refine_source_snapshot;
 use crate::blueprint::persistence::{blueprint_character_drafts, blueprint_relationship_drafts};
 use crate::blueprint::{blueprint_db_error, blueprint_sync_error, character_profile_seed_error};
+use crate::context::inspiration_db_error_to_app;
 
 pub(super) async fn persist_blueprint_refinement_in_transaction(
     tx: &DatabaseTransaction,
@@ -34,7 +37,14 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
             operation: "保存蓝图优化结果".to_string(),
         });
     }
-    if a4n_db::outline::outline_generation_source_snapshot(&locked_sources)
+    let inspiration_history = a4n_db::inspiration::inspiration_messages_for_connection(
+        tx,
+        project_id,
+        INSPIRATION_HISTORY_LIMIT,
+    )
+    .await
+    .map_err(inspiration_db_error_to_app)?;
+    if blueprint_refine_source_snapshot(&locked_sources, &inspiration_history)
         != expected_source_snapshot
     {
         return Err(AppError::InvalidState {

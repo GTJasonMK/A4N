@@ -1,7 +1,7 @@
 use a4n_db_models::models::generation::model_usage_record;
 use a4n_domain::cost::{
     CostConfidence, ModelCapability, ModelUsageRecordCompletion, ModelUsageRecordStart,
-    PricingPlan, estimate_cost,
+    PricingPlan, SYSTEM_DEFAULT_PROVIDER_CONFIG_ID, estimate_cost,
 };
 use a4n_error::AppError;
 use chrono::Utc;
@@ -18,6 +18,8 @@ pub async fn start_model_usage_record<C>(
 where
     C: ConnectionTrait,
 {
+    let mut input = input;
+    input.provider_config_id = normalize_provider_config_id(input.provider_config_id);
     validate_start(&input)?;
     let pricing = input
         .pricing
@@ -239,6 +241,14 @@ fn validate_start(input: &ModelUsageRecordStart) -> Result<(), AppError> {
     Ok(())
 }
 
+fn normalize_provider_config_id(value: Option<i64>) -> Option<i64> {
+    if value == Some(SYSTEM_DEFAULT_PROVIDER_CONFIG_ID) {
+        None
+    } else {
+        value
+    }
+}
+
 fn normalize_optional(value: Option<String>) -> Option<String> {
     value.and_then(|value| {
         let value = value.trim().to_string();
@@ -288,5 +298,15 @@ mod tests {
             ..Default::default()
         };
         assert!(serde_json::to_value(meter).unwrap().is_object());
+    }
+
+    #[test]
+    fn system_default_provider_id_is_not_persisted_as_a_config_id() {
+        assert_eq!(
+            normalize_provider_config_id(Some(SYSTEM_DEFAULT_PROVIDER_CONFIG_ID)),
+            None
+        );
+        assert_eq!(normalize_provider_config_id(Some(7)), Some(7));
+        assert_eq!(normalize_provider_config_id(None), None);
     }
 }

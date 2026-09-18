@@ -25,6 +25,7 @@ pub async fn build_blueprint_refine_request(
     focus: Option<&str>,
     variables: &HashMap<String, Value>,
     blueprint_context: &Value,
+    inspiration_context: &Value,
 ) -> Result<ChatRequest, AppError> {
     let system_prompt = prompt_renderer
         .render_prompt(BLUEPRINT_REFINEMENT_PROMPT, variables, Some(project_id))
@@ -32,7 +33,11 @@ pub async fn build_blueprint_refine_request(
     let user_prompt =
         blueprint_refine_manifest_user_message(prompt_renderer, Some(project_id), focus).await?;
     let dynamic_user_content_sha256 = source_content_sha256(&user_prompt);
-    let manifest = build_blueprint_refine_context_manifest(blueprint_context, user_prompt)?;
+    let manifest = build_blueprint_refine_context_manifest(
+        blueprint_context,
+        inspiration_context,
+        user_prompt,
+    )?;
     let call_key = blueprint_refinement_call_key(project_id);
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.6), None)?
@@ -48,6 +53,7 @@ pub async fn build_blueprint_refine_request(
                 input_fingerprint_sha256: Some(source_content_sha256(&serde_json::to_string(
                     &json!({
                         "blueprint_context": blueprint_context,
+                        "inspiration_context": inspiration_context,
                         "dynamic_user_content_sha256": dynamic_user_content_sha256,
                     }),
                 )?)),

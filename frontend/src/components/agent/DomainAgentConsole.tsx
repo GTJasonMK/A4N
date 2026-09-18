@@ -33,12 +33,14 @@ import {
 } from "./AgentMessageList";
 import { AgentContextMeter } from "./AgentContextMeter";
 import {
+  ACTIVE_AGENT_RUN_STATUSES,
+  activeAgentRun,
+  clearAgentThreadContext,
   controlAgentRun,
   createAgentThread,
   getAgentThread,
   isAgentThreadOperational,
   listAgentThreads,
-  archiveAgentThread,
   resolveAgentApproval,
   sendAgentMessage,
   subscribeAgentThreadEvents,
@@ -48,7 +50,6 @@ import {
   type AgentEvent,
   type AgentExecutionMode,
   type AgentExecutionView,
-  type AgentRunView,
   type AgentScope,
   type AgentThreadSnapshot,
   type AgentThreadView,
@@ -66,8 +67,6 @@ import {
   snapshotCursor,
   streamedAgentMessageIds,
 } from "../../utils/agentEventReducer";
-
-export { isAgentThreadOperational };
 
 export type DomainAgentCapability = "content_optimization" | "canvas" | "director";
 
@@ -102,17 +101,6 @@ export interface DomainAgentBinding {
   resourceKind: "project" | "chapter";
   resourceId: string;
 }
-
-const ACTIVE_RUN_STATUSES = new Set<AgentRunView["status"]>([
-  "queued",
-  "running",
-  "waiting",
-  "pausing",
-  "paused",
-  "cancelling",
-]);
-const CLEAR_CONTEXT_WAIT_TIMEOUT_MS = 30_000;
-const CLEAR_CONTEXT_POLL_INTERVAL_MS = 200;
 
 const RUN_STATUS_LABELS: Record<
   string,
@@ -242,14 +230,6 @@ function scopeForBinding(binding: DomainAgentBinding): AgentScope {
     allowed_capabilities: [binding.capability],
     allowed_tools: [],
   };
-}
-
-function activeRun(snapshot: AgentThreadSnapshot | null): AgentRunView | null {
-  return snapshot
-    ? [...snapshot.runs]
-        .reverse()
-        .find((run) => ACTIVE_RUN_STATUSES.has(run.status)) ?? null
-    : null;
 }
 
 function executionTone(execution: AgentExecutionView): string {
@@ -545,7 +525,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     void ensureThread();
   }, [ensureThread, reloadNonce]);
 
-  const currentRun = useMemo(() => activeRun(snapshot), [snapshot]);
+  const currentRun = useMemo(() => activeAgentRun(snapshot), [snapshot]);
   const contextRun = currentRun ?? (
     snapshot && snapshot.runs.length > 0
       ? snapshot.runs[snapshot.runs.length - 1]
@@ -655,11 +635,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   };
 
   const clearContext = async () => {
-    if (!thread || !isAgentThreadOperational(thread) || clearingRef.current) return;
+    if (!thread || !isAgentThreadOperational(thread) || clearingRef.current || sendingRef.current) return;
     const confirmed = await confirmDialog({
-      title: t("agent.domain.clearContextTitle"),
-      message: t("agent.domain.clearContextMessage"),
-      confirmText: t("agent.domain.clearContextConfirm"),
+      title: t("agent.clearContextTitle"),
+      message: t("agent.clearContextMessage"),
+      confirmText: t("agent.clearContextConfirm"),
       cancelText: t("common.cancel"),
       dialogType: "warning",
     });
@@ -671,66 +651,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     clearingRef.current = true;
     snapshotRequestRef.current += 1;
     try {
-      const deadline = Date.now() + CLEAR_CONTEXT_WAIT_TIMEOUT_MS;
-      while (sendingRef.current && Date.now() < deadline) {
-        await new Promise((resolve) => window.setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS));
-      }
-      if (sendingRef.current) throw new Error(t("agent.domain.clearContextTimeout"));
-      const readForCleanup = async () => {
-        const next = await getAgentThread(threadId);
-        commitSnapshot(next);
-        return next;
-      };
-      const waitForRunsToStop = async () => {
-        let next = await readForCleanup();
-        const cancellationRequested = new Set<string>();
-        while (Date.now() < deadline) {
-          const run = activeRun(next);
-          if (!run) return next;
-          if (!cancellationRequested.has(run.id)) {
-            try {
-              await controlAgentRun({
-                thread_id: threadId,
-                run_id: run.id,
-                action: "cancel",
-              });
-            } catch (error) {
-              next = await readForCleanup();
-              if (!activeRun(next)) return next;
-              throw error;
-            }
-            cancellationRequested.add(run.id);
-          }
-          await new Promise((resolve) => window.setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS));
-          next = await readForCleanup();
-        }
-        throw new Error(t("agent.domain.clearContextTimeout"));
-      };
-
-      let next = await waitForRunsToStop();
-      let archived = false;
-      let archiveError: unknown = null;
-      while (Date.now() < deadline) {
-        try {
-          await archiveAgentThread({ thread_id: threadId });
-          archived = true;
-          archiveError = null;
-          break;
-        } catch (err) {
-          archiveError = err;
-          next = await readForCleanup();
-          if (activeRun(next)) {
-            next = await waitForRunsToStop();
-          } else {
-            await new Promise((resolve) => window.setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS));
-          }
-        }
-      }
-      if (!archived) throw archiveError ?? new Error(t("agent.domain.clearContextTimeout"));
-      next = await readForCleanup();
-      if (activeRun(next) || next.thread.status !== "archived") {
-        throw new Error(t("agent.domain.clearContextTimeout"));
-      }
+      await clearAgentThreadContext(threadId, t("agent.clearContextTimeout"));
       setThread(null);
       setSnapshot(null);
       snapshotRef.current = null;
@@ -738,12 +659,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
       if (!await ensureThread()) {
-        throw new Error(t("agent.domain.clearContextFailed"));
+        throw new Error(t("agent.clearContextFailed"));
       }
       setDraft("");
-      addToast(t("agent.domain.clearContextSuccess"), "success");
+      addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {
-      const message = extractErrorMessage(err, t("agent.domain.clearContextFailed"));
+      const message = extractErrorMessage(err, t("agent.clearContextFailed"));
       setError(message);
       addToast(message, "error");
     } finally {
@@ -930,12 +851,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             />
           </BookIconButton>
           <BookIconButton
-            label={t("agent.domain.clearContext")}
+            label={t("agent.clearContext")}
             variant="ghost"
             size="sm"
             className="text-error hover:bg-error-bg hover:text-error"
             onClick={() => void clearContext()}
-            disabled={!thread || clearing || !isAgentThreadOperational(thread)}
+            disabled={!thread || clearing || sending || !isAgentThreadOperational(thread)}
           >
             {clearing ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
           </BookIconButton>
@@ -1155,7 +1076,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   {controlBusy ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : null}
                 </div>
               ) : null}
-              {currentRun && ACTIVE_RUN_STATUSES.has(currentRun.status) ? (
+              {currentRun && ACTIVE_AGENT_RUN_STATUSES.has(currentRun.status) ? (
                 <BookButton
                   size="md"
                   variant="danger"

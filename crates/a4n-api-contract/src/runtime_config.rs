@@ -1,5 +1,5 @@
 use a4n_domain::ImageSize;
-use a4n_domain::cost::PricingPlan;
+use a4n_domain::cost::{PricingPlan, SYSTEM_DEFAULT_PROVIDER_CONFIG_ID};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::Value;
@@ -83,7 +83,7 @@ impl RuntimeConfigSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeLlmConfig {
-    #[serde(deserialize_with = "deserialize_positive_config_id")]
+    #[serde(deserialize_with = "deserialize_provider_config_id")]
     pub id: i64,
     pub name: String,
     pub provider: String,
@@ -106,7 +106,7 @@ pub struct RuntimeLlmConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeImageConfig {
-    #[serde(deserialize_with = "deserialize_positive_config_id")]
+    #[serde(deserialize_with = "deserialize_provider_config_id")]
     pub id: i64,
     pub name: String,
     pub backend: String,
@@ -126,7 +126,7 @@ pub struct RuntimeImageConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RuntimeVideoConfig {
-    #[serde(deserialize_with = "deserialize_positive_config_id")]
+    #[serde(deserialize_with = "deserialize_provider_config_id")]
     pub id: i64,
     pub name: String,
     pub backend: String,
@@ -212,6 +212,19 @@ where
     Ok(version)
 }
 
+fn deserialize_provider_config_id<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let id = i64::deserialize(deserializer)?;
+    if id != SYSTEM_DEFAULT_PROVIDER_CONFIG_ID && id <= 0 {
+        return Err(D::Error::custom(format!(
+            "运行时配置 ID 必须是正整数或系统默认配置 ID，实际为 {id}"
+        )));
+    }
+    Ok(id)
+}
+
 fn deserialize_positive_config_id<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: Deserializer<'de>,
@@ -265,6 +278,31 @@ mod tests {
                 "{pointer}"
             );
         }
+    }
+
+    #[test]
+    fn system_default_provider_ids_are_allowed_but_embedding_ids_stay_positive() {
+        let value = json!({
+            "schema_version": 2,
+            "llm": runtime_llm(-1, "llm"),
+            "image": runtime_image(-1, "image"),
+            "video": runtime_video(-1, "video"),
+            "embedding": runtime_embedding(1, "embedding")
+        });
+
+        let snapshot: RuntimeConfigSnapshot =
+            serde_json::from_value(value).expect("system default provider IDs should be accepted");
+        assert_eq!(snapshot.llm.expect("LLM").id, -1);
+        assert_eq!(snapshot.image.expect("image").id, -1);
+        assert_eq!(snapshot.video.expect("video").id, -1);
+
+        let invalid = json!({
+            "schema_version": 2,
+            "embedding": runtime_embedding(-1, "embedding")
+        });
+        let error = serde_json::from_value::<RuntimeConfigSnapshot>(invalid)
+            .expect_err("embedding IDs must remain positive");
+        assert!(error.to_string().contains("运行时配置 ID 必须是正整数"));
     }
 
     fn runtime_llm(id: i64, key: &str) -> serde_json::Value {

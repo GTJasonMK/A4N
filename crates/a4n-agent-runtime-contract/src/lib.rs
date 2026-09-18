@@ -915,6 +915,8 @@ fn budget_usage_u64(value: &Value, key: &str) -> Result<u64, AppError> {
     }
 }
 
+pub use a4n_api_contract::agent::AgentEditorSource;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1045,5 +1047,3 @@ mod tests {
         assert!(restored.context_manifest_json.is_none());
     }
 }
-
-pub use a4n_api_contract::agent::AgentEditorSource;

@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 
 pub const PRICE_MICRO_SCALE: i64 = 1_000_000;
 pub const MILLION: u64 = 1_000_000;
+/// Runtime snapshots use this sentinel for a server-managed provider template.
+/// It is never a persisted database configuration ID.
+pub const SYSTEM_DEFAULT_PROVIDER_CONFIG_ID: i64 = -1;
 
 /// 手工维护的 Provider 价格。价格使用货币单位的十进制字符串，避免浮点数
 /// 在配置和历史快照之间产生不可见的舍入误差。

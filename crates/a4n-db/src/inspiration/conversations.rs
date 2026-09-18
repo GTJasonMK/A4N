@@ -7,14 +7,32 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
 };
+use serde_json::{Value, json};
 
 const INSPIRATION_CONVERSATION_TYPE: &str = "inspiration";
 const INSPIRATION_CONVERSATION_TITLE: &str = "灵感对话";
+pub const INSPIRATION_HISTORY_LIMIT: u64 = 80;
 
-async fn active_inspiration_conversation(
-    db: &DatabaseConnection,
+pub fn inspiration_messages_llm_context(messages: &[message::Model]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter_map(|item| match item.role.as_str() {
+            "user" | "assistant" => Some(json!({
+                "role": item.role,
+                "content": item.content,
+            })),
+            _ => None,
+        })
+        .collect()
+}
+
+async fn active_inspiration_conversation<C>(
+    db: &C,
     project_id: i64,
-) -> Result<Option<conversation::Model>, InspirationDbError> {
+) -> Result<Option<conversation::Model>, InspirationDbError>
+where
+    C: sea_orm::ConnectionTrait,
+{
     conversation::Entity::find()
         .filter(conversation::Column::ProjectId.eq(project_id))
         .filter(conversation::Column::ConversationType.eq(INSPIRATION_CONVERSATION_TYPE))
@@ -66,6 +84,17 @@ pub async fn inspiration_messages(
     limit: u64,
 ) -> Result<Vec<message::Model>, InspirationDbError> {
     ensure_inspiration_project_exists(db, project_id).await?;
+    inspiration_messages_for_connection(db, project_id, limit).await
+}
+
+pub async fn inspiration_messages_for_connection<C>(
+    db: &C,
+    project_id: i64,
+    limit: u64,
+) -> Result<Vec<message::Model>, InspirationDbError>
+where
+    C: sea_orm::ConnectionTrait,
+{
     let Some(conversation) = active_inspiration_conversation(db, project_id).await? else {
         return Ok(Vec::new());
     };

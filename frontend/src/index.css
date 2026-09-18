@@ -1626,6 +1626,23 @@ body {
     min-width: 0;
   }
 
+  .agent-monitor-page-header {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    padding-block: 10px 12px;
+  }
+
+  .agent-monitor-page-header .a4n-app-page-header__identity {
+    padding-top: 1px;
+  }
+
+  .agent-monitor-page-header .a4n-app-page-header__subtitle {
+    overflow: visible;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
   .agent-monitor-body {
     box-sizing: border-box;
     display: flex;

@@ -4,6 +4,7 @@ use a4n_api_contract::{
         InspirationMessageSummary, PreviewInspirationRequestInput, StartInspirationGenerationInput,
     },
 };
+use a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT;
 use a4n_error::AppError;
 use a4n_inspiration_host_contract::{
     InspirationGenerationApplicationPort, InspirationRequestPreviewApplicationPort,
@@ -34,8 +35,6 @@ use crate::{
 use super::{
     request::build_inspiration_request_from_context, validation::validate_inspiration_response_json,
 };
-
-const INSPIRATION_HISTORY_LIMIT: u64 = 80;
 
 #[async_trait::async_trait]
 impl a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort for OrchestratorContext {

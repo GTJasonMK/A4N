@@ -9,6 +9,7 @@ use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
 use a4n_provider_contract::LlmProviderConfig;
 
 const LLM_CONNECTIVITY_TEST_PROMPT: &str = "ping";
+const LLM_CONNECTIVITY_TEST_MAX_TOKENS: usize = 512;
 
 pub async fn test_llm_config(state: &AppState, user_id: i64, config_id: i64) -> Result<(), String> {
     let config = resolve_llm_config_for_connectivity_test(state, user_id, config_id).await?;
@@ -84,7 +85,7 @@ async fn resolve_llm_config_for_connectivity_test(
 fn build_llm_connectivity_test_request(
     config: &a4n_provider_contract::LlmProviderConfig,
 ) -> Result<ChatRequest, String> {
-    let max_tokens = 8.min(positive_model_output_cap(config.max_output_tokens)?);
+    let max_tokens = connectivity_test_max_tokens(config.max_output_tokens)?;
     Ok(ChatRequest::new(
         vec![ChatMessage::user(LLM_CONNECTIVITY_TEST_PROMPT)],
         Some(0.0),
@@ -92,9 +93,25 @@ fn build_llm_connectivity_test_request(
     ))
 }
 
+fn connectivity_test_max_tokens(model_max_output_tokens: i32) -> Result<usize, String> {
+    Ok(LLM_CONNECTIVITY_TEST_MAX_TOKENS.min(positive_model_output_cap(model_max_output_tokens)?))
+}
+
 pub(super) fn validate_llm_runtime_snapshot_config_id(
     config: &a4n_provider_contract::LlmProviderConfig,
     config_id: i64,
 ) -> Result<(), String> {
     validate_runtime_snapshot_config_id("llm", config.id, config_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::connectivity_test_max_tokens;
+
+    #[test]
+    fn connectivity_test_allows_reasoning_but_respects_model_cap() {
+        assert_eq!(connectivity_test_max_tokens(4096).unwrap(), 512);
+        assert_eq!(connectivity_test_max_tokens(128).unwrap(), 128);
+        assert!(connectivity_test_max_tokens(0).is_err());
+    }
 }

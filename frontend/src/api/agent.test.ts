@@ -20,6 +20,7 @@ vi.mock("../utils/runtimeMode", () => ({
 
 import {
   archiveAgentThread,
+  clearAgentThreadContext,
   controlChildAgent,
   controlAgentRun,
   createAgentThread,
@@ -254,6 +255,45 @@ describe("Agent API", () => {
       "/agent-memories",
       "/agent-memories/memory%2F1/retract",
     ]);
+  });
+
+  it("clears a thread by archiving its durable context", async () => {
+    mocks.authenticatedWebFetch
+      .mockResolvedValueOnce(response({ thread: { status: "active" }, runs: [] }))
+      .mockResolvedValueOnce(response({ id: "thread-1", status: "archived" }))
+      .mockResolvedValueOnce(response({ thread: { status: "archived" }, runs: [] }));
+
+    await clearAgentThreadContext("thread-1", "clear timeout");
+
+    expect(mocks.authenticatedWebFetch.mock.calls.map(([path]) => path)).toEqual([
+      "/agent-threads/thread-1",
+      "/agent-threads/thread-1/archive",
+      "/agent-threads/thread-1",
+    ]);
+  });
+
+  it("cancels active runs before archiving a thread", async () => {
+    mocks.authenticatedWebFetch
+      .mockResolvedValueOnce(response({ thread: { status: "active" }, runs: [{ id: "run-1", status: "running" }] }))
+      .mockResolvedValueOnce(response({ status: "cancelling" }))
+      .mockResolvedValueOnce(response({ thread: { status: "active" }, runs: [] }))
+      .mockResolvedValueOnce(response({ id: "thread-1", status: "archived" }))
+      .mockResolvedValueOnce(response({ thread: { status: "archived" }, runs: [] }));
+
+    await clearAgentThreadContext("thread-1", "clear timeout");
+
+    expect(mocks.authenticatedWebFetch.mock.calls.map(([path]) => path)).toEqual([
+      "/agent-threads/thread-1",
+      "/agent-runs/run-1/control",
+      "/agent-threads/thread-1",
+      "/agent-threads/thread-1/archive",
+      "/agent-threads/thread-1",
+    ]);
+    expect(JSON.parse(String(mocks.authenticatedWebFetch.mock.calls[1][1].body))).toMatchObject({
+      thread_id: "thread-1",
+      run_id: "run-1",
+      action: "cancel",
+    });
   });
 
   it("parses canonical errors and rejects non-canonical bodies", async () => {

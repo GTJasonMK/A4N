@@ -1641,7 +1641,9 @@ mod tests {
         let before = editable_segment_fixture();
         let mut edited = before.clone();
         edited.title = "新的片段".to_string();
-        assert!(validate_segment_plan_edit_identity(&[before.clone()], &[edited]).is_ok());
+        assert!(
+            validate_segment_plan_edit_identity(std::slice::from_ref(&before), &[edited]).is_ok()
+        );
 
         let mut identity_change = before.clone();
         identity_change.source_shot_id = "shot-2".to_string();

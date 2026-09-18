@@ -42,6 +42,17 @@ import type {
 } from "./generated/host";
 
 const AGENT_EVENT_POLL_INTERVAL_MS = 100;
+const CLEAR_CONTEXT_WAIT_TIMEOUT_MS = 30_000;
+const CLEAR_CONTEXT_POLL_INTERVAL_MS = 200;
+
+export const ACTIVE_AGENT_RUN_STATUSES = new Set<AgentRunView["status"]>([
+  "queued",
+  "running",
+  "waiting",
+  "pausing",
+  "paused",
+  "cancelling",
+]);
 
 export type {
   AgentEditorSource,
@@ -97,6 +108,77 @@ export function isAgentThreadOperational(
   thread: { status: string },
 ): boolean {
   return thread.status !== "archived";
+}
+
+export function activeAgentRun(
+  snapshot: AgentThreadSnapshot | null,
+): AgentRunView | null {
+  return snapshot
+    ? [...snapshot.runs]
+        .reverse()
+        .find((run) => ACTIVE_AGENT_RUN_STATUSES.has(run.status)) ?? null
+    : null;
+}
+
+export async function clearAgentThreadContext(
+  threadId: string,
+  timeoutMessage: string,
+): Promise<void> {
+  const deadline = Date.now() + CLEAR_CONTEXT_WAIT_TIMEOUT_MS;
+  const cancellationRequested = new Set<string>();
+
+  const waitForRunsToStop = async (): Promise<void> => {
+    let snapshot = await getAgentThread(threadId);
+    while (Date.now() < deadline) {
+      const run = activeAgentRun(snapshot);
+      if (!run) return;
+      if (!cancellationRequested.has(run.id)) {
+        try {
+          await controlAgentRun({
+            thread_id: threadId,
+            run_id: run.id,
+            action: "cancel",
+          });
+        } catch (error) {
+          const next = await getAgentThread(threadId);
+          if (!activeAgentRun(next)) return;
+          throw error;
+        }
+        cancellationRequested.add(run.id);
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS),
+      );
+      snapshot = await getAgentThread(threadId);
+    }
+    throw new Error(timeoutMessage);
+  };
+
+  await waitForRunsToStop();
+  let archiveError: unknown = null;
+  while (Date.now() < deadline) {
+    try {
+      await archiveAgentThread({ thread_id: threadId });
+      archiveError = null;
+      break;
+    } catch (error) {
+      archiveError = error;
+      const snapshot = await getAgentThread(threadId);
+      if (activeAgentRun(snapshot)) {
+        await waitForRunsToStop();
+      } else {
+        await new Promise((resolve) =>
+          setTimeout(resolve, CLEAR_CONTEXT_POLL_INTERVAL_MS),
+        );
+      }
+    }
+  }
+  if (archiveError) throw archiveError;
+
+  const snapshot = await getAgentThread(threadId);
+  if (activeAgentRun(snapshot) || snapshot.thread.status !== "archived") {
+    throw new Error(timeoutMessage);
+  }
 }
 
 export function respondAgentEditor(input: RespondAgentEditorInput): Promise<AgentEditorReply> {

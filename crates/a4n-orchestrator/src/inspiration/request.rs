@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db::inspiration::InspirationProjectContextRows;
+use a4n_db::inspiration::{InspirationProjectContextRows, inspiration_messages_llm_context};
 use a4n_db_models::models::user::message;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_error::AppError;
@@ -10,7 +10,7 @@ use a4n_llm_context::{
 };
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::{Value, json};
+use serde_json::json;
 
 use super::context::inspiration_project_context;
 use super::validation::required_message_content;
@@ -82,7 +82,7 @@ pub(super) async fn build_inspiration_request_from_context(
     })?;
     let dynamic_user_content = build_inspiration_dynamic_user_content(history, user_input)?;
     let history_hash = source_content_sha256(&serde_json::to_string(
-        &inspiration_history_payload(history),
+        &inspiration_messages_llm_context(history),
     )?);
     let fingerprint = source_content_sha256(&serde_json::to_string(&json!({
         "project_id": project_id,
@@ -116,19 +116,6 @@ pub(super) async fn build_inspiration_request_from_context(
     )
 }
 
-fn inspiration_history_payload(history: &[message::Model]) -> Vec<Value> {
-    history
-        .iter()
-        .filter_map(|item| match item.role.as_str() {
-            "user" | "assistant" => Some(json!({
-                "role": item.role,
-                "content": item.content,
-            })),
-            _ => None,
-        })
-        .collect()
-}
-
 pub(super) fn build_inspiration_dynamic_user_content(
     history: &[message::Model],
     user_input: &str,
@@ -139,7 +126,7 @@ pub(super) fn build_inspiration_dynamic_user_content(
             "project_context": "稳定上下文包 inspiration_project_context",
         },
         "conversation": {
-            "recent_history": inspiration_history_payload(history),
+            "recent_history": inspiration_messages_llm_context(history),
             "latest_user_input": user_input,
         },
         "response_requirement": {

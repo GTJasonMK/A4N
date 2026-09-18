@@ -74,7 +74,7 @@ impl InspirationApplication {
     }
 }
 
-fn inspiration_db_error_to_app(error: InspirationDbError) -> AppError {
+pub(crate) fn inspiration_db_error_to_app(error: InspirationDbError) -> AppError {
     match error {
         InspirationDbError::NotFound(message) => AppError::NotFound(message),
         InspirationDbError::InvalidArgument(message) => AppError::InvalidArgument(message),

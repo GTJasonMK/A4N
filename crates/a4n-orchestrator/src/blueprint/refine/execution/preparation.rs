@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint_context::blueprint_llm_context;
+use a4n_db::inspiration::{INSPIRATION_HISTORY_LIMIT, inspiration_messages_llm_context};
 use a4n_db::workflow::UpsertWorkflowRunInput;
 use a4n_domain::project::{
     BLUEPRINT_REFINEMENT_MODE, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
@@ -16,7 +17,7 @@ use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
 
-use super::contracts::PreparedBlueprintRefine;
+use super::contracts::{PreparedBlueprintRefine, blueprint_refine_source_snapshot};
 
 pub(super) async fn prepare_blueprint_refine(
     context: &OrchestratorContext,
@@ -38,8 +39,11 @@ pub(super) async fn prepare_blueprint_refine(
             operation: "优化故事蓝图".to_string(),
         });
     }
+    let inspiration_history = context
+        .inspiration_messages(project_id, INSPIRATION_HISTORY_LIMIT)
+        .await?;
     let expected_source_snapshot =
-        a4n_db::outline::outline_generation_source_snapshot(&source_rows);
+        blueprint_refine_source_snapshot(&source_rows, &inspiration_history);
     let blueprint = source_rows
         .blueprint
         .clone()
@@ -49,6 +53,11 @@ pub(super) async fn prepare_blueprint_refine(
         &source_rows.blueprint_characters,
         &source_rows.blueprint_relationships,
     );
+    let inspiration_context = json!({
+        "messages": inspiration_messages_llm_context(
+            &inspiration_history,
+        ),
+    });
 
     let mut request = build_blueprint_refine_request(
         prompt_renderer,
@@ -56,6 +65,7 @@ pub(super) async fn prepare_blueprint_refine(
         focus,
         variables,
         &blueprint_context,
+        &inspiration_context,
     )
     .await?;
     let call_key = blueprint_refinement_call_key(project_id);

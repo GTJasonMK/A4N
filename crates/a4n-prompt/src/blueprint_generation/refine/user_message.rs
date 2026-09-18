@@ -19,6 +19,7 @@ pub(super) async fn blueprint_refine_manifest_user_message(
         "context_refs".to_string(),
         json!({
             "blueprint_context": "稳定上下文包 existing_blueprint_context",
+            "inspiration_conversation": "稳定上下文包 inspiration_conversation_context",
         }),
     );
     if let Some(focus) = normalized_blueprint_refinement_focus(focus) {

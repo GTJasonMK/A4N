@@ -9,8 +9,9 @@ pub use contracts::{
     InspirationRecentChapterRow,
 };
 pub use conversations::{
-    ensure_inspiration_conversation, insert_inspiration_exchange_in_transaction,
-    inspiration_messages,
+    INSPIRATION_HISTORY_LIMIT, ensure_inspiration_conversation,
+    insert_inspiration_exchange_in_transaction, inspiration_messages,
+    inspiration_messages_for_connection, inspiration_messages_llm_context,
 };
 
 #[cfg(test)]

@@ -16,12 +16,14 @@ import {
   Send,
   ShieldCheck,
   Square,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
 import { PageHeader } from "../components/shell/PageHeader";
 import { BackButton, useSmartBack } from "../components/ui/BackButton";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
+import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { FollowLatestButton } from "../components/ui/FollowLatestButton";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { useToast } from "../components/feedback/Toast";
@@ -33,10 +35,14 @@ import {
 } from "../components/agent/AgentMessageList";
 import { AgentContextMeter } from "../components/agent/AgentContextMeter";
 import {
+  ACTIVE_AGENT_RUN_STATUSES,
+  activeAgentRun,
+  clearAgentThreadContext,
   controlAgentRun,
   createAgentThread,
   ensureMainAgentThread,
   getAgentThread,
+  isAgentThreadOperational,
   listAgentThreads,
   resolveAgentApproval,
   sendAgentMessage,
@@ -62,10 +68,6 @@ import {
 } from "../utils/agentEventReducer";
 import { isImeCompositionActive } from "../utils/ime";
 import { useFollowLatest } from "../hooks/useFollowLatest";
-
-const ACTIVE_RUN_STATUSES = new Set<AgentRunView["status"]>([
-  "queued", "running", "waiting", "pausing", "paused", "cancelling",
-]);
 
 const RUN_STATUS_TONES: Record<string, string> = {
   queued: "text-info bg-info-bg", running: "text-book-primary bg-book-primary/10",
@@ -100,9 +102,6 @@ const labelFor = (value: string | null | undefined, locale: Locale): string => {
   return known ? (locale === "zh-CN" ? known.zh : known.en) : value.replace(/_/g, " ");
 };
 
-const activeRun = (snapshot: AgentThreadSnapshot | null): AgentRunView | null =>
-  snapshot ? [...snapshot.runs].reverse().find((run) => ACTIVE_RUN_STATUSES.has(run.status)) ?? null : null;
-
 const randomClientMessageId = (): string =>
   typeof globalThis.crypto?.randomUUID === "function"
     ? globalThis.crypto.randomUUID()
@@ -133,6 +132,7 @@ export const AgentMonitor: React.FC = () => {
   const [createTitle, setCreateTitle] = useState("");
   const [createCapability, setCreateCapability] = useState("general");
   const [activityOpen, setActivityOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const snapshotRequestRef = useRef(0);
   const snapshotRef = useRef<AgentThreadSnapshot | null>(null);
   const eventCursorRef = useRef(0);
@@ -310,7 +310,7 @@ export const AgentMonitor: React.FC = () => {
     );
   }, [navigate, snapshot]);
 
-  const currentRun = useMemo(() => activeRun(snapshot), [snapshot]);
+  const currentRun = useMemo(() => activeAgentRun(snapshot), [snapshot]);
   const contextRun = currentRun ?? (
     snapshot && snapshot.runs.length > 0
       ? snapshot.runs[snapshot.runs.length - 1]
@@ -398,6 +398,32 @@ export const AgentMonitor: React.FC = () => {
     }
   };
 
+  const clearContext = async () => {
+    const threadId = selectedThreadId;
+    const thread = snapshot?.thread ?? threads.find((item) => item.id === threadId) ?? null;
+    if (!threadId || !thread || clearing || sending || !isAgentThreadOperational(thread)) return;
+    const confirmed = await confirmDialog({
+      title: t("agent.clearContextTitle"),
+      message: t("agent.clearContextMessage"),
+      confirmText: t("agent.clearContextConfirm"),
+      cancelText: t("common.cancel"),
+      dialogType: "warning",
+    });
+    if (!confirmed) return;
+    setClearing(true);
+    try {
+      await clearAgentThreadContext(threadId, t("agent.clearContextTimeout"));
+      await refreshThreads(true);
+      addToast(t("agent.clearContextSuccess"), "success");
+    } catch (err) {
+      const message = extractErrorMessage(err, t("agent.clearContextFailed"));
+      setError(message);
+      addToast(message, "error");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <div className="agent-monitor-page flex h-full min-h-0 flex-col bg-book-bg">
       <PageHeader
@@ -457,6 +483,8 @@ export const AgentMonitor: React.FC = () => {
                 activityOpen={activityOpen}
                 activityCount={pendingApprovals.length + (currentRun ? 1 : 0)}
                 onToggleActivity={() => setActivityOpen((open) => !open)}
+                onClearContext={() => void clearContext()}
+                clearDisabled={clearing || sending}
               />
               <div className={`agent-monitor-workspace ${activityOpen ? "agent-monitor-workspace--activity-open" : ""}`}>
                 <div className="agent-monitor-conversation">
@@ -523,7 +551,7 @@ export const AgentMonitor: React.FC = () => {
                           <ThemedSelect aria-label={locale === "zh-CN" ? "消息交付模式" : "Delivery mode"} value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as AgentDeliveryMode)} className="agent-monitor-composer-select"><option value="followup">{locale === "zh-CN" ? "追加" : "Follow-up"}</option><option value="steer">{locale === "zh-CN" ? "转向" : "Steer"}</option><option value="inject">{locale === "zh-CN" ? "注入" : "Inject"}</option></ThemedSelect>
                         </div>
                         <AgentContextMeter run={contextRun} locale={locale} />
-                        {currentRun && ACTIVE_RUN_STATUSES.has(currentRun.status) ? (
+                        {currentRun && ACTIVE_AGENT_RUN_STATUSES.has(currentRun.status) ? (
                           <BookIconButton
                             label={locale === "zh-CN" ? "取消运行" : "Cancel run"}
                             title={locale === "zh-CN" ? "取消当前运行" : "Cancel current run"}
@@ -568,6 +596,8 @@ function ThreadHeader({
   activityOpen,
   activityCount,
   onToggleActivity,
+  onClearContext,
+  clearDisabled,
 }: {
   thread: AgentThreadView | null;
   locale: Locale;
@@ -575,6 +605,8 @@ function ThreadHeader({
   activityOpen: boolean;
   activityCount: number;
   onToggleActivity: () => void;
+  onClearContext: () => void;
+  clearDisabled: boolean;
 }) {
   if (!thread) return <div className="border-b border-book-border/50 px-3 py-3 text-xs text-book-text-muted">{loading ? "…" : "—"}</div>;
   return (
@@ -593,6 +625,16 @@ function ThreadHeader({
       </div>
       <div className="agent-monitor-session-tools">
         <span className="shrink-0 text-caption text-book-text-muted">{loading ? <LoadingSpinner size="sm" /> : `${locale === "zh-CN" ? "事件" : "Events"} ${thread.next_event_sequence - 1}`}</span>
+        <BookIconButton
+          label={locale === "zh-CN" ? "清空 Agent 上下文" : "Clear Agent context"}
+          title={locale === "zh-CN" ? "清空 Agent 上下文" : "Clear Agent context"}
+          variant="ghost"
+          className="text-error hover:bg-error-bg hover:text-error"
+          onClick={onClearContext}
+          disabled={clearDisabled || thread.status === "archived"}
+        >
+          <Trash2 size={14} />
+        </BookIconButton>
         <BookButton
           size="sm"
           variant={activityOpen ? "primary" : "ghost"}

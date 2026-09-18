@@ -26,6 +26,7 @@ pub(crate) use generation::{GenerationTaskExecution, fail_generation_workflow_ex
 mod import_reverse;
 mod import_review;
 mod inspiration;
+pub(crate) use inspiration::inspiration_db_error_to_app;
 mod llm_context;
 mod manga;
 mod optimize;

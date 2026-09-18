@@ -425,12 +425,6 @@ impl AgentApplication {
         if row.owner_user_id != user_id {
             return Err(AppError::Forbidden("无权访问此 Agent thread".into()));
         }
-        if row.is_default {
-            return Err(AppError::InvalidState {
-                current: "default".into(),
-                operation: "归档 Agent thread".into(),
-            });
-        }
         let runs = agent::active_runs_by_thread(&tx, thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
