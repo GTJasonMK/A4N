@@ -20,7 +20,6 @@ pub(crate) use a4n_portrait_host_contract::{
     PortraitPromptRequestPreviewApplicationPort, PortraitUploadApplicationPort,
 };
 pub(crate) use application::PortraitProgress;
-pub(crate) use application::portrait_summary;
 pub(crate) use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,
     build_generate_prompt_request, normalize_portrait_prompt_response,

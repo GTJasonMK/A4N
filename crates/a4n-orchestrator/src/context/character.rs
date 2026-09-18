@@ -15,10 +15,7 @@ use a4n_api_contract::character::{
     RollbackToChapterInput, SnapshotDeltaSummary, SnapshotReferenceSummary, SnapshotSummary,
     UpdateCharacterProfileInput,
 };
-use a4n_api_contract::portrait::{
-    PortraitGenerationSeed, PortraitRecordMutationApplicationPort,
-    PortraitRecordReadApplicationPort, PortraitSummary,
-};
+use a4n_api_contract::portrait::PortraitRecordMutationApplicationPort;
 use a4n_db::DbHandle;
 use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::character::{
@@ -163,15 +160,6 @@ impl CharacterApplication {
         )
         .await
         .map_err(AppError::Database)
-    }
-
-    async fn primary_character_portrait_record(
-        &self,
-        profile_id: i64,
-    ) -> Result<Option<character_portrait::Model>, AppError> {
-        a4n_db::character::primary_character_portrait_record(self.database.connection(), profile_id)
-            .await
-            .map_err(AppError::Database)
     }
 
     async fn create_character_portrait_for_profile(
@@ -1174,71 +1162,6 @@ fn character_profile_rag_warning(error: impl std::fmt::Display) -> String {
 }
 
 #[async_trait::async_trait]
-impl PortraitRecordReadApplicationPort for OrchestratorContext {
-    async fn list_by_project(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<PortraitSummary>, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.character_portrait_records_by_project(project_id)
-            .await?
-            .iter()
-            .map(crate::portrait::portrait_summary)
-            .collect()
-    }
-
-    async fn primary_by_profile(
-        &self,
-        user_id: i64,
-        profile_id: i64,
-    ) -> Result<Option<PortraitSummary>, AppError> {
-        let project_id = self.protagonist_profile_project_id(profile_id).await?;
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.primary_character_portrait_record(profile_id)
-            .await?
-            .as_ref()
-            .map(crate::portrait::portrait_summary)
-            .transpose()
-    }
-
-    async fn by_id(
-        &self,
-        user_id: i64,
-        portrait_id: i64,
-    ) -> Result<Option<PortraitSummary>, AppError> {
-        let Some(portrait) = self.character_portrait_by_id(portrait_id).await? else {
-            return Ok(None);
-        };
-        self.verify_project_permission(portrait.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        Ok(Some(crate::portrait::portrait_summary(&portrait)?))
-    }
-
-    async fn missing_generation_seeds(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<PortraitGenerationSeed>, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.missing_portrait_profiles(project_id)
-            .await?
-            .iter()
-            .map(|profile| {
-                Ok(PortraitGenerationSeed {
-                    profile_name: profile.name.clone(),
-                    prompt: crate::portrait::profile_portrait_seed_prompt(profile)
-                        .map_err(AppError::InvalidArgument)?,
-                })
-            })
-            .collect()
-    }
-}
-
-#[async_trait::async_trait]
 impl PortraitRecordMutationApplicationPort for OrchestratorContext {
     async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
         let portrait = self
@@ -1332,15 +1255,6 @@ impl OrchestratorContext {
     ) -> Result<Vec<character_portrait::Model>, AppError> {
         self.character
             .character_portrait_records_by_project(project_id)
-            .await
-    }
-
-    pub(crate) async fn primary_character_portrait_record(
-        &self,
-        profile_id: i64,
-    ) -> Result<Option<character_portrait::Model>, AppError> {
-        self.character
-            .primary_character_portrait_record(profile_id)
             .await
     }
 

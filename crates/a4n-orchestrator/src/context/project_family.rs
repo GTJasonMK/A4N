@@ -26,12 +26,6 @@ impl ProjectFamilyApplication {
         Self { database }
     }
 
-    async fn protagonist_profile_project_id(&self, profile_id: i64) -> Result<i64, AppError> {
-        a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
-            .await
-            .map_err(project_family_error_to_app_error)
-    }
-
     async fn primary_material_image_ids_for_projects(
         &self,
         project_ids: &[i64],
@@ -499,15 +493,6 @@ impl OrchestratorContext {
         project_result?;
         root_project_result?;
         Ok(context)
-    }
-
-    pub(crate) async fn protagonist_profile_project_id(
-        &self,
-        profile_id: i64,
-    ) -> Result<i64, AppError> {
-        self.project_family
-            .protagonist_profile_project_id(profile_id)
-            .await
     }
 
     pub(crate) async fn primary_material_image_ids_for_projects(

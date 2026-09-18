@@ -118,6 +118,7 @@ cargo_target_args() {
             printf '%s\n' "-p" "a4n-foreshadowing-worker"
             printf '%s\n' "-p" "a4n-object-profile-worker"
             printf '%s\n' "-p" "a4n-scene-profile-worker"
+            printf '%s\n' "-p" "a4n-portrait-worker"
         fi
     fi
 

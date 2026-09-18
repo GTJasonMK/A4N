@@ -59,6 +59,7 @@ pub async fn initialize_runtime(
         Arc::new(a4n_object_profile_worker_client::ObjectProfileWorkerClient::from_env());
     let scene_profile_worker =
         Arc::new(a4n_scene_profile_worker_client::SceneProfileWorkerClient::from_env());
+    let portrait_worker = Arc::new(a4n_portrait_worker_client::PortraitWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -250,7 +251,7 @@ pub async fn initialize_runtime(
         profile_material_read_application: Arc::new(orchestrator.clone()),
         profile_material_mutation_application: Arc::new(orchestrator.clone()),
         profile_material_upload_application: Arc::new(orchestrator.clone()),
-        portrait_record_read_application: Arc::new(orchestrator.clone()),
+        portrait_record_read_application: portrait_worker,
         portrait_record_mutation_application: Arc::new(orchestrator.clone()),
         portrait_prompt_request_preview_application: Arc::new(orchestrator.clone()),
         portrait_image_request_preview_application: Arc::new(orchestrator.clone()),

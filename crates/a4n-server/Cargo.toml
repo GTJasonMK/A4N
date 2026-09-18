@@ -14,6 +14,7 @@ test-embedded-processes = [
     "dep:a4n-foreshadowing-worker",
     "dep:a4n-object-profile-worker",
     "dep:a4n-outline-worker",
+    "dep:a4n-portrait-worker",
     "dep:a4n-scene-profile-worker",
     "dep:a4n-control",
     "dep:a4n-edge",
@@ -42,6 +43,7 @@ a4n-asset-graph-worker = { path = "../a4n-asset-graph-worker", optional = true }
 a4n-foreshadowing-worker = { path = "../a4n-foreshadowing-worker", optional = true }
 a4n-object-profile-worker = { path = "../a4n-object-profile-worker", optional = true }
 a4n-outline-worker = { path = "../a4n-outline-worker", optional = true }
+a4n-portrait-worker = { path = "../a4n-portrait-worker", optional = true }
 a4n-scene-profile-worker = { path = "../a4n-scene-profile-worker", optional = true }
 a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge", optional = true }

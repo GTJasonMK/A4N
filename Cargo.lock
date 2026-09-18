@@ -810,6 +810,7 @@ dependencies = [
  "a4n-object-profile-worker-client",
  "a4n-orchestrator",
  "a4n-outline-worker-client",
+ "a4n-portrait-worker-client",
  "a4n-runtime",
  "a4n-scene-profile-worker-client",
 ]
@@ -1466,6 +1467,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-portrait-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-portrait-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-portrait-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-portrait-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-portrait-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-process-catalog"
 version = "0.1.0"
 dependencies = [
@@ -1864,6 +1910,7 @@ dependencies = [
  "a4n-migration",
  "a4n-object-profile-worker",
  "a4n-outline-worker",
+ "a4n-portrait-worker",
  "a4n-process-catalog",
  "a4n-queue",
  "a4n-scene-profile-worker",

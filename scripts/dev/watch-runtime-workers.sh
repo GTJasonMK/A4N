@@ -38,6 +38,7 @@ build_children() {
   local build_foreshadowing_worker="$9"
   local build_object_profile_worker="${10}"
   local build_scene_profile_worker="${11}"
+  local build_portrait_worker="${12}"
   local -a cargo_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && cargo_command+=(--release)
   [[ "$build_control" == true ]] && cargo_command+=(-p a4n-control)
@@ -51,6 +52,7 @@ build_children() {
   [[ "$build_foreshadowing_worker" == true ]] && cargo_command+=(-p a4n-foreshadowing-worker)
   [[ "$build_object_profile_worker" == true ]] && cargo_command+=(-p a4n-object-profile-worker)
   [[ "$build_scene_profile_worker" == true ]] && cargo_command+=(-p a4n-scene-profile-worker)
+  [[ "$build_portrait_worker" == true ]] && cargo_command+=(-p a4n-portrait-worker)
   $FULL_HOST && {
     [[ "$build_control" == true || "$build_agent_worker" == true ]] \
       && cargo_command+=(--features embedded-capabilities)
@@ -169,6 +171,16 @@ mark_changed_targets() {
     "$PROJECT_ROOT/crates/a4n-scene-profile-worker/"*)
       build_scene_profile_worker=true
       ;;
+    "$PROJECT_ROOT/crates/a4n-portrait-worker-contract/"*)
+      build_control=true
+      build_portrait_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-portrait-worker-client/"*)
+      build_control=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-portrait-worker/"*)
+      build_portrait_worker=true
+      ;;
     "$PROJECT_ROOT/crates/a4n-server/"*|"$PROJECT_ROOT/crates/a4n-tauri/"*)
       ;;
     *.rs|*/Cargo.toml|*/build.rs|*/Cargo.lock)
@@ -183,6 +195,7 @@ mark_changed_targets() {
       build_foreshadowing_worker=true
       build_object_profile_worker=true
       build_scene_profile_worker=true
+      build_portrait_worker=true
       ;;
   esac
 }
@@ -225,6 +238,7 @@ while IFS= read -r changed_path; do
     build_foreshadowing_worker=false
     build_object_profile_worker=false
     build_scene_profile_worker=false
+    build_portrait_worker=false
     mark_changed_targets "$changed_path"
 
     # 合并同一轮编辑器保存产生的 close_write/create/moved_to 事件。
@@ -234,7 +248,7 @@ while IFS= read -r changed_path; do
         mark_changed_targets "$pending_path"
     done || true
 
-    if [[ "$build_control" == false && "$build_agent_worker" == false && "$build_edge" == false && "$build_novel_planning_worker" == false && "$build_artifact_media_worker" == false && "$build_outline_worker" == false && "$build_blueprint_worker" == false && "$build_asset_graph_worker" == false && "$build_foreshadowing_worker" == false && "$build_object_profile_worker" == false && "$build_scene_profile_worker" == false ]]; then
+    if [[ "$build_control" == false && "$build_agent_worker" == false && "$build_edge" == false && "$build_novel_planning_worker" == false && "$build_artifact_media_worker" == false && "$build_outline_worker" == false && "$build_blueprint_worker" == false && "$build_asset_graph_worker" == false && "$build_foreshadowing_worker" == false && "$build_object_profile_worker" == false && "$build_scene_profile_worker" == false && "$build_portrait_worker" == false ]]; then
         continue
     fi
     log_info "检测到源码变更: ${changed_paths[*]}；构建目标:$(
@@ -249,8 +263,9 @@ while IFS= read -r changed_path; do
         [[ "$build_foreshadowing_worker" == true ]] && printf ' a4n-foreshadowing-worker'
         [[ "$build_object_profile_worker" == true ]] && printf ' a4n-object-profile-worker'
         [[ "$build_scene_profile_worker" == true ]] && printf ' a4n-scene-profile-worker'
+        [[ "$build_portrait_worker" == true ]] && printf ' a4n-portrait-worker'
     )"
-    if ! build_children "$build_control" "$build_agent_worker" "$build_edge" "$build_novel_planning_worker" "$build_artifact_media_worker" "$build_outline_worker" "$build_blueprint_worker" "$build_asset_graph_worker" "$build_foreshadowing_worker" "$build_object_profile_worker" "$build_scene_profile_worker"; then
+    if ! build_children "$build_control" "$build_agent_worker" "$build_edge" "$build_novel_planning_worker" "$build_artifact_media_worker" "$build_outline_worker" "$build_blueprint_worker" "$build_asset_graph_worker" "$build_foreshadowing_worker" "$build_object_profile_worker" "$build_scene_profile_worker" "$build_portrait_worker"; then
         log_warn "Control/Agent worker 编译失败；保留当前运行产物，等待下一次源码变更"
     else
         publish_reload_marker
