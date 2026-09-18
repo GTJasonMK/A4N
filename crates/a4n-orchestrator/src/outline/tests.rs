@@ -5,7 +5,6 @@ mod sync_contract;
 mod validation_contract;
 
 use super::{
-    application::completed_part_count,
     chapter_contract::{
         optional_i32, parse_beat_sheet_json, parse_chapter_outline_batch,
         parse_outline_json_object, reject_keys, reject_unknown_keys, required_part_summary,
@@ -26,7 +25,6 @@ use super::{
     report_progress, validate_existing_chapter_outline_for_request,
 };
 
-use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter_outline, part_outline},
@@ -135,66 +133,6 @@ fn batch_parts_use_canonical_part_order() {
     order_parts_for_batch_generation(&mut parts);
 
     assert_eq!(parts.map(|part| part.id), [10, 19, 20, 30]);
-}
-
-#[test]
-fn completed_part_count_requires_full_completed_chapter_range() {
-    let parts = [(1, 2), (3, 4), (5, 5)]
-        .into_iter()
-        .enumerate()
-        .map(|(index, (start, end))| OutlineGenerationProgressPart {
-            id: index as i64 + 1,
-            start_chapter: start,
-            end_chapter: end,
-        })
-        .collect::<Vec<_>>();
-    let outlines = (1..=5)
-        .map(|chapter_number| OutlineGenerationProgressChapter {
-            id: 100 + i64::from(chapter_number),
-            chapter_number,
-            status: if chapter_number == 4 {
-                chapter_outline::STATUS_DRAFT
-            } else {
-                chapter_outline::STATUS_COMPLETED
-            }
-            .to_string(),
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(completed_part_count(&parts, &outlines).unwrap(), 2);
-}
-
-#[test]
-fn completed_part_count_rejects_duplicate_or_overlapping_chapters() {
-    let part = OutlineGenerationProgressPart {
-        id: 1,
-        start_chapter: 1,
-        end_chapter: 2,
-    };
-    let first = OutlineGenerationProgressChapter {
-        id: 101,
-        chapter_number: 1,
-        status: chapter_outline::STATUS_COMPLETED.to_string(),
-    };
-    let mut duplicate = first.clone();
-    duplicate.id += 1;
-    let error = completed_part_count(&[part], &[first, duplicate]).unwrap_err();
-    assert!(error.to_string().contains("存在重复章节大纲"));
-
-    let parts = [
-        OutlineGenerationProgressPart {
-            id: 1,
-            start_chapter: 1,
-            end_chapter: 2,
-        },
-        OutlineGenerationProgressPart {
-            id: 2,
-            start_chapter: 2,
-            end_chapter: 3,
-        },
-    ];
-    let error = completed_part_count(&parts, &[]).unwrap_err();
-    assert!(error.to_string().contains("被多个分部范围覆盖"));
 }
 
 fn sample_chapter_outline(chapter_number: i32, part_id: Option<i64>) -> chapter_outline::Model {

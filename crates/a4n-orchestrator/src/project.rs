@@ -136,7 +136,6 @@ pub(crate) use errors::blueprint_restore_error_to_app;
 pub(crate) use errors::foreshadowing_db_error_to_app_error;
 pub(crate) use errors::project_basic_record_error_to_app_error;
 pub(crate) use errors::project_chapter_context_error_to_app_error;
-pub(crate) use errors::project_chapter_outline_update_error_to_app_error;
 pub(crate) use errors::project_chapter_scene_record_error_to_app_error;
 pub(crate) use errors::project_chapter_scene_write_error_to_app_error;
 pub(crate) use errors::project_duplicate_error_to_app_error;

@@ -4,8 +4,7 @@ mod lifecycle;
 
 pub(crate) use content::{
     blueprint_restore_error_to_app, foreshadowing_db_error_to_app_error,
-    project_chapter_context_error_to_app_error, project_chapter_outline_update_error_to_app_error,
-    project_chapter_scene_record_error_to_app_error,
+    project_chapter_context_error_to_app_error, project_chapter_scene_record_error_to_app_error,
     project_chapter_scene_write_error_to_app_error, project_outline_record_error_to_app_error,
 };
 pub(crate) use family::{

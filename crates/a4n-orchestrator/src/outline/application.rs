@@ -3,19 +3,15 @@ use std::collections::{HashMap, HashSet};
 use a4n_api_contract::outline::{
     ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
     GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
-    OutlineGenerationProgressSummary, RegenerateChapterOutlineInput, RegenerateLastPartInput,
-    RegeneratePartOutlineInput, RegeneratePartsInput,
+    RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
+    RegeneratePartsInput,
 };
-use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
 use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 use a4n_domain::project::ProjectStatus;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
 use serde_json::json;
-
-use crate::OrchestratorContext;
-use crate::collaboration::ProjectAccessRole;
 
 use super::context::load_chapter_outline_generation_context;
 use super::{
@@ -25,31 +21,9 @@ use super::{
     batch_parts_progress_total, order_parts_for_batch_generation, part_chapter_count,
     progress_total,
 };
+use crate::OrchestratorContext;
 
 impl OrchestratorContext {
-    pub async fn outline_generation_progress_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<OutlineGenerationProgressSummary, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        let rows = self.outline_generation_progress_rows(project_id).await?;
-        let completed_parts = completed_part_count(&rows.parts, &rows.chapter_outlines)?;
-        let completed_chapter_outlines = rows
-            .chapter_outlines
-            .iter()
-            .filter(|outline| outline.status == chapter_outline::STATUS_COMPLETED)
-            .count() as u64;
-
-        Ok(OutlineGenerationProgressSummary {
-            total_parts: rows.parts.len() as u64,
-            completed_parts,
-            total_chapter_outlines: rows.chapter_outlines.len() as u64,
-            completed_chapter_outlines,
-        })
-    }
-
     pub(in crate::outline) async fn generate_parts_validated(
         &self,
         input: GeneratePartsInput,
@@ -824,66 +798,6 @@ fn ensure_part_project(part: &part_outline::Model, project_id: i64) -> Result<()
             "分部大纲 {} 不属于项目 {project_id}",
             part.id
         )))
-    }
-}
-
-pub(super) fn completed_part_count(
-    parts: &[OutlineGenerationProgressPart],
-    outlines: &[OutlineGenerationProgressChapter],
-) -> Result<u64, AppError> {
-    let mut outlines_by_chapter = HashMap::<i32, &OutlineGenerationProgressChapter>::new();
-    for outline in outlines {
-        if !chapter_outline::is_valid_status(&outline.status) {
-            return Err(outline_progress_state_error(format!(
-                "章节大纲 {} 状态无效：{}",
-                outline.id, outline.status
-            )));
-        }
-        if outlines_by_chapter
-            .insert(outline.chapter_number, outline)
-            .is_some()
-        {
-            return Err(outline_progress_state_error(format!(
-                "章节号 {} 存在重复章节大纲",
-                outline.chapter_number
-            )));
-        }
-    }
-
-    let mut claimed_chapters = HashSet::<i32>::new();
-    let mut completed = 0_u64;
-    for part in parts {
-        if part.start_chapter <= 0 || part.end_chapter < part.start_chapter {
-            return Err(outline_progress_state_error(format!(
-                "分部 {} 章节范围无效：{}..={}",
-                part.id, part.start_chapter, part.end_chapter
-            )));
-        }
-        for chapter_number in part.start_chapter..=part.end_chapter {
-            if !claimed_chapters.insert(chapter_number) {
-                return Err(outline_progress_state_error(format!(
-                    "章节号 {} 被多个分部范围覆盖",
-                    chapter_number
-                )));
-            }
-        }
-
-        if (part.start_chapter..=part.end_chapter).all(|chapter_number| {
-            outlines_by_chapter
-                .get(&chapter_number)
-                .is_some_and(|outline| outline.status == chapter_outline::STATUS_COMPLETED)
-        }) {
-            completed += 1;
-        }
-    }
-
-    Ok(completed)
-}
-
-fn outline_progress_state_error(current: String) -> AppError {
-    AppError::InvalidState {
-        current,
-        operation: "查询大纲生成进度".to_string(),
     }
 }
 
