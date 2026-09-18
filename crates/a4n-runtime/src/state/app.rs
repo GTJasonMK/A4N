@@ -2541,7 +2541,8 @@ impl RuntimeBootstrap {
         };
 
         if runtime_role == RuntimeRole::Host {
-            let enabled_services = state.package_read_application().enabled_services().await?;
+            let mut enabled_services = state.package_read_application().enabled_services().await?;
+            include_runtime_sidecar_services(runtime_profile, &mut enabled_services);
             state
                 .start_managed_sidecars_for_services(&enabled_services)
                 .await
@@ -2562,6 +2563,16 @@ impl RuntimeBootstrap {
         }
 
         Ok(state)
+    }
+}
+
+fn include_runtime_sidecar_services(profile: RuntimeProfile, services: &mut Vec<String>) {
+    if profile.uses_sidecars()
+        && !services
+            .iter()
+            .any(|service| service == a4n_media_contract::MEDIA_SERVICE_NAME)
+    {
+        services.push(a4n_media_contract::MEDIA_SERVICE_NAME.to_string());
     }
 }
 
@@ -2655,8 +2666,25 @@ impl a4n_api_contract::media::MediaAudioProbeHostPort for AppState {
 mod tests {
     use serde_json::json;
 
-    use super::acquire_data_dir_lock;
+    use super::{acquire_data_dir_lock, include_runtime_sidecar_services};
     use crate::runtime_config::inherit_runtime_context;
+    use crate::state::RuntimeProfile;
+
+    #[test]
+    fn sidecar_bootstrap_includes_media_service_once() {
+        let mut services = vec!["video".to_string()];
+        include_runtime_sidecar_services(RuntimeProfile::Sidecar, &mut services);
+        include_runtime_sidecar_services(RuntimeProfile::Sidecar, &mut services);
+
+        assert_eq!(
+            services,
+            vec!["video", a4n_media_contract::MEDIA_SERVICE_NAME]
+        );
+
+        let mut minimal_services = Vec::new();
+        include_runtime_sidecar_services(RuntimeProfile::Minimal, &mut minimal_services);
+        assert!(minimal_services.is_empty());
+    }
 
     #[test]
     fn data_dir_lock_rejects_second_owner_and_releases_on_drop() {
