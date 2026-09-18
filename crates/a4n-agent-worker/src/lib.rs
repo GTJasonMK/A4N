@@ -1,9 +1,12 @@
 mod health;
 mod host;
 
+use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime::{AgentRuntimeState, engine};
+use a4n_db::DbHandle;
 use host::HttpAgentRuntimeHost;
 use reqwest::Client;
+use sea_orm::Database;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
@@ -26,14 +29,17 @@ async fn async_main() -> anyhow::Result<()> {
     let worker_address = health::bind_addr(control_address)?;
     let worker_id = worker_id()?;
     let worker_token = a4n_config::required_non_empty_env_string("A4N_AGENT_WORKER_TOKEN")?;
+    let database_url = a4n_config::required_non_empty_env_string("A4N_DATABASE_URL")?;
+    a4n_config::validate_postgres_database_url("A4N_DATABASE_URL", &database_url)?;
+    let database = Database::connect(database_url).await?;
+    let application = Arc::new(AgentApplication::new(DbHandle::new(Arc::new(database))));
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .build()?;
-    let host = Arc::new(HttpAgentRuntimeHost::new(
-        client,
-        control_base_url.clone(),
-        worker_token.clone(),
-    ));
+    let host = Arc::new(
+        HttpAgentRuntimeHost::new(client, control_base_url.clone(), worker_token.clone())
+            .with_application(application),
+    );
     let runtime = Arc::new(AgentRuntimeState::new(host));
     let listener = tokio::net::TcpListener::bind(worker_address).await?;
     let (shutdown_sender, shutdown_receiver) = oneshot::channel();

@@ -67,10 +67,12 @@ dependencies = [
 name = "a4n-agent-worker"
 version = "0.1.0"
 dependencies = [
+ "a4n-agent-application",
  "a4n-agent-runtime",
  "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-config",
+ "a4n-db",
  "a4n-error",
  "a4n-llm-provider-contract",
  "a4n-worker-contract",
@@ -79,6 +81,7 @@ dependencies = [
  "axum 0.8.9",
  "futures",
  "reqwest 0.12.28",
+ "sea-orm",
  "serde",
  "serde_json",
  "subtle",
