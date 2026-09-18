@@ -644,42 +644,6 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use a4n_llm_provider_contract::LlmTraceContext;
-    use serde_json::json;
-
-    #[test]
-    fn agent_chat_wire_request_omits_internal_context() {
-        let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
-        request.trace_context = Some(LlmTraceContext {
-            project_id: Some(7),
-            root_project_id: Some(3),
-            workflow: "agent".into(),
-            step_key: "model".into(),
-            generation_run_id: None,
-            workflow_run_id: None,
-            call_key: Some("call-1".into()),
-            input_fingerprint_sha256: None,
-            context_plan_json: None,
-            context_pack_refs_json: None,
-        });
-        request.context_manifest_json = Some(json!({"packs": []}));
-
-        let wire = model_request_wire_value(&request).expect("wire request serializes");
-        assert_eq!(wire["trace_context"]["project_id"], 7);
-        assert!(wire.get("context_manifest_json").is_none());
-        assert!(
-            request
-                .snapshot_value()
-                .expect("request snapshot serializes")
-                .get("context_manifest_json")
-                .is_some()
-        );
-    }
-}
-
 struct ChatSseState {
     response: reqwest::Response,
     buffer: String,
@@ -766,5 +730,41 @@ impl ChatSseState {
                 AppError::LlmError(format!("Control Agent LLM 流数据无效: {error}"))
             }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_llm_provider_contract::LlmTraceContext;
+    use serde_json::json;
+
+    #[test]
+    fn agent_chat_wire_request_omits_internal_context() {
+        let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
+        request.trace_context = Some(LlmTraceContext {
+            project_id: Some(7),
+            root_project_id: Some(3),
+            workflow: "agent".into(),
+            step_key: "model".into(),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: Some("call-1".into()),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        });
+        request.context_manifest_json = Some(json!({"packs": []}));
+
+        let wire = model_request_wire_value(&request).expect("wire request serializes");
+        assert_eq!(wire["trace_context"]["project_id"], 7);
+        assert!(wire.get("context_manifest_json").is_none());
+        assert!(
+            request
+                .snapshot_value()
+                .expect("request snapshot serializes")
+                .get("context_manifest_json")
+                .is_some()
+        );
     }
 }

@@ -154,19 +154,6 @@ fn assemble_scene(
     Ok(scene)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::validate_unit_counts;
-
-    #[test]
-    fn available_script_accepts_a_confirmed_plan_prefix() {
-        assert!(validate_unit_counts(2, 2, 5, true).is_ok());
-        assert!(validate_unit_counts(2, 2, 5, false).is_err());
-        assert!(validate_unit_counts(2, 3, 5, true).is_err());
-        assert!(validate_unit_counts(2, 6, 5, true).is_err());
-    }
-}
-
 fn apply_visual_shot_plan(
     shot: &mut ShootingShotV1,
     planned: &VisualSegmentProjectionV3,
@@ -225,4 +212,17 @@ fn apply_visual_shot_plan(
 
 fn checked_index(index: usize) -> Result<u32, AppError> {
     u32::try_from(index + 1).map_err(|_| AppError::InvalidArgument("镜头数量超出 u32 范围".into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_unit_counts;
+
+    #[test]
+    fn available_script_accepts_a_confirmed_plan_prefix() {
+        assert!(validate_unit_counts(2, 2, 5, true).is_ok());
+        assert!(validate_unit_counts(2, 2, 5, false).is_err());
+        assert!(validate_unit_counts(2, 3, 5, true).is_err());
+        assert!(validate_unit_counts(2, 6, 5, true).is_err());
+    }
 }

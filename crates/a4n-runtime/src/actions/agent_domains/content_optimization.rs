@@ -285,6 +285,44 @@ fn target_chapter_id(target: &a4n_service_protocol::GenerationTargetRef) -> Opti
     }
 }
 
+async fn scoped_session(
+    state: &AppState,
+    user_id: i64,
+    scope: &AgentScope,
+    session_id: i64,
+) -> Result<OptimizationSessionSummary, AppError> {
+    ensure_positive(session_id, "sessionId")?;
+    let session = crate::actions::optimize::get_optimize_session(
+        state,
+        user_id,
+        OptimizeSessionInput { session_id },
+    )
+    .await
+    .map_err(AppError::InvalidArgument)?;
+    super::super::agent_runtime::ensure_project_scope(scope, session.project_id)?;
+    super::super::agent_runtime::ensure_chapter_scope(scope, session.chapter_id)?;
+    Ok(session)
+}
+
+fn default_permissions() -> OptimizationAgentPermissions {
+    OptimizationAgentPermissions {
+        read_project_detail: true,
+        read_blueprint: true,
+        read_outlines: true,
+        read_character_profiles: true,
+        read_foreshadowing: true,
+        automatic_writeback: false,
+    }
+}
+
+fn ensure_positive(value: i64, field: &str) -> Result<(), AppError> {
+    if value > 0 {
+        Ok(())
+    } else {
+        Err(AppError::InvalidArgument(format!("{field} 无效")))
+    }
+}
+
 #[cfg(test)]
 mod generation_task_scope_tests {
     use super::target_chapter_id;
@@ -321,43 +359,5 @@ mod generation_task_scope_tests {
         );
         assert_eq!(target_chapter_id(&target("image_scene", "7")), None);
         assert_eq!(target_chapter_id(&target("optimization_chat", "9")), None);
-    }
-}
-
-async fn scoped_session(
-    state: &AppState,
-    user_id: i64,
-    scope: &AgentScope,
-    session_id: i64,
-) -> Result<OptimizationSessionSummary, AppError> {
-    ensure_positive(session_id, "sessionId")?;
-    let session = crate::actions::optimize::get_optimize_session(
-        state,
-        user_id,
-        OptimizeSessionInput { session_id },
-    )
-    .await
-    .map_err(AppError::InvalidArgument)?;
-    super::super::agent_runtime::ensure_project_scope(scope, session.project_id)?;
-    super::super::agent_runtime::ensure_chapter_scope(scope, session.chapter_id)?;
-    Ok(session)
-}
-
-fn default_permissions() -> OptimizationAgentPermissions {
-    OptimizationAgentPermissions {
-        read_project_detail: true,
-        read_blueprint: true,
-        read_outlines: true,
-        read_character_profiles: true,
-        read_foreshadowing: true,
-        automatic_writeback: false,
-    }
-}
-
-fn ensure_positive(value: i64, field: &str) -> Result<(), AppError> {
-    if value > 0 {
-        Ok(())
-    } else {
-        Err(AppError::InvalidArgument(format!("{field} 无效")))
     }
 }

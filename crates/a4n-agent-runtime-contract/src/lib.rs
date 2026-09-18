@@ -40,6 +40,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod ports;
+pub use a4n_api_contract::agent::AgentEditorSource;
 pub use ports::*;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
@@ -1045,5 +1046,3 @@ mod tests {
         assert!(restored.context_manifest_json.is_none());
     }
 }
-
-pub use a4n_api_contract::agent::AgentEditorSource;
