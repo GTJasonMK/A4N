@@ -1,4 +1,5 @@
 pub use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
+pub use a4n_domain::scene_profile::SceneProfileInput;
 use a4n_domain::{
     DownstreamConflictStrategy,
     profile_material::{
@@ -114,31 +115,6 @@ pub struct SyncSceneProfilesInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_number: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct SceneProfileInput {
-    pub name: String,
-    #[serde(default)]
-    pub aliases: Vec<String>,
-    pub scene_type: String,
-    pub importance: String,
-    #[serde(default)]
-    pub parent_scene_id: Option<i64>,
-    pub base_description: String,
-    pub visual_description: String,
-    pub spatial_layout: String,
-    pub atmosphere: String,
-    #[serde(default)]
-    pub entry_points_json: Option<Value>,
-    #[serde(default)]
-    pub rules_json: Option<Value>,
-    pub first_seen_chapter: i32,
-    pub last_seen_chapter: i32,
-    #[serde(default)]
-    pub evidence: Vec<String>,
-    pub image_prompt_seed: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
