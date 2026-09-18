@@ -5,8 +5,8 @@ use a4n_canvas_contract::{
 use a4n_db::{
     canvas::{
         CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
-        CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
-        FreeformCanvasGenerationSpecUpsertInput,
+        CanvasImageMediaAssetEnsureInput, CanvasNodeArtifactUpdateInput,
+        CanvasVideoMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput,
     },
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
@@ -14,6 +14,7 @@ use a4n_db::{
         GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
+use a4n_domain::CanvasNodeRefKind;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -91,6 +92,7 @@ impl OrchestratorContext {
                         })
                         .await?;
                     json!({
+                        "canvas_runtime_result": true,
                         "data_type": "image",
                         "generated_image_id": image.id,
                         "file_path": image.file_path,
@@ -125,6 +127,7 @@ impl OrchestratorContext {
                         })
                         .await?;
                     json!({
+                        "canvas_runtime_result": true,
                         "data_type": "video",
                         "generated_video_id": video.id,
                         "file_path": video.file_path,
@@ -166,6 +169,7 @@ impl OrchestratorContext {
                         })
                         .await?;
                     json!({
+                        "canvas_runtime_result": true,
                         "data_type": "video",
                         "generated_video_id": video.id,
                         "file_path": video.file_path,
@@ -179,6 +183,41 @@ impl OrchestratorContext {
                 self.mark_canvas_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
                     .await?;
             }
+            let (ref_type, ref_id) = match artifact_json.get("data_type").and_then(Value::as_str) {
+                Some("image") => (
+                    CanvasNodeRefKind::GeneratedImage,
+                    artifact_json
+                        .get("generated_image_id")
+                        .and_then(Value::as_i64)
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "extract_frame_completed".to_string(),
+                            operation: "画布图片结果缺少 generated_image_id".to_string(),
+                        })?,
+                ),
+                Some("video") => (
+                    CanvasNodeRefKind::GeneratedVideo,
+                    artifact_json
+                        .get("generated_video_id")
+                        .and_then(Value::as_i64)
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "canvas_video_edit_completed".to_string(),
+                            operation: "画布视频结果缺少 generated_video_id".to_string(),
+                        })?,
+                ),
+                other => {
+                    return Err(AppError::InvalidState {
+                        current: format!("canvas_edit_data_type={other:?}"),
+                        operation: "保存画布编辑节点结果".to_string(),
+                    });
+                }
+            };
+            self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
+                node_id: input.node.id,
+                ref_type: ref_type.to_string(),
+                ref_id,
+                config_patch: artifact_json.clone(),
+            })
+            .await?;
             self.finish_canvas_node_with_artifacts(&lifecycle, artifact_json)
                 .await
         }

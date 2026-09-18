@@ -4,7 +4,10 @@ pub(crate) use a4n_canvas_host_contract::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoProviderInput,
 };
 use a4n_db::{
-    canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput},
+    canvas::{
+        CanvasGraphRecordDocument, CanvasNodeArtifactUpdateInput,
+        FreeformCanvasGenerationSpecUpsertInput,
+    },
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
@@ -707,19 +710,32 @@ impl OrchestratorContext {
                         },
                     )
                     .await?;
-                self.finish_canvas_node_with_artifacts(
-                    lifecycle,
-                    json!({
-                        "data_type": "video",
-                        "generated_video_id": video.id,
-                        "status": video.status,
-                        "file_path": video.file_path,
-                        "thumbnail_path": video.thumbnail_path,
-                        "generation_spec_id": generation_spec_id,
-                        "media_asset_id": asset.id,
-                    }),
-                )
-                .await
+                let artifact_json = json!({
+                    "canvas_runtime_result": true,
+                    "data_type": "video",
+                    "generated_video_id": video.id,
+                    "status": video.status,
+                    "file_path": video.file_path,
+                    "thumbnail_path": video.thumbnail_path,
+                    "generation_spec_id": generation_spec_id,
+                    "media_asset_id": asset.id,
+                });
+                self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
+                    node_id: lifecycle
+                        .step_key
+                        .strip_prefix("canvas_node:")
+                        .and_then(|value| value.parse::<i64>().ok())
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: lifecycle.step_key.clone(),
+                            operation: "保存画布视频结果".to_string(),
+                        })?,
+                    ref_type: CanvasNodeRefKind::GeneratedVideo.to_string(),
+                    ref_id: video.id,
+                    config_patch: artifact_json.clone(),
+                })
+                .await?;
+                self.finish_canvas_node_with_artifacts(lifecycle, artifact_json)
+                    .await
             }
             other => Err(AppError::InvalidState {
                 current: format!("generated_video_status={other}"),

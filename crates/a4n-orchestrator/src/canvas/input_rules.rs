@@ -99,6 +99,14 @@ pub fn canvas_node_is_operation(kind: &str) -> bool {
     )
 }
 
+/// 节点是否已经保存了可供后续画布运行复用的最近产物。
+pub fn canvas_node_has_persisted_runtime_result(node: &canvas_node::Model) -> bool {
+    node.config_json
+        .get("canvas_runtime_result")
+        .and_then(Value::as_bool)
+        == Some(true)
+}
+
 /// 正 i64 → i32。
 pub fn i64_to_i32(value: i64) -> Option<i32> {
     i32::try_from(value).ok().filter(|value| *value > 0)

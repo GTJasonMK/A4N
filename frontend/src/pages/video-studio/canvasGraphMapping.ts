@@ -30,8 +30,15 @@ export function toFlowNode(node: CanvasGraphDocument["nodes"][number]): StudioNo
   };
 }
 
-const CANVAS_RUNTIME_CONFIG_KEYS = [
+export const CANVAS_RUNTIME_CONFIG_KEYS = [
+  "canvas_runtime_result",
   "data_type",
+  "status",
+  "generation_spec_id",
+  "prompt_artifact_id",
+  "prompt_kind",
+  "llm_finish_reason",
+  "llm_usage",
   "observed_data_type",
   "observed_text",
   "generated_image_id",
@@ -96,6 +103,22 @@ export function mergeStudioNodeRuntimeResults(
       },
     };
   });
+}
+
+export function clearCanvasNodeRuntimeResult(node: StudioNode): StudioNode {
+  if (node.data.config.canvas_runtime_result !== true) return node;
+  const config = { ...node.data.config };
+  for (const key of CANVAS_RUNTIME_CONFIG_KEYS) delete config[key];
+  return {
+    ...node,
+    data: {
+      ...node.data,
+      refType: null,
+      refId: null,
+      state: "ready",
+      config,
+    },
+  };
 }
 
 function mergeRuntimeConfig(
@@ -268,6 +291,7 @@ export function toCanvasGraphInput(
 
 function canvasNodeConfigForSave(node: StudioNode): Record<string, unknown> {
   const config = { ...node.data.config };
+  const hasRuntimeResult = config.canvas_runtime_result === true;
   if (node.data.nodeKind === "RenderTextNode") {
     delete config.prompt;
     delete config.template_text;
@@ -279,7 +303,7 @@ function canvasNodeConfigForSave(node: StudioNode): Record<string, unknown> {
     delete config.input;
     delete config.content;
     delete config.prompt;
-    delete config.text;
+    if (!hasRuntimeResult) delete config.text;
   }
   if (node.data.nodeKind === "LlmTextNode") {
     delete config.text_kind;

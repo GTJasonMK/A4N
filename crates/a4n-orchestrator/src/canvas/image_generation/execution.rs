@@ -1,9 +1,13 @@
 use a4n_db::{
-    canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput},
+    canvas::{
+        CanvasImageMediaAssetEnsureInput, CanvasNodeArtifactUpdateInput,
+        FreeformCanvasGenerationSpecUpsertInput,
+    },
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     },
 };
+use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_error::AppError;
 use a4n_image_contract::ImageGenerationRequest;
@@ -122,17 +126,23 @@ impl OrchestratorContext {
                     spec.as_ref().map(|spec| spec.id),
                 )
                 .await?;
-            self.finish_canvas_node_with_artifacts(
-                &lifecycle,
-                json!({
-                    "data_type": "image",
-                    "generated_image_id": outcome.summary.id,
-                    "file_path": outcome.summary.file_path,
-                    "generation_spec_id": spec.as_ref().map(|spec| spec.id),
-                    "media_asset_id": media_asset_id,
-                }),
-            )
-            .await
+            let artifact_json = json!({
+                "canvas_runtime_result": true,
+                "data_type": "image",
+                "generated_image_id": outcome.summary.id,
+                "file_path": outcome.summary.file_path,
+                "generation_spec_id": spec.as_ref().map(|spec| spec.id),
+                "media_asset_id": media_asset_id,
+            });
+            self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
+                node_id: input.node.id,
+                ref_type: CanvasNodeRefKind::GeneratedImage.to_string(),
+                ref_id: outcome.summary.id,
+                config_patch: artifact_json.clone(),
+            })
+            .await?;
+            self.finish_canvas_node_with_artifacts(&lifecycle, artifact_json)
+                .await
         }
         .await;
 

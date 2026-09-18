@@ -105,7 +105,9 @@ import {
   validateCanvasConnection,
 } from "./video-studio/canvasEdgeContract";
 import {
+  CANVAS_RUNTIME_CONFIG_KEYS,
   canvasNodePosition,
+  clearCanvasNodeRuntimeResult,
   defaultConfigForNode,
   mergeCanvasDocumentRuntimeResults,
   mergeStudioNodeRuntimeResults,
@@ -308,6 +310,15 @@ export const VideoStudioCanvas: React.FC = () => {
     [edges, selectedRunScope, workflowActiveScope],
   );
   const workflowSubmitting = workflowSubmissionLabel !== null;
+  const canResumeCurrentCanvasRun = Boolean(
+    document &&
+      workflowDetail?.run.can_resume &&
+      workflowDetail.run.workflow_kind === CANVAS_WORKFLOW_KIND &&
+      workflowDetail.run.scope_table === "canvas_graph" &&
+      workflowDetail.run.scope_id === document.graph.id &&
+      workflowDetail.run.mode === "full_graph" &&
+      workflowRunGraphVersion(workflowDetail.run) === document.graph.version,
+  );
   const workflowLive =
     workflowSubmitting ||
     workflowDetail?.run.status === "running" ||
@@ -473,9 +484,25 @@ export const VideoStudioCanvas: React.FC = () => {
       if (allowedChanges.some((change) => change.type !== "select")) {
         setDirty(true);
       }
+      const removedTargetIds = new Set(
+        allowedChanges
+          .filter((change) => change.type === "remove")
+          .map((change) => edges.find((edge) => edge.id === change.id)?.target)
+          .filter((target): target is string => Boolean(target)),
+      );
+      const invalidatedNodeIds = downstreamNodeIds(removedTargetIds, edges);
+      if (invalidatedNodeIds.size > 0) {
+        setNodes((items) =>
+          items.map((node) =>
+            invalidatedNodeIds.has(node.id)
+              ? clearCanvasNodeRuntimeResult(node)
+              : node,
+          ),
+        );
+      }
       if (allowedChanges.length > 0) applyEdgesChange(allowedChanges);
     },
-    [applyEdgesChange, canvasWriteBusy],
+    [applyEdgesChange, canvasWriteBusy, edges, setNodes],
   );
 
   const addNode = useCallback(
@@ -606,6 +633,10 @@ export const VideoStudioCanvas: React.FC = () => {
         contract.role === "assembly_clip" && connection.target
           ? { order_index: nextAssembleClipOrder(edges, connection.target) }
           : {};
+      const invalidatedNodeIds = downstreamNodeIds(
+        new Set([connection.target].filter((id): id is string => Boolean(id))),
+        edges,
+      );
       setEdges((items) =>
         addEdge(
           {
@@ -623,6 +654,13 @@ export const VideoStudioCanvas: React.FC = () => {
           items,
         ),
       );
+      setNodes((items) =>
+        items.map((item) =>
+          invalidatedNodeIds.has(item.id)
+            ? clearCanvasNodeRuntimeResult(item)
+            : item,
+        ),
+      );
       setDirty(true);
     },
     [
@@ -632,6 +670,7 @@ export const VideoStudioCanvas: React.FC = () => {
       nodeContractsByKind,
       nodes,
       setEdges,
+      setNodes,
       t,
     ],
   );
@@ -681,11 +720,19 @@ export const VideoStudioCanvas: React.FC = () => {
   const deleteCanvasEdge = useCallback(
     (edge: StudioEdge) => {
       if (canvasMutationDisabled) return;
+      const invalidatedNodeIds = downstreamNodeIds(new Set([edge.target]), edges);
       setEdges((items) => items.filter((item) => item.id !== edge.id));
+      setNodes((items) =>
+        items.map((item) =>
+          invalidatedNodeIds.has(item.id)
+            ? clearCanvasNodeRuntimeResult(item)
+            : item,
+        ),
+      );
       setDirty(true);
       addToast(t("video.deletedEdge"), "success");
     },
-    [addToast, canvasMutationDisabled, setEdges, t],
+    [addToast, canvasMutationDisabled, edges, setEdges, setNodes, t],
   );
 
   const updateSelectedConfig = (patch: Record<string, unknown>) => {
@@ -697,6 +744,12 @@ export const VideoStudioCanvas: React.FC = () => {
     for (const [key, value] of Object.entries(patch)) {
       if (value === undefined) delete nextConfig[key];
     }
+    const invalidatesRuntimeResult =
+      selectedNode.data.config.canvas_runtime_result === true &&
+      Object.keys(patch).some((key) => key !== "title");
+    if (invalidatesRuntimeResult) {
+      for (const key of CANVAS_RUNTIME_CONFIG_KEYS) delete nextConfig[key];
+    }
     const nextLabel =
       typeof patch.title === "string"
         ? patch.title.trim() || nodeKindMeta(selectedNode.data.nodeKind, t).label
@@ -704,6 +757,9 @@ export const VideoStudioCanvas: React.FC = () => {
     const nextData = {
       ...selectedNode.data,
       label: nextLabel,
+      refType: invalidatesRuntimeResult ? null : selectedNode.data.refType,
+      refId: invalidatesRuntimeResult ? null : selectedNode.data.refId,
+      state: invalidatesRuntimeResult ? "ready" : selectedNode.data.state,
       config: nextConfig,
     };
     setNodes((items) =>
@@ -1038,6 +1094,46 @@ export const VideoStudioCanvas: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [latestWorkflowRunId, loadWorkflowStatus, workflowDetail?.run.status]);
 
+  useEffect(() => {
+    const graph = document?.graph;
+    if (!graph) return;
+    let cancelled = false;
+    const restoreLatestRun = async () => {
+      try {
+        const runs = await listWorkflowRuns({
+          project_id: projectId,
+          workflow_kind: CANVAS_WORKFLOW_KIND,
+          resumable_only: false,
+          limit: 50,
+        });
+        if (cancelled) return;
+        const latest = runs.find(
+          (run) =>
+            run.scope_table === "canvas_graph" &&
+            run.scope_id === graph.id &&
+            workflowRunGraphVersion(run) === graph.version,
+        );
+        workflowRuntimeRefreshSignatureRef.current = null;
+        if (!latest) {
+          setLatestWorkflowRunId(null);
+          setWorkflowDetail(null);
+          setWorkflowEvents([]);
+          return;
+        }
+        await loadWorkflowStatus(latest.id, { silent: true });
+      } catch {
+        if (cancelled) return;
+        setLatestWorkflowRunId(null);
+        setWorkflowDetail(null);
+        setWorkflowEvents([]);
+      }
+    };
+    void restoreLatestRun();
+    return () => {
+      cancelled = true;
+    };
+  }, [document?.graph.id, document?.graph.version, loadWorkflowStatus, projectId]);
+
   const previewNode = async (node: StudioNode) => {
     if (!nodeHasProviderRequest(node)) {
       setContentPreviewNode(node);
@@ -1192,9 +1288,20 @@ export const VideoStudioCanvas: React.FC = () => {
   };
 
   const runGraph = async () => {
-    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
+    if (
+      !document ||
+      canvasWriteBusy ||
+      !canEdit ||
+      workflowSubmitting ||
+      resumingWorkflow
+    )
+      return;
     if (dirty) {
       addToast(t("video.saveBeforeRun"), "info");
+      return;
+    }
+    if (canResumeCurrentCanvasRun) {
+      await resumeActiveWorkflow();
       return;
     }
     setWorkflowSubmissionLabel(t("video.runCanvasSubmitting"));
@@ -1694,7 +1801,8 @@ export const VideoStudioCanvas: React.FC = () => {
                     !document ||
                     canvasWriteBusy ||
                     !canEdit ||
-                    workflowSubmitting
+                    workflowSubmitting ||
+                    resumingWorkflow
                   }
                   title={t("video.runFullCanvas")}
                 >
@@ -1703,7 +1811,11 @@ export const VideoStudioCanvas: React.FC = () => {
                   ) : (
                     <Play size={14} />
                   )}
-                  {workflowSubmitting ? workflowSubmissionLabel ?? t("video.running") : t("video.runCanvas")}
+                  {workflowSubmitting
+                    ? workflowSubmissionLabel ?? t("video.running")
+                    : canResumeCurrentCanvasRun
+                      ? t("video.canvas.workflow.resume")
+                      : t("video.runCanvas")}
                 </BookButton>
               )}
             </>
@@ -1894,3 +2006,29 @@ const CanvasInspectorFallback = () => {
     </div>
   );
 };
+
+function downstreamNodeIds(startNodeIds: Set<string>, edges: StudioEdge[]): Set<string> {
+  const visited = new Set(startNodeIds);
+  const queue = [...startNodeIds];
+  for (let index = 0; index < queue.length; index += 1) {
+    const source = queue[index];
+    for (const edge of edges) {
+      if (edge.source !== source || visited.has(edge.target)) continue;
+      visited.add(edge.target);
+      queue.push(edge.target);
+    }
+  }
+  return visited;
+}
+
+function workflowRunGraphVersion(run: WorkflowRunSummary): number | null {
+  const fingerprint = run.input_fingerprint_json;
+  if (!isRecord(fingerprint) || typeof fingerprint.graph_version !== "number") {
+    return null;
+  }
+  return fingerprint.graph_version;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

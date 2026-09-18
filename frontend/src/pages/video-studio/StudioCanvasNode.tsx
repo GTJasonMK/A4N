@@ -385,7 +385,6 @@ function nodeSubtitle(data: StudioNodeData, t: MessageTranslator): string {
 }
 
 export function nodePreviewSrc(data: StudioNodeData): string | null {
-  if (nodeKindIsOperation(data.nodeKind)) return null;
   const thumbnailPath = configText(data.config, "thumbnail_path").trim();
   if (thumbnailPath) return toMediaSrc(thumbnailPath);
   const filePath = configText(data.config, "file_path").trim();
@@ -416,7 +415,14 @@ function nodeVideoPreview(data: StudioNodeData, t: MessageTranslator): StudioNod
 }
 
 function nodeKindCanShowVideoPreview(kind: string): boolean {
-  return kind === "VideoInputNode" || kind === "VideoOutputNode" || kind === "VideoProbeNode";
+  return [
+    "VideoInputNode",
+    "VideoOutputNode",
+    "VideoProbeNode",
+    "GenerateVideoNode",
+    "TrimVideoNode",
+    "AssembleVideoNode",
+  ].includes(kind);
 }
 
 function frameKindLabel(value: string, t: MessageTranslator): string {
@@ -573,16 +579,4 @@ function portOffset(index: number, total: number): string {
 
 function firstNonEmptyString(values: string[]): string {
   return values.map((value) => value.trim()).find((value) => value.length > 0) ?? "";
-}
-
-function nodeKindIsOperation(kind: string): boolean {
-  return (
-    kind === "RenderTextNode" ||
-    kind === "LlmTextNode" ||
-    kind === "GenerateImageNode" ||
-    kind === "GenerateVideoNode" ||
-    kind === "ExtractFrameNode" ||
-    kind === "TrimVideoNode" ||
-    kind === "AssembleVideoNode"
-  );
 }

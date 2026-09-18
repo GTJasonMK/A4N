@@ -4,6 +4,8 @@ use a4n_canvas_contract::CanvasGraphNodeExecutionKind;
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db_models::models::canvas::canvas_node;
 
+use crate::canvas::canvas_node_has_persisted_runtime_result;
+
 pub(super) fn canvas_node_kind_is_executable(node_kind: &str) -> bool {
     CanvasGraphNodeExecutionKind::from_node_kind(node_kind).is_ok()
 }
@@ -38,6 +40,14 @@ pub(super) fn runnable_canvas_node_ids(
         .into_iter()
         .filter(|node_id| allowed.as_ref().is_none_or(|ids| ids.contains(node_id)))
         .filter(|node_id| runnable_ids.contains(node_id))
+        .filter(|node_id| {
+            target_node_id.is_none()
+                || document
+                    .nodes
+                    .iter()
+                    .find(|node| node.id == *node_id)
+                    .is_none_or(|node| !canvas_node_has_persisted_runtime_result(node))
+        })
         .collect())
 }
 

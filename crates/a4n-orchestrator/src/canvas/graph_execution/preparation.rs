@@ -170,6 +170,18 @@ impl OrchestratorContext {
         let document = self
             .load_canvas_execution_document(input.user_id, project_id, graph_id, host_port)
             .await?;
+        if let Some(graph_version) = run
+            .input_fingerprint_json
+            .as_ref()
+            .and_then(|value| value.get("graph_version"))
+            .and_then(Value::as_i64)
+            && graph_version != i64::from(document.graph.version)
+        {
+            return Err(format!(
+                "画布已在 workflow 运行后变更: workflow_graph_version={graph_version}, current={}",
+                document.graph.version
+            ));
+        }
         validate_canvas_output_target(&document, target_node_id)?;
         if let Some(single_node_id) = single_node_id {
             let node = document

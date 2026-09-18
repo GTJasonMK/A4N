@@ -12,7 +12,7 @@ vi.mock("../../api/canvas", async (importOriginal) => ({
   saveCanvasTextAsset: mocks.saveCanvasTextAsset,
 }));
 
-import { persistCanvasTextAssets } from "./canvasGraphMapping";
+import { persistCanvasTextAssets, toCanvasGraphInput } from "./canvasGraphMapping";
 
 const t: MessageTranslator = (key, params) =>
   translateMessage("zh-CN", key, params);
@@ -68,5 +68,46 @@ describe("persistCanvasTextAssets", () => {
       "第二段",
       "第三段",
     ]);
+  });
+});
+
+describe("toCanvasGraphInput", () => {
+  it("preserves a generated text result when saving the canvas again", () => {
+    const node = {
+      id: "7",
+      position: { x: 0, y: 0 },
+      data: {
+        label: "LLM",
+        nodeKind: "LlmTextNode",
+        refType: "prompt_artifact",
+        refId: 12,
+        state: "completed",
+        config: {
+          canvas_runtime_result: true,
+          text: "已生成的提示词",
+          prompt_artifact_id: 12,
+        },
+      },
+    } as StudioNode;
+    const input = toCanvasGraphInput(
+      {
+        graph: {
+          id: 3,
+          name: "画布",
+          graph_kind: "video_studio",
+          version: 1,
+          viewport_json: null,
+        },
+        nodes: [],
+        edges: [],
+      },
+      [node],
+      [],
+    );
+
+    expect(input.nodes[0]?.config_json).toMatchObject({
+      canvas_runtime_result: true,
+      text: "已生成的提示词",
+    });
   });
 });

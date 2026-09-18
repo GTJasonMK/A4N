@@ -172,6 +172,7 @@ pub(super) fn canvas_probe_observation_patch(
     source_node_ids: &[i64],
 ) -> Value {
     json!({
+        "canvas_runtime_result": true,
         "observed_data_type": artifact_json.get("data_type").and_then(Value::as_str),
         "observed_text": artifact_json.get("text").and_then(Value::as_str),
         "generated_image_id": artifact_json.get("generated_image_id").and_then(Value::as_i64),

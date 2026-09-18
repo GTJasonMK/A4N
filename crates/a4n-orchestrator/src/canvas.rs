@@ -37,7 +37,8 @@ pub(crate) use image_generation::{
 pub(crate) use input_rules::source_node;
 pub(crate) use input_rules::{
     canvas_config_f32, canvas_config_i64, canvas_config_string, canvas_edge_order_index,
-    canvas_node_is_operation, i64_to_i32, incoming_edges, validate_canvas_clip_order,
+    canvas_node_has_persisted_runtime_result, canvas_node_is_operation, i64_to_i32, incoming_edges,
+    validate_canvas_clip_order,
 };
 pub(crate) use node_execution::CanvasNodeLifecycle;
 pub(crate) use node_execution::CanvasNodeRunHandle;

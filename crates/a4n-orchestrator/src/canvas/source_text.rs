@@ -71,7 +71,9 @@ pub(crate) fn source_text_value(
     {
         return Ok(Some(asset.content.clone()));
     }
-    Ok(canvas_config_string(&node.config_json, "content"))
+    Ok(canvas_config_string(&node.config_json, "content")
+        .or_else(|| canvas_config_string(&node.config_json, "text"))
+        .or_else(|| canvas_config_string(&node.config_json, "observed_text")))
 }
 
 pub(crate) fn first_canvas_text_asset_id(

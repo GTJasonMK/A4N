@@ -1,11 +1,15 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_db::{
     agent::{AgentOwnedTask, AgentTaskExecutionInput},
-    canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput},
+    canvas::{
+        CanvasNodeArtifactUpdateInput, CanvasPromptArtifactUpsertInput,
+        FreeformCanvasGenerationSpecUpsertInput,
+    },
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT,
     },
 };
+use a4n_domain::CanvasNodeRefKind;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{
     ChatMessage, ChatRequest, ChatResponse, UsageInfo, is_truncated_finish_reason,
@@ -102,17 +106,23 @@ impl OrchestratorContext {
                     prompt_text: rendered.prompt_text,
                 })
                 .await?;
-            self.finish_canvas_node_with_artifacts(
-                &lifecycle,
-                json!({
-                    "data_type": "text",
-                    "text": artifact.prompt_text,
-                    "generation_spec_id": spec.id,
-                    "prompt_artifact_id": artifact.id,
-                    "prompt_kind": artifact.prompt_kind,
-                }),
-            )
-            .await
+            let artifact_json = json!({
+                "canvas_runtime_result": true,
+                "data_type": "text",
+                "text": artifact.prompt_text,
+                "generation_spec_id": spec.id,
+                "prompt_artifact_id": artifact.id,
+                "prompt_kind": artifact.prompt_kind,
+            });
+            self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
+                node_id: input.node.id,
+                ref_type: CanvasNodeRefKind::PromptArtifact.to_string(),
+                ref_id: artifact.id,
+                config_patch: artifact_json.clone(),
+            })
+            .await?;
+            self.finish_canvas_node_with_artifacts(&lifecycle, artifact_json)
+                .await
         }
         .await;
 
@@ -204,19 +214,25 @@ impl OrchestratorContext {
                     prompt_text: validated.transformed_text,
                 })
                 .await?;
-            self.finish_canvas_node_with_artifacts(
-                &lifecycle,
-                json!({
-                    "data_type": "text",
-                    "text": artifact.prompt_text,
-                    "generation_spec_id": spec.id,
-                    "prompt_artifact_id": artifact.id,
-                    "prompt_kind": artifact.prompt_kind,
-                    "llm_finish_reason": validated.finish_reason,
-                    "llm_usage": validated.usage,
-                }),
-            )
-            .await
+            let artifact_json = json!({
+                "canvas_runtime_result": true,
+                "data_type": "text",
+                "text": artifact.prompt_text,
+                "generation_spec_id": spec.id,
+                "prompt_artifact_id": artifact.id,
+                "prompt_kind": artifact.prompt_kind,
+                "llm_finish_reason": validated.finish_reason,
+                "llm_usage": validated.usage,
+            });
+            self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
+                node_id: input.node.id,
+                ref_type: CanvasNodeRefKind::PromptArtifact.to_string(),
+                ref_id: artifact.id,
+                config_patch: artifact_json.clone(),
+            })
+            .await?;
+            self.finish_canvas_node_with_artifacts(&lifecycle, artifact_json)
+                .await
         }
         .await;
 

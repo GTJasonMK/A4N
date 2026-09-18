@@ -114,6 +114,32 @@ fn canvas_graph_execution_scope_supports_full_graph_and_output_target() {
     );
 }
 
+#[test]
+fn canvas_graph_execution_to_output_reuses_persisted_upstream_result() {
+    let mut video = test_node(2, "GenerateVideoNode");
+    video.config_json = json!({
+        "canvas_runtime_result": true,
+        "generated_video_id": 91,
+    });
+    let document = test_graph_document(
+        vec![
+            test_node(1, "TextInputNode"),
+            video,
+            test_node(3, "VideoOutputNode"),
+        ],
+        vec![test_edge(1, 2), test_edge(2, 3)],
+    );
+
+    assert_eq!(
+        runnable_canvas_node_ids(&document, Some(3)).unwrap(),
+        vec![3]
+    );
+    assert_eq!(
+        runnable_canvas_node_ids(&document, None).unwrap(),
+        vec![2, 3]
+    );
+}
+
 #[tokio::test]
 async fn canvas_graph_application_executes_nodes_in_order_and_completes_workflow() {
     let (database, context) = setup_context().await;
