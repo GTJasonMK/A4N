@@ -6,7 +6,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const PORTRAIT_WORKER_ID: &str = "portrait-worker";
-pub const PORTRAIT_WORKER_CONTRACT_VERSION: &str = "portrait-read-v1";
+pub const PORTRAIT_WORKER_CONTRACT_VERSION: &str = "portrait-read-v2";
 pub const PORTRAIT_LIST_OPERATION: &str = "portrait.records.list";
 pub const PORTRAIT_PRIMARY_OPERATION: &str = "portrait.records.primary";
 pub const PORTRAIT_BY_ID_OPERATION: &str = "portrait.records.by_id";
@@ -29,6 +29,12 @@ pub struct PortraitProfileInput {
 #[serde(deny_unknown_fields)]
 pub struct PortraitRecordInput {
     pub portrait_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PortraitLookupResponse {
+    pub portrait: Option<PortraitSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -72,5 +78,17 @@ mod tests {
         request
             .validate()
             .expect("portrait request should validate");
+    }
+
+    #[test]
+    fn nullable_lookup_result_has_an_unambiguous_payload_shape() {
+        let response = PortraitLookupResponse { portrait: None };
+        let value = serde_json::to_value(&response).expect("lookup response should serialize");
+        assert_eq!(value, serde_json::json!({ "portrait": null }));
+        assert_eq!(
+            serde_json::from_value::<PortraitLookupResponse>(value)
+                .expect("response should deserialize"),
+            response
+        );
     }
 }

@@ -120,18 +120,6 @@ pub fn source_span_prompt_value(span: &SourceSpan) -> Value {
     })
 }
 
-pub fn resolve_source_span_text(spans: &[SourceSpan], id: &str) -> Result<String, String> {
-    let id = id.trim();
-    if id.is_empty() {
-        return Err("source_span_id 不能为空".to_string());
-    }
-    spans
-        .iter()
-        .find(|span| span.id == id)
-        .map(|span| span.text.clone())
-        .ok_or_else(|| format!("source_span_id 不在本次输入候选中: {id}"))
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnchorQuoteWithChapter {
     pub quote: String,

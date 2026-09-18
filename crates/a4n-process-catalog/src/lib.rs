@@ -8,17 +8,12 @@ pub use release::{
     ReleaseRuntimeFileManifest, ReleaseToolCatalogEntry, ReleaseToolManifest, release_tool_catalog,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProcessKind {
+    #[default]
     CapabilitySidecar,
     StatefulWorker,
-}
-
-impl Default for ProcessKind {
-    fn default() -> Self {
-        Self::CapabilitySidecar
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,10 +264,6 @@ pub fn process_catalog_entry_ref(name: &str) -> Option<&'static ProcessMetadata>
         .find(|entry| entry.name == name)
 }
 
-pub fn stateful_worker_catalog_entry(name: &str) -> Option<StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(name).cloned()
-}
-
 pub fn stateful_worker_catalog_entry_ref(
     name: &str,
 ) -> Option<&'static StatefulWorkerCatalogEntry> {
@@ -510,7 +501,7 @@ mod tests {
             .expect("portrait worker entry");
         assert_eq!(portrait.kind, ProcessKind::StatefulWorker);
         assert_eq!(portrait.binary, "a4n-portrait-worker");
-        assert_eq!(portrait.contract_version, "portrait-read-v1");
+        assert_eq!(portrait.contract_version, "portrait-read-v2");
         assert_eq!(portrait.addr_env, "A4N_PORTRAIT_WORKER_ADDR");
         assert_eq!(portrait.default_addr, "127.0.0.1:47659");
         assert_eq!(

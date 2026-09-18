@@ -38,6 +38,8 @@ pub(crate) struct ProjectBundlePackage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct ProjectBundleProviderSlot {
     pub slot_key: String,
+    #[serde(default)]
+    pub source_config_id: Option<i64>,
     pub capability: String,
     pub provider: Option<String>,
     pub backend: Option<String>,
@@ -123,6 +125,49 @@ pub(crate) fn assemble_project_bundle(
     Ok(package)
 }
 
+pub(crate) fn add_canvas_provider_slot(
+    package: &mut ProjectBundlePackage,
+    source_config_id: i64,
+    capability: &str,
+    provider: Option<String>,
+    backend: Option<String>,
+    model: Option<String>,
+    base_url: Option<String>,
+) -> Result<(), String> {
+    if source_config_id <= 0 {
+        return Err("画布 Provider 配置 ID 必须大于 0".to_string());
+    }
+    if package.provider_slots.iter().any(|slot| {
+        slot.source_config_id == Some(source_config_id) && slot.capability == capability
+    }) {
+        return Ok(());
+    }
+    let slot_key = format!("canvas_config:{capability}:{source_config_id}");
+    let fingerprint_input = json!({
+        "capability": capability,
+        "provider": provider,
+        "backend": backend,
+        "model": model,
+        "base_url": base_url,
+        "parameters": {},
+    });
+    let fingerprint_bytes =
+        serde_json::to_vec(&fingerprint_input).map_err(|error| error.to_string())?;
+    package.provider_slots.push(ProjectBundleProviderSlot {
+        slot_key,
+        source_config_id: Some(source_config_id),
+        capability: capability.to_string(),
+        provider,
+        backend,
+        model,
+        base_url,
+        parameters: json!({}),
+        configuration_fingerprint_sha256: hex_sha256(&fingerprint_bytes),
+        requires_credentials: true,
+    });
+    Ok(())
+}
+
 fn collect_provider_slots(
     family: &Option<ProjectFamilyPackage>,
     canvas_projects: &[VideoStudioProjectPackage],
@@ -132,7 +177,6 @@ fn collect_provider_slots(
     for run in &history.generation_runs {
         insert_provider_slot(
             &mut slots,
-            "generation_run",
             "llm",
             run.provider.clone(),
             run.model.clone(),
@@ -147,7 +191,6 @@ fn collect_provider_slots(
         for image in &package.generated_images {
             insert_provider_slot(
                 &mut slots,
-                "generated_image",
                 "image",
                 None,
                 Some(image.model.clone()),
@@ -158,7 +201,6 @@ fn collect_provider_slots(
         for video in &package.generated_videos {
             insert_provider_slot(
                 &mut slots,
-                "generated_video",
                 "video",
                 None,
                 Some(video.model.clone()),
@@ -178,7 +220,6 @@ fn collect_provider_slots(
         for image in &family.generated_images {
             insert_provider_slot(
                 &mut slots,
-                "generated_image",
                 "image",
                 None,
                 Some(image.model.clone()),
@@ -189,7 +230,6 @@ fn collect_provider_slots(
         for video in &family.generated_videos {
             insert_provider_slot(
                 &mut slots,
-                "generated_video",
                 "video",
                 None,
                 Some(video.model.clone()),
@@ -222,7 +262,6 @@ fn insert_spec_provider_slot(
     };
     insert_provider_slot(
         slots,
-        "generation_spec",
         capability,
         provider,
         model,
@@ -236,7 +275,6 @@ fn insert_spec_provider_slot(
 
 fn insert_provider_slot(
     slots: &mut BTreeMap<String, ProjectBundleProviderSlot>,
-    source: &str,
     capability: &str,
     provider: Option<String>,
     model: Option<String>,
@@ -266,6 +304,7 @@ fn insert_provider_slot(
         .entry(slot_key.clone())
         .or_insert(ProjectBundleProviderSlot {
             slot_key,
+            source_config_id: None,
             capability: capability.to_string(),
             provider,
             backend: None,
@@ -275,7 +314,6 @@ fn insert_provider_slot(
             configuration_fingerprint_sha256: fingerprint,
             requires_credentials: true,
         });
-    let _ = source;
     Ok(())
 }
 
@@ -298,7 +336,10 @@ fn validate_media_entries(entries: &[MediaFileEntry]) -> Result<(), String> {
 fn validate_provider_slots(slots: &[ProjectBundleProviderSlot]) -> Result<(), String> {
     let mut keys = HashSet::with_capacity(slots.len());
     for slot in slots {
-        if slot.slot_key.is_empty() || slot.configuration_fingerprint_sha256.len() != 64 {
+        if slot.slot_key.is_empty()
+            || slot.configuration_fingerprint_sha256.len() != 64
+            || slot.source_config_id.is_some_and(|id| id <= 0)
+        {
             return Err("项目包 Provider 槽位缺少稳定指纹".to_string());
         }
         if !keys.insert(slot.slot_key.clone()) {
@@ -315,7 +356,14 @@ fn hex_sha256(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{PROJECT_BUNDLE_PACKAGE_VERSION, ProjectBundlePackage, validate_media_entries};
+    use std::collections::BTreeMap;
+
+    use a4n_db::project_bundle::ProjectBundleHistoryRows;
+
+    use super::{
+        PROJECT_BUNDLE_PACKAGE_VERSION, ProjectBundlePackage, add_canvas_provider_slot,
+        validate_media_entries, validate_provider_slots,
+    };
 
     #[test]
     fn media_paths_reject_traversal() {
@@ -335,5 +383,45 @@ mod tests {
     fn bundle_version_is_explicit() {
         assert_eq!(PROJECT_BUNDLE_PACKAGE_VERSION, "a4n_project_bundle_v1");
         let _ = std::mem::size_of::<ProjectBundlePackage>();
+    }
+
+    #[test]
+    fn canvas_provider_slots_keep_source_config_identity_without_duplicates() {
+        let mut package = ProjectBundlePackage {
+            version: PROJECT_BUNDLE_PACKAGE_VERSION.to_string(),
+            exported_at: String::new(),
+            bundle_id: "bundle".to_string(),
+            mode: "project_bundle".to_string(),
+            root_project_id: 1,
+            family: None,
+            canvas_projects: Vec::new(),
+            history: ProjectBundleHistoryRows::default(),
+            provider_slots: Vec::new(),
+            media_files: Vec::new(),
+            media_sha256: BTreeMap::new(),
+        };
+        add_canvas_provider_slot(
+            &mut package,
+            7,
+            "image",
+            None,
+            Some("openai".to_string()),
+            Some("image-model".to_string()),
+            None,
+        )
+        .expect("Provider 槽位应可写入");
+        add_canvas_provider_slot(
+            &mut package,
+            7,
+            "image",
+            None,
+            Some("openai".to_string()),
+            Some("image-model".to_string()),
+            None,
+        )
+        .expect("重复 Provider 槽位应幂等");
+        assert_eq!(package.provider_slots.len(), 1);
+        assert_eq!(package.provider_slots[0].source_config_id, Some(7));
+        validate_provider_slots(&package.provider_slots).expect("Provider 槽位应通过包校验");
     }
 }

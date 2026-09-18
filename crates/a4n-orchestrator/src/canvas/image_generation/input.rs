@@ -12,7 +12,6 @@ pub fn build_canvas_image_node_input_for_preview(
     node: &canvas_node::Model,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasImageNodeInput, String> {
-    ensure_canvas_provider_slot_ready(&node.config_json, "图片")?;
     build_canvas_image_node_input(node, document, None)
 }
 
@@ -21,6 +20,7 @@ pub(super) fn build_canvas_image_node_input(
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasImageNodeInput, String> {
+    ensure_canvas_provider_slot_ready(&node.config_json, "图片")?;
     let sources =
         collect_canvas_text_source_context(node, document, checkpoints, "GenerateImageNode")?;
     if sources.text.trim().is_empty() {

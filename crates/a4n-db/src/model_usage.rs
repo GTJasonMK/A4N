@@ -97,20 +97,6 @@ where
     Ok(())
 }
 
-pub async fn model_usage_record_by_id<C>(
-    db: &C,
-    record_id: i64,
-) -> Result<model_usage_record::Model, AppError>
-where
-    C: ConnectionTrait,
-{
-    model_usage_record::Entity::find_by_id(record_id)
-        .one(db)
-        .await
-        .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound(format!("模型成本记录不存在: {record_id}")))
-}
-
 pub async fn list_model_usage_records<C>(
     db: &C,
     project_id: Option<i64>,

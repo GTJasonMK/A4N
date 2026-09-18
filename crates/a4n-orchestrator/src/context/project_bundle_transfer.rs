@@ -28,6 +28,8 @@ use crate::project::{
     assemble_project_family_export_package, assemble_video_studio_project_canvas_package,
     imported_project_family_media_path, index_import_media_payload, media_file_key,
     project_family_export_media_files, project_package_export_input, required_package_extension,
+    validate_family_media_manifest, validate_family_package_manifest,
+    validate_package_manifest as validate_video_studio_package_manifest,
     video_studio_export_media_files,
 };
 
@@ -150,7 +152,7 @@ impl OrchestratorContext {
         )
         .await
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
-        let package = assemble_project_bundle(
+        let mut package = assemble_project_bundle(
             project.id,
             "project_bundle",
             family,
@@ -158,6 +160,8 @@ impl OrchestratorContext {
             history,
             media_files,
         )?;
+        self.attach_canvas_provider_slots(&mut package).await?;
+        package.validate().map_err(InternalTransferError::Message)?;
         let host_input = project_package_export_input(
             &package,
             &package.media_files,
@@ -175,6 +179,101 @@ impl OrchestratorContext {
             project_title: project.title,
             package_bytes,
         })
+    }
+
+    async fn attach_canvas_provider_slots(
+        &self,
+        package: &mut ProjectBundlePackage,
+    ) -> Result<(), InternalTransferError> {
+        let (llm, image, video) = tokio::try_join!(
+            list_llm_config_records(self.database.connection()),
+            list_image_config_records(self.database.connection()),
+            list_video_config_records(self.database.connection()),
+        )
+        .map_err(|error| InternalTransferError::Message(error.to_string()))?;
+
+        let mut descriptors = Vec::new();
+        for canvas in &package.canvas_projects {
+            for node in &canvas.canvas_nodes {
+                let (capability, config_key) = match node.node_kind.as_str() {
+                    "LlmTextNode" => ("llm", "llm_config_id"),
+                    "GenerateImageNode" => ("image", "image_config_id"),
+                    "GenerateVideoNode" => ("video", "video_config_id"),
+                    _ => continue,
+                };
+                let Some(config_id) = node
+                    .config_json
+                    .get(config_key)
+                    .and_then(serde_json::Value::as_i64)
+                else {
+                    continue;
+                };
+                match capability {
+                    "llm" => {
+                        let config = llm
+                            .iter()
+                            .find(|config| config.id == config_id)
+                            .ok_or_else(|| {
+                                InternalTransferError::Message(format!(
+                                    "画布节点引用的 LLM 配置不存在: {config_id}"
+                                ))
+                            })?;
+                        descriptors.push((
+                            config_id,
+                            capability,
+                            Some(config.provider.clone()),
+                            None,
+                            Some(config.model.clone()),
+                            Some(config.base_url.clone()),
+                        ));
+                    }
+                    "image" => {
+                        let config = image
+                            .iter()
+                            .find(|config| config.id == config_id)
+                            .ok_or_else(|| {
+                                InternalTransferError::Message(format!(
+                                    "画布节点引用的图片配置不存在: {config_id}"
+                                ))
+                            })?;
+                        descriptors.push((
+                            config_id,
+                            capability,
+                            None,
+                            Some(config.backend.clone()),
+                            Some(config.model.clone()),
+                            config.base_url.clone(),
+                        ));
+                    }
+                    "video" => {
+                        let config = video
+                            .iter()
+                            .find(|config| config.id == config_id)
+                            .ok_or_else(|| {
+                                InternalTransferError::Message(format!(
+                                    "画布节点引用的视频配置不存在: {config_id}"
+                                ))
+                            })?;
+                        descriptors.push((
+                            config_id,
+                            capability,
+                            None,
+                            Some(config.backend.clone()),
+                            Some(config.model.clone()),
+                            config.base_url.clone(),
+                        ));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        for (config_id, capability, provider, backend, model, base_url) in descriptors {
+            crate::project::add_canvas_provider_slot(
+                package, config_id, capability, provider, backend, model, base_url,
+            )
+            .map_err(InternalTransferError::Message)?;
+        }
+        Ok(())
     }
 
     async fn read_project_bundle<Host>(
@@ -217,7 +316,6 @@ impl OrchestratorContext {
         let (package, media_bytes) = self.read_project_bundle(input, host_port).await?;
         validate_bundle_media(&package, &media_bytes)?;
         Ok(bundle_report(
-            &package,
             history_summary(&package.history),
             self.provider_slot_reports(&package).await?,
         ))
@@ -232,112 +330,149 @@ impl OrchestratorContext {
         Host: ProjectPackageTransferHostPort + ?Sized,
     {
         let user_id = input.user_id;
-        let (package, media_bytes) = self.read_project_bundle(input, host_port).await?;
-        let (family_payload, canvas_payloads) = validate_bundle_media(&package, &media_bytes)?;
-        let provider_resolutions = self.provider_slot_resolutions(&package).await?;
-        let missing_provider_slots =
-            provider_slot_reports_from_resolutions(&package, &provider_resolutions);
-        let mut project_ids = HashMap::new();
-        let mut root_project_ids = HashMap::new();
+        let mut imported_project_ids = HashMap::new();
+        let result = async {
+            let (package, media_bytes) = self.read_project_bundle(input, host_port).await?;
+            let (family_payload, canvas_payloads) = validate_bundle_media(&package, &media_bytes)?;
+            let provider_resolutions = self.provider_slot_resolutions(&package).await?;
+            let missing_provider_slots =
+                provider_slot_reports_from_resolutions(&package, &provider_resolutions);
+            let mut root_project_ids = HashMap::new();
+            let mut history_maps = ProjectBundleEntityIdMaps::default();
 
-        if let Some(family) = package.family.clone() {
-            let old_projects = family.projects.clone();
-            let family_rows = family.into_import_package();
-            let mut writer = BundleFamilyMediaWriter {
-                host_port,
-                media_payload: &family_payload,
-            };
-            let imported = self
-                .project_family
-                .import_package_rows(user_id, &family_rows, &mut writer)
-                .await?;
-            if imported.len() != old_projects.len() {
-                return Err(InternalTransferError::Message(
-                    "项目族导入返回项目数量不一致".to_string(),
-                ));
-            }
-            for (old, new) in old_projects.iter().zip(imported) {
-                project_ids.insert(old.id, new.id);
-            }
-            let old_root = old_projects
-                .iter()
-                .find(|project| project.id == package.root_project_id)
-                .ok_or_else(|| InternalTransferError::Message("统一包缺少根项目".to_string()))?;
-            let new_root = *project_ids
-                .get(&old_root.id)
-                .ok_or_else(|| InternalTransferError::Message("根项目映射缺失".to_string()))?;
-            for old in &old_projects {
-                let old_root_id = old.root_project_id.unwrap_or(old.id);
-                root_project_ids.insert(old_root_id, new_root);
-            }
-        }
-
-        for mut canvas in package.canvas_projects.clone() {
-            remap_canvas_provider_slots(
-                &mut canvas,
-                &package.provider_slots,
-                &provider_resolutions,
-            );
-            let payload = canvas_payloads
-                .get(&canvas.project.id)
-                .ok_or_else(|| InternalTransferError::Message("画布媒体映射缺失".to_string()))?;
-            let old_project_id = canvas.project.id;
-            let imported = if let Some(new_project_id) = project_ids.get(&old_project_id).copied() {
-                let mut writer = BundleCanvasMediaWriter {
+            if let Some(family) = package.family.clone() {
+                let old_projects = family.projects.clone();
+                let family_rows = family.into_import_package();
+                let mut writer = BundleFamilyMediaWriter {
                     host_port,
-                    media_payload: payload,
+                    media_payload: &family_payload,
                 };
-                self.canvas
-                    .import_video_studio_package_into_existing(
-                        user_id,
-                        new_project_id,
-                        canvas,
-                        Utc::now().naive_utc(),
-                        &mut writer,
-                    )
-                    .await?
-            } else {
-                let mut writer = BundleCanvasMediaWriter {
-                    host_port,
-                    media_payload: payload,
-                };
-                self.canvas
-                    .import_video_studio_package(
-                        user_id,
-                        canvas,
-                        Utc::now().naive_utc(),
-                        &mut writer,
-                    )
-                    .await?
-            };
-            project_ids.insert(old_project_id, imported.id);
-            root_project_ids.insert(old_project_id, imported.id);
-        }
-
-        let history_maps = ProjectBundleEntityIdMaps {
-            project_ids: project_ids.clone(),
-            root_project_ids,
-            ..Default::default()
-        };
-        let history_summary = a4n_db::project_bundle::import_project_bundle_history(
-            self.database.connection(),
-            &package.history,
-            &history_maps,
-            &package.bundle_id,
-        )
-        .await
-        .map_err(|error| InternalTransferError::Message(error.to_string()))?;
-
-        let mut summaries = Vec::new();
-        for project_id in project_ids.values().copied() {
-            if let Some(summary) = self.project_summary_for_user(user_id, project_id).await? {
-                summaries.push(summary);
+                let (imported, mappings) = self
+                    .project_family
+                    .import_package_rows_with_mappings(user_id, &family_rows, &mut writer)
+                    .await?;
+                if imported.len() != old_projects.len() {
+                    return Err(InternalTransferError::Message(
+                        "项目族导入返回项目数量不一致".to_string(),
+                    ));
+                }
+                for (old, new) in old_projects.iter().zip(imported) {
+                    imported_project_ids.insert(old.id, new.id);
+                }
+                let old_root = old_projects
+                    .iter()
+                    .find(|project| project.id == package.root_project_id)
+                    .ok_or_else(|| {
+                        InternalTransferError::Message("统一包缺少根项目".to_string())
+                    })?;
+                let new_root = *imported_project_ids
+                    .get(&old_root.id)
+                    .ok_or_else(|| InternalTransferError::Message("根项目映射缺失".to_string()))?;
+                for old in &old_projects {
+                    let old_root_id = old.root_project_id.unwrap_or(old.id);
+                    root_project_ids.insert(old_root_id, new_root);
+                }
+                history_maps.chapter_ids = mappings.chapter_ids;
+                history_maps.source_snapshot_ids = mappings.source_snapshot_ids;
+                history_maps.source_snapshot_chapter_ids = mappings.source_snapshot_chapter_ids;
             }
+
+            for mut canvas in package.canvas_projects.clone() {
+                remap_canvas_provider_slots(
+                    &mut canvas,
+                    &package.provider_slots,
+                    &provider_resolutions,
+                );
+                let payload = canvas_payloads.get(&canvas.project.id).ok_or_else(|| {
+                    InternalTransferError::Message("画布媒体映射缺失".to_string())
+                })?;
+                let old_project_id = canvas.project.id;
+                let imported = if let Some(new_project_id) =
+                    imported_project_ids.get(&old_project_id).copied()
+                {
+                    let mut writer = BundleCanvasMediaWriter {
+                        host_port,
+                        media_payload: payload,
+                    };
+                    self.canvas
+                        .import_video_studio_package_into_existing(
+                            user_id,
+                            new_project_id,
+                            canvas,
+                            Utc::now().naive_utc(),
+                            &mut writer,
+                        )
+                        .await?
+                } else {
+                    let mut writer = BundleCanvasMediaWriter {
+                        host_port,
+                        media_payload: payload,
+                    };
+                    self.canvas
+                        .import_video_studio_package(
+                            user_id,
+                            canvas,
+                            Utc::now().naive_utc(),
+                            &mut writer,
+                        )
+                        .await?
+                };
+                imported_project_ids.insert(old_project_id, imported.id);
+                root_project_ids.insert(old_project_id, imported.id);
+            }
+
+            history_maps.project_ids = imported_project_ids.clone();
+            history_maps.root_project_ids = root_project_ids;
+            let history_summary = a4n_db::project_bundle::import_project_bundle_history(
+                self.database.connection(),
+                &package.history,
+                &history_maps,
+                &package.bundle_id,
+                user_id,
+            )
+            .await
+            .map_err(|error| InternalTransferError::Message(error.to_string()))?;
+
+            let mut summaries = Vec::new();
+            for project_id in imported_project_ids.values().copied() {
+                if let Some(summary) = self.project_summary_for_user(user_id, project_id).await? {
+                    summaries.push(summary);
+                }
+            }
+            summaries.sort_by_key(|summary| summary.id);
+            let mut report = bundle_report(history_summary, missing_provider_slots);
+            report.project_summaries = summaries;
+            Ok(report)
         }
-        summaries.sort_by_key(|summary| summary.id);
-        let mut report = bundle_report(&package, history_summary, missing_provider_slots);
-        report.project_summaries = summaries;
-        Ok(report)
+        .await;
+
+        match result {
+            Ok(report) => Ok(report),
+            Err(error) => match self
+                .rollback_imported_project_ids(imported_project_ids.values().copied())
+                .await
+            {
+                Ok(()) => Err(error),
+                Err(cleanup_error) => Err(InternalTransferError::Message(format!(
+                    "{error}；项目回滚失败：{cleanup_error}"
+                ))),
+            },
+        }
+    }
+
+    async fn rollback_imported_project_ids(
+        &self,
+        project_ids: impl IntoIterator<Item = i64>,
+    ) -> Result<(), String> {
+        let mut project_ids = project_ids.into_iter().collect::<Vec<_>>();
+        project_ids.sort_unstable_by(|left, right| right.cmp(left));
+        project_ids.dedup();
+        for project_id in project_ids {
+            self.delete_project_cascade_validated(project_id)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
     }
 
     async fn provider_slot_resolutions(
@@ -369,11 +504,31 @@ impl OrchestratorContext {
                         .map(|config| config.id),
                     "image" => image
                         .iter()
-                        .find(|config| model_matches(&config.model))
+                        .find(|config| {
+                            model_matches(&config.model)
+                                && slot
+                                    .backend
+                                    .as_deref()
+                                    .is_none_or(|backend| backend == config.backend)
+                                && slot
+                                    .base_url
+                                    .as_deref()
+                                    .is_none_or(|url| config.base_url.as_deref() == Some(url))
+                        })
                         .map(|config| config.id),
                     "video" => video
                         .iter()
-                        .find(|config| model_matches(&config.model))
+                        .find(|config| {
+                            model_matches(&config.model)
+                                && slot
+                                    .backend
+                                    .as_deref()
+                                    .is_none_or(|backend| backend == config.backend)
+                                && slot
+                                    .base_url
+                                    .as_deref()
+                                    .is_none_or(|url| config.base_url.as_deref() == Some(url))
+                        })
                         .map(|config| config.id),
                     _ => None,
                 };
@@ -490,7 +645,10 @@ fn validate_bundle_media(
         }
     }
     let family_payload = if let Some(family) = &package.family {
-        scoped_import_media_payload(&family.media_files, media_bytes)?
+        let payload = scoped_import_media_payload(&family.media_files, media_bytes)?;
+        validate_family_package_manifest(family).map_err(InternalTransferError::Message)?;
+        validate_family_media_manifest(family, &payload).map_err(InternalTransferError::Message)?;
+        payload
     } else {
         ImportMediaPayload {
             entries: HashMap::new(),
@@ -514,10 +672,10 @@ fn validate_bundle_media(
                 .iter()
                 .map(|entry| entry.package_path.as_str()),
         );
-        canvas_payloads.insert(
-            canvas.project.id,
-            scoped_import_media_payload(&canvas.media_files, media_bytes)?,
-        );
+        let payload = scoped_import_media_payload(&canvas.media_files, media_bytes)?;
+        validate_video_studio_package_manifest(canvas, &payload)
+            .map_err(InternalTransferError::Message)?;
+        canvas_payloads.insert(canvas.project.id, payload);
     }
     if nested_paths != root_paths {
         return Err(InternalTransferError::Message(
@@ -542,7 +700,6 @@ fn scoped_import_media_payload(
 }
 
 fn bundle_report(
-    _package: &ProjectBundlePackage,
     history: ProjectBundleHistoryImportSummary,
     provider_slots: Vec<a4n_api_contract::project_transfer::ProjectBundleProviderSlotReport>,
 ) -> ProjectBundleImportReport {
@@ -616,11 +773,23 @@ fn remap_canvas_provider_slots(
         let Some(config) = node.config_json.as_object_mut() else {
             continue;
         };
+        let source_config_id = config.get(config_key).and_then(serde_json::Value::as_i64);
         let configured_model = config.get("model").and_then(serde_json::Value::as_str);
-        let slot = provider_slots
-            .iter()
-            .filter(|slot| slot.capability == capability)
-            .find(|slot| configured_model.is_none() || slot.model.as_deref() == configured_model);
+        if source_config_id.is_none() && configured_model.is_none() {
+            continue;
+        }
+        let slot = source_config_id
+            .and_then(|source_config_id| {
+                provider_slots.iter().find(|slot| {
+                    slot.capability == capability && slot.source_config_id == Some(source_config_id)
+                })
+            })
+            .or_else(|| {
+                provider_slots
+                    .iter()
+                    .filter(|slot| slot.capability == capability)
+                    .find(|slot| slot.model.as_deref() == configured_model)
+            });
         let resolved_id = slot.and_then(|slot| resolutions.get(&slot.slot_key).copied().flatten());
         if let Some(config_id) = resolved_id {
             config.insert(config_key.to_string(), serde_json::Value::from(config_id));

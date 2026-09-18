@@ -14,22 +14,6 @@ pub enum LlmContextPackDbError {
     Database(#[from] DbErr),
 }
 
-pub async fn record_or_reuse_context_pack<C>(
-    db: &C,
-    input: RecordOrReuseContextPackInput,
-) -> Result<llm_context_pack::Model, LlmContextPackDbError>
-where
-    C: ConnectionTrait,
-{
-    record_or_reuse_context_packs(db, vec![input])
-        .await?
-        .into_iter()
-        .next()
-        .ok_or_else(|| {
-            LlmContextPackDbError::InvalidArgument("LLM 上下文包输入不能为空".to_string())
-        })
-}
-
 pub async fn record_or_reuse_context_packs<C>(
     db: &C,
     inputs: Vec<RecordOrReuseContextPackInput>,

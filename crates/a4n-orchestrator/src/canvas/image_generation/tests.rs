@@ -334,6 +334,17 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
     assert_eq!(input.prompt, "画布图片提示词");
     assert_eq!(input.config_id, Some(7));
     assert_eq!(input.source_node_ids, vec![10]);
+
+    let mut unresolved_provider = image;
+    unresolved_provider.config_json = json!({
+        "a4n_provider_slot_unresolved": true,
+        "image_config_id": 7,
+        "width": 1024,
+        "height": 576,
+    });
+    let provider_error = build_canvas_image_node_input_for_preview(&unresolved_provider, &document)
+        .expect_err("未绑定的图片 Provider 必须在输入构造阶段失败");
+    assert!(provider_error.contains("缺少可用的 图片 Provider"));
 }
 
 #[test]

@@ -121,7 +121,7 @@ pub(crate) use package_transfer::{
 
 pub(crate) use project_bundle::{
     MANIFEST_PATH as PROJECT_BUNDLE_MANIFEST_PATH, ProjectBundlePackage, ProjectBundleProviderSlot,
-    assemble_project_bundle,
+    add_canvas_provider_slot, assemble_project_bundle,
 };
 
 pub(crate) use video_studio_package::{MANIFEST_PATH, VideoStudioProjectPackage};

@@ -52,13 +52,6 @@ export const confirmChapterVisualPlan = (
     expected_revision: current.record.revision },
 });
 
-export const discardChapterVisualPlanDraft = (
-  projectId: number, sourceChapterId: number, current: ChapterVisualPlanView,
-) => apiInvoke<void>("discard_chapter_visual_plan_draft", {
-  input: { ...sourceInput(projectId, sourceChapterId), record_id: current.record.id,
-    expected_revision: current.record.revision },
-});
-
 export const previewVisualPlanPointGeneration = (projectId: number, options: VisualPlanPointGenerationOptions) =>
   apiInvoke<VisualPlanPointGenerationPreview>("preview_visual_plan_point_generation", {
     input: { project_id: projectId, options: { ...options, config_id: normalizeImageConfigId(options.config_id) } },

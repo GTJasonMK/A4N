@@ -1,8 +1,6 @@
 import { apiInvoke } from ".";
 import type {
   GetPackageOperationInput,
-  ListPackageCommandAvailabilityInput,
-  PackageCommandAvailability,
   PackageId,
   PackageOverview,
   PackagePreferencesSummary,
@@ -102,11 +100,6 @@ export const readPackageRejection = (error: unknown): PackageRejection | null =>
 
 export const getPackageOverview = (): Promise<PackageOverview[]> =>
   apiInvoke<PackageOverview[]>("get_package_overview");
-
-export const listPackageCommandAvailability = (
-  input: ListPackageCommandAvailabilityInput = {},
-): Promise<PackageCommandAvailability[]> =>
-  apiInvoke<PackageCommandAvailability[]>("list_package_command_availability", { input });
 
 export const getPackageOperation = (
   input: GetPackageOperationInput,

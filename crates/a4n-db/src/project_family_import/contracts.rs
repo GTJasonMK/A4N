@@ -62,6 +62,13 @@ pub struct ProjectFamilyImportPackage {
     pub source_sync_decisions: Vec<source_sync_decision::Model>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ProjectFamilyImportMappings {
+    pub chapter_ids: HashMap<i64, i64>,
+    pub source_snapshot_ids: HashMap<i64, i64>,
+    pub source_snapshot_chapter_ids: HashMap<i64, i64>,
+}
+
 #[derive(Default)]
 pub(in crate::project_family_import) struct ImportIdMaps {
     pub(in crate::project_family_import) project_ids: HashMap<i64, i64>,

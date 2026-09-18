@@ -100,7 +100,7 @@ pub(super) async fn import_package_rows<Importer>(
     txn: &DatabaseTransaction,
     package: &ProjectFamilyImportPackage,
     media_importer: &mut Importer,
-) -> Result<Vec<novel_project::Model>, ProjectFamilyImportError>
+) -> Result<(Vec<novel_project::Model>, ImportIdMaps), ProjectFamilyImportError>
 where
     Importer: ProjectFamilyMediaFileImporter,
 {
@@ -138,7 +138,7 @@ where
         }
     );
     insert_source_sync_rows(txn, package, &mut maps).await?;
-    Ok(imported_projects)
+    Ok((imported_projects, maps))
 }
 
 mod root_text;

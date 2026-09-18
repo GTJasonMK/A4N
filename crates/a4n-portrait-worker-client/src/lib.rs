@@ -7,7 +7,7 @@ use a4n_error::AppError;
 use a4n_portrait_worker_contract::{
     PORTRAIT_BY_ID_OPERATION, PORTRAIT_LIST_OPERATION, PORTRAIT_MISSING_SEEDS_OPERATION,
     PORTRAIT_PRIMARY_OPERATION, PORTRAIT_WORKER_ID, PortraitGenerationSeedWire,
-    PortraitProfileInput, PortraitProjectInput, PortraitRecordInput,
+    PortraitLookupResponse, PortraitProfileInput, PortraitProjectInput, PortraitRecordInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -134,13 +134,15 @@ impl PortraitRecordReadApplicationPort for PortraitWorkerClient {
         user_id: i64,
         profile_id: i64,
     ) -> Result<Option<PortraitSummary>, AppError> {
-        self.command(
-            user_id,
-            None,
-            PORTRAIT_PRIMARY_OPERATION,
-            PortraitProfileInput { profile_id },
-        )
-        .await
+        let response: PortraitLookupResponse = self
+            .command(
+                user_id,
+                None,
+                PORTRAIT_PRIMARY_OPERATION,
+                PortraitProfileInput { profile_id },
+            )
+            .await?;
+        Ok(response.portrait)
     }
 
     async fn by_id(
@@ -148,13 +150,15 @@ impl PortraitRecordReadApplicationPort for PortraitWorkerClient {
         user_id: i64,
         portrait_id: i64,
     ) -> Result<Option<PortraitSummary>, AppError> {
-        self.command(
-            user_id,
-            None,
-            PORTRAIT_BY_ID_OPERATION,
-            PortraitRecordInput { portrait_id },
-        )
-        .await
+        let response: PortraitLookupResponse = self
+            .command(
+                user_id,
+                None,
+                PORTRAIT_BY_ID_OPERATION,
+                PortraitRecordInput { portrait_id },
+            )
+            .await?;
+        Ok(response.portrait)
     }
 
     async fn missing_generation_seeds(

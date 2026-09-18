@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use a4n_artifact_media_contract::{
     ARTIFACT_MEDIA_MAINTENANCE_COMMAND, ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND,
     ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND, ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND,
@@ -292,16 +290,13 @@ impl a4n_artifact_media_contract::ArtifactMediaReferencePort for ArtifactMediaWo
     }
 }
 
-pub fn default_client_config() -> WorkerClientConfig {
-    WorkerClientConfig::new(Duration::from_secs(5), Duration::from_secs(90))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use a4n_worker_contract::{WorkerHealth, WorkerHealthStatus};
     use axum::{Router, routing::get};
     use std::net::SocketAddr;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn client_uses_worker_health_contract() {

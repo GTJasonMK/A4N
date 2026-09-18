@@ -8,7 +8,6 @@ export const VIDEO_TYPE_ASSEMBLY_PUSH = "assembly_push" as const;
 export const VIDEO_TYPE_ASSEMBLY_POSTPROCESS_EDIT =
   "assembly_postprocess_edit" as const;
 export const VIDEO_TYPE_CANVAS = "canvas_video" as const;
-export const VIDEO_TYPE_CANVAS_ASSEMBLY = "canvas_assembly" as const;
 
 export const VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN =
   "shared_segment_plan" as const;

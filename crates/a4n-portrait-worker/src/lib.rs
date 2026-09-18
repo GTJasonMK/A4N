@@ -8,8 +8,8 @@ use a4n_domain::character::{CharacterPortraitProfile, profile_portrait_seed_prom
 use a4n_portrait_worker_contract::{
     PORTRAIT_BY_ID_OPERATION, PORTRAIT_LIST_OPERATION, PORTRAIT_MISSING_SEEDS_OPERATION,
     PORTRAIT_PRIMARY_OPERATION, PORTRAIT_READ_CAPABILITY, PORTRAIT_WORKER_CONTRACT_VERSION,
-    PORTRAIT_WORKER_ID, PortraitGenerationSeedWire, PortraitProfileInput, PortraitProjectInput,
-    PortraitRecordInput,
+    PORTRAIT_WORKER_ID, PortraitGenerationSeedWire, PortraitLookupResponse, PortraitProfileInput,
+    PortraitProjectInput, PortraitRecordInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -260,7 +260,7 @@ impl WorkerState {
     async fn primary(
         &self,
         request: WorkerEnvelope<PortraitProfileInput>,
-    ) -> Result<Option<PortraitSummary>, WorkerFailure> {
+    ) -> Result<PortraitLookupResponse, WorkerFailure> {
         validate_request(&request, PORTRAIT_PRIMARY_OPERATION)?;
         let profile_id = request.payload.profile_id;
         if profile_id <= 0 {
@@ -278,18 +278,21 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Viewer,
         )
         .await?;
-        a4n_db::character::primary_character_portrait_record(self.database.connection(), profile_id)
-            .await
-            .map_err(database_error)?
-            .as_ref()
-            .map(portrait_summary)
-            .transpose()
+        let portrait = a4n_db::character::primary_character_portrait_record(
+            self.database.connection(),
+            profile_id,
+        )
+        .await
+        .map_err(database_error)?;
+        Ok(PortraitLookupResponse {
+            portrait: portrait.as_ref().map(portrait_summary).transpose()?,
+        })
     }
 
     async fn by_id(
         &self,
         request: WorkerEnvelope<PortraitRecordInput>,
-    ) -> Result<Option<PortraitSummary>, WorkerFailure> {
+    ) -> Result<PortraitLookupResponse, WorkerFailure> {
         validate_request(&request, PORTRAIT_BY_ID_OPERATION)?;
         let portrait_id = request.payload.portrait_id;
         if portrait_id <= 0 {
@@ -300,7 +303,7 @@ impl WorkerState {
                 .await
                 .map_err(database_error)?
         else {
-            return Ok(None);
+            return Ok(PortraitLookupResponse { portrait: None });
         };
         let user_id = user_id(&request)?;
         verify_permission(
@@ -310,7 +313,9 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        portrait_summary(&portrait).map(Some)
+        Ok(PortraitLookupResponse {
+            portrait: Some(portrait_summary(&portrait)?),
+        })
     }
 
     async fn missing_seeds(

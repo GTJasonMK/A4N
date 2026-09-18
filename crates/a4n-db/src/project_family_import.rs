@@ -6,9 +6,13 @@ mod remap;
 mod rules;
 
 pub(in crate::project_family_import) use contracts::ImportIdMaps;
-pub use contracts::{ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter};
+pub use contracts::{
+    ProjectFamilyImportMappings, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
+};
 pub use errors::{ProjectFamilyImportError, ProjectFamilyMediaImportError};
-pub use execution::import_project_family_package_rows;
+pub use execution::{
+    import_project_family_package_rows, import_project_family_package_rows_with_mappings,
+};
 pub use remap::snapshot_profile_key;
 pub(in crate::project_family_import) use remap::{
     remap_chapter_hashes_json, remap_chapter_video_reference_image_ids,

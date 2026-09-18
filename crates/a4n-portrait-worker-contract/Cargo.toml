@@ -9,3 +9,6 @@ a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

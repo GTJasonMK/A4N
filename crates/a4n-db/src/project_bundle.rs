@@ -46,6 +46,7 @@ pub struct ProjectBundleEntityIdMaps {
     pub root_project_ids: HashMap<i64, i64>,
     pub chapter_ids: HashMap<i64, i64>,
     pub source_snapshot_ids: HashMap<i64, i64>,
+    pub source_snapshot_chapter_ids: HashMap<i64, i64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -201,8 +202,14 @@ pub async fn import_project_bundle_history(
     rows: &ProjectBundleHistoryRows,
     maps: &ProjectBundleEntityIdMaps,
     bundle_id: &str,
+    user_id: i64,
 ) -> Result<ProjectBundleHistoryImportSummary, ProjectBundleHistoryError> {
     let bundle_id = required_bundle_id(bundle_id)?;
+    if user_id <= 0 {
+        return Err(ProjectBundleHistoryError::Invalid(
+            "user_id 必须大于 0".to_string(),
+        ));
+    }
     let txn = db.begin().await?;
     let mut summary = ProjectBundleHistoryImportSummary::default();
     let mut conversation_ids = HashMap::new();
@@ -244,23 +251,46 @@ pub async fn import_project_bundle_history(
             .transpose()?;
         let chapter_id = source
             .chapter_id
-            .and_then(|id| maps.chapter_ids.get(&id).copied());
+            .map(|id| map_required(&maps.chapter_ids, id, "workflow_run.chapter_id"))
+            .transpose()?;
         let source_snapshot_id = source
             .source_snapshot_id
-            .and_then(|id| maps.source_snapshot_ids.get(&id).copied());
+            .map(|id| {
+                map_required(
+                    &maps.source_snapshot_ids,
+                    id,
+                    "workflow_run.source_snapshot_id",
+                )
+            })
+            .transpose()?;
         let (status, can_resume, resume_block_reason, interrupted) = imported_status(
             &source.status,
             source.can_resume,
             source.resume_block_reason.clone(),
         );
+        let (scope_table, scope_id, scope_is_mapped) =
+            remap_workflow_scope(source.scope_table.as_deref(), source.scope_id, maps);
+        let (can_resume, resume_block_reason) = if scope_is_mapped || !can_resume {
+            (can_resume, resume_block_reason)
+        } else {
+            (
+                false,
+                Some("原机器工作流作用域无法在目标项目中映射；请重新提交当前步骤".to_string()),
+            )
+        };
         let mut active: workflow_run::ActiveModel = source.clone().into();
         active.id = sea_orm::NotSet;
         active.business_key = Set(format!("{bundle_id}:{}", source.business_key));
         active.project_id = Set(project_id);
         active.root_project_id = Set(root_project_id);
         active.source_snapshot_id = Set(source_snapshot_id);
-        active.scope_id = Set(None);
+        active.scope_table = Set(scope_table);
+        active.scope_id = Set(scope_id);
         active.chapter_id = Set(chapter_id);
+        active.input_fingerprint_json = Set(remap_history_json(
+            source.input_fingerprint_json.clone(),
+            maps,
+        )?);
         active.status = Set(status);
         active.active_task_id = Set(None);
         active.can_resume = Set(can_resume);
@@ -334,10 +364,16 @@ pub async fn import_project_bundle_history(
         let mut active: workflow_checkpoint::ActiveModel = source.clone().into();
         active.id = sea_orm::NotSet;
         active.workflow_run_id = Set(workflow_run_id);
+        active.input_fingerprint_json = Set(remap_history_json(
+            source.input_fingerprint_json.clone(),
+            maps,
+        )?);
+        active.checkpoint_json = Set(remap_history_json(source.checkpoint_json.clone(), maps)?);
+        active.artifacts_json = Set(remap_history_json(source.artifacts_json.clone(), maps)?);
         active.generation_run_ids_json = Set(remap_generation_ids(
             source.generation_run_ids_json.clone(),
             &generation_ids,
-        ));
+        )?);
         active.status = Set(if source.status == "running" {
             "interrupted".to_string()
         } else {
@@ -360,6 +396,7 @@ pub async fn import_project_bundle_history(
         active.id = sea_orm::NotSet;
         active.workflow_run_id = Set(workflow_run_id);
         active.task_id = Set(None);
+        active.meta_json = Set(remap_history_json(source.meta_json.clone(), maps)?);
         active.insert(&txn).await?;
     }
     for source in &rows.llm_call_traces {
@@ -367,16 +404,20 @@ pub async fn import_project_bundle_history(
         active.id = sea_orm::NotSet;
         active.project_id = Set(source
             .project_id
-            .and_then(|id| maps.project_ids.get(&id).copied()));
+            .map(|id| map_required(&maps.project_ids, id, "llm_call_trace.project_id"))
+            .transpose()?);
         active.root_project_id = Set(source
             .root_project_id
-            .and_then(|id| maps.root_project_ids.get(&id).copied()));
+            .map(|id| map_required(&maps.root_project_ids, id, "llm_call_trace.root_project_id"))
+            .transpose()?);
         active.workflow_run_id = Set(source
             .workflow_run_id
-            .and_then(|id| workflow_ids.get(&id).copied()));
+            .map(|id| map_required(&workflow_ids, id, "llm_call_trace.workflow_run_id"))
+            .transpose()?);
         active.generation_run_id = Set(source
             .generation_run_id
-            .and_then(|id| generation_ids.get(&id).copied()));
+            .map(|id| map_required(&generation_ids, id, "llm_call_trace.generation_run_id"))
+            .transpose()?);
         active.context_plan_json = Set(sanitize_runtime_json(source.context_plan_json.clone()));
         active.context_pack_refs_json =
             Set(sanitize_runtime_json(source.context_pack_refs_json.clone()));
@@ -385,18 +426,29 @@ pub async fn import_project_bundle_history(
     for source in &rows.model_usage_records {
         let mut active: model_usage_record::ActiveModel = source.clone().into();
         active.id = sea_orm::NotSet;
+        active.user_id = Set(Some(user_id));
         active.project_id = Set(source
             .project_id
-            .and_then(|id| maps.project_ids.get(&id).copied()));
+            .map(|id| map_required(&maps.project_ids, id, "model_usage_record.project_id"))
+            .transpose()?);
         active.root_project_id = Set(source
             .root_project_id
-            .and_then(|id| maps.root_project_ids.get(&id).copied()));
+            .map(|id| {
+                map_required(
+                    &maps.root_project_ids,
+                    id,
+                    "model_usage_record.root_project_id",
+                )
+            })
+            .transpose()?);
         active.workflow_run_id = Set(source
             .workflow_run_id
-            .and_then(|id| workflow_ids.get(&id).copied()));
+            .map(|id| map_required(&workflow_ids, id, "model_usage_record.workflow_run_id"))
+            .transpose()?);
         active.generation_run_id = Set(source
             .generation_run_id
-            .and_then(|id| generation_ids.get(&id).copied()));
+            .map(|id| map_required(&generation_ids, id, "model_usage_record.generation_run_id"))
+            .transpose()?);
         active.provider_config_id = Set(None);
         active.pricing_snapshot_json = Set(sanitize_runtime_json(Some(
             source.pricing_snapshot_json.clone(),
@@ -444,6 +496,29 @@ fn required_bundle_id(value: &str) -> Result<String, ProjectBundleHistoryError> 
     Ok(value.to_string())
 }
 
+fn remap_workflow_scope(
+    scope_table: Option<&str>,
+    scope_id: Option<i64>,
+    maps: &ProjectBundleEntityIdMaps,
+) -> (Option<String>, Option<i64>, bool) {
+    let Some(scope_table) = scope_table else {
+        return (None, None, scope_id.is_none());
+    };
+    let Some(scope_id) = scope_id else {
+        return (Some(scope_table.to_string()), None, true);
+    };
+    let mapped = match scope_table {
+        "project" | "novel_project" => maps.project_ids.get(&scope_id).copied(),
+        "chapter" => maps.chapter_ids.get(&scope_id).copied(),
+        "source_snapshot" => maps.source_snapshot_ids.get(&scope_id).copied(),
+        _ => None,
+    };
+    match mapped {
+        Some(mapped) => (Some(scope_table.to_string()), Some(mapped), true),
+        None => (None, None, false),
+    }
+}
+
 fn imported_status(
     status: &str,
     can_resume: bool,
@@ -466,23 +541,86 @@ fn sanitize_runtime_json(value: Option<Value>) -> Option<Value> {
     Some(value)
 }
 
-fn remap_generation_ids(value: Option<Value>, maps: &HashMap<i64, i64>) -> Option<Value> {
-    let mut value = value?;
+fn remap_history_json(
+    value: Option<Value>,
+    maps: &ProjectBundleEntityIdMaps,
+) -> Result<Option<Value>, ProjectBundleHistoryError> {
+    let Some(mut value) = value else {
+        return Ok(None);
+    };
+    remap_history_value(&mut value, maps)?;
+    Ok(Some(value))
+}
+
+fn remap_history_value(
+    value: &mut Value,
+    maps: &ProjectBundleEntityIdMaps,
+) -> Result<(), ProjectBundleHistoryError> {
+    match value {
+        Value::Object(object) => {
+            for (key, value) in object.iter_mut() {
+                if let Some(old_id) = value.as_i64() {
+                    let mapping = match key.as_str() {
+                        "project_id" => Some((&maps.project_ids, "history.project_id")),
+                        "root_project_id" => {
+                            Some((&maps.root_project_ids, "history.root_project_id"))
+                        }
+                        "chapter_id" | "source_chapter_id" => {
+                            Some((&maps.chapter_ids, "history.chapter_id"))
+                        }
+                        "source_snapshot_id" => {
+                            Some((&maps.source_snapshot_ids, "history.source_snapshot_id"))
+                        }
+                        "source_snapshot_chapter_id" => Some((
+                            &maps.source_snapshot_chapter_ids,
+                            "history.source_snapshot_chapter_id",
+                        )),
+                        _ => None,
+                    };
+                    if let Some((map, field)) = mapping {
+                        *value = Value::from(map_required(map, old_id, field)?);
+                        continue;
+                    }
+                }
+                remap_history_value(value, maps)?;
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                remap_history_value(value, maps)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn remap_generation_ids(
+    value: Option<Value>,
+    maps: &HashMap<i64, i64>,
+) -> Result<Option<Value>, ProjectBundleHistoryError> {
+    let Some(mut value) = value else {
+        return Ok(None);
+    };
     if let Some(items) = value.as_array_mut() {
         for item in items {
             if let Some(old_id) = item.as_i64() {
-                if let Some(new_id) = maps.get(&old_id) {
-                    *item = Value::from(*new_id);
-                }
+                *item = Value::from(map_required(
+                    maps,
+                    old_id,
+                    "workflow_checkpoint.generation_run_ids_json",
+                )?);
             }
         }
     }
-    Some(value)
+    Ok(Some(value))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::imported_status;
+    use std::collections::HashMap;
+
+    use super::{ProjectBundleEntityIdMaps, imported_status, remap_workflow_scope};
 
     #[test]
     fn running_history_is_imported_as_resumable_interrupted() {
@@ -491,5 +629,19 @@ mod tests {
         assert!(can_resume);
         assert!(reason.is_some());
         assert!(interrupted);
+    }
+
+    #[test]
+    fn workflow_scope_is_remapped_or_blocked_explicitly() {
+        let mut maps = ProjectBundleEntityIdMaps::default();
+        maps.chapter_ids = HashMap::from([(7, 70)]);
+        assert_eq!(
+            remap_workflow_scope(Some("chapter"), Some(7), &maps),
+            (Some("chapter".to_string()), Some(70), true)
+        );
+        assert_eq!(
+            remap_workflow_scope(Some("canvas_graph"), Some(7), &maps),
+            (None, None, false)
+        );
     }
 }

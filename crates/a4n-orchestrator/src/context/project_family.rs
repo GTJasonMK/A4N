@@ -176,6 +176,31 @@ impl ProjectFamilyApplication {
         .map_err(project_family_import_error_to_app_error)
     }
 
+    pub(super) async fn import_package_rows_with_mappings<Importer>(
+        &self,
+        user_id: i64,
+        package: &ProjectFamilyImportPackage,
+        media_importer: &mut Importer,
+    ) -> Result<
+        (
+            Vec<novel_project::Model>,
+            a4n_db::project_family_import::ProjectFamilyImportMappings,
+        ),
+        AppError,
+    >
+    where
+        Importer: ProjectFamilyMediaFileImporter,
+    {
+        a4n_db::project_family_import::import_project_family_package_rows_with_mappings(
+            self.database.connection(),
+            user_id,
+            package,
+            media_importer,
+        )
+        .await
+        .map_err(project_family_import_error_to_app_error)
+    }
+
     async fn delete_project_cascade(&self, project_id: i64) -> Result<(), AppError> {
         a4n_db::project_delete::delete_project_cascade_record(
             self.database.connection(),

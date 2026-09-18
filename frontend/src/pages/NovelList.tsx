@@ -23,14 +23,14 @@ import {
   declineProjectInvite,
   deleteProject,
   duplicateProject,
-  exportDerivedProjectData,
-  exportProjectFamilyData,
-  exportVideoStudioProjectData,
+  exportProjectBundleData,
+  importProjectBundleUpload,
   importProjectFamilyUpload,
   importVideoStudioProjectUpload,
   listAllProjects,
   listMyProjectInvites,
   listProjects,
+  PROJECT_BUNDLE_PACKAGE_SUFFIX,
   PROJECT_FAMILY_PACKAGE_SUFFIX,
   VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
   type NovelProject,
@@ -481,19 +481,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const actionKey = `export-${project.id}`;
     if (!beginProjectAction(actionKey)) return;
     try {
-      const result =
-        project.project_kind === "text"
-          ? await exportProjectFamilyData({
-              root_project_id: project.id,
-              include_derived_projects: true,
-            })
-          : project.project_kind === "video" && project.source_mode === "freeform"
-            ? await exportVideoStudioProjectData({
-                project_id: project.id,
-              })
-          : await exportDerivedProjectData({
-              derived_project_id: project.id,
-            });
+      const result = await exportProjectBundleData({
+        project_id: project.id,
+        include_derived_projects: project.project_kind === "text",
+      });
       if (!mountedRef.current) return;
       downloadBlob(
         result.file_name,
@@ -559,7 +550,17 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
       const input = { file_name: fileName, data_base64: dataBase64 };
       const normalizedFileName = fileName.toLowerCase();
-      if (normalizedFileName.endsWith(PROJECT_FAMILY_PACKAGE_SUFFIX)) {
+      if (normalizedFileName.endsWith(PROJECT_BUNDLE_PACKAGE_SUFFIX)) {
+        const report = await importProjectBundleUpload(input);
+        if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
+        const imported = report.project_summaries;
+        addToast(
+          t("novel.projectListActions.importedBundle", {
+            titles: imported.map((item) => item.title).join(" / "),
+          }),
+          "success",
+        );
+      } else if (normalizedFileName.endsWith(PROJECT_FAMILY_PACKAGE_SUFFIX)) {
         const imported = await importProjectFamilyUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
         importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
@@ -571,6 +572,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       } else {
         throw new Error(
           t("novel.projectListActions.invalidImportFile", {
+            bundleSuffix: PROJECT_BUNDLE_PACKAGE_SUFFIX,
             familySuffix: PROJECT_FAMILY_PACKAGE_SUFFIX,
             videoSuffix: VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
           }),
@@ -597,7 +599,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     importFileSeqRef.current = requestSeq;
     try {
       const selected = await pickLocalFile(
-        `${PROJECT_FAMILY_PACKAGE_SUFFIX},${VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX},application/zip`,
+        `${PROJECT_BUNDLE_PACKAGE_SUFFIX},${PROJECT_FAMILY_PACKAGE_SUFFIX},${VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX},application/zip`,
       );
       if (
         selected &&

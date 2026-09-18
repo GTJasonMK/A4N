@@ -6,11 +6,8 @@ import type {
   CreateDerivedProjectInput,
   CreateFreeformVideoProjectInput,
   CreateProjectInput,
-  ExportDerivedProjectDataInput,
   ExportProjectBundleDataInput,
-  ExportProjectFamilyDataInput,
   ExportProjectPackageData,
-  ExportVideoStudioProjectDataInput,
   ImportProjectPackageUploadInput,
   ProjectBundleImportReport,
   InviteProjectMemberInput,
@@ -44,11 +41,8 @@ export type {
   AssetGraphNodeDetail,
   AssetLineageRecord,
   AssetLineageRef,
-  ExportDerivedProjectDataInput,
   ExportProjectBundleDataInput,
-  ExportProjectFamilyDataInput,
   ExportProjectPackageData,
-  ExportVideoStudioProjectDataInput,
   ImportProjectPackageUploadInput,
   ProjectBundleImportReport,
   GenerationInputSource,
@@ -354,26 +348,10 @@ export async function duplicateProject(id: Id, new_title: string): Promise<Novel
   });
 }
 
-export async function exportProjectFamilyData(
-  input: ExportProjectFamilyDataInput,
-): Promise<ExportProjectPackageData> {
-  return apiInvoke<ExportProjectPackageData>("export_project_family_data", {
-    input,
-  });
-}
-
 export async function exportProjectBundleData(
   input: ExportProjectBundleDataInput,
 ): Promise<ExportProjectPackageData> {
   return apiInvoke<ExportProjectPackageData>("export_project_bundle_data", {
-    input,
-  });
-}
-
-export async function exportDerivedProjectData(
-  input: ExportDerivedProjectDataInput,
-): Promise<ExportProjectPackageData> {
-  return apiInvoke<ExportProjectPackageData>("export_derived_project_data", {
     input,
   });
 }
@@ -386,26 +364,10 @@ export async function importProjectFamilyUpload(
   });
 }
 
-export async function exportVideoStudioProjectData(
-  input: ExportVideoStudioProjectDataInput,
-): Promise<ExportProjectPackageData> {
-  return apiInvoke<ExportProjectPackageData>("export_video_studio_project_data", {
-    input,
-  });
-}
-
 export async function importVideoStudioProjectUpload(
   input: ImportProjectPackageUploadInput,
 ): Promise<NovelProject> {
   return apiInvoke<NovelProject>("import_video_studio_project_upload", {
-    input,
-  });
-}
-
-export async function inspectProjectBundleUpload(
-  input: ImportProjectPackageUploadInput,
-): Promise<ProjectBundleImportReport> {
-  return apiInvoke<ProjectBundleImportReport>("inspect_project_bundle_upload", {
     input,
   });
 }

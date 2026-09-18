@@ -1,6 +1,7 @@
 use super::{LogReadResult, ReadLogsInput};
 use crate::AppState;
 use crate::actions::admin_records::{AdminPermission, require_admin_permission};
+use a4n_api_contract::logging::MAX_LOG_READ_LINES;
 use a4n_error::AppError;
 use std::path::Path;
 
@@ -24,7 +25,7 @@ pub(super) fn read_recent_logs(
     log_dir: &Path,
     input: ReadLogsInput,
 ) -> Result<LogReadResult, String> {
-    let lines = input.lines.min(10_000);
+    let lines = input.lines.min(MAX_LOG_READ_LINES);
     let days_ago = input.days_ago;
     let date = log_date_for_days_ago(chrono::Local::now().date_naive(), days_ago)?;
     let date_str = date.format("%Y-%m-%d").to_string();
