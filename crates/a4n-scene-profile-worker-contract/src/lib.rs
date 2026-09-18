@@ -1,19 +1,43 @@
-//! Typed commands owned by the scene profile read worker.
+//! Typed commands owned by the scene profile worker.
 
-pub use a4n_api_contract::profile::SceneProfileSummary;
+pub use a4n_api_contract::profile::{
+    CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteResult,
+    SceneProfileMutationResult, SceneProfileSummary, UpdateSceneProfileInput,
+};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const SCENE_PROFILE_WORKER_ID: &str = "scene-profile-worker";
-pub const SCENE_PROFILE_WORKER_CONTRACT_VERSION: &str = "scene-profile-read-v1";
+pub const SCENE_PROFILE_WORKER_CONTRACT_VERSION: &str = "scene-profile-records-v1";
 pub const SCENE_PROFILE_LIST_OPERATION: &str = "profile.scene.list";
+pub const SCENE_PROFILE_CREATE_OPERATION: &str = "profile.scene.create";
+pub const SCENE_PROFILE_UPDATE_OPERATION: &str = "profile.scene.update";
+pub const SCENE_PROFILE_DELETE_OPERATION: &str = "profile.scene.delete";
 pub const SCENE_PROFILE_READ_CAPABILITY: &str = "profile.scene.read";
+pub const SCENE_PROFILE_MUTATION_CAPABILITY: &str = "profile.scene.mutation";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SceneProfileProjectInput {
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SceneProfileMutationWorkerResult {
+    pub result: SceneProfileMutationResult,
+    #[serde(default)]
+    pub downstream_image_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SceneProfileDeleteWorkerResult {
+    pub result: SceneProfileDeleteResult,
+    pub project_id: i64,
+    #[serde(default)]
+    pub downstream_image_ids: Vec<i64>,
 }
 
 #[cfg(test)]

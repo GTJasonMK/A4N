@@ -517,19 +517,8 @@ impl OrchestratorContext {
         kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<Vec<i64>, AppError> {
-        Ok(self
-            .profile_material_image_identity_rows_by_type(
-                project_id,
-                image_type_for_profile_material_kind(kind),
-            )
-            .await?
-            .into_iter()
-            .filter(|image| {
-                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
-                    == Some((kind.as_str(), profile_id))
-            })
-            .map(|image| image.id)
-            .collect())
+        self.profile_material_image_ids_by_profile(project_id, kind, profile_id)
+            .await
     }
 
     async fn require_profile_material_editor(

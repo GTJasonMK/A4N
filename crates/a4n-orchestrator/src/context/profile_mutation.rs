@@ -7,17 +7,8 @@ pub(super) fn resolve_downstream_image_ids(
     subject: &str,
     operation: &str,
 ) -> Result<Vec<i64>, AppError> {
-    if image_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    match strategy {
-        DownstreamConflictStrategy::Reject => Err(AppError::InvalidArgument(format!(
-            "{subject}已派生 {} 张素材图，{operation}前需要选择：删除下游派生产物，或保留下游只覆盖源档案",
-            image_ids.len()
-        ))),
-        DownstreamConflictStrategy::KeepDownstream => Ok(Vec::new()),
-        DownstreamConflictStrategy::DeleteDownstream => Ok(image_ids),
-    }
+    a4n_domain::scene_profile::resolve_downstream_image_ids(image_ids, strategy, subject, operation)
+        .map_err(AppError::InvalidArgument)
 }
 
 #[cfg(test)]

@@ -491,10 +491,16 @@ mod tests {
             .expect("scene profile worker entry");
         assert_eq!(scene.kind, ProcessKind::StatefulWorker);
         assert_eq!(scene.binary, "a4n-scene-profile-worker");
-        assert_eq!(scene.contract_version, "scene-profile-read-v1");
+        assert_eq!(scene.contract_version, "scene-profile-records-v1");
         assert_eq!(scene.addr_env, "A4N_SCENE_PROFILE_WORKER_ADDR");
         assert_eq!(scene.default_addr, "127.0.0.1:47658");
-        assert_eq!(scene.capabilities, vec!["profile.scene.read".to_string()]);
+        assert_eq!(
+            scene.capabilities,
+            vec![
+                "profile.scene.read".to_string(),
+                "profile.scene.mutation".to_string()
+            ]
+        );
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")

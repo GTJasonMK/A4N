@@ -17,5 +17,6 @@ pub use identity::{
 pub use primary::{delete_profile_primary_material, upsert_profile_primary_material};
 pub use queries::{
     profile_material_image_counts_by_profile, profile_material_image_identity_rows_by_type,
-    profile_material_images_by_type, profile_material_list_rows,
+    profile_material_image_ids_by_profile, profile_material_images_by_type,
+    profile_material_list_rows,
 };
