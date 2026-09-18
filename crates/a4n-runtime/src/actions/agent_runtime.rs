@@ -494,7 +494,9 @@ impl RuntimeAgentToolExecutor {
         ensure_agent_scope_allows_tool(scope, name)?;
         ensure_argument_scope(scope, &descriptor, &arguments)?;
         ensure_argument_resource_scope(&self.state, user_id, scope, &arguments).await?;
-        if tool_requires_approval(name, &descriptor.effect) && !approved_write {
+        if a4n_api_contract::agent::agent_tool_requires_user_approval(name, &descriptor.effect)
+            && !approved_write
+        {
             return Err(AppError::Forbidden(format!(
                 "Agent 工具 {name} 是写操作，必须先获得用户审批"
             )));
@@ -972,7 +974,7 @@ struct HostInput<T> {
 fn tool_descriptor(
     name: &str,
 ) -> Result<a4n_api_contract::command_manifest::CommandDescriptor, AppError> {
-    a4n_api_contract::agent::agent_tool_descriptor(name).ok_or_else(|| {
+    a4n_api_contract::agent::agent_execution_tool_descriptor(name).ok_or_else(|| {
         if a4n_api_contract::command_manifest::command_descriptor(name).is_some() {
             AppError::Forbidden(format!("Host command manifest 禁止 Agent 使用工具: {name}"))
         } else {
@@ -1115,10 +1117,6 @@ fn collect_numeric_ids(value: &Value, ids: &mut Vec<i64>) {
 
 fn is_runtime_snapshot_key(key: &str) -> bool {
     key == "runtime_config_snapshot"
-}
-
-fn tool_requires_approval(tool_name: &str, effect: &str) -> bool {
-    effect == "destructive" || crate::actions::agent_domains::requires_user_approval(tool_name)
 }
 
 pub(crate) fn ensure_project_scope(scope: &AgentScope, project_id: i64) -> Result<(), AppError> {
@@ -4254,26 +4252,21 @@ fn should_request_approval(
         return Ok(false);
     }
     match context.execution_mode.as_str() {
-        "advice_only" if advice_only_allows_tool(tool_name) => Ok(false),
+        "advice_only" if a4n_api_contract::agent::agent_tool_allowed_in_advice_only(tool_name) => {
+            Ok(false)
+        }
         "advice_only" => Err(AppError::Forbidden(format!(
             "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
         ))),
         "review_writes" => Ok(true),
-        "autonomous" => Ok(tool_requires_approval(tool_name, effect)),
+        "autonomous" => Ok(a4n_api_contract::agent::agent_tool_requires_user_approval(
+            tool_name, effect,
+        )),
         mode => Err(AppError::InvalidState {
             current: format!("未知 Agent execution_mode: {mode}"),
             operation: "执行 Agent 写工具".into(),
         }),
     }
-}
-
-// Advice-only optimization still needs to create/reuse its session and run a
-// read-only generation task; it must not apply the resulting patches.
-fn advice_only_allows_tool(tool_name: &str) -> bool {
-    matches!(
-        tool_name,
-        "ensure_content_optimization_session" | "send_content_optimization_message"
-    )
 }
 
 async fn persist_usage(
@@ -5258,17 +5251,6 @@ mod tests {
     }
 
     #[test]
-    fn advice_only_allows_optimization_advice_but_not_content_writes() {
-        assert!(advice_only_allows_tool(
-            "ensure_content_optimization_session"
-        ));
-        assert!(advice_only_allows_tool("send_content_optimization_message"));
-        assert!(!advice_only_allows_tool("apply_optimization_patches"));
-        assert!(!advice_only_allows_tool("save_editor_draft"));
-        assert!(!advice_only_allows_tool("delegate"));
-    }
-
-    #[test]
     fn generic_subagent_scope_can_add_discovered_manifest_tools() {
         let mut discovered = Vec::new();
         extend_discovered_tools(
@@ -5328,9 +5310,18 @@ mod tests {
 
     #[test]
     fn dynamic_destructive_tools_and_nested_resource_ids_are_fenced() {
-        assert!(tool_requires_approval("delete_project", "destructive"));
-        assert!(tool_requires_approval("run_canvas_graph", "write"));
-        assert!(!tool_requires_approval("create_project", "write"));
+        assert!(a4n_api_contract::agent::agent_tool_requires_user_approval(
+            "delete_project",
+            "destructive"
+        ));
+        assert!(a4n_api_contract::agent::agent_tool_requires_user_approval(
+            "run_canvas_graph",
+            "write"
+        ));
+        assert!(!a4n_api_contract::agent::agent_tool_requires_user_approval(
+            "create_project",
+            "write"
+        ));
 
         let scope = AgentScope {
             project_id: Some(7),

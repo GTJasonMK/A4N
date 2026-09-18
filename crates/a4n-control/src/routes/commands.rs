@@ -398,7 +398,7 @@ async fn dispatch_agent_host_command_inner(
     // The manifest is the exposure gate for both kinds of Agent tools. Only
     // synthetic tools belong to the Agent-native dispatcher; ordinary
     // manifest tools must retain their existing command dispatch path.
-    a4n_api_contract::agent::agent_tool_descriptor(&command).ok_or_else(|| {
+    a4n_api_contract::agent::agent_execution_tool_descriptor(&command).ok_or_else(|| {
         ApiError::bad_request(format!(
             "Host command manifest 禁止 Agent 使用工具或工具不存在: {command}"
         ))

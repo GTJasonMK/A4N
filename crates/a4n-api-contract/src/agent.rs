@@ -163,6 +163,34 @@ pub fn capability_has_restricted_tool_catalog(capability: &str) -> bool {
     )
 }
 
+/// These tool names only exist so persisted pre-unification Runs can finish.
+/// They must never enter a new Agent's discoverable catalog.
+pub fn is_legacy_agent_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "ensure_content_optimization_session" | "send_content_optimization_message"
+    )
+}
+
+pub fn agent_tool_requires_user_approval(name: &str, effect: &str) -> bool {
+    effect == "destructive"
+        || matches!(
+            name,
+            "apply_optimization_patches"
+                | "save_canvas_graph"
+                | "edit_canvas_graph"
+                | "run_canvas_graph"
+                | "run_canvas_node"
+                | "save_chapter_visual_plan_draft"
+                | "edit_chapter_visual_plan_draft"
+                | "save_editor_draft"
+        )
+}
+
+pub fn agent_tool_allowed_in_advice_only(name: &str) -> bool {
+    is_legacy_agent_tool(name)
+}
+
 pub fn is_agent_skill_tool(name: &str) -> bool {
     matches!(name, "search_agent_skills" | "load_agent_skill")
 }
@@ -623,7 +651,9 @@ pub fn synthetic_agent_tool_descriptor(
 /// Resolve one command through the Agent exposure gate shared by workers and
 /// Host dispatch. Synthetic domain tools and ordinary manifest commands must
 /// use the same visibility rule.
-pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
+pub fn agent_execution_tool_descriptor(
+    name: &str,
+) -> Option<crate::command_manifest::CommandDescriptor> {
     if let Some(descriptor) = synthetic_agent_tool_descriptor(name) {
         return Some(descriptor);
     }
@@ -637,6 +667,15 @@ pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::Comm
     } else {
         None
     }
+}
+
+/// Resolve a tool that may be exposed to a new Agent. Legacy recovery tools
+/// deliberately remain outside this catalog.
+pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
+    if is_legacy_agent_tool(name) {
+        return None;
+    }
+    agent_execution_tool_descriptor(name)
 }
 
 fn typed_schema<T: JsonSchema>() -> Value {
@@ -669,8 +708,6 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
         "apply_optimization_patches",
         "run_canvas_graph",
         "run_canvas_node",
-        "ensure_content_optimization_session",
-        "send_content_optimization_message",
         "get_generation_task_summary",
         "wait_generation_task",
         "wait_workflow_run",
@@ -1778,8 +1815,10 @@ pub trait AgentResourceAccessApplicationPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{
-        AGENT_CAPABILITIES, AgentToolExposure, LocateWritingTargetInput, agent_tool_descriptor,
-        agent_tools_for_capability, synthetic_agent_tool_descriptor,
+        AGENT_CAPABILITIES, AgentToolExposure, LocateWritingTargetInput,
+        agent_execution_tool_descriptor, agent_tool_allowed_in_advice_only, agent_tool_descriptor,
+        agent_tool_requires_user_approval, agent_tools_for_capability, is_legacy_agent_tool,
+        synthetic_agent_tool_descriptor, synthetic_agent_tool_descriptors,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1838,6 +1877,43 @@ mod tests {
         }
         assert!(agent_tool_descriptor("list_agent_skills").is_none());
         assert!(agent_tool_descriptor("update_agent_skill_configuration").is_none());
+    }
+
+    #[test]
+    fn legacy_agent_tools_are_execution_only() {
+        for name in [
+            "ensure_content_optimization_session",
+            "send_content_optimization_message",
+        ] {
+            assert!(is_legacy_agent_tool(name));
+            assert!(agent_execution_tool_descriptor(name).is_some());
+            assert!(agent_tool_descriptor(name).is_none());
+            assert!(
+                !synthetic_agent_tool_descriptors()
+                    .iter()
+                    .any(|descriptor| descriptor.name == name)
+            );
+            assert!(agent_tool_allowed_in_advice_only(name));
+        }
+    }
+
+    #[test]
+    fn approval_policy_is_shared_by_agent_runtimes() {
+        assert!(agent_tool_requires_user_approval(
+            "delete_project",
+            "destructive"
+        ));
+        assert!(agent_tool_requires_user_approval(
+            "run_canvas_graph",
+            "write"
+        ));
+        assert!(!agent_tool_requires_user_approval(
+            "create_project",
+            "write"
+        ));
+        assert!(!agent_tool_allowed_in_advice_only(
+            "apply_optimization_patches"
+        ));
     }
 
     #[test]

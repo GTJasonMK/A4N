@@ -12,8 +12,8 @@ use a4n_agent_runtime_contract::{
     validate_agent_budget,
 };
 use a4n_api_contract::agent::{
-    AgentBudget, AgentScope, AgentSkillSearchResult, AgentToolDescriptor, AgentToolExposure,
-    DescribeAgentToolInput, LoadAgentSkillInput, SearchAgentSkillsInput, SearchAgentToolsInput,
+    AgentBudget, AgentScope, AgentSkillSearchResult, AgentToolDescriptor, DescribeAgentToolInput,
+    LoadAgentSkillInput, SearchAgentSkillsInput, SearchAgentToolsInput,
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::{
@@ -215,7 +215,9 @@ impl RuntimeAgentToolExecutor {
             &arguments,
         )
         .await?;
-        if tool_requires_approval(name, &descriptor.effect) && !approved_write {
+        if a4n_api_contract::agent::agent_tool_requires_user_approval(name, &descriptor.effect)
+            && !approved_write
+        {
             return Err(AppError::Forbidden(format!(
                 "Agent 工具 {name} 是写操作，必须先获得用户审批"
             )));
@@ -362,23 +364,13 @@ struct HostInput<T> {
 fn tool_descriptor(
     name: &str,
 ) -> Result<a4n_api_contract::command_manifest::CommandDescriptor, AppError> {
-    if let Some(descriptor) = a4n_api_contract::agent::synthetic_agent_tool_descriptor(name) {
-        return Ok(descriptor);
-    }
-    let descriptor = a4n_api_contract::command_manifest::command_descriptor(name)
-        .ok_or_else(|| AppError::NotFound(format!("Host command manifest 中不存在工具: {name}")))?;
-    let manifest_allows = descriptor
-        .agent_policy
-        .as_ref()
-        .is_some_and(|policy| policy.exposure != AgentToolExposure::Hidden);
-    // Synthetic domain tools are handled above; every Host command must be
-    // explicitly exposed by the manifest.
-    if !manifest_allows {
-        return Err(AppError::Forbidden(format!(
-            "Host command manifest 禁止 Agent 使用工具: {name}"
-        )));
-    }
-    Ok(descriptor)
+    a4n_api_contract::agent::agent_execution_tool_descriptor(name).ok_or_else(|| {
+        if a4n_api_contract::command_manifest::command_descriptor(name).is_some() {
+            AppError::Forbidden(format!("Host command manifest 禁止 Agent 使用工具: {name}"))
+        } else {
+            AppError::NotFound(format!("Host command manifest 中不存在工具: {name}"))
+        }
+    })
 }
 
 /// A bound Agent scope is also a resource fence for dynamically discovered
@@ -525,21 +517,6 @@ fn collect_numeric_ids(value: &Value, ids: &mut Vec<i64>) {
 
 fn is_runtime_snapshot_key(key: &str) -> bool {
     key == "runtime_config_snapshot"
-}
-
-fn tool_requires_approval(tool_name: &str, effect: &str) -> bool {
-    effect == "destructive"
-        || matches!(
-            tool_name,
-            "apply_optimization_patches"
-                | "save_canvas_graph"
-                | "edit_canvas_graph"
-                | "run_canvas_graph"
-                | "run_canvas_node"
-                | "save_chapter_visual_plan_draft"
-                | "edit_chapter_visual_plan_draft"
-                | "save_editor_draft"
-        )
 }
 
 pub(crate) fn ensure_project_scope(scope: &AgentScope, project_id: i64) -> Result<(), AppError> {
@@ -2714,26 +2691,21 @@ fn should_request_approval(
         return Ok(false);
     }
     match context.execution_mode.as_str() {
-        "advice_only" if advice_only_allows_tool(tool_name) => Ok(false),
+        "advice_only" if a4n_api_contract::agent::agent_tool_allowed_in_advice_only(tool_name) => {
+            Ok(false)
+        }
         "advice_only" => Err(AppError::Forbidden(format!(
             "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
         ))),
         "review_writes" => Ok(true),
-        "autonomous" => Ok(tool_requires_approval(tool_name, effect)),
+        "autonomous" => Ok(a4n_api_contract::agent::agent_tool_requires_user_approval(
+            tool_name, effect,
+        )),
         mode => Err(AppError::InvalidState {
             current: format!("未知 Agent execution_mode: {mode}"),
             operation: "执行 Agent 写工具".into(),
         }),
     }
-}
-
-// Advice-only optimization still needs to create/reuse its session and run a
-// read-only generation task; it must not apply the resulting patches.
-fn advice_only_allows_tool(tool_name: &str) -> bool {
-    matches!(
-        tool_name,
-        "ensure_content_optimization_session" | "send_content_optimization_message"
-    )
 }
 
 async fn persist_usage(
@@ -3050,17 +3022,6 @@ fn enum_string<T: serde::Serialize>(value: T) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn advice_only_allows_optimization_advice_but_not_content_writes() {
-        assert!(advice_only_allows_tool(
-            "ensure_content_optimization_session"
-        ));
-        assert!(advice_only_allows_tool("send_content_optimization_message"));
-        assert!(!advice_only_allows_tool("apply_optimization_patches"));
-        assert!(!advice_only_allows_tool("save_editor_draft"));
-        assert!(!advice_only_allows_tool("delegate"));
-    }
 
     #[test]
     fn stream_projection_starts_on_first_delta_and_throttles_followup_writes() {
