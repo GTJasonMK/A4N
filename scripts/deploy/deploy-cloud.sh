@@ -10,20 +10,25 @@
 #     --ssh-key ~/.ssh/a4n-deploy \
 #     --public-origin https://app.example.com
 #   ./scripts/deploy/deploy-cloud.sh --online          # 容器内允许 cargo 联网拉取缺失依赖
-#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/Control/Worker/Migration 二进制和 frontend/dist
+#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/工具/sidecar/ONNX Runtime 和 frontend/dist
 #   ./scripts/deploy/deploy-cloud.sh --rebuild-builder # 重建本地 Ubuntu 24 构建镜像
 #   ./scripts/deploy/deploy-cloud.sh --no-smoke        # 跳过公网 smoke test
 #   ./scripts/deploy/deploy-cloud.sh --help
 #
+#   首次可将 scripts/deploy/deploy-cloud.env.example 复制为 .deploy.env 并填写目标，
+#   之后直接运行本脚本即可；已有环境变量优先于 .deploy.env。
+#
 # 约束:
 #   - 后端只在本地 Ubuntu 24 / glibc 2.39 Docker 容器中构建，不在 2G 云服务器上构建。
-#   - 只上传 Host、Control、Agent worker、Migration、static 和 prompts，不覆盖远端 .env 与 data。
+#   - 只上传服务器 Host、工具、完整 sidecar、ONNX Runtime、static 和 prompts，不覆盖远端 .env 与 data。
 #   - 部署 Host、SSH key 和公网 origin 必须显式提供，根路径默认期望 404。
 #
 # 常用环境变量覆盖:
+#   A4N_DEPLOY_ENV_FILE
 #   A4N_DEPLOY_HOST, A4N_DEPLOY_USER, A4N_DEPLOY_SSH_KEY
 #   A4N_DEPLOY_REMOTE_DIR, A4N_DEPLOY_SERVICE, A4N_DEPLOY_BASE_PATH
 #   A4N_DEPLOY_API_BASE_URL, A4N_DEPLOY_PUBLIC_ORIGIN
+#   A4N_DEPLOY_RECORD_DIR
 #   A4N_DEPLOY_CARGO_OFFLINE=false
 #=============================================================================
 
@@ -32,6 +37,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
+load_dotenv "${A4N_DEPLOY_ENV_FILE:-$PROJECT_ROOT/.deploy.env}"
 
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
@@ -56,6 +62,12 @@ BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-server"
 CONTROL_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-control"
 AGENT_WORKER_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-agent-worker"
 MIGRATION_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-migration"
+HOST_PACKAGE="a4n-server"
+TARGET_PLATFORM="linux-x86_64"
+RELEASE_MANIFEST_TOOL="$PROJECT_ROOT/scripts/release_manifest.rb"
+SERVICE_BINARIES=()
+TOOL_SPECS=()
+BUILD_PACKAGES=()
 
 CARGO_OFFLINE="${A4N_DEPLOY_CARGO_OFFLINE:-true}"
 SKIP_BUILD=false
@@ -66,10 +78,92 @@ KEEP_PACKAGE=false
 CACHE_ROOT="$CARGO_TARGET_DIR/deploy-cloud"
 PACKAGE_DIR="$CACHE_ROOT/package"
 PACKAGE_PATH="$CACHE_ROOT/a4n-deploy.tar.gz"
+PACKAGE_SHA256=""
+PACKAGE_CREATED_AT=""
+PACKAGE_SIZE=""
+DEPLOY_RECORD_DIR="${A4N_DEPLOY_RECORD_DIR:-$PROJECT_ROOT/deploy-records}"
+DEPLOY_RECORD_PATH=""
+DEPLOY_STARTED_AT="$(date --iso-8601=seconds)"
 
 usage() {
     print_script_usage "$0" 23
 }
+
+load_release_inventory() {
+    local package binary
+    BUILD_PACKAGES=("$HOST_PACKAGE")
+    SERVICE_BINARIES=()
+    TOOL_SPECS=()
+
+    while IFS=$'\t' read -r _service binary _rest; do
+        [[ -n "$binary" ]] || continue
+        SERVICE_BINARIES+=("$binary")
+        BUILD_PACKAGES+=("$binary")
+    done < <(sidecar_catalog_rows)
+
+    while IFS=$'\t' read -r package binary; do
+        [[ "$package" == "$HOST_PACKAGE" ]] && continue
+        TOOL_SPECS+=("$package:$binary")
+        BUILD_PACKAGES+=("$package")
+    done < <(release_tool_rows)
+
+    if [[ -n "$DEPLOY_RECORD_PATH" ]]; then
+        {
+            echo "sidecar_count=${#SERVICE_BINARIES[@]}"
+            echo "sidecars=${SERVICE_BINARIES[*]}"
+            echo "tool_count=${#TOOL_SPECS[@]}"
+            echo "tools=${TOOL_SPECS[*]}"
+        } >> "$DEPLOY_RECORD_PATH"
+    fi
+}
+
+required_binary_paths() {
+    printf '%s\n' "$BINARY_PATH" "$CONTROL_BINARY_PATH" "$AGENT_WORKER_BINARY_PATH" "$MIGRATION_BINARY_PATH"
+    local spec binary
+    for spec in "${TOOL_SPECS[@]}"; do
+        binary="${spec#*:}"
+        printf '%s/release/%s\n' "$CARGO_TARGET_DIR" "$binary"
+    done
+    for binary in "${SERVICE_BINARIES[@]}"; do
+        printf '%s/release/%s\n' "$CARGO_TARGET_DIR" "$binary"
+    done
+}
+
+start_deploy_record() {
+    command -v tee >/dev/null 2>&1 || die "未找到命令: tee"
+    mkdir -p "$DEPLOY_RECORD_DIR"
+    DEPLOY_RECORD_PATH="$DEPLOY_RECORD_DIR/deploy-$(date +%Y%m%d%H%M%S).log"
+    exec > >(tee -a "$DEPLOY_RECORD_PATH") 2>&1
+    {
+        echo "started_at=$DEPLOY_STARTED_AT"
+        echo "branch=$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || echo unknown)"
+        echo "commit=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+        echo "host=$REMOTE"
+        echo "remote_dir=$REMOTE_DIR"
+        echo "service=$REMOTE_SERVICE"
+        echo "public_app_url=$PUBLIC_APP_URL"
+        echo "ssh_key_path=$SSH_KEY"
+        echo "cargo_offline=$CARGO_OFFLINE"
+        echo "target=$TARGET_PLATFORM"
+    } >> "$DEPLOY_RECORD_PATH"
+}
+
+finish_deploy_record() {
+    local status=$?
+    if [[ -n "$DEPLOY_RECORD_PATH" ]]; then
+        {
+            echo "finished_at=$(date --iso-8601=seconds)"
+            echo "status=$([[ "$status" -eq 0 ]] && echo success || echo failed)"
+            echo "exit_status=$status"
+            [[ -n "$PACKAGE_CREATED_AT" ]] && echo "package_created_at=$PACKAGE_CREATED_AT"
+            [[ -n "$PACKAGE_SIZE" ]] && echo "package_size=$PACKAGE_SIZE"
+            [[ -n "$PACKAGE_SHA256" ]] && echo "package_sha256=$PACKAGE_SHA256"
+        } >> "$DEPLOY_RECORD_PATH"
+    fi
+    exit "$status"
+}
+
+trap finish_deploy_record EXIT
 
 normalize_base_path() {
     local value="$1"
@@ -195,9 +289,12 @@ PUBLIC_APP_URL="$PUBLIC_ORIGIN$PUBLIC_BASE_PATH"
 check_prerequisites() {
     log_section "前置检查"
     local command
-    for command in ssh scp curl tar sha256sum file strings; do
+    for command in ssh scp curl tar sha256sum file strings ruby tee; do
         require_command "$command"
     done
+
+    load_release_inventory
+    require_onnxruntime
 
     [[ -f "$SSH_KEY" ]] || die "SSH 私钥不存在: $SSH_KEY"
     [[ -r "$SSH_KEY" ]] || die "SSH 私钥不可读: $SSH_KEY"
@@ -213,6 +310,7 @@ check_prerequisites() {
     log_ok "公网入口: $PUBLIC_APP_URL/"
     log_ok "API Base: $API_BASE_URL"
     log_ok "SSH key: $SSH_KEY"
+    log_ok "完整 sidecar: ${#SERVICE_BINARIES[@]} 个"
 }
 
 remote_preflight() {
@@ -225,7 +323,7 @@ test -d "$app"
 test -d "$app/data"
 test -f "$app/.env"
 sudo -n true
-command -v python3 >/dev/null
+for command in python3 pgrep tar sha256sum curl; do command -v "$command" >/dev/null; done
 df -h "$app"
 systemctl is-active "$service"
 REMOTE
@@ -292,7 +390,9 @@ build_backend() {
     mkdir -p "$CARGO_TARGET_DIR"
 
     local offline_flag=()
-    local docker_cache_mounts=()
+    local docker_cache_mounts=(
+        -v "$A4N_ONNXRUNTIME_ROOT:/opt/a4n-onnxruntime:ro"
+    )
     if [[ "$CARGO_OFFLINE" == "true" ]]; then
         [[ -d "$HOME/.cargo/registry" ]] || die "离线构建需要 $HOME/.cargo/registry，或使用 --online"
         [[ -d "$HOME/.cargo/git" ]] || die "离线构建需要 $HOME/.cargo/git，或使用 --online"
@@ -306,31 +406,37 @@ build_backend() {
         log_info "cargo 允许联网构建"
     fi
 
+    local cargo_packages=""
+    local package
+    for package in "${BUILD_PACKAGES[@]}"; do
+        cargo_packages+=" -p $package"
+    done
+
     docker run --rm \
         -e CARGO_HOME=/usr/local/cargo \
         -e RUSTUP_HOME=/usr/local/rustup \
         -e CARGO_BUILD_JOBS="${A4N_DEPLOY_CARGO_JOBS:-2}" \
+        -e ORT_LIB_PATH=/opt/a4n-onnxruntime/lib \
+        -e ORT_PREFER_DYNAMIC_LINK=1 \
+        -e LD_LIBRARY_PATH=/opt/a4n-onnxruntime/lib \
         "${docker_cache_mounts[@]}" \
         -v "$PROJECT_ROOT:/work" \
         -v "$CARGO_TARGET_DIR:/cargo-target" \
         -w /work \
         "$BUILDER_IMAGE" \
-        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release -p a4n-server -p a4n-control -p a4n-agent-worker -p a4n-migration --target-dir /cargo-target --locked ${offline_flag[*]}"
+        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release${cargo_packages} --target-dir /cargo-target --locked ${offline_flag[*]}"
 
-    [[ -x "$BINARY_PATH" ]] || die "后端构建后未找到二进制: $BINARY_PATH"
-    [[ -x "$CONTROL_BINARY_PATH" ]] || die "Control 构建后未找到二进制: $CONTROL_BINARY_PATH"
-    [[ -x "$AGENT_WORKER_BINARY_PATH" ]] || die "Agent worker 构建后未找到二进制: $AGENT_WORKER_BINARY_PATH"
-    [[ -x "$MIGRATION_BINARY_PATH" ]] || die "迁移构建后未找到二进制: $MIGRATION_BINARY_PATH"
-    log_ok "后端二进制: $BINARY_PATH"
-    log_ok "Control 二进制: $CONTROL_BINARY_PATH"
-    log_ok "Agent worker 二进制: $AGENT_WORKER_BINARY_PATH"
-    log_ok "迁移二进制: $MIGRATION_BINARY_PATH"
+    local binary
+    while IFS= read -r binary; do
+        [[ -x "$binary" ]] || die "后端构建后未找到二进制: $binary"
+    done < <(required_binary_paths)
+    log_ok "Host、工具和 ${#SERVICE_BINARIES[@]} 个 sidecar 构建完成"
 }
 
 verify_backend_binaries() {
     log_section "校验后端二进制"
     local binary max_glibc
-    for binary in "$BINARY_PATH" "$CONTROL_BINARY_PATH" "$AGENT_WORKER_BINARY_PATH" "$MIGRATION_BINARY_PATH"; do
+    while IFS= read -r binary; do
         [[ -x "$binary" ]] || die "后端二进制不存在: $binary"
         file "$binary"
         max_glibc=$(strings "$binary" | grep -E '^GLIBC_[0-9]' | sort -V | tail -1 || true)
@@ -339,16 +445,18 @@ verify_backend_binaries() {
         if [[ "$(printf '%s\nGLIBC_2.39\n' "$max_glibc" | sort -V | tail -1)" != "GLIBC_2.39" ]]; then
             die "$(basename "$binary") 依赖 $max_glibc，高于线上 Ubuntu 24.04 的 GLIBC_2.39"
         fi
-    done
+    done < <(required_binary_paths)
+    [[ -r "$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so" ]] || die "缺少 ONNX Runtime 动态库"
+    log_ok "ONNX Runtime $(onnxruntime_version) 已就绪"
 }
 
 build_all() {
     if $SKIP_BUILD; then
         log_warn "跳过构建，使用现有产物"
-        [[ -x "$BINARY_PATH" ]] || die "未找到后端二进制: $BINARY_PATH"
-        [[ -x "$CONTROL_BINARY_PATH" ]] || die "未找到 Control 二进制: $CONTROL_BINARY_PATH"
-        [[ -x "$AGENT_WORKER_BINARY_PATH" ]] || die "未找到 Agent worker 二进制: $AGENT_WORKER_BINARY_PATH"
-        [[ -x "$MIGRATION_BINARY_PATH" ]] || die "未找到迁移二进制: $MIGRATION_BINARY_PATH"
+        local binary
+        while IFS= read -r binary; do
+            [[ -x "$binary" ]] || die "未找到后端二进制: $binary"
+        done < <(required_binary_paths)
         [[ -f "$FRONTEND_DIST/index.html" ]] || die "未找到前端 dist: $FRONTEND_DIST"
         return
     fi
@@ -360,25 +468,44 @@ build_all() {
 prepare_package() {
     log_section "制作部署包"
     rm -rf "$PACKAGE_DIR" "$PACKAGE_PATH"
-    mkdir -p "$PACKAGE_DIR/bin" "$PACKAGE_DIR/static" "$PACKAGE_DIR/prompts"
+    mkdir -p "$PACKAGE_DIR/bin/services" "$PACKAGE_DIR/static" "$PACKAGE_DIR/prompts"
 
     cp "$BINARY_PATH" "$PACKAGE_DIR/bin/a4n-server"
     cp "$CONTROL_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-control"
     cp "$AGENT_WORKER_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-agent-worker"
     cp "$MIGRATION_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-migration"
+    local spec binary
+    for spec in "${TOOL_SPECS[@]}"; do
+        binary="${spec#*:}"
+        cp "$CARGO_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/$binary"
+    done
+    for binary in "${SERVICE_BINARIES[@]}"; do
+        cp "$CARGO_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/services/$binary"
+    done
+    cp -L "$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so" "$PACKAGE_DIR/bin/services/libonnxruntime.so.1"
     cp -a "$FRONTEND_DIST/." "$PACKAGE_DIR/static/"
     cp -a "$PROMPTS_DIR/." "$PACKAGE_DIR/prompts/"
-    chmod 755 \
-        "$PACKAGE_DIR/bin/a4n-server" \
-        "$PACKAGE_DIR/bin/a4n-control" \
-        "$PACKAGE_DIR/bin/a4n-agent-worker" \
-        "$PACKAGE_DIR/bin/a4n-migration"
+    find "$PACKAGE_DIR/bin" -type f -exec chmod 755 {} +
+
+    ruby "$RELEASE_MANIFEST_TOOL" generate \
+        --package-root "$PACKAGE_DIR" \
+        --target "$TARGET_PLATFORM" \
+        --package "$HOST_PACKAGE" \
+        --output "$PACKAGE_DIR/release-manifest.json"
+    ruby "$RELEASE_MANIFEST_TOOL" verify \
+        --package-root "$PACKAGE_DIR" \
+        --manifest "$PACKAGE_DIR/release-manifest.json"
+    (cd "$PACKAGE_DIR" && sha256sum -c release-manifest.sha256 >/dev/null)
 
     tar -C "$PACKAGE_DIR" -czf "$PACKAGE_PATH" .
     sha256sum "$PACKAGE_PATH" > "$PACKAGE_PATH.sha256"
+    PACKAGE_SHA256="$(cut -d' ' -f1 "$PACKAGE_PATH.sha256")"
+    PACKAGE_CREATED_AT="$(date --iso-8601=seconds)"
+    PACKAGE_SIZE="$(du -h "$PACKAGE_PATH" | cut -f1)"
 
     log_ok "部署包: $PACKAGE_PATH"
-    log_ok "SHA256: $(cut -d' ' -f1 "$PACKAGE_PATH.sha256")"
+    log_ok "SHA256: $PACKAGE_SHA256"
+    log_ok "完整 release manifest: ${#SERVICE_BINARIES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具 + ONNX Runtime"
     du -sh "$PACKAGE_PATH"
 }
 
@@ -431,38 +558,96 @@ esac
 rm -rf "$app/.deploy-new"
 mkdir -p "$app/.deploy-new"
 tar -xzf "$package_path" -C "$app/.deploy-new"
-test -x "$app/.deploy-new/bin/a4n-server"
-test -x "$app/.deploy-new/bin/a4n-control"
-test -x "$app/.deploy-new/bin/a4n-agent-worker"
-test -x "$app/.deploy-new/bin/a4n-migration"
+test -f "$app/.deploy-new/release-manifest.json"
+test -f "$app/.deploy-new/release-manifest.sha256"
 test -f "$app/.deploy-new/static/index.html"
 test -d "$app/.deploy-new/prompts"
+(cd "$app/.deploy-new" && sha256sum -c release-manifest.sha256 >/dev/null)
+
+managed_files="$app/.deploy-new/.managed-files"
+python3 - "$app/.deploy-new/release-manifest.json" > "$managed_files" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest_path = pathlib.Path(sys.argv[1]).resolve()
+root = manifest_path.parent
+manifest = json.loads(manifest_path.read_text())
+entries = manifest["binaries"] + manifest["tools"] + manifest["runtime_files"]
+paths = [entry["path"] for entry in entries]
+if len(paths) != len(set(paths)):
+    raise SystemExit("release manifest contains duplicate paths")
+for relative in paths:
+    candidate = pathlib.PurePosixPath(relative)
+    if candidate.is_absolute() or not relative.startswith("bin/") or any(part in {"", ".", ".."} for part in candidate.parts):
+        raise SystemExit(f"unsafe release manifest path: {relative}")
+    path = (root / pathlib.Path(*candidate.parts)).resolve()
+    if root not in path.parents or not path.is_file():
+        raise SystemExit(f"missing release manifest file: {relative}")
+    print(relative)
+PY
+mapfile -t managed_files < "$managed_files"
+((${#managed_files[@]} > 0))
+
+service_stopped=false
+restart_after_failure() {
+    local status=$?
+    if [[ "$service_stopped" == true && "$status" -ne 0 ]]; then
+        sudo systemctl start "$service" || true
+    fi
+    exit "$status"
+}
+trap restart_after_failure EXIT
 
 sudo systemctl stop "$service"
 if systemctl is-active --quiet "$service"; then
     echo "服务停止失败: $service" >&2
     exit 1
 fi
+service_stopped=true
 
 ts=$(date +%Y%m%d%H%M%S)
 backup="$app/backups/deploy-$ts"
 
 mkdir -p "$backup" "$app/bin"
-if [[ -f "$app/bin/a4n-server" ]]; then cp -a "$app/bin/a4n-server" "$backup/a4n-server"; fi
-if [[ -f "$app/bin/a4n-control" ]]; then cp -a "$app/bin/a4n-control" "$backup/a4n-control"; fi
-if [[ -f "$app/bin/a4n-agent-worker" ]]; then cp -a "$app/bin/a4n-agent-worker" "$backup/a4n-agent-worker"; fi
-if [[ -f "$app/bin/a4n-migration" ]]; then cp -a "$app/bin/a4n-migration" "$backup/a4n-migration"; fi
+for relative in "${managed_files[@]}"; do
+    case "$relative" in
+        bin/services/*) continue ;;
+    esac
+    if [[ -f "$app/$relative" ]]; then
+        mkdir -p "$backup/$(dirname "$relative")"
+        cp -a "$app/$relative" "$backup/$relative"
+    fi
+done
+if [[ -d "$app/bin/services" ]]; then
+    mkdir -p "$backup/bin"
+    cp -a "$app/bin/services" "$backup/bin/services"
+fi
+for relative in release-manifest.json release-manifest.sha256; do
+    if [[ -f "$app/$relative" ]]; then cp -a "$app/$relative" "$backup/$relative"; fi
+done
 if [[ -d "$app/static" ]]; then cp -a "$app/static" "$backup/static"; fi
 if [[ -d "$app/prompts" ]]; then cp -a "$app/prompts" "$backup/prompts"; fi
 
-install -m 755 "$app/.deploy-new/bin/a4n-server" "$app/bin/a4n-server.new"
-install -m 755 "$app/.deploy-new/bin/a4n-control" "$app/bin/a4n-control.new"
-install -m 755 "$app/.deploy-new/bin/a4n-agent-worker" "$app/bin/a4n-agent-worker.new"
-install -m 755 "$app/.deploy-new/bin/a4n-migration" "$app/bin/a4n-migration.new"
-mv "$app/bin/a4n-server.new" "$app/bin/a4n-server"
-mv "$app/bin/a4n-control.new" "$app/bin/a4n-control"
-mv "$app/bin/a4n-agent-worker.new" "$app/bin/a4n-agent-worker"
-mv "$app/bin/a4n-migration.new" "$app/bin/a4n-migration"
+for relative in "${managed_files[@]}"; do
+    case "$relative" in
+        bin/services/*) continue ;;
+    esac
+    destination="$app/$relative"
+    mkdir -p "$(dirname "$destination")"
+    install -m 755 "$app/.deploy-new/$relative" "$destination.new"
+    mv "$destination.new" "$destination"
+done
+
+rm -rf "$app/bin/services.new"
+cp -a "$app/.deploy-new/bin/services" "$app/bin/services.new"
+rm -rf "$app/bin/services"
+mv "$app/bin/services.new" "$app/bin/services"
+
+for relative in release-manifest.json release-manifest.sha256; do
+    install -m 644 "$app/.deploy-new/$relative" "$app/$relative.new"
+    mv "$app/$relative.new" "$app/$relative"
+done
 
 rm -rf "$app/static.new" "$app/prompts.new"
 cp -a "$app/.deploy-new/static" "$app/static.new"
@@ -471,17 +656,16 @@ rm -rf "$app/static"
 mv "$app/static.new" "$app/static"
 rm -rf "$app/prompts"
 mv "$app/prompts.new" "$app/prompts"
-rm -rf "$app/.deploy-new"
 
 A4N_DATABASE_URL="$database_url" "$app/bin/a4n-migration"
+rm -rf "$app/.deploy-new"
 
 echo "backup=$backup"
-ls -lh "$app/bin/a4n-server"
-ls -lh "$app/bin/a4n-control"
-ls -lh "$app/bin/a4n-agent-worker"
-ls -lh "$app/bin/a4n-migration"
+ls -lh "$app/bin/a4n-server" "$app/bin/a4n-control" "$app/bin/a4n-agent-worker" "$app/bin/a4n-migration"
+ls -lh "$app/bin/services"
 find "$app/static" -maxdepth 2 -type f | wc -l
 du -sh "$app/static" "$app/prompts"
+trap - EXIT
 REMOTE
     log_ok "远端文件替换与数据库迁移完成"
 }
@@ -536,6 +720,39 @@ if command -v nginx >/dev/null 2>&1; then sudo nginx -t; fi
 journalctl -u "$service" --since "5 minutes ago" --no-pager | grep -E "ERROR|panic|failed|Failed|Error" || true
 REMOTE
     log_ok "服务已重启"
+}
+
+verify_remote_runtime() {
+    log_section "远端运行时校验"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_SERVICE" "${SERVICE_BINARIES[@]}" <<'REMOTE'
+set -euo pipefail
+app="$1"
+service="$2"
+shift 2
+systemctl is-active --quiet "$service"
+for binary in "$@"; do
+    test -x "$app/bin/services/$binary"
+    found=false
+    for _ in {1..30}; do
+        if pgrep -f -- "^$app/bin/services/$binary( |$)" >/dev/null; then
+            found=true
+            break
+        fi
+        sleep 1
+    done
+    if ! $found; then
+        echo "sidecar 未运行: $binary" >&2
+        systemctl status "$service" --no-pager --lines=80 >&2 || true
+        exit 1
+    fi
+done
+health="$(curl -fsS --max-time 10 http://127.0.0.1:8080/api/health)"
+[[ "$health" == "ok" ]] || { echo "内部 health 异常: $health" >&2; exit 1; }
+echo "service=$service"
+echo "sidecars=$#"
+echo "health=$health"
+REMOTE
+    log_ok "${#SERVICE_BINARIES[@]} 个 sidecar 均在运行，内部 health=ok"
 }
 
 http_status() {
@@ -593,10 +810,11 @@ cleanup() {
 }
 
 main() {
+    start_deploy_record
     echo -e "${BOLD}${CYAN}A4N 云端一键部署${NC}"
     echo -e "  目标: ${CYAN}$REMOTE${NC}"
     echo -e "  入口: ${CYAN}$PUBLIC_APP_URL/${NC}"
-    echo -e "  后端: ${CYAN}本地 Docker 构建 a4n-server + a4n-control + a4n-agent-worker + a4n-migration${NC}"
+    echo -e "  后端: ${CYAN}本地 Docker 构建 Host、工具、${#SERVICE_BINARIES[@]} 个 sidecar 和 ONNX Runtime${NC}"
 
     check_prerequisites
     remote_preflight
@@ -607,6 +825,7 @@ main() {
     update_remote_public_app_env
     replace_remote_app
     restart_remote_service
+    verify_remote_runtime
     smoke_test
     cleanup
 
