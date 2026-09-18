@@ -99,7 +99,8 @@ mod update;
 pub use update::{
     sync_chapter_video_prompt_metadata_after_update,
     update_chapter_video_prompt_with_generation_run_checkpoint,
-    update_chapter_video_prompt_with_policy, update_chapter_video_segment_recipe,
+    update_chapter_video_prompt_with_policy, update_chapter_video_segment_plan_metadata,
+    update_chapter_video_segment_recipe,
 };
 
 #[cfg(test)]

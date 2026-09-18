@@ -656,6 +656,22 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
+    pub(super) async fn update_chapter_video_segment_plan_metadata(
+        &self,
+        prompt_id: i64,
+        expected_updated_at: chrono::NaiveDateTime,
+        metadata_json: Value,
+    ) -> Result<chapter_video_prompt::Model, AppError> {
+        a4n_db::video_prompt::update_chapter_video_segment_plan_metadata(
+            self.connection(),
+            prompt_id,
+            expected_updated_at,
+            metadata_json,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
     pub(super) async fn update_chapter_video_segment_recipe(
         &self,
         prompt_id: i64,
@@ -1901,6 +1917,21 @@ impl OrchestratorContext {
     ) -> Result<chapter_video_prompt::Model, AppError> {
         self.video
             .update_chapter_video_prompt_with_policy(prompt_id, input, allow_downstream)
+            .await
+    }
+
+    pub(crate) async fn update_chapter_video_segment_plan_metadata(
+        &self,
+        prompt_id: i64,
+        expected_updated_at: chrono::NaiveDateTime,
+        metadata_json: Value,
+    ) -> Result<chapter_video_prompt::Model, AppError> {
+        self.video
+            .update_chapter_video_segment_plan_metadata(
+                prompt_id,
+                expected_updated_at,
+                metadata_json,
+            )
             .await
     }
 

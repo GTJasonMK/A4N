@@ -434,6 +434,17 @@ pub struct VideoSegmentPlanDraftSummary {
     pub total_shot_count: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateChapterVideoSegmentPlanInput {
+    /// The `updated_at` value returned with the plan being edited.
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
+    #[schemars(length(min = 1))]
+    pub segments: Vec<VideoSegmentPlanV2>,
+    pub downstream_strategy: DownstreamConflictStrategy,
+}
+
 /// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -566,6 +577,14 @@ pub trait VideoPromptDraftApplicationPort: Send + Sync {
 /// projection. Runtime supplies only cleanup and prompt rendering capabilities.
 #[async_trait::async_trait]
 pub trait VideoPromptMutationApplicationPort: Send + Sync {
+    async fn update_chapter_video_segment_plan(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        input: UpdateChapterVideoSegmentPlanInput,
+        cleanup: &dyn VideoPromptDownstreamCleanupPort,
+    ) -> Result<ChapterVideoPromptSummary, a4n_error::AppError>;
+
     async fn update_chapter_video_segment_recipe(
         &self,
         user_id: i64,

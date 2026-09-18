@@ -38,6 +38,7 @@ import {
   selectSegmentVideo,
   startChapterVideoInsertedSegmentDraft,
   startVideoGeneration,
+  updateChapterVideoSegmentPlan,
   updateChapterVideoSegmentRecipe,
   updateVideoSegmentPlanDraftRecipe,
   uploadReferenceMediaVideo,
@@ -52,12 +53,14 @@ import {
   type ReferenceMediaVideoInput,
   type VideoGenConfig,
   type VideoSegmentExecutionRecipe,
+  type VideoSegmentPlanV2,
   type VideoSegmentWorkflowMode,
   type InsertedSegmentGenerationOptions,
   type VideoTimelineSummary,
 } from "../../api/video";
 import { usePersistedState } from "../../hooks/usePersistedState";
 import { EmptyHint, type ChapterRow } from "./shared";
+import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { textInputValue } from "../../utils/text";
@@ -155,7 +158,10 @@ import {
   runVideoPromptGenerationTask,
   useVideoPromptGenerationActions,
 } from "./video/useVideoPromptGenerationActions";
-import { useVideoRecordActions } from "./video/useVideoRecordActions";
+import {
+  useVideoRecordActions,
+  videoPromptDownstreamCount,
+} from "./video/useVideoRecordActions";
 import { useVideoTabDerivedState } from "./video/useVideoTabDerivedState";
 import { useI18n, type MessageTranslator } from "../../i18n";
 import {
@@ -2354,6 +2360,61 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     finishAction: finishVideoAction,
   });
 
+  const handleSaveSegmentPlan = useCallback(
+    async (segments: VideoSegmentPlanV2[]): Promise<boolean> => {
+      const prompt = frameSegmentPlanPromptForCards;
+      if (!prompt || prompt.status === "running" || acting != null) return false;
+      const downstreamStrategy = await chooseDownstreamConflictStrategy({
+        title: t("video.actions.downstreamTitle"),
+        assetLabel: `${prompt.title ?? t("video.actions.segmentPlanLabel")} #${prompt.id}`,
+        downstreamLabel: t("video.actions.downstreamLabel"),
+        downstreamCount: videoPromptDownstreamCount(
+          prompt,
+          prompts,
+          videoFrameImages,
+        ),
+        operation: t("video.chapter.savePlan"),
+        t,
+      });
+      if (downstreamStrategy == null || !beginVideoAction(`edit-segment-plan-${prompt.id}`)) {
+        return false;
+      }
+      const actionKey = `edit-segment-plan-${prompt.id}`;
+      try {
+        const updated = await updateChapterVideoSegmentPlan(prompt.id, {
+          expected_updated_at: prompt.updated_at,
+          segments,
+          downstream_strategy: downstreamStrategy,
+        });
+        setPrompts((previous) =>
+          previous.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        await loadAll();
+        addToast(t("video.chapter.planSaved"), "success");
+        return true;
+      } catch (error) {
+        addToast(
+          extractErrorMessage(error, t("video.chapter.planSaveFailed")),
+          "error",
+        );
+        return false;
+      } finally {
+        finishVideoAction(actionKey);
+      }
+    },
+    [
+      acting,
+      addToast,
+      beginVideoAction,
+      finishVideoAction,
+      frameSegmentPlanPromptForCards,
+      loadAll,
+      prompts,
+      t,
+      videoFrameImages,
+    ],
+  );
+
   const recipeForSegmentAction = (
     segmentNumber: number,
   ): VideoSegmentExecutionRecipe | null => {
@@ -3462,6 +3523,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                   void refreshSegmentPlanDraft().catch(() => undefined);
                 }}
                 onDelete={(prompt) => void handleDeletePromptRow(prompt)}
+                onSavePlan={handleSaveSegmentPlan}
               />
             </Suspense>
           ) : (

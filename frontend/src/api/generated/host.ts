@@ -381,6 +381,7 @@ export const HOST_API_COMMANDS = [
   "update_chapter_outline",
   "update_chapter_scene",
   "update_chapter_video_prompt",
+  "update_chapter_video_segment_plan",
   "update_chapter_video_segment_recipe",
   "update_character_profile",
   "update_embedding_config",
@@ -5314,6 +5315,102 @@ export interface ChapterVideoPrompt {
   updated_at: string;
   visual_prompt: string;
   workflow_mode: string;
+}
+
+export interface VideoSpatialAnchorV1 {
+  anchor: string;
+  usage: string;
+}
+
+export interface VideoEmotionActionGoalV1 {
+  character: string;
+  emotion: string;
+  visible_action: string;
+}
+
+export interface VideoIntentV1 {
+  audience_effect: string;
+  hook: string;
+  rhythm: string;
+  visual_priority: string;
+}
+
+export interface VideoEmotionalArcV1 {
+  end: string;
+  function: string;
+  start: string;
+  turn: string;
+}
+
+export interface VideoPerformanceTimeBlockV1 {
+  camera: string;
+  continuity_target: string;
+  end_sec: number;
+  start_sec: number;
+  subject_action: string;
+}
+
+export interface VideoPerformanceActionV1 {
+  body: string;
+  character: string;
+  gaze: string;
+  hands: string;
+  movement: string;
+  timing: string;
+}
+
+export interface VideoPerformancePlanV2 {
+  action_script: VideoPerformanceActionV1[];
+  body_performance: string;
+  camera_relationship: string;
+  gaze_and_hands: string;
+  movement_path: string;
+  pause_or_reaction: string;
+  time_blocks: VideoPerformanceTimeBlockV1[];
+}
+
+export interface VideoMaterialCoverageV1 {
+  missing_or_weak_references: string[];
+  required_entities: string[];
+  risk_note: string;
+}
+
+export interface VideoSegmentTransitionV1 {
+  editing_mode: ShootingEditingModeV1;
+  preserved_action: string | null;
+  preserved_sound: string | null;
+  required_cut_point: string | null;
+  transition_type: ShootingTransitionTypeV1;
+}
+
+export interface VideoSegmentPlanV2 {
+  aspect_ratio: string;
+  blocking_summary: string;
+  covered_beat_ids: string[];
+  director_constraints: VisualSegmentProjectionV3 | null;
+  duration_secs: number;
+  emotion_action_goals: VideoEmotionActionGoalV1[];
+  emotional_arc: VideoEmotionalArcV1;
+  material_coverage: VideoMaterialCoverageV1;
+  performance_plan: VideoPerformancePlanV2;
+  reference_image_ids: number[];
+  scene_summary: string;
+  schema_version: string;
+  segment_index_in_shot: number;
+  segment_number: number;
+  shot_segment_count: number;
+  source_shot_id: string;
+  source_span_ids: string[];
+  spatial_anchors: VideoSpatialAnchorV1[];
+  title: string;
+  transition_to_next: VideoSegmentTransitionV1 | null;
+  video_intent: VideoIntentV1;
+}
+
+export interface UpdateChapterVideoSegmentPlanInput {
+  downstream_strategy: DownstreamConflictStrategy;
+  expected_updated_at: string;
+  segments: VideoSegmentPlanV2[];
 }
 
 export interface UpdateChapterVideoPromptInput {

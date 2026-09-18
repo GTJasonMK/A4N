@@ -10,9 +10,9 @@ use super::super::{
     preview_reference_media_video_request, preview_video_provider_request_by_video_id,
     push_assembled_chapter_video, remove_video_config, select_segment_video,
     set_default_video_config, trim_video, update_chapter_video_prompt,
-    update_chapter_video_segment_recipe, update_video, update_video_config,
-    update_video_segment_plan_draft_recipe, upload_assembly_insert_video, upload_chapter_video,
-    upload_reference_media_video,
+    update_chapter_video_segment_plan, update_chapter_video_segment_recipe, update_video,
+    update_video_config, update_video_segment_plan_draft_recipe, upload_assembly_insert_video,
+    upload_chapter_video, upload_reference_media_video,
 };
 use serde_json::Value;
 
@@ -65,6 +65,9 @@ pub(super) async fn try_dispatch(
         }
         "update_video_segment_plan_draft_recipe" => {
             update_video_segment_plan_draft_recipe(state, user_id, args).await?
+        }
+        "update_chapter_video_segment_plan" => {
+            update_chapter_video_segment_plan(state, user_id, args).await?
         }
         "update_chapter_video_segment_recipe" => {
             update_chapter_video_segment_recipe(state, user_id, args).await?

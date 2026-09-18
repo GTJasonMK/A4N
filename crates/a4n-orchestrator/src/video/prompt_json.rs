@@ -20,7 +20,7 @@ pub(super) use self::chat_prompts::{
     ChatVideoPromptShot, parse_chat_video_prompt_shots,
     validate_chat_video_prompt_shot_against_segment, validate_chat_video_prompt_text,
 };
-pub(super) use self::cross_validation::{
+pub(in crate::video) use self::cross_validation::{
     validate_model_video_prompt_shot_against_segment,
     validate_segment_plan_against_shooting_script_projection,
     validate_video_prompt_shot_against_segment,
@@ -36,13 +36,14 @@ pub(super) use self::shot_parser::{
     derived_prompt_shot_number, ordered_segment_numbers, parse_video_prompt_shots,
 };
 pub(in crate::video) use self::validation::direct_prompt_internal_reference_term;
+use self::validation::validate_frame_prompt;
+pub(in crate::video) use self::validation::validate_segment_plan;
 pub use self::validation::{
     validate_direct_prompt_text, validate_reference_label_text,
     video_motion_prompt_has_temporal_storyboard,
     video_prompt_missing_required_section_for_language, video_prompt_stale_section_for_language,
     video_prompt_upload_status_term,
 };
-use self::validation::{validate_frame_prompt, validate_segment_plan};
 
 pub(in crate::video) const VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS: &[&str] = &[
     "speaker",

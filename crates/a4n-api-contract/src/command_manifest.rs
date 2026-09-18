@@ -706,6 +706,7 @@ command_specs! {
     "update_chapter_outline" => args_update_chapter_outline, result_update_chapter_outline, "chapter", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full);
     "update_chapter_scene" => args_update_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), references(REFERENCES_CHAPTER_IDS);
     "update_chapter_video_prompt" => args_update_chapter_video_prompt, result_optimize_chapter_video_prompt, "video";
+    "update_chapter_video_segment_plan" => args_update_chapter_video_segment_plan, result_optimize_chapter_video_prompt, "video";
     "update_chapter_video_segment_recipe" => args_update_chapter_video_segment_recipe, result_video_segment_execution_recipes, "video", capabilities(CAPABILITIES_VIDEO);
     "update_character_profile" => args_update_character_profile, result_update_character_profile, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "update_embedding_config" => args_update_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
@@ -2405,6 +2406,19 @@ fn args_update_chapter_video_prompt() -> Value {
         "properties": {
             "promptId": { "type": "integer", "minimum": 1 },
             "input": raw_schema::<crate::video::UpdateChapterVideoPromptInput>(),
+        },
+        "required": ["promptId", "input"],
+        "additionalProperties": true,
+        "x-a4n-schema-quality": "typed-input",
+    })
+}
+
+fn args_update_chapter_video_segment_plan() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "promptId": { "type": "integer", "minimum": 1 },
+            "input": raw_schema::<crate::video::UpdateChapterVideoSegmentPlanInput>(),
         },
         "required": ["promptId", "input"],
         "additionalProperties": true,
@@ -5020,6 +5034,18 @@ mod tests {
         );
         assert_eq!(published.result_schema["x-a4n-schema-quality"], "typed");
         assert_eq!(published.result_schema["type"], "array");
+
+        let plan = command_descriptor("update_chapter_video_segment_plan").unwrap();
+        assert_eq!(plan.args_schema["x-a4n-schema-quality"], "typed-input");
+        assert_eq!(
+            plan.args_schema["properties"]["input"]["additionalProperties"],
+            false
+        );
+        assert_eq!(
+            plan.args_schema["properties"]["input"]["properties"]["segments"]["minItems"],
+            1
+        );
+        assert_eq!(plan.result_schema["x-a4n-schema-quality"], "typed");
     }
 
     #[test]

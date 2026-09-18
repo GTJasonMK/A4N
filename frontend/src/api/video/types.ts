@@ -44,6 +44,14 @@ export type {
   ChapterVideoPrompt,
   DownstreamConflictStrategy,
   PreviewChapterVideoPromptOverrideInput,
+  ShootingEditingModeV1,
+  ShootingTransitionTypeV1,
+  UpdateChapterVideoSegmentPlanInput,
+  VideoEmotionActionGoalV1,
+  VideoPerformanceActionV1,
+  VideoPerformanceTimeBlockV1,
+  VideoSegmentPlanV2,
+  VideoSpatialAnchorV1,
   VideoSegmentTarget,
 } from "../generated/host";
 

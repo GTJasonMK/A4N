@@ -21,7 +21,7 @@ pub use prompt_text::{
 pub(super) use prompt_text::{
     validate_prompt_has_no_upload_status, validate_prompt_has_shot_storyboard_section,
 };
-pub(super) use segment::validate_segment_plan;
+pub(in crate::video) use segment::validate_segment_plan;
 pub(super) use shot::{validate_model_shot, validate_shot};
 
 #[derive(Debug, Clone, Copy)]

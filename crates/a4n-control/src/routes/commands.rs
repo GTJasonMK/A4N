@@ -221,8 +221,9 @@ use self::media::{
     preview_video_provider_request_by_video_id, push_assembled_chapter_video, read_image,
     resume_manga_pipeline, select_segment_video, set_profile_primary_material,
     start_manga_pipeline, sync_scene_profiles, trim_video, update_assembly_push_status,
-    update_chapter_video_prompt, update_chapter_video_segment_recipe, update_foreshadowing,
-    update_image, update_manga_prompt, update_object_profile, update_scene_profile, update_video,
+    update_chapter_video_prompt, update_chapter_video_segment_plan,
+    update_chapter_video_segment_recipe, update_foreshadowing, update_image, update_manga_prompt,
+    update_object_profile, update_scene_profile, update_video,
     update_video_segment_plan_draft_recipe, upload_assembly_insert_video, upload_chapter_video,
     upload_image, upload_profile_material_image, upload_reference_media_video,
 };

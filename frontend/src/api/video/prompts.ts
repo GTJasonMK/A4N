@@ -10,6 +10,7 @@ import type {
   GetVideoTimelineInput,
   MoveInsertedSegmentInput,
   OptimizeChapterVideoPromptInput,
+  UpdateChapterVideoSegmentPlanInput,
   UpdateChapterVideoPromptInput,
   VideoTimelineItemSummary,
   VideoTimelineSummary,
@@ -285,6 +286,17 @@ export async function updateChapterVideoSegmentRecipe(
       recipe,
     },
   );
+}
+
+export async function updateChapterVideoSegmentPlan(
+  promptId: Id,
+  input: UpdateChapterVideoSegmentPlanInput,
+): Promise<ChapterVideoPrompt> {
+  return apiInvoke<ChapterVideoPrompt>("update_chapter_video_segment_plan", {
+    userId: currentUserId(),
+    promptId: idNum(promptId, "视频片段规划 ID"),
+    input,
+  });
 }
 
 export async function updateChapterVideoPrompt(

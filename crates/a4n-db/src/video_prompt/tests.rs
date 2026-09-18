@@ -1052,6 +1052,41 @@ async fn prompt_update_checkpoint_commits_all_records_together() {
 }
 
 #[tokio::test]
+async fn segment_plan_metadata_update_uses_updated_at_cas() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let prompt = insert_prompt(&db, project_id, chapter.id).await;
+
+    let updated = update_chapter_video_segment_plan_metadata(
+        &db,
+        prompt.id,
+        prompt.updated_at,
+        json!({"segments": [{"title": "已编辑"}]}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        updated.metadata_json,
+        Some(json!({"segments": [{"title": "已编辑"}]}))
+    );
+
+    let error = update_chapter_video_segment_plan_metadata(
+        &db,
+        prompt.id,
+        prompt.updated_at - chrono::Duration::seconds(1),
+        json!({"segments": [{"title": "过期编辑"}]}),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message == "片段规划已被其他操作修改，请刷新后重试"
+    ));
+}
+
+#[tokio::test]
 async fn prompt_update_checkpoint_project_mismatch_rolls_back_prompt() {
     let db = setup_db().await;
     let project_id = insert_project(&db).await;

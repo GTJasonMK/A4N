@@ -35,6 +35,39 @@ where
     Ok(row)
 }
 
+pub async fn update_chapter_video_segment_plan_metadata<C>(
+    db: &C,
+    prompt_id: i64,
+    expected_updated_at: chrono::NaiveDateTime,
+    metadata_json: Value,
+) -> Result<chapter_video_prompt::Model, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    let result = chapter_video_prompt::Entity::update_many()
+        .col_expr(
+            chapter_video_prompt::Column::MetadataJson,
+            Expr::value(metadata_json),
+        )
+        .col_expr(
+            chapter_video_prompt::Column::UpdatedAt,
+            Expr::value(Utc::now().naive_utc()),
+        )
+        .filter(chapter_video_prompt::Column::Id.eq(prompt_id))
+        .filter(chapter_video_prompt::Column::UpdatedAt.eq(expected_updated_at))
+        .exec(db)
+        .await?;
+    if result.rows_affected != 1 {
+        return Err(VideoDbError::InvalidArgument(
+            "片段规划已被其他操作修改，请刷新后重试".to_string(),
+        ));
+    }
+    chapter_video_prompt::Entity::find_by_id(prompt_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))
+}
+
 pub(super) async fn update_chapter_video_prompt_with_policy_in<C>(
     db: &C,
     prompt_id: i64,

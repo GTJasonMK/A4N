@@ -12,7 +12,8 @@ pub use a4n_api_contract::video::{
     ChapterVideoPromptSummary, CommitInsertedSegmentDraftInput, DeleteChapterVideoPromptInput,
     DeleteInsertedSegmentInput, GetVideoTimelineInput, LoadVideoSegmentPlanDraftInput,
     MoveInsertedSegmentInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
-    UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentPlanDraftSummary, VideoTimelineSummary,
+    UpdateChapterVideoSegmentPlanInput, UpdateVideoSegmentPlanDraftRecipeInput,
+    VideoSegmentPlanDraftSummary, VideoTimelineSummary,
 };
 pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
@@ -143,6 +144,24 @@ pub async fn update_chapter_video_segment_recipe(
     state
         .video_prompt_mutation_application()
         .update_chapter_video_segment_recipe(user_id, prompt_id, recipe)
+        .await
+        .map_err(error_message)
+}
+
+pub async fn update_chapter_video_segment_plan(
+    state: &AppState,
+    user_id: i64,
+    prompt_id: i64,
+    input: UpdateChapterVideoSegmentPlanInput,
+) -> Result<ChapterVideoPromptSummary, String> {
+    state
+        .video_prompt_mutation_application()
+        .update_chapter_video_segment_plan(
+            user_id,
+            prompt_id,
+            input,
+            &RuntimeVideoPromptCleanup { state, user_id },
+        )
         .await
         .map_err(error_message)
 }

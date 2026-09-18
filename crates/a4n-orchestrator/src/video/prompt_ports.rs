@@ -2,9 +2,10 @@ use a4n_api_contract::video::{
     ChapterVideoPromptSummary, CommitInsertedSegmentDraftInput, DeleteInsertedSegmentInput,
     DownstreamConflictStrategy, GetVideoTimelineInput, LoadVideoSegmentPlanDraftInput,
     MoveInsertedSegmentInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
-    UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptDownstreamCleanupPort,
-    VideoPromptDraftApplicationPort, VideoPromptMutationApplicationPort,
-    VideoPromptTimelineApplicationPort, VideoSegmentPlanDraftSummary, VideoTimelineSummary,
+    UpdateChapterVideoSegmentPlanInput, UpdateVideoSegmentPlanDraftRecipeInput,
+    VideoPromptDownstreamCleanupPort, VideoPromptDraftApplicationPort,
+    VideoPromptMutationApplicationPort, VideoPromptTimelineApplicationPort,
+    VideoSegmentPlanDraftSummary, VideoTimelineSummary,
 };
 use a4n_error::AppError;
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
@@ -14,6 +15,17 @@ use crate::{OrchestratorContext, prompt_records::PromptRendererAdapter};
 
 #[async_trait]
 impl VideoPromptMutationApplicationPort for OrchestratorContext {
+    async fn update_chapter_video_segment_plan(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        input: UpdateChapterVideoSegmentPlanInput,
+        cleanup: &dyn VideoPromptDownstreamCleanupPort,
+    ) -> Result<ChapterVideoPromptSummary, AppError> {
+        self.update_chapter_video_segment_plan_validated(user_id, prompt_id, input, cleanup)
+            .await
+    }
+
     async fn update_chapter_video_segment_recipe(
         &self,
         user_id: i64,

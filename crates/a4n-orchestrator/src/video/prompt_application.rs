@@ -3,8 +3,8 @@ use std::collections::{BTreeSet, HashMap};
 
 use a4n_api_contract::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
-    UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
-    VideoSegmentPlanDraftSummary,
+    UpdateChapterVideoPromptInput, UpdateChapterVideoSegmentPlanInput,
+    UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentPlanDraftSummary,
 };
 use a4n_api_contract::video::{VideoPromptDownstreamCleanupPort, VideoPromptGenerationOptions};
 use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
@@ -14,7 +14,8 @@ use a4n_domain::{DownstreamConflictStrategy, source_text_hash as source_content_
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video_contract::{
-    VideoSegmentExecutionRecipeV1, VideoSegmentWorkflowModeV1, resolve_video_segment_number,
+    VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2, VideoSegmentWorkflowModeV1,
+    VideoShootingScriptIdentityV1, resolve_video_segment_number,
     video_segment_recipes_for_plan_from_metadata,
 };
 use async_trait::async_trait;
@@ -31,6 +32,12 @@ use crate::{
 };
 
 use super::prompt_context::validate_prompt_options_with_reference_limit;
+use super::prompt_generation::{
+    video_execution_chain_identity, video_projection_from_shooting_script,
+};
+use super::prompt_json::{
+    validate_segment_plan, validate_segment_plan_against_shooting_script_projection,
+};
 use super::prompt_optimization::VideoPromptOptimizationInput;
 use super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSource,
@@ -638,6 +645,158 @@ impl OrchestratorContext {
             )
             .await?;
         Ok(prompt_to_summary(&row))
+    }
+
+    pub async fn update_chapter_video_segment_plan_validated(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        input: UpdateChapterVideoSegmentPlanInput,
+        cleanup: &dyn VideoPromptDownstreamCleanupPort,
+    ) -> Result<ChapterVideoPromptSummary, AppError> {
+        let prompt = self.chapter_video_prompt(prompt_id).await?;
+        self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.validate_segment_plan_edit_timestamp(&prompt, &input.expected_updated_at)?;
+        let current = self
+            .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, prompt_id)
+            .await?;
+        if current.updated_at != prompt.updated_at {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "segment_plan_updated_at_conflict:expected={},current={}",
+                    prompt.updated_at, current.updated_at
+                ),
+                operation: "编辑片段规划".to_string(),
+            });
+        }
+        let current_metadata = current.metadata_json.as_ref().ok_or_else(|| {
+            AppError::InvalidArgument("当前片段规划缺少结构化 metadata_json，不能编辑".to_string())
+        })?;
+        let current_segments_value =
+            current_metadata.get("segments").cloned().ok_or_else(|| {
+                AppError::InvalidArgument("当前片段规划缺少 segments，不能编辑".to_string())
+            })?;
+        let current_segments =
+            serde_json::from_value::<Vec<VideoSegmentPlanV2>>(current_segments_value.clone())
+                .map_err(|error| {
+                    AppError::InvalidArgument(format!(
+                        "当前片段规划 segments 无效，不能编辑：{error}"
+                    ))
+                })?;
+        let segments = input
+            .segments
+            .into_iter()
+            .map(validate_segment_plan)
+            .collect::<Result<Vec<_>, _>>()?;
+        validate_segment_plan_edit_identity(&current_segments, &segments)?;
+
+        let resolved = self
+            .require_current_chapter_shooting_script(
+                crate::shooting_script::ChapterShootingScriptSourceInput {
+                    project_id: current.project_id,
+                    source_chapter_id: current.chapter_id,
+                    visual_plan_id: None,
+                },
+            )
+            .await?;
+        let script_record = &resolved.shooting_script.record;
+        let projection = video_projection_from_shooting_script(
+            &resolved.shooting_script.script,
+            VideoShootingScriptIdentityV1 {
+                record_id: script_record.id,
+                revision: script_record.revision,
+                source_revision_key: script_record.source_revision_key.clone(),
+                source_content_sha256: script_record.source_content_sha256.clone(),
+                script_sha256: script_record.script_sha256.clone(),
+            },
+            current.duration_secs,
+        )?;
+        validate_segment_plan_against_shooting_script_projection(&segments, &projection)?;
+
+        let style = current
+            .style
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少 style".to_string()))?;
+        let aspect_ratio = current
+            .aspect_ratio
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                AppError::InvalidArgument("当前片段规划缺少 aspect_ratio".to_string())
+            })?;
+        let identity = video_execution_chain_identity(
+            &projection,
+            &segments,
+            style,
+            current.duration_secs,
+            aspect_ratio,
+        )?;
+        let plan = self
+            .prepare_mutation_plan(
+                prompt_id,
+                input.downstream_strategy,
+                "编辑片段规划",
+                "该片段规划",
+            )
+            .await?;
+        self.apply_downstream_cleanup(cleanup, &plan).await?;
+        let mut metadata = current_metadata.clone();
+        let expected_updated_at = if plan.delete_dependencies.is_some() {
+            let after_cleanup = self.chapter_video_prompt(prompt_id).await?;
+            let after_segments = after_cleanup
+                .metadata_json
+                .as_ref()
+                .and_then(|metadata| metadata.get("segments"));
+            if after_segments != Some(&current_segments_value) {
+                return Err(AppError::InvalidState {
+                    current: format!(
+                        "segment_plan_updated_at_conflict:expected={},current={}",
+                        prompt.updated_at, after_cleanup.updated_at
+                    ),
+                    operation: "编辑片段规划".to_string(),
+                });
+            }
+            metadata = after_cleanup.metadata_json.ok_or_else(|| {
+                AppError::InvalidArgument(
+                    "下游清理后当前片段规划缺少 metadata_json，不能保存".to_string(),
+                )
+            })?;
+            after_cleanup.updated_at
+        } else {
+            prompt.updated_at
+        };
+        let root = metadata.as_object_mut().ok_or_else(|| {
+            AppError::InvalidArgument("当前片段规划 metadata_json 必须是对象".to_string())
+        })?;
+        root.insert("segments".to_string(), serde_json::to_value(&segments)?);
+        root.insert("video_execution_identity".to_string(), identity);
+        let row = self
+            .update_chapter_video_segment_plan_metadata(prompt_id, expected_updated_at, metadata)
+            .await?;
+        Ok(prompt_to_summary(&row))
+    }
+
+    fn validate_segment_plan_edit_timestamp(
+        &self,
+        prompt: &chapter_video_prompt::Model,
+        expected_updated_at: &str,
+    ) -> Result<(), AppError> {
+        if expected_updated_at.trim().is_empty()
+            || expected_updated_at != prompt.updated_at.to_string()
+        {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "segment_plan_updated_at_conflict:expected={expected_updated_at},current={}",
+                    prompt.updated_at
+                ),
+                operation: "编辑片段规划".to_string(),
+            });
+        }
+        Ok(())
     }
 
     pub(in crate::video) async fn current_shared_segment_plan(
@@ -1287,6 +1446,36 @@ fn prompt_to_summary(prompt: &chapter_video_prompt::Model) -> ChapterVideoPrompt
     }
 }
 
+fn validate_segment_plan_edit_identity(
+    current: &[VideoSegmentPlanV2],
+    requested: &[VideoSegmentPlanV2],
+) -> Result<(), AppError> {
+    if current.len() != requested.len() || requested.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "片段规划编辑不能新增、删除或重排片段".to_string(),
+        ));
+    }
+    for (index, (before, after)) in current.iter().zip(requested).enumerate() {
+        let identity_unchanged = before.schema_version == after.schema_version
+            && before.segment_number == after.segment_number
+            && before.source_shot_id == after.source_shot_id
+            && before.segment_index_in_shot == after.segment_index_in_shot
+            && before.shot_segment_count == after.shot_segment_count
+            && before.source_span_ids == after.source_span_ids
+            && before.duration_secs == after.duration_secs
+            && before.aspect_ratio == after.aspect_ratio
+            && before.reference_image_ids == after.reference_image_ids
+            && before.director_constraints == after.director_constraints;
+        if !identity_unchanged {
+            return Err(AppError::InvalidArgument(format!(
+                "片段规划第 {} 项包含不可编辑的来源或派生字段",
+                index + 1
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn report_progress(
     progress: &mut Option<VideoPromptProgress<'_>>,
     current: u32,
@@ -1396,5 +1585,67 @@ mod tests {
             "source": { "content_sha256": "legacy" },
         });
         assert_eq!(video_prompt_source_content_hash(Some(&legacy)), None);
+    }
+
+    fn editable_segment_fixture() -> VideoSegmentPlanV2 {
+        serde_json::from_value(json!({
+            "director_constraints": null,
+            "schema_version": "video_segment_plan_v2",
+            "segment_number": 1,
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "shot_segment_count": 1,
+            "covered_beat_ids": ["beat-1"],
+            "title": "片段",
+            "scene_summary": "场景",
+            "blocking_summary": "走位",
+            "spatial_anchors": [{"anchor": "门口", "usage": "建立空间"}],
+            "emotion_action_goals": [],
+            "video_intent": {
+                "hook": "钩子",
+                "audience_effect": "效果",
+                "rhythm": "节奏",
+                "visual_priority": "重点"
+            },
+            "emotional_arc": {
+                "start": "开始",
+                "turn": "转折",
+                "end": "结束",
+                "function": "功能"
+            },
+            "performance_plan": {
+                "movement_path": "路径",
+                "body_performance": "身体",
+                "gaze_and_hands": "视线",
+                "pause_or_reaction": "反应",
+                "camera_relationship": "关系",
+                "time_blocks": [],
+                "action_script": []
+            },
+            "material_coverage": {
+                "required_entities": [],
+                "missing_or_weak_references": [],
+                "risk_note": "风险"
+            },
+            "transition_to_next": null,
+            "source_span_ids": ["span-1"],
+            "duration_secs": 6,
+            "aspect_ratio": "16:9",
+            "reference_image_ids": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn segment_plan_edit_keeps_content_editable_but_identity_read_only() {
+        let before = editable_segment_fixture();
+        let mut edited = before.clone();
+        edited.title = "新的片段".to_string();
+        assert!(validate_segment_plan_edit_identity(&[before.clone()], &[edited]).is_ok());
+
+        let mut identity_change = before.clone();
+        identity_change.source_shot_id = "shot-2".to_string();
+        let error = validate_segment_plan_edit_identity(&[before], &[identity_change]).unwrap_err();
+        assert!(error.to_string().contains("不可编辑"));
     }
 }

@@ -123,6 +123,25 @@ pub(in crate::routes::commands) async fn update_chapter_video_segment_recipe(
     to_value(recipes)
 }
 
+pub(in crate::routes::commands) async fn update_chapter_video_segment_plan(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let prompt_id = i64_arg(args, "promptId")?;
+    let input: video_prompt_actions::UpdateChapterVideoSegmentPlanInput =
+        command_input(args, "update_chapter_video_segment_plan")?;
+    let updated = video_prompt_actions::update_chapter_video_segment_plan(
+        state.runtime(),
+        user_id,
+        prompt_id,
+        input,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
+    to_value(updated)
+}
+
 pub(in crate::routes::commands) async fn update_chapter_video_prompt(
     state: &ServerState,
     user_id: i64,

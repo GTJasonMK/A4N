@@ -309,7 +309,8 @@ use a4n_api_contract::{
         GenerateChapterVideosBatchResult, GeneratedVideoSummary, GetVideoTimelineInput,
         MoveInsertedSegmentInput, OptimizeChapterVideoPromptInput,
         PreviewChapterVideoPromptOverrideInput, PushAssembledChapterVideoInput,
-        UpdateAssemblyPushStatusInput, UpdateChapterVideoPromptInput, UpdateGeneratedVideoInput,
+        UpdateAssemblyPushStatusInput, UpdateChapterVideoPromptInput,
+        UpdateChapterVideoSegmentPlanInput, UpdateGeneratedVideoInput,
         UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
         VideoPlaybackData, VideoScrubFramesData, VideoSegmentTarget, VideoTimelineItemKind,
         VideoTimelineItemStatus, VideoTimelineItemSummary, VideoTimelineSummary,
@@ -346,6 +347,11 @@ use a4n_domain::{
     THEME_ROUTE_FAMILIES, THEME_TOKEN_NAMES,
 };
 use a4n_progress::{ProgressMeta, ProgressPhaseKind, ProgressSeverity};
+use a4n_video_contract::{
+    VideoEmotionActionGoalV1, VideoEmotionalArcV1, VideoIntentV1, VideoMaterialCoverageV1,
+    VideoPerformanceActionV1, VideoPerformancePlanV2, VideoPerformanceTimeBlockV1,
+    VideoSegmentPlanV2, VideoSegmentTransitionV1, VideoSpatialAnchorV1,
+};
 use schemars::JsonSchema;
 use serde_json::Value;
 use std::{env, fs, path::PathBuf};
@@ -1220,6 +1226,19 @@ fn main() {
         &typescript_interface::<UpdateGeneratedVideoInput>("UpdateGeneratedVideoInput"),
         &typescript_enum::<DownstreamConflictStrategy>("DownstreamConflictStrategy"),
         &typescript_interface::<ChapterVideoPromptSummary>("ChapterVideoPrompt"),
+        &typescript_interface::<VideoSpatialAnchorV1>("VideoSpatialAnchorV1"),
+        &typescript_interface::<VideoEmotionActionGoalV1>("VideoEmotionActionGoalV1"),
+        &typescript_interface::<VideoIntentV1>("VideoIntentV1"),
+        &typescript_interface::<VideoEmotionalArcV1>("VideoEmotionalArcV1"),
+        &typescript_interface::<VideoPerformanceTimeBlockV1>("VideoPerformanceTimeBlockV1"),
+        &typescript_interface::<VideoPerformanceActionV1>("VideoPerformanceActionV1"),
+        &typescript_interface::<VideoPerformancePlanV2>("VideoPerformancePlanV2"),
+        &typescript_interface::<VideoMaterialCoverageV1>("VideoMaterialCoverageV1"),
+        &typescript_interface::<VideoSegmentTransitionV1>("VideoSegmentTransitionV1"),
+        &typescript_interface::<VideoSegmentPlanV2>("VideoSegmentPlanV2"),
+        &typescript_interface::<UpdateChapterVideoSegmentPlanInput>(
+            "UpdateChapterVideoSegmentPlanInput",
+        ),
         &typescript_interface::<UpdateChapterVideoPromptInput>("UpdateChapterVideoPromptInput"),
         &typescript_interface::<OptimizeChapterVideoPromptInput>("OptimizeChapterVideoPromptInput"),
         &typescript_interface::<DeleteChapterVideoPromptInput>("DeleteChapterVideoPromptInput"),

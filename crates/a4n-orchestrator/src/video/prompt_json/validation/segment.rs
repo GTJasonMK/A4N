@@ -15,7 +15,7 @@ use content::{
 };
 use performance::validate_segment_performance_plan;
 
-pub(in crate::video::prompt_json) fn validate_segment_plan(
+pub(in crate::video) fn validate_segment_plan(
     mut segment: VideoSegmentPlan,
 ) -> Result<VideoSegmentPlan, AppError> {
     if segment.schema_version != VIDEO_SEGMENT_PLAN_V2 {

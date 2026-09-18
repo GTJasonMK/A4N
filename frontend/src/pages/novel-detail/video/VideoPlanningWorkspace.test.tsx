@@ -168,6 +168,34 @@ describe("VideoPlanningWorkspace", () => {
     expect(html).not.toContain("正在加载已保存的片段规划");
   });
 
+  it("shows the structured plan edit action for a saved plan", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPlanningWorkspace
+          prompt={persistedPrompt}
+          previewSegments={[]}
+          draft={null}
+          options={DEFAULT_VIDEO_OPTIONS}
+          durationLimits={durationLimits}
+          loading={false}
+          loadError={null}
+          dataReady
+          acting={null}
+          shootingScenes={shootingScenes}
+          supportedAspectRatios={["16:9"]}
+          aspectRatioLoading={false}
+          onGenerate={vi.fn()}
+          onOptionsChange={vi.fn()}
+          onRetryLoad={vi.fn()}
+          onDelete={vi.fn()}
+          onSavePlan={vi.fn(async () => true)}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("编辑规划");
+  });
+
   it("keeps unaffected segments visible while a draft replaces its shot", () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-CN">

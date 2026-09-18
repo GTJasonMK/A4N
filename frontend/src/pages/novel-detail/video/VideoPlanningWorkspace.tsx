@@ -1,15 +1,17 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useState } from "react";
-import { ListChecks, RotateCcw, Trash2, Wand2 } from "lucide-react";
+import { ListChecks, Pencil, RotateCcw, Save, Trash2, Wand2, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { formatNumber, useI18n } from "../../../i18n";
-import type { ChapterVideoPrompt } from "../../../api/video";
+import type { ChapterVideoPrompt, VideoSegmentPlanV2 } from "../../../api/video";
 import type { ShootingSceneV1 } from "../../../api/shootingScript";
 import { BookButton } from "../../../components/ui/BookButton";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { asArray, asJsonRecord } from "../../../utils/jsonRecord";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
 import { VideoDurationOptionsPicker } from "./VideoDurationOptionsPicker";
+import { VideoSegmentPlanEditor } from "./VideoSegmentPlanEditor";
 import {
   promptOutputLanguageLabel,
   type VideoDurationLimits,
@@ -38,6 +40,7 @@ interface VideoPlanningWorkspaceProps {
   onOptionsChange: React.Dispatch<React.SetStateAction<VideoGenOptions>>;
   onRetryLoad: () => void | Promise<void>;
   onDelete: (prompt: ChapterVideoPrompt) => void | Promise<void>;
+  onSavePlan?: (segments: VideoSegmentPlanV2[]) => Promise<boolean>;
 }
 
 const textValue = (value: unknown): string | null =>
@@ -148,6 +151,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   onOptionsChange,
   onRetryLoad,
   onDelete,
+  onSavePlan,
 }) => {
   const { locale, t } = useI18n();
   const aspectRatioAvailable = supportedAspectRatios.includes(options.aspectRatio);
@@ -177,6 +181,56 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
       ),
     [persistedSegments, previewSegments, shootingScenes],
   );
+  const editableSegments = segments as unknown as VideoSegmentPlanV2[];
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [planDraft, setPlanDraft] = useState<VideoSegmentPlanV2[] | null>(null);
+  const planDirty =
+    planDraft != null &&
+    JSON.stringify(planDraft) !== JSON.stringify(editableSegments);
+  const canEditPlan = Boolean(
+    onSavePlan &&
+      prompt &&
+      prompt.status === "completed" &&
+      !showingPreview &&
+      segments.length > 0 &&
+      !draft,
+  );
+  useEffect(() => {
+    setEditingPlan(false);
+    setPlanDraft(null);
+  }, [prompt?.id]);
+  const enterPlanEdit = () => {
+    if (!canEditPlan || busy || loading) return;
+    setPlanDraft(structuredClone(editableSegments));
+    setEditingPlan(true);
+  };
+  const cancelPlanEdit = async () => {
+    if (!editingPlan || savingPlan) return;
+    if (planDirty) {
+      const confirmed = await confirmDialog({
+        title: t("video.chapter.cancelPlanEditTitle"),
+        message: t("video.chapter.cancelPlanEditMessage"),
+        confirmText: t("video.chapter.cancelPlanEdit"),
+        dialogType: "warning",
+      });
+      if (!confirmed) return;
+    }
+    setPlanDraft(null);
+    setEditingPlan(false);
+  };
+  const savePlanEdit = async () => {
+    if (!editingPlan || !planDraft || !planDirty || !onSavePlan || savingPlan) return;
+    setSavingPlan(true);
+    try {
+      if (await onSavePlan(planDraft)) {
+        setPlanDraft(null);
+        setEditingPlan(false);
+      }
+    } finally {
+      setSavingPlan(false);
+    }
+  };
   const plannedShotIds = useMemo(
     () =>
       new Set(
@@ -231,7 +285,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               {showingPreview
                 ? `${generatingPreview ? t("video.chapter.planningStatusGenerating") : t("video.chapter.planningStatusSaved")} · ${t("video.chapter.segments", { count: segments.length })}`
                 : prompt
-                ? `${getOperationStatusLabel(prompt.status, locale)} · ${t("video.chapter.segments", { count: segments.length })}`
+                ? `${editingPlan ? t("video.chapter.editingPlan") : getOperationStatusLabel(prompt.status, locale)} · ${t("video.chapter.segments", { count: segments.length })}${planDirty ? ` · ${t("writing.unsavedChanges")}` : ""}`
                 : t("video.chapter.planningStatusUnplanned")}
             </span>
           </div>
@@ -242,12 +296,36 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canEditPlan ? (
+            <>
+              <BookButton
+                variant={editingPlan ? "ghost" : "primary"}
+                size="md"
+                onClick={() => void (editingPlan ? cancelPlanEdit() : enterPlanEdit())}
+                disabled={busy || loading || savingPlan}
+              >
+                {editingPlan ? <X size={14} /> : <Pencil size={14} />}
+                {editingPlan ? t("video.chapter.cancelPlanEdit") : t("video.chapter.editPlan")}
+              </BookButton>
+              {editingPlan ? (
+                <BookButton
+                  variant="secondary"
+                  size="md"
+                  onClick={() => void savePlanEdit()}
+                  disabled={busy || loading || savingPlan || !planDirty}
+                >
+                  {savingPlan ? <LoadingSpinner size="sm" /> : <Save size={14} />}
+                  {savingPlan ? t("video.chapter.savingPlan") : t("video.chapter.savePlan")}
+                </BookButton>
+              ) : null}
+            </>
+          ) : null}
           <ThemedSelect
             aria-label={t("video.chapter.chooseSceneAria")}
             value={selectedUnitIndex ?? ""}
             onChange={(event) => setSelectedUnitIndex(Number(event.target.value))}
-            disabled={busy || loading || draft != null || shootingScenes.length === 0}
+            disabled={busy || loading || editingPlan || draft != null || shootingScenes.length === 0}
             className="pyqt-input max-w-64 !px-2 !py-2 text-xs"
           >
             {shootingScenes.length === 0 ? (
@@ -281,6 +359,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
             disabled={
               busy ||
               loading ||
+              editingPlan ||
               selectedUnitIndex == null ||
               (!dataReady && !needsLoadRetry) ||
               aspectRatioLoading ||
@@ -297,7 +376,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               variant="ghost"
               size="md"
               onClick={() => void onDelete(prompt)}
-              disabled={busy}
+              disabled={busy || editingPlan || savingPlan}
               title={t("video.chapter.deletePlanTitle")}
             >
               <Trash2 size={14} />
@@ -403,6 +482,12 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
           <EmptyHint text={loadError ? t("video.chapter.savedPlanFailed", { error: loadError }) : loading ? t("video.chapter.loadingSavedPlan") : busy ? t("video.chapter.planningEmptyValidation") : shootingScenes.length === 0 ? t("video.chapter.needShootingScene") : t("video.chapter.selectSceneAndGenerate")} />
         ) : segments.length === 0 ? (
           <EmptyHint text={t("video.chapter.planEmpty")} />
+        ) : editingPlan && planDraft ? (
+          <VideoSegmentPlanEditor
+            segments={planDraft}
+            onChange={setPlanDraft}
+            disabled={savingPlan}
+          />
         ) : (
           <ol className="space-y-2">
             {segments.map((segment, index) => {
