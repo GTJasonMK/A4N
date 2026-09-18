@@ -1856,6 +1856,13 @@ impl AppState {
         self.chapter_visual_plan_read_application.as_ref()
     }
 
+    pub(crate) fn chapter_visual_plan_record_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordReadApplicationPort
+    {
+        self.chapter_visual_plan_record_read_application.as_ref()
+    }
+
     pub(crate) fn chapter_visual_plan_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort {

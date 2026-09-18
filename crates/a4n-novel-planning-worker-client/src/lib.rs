@@ -1,8 +1,11 @@
 //! Typed HTTP adapter for the novel-planning worker.
 
 use a4n_api_contract::chapter_visual_plan::{
-    ChapterVisualPlanRecordInput, ChapterVisualPlanRecordPersistenceApplicationPort,
-    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, SaveChapterVisualPlanDraftInput,
+    ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput,
+    ChapterVisualPlanRecordPersistenceApplicationPort, ChapterVisualPlanRecordReadApplicationPort,
+    ChapterVisualPlanSetView, ChapterVisualPlanSourceInput, ChapterVisualPlanValidationResult,
+    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, ReadChapterVisualPlanInput,
+    SaveChapterVisualPlanDraftInput, ValidateChapterVisualPlanInput,
 };
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
@@ -15,9 +18,10 @@ use a4n_novel_planning_worker_contract::{
     CONFIRM_VISUAL_PLAN_OPERATION, ConfirmVisualPlanPayload, CurrentShootingScriptPayload,
     DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION, DeleteShootingScriptPayload,
     DiscardVisualPlanPayload, EDIT_SHOOTING_SCRIPT_OPERATION, EditShootingScriptPayload,
-    GET_CURRENT_SHOOTING_SCRIPT_OPERATION, NOVEL_PLANNING_WORKER_ID,
-    PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
-    SAVE_VISUAL_PLAN_DRAFT_OPERATION, SaveVisualPlanDraftPayload,
+    GET_CURRENT_SHOOTING_SCRIPT_OPERATION, GET_VISUAL_PLAN_OPERATION, GetVisualPlanPayload,
+    NOVEL_PLANNING_WORKER_ID, PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
+    READ_VISUAL_PLAN_OPERATION, ReadVisualPlanPayload, SAVE_VISUAL_PLAN_DRAFT_OPERATION,
+    SaveVisualPlanDraftPayload, VALIDATE_VISUAL_PLAN_OPERATION, ValidateVisualPlanPayload,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -239,6 +243,54 @@ impl ChapterVisualPlanRecordPersistenceApplicationPort for NovelPlanningWorkerCl
             input.project_id,
             Some(input.expected_revision),
             DISCARD_VISUAL_PLAN_OPERATION,
+            input,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ChapterVisualPlanRecordReadApplicationPort for NovelPlanningWorkerClient {
+    async fn get(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanSourceInput,
+    ) -> Result<ChapterVisualPlanSetView, AppError> {
+        self.command::<GetVisualPlanPayload, ChapterVisualPlanSetView>(
+            user_id,
+            input.project_id,
+            None,
+            GET_VISUAL_PLAN_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn read(
+        &self,
+        user_id: i64,
+        input: ReadChapterVisualPlanInput,
+    ) -> Result<ChapterVisualPlanReadResult, AppError> {
+        self.command::<ReadVisualPlanPayload, ChapterVisualPlanReadResult>(
+            user_id,
+            input.project_id,
+            input.expected_revision,
+            READ_VISUAL_PLAN_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn validate(
+        &self,
+        user_id: i64,
+        input: ValidateChapterVisualPlanInput,
+    ) -> Result<ChapterVisualPlanValidationResult, AppError> {
+        self.command::<ValidateVisualPlanPayload, ChapterVisualPlanValidationResult>(
+            user_id,
+            input.project_id,
+            Some(input.expected_revision),
+            VALIDATE_VISUAL_PLAN_OPERATION,
             input,
         )
         .await

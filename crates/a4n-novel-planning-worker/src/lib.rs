@@ -3,8 +3,11 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::chapter_visual_plan::{
-    ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary, ChapterVisualPlanView,
-    ConfirmedChapterVisualPlanView, SaveChapterVisualPlanDraftInput,
+    ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary,
+    ChapterVisualPlanSetView, ChapterVisualPlanSourceInput, ChapterVisualPlanValidationResult,
+    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, ReadChapterVisualPlanInput,
+    SaveChapterVisualPlanDraftInput, ValidateChapterVisualPlanInput, VisualPlanOutlineItem,
+    VisualPlanProjection, VisualPlanReadView,
 };
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSourceInput,
@@ -16,10 +19,11 @@ use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_novel_planning_worker_contract::{
     CONFIRM_VISUAL_PLAN_OPERATION, DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION,
     EDIT_SHOOTING_SCRIPT_OPERATION, GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
-    NOVEL_PLANNING_WORKER_CONTRACT_VERSION, NOVEL_PLANNING_WORKER_ID,
-    PUBLISH_SHOOTING_SCRIPT_OPERATION, SAVE_VISUAL_PLAN_DRAFT_OPERATION,
-    SHOOTING_SCRIPT_CURRENT_CAPABILITY, SHOOTING_SCRIPT_DELETE_CAPABILITY,
-    SHOOTING_SCRIPT_EDIT_CAPABILITY, SHOOTING_SCRIPT_PUBLISH_CAPABILITY,
+    GET_VISUAL_PLAN_OPERATION, NOVEL_PLANNING_WORKER_CONTRACT_VERSION, NOVEL_PLANNING_WORKER_ID,
+    PUBLISH_SHOOTING_SCRIPT_OPERATION, READ_VISUAL_PLAN_OPERATION,
+    SAVE_VISUAL_PLAN_DRAFT_OPERATION, SHOOTING_SCRIPT_CURRENT_CAPABILITY,
+    SHOOTING_SCRIPT_DELETE_CAPABILITY, SHOOTING_SCRIPT_EDIT_CAPABILITY,
+    SHOOTING_SCRIPT_PUBLISH_CAPABILITY, VALIDATE_VISUAL_PLAN_OPERATION,
     VISUAL_PLAN_PERSISTENCE_CAPABILITY,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
@@ -108,6 +112,18 @@ impl NovelPlanningWorker {
             .route(
                 "/v1/commands/novel_planning.visual_plan.discard",
                 post(discard_visual_plan),
+            )
+            .route(
+                "/v1/commands/novel_planning.visual_plan.get",
+                post(get_visual_plan),
+            )
+            .route(
+                "/v1/commands/novel_planning.visual_plan.read",
+                post(read_visual_plan),
+            )
+            .route(
+                "/v1/commands/novel_planning.visual_plan.validate",
+                post(validate_visual_plan),
             )
             .with_state(self.state.clone())
     }
@@ -318,6 +334,51 @@ async fn discard_visual_plan(
         return unauthorized();
     }
     let response = match state.discard_visual_plan(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn get_visual_plan(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ChapterVisualPlanSourceInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.get_visual_plan(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn read_visual_plan(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ReadChapterVisualPlanInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.read_visual_plan(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn validate_visual_plan(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ValidateChapterVisualPlanInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.validate_visual_plan(request.clone()).await {
         Ok(payload) => completed(&request, payload),
         Err(error) => failed(&request, error),
     };
@@ -611,6 +672,194 @@ impl WorkerState {
         .map_err(visual_plan_error)
     }
 
+    async fn get_visual_plan(
+        &self,
+        request: WorkerEnvelope<ChapterVisualPlanSourceInput>,
+    ) -> Result<ChapterVisualPlanSetView, WorkerFailure> {
+        validate_request(&request, GET_VISUAL_PLAN_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = user_id(&request)?;
+        verify_family_permission(
+            self.database.connection(),
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let source = resolve_source(
+            self,
+            request.payload.project_id,
+            request.payload.source_chapter_id,
+        )
+        .await?;
+        let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
+            self.database.connection(),
+            &source,
+        )
+        .await
+        .map_err(visual_plan_error)?;
+        Ok(ChapterVisualPlanSetView {
+            source: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSourceView {
+                chapter_number: source.chapter_number,
+                title: source.title,
+                content: source.content,
+                content_sha256: source.content_sha256,
+            },
+            starter_plan: a4n_domain::chapter_visual_plan::ChapterVisualPlanV3::starter(),
+            draft: plans.draft.map(visual_plan_view),
+            confirmed: plans.confirmed.map(visual_plan_view),
+        })
+    }
+
+    async fn read_visual_plan(
+        &self,
+        request: WorkerEnvelope<ReadChapterVisualPlanInput>,
+    ) -> Result<ChapterVisualPlanReadResult, WorkerFailure> {
+        validate_request(&request, READ_VISUAL_PLAN_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        validate_optional_target_revision(&request, request.payload.expected_revision)?;
+        let user_id = user_id(&request)?;
+        verify_family_permission(
+            self.database.connection(),
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let source = resolve_source(
+            self,
+            request.payload.project_id,
+            request.payload.source_chapter_id,
+        )
+        .await?;
+        let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
+            self.database.connection(),
+            &source,
+        )
+        .await
+        .map_err(visual_plan_error)?;
+        let current = if let Some(record_id) = request.payload.record_id {
+            let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+                self.database.connection(),
+                record_id,
+            )
+            .await
+            .map_err(visual_plan_error)?;
+            ensure_visual_plan_belongs_to_source_record(&plan, &source)?;
+            if let Some(expected_revision) = request.payload.expected_revision
+                && plan.record.revision != expected_revision
+            {
+                return Err(visual_plan_revision_conflict(
+                    plan.record.id,
+                    expected_revision,
+                ));
+            }
+            Some(plan)
+        } else {
+            plans.draft.or(plans.confirmed)
+        };
+        let resource = current.as_ref().map(visual_plan_resource);
+        let starter_plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV3::starter();
+        let projection = match &request.payload.view {
+            VisualPlanReadView::Source {
+                offset,
+                limit,
+                expected_hash,
+            } => {
+                if expected_hash
+                    .as_ref()
+                    .is_some_and(|hash| hash != &source.content_sha256)
+                {
+                    return Err(WorkerFailure::conflict("原文版本已变化，请重新读取"));
+                }
+                let total_chars = source.content.chars().count();
+                let (start, end) = page_range(*offset, *limit, total_chars, 2_000, 2_000)?;
+                VisualPlanProjection::Source {
+                    text: source
+                        .content
+                        .chars()
+                        .skip(start)
+                        .take(end - start)
+                        .collect(),
+                    offset: *offset,
+                    total_chars,
+                    next_offset: next_offset(end, total_chars)?,
+                }
+            }
+            view => project_plan(
+                current.as_ref().map_or(&starter_plan, |plan| &plan.plan),
+                view,
+            )?,
+        };
+        Ok(ChapterVisualPlanReadResult {
+            resource,
+            source_hash: source.content_sha256,
+            projection,
+        })
+    }
+
+    async fn validate_visual_plan(
+        &self,
+        request: WorkerEnvelope<ValidateChapterVisualPlanInput>,
+    ) -> Result<ChapterVisualPlanValidationResult, WorkerFailure> {
+        validate_request(&request, VALIDATE_VISUAL_PLAN_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        validate_target_revision(&request, request.payload.expected_revision)?;
+        let user_id = user_id(&request)?;
+        verify_family_permission(
+            self.database.connection(),
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let source = resolve_source(
+            self,
+            request.payload.project_id,
+            request.payload.source_chapter_id,
+        )
+        .await?;
+        let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+            self.database.connection(),
+            request.payload.record_id,
+        )
+        .await
+        .map_err(visual_plan_error)?;
+        ensure_visual_plan_belongs_to_source_record(&plan, &source)?;
+        if plan.record.revision != request.payload.expected_revision {
+            return Err(visual_plan_revision_conflict(
+                plan.record.id,
+                request.payload.expected_revision,
+            ));
+        }
+        let result = match request.payload.mode {
+            a4n_api_contract::chapter_visual_plan::VisualPlanValidationMode::Draft => {
+                plan.plan.validate_draft()
+            }
+            a4n_api_contract::chapter_visual_plan::VisualPlanValidationMode::Confirmed => {
+                plan.plan.validate_confirmed()
+            }
+        };
+        let validation = a4n_api_contract::chapter_visual_plan::VisualPlanValidationResult {
+            mode: request.payload.mode,
+            valid: result.is_ok(),
+            diagnostics: result
+                .err()
+                .into_iter()
+                .map(
+                    |error| a4n_api_contract::chapter_visual_plan::VisualPlanDiagnostic {
+                        path: error.path,
+                        message: error.message,
+                    },
+                )
+                .collect(),
+        };
+        Ok(ChapterVisualPlanValidationResult {
+            resource: visual_plan_resource(&plan),
+            validation,
+        })
+    }
+
     async fn delete(
         &self,
         request: WorkerEnvelope<DeleteChapterShootingScriptInput>,
@@ -854,6 +1103,144 @@ fn visual_plan_view(
             confirmed_at: value.record.confirmed_at.map(|value| value.to_string()),
         },
         plan: value.plan,
+    }
+}
+
+fn visual_plan_resource(
+    current: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+) -> a4n_api_contract::agent::AgentResourceRef {
+    a4n_api_contract::agent::AgentResourceRef {
+        kind: "chapter_visual_plan".into(),
+        id: current.record.id.to_string(),
+        revision: Some(current.record.revision.to_string()),
+        hash: Some(current.record.plan_sha256.clone()),
+        label: Some(current.record.status.clone()),
+    }
+}
+
+fn ensure_visual_plan_belongs_to_source_record(
+    plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+    source: &a4n_db::project::ResolvedChapterSource,
+) -> Result<(), WorkerFailure> {
+    if plan.record.root_project_id != source.root_project_id
+        || plan.record.source_chapter_id != source.source_chapter_id
+        || plan.record.source_snapshot_id != source.source_snapshot_id
+        || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
+    {
+        return Err(WorkerFailure::invalid_request(
+            "章节视觉编排与当前章节正文不匹配",
+        ));
+    }
+    Ok(())
+}
+
+fn visual_plan_revision_conflict(record_id: i64, expected_revision: i32) -> WorkerFailure {
+    WorkerFailure::conflict(format!(
+        "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
+    ))
+}
+
+fn page_range(
+    offset: u32,
+    limit: Option<u32>,
+    total: usize,
+    default: u32,
+    max: u32,
+) -> Result<(usize, usize), WorkerFailure> {
+    let limit = limit.unwrap_or(default);
+    if limit == 0 || limit > max || offset as usize > total {
+        return Err(WorkerFailure::invalid_request(format!(
+            "分页范围无效：offset={offset}，limit 须为 1..={max}，total={total}"
+        )));
+    }
+    let start = offset as usize;
+    Ok((start, start.saturating_add(limit as usize).min(total)))
+}
+
+fn next_offset(end: usize, total: usize) -> Result<Option<u32>, WorkerFailure> {
+    (end < total)
+        .then(|| u32::try_from(end))
+        .transpose()
+        .map_err(|_| WorkerFailure::invalid_request("分页长度超出 u32"))
+}
+
+fn project_plan(
+    plan: &a4n_domain::chapter_visual_plan::ChapterVisualPlanV3,
+    view: &VisualPlanReadView,
+) -> Result<VisualPlanProjection, WorkerFailure> {
+    plan.validate_draft()
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+    match view {
+        VisualPlanReadView::Outline { offset, limit } => {
+            let total = plan.segments.len();
+            let (start, end) = page_range(*offset, *limit, total, 20, 100)?;
+            let items = plan.segments[start..end]
+                .iter()
+                .map(|segment| {
+                    let start_ms = plan
+                        .point(&segment.start_point_id)
+                        .expect("validated start")
+                        .at_ms;
+                    let end_ms = plan
+                        .point(&segment.end_point_id)
+                        .expect("validated end")
+                        .at_ms;
+                    VisualPlanOutlineItem {
+                        segment_id: segment.id.clone(),
+                        title: segment.title.clone(),
+                        start_ms,
+                        end_ms,
+                        scene_binding: segment.scene_binding.clone(),
+                        point_count: plan
+                            .points
+                            .iter()
+                            .filter(|point| point.at_ms >= start_ms && point.at_ms < end_ms)
+                            .count(),
+                    }
+                })
+                .collect();
+            Ok(VisualPlanProjection::Outline {
+                items,
+                total,
+                next_offset: next_offset(end, total)?,
+            })
+        }
+        VisualPlanReadView::Point { point_id } => {
+            let point = plan
+                .point(point_id)
+                .ok_or_else(|| WorkerFailure::not_found(format!("图片点不存在: {point_id}")))?;
+            Ok(VisualPlanProjection::Point {
+                point: point.clone(),
+            })
+        }
+        VisualPlanReadView::Segment { segment_id } => {
+            let segment = plan
+                .segments
+                .iter()
+                .find(|segment| segment.id == *segment_id)
+                .ok_or_else(|| WorkerFailure::not_found(format!("镜头段不存在: {segment_id}")))?;
+            let start = plan
+                .point(&segment.start_point_id)
+                .expect("validated start")
+                .at_ms;
+            let end = plan
+                .point(&segment.end_point_id)
+                .expect("validated end")
+                .at_ms;
+            let points = plan
+                .points
+                .iter()
+                .filter(|point| point.at_ms >= start && point.at_ms <= end)
+                .cloned()
+                .collect();
+            Ok(VisualPlanProjection::Segment {
+                segment: segment.clone(),
+                points,
+            })
+        }
+        VisualPlanReadView::Source { .. } => Err(WorkerFailure::invalid_request(
+            "原文由章节 source owner 读取",
+        )),
     }
 }
 

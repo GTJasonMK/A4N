@@ -1,8 +1,10 @@
 //! Typed command payloads owned by the novel-planning worker.
 
 pub use a4n_api_contract::chapter_visual_plan::{
-    ChapterVisualPlanRecordInput, ChapterVisualPlanView, ConfirmedChapterVisualPlanView,
-    SaveChapterVisualPlanDraftInput,
+    ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput, ChapterVisualPlanSetView,
+    ChapterVisualPlanSourceInput, ChapterVisualPlanValidationResult, ChapterVisualPlanView,
+    ConfirmedChapterVisualPlanView, ReadChapterVisualPlanInput, SaveChapterVisualPlanDraftInput,
+    ValidateChapterVisualPlanInput,
 };
 pub use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
@@ -27,6 +29,9 @@ pub const SAVE_VISUAL_PLAN_DRAFT_OPERATION: &str = "novel_planning.visual_plan.s
 pub const CONFIRM_VISUAL_PLAN_OPERATION: &str = "novel_planning.visual_plan.confirm";
 pub const DISCARD_VISUAL_PLAN_OPERATION: &str = "novel_planning.visual_plan.discard";
 pub const VISUAL_PLAN_PERSISTENCE_CAPABILITY: &str = "visual_plan.persistence";
+pub const GET_VISUAL_PLAN_OPERATION: &str = "novel_planning.visual_plan.get";
+pub const READ_VISUAL_PLAN_OPERATION: &str = "novel_planning.visual_plan.read";
+pub const VALIDATE_VISUAL_PLAN_OPERATION: &str = "novel_planning.visual_plan.validate";
 
 pub type CurrentShootingScriptPayload = ChapterShootingScriptSourceInput;
 pub type EditShootingScriptPayload = EditChapterShootingScriptInput;
@@ -35,6 +40,9 @@ pub type PublishShootingScriptPayload = PublishChapterShootingScriptInput;
 pub type SaveVisualPlanDraftPayload = SaveChapterVisualPlanDraftInput;
 pub type ConfirmVisualPlanPayload = ChapterVisualPlanRecordInput;
 pub type DiscardVisualPlanPayload = ChapterVisualPlanRecordInput;
+pub type GetVisualPlanPayload = ChapterVisualPlanSourceInput;
+pub type ReadVisualPlanPayload = ReadChapterVisualPlanInput;
+pub type ValidateVisualPlanPayload = ValidateChapterVisualPlanInput;
 
 #[cfg(test)]
 mod tests {

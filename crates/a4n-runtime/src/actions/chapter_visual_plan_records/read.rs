@@ -13,7 +13,7 @@ pub async fn get_chapter_visual_plan(
     input: ChapterVisualPlanSourceInput,
 ) -> Result<ChapterVisualPlanSetView, String> {
     state
-        .chapter_visual_plan_read_application()
+        .chapter_visual_plan_record_read_application()
         .get(user_id, input)
         .await
         .map_err(|error| error.to_string())
@@ -25,7 +25,7 @@ pub async fn read_chapter_visual_plan(
     input: ReadChapterVisualPlanInput,
 ) -> Result<ChapterVisualPlanReadResult, AppError> {
     state
-        .chapter_visual_plan_read_application()
+        .chapter_visual_plan_record_read_application()
         .read(user_id, input)
         .await
 }
@@ -36,7 +36,7 @@ pub async fn validate_chapter_visual_plan(
     input: ValidateChapterVisualPlanInput,
 ) -> Result<ChapterVisualPlanValidationResult, AppError> {
     state
-        .chapter_visual_plan_read_application()
+        .chapter_visual_plan_record_read_application()
         .validate(user_id, input)
         .await
 }

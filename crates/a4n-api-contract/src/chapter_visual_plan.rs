@@ -337,6 +337,28 @@ pub trait ChapterVisualPlanReadApplicationPort: Send + Sync {
     ) -> Result<ChapterVisualPlanValidationResult, a4n_error::AppError>;
 }
 
+/// Host-facing read boundary for persisted visual-plan records.
+#[async_trait::async_trait]
+pub trait ChapterVisualPlanRecordReadApplicationPort: Send + Sync {
+    async fn get(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanSourceInput,
+    ) -> Result<ChapterVisualPlanSetView, a4n_error::AppError>;
+
+    async fn read(
+        &self,
+        user_id: i64,
+        input: ReadChapterVisualPlanInput,
+    ) -> Result<ChapterVisualPlanReadResult, a4n_error::AppError>;
+
+    async fn validate(
+        &self,
+        user_id: i64,
+        input: ValidateChapterVisualPlanInput,
+    ) -> Result<ChapterVisualPlanValidationResult, a4n_error::AppError>;
+}
+
 /// Host-facing mutation boundary for chapter visual plans.
 ///
 /// Validation, revision checks, persistence and invalidation stay with the

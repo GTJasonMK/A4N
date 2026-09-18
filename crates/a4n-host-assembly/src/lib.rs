@@ -211,6 +211,7 @@ pub async fn initialize_runtime(
         video_record_lifecycle_application: Arc::new(orchestrator.clone()),
         video_canvas_media_application: Arc::new(orchestrator.clone()),
         chapter_visual_plan_read_application: Arc::new(orchestrator.clone()),
+        chapter_visual_plan_record_read_application: novel_planning_worker.clone(),
         chapter_visual_plan_mutation_application: Arc::new(orchestrator.clone()),
         chapter_visual_plan_record_persistence_application: novel_planning_worker.clone(),
         video_prompt_read_application: Arc::new(orchestrator.clone()),

@@ -464,6 +464,9 @@ pub struct ApplicationPorts {
     /// and DTO projection stay outside Runtime.
     pub chapter_visual_plan_read_application:
         Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadApplicationPort>,
+    pub chapter_visual_plan_record_read_application: Arc<
+        dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordReadApplicationPort,
+    >,
     pub chapter_visual_plan_mutation_application:
         Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort>,
     pub chapter_visual_plan_record_persistence_application: Arc<
