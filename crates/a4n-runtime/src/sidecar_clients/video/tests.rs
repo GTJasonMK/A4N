@@ -29,6 +29,12 @@ fn video_config() -> VideoProviderConfig {
     }
 }
 
+fn redacted_video_config() -> VideoProviderConfig {
+    let mut config = video_config();
+    config.api_key = None;
+    config
+}
+
 fn video_request() -> VideoGenerationRequest {
     VideoGenerationRequest {
         prompt: "test video".to_string(),
@@ -108,6 +114,49 @@ async fn video_provider_preview_uses_typed_capability_request() {
     assert_eq!(request.payload.backend, "openai-compatible-video");
     assert_eq!(request.payload.api_key, "test-key");
     assert_eq!(request.payload.request.prompt, "test video");
+}
+
+#[tokio::test]
+async fn video_provider_preview_accepts_redacted_config_without_secret() {
+    let client = Arc::new(
+        RecordingVideoClient::new().with_preview_response(successful_video_preview_response()),
+    );
+    preview_video_provider_request(
+        Some(client.clone()),
+        &redacted_video_config(),
+        video_request(),
+        Some(42),
+        Some(3),
+    )
+    .await
+    .expect("redacted video provider preview");
+
+    let request = client
+        .last_preview_request()
+        .expect("recorded preview request");
+    assert_eq!(request.payload.api_key, "");
+    assert!(request.secret_policy.is_secret_free());
+}
+
+#[tokio::test]
+async fn video_generation_still_requires_secret_with_redacted_config() {
+    let client = Arc::new(RecordingVideoClient::new());
+    let error = generate_video(
+        RuntimeProfile::Sidecar,
+        Some(client.clone()),
+        &redacted_video_config(),
+        video_request(),
+        None,
+        Some(42),
+        Some(3),
+        None,
+        None,
+    )
+    .await
+    .expect_err("video generation must require an API key");
+
+    assert!(error.contains("视频生成配置缺少 api_key_encrypted"));
+    assert_eq!(client.generate_call_count(), 0);
 }
 
 #[tokio::test]

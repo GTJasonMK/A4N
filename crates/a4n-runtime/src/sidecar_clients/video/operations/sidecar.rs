@@ -12,7 +12,7 @@ use super::super::super::{
 };
 use super::super::contracts::{
     VideoDeleteOutput, VideoJobOutput, VideoPollPayload, VideoStatusOutput, video_config_params,
-    video_generation_result, video_provider_payload,
+    video_generation_result, video_provider_preview_payload,
 };
 
 pub(crate) async fn preview_video_provider_request(
@@ -23,7 +23,7 @@ pub(crate) async fn preview_video_provider_request(
     root_project_id: Option<i64>,
 ) -> Result<Value, String> {
     let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
-    let payload = video_provider_payload(config, request, None, project_id)?;
+    let payload = video_provider_preview_payload(config, request, project_id)?;
     let response = client
         .preview_request(typed_service_request_with_context_provider_secret_policy(
             SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id),
