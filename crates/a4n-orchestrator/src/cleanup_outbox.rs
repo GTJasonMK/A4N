@@ -1,1 +1,1 @@
-pub use a4n_cleanup_contract::CleanupOutboxApplicationPort;
+pub(crate) use a4n_cleanup_contract::CleanupOutboxApplicationPort;

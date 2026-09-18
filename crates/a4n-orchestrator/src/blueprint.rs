@@ -31,7 +31,7 @@ mod json;
 mod persistence;
 mod refine;
 
-pub use a4n_blueprint_contract::{
+pub(crate) use a4n_blueprint_contract::{
     BlueprintGenerationApplicationPort, BlueprintGenerationPreviewApplicationPort,
     BlueprintGenerationPreviewStep, BlueprintRefinementApplicationPort,
     BlueprintRefinementPreviewApplicationPort,
