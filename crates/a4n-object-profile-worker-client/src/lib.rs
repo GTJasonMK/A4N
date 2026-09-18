@@ -1,9 +1,14 @@
-//! Typed Host adapter for the object profile read worker.
+//! Typed Host adapter for the object profile worker.
 
-use a4n_api_contract::profile::{ObjectProfileReadApplicationPort, ObjectProfileSummary};
+use a4n_api_contract::profile::{
+    CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileReadApplicationPort,
+    ObjectProfileSummary, UpdateObjectProfileInput,
+};
 use a4n_error::AppError;
 use a4n_object_profile_worker_contract::{
-    OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_WORKER_ID, ObjectProfileProjectInput,
+    OBJECT_PROFILE_CREATE_OPERATION, OBJECT_PROFILE_DELETE_OPERATION,
+    OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_UPDATE_OPERATION, OBJECT_PROFILE_WORKER_ID,
+    ObjectProfileDeleteResponse, ObjectProfileMutationResponse, ObjectProfileProjectInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -53,7 +58,7 @@ impl ObjectProfileWorkerClient {
     async fn command<I, O>(
         &self,
         user_id: i64,
-        project_id: i64,
+        project_id: Option<i64>,
         operation_id: &str,
         payload: I,
     ) -> Result<O, AppError>
@@ -61,7 +66,7 @@ impl ObjectProfileWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if user_id <= 0 || project_id <= 0 {
+        if user_id <= 0 || project_id.is_some_and(|id| id <= 0) {
             return Err(AppError::InvalidArgument(
                 "user_id 和 project_id 必须大于 0".into(),
             ));
@@ -77,7 +82,7 @@ impl ObjectProfileWorkerClient {
             },
             operation_id: operation_id.to_string(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
-            project_id: Some(project_id),
+            project_id,
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
@@ -109,6 +114,21 @@ impl ObjectProfileWorkerClient {
             ))),
         }
     }
+
+    async fn mutation_command<I, O>(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        operation_id: &str,
+        payload: I,
+    ) -> Result<O, AppError>
+    where
+        I: serde::Serialize,
+        O: serde::de::DeserializeOwned,
+    {
+        self.command(user_id, project_id, operation_id, payload)
+            .await
+    }
 }
 
 #[async_trait::async_trait]
@@ -120,11 +140,61 @@ impl ObjectProfileReadApplicationPort for ObjectProfileWorkerClient {
     ) -> Result<Vec<ObjectProfileSummary>, AppError> {
         self.command(
             user_id,
-            project_id,
+            Some(project_id),
             OBJECT_PROFILE_LIST_OPERATION,
             ObjectProfileProjectInput { project_id },
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::profile::ObjectProfileMutationApplicationPort for ObjectProfileWorkerClient {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateObjectProfileInput,
+    ) -> Result<a4n_api_contract::profile::ObjectProfileMutationOutcome, AppError> {
+        let response: ObjectProfileMutationResponse = self
+            .mutation_command(
+                user_id,
+                Some(input.project_id),
+                OBJECT_PROFILE_CREATE_OPERATION,
+                input,
+            )
+            .await?;
+        Ok(a4n_api_contract::profile::ObjectProfileMutationOutcome {
+            result: response.result,
+            downstream_image_ids: response.downstream_image_ids,
+        })
+    }
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateObjectProfileInput,
+    ) -> Result<a4n_api_contract::profile::ObjectProfileMutationOutcome, AppError> {
+        let response: ObjectProfileMutationResponse = self
+            .mutation_command(user_id, None, OBJECT_PROFILE_UPDATE_OPERATION, input)
+            .await?;
+        Ok(a4n_api_contract::profile::ObjectProfileMutationOutcome {
+            result: response.result,
+            downstream_image_ids: response.downstream_image_ids,
+        })
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteObjectProfileInput,
+    ) -> Result<a4n_api_contract::profile::ObjectProfileDeleteOutcome, AppError> {
+        let response: ObjectProfileDeleteResponse = self
+            .mutation_command(user_id, None, OBJECT_PROFILE_DELETE_OPERATION, input)
+            .await?;
+        Ok(a4n_api_contract::profile::ObjectProfileDeleteOutcome {
+            result: response.result,
+            downstream_image_ids: response.downstream_image_ids,
+        })
     }
 }
 
