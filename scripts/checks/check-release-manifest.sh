@@ -48,6 +48,21 @@ ruby scripts/release_manifest.rb verify \
     --manifest "$tmp_dir/release-manifest.json"
 (cd "$tmp_dir" && sha256sum -c release-manifest.sha256 >/dev/null)
 rg -q '^[0-9a-fA-F]{64}  release-manifest\.json$' "$tmp_dir/release-manifest.sha256"
+
+server_tmp="$tmp_dir/server-package"
+mkdir -p "$server_tmp"
+cp -a "$tmp_dir/bin" "$server_tmp/"
+printf 'server-host\n' > "$server_tmp/bin/a4n-server"
+ruby scripts/release_manifest.rb generate \
+    --package-root "$server_tmp" \
+    --target linux-x86_64 \
+    --package a4n-server \
+    --output "$server_tmp/release-manifest.json"
+ruby scripts/release_manifest.rb verify \
+    --package-root "$server_tmp" \
+    --manifest "$server_tmp/release-manifest.json"
+(cd "$server_tmp" && sha256sum -c release-manifest.sha256 >/dev/null)
+
 printf 'tampered\n' >> "$tmp_dir/bin/services/$first_sidecar_binary"
 if (cd "$tmp_dir" && sha256sum -c release-manifest.sha256 >/dev/null 2>&1); then
     echo "tampered release binary unexpectedly passed checksum verification" >&2

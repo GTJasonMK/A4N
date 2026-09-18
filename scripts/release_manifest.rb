@@ -146,6 +146,10 @@ def load_tool_catalog(root)
   )
 end
 
+def tool_catalog_for_package(tool_catalog, package)
+  tool_catalog.reject { |entry| entry.fetch("package") == package }
+end
+
 def load_release_inventories(root)
   service_catalog = load_service_catalog(root)
   tool_catalog = load_tool_catalog(root)
@@ -255,6 +259,7 @@ def generate(options)
   package = required_identifier_option(options, :package)
   output = Pathname(required_option(options, :output)).expand_path
   catalog, tool_catalog = load_release_inventories(root)
+  tool_catalog = tool_catalog_for_package(tool_catalog, package)
   selected_catalog = selected_service_catalog(catalog, options[:services])
   extension = binary_extension(target)
   protocol = protocol_version(root)
@@ -366,6 +371,7 @@ def verify(options)
   manifest = JSON.parse(File.read(path))
   fail_with("manifest schema version is unsupported") unless manifest.fetch("schema_version") == schema_version
   package = manifest.fetch("package")
+  tool_catalog = tool_catalog_for_package(tool_catalog, package)
   version = manifest.fetch("version")
   target = manifest.fetch("target")
   protocol = manifest.fetch("protocol_version")
