@@ -76,7 +76,9 @@ impl VideoStudioProjectPackage {
 }
 
 /// 组装视频画布导出 manifest。
-pub(crate) use export_assembly::assemble_video_studio_export_package;
+pub(crate) use export_assembly::{
+    assemble_video_studio_export_package, assemble_video_studio_project_canvas_package,
+};
 
 /// 校验包 manifest 与媒体 payload 一致性（纯规则，无 DB）。
 pub(crate) fn validate_package_manifest(

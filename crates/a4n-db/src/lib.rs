@@ -33,6 +33,7 @@ pub mod outline;
 pub mod package;
 pub mod profile_material;
 pub mod project;
+pub mod project_bundle;
 pub mod project_delete;
 pub mod project_dependency_graph;
 pub mod project_family_import;

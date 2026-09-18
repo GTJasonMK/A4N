@@ -2,6 +2,7 @@ use a4n_api_contract::project_transfer::{
     ProjectPackageExportInput, ProjectPackageImportPayload, ProjectPackageTransferHostPort,
 };
 use async_trait::async_trait;
+use sha2::{Digest, Sha256};
 
 use crate::{AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project};
 use a4n_storage::write_new_data_file;
@@ -46,8 +47,33 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
 
     async fn render_export_package(
         &self,
-        input: ProjectPackageExportInput,
+        mut input: ProjectPackageExportInput,
     ) -> Result<Vec<u8>, String> {
+        let mut media_sha256 = serde_json::Map::new();
+        for media in &input.media_files {
+            let source = a4n_storage::canonicalize_data_file_path(
+                self.state.data_dir(),
+                &media.original_path,
+                &input.package_label,
+            )?;
+            let bytes = std::fs::read(&source)
+                .map_err(|error| format!("读取媒体文件失败: {}: {error}", source.display()))?;
+            let digest = Sha256::digest(&bytes);
+            media_sha256.insert(
+                media.package_path.clone(),
+                serde_json::Value::String(
+                    digest.iter().map(|byte| format!("{byte:02x}")).collect(),
+                ),
+            );
+        }
+        if !media_sha256.is_empty() {
+            if let Some(manifest) = input.manifest.as_object_mut() {
+                manifest.insert(
+                    "media_sha256".to_string(),
+                    serde_json::Value::Object(media_sha256),
+                );
+            }
+        }
         let manifest = crate::sidecar_clients::render_export_json_manifest_bytes(
             self.state.runtime_profile(),
             self.state.capabilities().export.clone(),

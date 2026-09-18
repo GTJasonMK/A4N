@@ -35,6 +35,7 @@ mod package;
 mod profile_material;
 mod profile_mutation;
 mod project_blueprint;
+mod project_bundle_transfer;
 mod project_chapter_context;
 mod project_chapter_records;
 mod project_duplication;

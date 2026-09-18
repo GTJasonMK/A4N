@@ -426,6 +426,7 @@ command_specs! {
     "export_markdown_data" => args_export_epub_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_outline_json_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
     "export_pdf_data" => args_export_characters_json_data, result_export_characters_json_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
+    "export_project_bundle_data" => args_export_project_bundle_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_EXPORT);
     "export_project_family_data" => args_export_project_family_data, result_export_project_package_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS), capabilities(CAPABILITIES_EXPORT);
     "export_theme" => args_activate_theme, result_string, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), capabilities(CAPABILITIES_EXPORT);
     "export_theme_package" => args_activate_theme, result_theme_package_export, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), capabilities(CAPABILITIES_EXPORT);
@@ -488,12 +489,14 @@ command_specs! {
     "import_canvas_media" => args_import_canvas_media, result_import_canvas_media, "canvas", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_chapter" => args_import_chapter, result_chapter_summary, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "import_galgame_audio" => args_import_galgame_audio, result_bind_galgame_media, "galgame", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_IMPORT);
+    "import_project_bundle_upload" => args_import_project_bundle_upload, result_project_bundle_import_report, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_family_upload" => args_import_project_family_upload, result_project_summaries, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_text_upload" => args_import_project_text_upload, result_import_reviews, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_theme" => args_create_theme, result_activate_theme, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_theme_package" => args_theme_package_upload, result_activate_theme, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_video_studio_project_upload" => args_import_video_studio_project_upload, result_create_project, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_VIDEO_IMPORT);
     "insert_galgame_line" => args_insert_galgame_line, result_insert_galgame_line, "galgame", context(PROJECT_CONTEXT), references(REFERENCES_GALGAME_LINE_IDS);
+    "inspect_project_bundle_upload" => args_inspect_project_bundle_upload, result_project_bundle_import_report, "import", context(NO_CONTEXT), effect(READ_EFFECT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "invite_project_member" => args_invite_project_member, result_unit, "project", context(PROJECT_CONTEXT);
     "leave_project" => empty_args_schema, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "list_active_workflows" => empty_args_schema, result_list_active_workflows, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_TASK_IDS);
@@ -1641,6 +1644,10 @@ fn args_export_project_family_data() -> Value {
     strict_typed_input_schema::<crate::project_transfer::ExportProjectFamilyDataInput>()
 }
 
+fn args_export_project_bundle_data() -> Value {
+    strict_typed_input_schema::<crate::project_transfer::ExportProjectBundleDataInput>()
+}
+
 fn args_export_video_studio_project_data() -> Value {
     strict_typed_input_schema::<crate::project_transfer::ExportVideoStudioProjectDataInput>()
 }
@@ -1807,6 +1814,14 @@ fn args_import_galgame_audio() -> Value {
 }
 
 fn args_import_project_family_upload() -> Value {
+    strict_typed_input_schema::<crate::project_transfer::ImportProjectPackageUploadInput>()
+}
+
+fn args_inspect_project_bundle_upload() -> Value {
+    strict_typed_input_schema::<crate::project_transfer::InspectProjectBundleUploadInput>()
+}
+
+fn args_import_project_bundle_upload() -> Value {
     strict_typed_input_schema::<crate::project_transfer::ImportProjectPackageUploadInput>()
 }
 
@@ -2881,6 +2896,10 @@ fn result_scene_profile_mutation() -> Value {
 
 fn result_export_project_package_data() -> Value {
     typed_schema::<crate::project_transfer::ExportProjectPackageData>()
+}
+
+fn result_project_bundle_import_report() -> Value {
+    typed_schema::<crate::project_transfer::ProjectBundleImportReport>()
 }
 
 fn result_delete_profile() -> Value {

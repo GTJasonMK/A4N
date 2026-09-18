@@ -22,6 +22,7 @@ fn content_optimization_chat_user_message_uses_session_context() {
         archived_at: None,
         created_at: now,
         updated_at: now,
+        archived_at: None,
     };
 
     let prompt = build_content_optimization_chat_user_message(

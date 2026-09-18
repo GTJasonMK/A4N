@@ -101,6 +101,7 @@ export const HOST_API_COMMANDS = [
   "export_markdown_data",
   "export_outline_json_data",
   "export_pdf_data",
+  "export_project_bundle_data",
   "export_project_family_data",
   "export_theme",
   "export_theme_package",
@@ -163,12 +164,14 @@ export const HOST_API_COMMANDS = [
   "import_canvas_media",
   "import_chapter",
   "import_galgame_audio",
+  "import_project_bundle_upload",
   "import_project_family_upload",
   "import_project_text_upload",
   "import_theme",
   "import_theme_package",
   "import_video_studio_project_upload",
   "insert_galgame_line",
+  "inspect_project_bundle_upload",
   "invite_project_member",
   "leave_project",
   "list_active_workflows",
@@ -420,6 +423,7 @@ export const HOST_API_COMMANDS = [
 
 export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];
 
+export const PROJECT_BUNDLE_PACKAGE_SUFFIX = ".a4n-project.zip";
 export const PROJECT_FAMILY_PACKAGE_SUFFIX = ".a4n-family.zip";
 export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = ".a4n-video-studio.zip";
 
@@ -2738,6 +2742,11 @@ export interface ExportProjectFamilyDataInput {
   root_project_id: number;
 }
 
+export interface ExportProjectBundleDataInput {
+  include_derived_projects: boolean;
+  project_id: number;
+}
+
 export interface ExportDerivedProjectDataInput {
   derived_project_id: number;
 }
@@ -2754,6 +2763,25 @@ export interface ExportProjectPackageData {
 export interface ImportProjectPackageUploadInput {
   data_base64: string;
   file_name: string;
+}
+
+export interface ProjectBundleImportReport {
+  conversations_imported: number;
+  generation_runs_imported: number;
+  messages_imported: number;
+  missing_provider_slots: ProjectBundleProviderSlotReport[];
+  project_summaries: ProjectSummary[];
+  warnings: string[];
+  workflow_runs_imported: number;
+  workflow_runs_marked_interrupted: number;
+}
+
+export interface ProjectBundleProviderSlotReport {
+  configuration_fingerprint_sha256: string;
+  model: string | null;
+  provider: string | null;
+  slot_key: string;
+  status: string;
 }
 
 export type ImportReviewStatus = "pending" | "accepted" | "rejected" | "modified";

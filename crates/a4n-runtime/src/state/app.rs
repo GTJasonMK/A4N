@@ -826,6 +826,12 @@ impl AppState {
         self.project_family_transfer_application.as_ref()
     }
 
+    pub(crate) fn project_bundle_transfer_application(
+        &self,
+    ) -> &dyn a4n_api_contract::project_transfer::ProjectBundleTransferApplicationPort {
+        self.project_bundle_transfer_application.as_ref()
+    }
+
     pub(crate) fn video_studio_transfer_application(
         &self,
     ) -> &dyn a4n_api_contract::project_transfer::VideoStudioProjectTransferApplicationPort {

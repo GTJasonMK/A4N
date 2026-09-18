@@ -21,6 +21,7 @@ pub(in crate::routes::commands) use status::{
     forward_project_status, get_project_status_machine, preview_rollback, rollback_project_status,
 };
 pub(in crate::routes::commands) use transfer::{
-    export_derived_project_data, export_project_family_data, export_video_studio_project_data,
-    import_project_family_upload, import_video_studio_project_upload,
+    export_derived_project_data, export_project_bundle_data, export_project_family_data,
+    export_video_studio_project_data, import_project_bundle_upload, import_project_family_upload,
+    import_video_studio_project_upload, inspect_project_bundle_upload,
 };

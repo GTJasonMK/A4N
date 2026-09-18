@@ -1,12 +1,17 @@
+mod bundle_api;
 mod family_api;
 mod host_port;
 mod package_files;
 mod video_studio_api;
 
 pub use a4n_api_contract::project_transfer::{
-    ExportDerivedProjectDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
-    ExportVideoStudioProjectDataInput, ImportProjectPackageUploadInput,
-    PROJECT_FAMILY_PACKAGE_SUFFIX, VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+    ExportDerivedProjectDataInput, ExportProjectBundleDataInput, ExportProjectFamilyDataInput,
+    ExportProjectPackageData, ExportVideoStudioProjectDataInput, ImportProjectPackageUploadInput,
+    PROJECT_BUNDLE_PACKAGE_SUFFIX, PROJECT_FAMILY_PACKAGE_SUFFIX,
+    VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+};
+pub use bundle_api::{
+    export_project_bundle_data, import_project_bundle_upload, inspect_project_bundle_upload,
 };
 pub use family_api::{
     export_derived_project_data, export_project_family_data, import_project_family_upload,

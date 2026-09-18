@@ -81,6 +81,19 @@ pub fn canvas_config_f32(config: &Value, key: &str) -> Option<f32> {
         .map(|value| value as f32)
 }
 
+pub fn ensure_canvas_provider_slot_ready(config: &Value, capability: &str) -> Result<(), String> {
+    if config
+        .get("a4n_provider_slot_unresolved")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return Err(format!(
+            "画布节点缺少可用的 {capability} Provider 配置；请先绑定本机配置，系统不会静默回退默认模型"
+        ));
+    }
+    Ok(())
+}
+
 /// 是否为可执行操作节点 kind。
 pub fn canvas_node_is_operation(kind: &str) -> bool {
     matches!(

@@ -883,6 +883,7 @@ fn build_canvas_video_node_input(
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n");
+    crate::canvas::ensure_canvas_provider_slot_ready(&node.config_json, "视频")?;
     if prompt.trim().is_empty() {
         return Err("GenerateVideoNode 缺少 prompt 输入".to_string());
     }

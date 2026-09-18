@@ -73,6 +73,8 @@ pub struct ApplicationPorts {
     /// adapters and receives summaries rather than ORM records.
     pub project_family_transfer_application:
         Arc<dyn a4n_api_contract::project_transfer::ProjectFamilyTransferApplicationPort>,
+    pub project_bundle_transfer_application:
+        Arc<dyn a4n_api_contract::project_transfer::ProjectBundleTransferApplicationPort>,
     /// Video-studio package transfer owner. Runtime supplies archive/file
     /// adapters and receives summaries rather than ORM records.
     pub video_studio_transfer_application:
