@@ -28,7 +28,6 @@ import {
   refineBlueprint,
   syncBlueprintMaterials,
 } from "../api/blueprint";
-import { generationClient } from "../api/generationTasks";
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { OverviewTab } from "./novel-detail/OverviewTab";
 import { useStatusBarPermanent } from "../components/ui/StatusBar";
@@ -42,6 +41,7 @@ import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
 import { cancelWorkflowTask } from "../api/streaming";
+import { runGenerationProgressTaskThen } from "../hooks/runGenerationProgressTask";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
@@ -489,8 +489,9 @@ export const NovelDetail: React.FC = () => {
         confirmText: t("novel.startRefine"),
       });
       if (focus === null || !isCurrentProject(requestProjectId)) return;
-      requestSeq = refineSeqRef.current + 1;
-      refineSeqRef.current = requestSeq;
+      const activeRequestSeq = refineSeqRef.current + 1;
+      requestSeq = activeRequestSeq;
+      refineSeqRef.current = activeRequestSeq;
       setRefining(true);
       const handle = await refineBlueprint({
         project_id: requestProjectId,
@@ -498,14 +499,37 @@ export const NovelDetail: React.FC = () => {
         variables: null,
       });
       if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      const task = await generationClient.waitForTerminal(handle);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      await refresh(requestProjectId);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
+      const syncWarnings = await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
+        {
+          title: t("novel.refineBlueprint"),
+          startMessage: t("novel.refiningBlueprint"),
+          successMessage: t("novel.blueprintRefined"),
+          errorMessage: t("novel.refineBlueprintFailed"),
+          total: 4,
+          cancelLabel: t("feedback.progressCancel"),
+          runningHint: t("feedback.progressRunningHint"),
+        },
+        async (task) => {
+          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          await loadBlueprintTaskResult(requestProjectId, task.resultRef);
+          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          const warnings = await syncBlueprintMaterials(requestProjectId);
+          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          await refresh(requestProjectId);
+          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          return warnings;
+        },
+      );
       addToast(
         syncWarnings.length > 0
           ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
@@ -513,12 +537,20 @@ export const NovelDetail: React.FC = () => {
         syncWarnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
+      const message = extractErrorMessage(err, t("novel.refineBlueprintFailed"));
+      const cancelled = isCancelledOperation(message);
       if (requestSeq == null) {
         if (isCurrentProject(requestProjectId)) {
-          addToast(extractErrorMessage(err, t("novel.refineBlueprintFailed")), "error");
+          addToast(
+            cancelled ? t("feedback.progressCancelled") : message,
+            cancelled ? "info" : "error",
+          );
         }
       } else if (isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.refineBlueprintFailed")), "error");
+        addToast(
+          cancelled ? t("feedback.progressCancelled") : message,
+          cancelled ? "info" : "error",
+        );
       }
     } finally {
       if (requestSeq == null) {

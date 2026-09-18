@@ -17,12 +17,14 @@ import {
   syncBlueprintMaterials,
   type Blueprint,
 } from "../../api/blueprint";
-import { generationClient } from "../../api/generationTasks";
 import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
 import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
+import { isCancelledOperation } from "../../utils/cancellation";
 import { nonEmptyText } from "../../utils/text";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
 
 const ProjectCollaborationPanel = lazy(() =>
@@ -67,6 +69,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const { runProgressTask } = useProgressTask();
   const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -181,14 +184,37 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         variables: null,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const task = await generationClient.waitForTerminal(handle);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      await load();
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      const syncWarnings = await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
+        {
+          title: t("novel.refineBlueprint"),
+          startMessage: t("novel.refiningBlueprint"),
+          successMessage: t("novel.blueprintRefined"),
+          errorMessage: t("novel.refineBlueprintFailed"),
+          total: 4,
+          cancelLabel: t("feedback.progressCancel"),
+          runningHint: t("feedback.progressRunningHint"),
+        },
+        async (task) => {
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          await loadBlueprintTaskResult(requestProjectId, task.resultRef);
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          const warnings = await syncBlueprintMaterials(requestProjectId);
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          await load();
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          return warnings;
+        },
+      );
       addToast(
         syncWarnings.length > 0
           ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
@@ -198,7 +224,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       await onRefresh();
     } catch (err) {
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      addToast(extractErrorMessage(err, t("novel.refineBlueprintFailed")), "error");
+      const message = extractErrorMessage(err, t("novel.refineBlueprintFailed"));
+      addToast(
+        isCancelledOperation(message) ? t("feedback.progressCancelled") : message,
+        isCancelledOperation(message) ? "info" : "error",
+      );
     } finally {
       if (refineSeqRef.current === requestSeq) refiningRef.current = false;
       if (isCurrentRefine(requestProjectId, requestSeq)) setRefining(false);

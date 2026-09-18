@@ -11,7 +11,6 @@ import {
   updateWorldSetting,
   type Blueprint,
 } from "../../api/blueprint";
-import { generationClient } from "../../api/generationTasks";
 import { WorldDetailModal } from "./world/WorldDetailModal";
 import { WorldEditor } from "./world/WorldEditor";
 import { WorldPanelHeader } from "./world/WorldPanelHeader";
@@ -23,7 +22,10 @@ import {
   type WorldEditMode,
   worldSettingSaveNotice,
 } from "./world/worldTabUtils";
+import { isCancelledOperation } from "../../utils/cancellation";
 import { nonEmptyText } from "../../utils/text";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
+import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
 
 interface WorldTabProps {
@@ -39,6 +41,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
+  const { runProgressTask } = useProgressTask();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [worldValue, setWorldValue] = useState<unknown | null>(null);
@@ -222,14 +225,37 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         variables: null,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const task = await generationClient.waitForTerminal(handle);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      await load();
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      const syncWarnings = await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
+        {
+          title: t("novel.world.refine"),
+          startMessage: t("novel.world.refining"),
+          successMessage: t("novel.world.refined"),
+          errorMessage: t("novel.world.refineFailed"),
+          total: 4,
+          cancelLabel: t("feedback.progressCancel"),
+          runningHint: t("feedback.progressRunningHint"),
+        },
+        async (task) => {
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          await loadBlueprintTaskResult(requestProjectId, task.resultRef);
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          const warnings = await syncBlueprintMaterials(requestProjectId);
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          await load();
+          if (!isCurrentRefine(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          return warnings;
+        },
+      );
       addToast(
         syncWarnings.length > 0
           ? t("novel.world.refinedWithWarnings", {
@@ -240,7 +266,11 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       );
     } catch (err) {
       if (isCurrentRefine(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.world.refineFailed")), "error");
+        const message = extractErrorMessage(err, t("novel.world.refineFailed"));
+        addToast(
+          isCancelledOperation(message) ? t("feedback.progressCancelled") : message,
+          isCancelledOperation(message) ? "info" : "error",
+        );
       }
     } finally {
       if (refineSeqRef.current === requestSeq) {
