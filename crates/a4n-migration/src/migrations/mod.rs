@@ -78,6 +78,7 @@ pub mod model_cost_pricing;
 pub mod model_usage_ledger;
 pub mod neutral_video_segment_plan;
 pub mod object_profile_usage_fields;
+pub mod optimization_session_agent_unification;
 pub mod package_lifecycle;
 pub mod page_cli_enabled;
 pub mod postgres_baseline;

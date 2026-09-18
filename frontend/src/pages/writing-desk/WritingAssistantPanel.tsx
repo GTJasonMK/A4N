@@ -6,7 +6,6 @@ import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { OptimizeTab } from "../novel-detail/OptimizeTab";
-import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import { AssistantContextPanel } from "./AssistantContextPanel";
 import { StreamControlBar } from "./StreamControlBar";
 import { useI18n } from "../../i18n";
@@ -42,9 +41,6 @@ interface WritingAssistantPanelProps {
   onPreviewPrompt: () => void | Promise<void>;
   onOpenScenes: () => void | Promise<void>;
   onChapterContentChanged: (chapterId: number) => void | Promise<void>;
-  onPatchPreviewChange: (
-    preview: OptimizationPatchPreviewController | null,
-  ) => void;
 }
 
 type AssistantMode = "generate" | "optimize";
@@ -80,7 +76,6 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
   onPreviewPrompt,
   onOpenScenes,
   onChapterContentChanged,
-  onPatchPreviewChange,
 }) => {
   const { t } = useI18n();
   const [assistantMode, setAssistantMode] = useState<AssistantMode>(initialMode ?? "generate");
@@ -237,11 +232,10 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <OptimizeTab
             projectId={projectId}
+            chapters={chapters}
             fixedChapterId={activeChapter.id}
-            initialViewMode={initialMode === "optimize" ? "agent" : "session"}
             embedded
             onChapterContentChanged={onChapterContentChanged}
-            onPatchPreviewChange={onPatchPreviewChange}
           />
         </div>
       ) : (
