@@ -7,8 +7,6 @@ use serde_json::{Value, json};
 use crate::workflow::workflow_checkpoint_contract_app_error;
 use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 
-mod design_brief;
-
 mod application;
 mod generation;
 mod llm_stream;

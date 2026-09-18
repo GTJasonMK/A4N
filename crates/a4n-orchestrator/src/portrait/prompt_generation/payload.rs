@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 #[cfg(test)]
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::design_brief::character_sheet_generation_fields;
 use super::contracts::PortraitPromptSpec;
+use a4n_domain::character::character_sheet_generation_fields;
 
 pub(super) struct PortraitPromptPayloadInput<'a> {
     pub(super) spec: PortraitPromptSpec<'a>,
