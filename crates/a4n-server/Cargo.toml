@@ -15,7 +15,6 @@ test-embedded-processes = [
     "dep:a4n-object-profile-worker",
     "dep:a4n-outline-worker",
     "dep:a4n-portrait-worker",
-    "dep:a4n-portrait-worker",
     "dep:a4n-source-snapshot-worker",
     "dep:a4n-scene-profile-worker",
     "dep:a4n-control",
