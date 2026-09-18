@@ -316,21 +316,6 @@ impl a4n_api_contract::project::ProjectReadApplicationPort for OrchestratorConte
         self.list_project_summaries(user_id, input).await
     }
 
-    async fn source_snapshot_chapters(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<a4n_domain::project::SourceSnapshotChapterSummary>, AppError> {
-        OrchestratorContext::verify_project_permission(
-            self,
-            project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Viewer,
-        )
-        .await?;
-        OrchestratorContext::source_snapshot_chapters(self, project_id).await
-    }
-
     async fn all_project_ids(&self) -> Result<Vec<i64>, AppError> {
         OrchestratorContext::project_ids(self).await
     }

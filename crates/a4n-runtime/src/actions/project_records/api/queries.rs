@@ -82,8 +82,8 @@ pub async fn list_source_snapshot_chapters(
     project_id: i64,
 ) -> Result<Vec<SourceSnapshotChapterSummary>, String> {
     state
-        .project_read_application()
-        .source_snapshot_chapters(user_id, project_id)
+        .project_source_snapshot_read_application()
+        .chapters(user_id, project_id)
         .await
         .map_err(app_error_message)
 }

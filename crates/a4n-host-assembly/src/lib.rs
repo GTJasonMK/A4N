@@ -60,6 +60,8 @@ pub async fn initialize_runtime(
     let scene_profile_worker =
         Arc::new(a4n_scene_profile_worker_client::SceneProfileWorkerClient::from_env());
     let portrait_worker = Arc::new(a4n_portrait_worker_client::PortraitWorkerClient::from_env());
+    let source_snapshot_worker =
+        Arc::new(a4n_source_snapshot_worker_client::SourceSnapshotWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -86,6 +88,7 @@ pub async fn initialize_runtime(
         project_collaboration_application: Arc::new(orchestrator.clone()),
         project_access_application: Arc::new(orchestrator.clone()),
         project_read_application: Arc::new(orchestrator.clone()),
+        project_source_snapshot_read_application: source_snapshot_worker,
         project_mutation_application: Arc::new(orchestrator.clone()),
         project_asset_graph_application: asset_graph_worker,
         project_duplication_application: Arc::new(orchestrator.clone()),

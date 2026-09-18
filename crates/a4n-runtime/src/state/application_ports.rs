@@ -56,6 +56,8 @@ pub struct ApplicationPorts {
     /// Host-facing project read boundary. Runtime receives complete API
     /// summaries and does not assemble them from ORM projections.
     pub project_read_application: Arc<dyn a4n_api_contract::project::ProjectReadApplicationPort>,
+    pub project_source_snapshot_read_application:
+        Arc<dyn a4n_api_contract::project::ProjectSourceSnapshotReadApplicationPort>,
     /// Host-facing project mutation boundary. Project validation and summary
     /// projection remain in the project owner.
     pub project_mutation_application:

@@ -138,15 +138,19 @@ pub trait ProjectReadApplicationPort: Send + Sync {
         input: ProjectListInput,
     ) -> Result<PaginatedProjects, a4n_error::AppError>;
 
-    async fn source_snapshot_chapters(
+    async fn all_project_ids(&self) -> Result<Vec<i64>, a4n_error::AppError>;
+
+    async fn exists(&self, project_id: i64) -> Result<bool, a4n_error::AppError>;
+}
+
+/// Host-facing source snapshot chapter read boundary.
+#[async_trait::async_trait]
+pub trait ProjectSourceSnapshotReadApplicationPort: Send + Sync {
+    async fn chapters(
         &self,
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<SourceSnapshotChapterSummary>, a4n_error::AppError>;
-
-    async fn all_project_ids(&self) -> Result<Vec<i64>, a4n_error::AppError>;
-
-    async fn exists(&self, project_id: i64) -> Result<bool, a4n_error::AppError>;
 }
 
 /// Host-facing project mutation boundary.

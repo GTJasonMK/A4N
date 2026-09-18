@@ -813,6 +813,7 @@ dependencies = [
  "a4n-portrait-worker-client",
  "a4n-runtime",
  "a4n-scene-profile-worker-client",
+ "a4n-source-snapshot-worker-client",
 ]
 
 [[package]]
@@ -1915,6 +1916,7 @@ dependencies = [
  "a4n-queue",
  "a4n-scene-profile-worker",
  "a4n-service-protocol",
+ "a4n-source-snapshot-worker",
  "a4n-worker-client",
  "a4n-worker-contract",
  "anyhow",
@@ -1989,6 +1991,50 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-source-snapshot-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-domain",
+ "a4n-source-snapshot-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-source-snapshot-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-source-snapshot-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-source-snapshot-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
 ]
 
 [[package]]

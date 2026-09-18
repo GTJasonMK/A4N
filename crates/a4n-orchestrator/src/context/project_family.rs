@@ -10,10 +10,9 @@ use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ChapterMangaSourceSummary, ProjectFamilyContext, ProjectFamilyExportRows,
     ProjectFamilyExportSelection, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
-    ProjectGeneratedDataResetApplicationResult, SourceSnapshotChapterSummary,
-    ensure_positive_project_id, project_family_error_to_app_error,
-    project_family_export_error_to_app_error, project_family_import_error_to_app_error,
-    project_mutation_error_to_app_error, project_reset_error_to_app_error,
+    ProjectGeneratedDataResetApplicationResult, ensure_positive_project_id,
+    project_family_error_to_app_error, project_family_export_error_to_app_error,
+    project_family_import_error_to_app_error, project_reset_error_to_app_error,
 };
 
 #[derive(Clone)]
@@ -114,15 +113,6 @@ impl ProjectFamilyApplication {
         )
         .await
         .map_err(project_family_error_to_app_error)
-    }
-
-    async fn source_snapshot_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<SourceSnapshotChapterSummary>, AppError> {
-        a4n_db::project::source_snapshot_chapters(self.database.connection(), project_id)
-            .await
-            .map_err(project_mutation_error_to_app_error)
     }
 
     pub(super) async fn export_selection(
@@ -552,15 +542,6 @@ impl OrchestratorContext {
     ) -> Result<Vec<ChapterMangaSourceSummary>, AppError> {
         self.project_family
             .chapter_manga_sources_by_ids(project_id, chapter_ids, require_content)
-            .await
-    }
-
-    pub(crate) async fn source_snapshot_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<SourceSnapshotChapterSummary>, AppError> {
-        self.project_family
-            .source_snapshot_chapters(project_id)
             .await
     }
 

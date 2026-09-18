@@ -256,5 +256,24 @@
       "min_compatible": "portrait_read",
       "max_compatible": "portrait_read"
     }
+  },
+  {
+    "name": "source-snapshot-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-source-snapshot-worker",
+    "contract_version": "source-snapshot-read-v1",
+    "capability_version": "source-snapshot-read-v1",
+    "addr_env": "A4N_SOURCE_SNAPSHOT_WORKER_ADDR",
+    "url_env": "A4N_SOURCE_SNAPSHOT_WORKER_URL",
+    "default_addr": "127.0.0.1:47660",
+    "local_only": true,
+    "data_scope": ["source_snapshot_chapter"],
+    "capabilities": ["project.source_snapshot.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "source_snapshot_read",
+      "min_compatible": "source_snapshot_read",
+      "max_compatible": "source_snapshot_read"
+    }
   }
 ]
