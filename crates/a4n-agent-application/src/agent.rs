@@ -2991,6 +2991,12 @@ impl AgentApplication {
         validate_model_override_json(parent_turn.model_override_json.as_ref())?;
         let runtime_snapshot_required =
             runtime_snapshot_required(&claimed.run.usage_json, claimed.run.id)?;
+        if runtime_snapshot_required && input.runtime_config_snapshot.is_none() {
+            return Err(AppError::InvalidState {
+                current: "Agent child run 缺少 runtime_config_snapshot".into(),
+                operation: "创建 Agent child delegation".into(),
+            });
+        }
         let scope_json = serde_json::to_value(&child_scope)?;
         let client_message_id = format!("delegation:{delegation_key}");
         let (delegation, child_turn, child_run, child_message) = agent::create_child_delegation(
@@ -3073,6 +3079,7 @@ impl AgentApplication {
                 success_criteria: request.success_criteria.clone(),
                 budget_json: request.budget_json.clone(),
                 parent_execution_id: request.parent_execution_id,
+                runtime_config_snapshot: request.runtime_config_snapshot.clone(),
             },
         )
         .await

@@ -948,6 +948,8 @@ pub struct AgentWorkerDelegationStartRequest {
     pub success_criteria: Vec<String>,
     pub budget_json: serde_json::Value,
     pub parent_execution_id: Option<i64>,
+    #[serde(default)]
+    pub runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
 impl AgentWorkerDelegationStartRequest {
@@ -1992,6 +1994,7 @@ mod tests {
             success_criteria: vec!["返回可执行方案".into()],
             budget_json: serde_json::json!({"max_steps": 4}),
             parent_execution_id: Some(11),
+            runtime_config_snapshot: None,
         };
         request
             .validate()

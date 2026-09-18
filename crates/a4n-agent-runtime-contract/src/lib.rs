@@ -11,6 +11,7 @@ use a4n_api_contract::agent::{
     ReadAgentExecutionResultInput, ReadAgentMemoryInput, RespondAgentEditorInput,
     ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
+use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -717,6 +718,7 @@ pub struct WorkerDelegationInput {
     pub success_criteria: Vec<String>,
     pub budget_json: Value,
     pub parent_execution_id: Option<i64>,
+    pub runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
 #[derive(Debug, Clone)]
