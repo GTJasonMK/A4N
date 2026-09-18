@@ -1211,7 +1211,7 @@ pub(super) async fn search_tools(
     headers: HeaderMap,
     Query(query): Query<AgentToolSearchQuery>,
 ) -> Result<Json<AgentToolSearchResult>, ApiError> {
-    authenticated_user(&state, &headers).await?;
+    let user = authenticated_user(&state, &headers).await?;
     let input = SearchAgentToolsInput {
         query: optional_query_text(query.query, "query")?,
         domain: optional_query_text(query.domain, "domain")?,
@@ -1223,7 +1223,8 @@ pub(super) async fn search_tools(
             AGENT_TOOLS_MAX_LIMIT,
         )?),
     };
-    agent_actions::search_tools(state.runtime(), input)
+    agent_actions::search_tools(state.runtime(), user.id, input)
+        .await
         .map(Json)
         .map_err(Into::into)
 }
@@ -1233,9 +1234,10 @@ pub(super) async fn describe_tool(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Json<AgentToolDescriptor>, ApiError> {
-    authenticated_user(&state, &headers).await?;
+    let user = authenticated_user(&state, &headers).await?;
     let name = required_path_id(&name, "name")?.to_string();
-    agent_actions::describe_tool(state.runtime(), DescribeAgentToolInput { name })
+    agent_actions::describe_tool(state.runtime(), user.id, DescribeAgentToolInput { name })
+        .await
         .map(Json)
         .map_err(Into::into)
 }

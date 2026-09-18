@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use a4n_agent_application::agent::AgentApplication;
+use a4n_agent_runtime_contract::AgentWorkerReadApplicationPort;
 use a4n_agent_runtime_contract::{
     AGENT_APPROVAL_RESOLVE_OPERATION, AGENT_DELEGATION_REVIEW_OPERATION,
     AGENT_DELEGATION_SPAWN_OPERATION, AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION,
@@ -11,8 +12,8 @@ use a4n_agent_runtime_contract::{
     AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
     AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
     AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
-    AgentDelegationReviewCommand, AgentMemoryListInput, AgentRunRuntimeCommand,
-    AgentSkillCapabilityCommand,
+    AGENT_TOOL_DESCRIBE_OPERATION, AGENT_TOOL_SEARCH_OPERATION, AgentDelegationReviewCommand,
+    AgentMemoryListInput, AgentRunRuntimeCommand, AgentSkillCapabilityCommand,
 };
 use a4n_api_contract::agent::{
     AgentApprovalApplicationPort, AgentDelegationApplicationPort, AgentEventReadApplicationPort,
@@ -68,6 +69,8 @@ const WORKER_OPERATIONS: &[&str] = &[
     AGENT_SKILL_SETTINGS_UPDATE_OPERATION,
     AGENT_SKILL_SEARCH_OPERATION,
     AGENT_SKILL_LOAD_OPERATION,
+    AGENT_TOOL_SEARCH_OPERATION,
+    AGENT_TOOL_DESCRIBE_OPERATION,
     AGENT_RUN_SEND_OPERATION,
     AGENT_RUN_CONTROL_OPERATION,
     AGENT_RUN_SEND_CHILD_OPERATION,
@@ -165,6 +168,14 @@ pub(crate) fn router(
         .route(
             "/v1/commands/agent.skill.load",
             axum::routing::post(load_skill),
+        )
+        .route(
+            "/v1/commands/agent.tool.search",
+            axum::routing::post(search_tools),
+        )
+        .route(
+            "/v1/commands/agent.tool.describe",
+            axum::routing::post(describe_tool),
         )
         .route(
             "/v1/commands/agent.run.send",
@@ -534,6 +545,40 @@ async fn load_skill(
             let command: AgentSkillCapabilityCommand<Value> = decode_payload(payload)?;
             app.load_skill(user_id, &command.capability, decode_payload(command.input)?)
                 .await
+        },
+    )
+    .await
+}
+
+async fn search_tools(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_TOOL_SEARCH_OPERATION,
+        |app, _user_id, payload| async move {
+            app.search_tools_for_worker(decode_payload(payload)?)
+        },
+    )
+    .await
+}
+
+async fn describe_tool(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_TOOL_DESCRIBE_OPERATION,
+        |app, _user_id, payload| async move {
+            app.describe_tool_for_worker(decode_payload(payload)?)
         },
     )
     .await
@@ -972,6 +1017,8 @@ mod tests {
                 {"name": AGENT_SKILL_SETTINGS_UPDATE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_SKILL_SEARCH_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_SKILL_LOAD_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_TOOL_SEARCH_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_TOOL_DESCRIBE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_RUN_SEND_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_RUN_CONTROL_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_RUN_SEND_CHILD_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},

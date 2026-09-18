@@ -702,7 +702,8 @@ impl RuntimeAgentToolExecutor {
                 serde_json::to_value(
                     self.state
                         .agent_tool_read_application()
-                        .search_tools(input)?,
+                        .search_tools(context.owner_user_id, input)
+                        .await?,
                 )
             }
             "search_agent_skills" => serde_json::to_value(
@@ -731,7 +732,8 @@ impl RuntimeAgentToolExecutor {
                 serde_json::to_value(
                     self.state
                         .agent_tool_read_application()
-                        .describe_tool(input)?,
+                        .describe_tool(context.owner_user_id, input)
+                        .await?,
                 )
             }
             "read_agent_memory" => {
@@ -4739,18 +4741,26 @@ pub async fn events(
         .await
 }
 
-pub fn search_tools(
+pub async fn search_tools(
     state: &AppState,
+    user_id: i64,
     input: SearchAgentToolsInput,
 ) -> Result<AgentToolSearchResult, AppError> {
-    state.agent_tool_read_application().search_tools(input)
+    state
+        .agent_tool_read_application()
+        .search_tools(user_id, input)
+        .await
 }
 
-pub fn describe_tool(
+pub async fn describe_tool(
     state: &AppState,
+    user_id: i64,
     input: DescribeAgentToolInput,
 ) -> Result<AgentToolDescriptor, AppError> {
-    state.agent_tool_read_application().describe_tool(input)
+    state
+        .agent_tool_read_application()
+        .describe_tool(user_id, input)
+        .await
 }
 
 pub async fn list_skill_settings(

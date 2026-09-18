@@ -10,7 +10,8 @@ use a4n_agent_runtime_contract::{
     AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
     AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
     AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
-    AGENT_WORKER_ID, AgentDelegationReviewCommand, AgentMemoryListInput, AgentRunRuntimeCommand,
+    AGENT_TOOL_DESCRIBE_OPERATION, AGENT_TOOL_SEARCH_OPERATION, AGENT_WORKER_ID,
+    AgentDelegationReviewCommand, AgentMemoryListInput, AgentRunRuntimeCommand,
     AgentSkillCapabilityCommand,
 };
 use a4n_api_contract::agent::{
@@ -21,11 +22,12 @@ use a4n_api_contract::agent::{
     AgentRunReadApplicationPort, AgentRunView, AgentSkillApplicationPort, AgentSkillContent,
     AgentSkillProfileView, AgentSkillSearchResult, AgentSkillSettingsView,
     AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort, AgentThreadSnapshot,
-    AgentThreadView, ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput,
-    CreateAgentThreadInput, EnsureMainAgentThreadInput, ForkAgentThreadInput,
+    AgentThreadView, AgentToolDescriptor, AgentToolReadApplicationPort, AgentToolSearchResult,
+    ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput,
+    DescribeAgentToolInput, EnsureMainAgentThreadInput, ForkAgentThreadInput,
     ListAgentMessagesInput, ListAgentThreadsInput, LoadAgentSkillInput, ResolveAgentApprovalInput,
     RetractAgentMemoryInput, ReviewAgentDelegationInput, SearchAgentSkillsInput,
-    SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
+    SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
     UpdateAgentSkillConfigurationInput, UpdateAgentThreadInput,
 };
 use a4n_error::AppError;
@@ -418,6 +420,27 @@ impl AgentSkillApplicationPort for AgentWorkerClient {
             },
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentToolReadApplicationPort for AgentWorkerClient {
+    async fn search_tools(
+        &self,
+        user_id: i64,
+        input: SearchAgentToolsInput,
+    ) -> Result<AgentToolSearchResult, AppError> {
+        self.command(user_id, AGENT_TOOL_SEARCH_OPERATION, input)
+            .await
+    }
+
+    async fn describe_tool(
+        &self,
+        user_id: i64,
+        input: DescribeAgentToolInput,
+    ) -> Result<AgentToolDescriptor, AppError> {
+        self.command(user_id, AGENT_TOOL_DESCRIBE_OPERATION, input)
+            .await
     }
 }
 
