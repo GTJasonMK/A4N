@@ -29,6 +29,7 @@
 #   A4N_DEPLOY_REMOTE_DIR, A4N_DEPLOY_SERVICE, A4N_DEPLOY_BASE_PATH
 #   A4N_DEPLOY_API_BASE_URL, A4N_DEPLOY_PUBLIC_ORIGIN
 #   A4N_DEPLOY_RECORD_DIR
+#   A4N_DEPLOY_LOCK_FILE
 #   A4N_DEPLOY_CARGO_OFFLINE=false
 #=============================================================================
 
@@ -86,9 +87,20 @@ DEPLOY_RECORD_PATH=""
 DEPLOY_STARTED_AT="$(date --iso-8601=seconds)"
 DEPLOY_STARTED_EPOCH="$(date +%s)"
 BUILD_ELAPSED_SECONDS=""
+DEPLOY_LOCK_FILE="${A4N_DEPLOY_LOCK_FILE:-$CARGO_TARGET_DIR/deploy-cloud.lock}"
+DEPLOY_LOCK_FD=""
+DOCKER_BUILD_CIDFILE=""
+DOCKER_BUILD_PID=""
 
 usage() {
     print_script_usage "$0" 23
+}
+
+acquire_deploy_lock() {
+    command -v flock >/dev/null 2>&1 || die "未找到命令: flock"
+    mkdir -p "$(dirname "$DEPLOY_LOCK_FILE")"
+    exec {DEPLOY_LOCK_FD}>"$DEPLOY_LOCK_FILE"
+    flock -n "$DEPLOY_LOCK_FD" || die "已有部署正在运行；锁文件: $DEPLOY_LOCK_FILE"
 }
 
 load_release_inventory() {
@@ -157,12 +169,38 @@ start_deploy_record() {
         echo "ssh_key_path=$SSH_KEY"
         echo "cargo_offline=$CARGO_OFFLINE"
         echo "target=$TARGET_PLATFORM"
+        echo "lock_file=$DEPLOY_LOCK_FILE"
     } >> "$DEPLOY_RECORD_PATH"
+}
+
+cleanup_deploy_resources() {
+    local cid image
+    if [[ -n "$DOCKER_BUILD_PID" ]] && kill -0 "$DOCKER_BUILD_PID" 2>/dev/null; then
+        kill -TERM "$DOCKER_BUILD_PID" 2>/dev/null || true
+        wait "$DOCKER_BUILD_PID" 2>/dev/null || true
+    fi
+    if [[ -n "$DOCKER_BUILD_CIDFILE" && -r "$DOCKER_BUILD_CIDFILE" ]]; then
+        cid="$(tr -d '[:space:]' < "$DOCKER_BUILD_CIDFILE")"
+        if [[ "$cid" =~ ^[0-9a-f]{12,64}$ ]]; then
+            image="$(docker inspect --format '{{.Config.Image}}' "$cid" 2>/dev/null || true)"
+            if [[ "$image" == "$BUILDER_IMAGE" ]]; then
+                docker rm -f "$cid" >/dev/null 2>&1 || true
+            fi
+        fi
+        rm -f -- "$DOCKER_BUILD_CIDFILE"
+    fi
+    DOCKER_BUILD_PID=""
+    DOCKER_BUILD_CIDFILE=""
+}
+
+handle_deploy_signal() {
+    exit "$1"
 }
 
 finish_deploy_record() {
     local status=$?
     local elapsed_seconds=$(( $(date +%s) - DEPLOY_STARTED_EPOCH ))
+    cleanup_deploy_resources
     if [[ -n "$DEPLOY_RECORD_PATH" ]]; then
         {
             echo "finished_at=$(date --iso-8601=seconds)"
@@ -186,6 +224,9 @@ finish_deploy_record() {
 }
 
 trap finish_deploy_record EXIT
+trap 'handle_deploy_signal 130' INT
+trap 'handle_deploy_signal 143' TERM
+trap 'handle_deploy_signal 129' HUP
 
 normalize_base_path() {
     local value="$1"
@@ -311,7 +352,7 @@ PUBLIC_APP_URL="$PUBLIC_ORIGIN$PUBLIC_BASE_PATH"
 check_prerequisites() {
     log_section "前置检查"
     local command
-    for command in ssh scp curl tar sha256sum file strings ruby tee; do
+    for command in ssh scp curl tar sha256sum file strings ruby tee flock; do
         require_command "$command"
     done
 
@@ -435,7 +476,9 @@ build_backend() {
     done
     log_info "Cargo 构建 ${#BUILD_PACKAGES[@]} 个 package，实时显示编译进度"
 
-    docker run --rm -t \
+    DOCKER_BUILD_CIDFILE="$CACHE_ROOT/build-container.cid"
+    rm -f -- "$DOCKER_BUILD_CIDFILE"
+    docker run --rm -t --cidfile "$DOCKER_BUILD_CIDFILE" \
         -e CARGO_HOME=/usr/local/cargo \
         -e RUSTUP_HOME=/usr/local/rustup \
         -e CARGO_BUILD_JOBS="${A4N_DEPLOY_CARGO_JOBS:-2}" \
@@ -450,7 +493,18 @@ build_backend() {
         -v "$CARGO_TARGET_DIR:/cargo-target" \
         -w /work \
         "$BUILDER_IMAGE" \
-        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release${cargo_packages} --target-dir /cargo-target --locked ${offline_flag[*]}"
+        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release${cargo_packages} --target-dir /cargo-target --locked ${offline_flag[*]}" &
+    DOCKER_BUILD_PID=$!
+    local build_status
+    if wait "$DOCKER_BUILD_PID"; then
+        build_status=0
+    else
+        build_status=$?
+    fi
+    DOCKER_BUILD_PID=""
+    ((build_status == 0)) || return "$build_status"
+    rm -f -- "$DOCKER_BUILD_CIDFILE"
+    DOCKER_BUILD_CIDFILE=""
 
     local binary
     while IFS= read -r binary; do
@@ -836,6 +890,7 @@ cleanup() {
 }
 
 main() {
+    acquire_deploy_lock
     start_deploy_record
     echo -e "${BOLD}${CYAN}A4N 云端一键部署${NC}"
     echo -e "  目标: ${CYAN}$REMOTE${NC}"
