@@ -31,7 +31,12 @@
       "agent.thread.archive",
       "agent.thread.list",
       "agent.thread.show",
-      "agent.thread.messages"
+      "agent.thread.messages",
+      "agent.run.show",
+      "agent.event.list",
+      "agent.memory.list",
+      "agent.memory.create",
+      "agent.memory.retract"
     ],
     "dependencies": [
       "a4n-control",

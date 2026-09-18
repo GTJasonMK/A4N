@@ -371,6 +371,11 @@ mod tests {
                 "agent.thread.list".to_string(),
                 "agent.thread.show".to_string(),
                 "agent.thread.messages".to_string(),
+                "agent.run.show".to_string(),
+                "agent.event.list".to_string(),
+                "agent.memory.list".to_string(),
+                "agent.memory.create".to_string(),
+                "agent.memory.retract".to_string(),
             ]
         );
         assert_eq!(entry.migration.current.as_deref(), Some("agent_runtime"));

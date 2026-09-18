@@ -2,11 +2,17 @@ use std::{net::SocketAddr, sync::Arc};
 
 use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime_contract::{
-    AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
-    AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
-    AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
+    AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION, AGENT_MEMORY_LIST_OPERATION,
+    AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION, AGENT_THREAD_ARCHIVE_OPERATION,
+    AGENT_THREAD_CREATE_OPERATION, AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION,
+    AGENT_THREAD_LIST_OPERATION, AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION,
+    AGENT_THREAD_UPDATE_OPERATION, AgentMemoryListInput,
 };
-use a4n_api_contract::agent::{AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort};
+use a4n_api_contract::agent::{
+    AgentEventReadApplicationPort, AgentMemoryMutationApplicationPort,
+    AgentMemoryReadApplicationPort, AgentRunReadApplicationPort,
+    AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort,
+};
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
@@ -43,6 +49,11 @@ const WORKER_OPERATIONS: &[&str] = &[
     AGENT_THREAD_LIST_OPERATION,
     AGENT_THREAD_SHOW_OPERATION,
     AGENT_THREAD_MESSAGES_OPERATION,
+    AGENT_RUN_SHOW_OPERATION,
+    AGENT_EVENT_LIST_OPERATION,
+    AGENT_MEMORY_LIST_OPERATION,
+    AGENT_MEMORY_CREATE_OPERATION,
+    AGENT_MEMORY_RETRACT_OPERATION,
 ];
 
 #[derive(Clone)]
@@ -91,6 +102,23 @@ pub(crate) fn router(
         .route(
             "/v1/commands/agent.thread.messages",
             axum::routing::post(list_messages),
+        )
+        .route("/v1/commands/agent.run.show", axum::routing::post(show_run))
+        .route(
+            "/v1/commands/agent.event.list",
+            axum::routing::post(list_events),
+        )
+        .route(
+            "/v1/commands/agent.memory.list",
+            axum::routing::post(list_memories),
+        )
+        .route(
+            "/v1/commands/agent.memory.create",
+            axum::routing::post(create_memory),
+        )
+        .route(
+            "/v1/commands/agent.memory.retract",
+            axum::routing::post(retract_memory),
         )
         .with_state(HealthState {
             worker_id: Arc::<str>::from(worker_id),
@@ -233,6 +261,92 @@ async fn list_messages(
         AGENT_THREAD_MESSAGES_OPERATION,
         |app, user_id, payload| async move {
             app.list_messages(user_id, decode_payload(payload)?).await
+        },
+    )
+    .await
+}
+
+async fn show_run(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_RUN_SHOW_OPERATION,
+        |app, user_id, payload| async move {
+            let run_id: String = decode_payload(payload)?;
+            app.show_run(user_id, &run_id).await
+        },
+    )
+    .await
+}
+
+async fn list_events(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_EVENT_LIST_OPERATION,
+        |app, user_id, payload| async move { app.events(user_id, decode_payload(payload)?).await },
+    )
+    .await
+}
+
+async fn list_memories(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_MEMORY_LIST_OPERATION,
+        |app, user_id, payload| async move {
+            let input: AgentMemoryListInput = decode_payload(payload)?;
+            app.list_memories(user_id, input.scope_kind, input.scope_id)
+                .await
+        },
+    )
+    .await
+}
+
+async fn create_memory(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_MEMORY_CREATE_OPERATION,
+        |app, user_id, payload| async move {
+            app.create_memory(user_id, decode_payload(payload)?).await
+        },
+    )
+    .await
+}
+
+async fn retract_memory(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_MEMORY_RETRACT_OPERATION,
+        |app, user_id, payload| async move {
+            app.retract_memory(user_id, decode_payload(payload)?).await
         },
     )
     .await
@@ -581,7 +695,12 @@ mod tests {
                 {"name": AGENT_THREAD_ARCHIVE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_THREAD_LIST_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_THREAD_SHOW_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
-                {"name": AGENT_THREAD_MESSAGES_OPERATION, "version": CAPABILITY_VERSION, "enabled": true}
+                {"name": AGENT_THREAD_MESSAGES_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_RUN_SHOW_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_EVENT_LIST_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_MEMORY_LIST_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_MEMORY_CREATE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_MEMORY_RETRACT_OPERATION, "version": CAPABILITY_VERSION, "enabled": true}
             ])
         );
         assert!(value.get("capability_version").is_none());

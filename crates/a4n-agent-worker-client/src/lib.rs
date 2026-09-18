@@ -1,16 +1,20 @@
 //! Typed Host adapter for the Agent Worker user-facing thread API.
 
 use a4n_agent_runtime_contract::{
-    AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
-    AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
-    AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
-    AGENT_WORKER_ID,
+    AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION, AGENT_MEMORY_LIST_OPERATION,
+    AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION, AGENT_THREAD_ARCHIVE_OPERATION,
+    AGENT_THREAD_CREATE_OPERATION, AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION,
+    AGENT_THREAD_LIST_OPERATION, AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION,
+    AGENT_THREAD_UPDATE_OPERATION, AGENT_WORKER_ID, AgentMemoryListInput,
 };
 use a4n_api_contract::agent::{
-    AgentMessageView, AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort,
-    AgentThreadSnapshot, AgentThreadView, ArchiveAgentThreadInput, CreateAgentThreadInput,
-    EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
-    ListAgentThreadsInput, UpdateAgentThreadInput,
+    AgentEvent, AgentEventReadApplicationPort, AgentMemoryInput,
+    AgentMemoryMutationApplicationPort, AgentMemoryReadApplicationPort, AgentMemoryScopeKind,
+    AgentMemoryView, AgentMessageView, AgentRunReadApplicationPort, AgentRunView,
+    AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort, AgentThreadSnapshot,
+    AgentThreadView, ArchiveAgentThreadInput, CreateAgentThreadInput, EnsureMainAgentThreadInput,
+    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, RetractAgentMemoryInput,
+    UpdateAgentThreadInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -189,6 +193,67 @@ impl AgentThreadReadApplicationPort for AgentWorkerClient {
         input: ListAgentMessagesInput,
     ) -> Result<Vec<AgentMessageView>, AppError> {
         self.command(user_id, AGENT_THREAD_MESSAGES_OPERATION, input)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentRunReadApplicationPort for AgentWorkerClient {
+    async fn show_run(&self, user_id: i64, run_id: &str) -> Result<AgentRunView, AppError> {
+        self.command(user_id, AGENT_RUN_SHOW_OPERATION, run_id.to_string())
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentEventReadApplicationPort for AgentWorkerClient {
+    async fn events(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::AgentEventsInput,
+    ) -> Result<Vec<AgentEvent>, AppError> {
+        self.command(user_id, AGENT_EVENT_LIST_OPERATION, input)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentMemoryReadApplicationPort for AgentWorkerClient {
+    async fn list_memories(
+        &self,
+        user_id: i64,
+        scope_kind: Option<AgentMemoryScopeKind>,
+        scope_id: Option<String>,
+    ) -> Result<Vec<AgentMemoryView>, AppError> {
+        self.command(
+            user_id,
+            AGENT_MEMORY_LIST_OPERATION,
+            AgentMemoryListInput {
+                scope_kind,
+                scope_id,
+            },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentMemoryMutationApplicationPort for AgentWorkerClient {
+    async fn create_memory(
+        &self,
+        user_id: i64,
+        input: AgentMemoryInput,
+    ) -> Result<AgentMemoryView, AppError> {
+        self.command(user_id, AGENT_MEMORY_CREATE_OPERATION, input)
+            .await
+    }
+
+    async fn retract_memory(
+        &self,
+        user_id: i64,
+        input: RetractAgentMemoryInput,
+    ) -> Result<AgentMemoryView, AppError> {
+        self.command(user_id, AGENT_MEMORY_RETRACT_OPERATION, input)
             .await
     }
 }

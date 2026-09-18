@@ -6,10 +6,10 @@
 
 use a4n_api_contract::agent::{
     AgentBudget, AgentDelegationView, AgentEditorRequest, AgentExecutionResultPage,
-    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent, AgentSkillDescriptor,
-    AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult, DescribeAgentToolInput,
-    ReadAgentExecutionResultInput, ReadAgentMemoryInput, RespondAgentEditorInput,
-    ReviewAgentDelegationInput, SearchAgentToolsInput,
+    AgentMemoryScopeKind, AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent,
+    AgentSkillDescriptor, AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult,
+    DescribeAgentToolInput, ReadAgentExecutionResultInput, ReadAgentMemoryInput,
+    RespondAgentEditorInput, ReviewAgentDelegationInput, SearchAgentToolsInput,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_domain::agent::AgentWorkflowOrigin;
@@ -52,6 +52,18 @@ pub const AGENT_THREAD_ARCHIVE_OPERATION: &str = "agent.thread.archive";
 pub const AGENT_THREAD_LIST_OPERATION: &str = "agent.thread.list";
 pub const AGENT_THREAD_SHOW_OPERATION: &str = "agent.thread.show";
 pub const AGENT_THREAD_MESSAGES_OPERATION: &str = "agent.thread.messages";
+pub const AGENT_RUN_SHOW_OPERATION: &str = "agent.run.show";
+pub const AGENT_EVENT_LIST_OPERATION: &str = "agent.event.list";
+pub const AGENT_MEMORY_LIST_OPERATION: &str = "agent.memory.list";
+pub const AGENT_MEMORY_CREATE_OPERATION: &str = "agent.memory.create";
+pub const AGENT_MEMORY_RETRACT_OPERATION: &str = "agent.memory.retract";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentMemoryListInput {
+    pub scope_kind: Option<AgentMemoryScopeKind>,
+    pub scope_id: Option<String>,
+}
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
 
