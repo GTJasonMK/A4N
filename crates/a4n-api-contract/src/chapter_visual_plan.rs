@@ -382,3 +382,28 @@ pub trait ChapterVisualPlanMutationApplicationPort: Send + Sync {
         input: ChapterVisualPlanRecordInput,
     ) -> Result<(), a4n_error::AppError>;
 }
+
+/// Host-facing persistence boundary for ordinary visual-plan records.
+///
+/// Collaborative local editing remains on the richer mutation port until its
+/// projection and validation contracts are extracted without duplication.
+#[async_trait::async_trait]
+pub trait ChapterVisualPlanRecordPersistenceApplicationPort: Send + Sync {
+    async fn save_draft(
+        &self,
+        user_id: i64,
+        input: SaveChapterVisualPlanDraftInput,
+    ) -> Result<ChapterVisualPlanView, a4n_error::AppError>;
+
+    async fn confirm(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanRecordInput,
+    ) -> Result<ConfirmedChapterVisualPlanView, a4n_error::AppError>;
+
+    async fn discard(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanRecordInput,
+    ) -> Result<(), a4n_error::AppError>;
+}

@@ -1862,6 +1862,14 @@ impl AppState {
         self.chapter_visual_plan_mutation_application.as_ref()
     }
 
+    pub(crate) fn chapter_visual_plan_record_persistence_application(
+        &self,
+    ) -> &dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordPersistenceApplicationPort
+    {
+        self.chapter_visual_plan_record_persistence_application
+            .as_ref()
+    }
+
     pub(crate) fn video_prompt_read_application(
         &self,
     ) -> &dyn a4n_api_contract::video::VideoPromptReadApplicationPort {

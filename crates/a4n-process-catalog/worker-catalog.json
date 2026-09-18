@@ -51,7 +51,8 @@
       "shooting_script.current",
       "shooting_script.edit",
       "shooting_script.delete",
-      "shooting_script.publish"
+      "shooting_script.publish",
+      "visual_plan.persistence"
     ],
     "dependencies": [
       "a4n-migration"

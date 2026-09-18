@@ -1,5 +1,9 @@
 //! Typed HTTP adapter for the novel-planning worker.
 
+use a4n_api_contract::chapter_visual_plan::{
+    ChapterVisualPlanRecordInput, ChapterVisualPlanRecordPersistenceApplicationPort,
+    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, SaveChapterVisualPlanDraftInput,
+};
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
     EditChapterShootingScriptInput, EditedChapterShootingScriptView,
@@ -8,10 +12,12 @@ use a4n_api_contract::shooting_script::{
 };
 use a4n_error::AppError;
 use a4n_novel_planning_worker_contract::{
-    CurrentShootingScriptPayload, DELETE_SHOOTING_SCRIPT_OPERATION, DeleteShootingScriptPayload,
-    EDIT_SHOOTING_SCRIPT_OPERATION, EditShootingScriptPayload,
+    CONFIRM_VISUAL_PLAN_OPERATION, ConfirmVisualPlanPayload, CurrentShootingScriptPayload,
+    DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION, DeleteShootingScriptPayload,
+    DiscardVisualPlanPayload, EDIT_SHOOTING_SCRIPT_OPERATION, EditShootingScriptPayload,
     GET_CURRENT_SHOOTING_SCRIPT_OPERATION, NOVEL_PLANNING_WORKER_ID,
     PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
+    SAVE_VISUAL_PLAN_DRAFT_OPERATION, SaveVisualPlanDraftPayload,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -185,6 +191,54 @@ impl ShootingScriptRecordMutationApplicationPort for NovelPlanningWorkerClient {
             input.project_id,
             Some(input.expected_revision),
             DELETE_SHOOTING_SCRIPT_OPERATION,
+            input,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ChapterVisualPlanRecordPersistenceApplicationPort for NovelPlanningWorkerClient {
+    async fn save_draft(
+        &self,
+        user_id: i64,
+        input: SaveChapterVisualPlanDraftInput,
+    ) -> Result<ChapterVisualPlanView, AppError> {
+        self.command::<SaveVisualPlanDraftPayload, ChapterVisualPlanView>(
+            user_id,
+            input.project_id,
+            input.expected_revision,
+            SAVE_VISUAL_PLAN_DRAFT_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn confirm(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanRecordInput,
+    ) -> Result<ConfirmedChapterVisualPlanView, AppError> {
+        self.command::<ConfirmVisualPlanPayload, ConfirmedChapterVisualPlanView>(
+            user_id,
+            input.project_id,
+            Some(input.expected_revision),
+            CONFIRM_VISUAL_PLAN_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn discard(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanRecordInput,
+    ) -> Result<(), AppError> {
+        self.command::<DiscardVisualPlanPayload, ()>(
+            user_id,
+            input.project_id,
+            Some(input.expected_revision),
+            DISCARD_VISUAL_PLAN_OPERATION,
             input,
         )
         .await

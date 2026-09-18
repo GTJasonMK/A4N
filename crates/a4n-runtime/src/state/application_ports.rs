@@ -466,6 +466,9 @@ pub struct ApplicationPorts {
         Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadApplicationPort>,
     pub chapter_visual_plan_mutation_application:
         Arc<dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort>,
+    pub chapter_visual_plan_record_persistence_application: Arc<
+        dyn a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordPersistenceApplicationPort,
+    >,
     /// Host-facing video-prompt read boundary. Prompt authorization and DTO
     /// projection stay in the video owner.
     pub video_prompt_read_application:

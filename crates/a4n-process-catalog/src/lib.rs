@@ -386,7 +386,8 @@ mod tests {
                 "shooting_script.current".to_string(),
                 "shooting_script.edit".to_string(),
                 "shooting_script.delete".to_string(),
-                "shooting_script.publish".to_string()
+                "shooting_script.publish".to_string(),
+                "visual_plan.persistence".to_string()
             ]
         );
         assert_eq!(novel.migration.current.as_deref(), Some("shooting_script"));
