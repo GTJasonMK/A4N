@@ -205,6 +205,58 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertNotIn("-p a4n-foreshadowing-worker ", commands[0])
         self.assertNotIn("a4n-agent-worker", commands[0])
 
+    def test_object_profile_worker_change_builds_only_object_profile_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-object-profile-worker/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-object-profile-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-scene-profile-worker", commands[0])
+
+    def test_object_profile_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-object-profile-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-object-profile-worker", commands[0])
+        self.assertNotIn("a4n-agent-worker", commands[0])
+
+    def test_object_profile_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-object-profile-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-object-profile-worker ", commands[0])
+
+    def test_scene_profile_worker_change_builds_only_scene_profile_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-scene-profile-worker/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-scene-profile-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-object-profile-worker", commands[0])
+
+    def test_scene_profile_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-scene-profile-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-scene-profile-worker", commands[0])
+        self.assertNotIn("a4n-agent-worker", commands[0])
+
+    def test_scene_profile_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-scene-profile-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-scene-profile-worker ", commands[0])
+
     def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
@@ -217,6 +269,8 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
             "a4n-blueprint-worker",
             "a4n-asset-graph-worker",
             "a4n-foreshadowing-worker",
+            "a4n-object-profile-worker",
+            "a4n-scene-profile-worker",
         ):
             self.assertIn(f"-p {package}", commands[0])
 

@@ -10,5 +10,7 @@
   {"package":"a4n-blueprint-worker","binary":"a4n-blueprint-worker"},
   {"package":"a4n-asset-graph-worker","binary":"a4n-asset-graph-worker"},
   {"package":"a4n-foreshadowing-worker","binary":"a4n-foreshadowing-worker"},
+  {"package":"a4n-object-profile-worker","binary":"a4n-object-profile-worker"},
+  {"package":"a4n-scene-profile-worker","binary":"a4n-scene-profile-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}
 ]

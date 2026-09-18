@@ -55,6 +55,10 @@ pub async fn initialize_runtime(
         Arc::new(a4n_asset_graph_worker_client::AssetGraphWorkerClient::from_env());
     let foreshadowing_worker =
         Arc::new(a4n_foreshadowing_worker_client::ForeshadowingWorkerClient::from_env());
+    let object_profile_worker =
+        Arc::new(a4n_object_profile_worker_client::ObjectProfileWorkerClient::from_env());
+    let scene_profile_worker =
+        Arc::new(a4n_scene_profile_worker_client::SceneProfileWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -106,9 +110,9 @@ pub async fn initialize_runtime(
         workflow_task_lookup_application: Arc::new(orchestrator.clone()),
         task_read_application: Arc::new(orchestrator.clone()),
         workflow_cancellation_application: Arc::new(orchestrator.clone()),
-        object_profile_read_application: Arc::new(orchestrator.clone()),
+        object_profile_read_application: object_profile_worker,
         object_profile_mutation_application: Arc::new(orchestrator.clone()),
-        scene_profile_read_application: Arc::new(orchestrator.clone()),
+        scene_profile_read_application: scene_profile_worker,
         character_profile_read_application: Arc::new(orchestrator.clone()),
         character_profile_mutation_application: Arc::new(orchestrator.clone()),
         character_profile_timeline_mutation_application: Arc::new(orchestrator.clone()),

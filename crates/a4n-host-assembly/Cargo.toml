@@ -13,7 +13,9 @@ a4n-agent-worker-client = { path = "../a4n-agent-worker-client" }
 a4n-asset-graph-worker-client = { path = "../a4n-asset-graph-worker-client" }
 a4n-blueprint-worker-client = { path = "../a4n-blueprint-worker-client" }
 a4n-foreshadowing-worker-client = { path = "../a4n-foreshadowing-worker-client" }
+a4n-object-profile-worker-client = { path = "../a4n-object-profile-worker-client" }
 a4n-outline-worker-client = { path = "../a4n-outline-worker-client" }
 a4n-novel-planning-worker-client = { path = "../a4n-novel-planning-worker-client" }
 a4n-orchestrator = { path = "../a4n-orchestrator" }
+a4n-scene-profile-worker-client = { path = "../a4n-scene-profile-worker-client" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }

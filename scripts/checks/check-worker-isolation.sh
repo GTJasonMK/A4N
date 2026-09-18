@@ -34,6 +34,8 @@ STATEFUL_WORKER_PACKAGES=(
     a4n-blueprint-worker
     a4n-asset-graph-worker
     a4n-foreshadowing-worker
+    a4n-object-profile-worker
+    a4n-scene-profile-worker
 )
 WORKER_CLIENT_PACKAGES=(
     a4n-novel-planning-worker-client
@@ -42,6 +44,8 @@ WORKER_CLIENT_PACKAGES=(
     a4n-blueprint-worker-client
     a4n-asset-graph-worker-client
     a4n-foreshadowing-worker-client
+    a4n-object-profile-worker-client
+    a4n-scene-profile-worker-client
 )
 
 LEAF_PACKAGES=(

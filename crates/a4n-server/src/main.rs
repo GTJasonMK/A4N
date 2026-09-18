@@ -30,6 +30,10 @@ const BLUEPRINT_WORKER_PROCESS_ENV: &str = "A4N_BLUEPRINT_WORKER_PROCESS";
 const ASSET_GRAPH_WORKER_PROCESS_ENV: &str = "A4N_ASSET_GRAPH_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const FORESHADOWING_WORKER_PROCESS_ENV: &str = "A4N_FORESHADOWING_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const OBJECT_PROFILE_WORKER_PROCESS_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const SCENE_PROFILE_WORKER_PROCESS_ENV: &str = "A4N_SCENE_PROFILE_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -58,6 +62,14 @@ const FORESHADOWING_WORKER_CATALOG_NAME: &str = "foreshadowing-worker";
 const FORESHADOWING_WORKER_BINARY_ENV: &str = "A4N_FORESHADOWING_WORKER_BINARY";
 const FORESHADOWING_WORKER_TOKEN_ENV: &str = "A4N_FORESHADOWING_WORKER_TOKEN";
 const FORESHADOWING_WORKER_URL_ENV: &str = "A4N_FORESHADOWING_WORKER_URL";
+const OBJECT_PROFILE_WORKER_CATALOG_NAME: &str = "object-profile-worker";
+const OBJECT_PROFILE_WORKER_BINARY_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_BINARY";
+const OBJECT_PROFILE_WORKER_TOKEN_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_TOKEN";
+const OBJECT_PROFILE_WORKER_URL_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_URL";
+const SCENE_PROFILE_WORKER_CATALOG_NAME: &str = "scene-profile-worker";
+const SCENE_PROFILE_WORKER_BINARY_ENV: &str = "A4N_SCENE_PROFILE_WORKER_BINARY";
+const SCENE_PROFILE_WORKER_TOKEN_ENV: &str = "A4N_SCENE_PROFILE_WORKER_TOKEN";
+const SCENE_PROFILE_WORKER_URL_ENV: &str = "A4N_SCENE_PROFILE_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -86,6 +98,8 @@ enum ChildWatchEvent {
     BlueprintWorkerExited(ExitStatus),
     AssetGraphWorkerExited(ExitStatus),
     ForeshadowingWorkerExited(ExitStatus),
+    ObjectProfileWorkerExited(ExitStatus),
+    SceneProfileWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -95,6 +109,8 @@ enum ChildWatchEvent {
     BlueprintWorkerChanged,
     AssetGraphWorkerChanged,
     ForeshadowingWorkerChanged,
+    ObjectProfileWorkerChanged,
+    SceneProfileWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -125,6 +141,12 @@ fn main() -> anyhow::Result<()> {
         if env::var(FORESHADOWING_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_foreshadowing_worker::run();
         }
+        if env::var(OBJECT_PROFILE_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_object_profile_worker::run();
+        }
+        if env::var(SCENE_PROFILE_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_scene_profile_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -142,6 +164,10 @@ fn main() -> anyhow::Result<()> {
     let asset_graph_worker_token = worker_token_for_env(ASSET_GRAPH_WORKER_TOKEN_ENV)?;
     let foreshadowing_worker_addr = foreshadowing_worker_addr()?;
     let foreshadowing_worker_token = worker_token_for_env(FORESHADOWING_WORKER_TOKEN_ENV)?;
+    let object_profile_worker_addr = object_profile_worker_addr()?;
+    let object_profile_worker_token = worker_token_for_env(OBJECT_PROFILE_WORKER_TOKEN_ENV)?;
+    let scene_profile_worker_addr = scene_profile_worker_addr()?;
+    let scene_profile_worker_token = worker_token_for_env(SCENE_PROFILE_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -160,6 +186,10 @@ fn main() -> anyhow::Result<()> {
     let mut asset_graph_worker_fingerprint = binary_fingerprint(&asset_graph_worker_binary)?;
     let foreshadowing_worker_binary = foreshadowing_worker_binary()?;
     let mut foreshadowing_worker_fingerprint = binary_fingerprint(&foreshadowing_worker_binary)?;
+    let object_profile_worker_binary = object_profile_worker_binary()?;
+    let mut object_profile_worker_fingerprint = binary_fingerprint(&object_profile_worker_binary)?;
+    let scene_profile_worker_binary = scene_profile_worker_binary()?;
+    let mut scene_profile_worker_fingerprint = binary_fingerprint(&scene_profile_worker_binary)?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -295,6 +325,68 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         return Err(error);
     }
+    let mut object_profile_worker = match spawn_object_profile_worker(
+        &object_profile_worker_binary,
+        object_profile_worker_addr,
+        &object_profile_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_object_profile_worker(
+        &mut object_profile_worker,
+        object_profile_worker_addr,
+        &object_profile_worker_token,
+    ) {
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        return Err(error);
+    }
+    let mut scene_profile_worker = match spawn_scene_profile_worker(
+        &scene_profile_worker_binary,
+        scene_profile_worker_addr,
+        &scene_profile_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_scene_profile_worker(
+        &mut scene_profile_worker,
+        scene_profile_worker_addr,
+        &scene_profile_worker_token,
+    ) {
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        return Err(error);
+    }
     let mut control = match spawn_control(
         &control_binary,
         control_addr,
@@ -311,6 +403,10 @@ fn main() -> anyhow::Result<()> {
         &asset_graph_worker_token,
         foreshadowing_worker_addr,
         &foreshadowing_worker_token,
+        object_profile_worker_addr,
+        &object_profile_worker_token,
+        scene_profile_worker_addr,
+        &scene_profile_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -320,6 +416,8 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_blueprint_worker(&mut blueprint_worker);
             let _ = stop_asset_graph_worker(&mut asset_graph_worker);
             let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             return Err(error);
         }
     };
@@ -331,6 +429,8 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_blueprint_worker(&mut blueprint_worker);
         let _ = stop_asset_graph_worker(&mut asset_graph_worker);
         let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         return match cleanup_result {
             Ok(()) => Err(error),
             Err(cleanup_error) => Err(anyhow::anyhow!(
@@ -353,6 +453,8 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_blueprint_worker(&mut blueprint_worker);
             let _ = stop_asset_graph_worker(&mut asset_graph_worker);
             let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             return Err(error);
         }
     };
@@ -365,6 +467,8 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_blueprint_worker(&mut blueprint_worker);
         let _ = stop_asset_graph_worker(&mut asset_graph_worker);
         let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         return Err(error);
     }
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
@@ -378,6 +482,8 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_blueprint_worker(&mut blueprint_worker);
             let _ = stop_asset_graph_worker(&mut asset_graph_worker);
             let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             return Err(error);
         }
     };
@@ -422,6 +528,16 @@ fn main() -> anyhow::Result<()> {
         &mut foreshadowing_worker,
         &foreshadowing_worker_binary,
         &mut foreshadowing_worker_fingerprint,
+        object_profile_worker_addr,
+        &object_profile_worker_token,
+        &mut object_profile_worker,
+        &object_profile_worker_binary,
+        &mut object_profile_worker_fingerprint,
+        scene_profile_worker_addr,
+        &scene_profile_worker_token,
+        &mut scene_profile_worker,
+        &scene_profile_worker_binary,
+        &mut scene_profile_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -436,6 +552,8 @@ fn main() -> anyhow::Result<()> {
     let blueprint_worker_result = stop_blueprint_worker(&mut blueprint_worker);
     let asset_graph_worker_result = stop_asset_graph_worker(&mut asset_graph_worker);
     let foreshadowing_worker_result = stop_foreshadowing_worker(&mut foreshadowing_worker);
+    let object_profile_worker_result = stop_object_profile_worker(&mut object_profile_worker);
+    let scene_profile_worker_result = stop_scene_profile_worker(&mut scene_profile_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -446,6 +564,8 @@ fn main() -> anyhow::Result<()> {
         blueprint_worker_result,
         asset_graph_worker_result,
         foreshadowing_worker_result,
+        object_profile_worker_result,
+        scene_profile_worker_result,
     )
 }
 
@@ -490,6 +610,16 @@ fn supervise_runtime_children(
     foreshadowing_worker: &mut Child,
     foreshadowing_worker_binary: &Path,
     foreshadowing_worker_fingerprint: &mut BinaryFingerprint,
+    object_profile_worker_addr: SocketAddr,
+    object_profile_worker_token: &str,
+    object_profile_worker: &mut Child,
+    object_profile_worker_binary: &Path,
+    object_profile_worker_fingerprint: &mut BinaryFingerprint,
+    scene_profile_worker_addr: SocketAddr,
+    scene_profile_worker_token: &str,
+    scene_profile_worker: &mut Child,
+    scene_profile_worker_binary: &Path,
+    scene_profile_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -530,6 +660,16 @@ fn supervise_runtime_children(
                 foreshadowing_worker_binary,
                 *foreshadowing_worker_fingerprint,
             )),
+            Some((
+                object_profile_worker,
+                object_profile_worker_binary,
+                *object_profile_worker_fingerprint,
+            )),
+            Some((
+                scene_profile_worker,
+                scene_profile_worker_binary,
+                *scene_profile_worker_fingerprint,
+            )),
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -565,6 +705,10 @@ fn supervise_runtime_children(
                     asset_graph_worker_token,
                     foreshadowing_worker_addr,
                     foreshadowing_worker_token,
+                    object_profile_worker_addr,
+                    object_profile_worker_token,
+                    scene_profile_worker_addr,
+                    scene_profile_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -670,6 +814,38 @@ fn supervise_runtime_children(
                 *foreshadowing_worker_fingerprint =
                     binary_fingerprint(foreshadowing_worker_binary)?;
             }
+            ChildWatchEvent::ObjectProfileWorkerExited(status) => {
+                eprintln!("A4N Object Profile worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *object_profile_worker = spawn_object_profile_worker(
+                    object_profile_worker_binary,
+                    object_profile_worker_addr,
+                    object_profile_worker_token,
+                )?;
+                wait_for_object_profile_worker(
+                    object_profile_worker,
+                    object_profile_worker_addr,
+                    object_profile_worker_token,
+                )?;
+                *object_profile_worker_fingerprint =
+                    binary_fingerprint(object_profile_worker_binary)?;
+            }
+            ChildWatchEvent::SceneProfileWorkerExited(status) => {
+                eprintln!("A4N Scene Profile worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *scene_profile_worker = spawn_scene_profile_worker(
+                    scene_profile_worker_binary,
+                    scene_profile_worker_addr,
+                    scene_profile_worker_token,
+                )?;
+                wait_for_scene_profile_worker(
+                    scene_profile_worker,
+                    scene_profile_worker_addr,
+                    scene_profile_worker_token,
+                )?;
+                *scene_profile_worker_fingerprint =
+                    binary_fingerprint(scene_profile_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -696,6 +872,10 @@ fn supervise_runtime_children(
                     asset_graph_worker_token,
                     foreshadowing_worker_addr,
                     foreshadowing_worker_token,
+                    object_profile_worker_addr,
+                    object_profile_worker_token,
+                    scene_profile_worker_addr,
+                    scene_profile_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -812,6 +992,42 @@ fn supervise_runtime_children(
                 *foreshadowing_worker_fingerprint =
                     binary_fingerprint(foreshadowing_worker_binary)?;
             }
+            ChildWatchEvent::ObjectProfileWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Object Profile worker 构建完成；只替换 Object Profile worker"
+                );
+                stop_object_profile_worker(object_profile_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *object_profile_worker = spawn_object_profile_worker(
+                    object_profile_worker_binary,
+                    object_profile_worker_addr,
+                    object_profile_worker_token,
+                )?;
+                wait_for_object_profile_worker(
+                    object_profile_worker,
+                    object_profile_worker_addr,
+                    object_profile_worker_token,
+                )?;
+                *object_profile_worker_fingerprint =
+                    binary_fingerprint(object_profile_worker_binary)?;
+            }
+            ChildWatchEvent::SceneProfileWorkerChanged => {
+                eprintln!("检测到 A4N Scene Profile worker 构建完成；只替换 Scene Profile worker");
+                stop_scene_profile_worker(scene_profile_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *scene_profile_worker = spawn_scene_profile_worker(
+                    scene_profile_worker_binary,
+                    scene_profile_worker_addr,
+                    scene_profile_worker_token,
+                )?;
+                wait_for_scene_profile_worker(
+                    scene_profile_worker,
+                    scene_profile_worker_addr,
+                    scene_profile_worker_token,
+                )?;
+                *scene_profile_worker_fingerprint =
+                    binary_fingerprint(scene_profile_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -907,6 +1123,8 @@ fn wait_for_edge_or_child_with_outline(
         blueprint_worker,
         asset_graph_worker,
         None,
+        None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -932,6 +1150,8 @@ fn wait_for_edge_or_child_with_workers(
     mut blueprint_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut asset_graph_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut foreshadowing_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut object_profile_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut scene_profile_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -972,6 +1192,16 @@ fn wait_for_edge_or_child_with_workers(
             && let Some(status) = foreshadowing_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::ForeshadowingWorkerExited(status)));
+        }
+        if let Some((object_profile_worker, _, _)) = object_profile_worker.as_mut()
+            && let Some(status) = object_profile_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::ObjectProfileWorkerExited(status)));
+        }
+        if let Some((scene_profile_worker, _, _)) = scene_profile_worker.as_mut()
+            && let Some(status) = scene_profile_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::SceneProfileWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -1017,6 +1247,19 @@ fn wait_for_edge_or_child_with_workers(
             && binary_fingerprint(foreshadowing_worker_binary)? != *foreshadowing_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::ForeshadowingWorkerChanged));
+        }
+        if let Some((_, object_profile_worker_binary, object_profile_worker_fingerprint)) =
+            object_profile_worker.as_ref()
+            && binary_fingerprint(object_profile_worker_binary)?
+                != *object_profile_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ObjectProfileWorkerChanged));
+        }
+        if let Some((_, scene_profile_worker_binary, scene_profile_worker_fingerprint)) =
+            scene_profile_worker.as_ref()
+            && binary_fingerprint(scene_profile_worker_binary)? != *scene_profile_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::SceneProfileWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -1266,6 +1509,44 @@ fn foreshadowing_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn object_profile_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(OBJECT_PROFILE_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            OBJECT_PROFILE_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn object_profile_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = object_profile_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
+fn scene_profile_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(SCENE_PROFILE_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            SCENE_PROFILE_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn scene_profile_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = scene_profile_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -1289,6 +1570,10 @@ fn spawn_control(
     asset_graph_worker_token: &str,
     foreshadowing_worker_addr: SocketAddr,
     foreshadowing_worker_token: &str,
+    object_profile_worker_addr: SocketAddr,
+    object_profile_worker_token: &str,
+    scene_profile_worker_addr: SocketAddr,
+    scene_profile_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -1324,6 +1609,16 @@ fn spawn_control(
             format!("http://{foreshadowing_worker_addr}"),
         )
         .env(FORESHADOWING_WORKER_TOKEN_ENV, foreshadowing_worker_token)
+        .env(
+            OBJECT_PROFILE_WORKER_URL_ENV,
+            format!("http://{object_profile_worker_addr}"),
+        )
+        .env(OBJECT_PROFILE_WORKER_TOKEN_ENV, object_profile_worker_token)
+        .env(
+            SCENE_PROFILE_WORKER_URL_ENV,
+            format!("http://{scene_profile_worker_addr}"),
+        )
+        .env(SCENE_PROFILE_WORKER_TOKEN_ENV, scene_profile_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -1472,6 +1767,54 @@ fn spawn_foreshadowing_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Foreshadowing worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_object_profile_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = object_profile_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(OBJECT_PROFILE_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(OBJECT_PROFILE_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Object Profile worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_scene_profile_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = scene_profile_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(SCENE_PROFILE_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(SCENE_PROFILE_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Scene Profile worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -1669,6 +2012,50 @@ fn wait_for_foreshadowing_worker(
     )
 }
 
+fn wait_for_object_profile_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = object_profile_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(OBJECT_PROFILE_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Object Profile worker",
+    )
+}
+
+fn wait_for_scene_profile_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = scene_profile_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(SCENE_PROFILE_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Scene Profile worker",
+    )
+}
+
 fn wait_for_worker_contract(
     child: &mut Child,
     address: SocketAddr,
@@ -1830,6 +2217,20 @@ fn foreshadowing_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn object_profile_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        OBJECT_PROFILE_WORKER_BINARY_ENV,
+        &object_profile_worker_metadata()?.binary,
+    )
+}
+
+fn scene_profile_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        SCENE_PROFILE_WORKER_BINARY_ENV,
+        &scene_profile_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -1913,6 +2314,14 @@ fn stop_foreshadowing_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_object_profile_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
+fn stop_scene_profile_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_control(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -1954,6 +2363,8 @@ fn finish_shutdown(
     blueprint_worker_result: anyhow::Result<()>,
     asset_graph_worker_result: anyhow::Result<()>,
     foreshadowing_worker_result: anyhow::Result<()>,
+    object_profile_worker_result: anyhow::Result<()>,
+    scene_profile_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -1966,6 +2377,8 @@ fn finish_shutdown(
         ("Blueprint worker", blueprint_worker_result),
         ("Asset Graph worker", asset_graph_worker_result),
         ("Foreshadowing worker", foreshadowing_worker_result),
+        ("Object Profile worker", object_profile_worker_result),
+        ("Scene Profile worker", scene_profile_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
@@ -2579,6 +2992,8 @@ mod tests {
                 &foreshadowing_binary,
                 foreshadowing_fingerprint,
             )),
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -2597,6 +3012,131 @@ mod tests {
             &mut novel_planning_worker,
             &mut artifact_media_worker,
             &mut foreshadowing_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
+    }
+
+    #[test]
+    fn profile_worker_binary_changes_select_only_changed_profile_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let mut object_profile_worker = live_child();
+        let mut scene_profile_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
+        let object_binary = tempdir.path().join("a4n-object-profile-worker");
+        let scene_binary = tempdir.path().join("a4n-scene-profile-worker");
+        for (path, content) in [
+            (&control_binary, b"control".as_slice()),
+            (&worker_binary, b"worker".as_slice()),
+            (&edge_binary, b"edge".as_slice()),
+            (&novel_binary, b"novel".as_slice()),
+            (&artifact_binary, b"artifact".as_slice()),
+            (&object_binary, b"old-object".as_slice()),
+            (&scene_binary, b"old-scene".as_slice()),
+        ] {
+            std::fs::write(path, content).expect("worker fixture should be written");
+        }
+        let control_fingerprint = super::binary_fingerprint(&control_binary).unwrap();
+        let worker_fingerprint = super::binary_fingerprint(&worker_binary).unwrap();
+        let edge_fingerprint = super::binary_fingerprint(&edge_binary).unwrap();
+        let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
+        let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
+        let object_fingerprint = super::binary_fingerprint(&object_binary).unwrap();
+        let scene_fingerprint = super::binary_fingerprint(&scene_binary).unwrap();
+        std::fs::write(&object_binary, b"new-object")
+            .expect("object profile replacement should be written");
+
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            None,
+            Some((
+                &mut object_profile_worker,
+                &object_binary,
+                object_fingerprint,
+            )),
+            Some((&mut scene_profile_worker, &scene_binary, scene_fingerprint)),
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ObjectProfileWorkerChanged)
+        ));
+
+        let object_fingerprint = super::binary_fingerprint(&object_binary).unwrap();
+        std::fs::write(&scene_binary, b"new-scene")
+            .expect("scene profile replacement should be written");
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            None,
+            Some((
+                &mut object_profile_worker,
+                &object_binary,
+                object_fingerprint,
+            )),
+            Some((&mut scene_profile_worker, &scene_binary, scene_fingerprint)),
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::SceneProfileWorkerChanged)
+        ));
+
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+            &mut object_profile_worker,
+            &mut scene_profile_worker,
         ] {
             child.kill().expect("test child should stop");
             child.wait().expect("test child should be reaped");

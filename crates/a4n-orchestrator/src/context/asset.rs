@@ -108,36 +108,6 @@ impl AssetApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn list_object_profiles_for_user(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ObjectProfileSummary>, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        let profiles = self.object_profiles_by_project(project_id).await?;
-        let profile_ids = profiles
-            .iter()
-            .map(|profile| profile.id)
-            .collect::<Vec<_>>();
-        let image_counts = self
-            .count_profile_material_images_by_profile(
-                project_id,
-                ProfileMaterialKind::Object,
-                &profile_ids,
-            )
-            .await?;
-        Ok(profiles
-            .iter()
-            .map(|profile| {
-                object_profile_summary(
-                    profile,
-                    image_counts.get(&profile.id).copied().unwrap_or_default(),
-                )
-            })
-            .collect())
-    }
-
     pub(crate) async fn object_profiles_by_project(
         &self,
         project_id: i64,
@@ -236,18 +206,6 @@ fn object_profile_summary(
         generated_image_count,
         created_at: Some(profile.created_at.to_string()),
         updated_at: Some(profile.updated_at.to_string()),
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::profile::ObjectProfileReadApplicationPort for OrchestratorContext {
-    async fn list(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ObjectProfileSummary>, AppError> {
-        self.list_object_profiles_for_user(user_id, project_id)
-            .await
     }
 }
 
