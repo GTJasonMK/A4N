@@ -43,7 +43,11 @@
       "agent.skill.settings.list",
       "agent.skill.settings.update",
       "agent.skill.search",
-      "agent.skill.load"
+      "agent.skill.load",
+      "agent.run.send",
+      "agent.run.control",
+      "agent.run.send_child",
+      "agent.run.control_child"
     ],
     "dependencies": [
       "a4n-control",

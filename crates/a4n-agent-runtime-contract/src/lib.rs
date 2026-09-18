@@ -64,6 +64,10 @@ pub const AGENT_SKILL_SETTINGS_LIST_OPERATION: &str = "agent.skill.settings.list
 pub const AGENT_SKILL_SETTINGS_UPDATE_OPERATION: &str = "agent.skill.settings.update";
 pub const AGENT_SKILL_SEARCH_OPERATION: &str = "agent.skill.search";
 pub const AGENT_SKILL_LOAD_OPERATION: &str = "agent.skill.load";
+pub const AGENT_RUN_SEND_OPERATION: &str = "agent.run.send";
+pub const AGENT_RUN_CONTROL_OPERATION: &str = "agent.run.control";
+pub const AGENT_RUN_SEND_CHILD_OPERATION: &str = "agent.run.send_child";
+pub const AGENT_RUN_CONTROL_CHILD_OPERATION: &str = "agent.run.control_child";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -84,6 +88,14 @@ pub struct AgentDelegationReviewCommand {
 pub struct AgentSkillCapabilityCommand<T> {
     pub capability: String,
     pub input: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentRunRuntimeCommand<T> {
+    pub input: T,
+    pub runtime_snapshot_required: bool,
+    pub require_runtime_snapshot_for_new_run: bool,
 }
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;

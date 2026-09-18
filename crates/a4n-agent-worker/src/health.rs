@@ -4,19 +4,21 @@ use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime_contract::{
     AGENT_APPROVAL_RESOLVE_OPERATION, AGENT_DELEGATION_REVIEW_OPERATION,
     AGENT_DELEGATION_SPAWN_OPERATION, AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION,
-    AGENT_MEMORY_LIST_OPERATION, AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_SHOW_OPERATION,
-    AGENT_SKILL_LOAD_OPERATION, AGENT_SKILL_SEARCH_OPERATION, AGENT_SKILL_SETTINGS_LIST_OPERATION,
-    AGENT_SKILL_SETTINGS_UPDATE_OPERATION, AGENT_THREAD_ARCHIVE_OPERATION,
-    AGENT_THREAD_CREATE_OPERATION, AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION,
-    AGENT_THREAD_LIST_OPERATION, AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION,
-    AGENT_THREAD_UPDATE_OPERATION, AgentDelegationReviewCommand, AgentMemoryListInput,
+    AGENT_MEMORY_LIST_OPERATION, AGENT_MEMORY_RETRACT_OPERATION, AGENT_RUN_CONTROL_CHILD_OPERATION,
+    AGENT_RUN_CONTROL_OPERATION, AGENT_RUN_SEND_CHILD_OPERATION, AGENT_RUN_SEND_OPERATION,
+    AGENT_RUN_SHOW_OPERATION, AGENT_SKILL_LOAD_OPERATION, AGENT_SKILL_SEARCH_OPERATION,
+    AGENT_SKILL_SETTINGS_LIST_OPERATION, AGENT_SKILL_SETTINGS_UPDATE_OPERATION,
+    AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
+    AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
+    AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
+    AgentDelegationReviewCommand, AgentMemoryListInput, AgentRunRuntimeCommand,
     AgentSkillCapabilityCommand,
 };
 use a4n_api_contract::agent::{
     AgentApprovalApplicationPort, AgentDelegationApplicationPort, AgentEventReadApplicationPort,
     AgentMemoryMutationApplicationPort, AgentMemoryReadApplicationPort,
-    AgentRunReadApplicationPort, AgentSkillApplicationPort, AgentThreadMutationApplicationPort,
-    AgentThreadReadApplicationPort,
+    AgentRunMutationApplicationPort, AgentRunReadApplicationPort, AgentSkillApplicationPort,
+    AgentThreadMutationApplicationPort, AgentThreadReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
@@ -66,6 +68,10 @@ const WORKER_OPERATIONS: &[&str] = &[
     AGENT_SKILL_SETTINGS_UPDATE_OPERATION,
     AGENT_SKILL_SEARCH_OPERATION,
     AGENT_SKILL_LOAD_OPERATION,
+    AGENT_RUN_SEND_OPERATION,
+    AGENT_RUN_CONTROL_OPERATION,
+    AGENT_RUN_SEND_CHILD_OPERATION,
+    AGENT_RUN_CONTROL_CHILD_OPERATION,
 ];
 
 #[derive(Clone)]
@@ -159,6 +165,22 @@ pub(crate) fn router(
         .route(
             "/v1/commands/agent.skill.load",
             axum::routing::post(load_skill),
+        )
+        .route(
+            "/v1/commands/agent.run.send",
+            axum::routing::post(send_message),
+        )
+        .route(
+            "/v1/commands/agent.run.control",
+            axum::routing::post(control_run),
+        )
+        .route(
+            "/v1/commands/agent.run.send_child",
+            axum::routing::post(send_message_to_child),
+        )
+        .route(
+            "/v1/commands/agent.run.control_child",
+            axum::routing::post(control_child),
         )
         .with_state(HealthState {
             worker_id: Arc::<str>::from(worker_id),
@@ -511,6 +533,83 @@ async fn load_skill(
         |app, user_id, payload| async move {
             let command: AgentSkillCapabilityCommand<Value> = decode_payload(payload)?;
             app.load_skill(user_id, &command.capability, decode_payload(command.input)?)
+                .await
+        },
+    )
+    .await
+}
+
+async fn send_message(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_RUN_SEND_OPERATION,
+        |app, user_id, payload| async move {
+            let command: AgentRunRuntimeCommand<Value> = decode_payload(payload)?;
+            app.send_message(
+                user_id,
+                decode_payload(command.input)?,
+                command.runtime_snapshot_required,
+                command.require_runtime_snapshot_for_new_run,
+            )
+            .await
+        },
+    )
+    .await
+}
+
+async fn control_run(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(&state, &headers, request, AGENT_RUN_CONTROL_OPERATION, |app, user_id, payload| async move {
+        app.control_run(user_id, decode_payload(payload)?).await
+    })
+    .await
+}
+
+async fn send_message_to_child(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_RUN_SEND_CHILD_OPERATION,
+        |app, user_id, payload| async move {
+            let command: AgentRunRuntimeCommand<Value> = decode_payload(payload)?;
+            app.send_message_to_child(
+                user_id,
+                decode_payload(command.input)?,
+                command.runtime_snapshot_required,
+                command.require_runtime_snapshot_for_new_run,
+            )
+            .await
+        },
+    )
+    .await
+}
+
+async fn control_child(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<Value>>,
+) -> Response {
+    user_command(
+        &state,
+        &headers,
+        request,
+        AGENT_RUN_CONTROL_CHILD_OPERATION,
+        |app, user_id, payload| async move {
+            app.control_child_agent(user_id, decode_payload(payload)?)
                 .await
         },
     )
@@ -872,7 +971,11 @@ mod tests {
                 {"name": AGENT_SKILL_SETTINGS_LIST_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_SKILL_SETTINGS_UPDATE_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
                 {"name": AGENT_SKILL_SEARCH_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
-                {"name": AGENT_SKILL_LOAD_OPERATION, "version": CAPABILITY_VERSION, "enabled": true}
+                {"name": AGENT_SKILL_LOAD_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_RUN_SEND_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_RUN_CONTROL_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_RUN_SEND_CHILD_OPERATION, "version": CAPABILITY_VERSION, "enabled": true},
+                {"name": AGENT_RUN_CONTROL_CHILD_OPERATION, "version": CAPABILITY_VERSION, "enabled": true}
             ])
         );
         assert!(value.get("capability_version").is_none());

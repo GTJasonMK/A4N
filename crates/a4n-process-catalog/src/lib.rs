@@ -383,6 +383,10 @@ mod tests {
                 "agent.skill.settings.update".to_string(),
                 "agent.skill.search".to_string(),
                 "agent.skill.load".to_string(),
+                "agent.run.send".to_string(),
+                "agent.run.control".to_string(),
+                "agent.run.send_child".to_string(),
+                "agent.run.control_child".to_string(),
             ]
         );
         assert_eq!(entry.migration.current.as_deref(), Some("agent_runtime"));

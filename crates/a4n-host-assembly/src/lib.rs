@@ -149,7 +149,7 @@ pub async fn initialize_runtime(
         prompt_mutation_application,
         agent_thread_mutation_application: agent_worker.clone(),
         agent_thread_read_application: agent_worker.clone(),
-        agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
+        agent_run_mutation_application: agent_worker.clone(),
         agent_run_read_application: agent_worker.clone(),
         agent_delegation_application: agent_worker.clone(),
         agent_tool_read_application: Arc::new(orchestrator.agent().clone()),
