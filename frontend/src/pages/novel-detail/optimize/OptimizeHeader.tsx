@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import type { ChapterSummary } from "../../../api/chapter";
 import { useI18n } from "../../../i18n";
@@ -19,20 +18,16 @@ export function OptimizeHeader({
   onSelectChapter,
 }: OptimizeHeaderProps) {
   const { t } = useI18n();
-  const chapterOptions = useMemo(
-    () =>
-      chapters.map((chapter) => ({
-        id: chapter.id,
-        label: `${t("writing.chapterLabel", { number: chapter.chapter_number })}${
-          chapter.title?.trim() ? ` · ${chapter.title.trim()}` : ""
-        }`,
-      })),
-    [chapters, t],
-  );
+  const formatChapterLabel = (chapter: ChapterSummary) =>
+    `${t("writing.chapterLabel", { number: chapter.chapter_number })}${
+      chapter.title?.trim() ? ` · ${chapter.title.trim()}` : ""
+    }`;
+  const chapterOptions = chapters.map((chapter) => ({
+    id: chapter.id,
+    label: formatChapterLabel(chapter),
+  }));
   const chapterLabel = activeChapter
-    ? `${t("writing.chapterLabel", { number: activeChapter.chapter_number })}${
-        activeChapter.title?.trim() ? ` · ${activeChapter.title.trim()}` : ""
-      }`
+    ? formatChapterLabel(activeChapter)
     : t("writing.assistantChapterNotSelected");
 
   return (

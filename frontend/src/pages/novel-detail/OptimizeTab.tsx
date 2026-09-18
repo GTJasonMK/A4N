@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { ChapterSummary } from "../../api/chapter";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
-import { useI18n } from "../../i18n";
 import { OptimizeHeader } from "./optimize/OptimizeHeader";
 
 interface OptimizeTabProps {
@@ -19,7 +18,6 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   embedded = false,
   onChapterContentChanged,
 }) => {
-  const { t } = useI18n();
   const [selectedChapter, setSelectedChapter] = useState<number | "">(
     fixedChapterId ?? chapters[0]?.id ?? "",
   );
@@ -40,13 +38,10 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   const boundChapterId =
     fixedChapterId ??
     (typeof selectedChapter === "number" ? selectedChapter : null);
-  const activeChapter = useMemo(
-    () =>
-      boundChapterId == null
-        ? null
-        : chapters.find((chapter) => chapter.id === boundChapterId) ?? null,
-    [boundChapterId, chapters],
-  );
+  const activeChapter =
+    boundChapterId == null
+      ? null
+      : chapters.find((chapter) => chapter.id === boundChapterId) ?? null;
 
   return (
     <section
@@ -76,11 +71,6 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
         fill
         className="min-h-0 flex-1 rounded-none border-0 shadow-none"
       />
-      {boundChapterId == null ? (
-        <p className="border-t border-book-border/45 px-3 py-2 text-small text-book-text-muted">
-          {t("writing.chooseGeneratedChapterForAssistant")}
-        </p>
-      ) : null}
     </section>
   );
 };
