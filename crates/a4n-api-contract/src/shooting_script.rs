@@ -35,6 +35,28 @@ pub struct GenerateChapterShootingScriptInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct PublishChapterShootingScriptInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
+    #[schemars(length(min = 64, max = 64))]
+    pub input_fingerprint_sha256: String,
+    #[schemars(range(min = 1))]
+    pub visual_plan_id: i64,
+    #[schemars(range(min = 1))]
+    pub visual_plan_version: i32,
+    #[schemars(length(min = 64, max = 64))]
+    pub visual_plan_sha256: String,
+    pub script: ChapterShootingScriptV1,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_revision: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EditChapterShootingScriptInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
@@ -119,6 +141,12 @@ pub trait ShootingScriptUnitProgressReadApplicationPort: Send + Sync {
 /// Host-facing mutation boundary for persisted shooting-script records.
 #[async_trait::async_trait]
 pub trait ShootingScriptRecordMutationApplicationPort: Send + Sync {
+    async fn publish(
+        &self,
+        user_id: i64,
+        input: PublishChapterShootingScriptInput,
+    ) -> Result<ChapterShootingScriptView, a4n_error::AppError>;
+
     async fn edit(
         &self,
         user_id: i64,

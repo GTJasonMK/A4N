@@ -3,13 +3,15 @@
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
     EditChapterShootingScriptInput, EditedChapterShootingScriptView,
-    ShootingScriptCurrentReadApplicationPort, ShootingScriptRecordMutationApplicationPort,
+    PublishChapterShootingScriptInput, ShootingScriptCurrentReadApplicationPort,
+    ShootingScriptRecordMutationApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_novel_planning_worker_contract::{
     CurrentShootingScriptPayload, DELETE_SHOOTING_SCRIPT_OPERATION, DeleteShootingScriptPayload,
     EDIT_SHOOTING_SCRIPT_OPERATION, EditShootingScriptPayload,
     GET_CURRENT_SHOOTING_SCRIPT_OPERATION, NOVEL_PLANNING_WORKER_ID,
+    PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -143,6 +145,21 @@ impl ShootingScriptCurrentReadApplicationPort for NovelPlanningWorkerClient {
 
 #[async_trait::async_trait]
 impl ShootingScriptRecordMutationApplicationPort for NovelPlanningWorkerClient {
+    async fn publish(
+        &self,
+        user_id: i64,
+        input: PublishChapterShootingScriptInput,
+    ) -> Result<ChapterShootingScriptView, AppError> {
+        self.command::<PublishShootingScriptPayload, ChapterShootingScriptView>(
+            user_id,
+            input.project_id,
+            input.expected_revision,
+            PUBLISH_SHOOTING_SCRIPT_OPERATION,
+            input,
+        )
+        .await
+    }
+
     async fn edit(
         &self,
         user_id: i64,

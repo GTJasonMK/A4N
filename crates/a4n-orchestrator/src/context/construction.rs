@@ -54,6 +54,9 @@ impl OrchestratorContext {
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
         snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
         document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
+        shooting_script_publication: Arc<
+            dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort,
+        >,
         provider_factory: impl FnOnce(
             Arc<dyn ProviderRuntimePort>,
         ) -> Result<
@@ -98,7 +101,8 @@ impl OrchestratorContext {
         let rag = RagApplication::new(db.clone());
         let scene_profile = SceneProfileApplication::new(db.clone());
         let settings = ConfigApplication::new(db.clone());
-        let shooting_script = ShootingScriptApplication::new(db.clone());
+        let shooting_script =
+            ShootingScriptApplication::new(db.clone(), shooting_script_publication);
         let source_sync = SourceSyncApplication::new(db.clone());
         let text_anchor = TextAnchorApplication::new(db.clone());
         let video = VideoApplication::new(db.clone());

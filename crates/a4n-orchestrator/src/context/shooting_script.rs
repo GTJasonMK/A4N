@@ -3,13 +3,15 @@
 //! 持有 `DbHandle`，封装章节共享拍摄剧本的加载与生成发布落库。
 //! LLM 生成编排仍在 `shooting_script/` 模块，但 DB 只经本 owner。
 
+use std::sync::Arc;
+
+use a4n_api_contract::shooting_script::{
+    PublishChapterShootingScriptInput, ShootingScriptRecordMutationApplicationPort,
+};
 use a4n_db::DbHandle;
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
 use a4n_db::project::ResolvedChapterSource;
-use a4n_db::shooting_script::{
-    ChapterVisualPlanIdentity, InsertChapterShootingScriptInput, ParsedChapterShootingScript,
-    UpdateChapterShootingScriptInput,
-};
+use a4n_db::shooting_script::{ChapterVisualPlanIdentity, ParsedChapterShootingScript};
 use a4n_domain::shooting_script::ChapterShootingScriptV1;
 use a4n_error::AppError;
 
@@ -22,11 +24,18 @@ use crate::shooting_script::{ChapterShootingScriptSourceInput, ResolvedChapterSh
 #[derive(Clone)]
 pub(super) struct ShootingScriptApplication {
     database: DbHandle,
+    publication: Arc<dyn ShootingScriptRecordMutationApplicationPort>,
 }
 
 impl ShootingScriptApplication {
-    pub(super) fn new(database: DbHandle) -> Self {
-        Self { database }
+    pub(super) fn new(
+        database: DbHandle,
+        publication: Arc<dyn ShootingScriptRecordMutationApplicationPort>,
+    ) -> Self {
+        Self {
+            database,
+            publication,
+        }
     }
 
     fn connection(&self) -> &sea_orm::DatabaseConnection {
@@ -112,6 +121,7 @@ impl ShootingScriptApplication {
 
     async fn publish_chapter_shooting_script(
         &self,
+        user_id: i64,
         source: ResolvedChapterSource,
         existing: Option<ParsedChapterShootingScript>,
         input_fingerprint_sha256: String,
@@ -119,33 +129,41 @@ impl ShootingScriptApplication {
         script: ChapterShootingScriptV1,
         workflow_run_id: i64,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
-        let shooting_script = match existing {
-            Some(existing) => a4n_db::shooting_script::update_chapter_shooting_script(
-                self.connection(),
-                UpdateChapterShootingScriptInput {
-                    record_id: existing.record.id,
-                    expected_revision: existing.record.revision,
+        let visual_plan_id = visual_plan.id;
+        self.publication
+            .publish(
+                user_id,
+                PublishChapterShootingScriptInput {
+                    project_id: source.requested_project_id,
+                    source_chapter_id: source.source_chapter_id,
                     input_fingerprint_sha256,
-                    visual_plan,
+                    visual_plan_id,
+                    visual_plan_version: visual_plan.version,
+                    visual_plan_sha256: visual_plan.sha256,
                     script,
-                    workflow_run_id: Some(workflow_run_id),
+                    workflow_run_id,
+                    expected_revision: existing.map(|record| record.record.revision),
                 },
             )
-            .await
-            .map_err(shooting_script_db_error)?,
-            None => a4n_db::shooting_script::insert_chapter_shooting_script(
-                self.connection(),
-                InsertChapterShootingScriptInput {
-                    source: source.clone(),
-                    input_fingerprint_sha256,
-                    visual_plan,
-                    script,
-                    workflow_run_id: Some(workflow_run_id),
-                },
+            .await?;
+        let (resolved_source, existing) = self
+            .load_chapter_shooting_script_source_record(&ChapterShootingScriptSourceInput {
+                project_id: source.requested_project_id,
+                source_chapter_id: source.source_chapter_id,
+                visual_plan_id: Some(visual_plan_id),
+            })
+            .await?;
+        let shooting_script = self
+            .load_current_chapter_shooting_script_for_source(
+                resolved_source,
+                existing,
+                Some(visual_plan_id),
             )
-            .await
-            .map_err(shooting_script_db_error)?,
-        };
+            .await?;
+        let shooting_script = shooting_script.ok_or_else(|| AppError::InvalidState {
+            current: "Novel Planning worker 已发布拍摄剧本，但 Host 无法读取当前版本".into(),
+            operation: "读取已发布章节拍摄剧本".into(),
+        })?;
         Ok(ResolvedChapterShootingScript {
             source,
             shooting_script,
@@ -195,6 +213,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn publish_chapter_shooting_script(
         &self,
+        user_id: i64,
         source: ResolvedChapterSource,
         existing: Option<ParsedChapterShootingScript>,
         input_fingerprint_sha256: String,
@@ -204,6 +223,7 @@ impl OrchestratorContext {
     ) -> Result<ResolvedChapterShootingScript, AppError> {
         self.shooting_script
             .publish_chapter_shooting_script(
+                user_id,
                 source,
                 existing,
                 input_fingerprint_sha256,
@@ -270,15 +290,107 @@ fn current_script_for_confirmed_visual_plan(
 }
 
 #[cfg(test)]
-mod current_record_tests {
-    use super::ensure_current_shooting_script_record_id;
+pub(crate) fn test_shooting_script_publication(
+    database: DbHandle,
+) -> Arc<dyn ShootingScriptRecordMutationApplicationPort> {
+    Arc::new(TestShootingScriptPublication { database })
+}
 
-    #[test]
-    fn rejects_non_current_record() {
-        let error = ensure_current_shooting_script_record_id(7, 8)
-            .expect_err("non-current record must be rejected");
+#[cfg(test)]
+#[derive(Clone)]
+struct TestShootingScriptPublication {
+    database: DbHandle,
+}
 
-        assert!(error.to_string().contains("expected_record_id=7"));
-        assert!(error.to_string().contains("actual_record_id=8"));
+#[cfg(test)]
+#[async_trait::async_trait]
+impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublication {
+    async fn publish(
+        &self,
+        _user_id: i64,
+        input: PublishChapterShootingScriptInput,
+    ) -> Result<a4n_api_contract::shooting_script::ChapterShootingScriptView, AppError> {
+        let source = a4n_db::project::resolve_chapter_source(
+            self.database.connection(),
+            input.project_id,
+            input.source_chapter_id,
+        )
+        .await
+        .map_err(resolve_source_error)?;
+        let visual_plan = ChapterVisualPlanIdentity {
+            id: input.visual_plan_id,
+            version: input.visual_plan_version,
+            sha256: input.visual_plan_sha256,
+        };
+        let record = match input.expected_revision {
+            Some(expected_revision) => {
+                let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(
+                    self.database.connection(),
+                    &source,
+                )
+                .await
+                .map_err(shooting_script_db_error)?
+                .ok_or_else(|| AppError::NotFound("测试拍摄剧本不存在".into()))?;
+                a4n_db::shooting_script::update_chapter_shooting_script(
+                    self.database.connection(),
+                    a4n_db::shooting_script::UpdateChapterShootingScriptInput {
+                        record_id: existing.record.id,
+                        expected_revision,
+                        input_fingerprint_sha256: input.input_fingerprint_sha256,
+                        visual_plan,
+                        script: input.script,
+                        workflow_run_id: Some(input.workflow_run_id),
+                    },
+                )
+                .await
+                .map_err(shooting_script_db_error)?
+            }
+            None => a4n_db::shooting_script::insert_chapter_shooting_script(
+                self.database.connection(),
+                a4n_db::shooting_script::InsertChapterShootingScriptInput {
+                    source,
+                    input_fingerprint_sha256: input.input_fingerprint_sha256,
+                    visual_plan,
+                    script: input.script,
+                    workflow_run_id: Some(input.workflow_run_id),
+                },
+            )
+            .await
+            .map_err(shooting_script_db_error)?,
+        };
+        Ok(
+            a4n_api_contract::shooting_script::ChapterShootingScriptView {
+                record: a4n_api_contract::shooting_script::ChapterShootingScriptRecordSummary {
+                    id: record.record.id,
+                    revision: record.record.revision,
+                    visual_plan_id: record.record.visual_plan_id,
+                    visual_plan_version: record.record.visual_plan_version,
+                    visual_plan_sha256: record.record.visual_plan_sha256,
+                },
+                script: record.script,
+            },
+        )
+    }
+
+    async fn edit(
+        &self,
+        _user_id: i64,
+        _input: a4n_api_contract::shooting_script::EditChapterShootingScriptInput,
+    ) -> Result<a4n_api_contract::shooting_script::EditedChapterShootingScriptView, AppError> {
+        Err(AppError::InvalidState {
+            current: "测试 publication 只支持生成发布".into(),
+            operation: "编辑测试拍摄剧本".into(),
+        })
+    }
+
+    async fn delete(
+        &self,
+        _user_id: i64,
+        _input: a4n_api_contract::shooting_script::DeleteChapterShootingScriptInput,
+    ) -> Result<(), AppError> {
+        Err(AppError::InvalidState {
+            current: "测试 publication 只支持生成发布".into(),
+            operation: "删除测试拍摄剧本".into(),
+        })
     }
 }

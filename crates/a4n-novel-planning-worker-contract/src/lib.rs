@@ -3,6 +3,7 @@
 pub use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
     EditChapterShootingScriptInput, EditedChapterShootingScriptView,
+    PublishChapterShootingScriptInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
@@ -12,14 +13,17 @@ pub const NOVEL_PLANNING_WORKER_CONTRACT_VERSION: &str = "novel-planning-shootin
 pub const GET_CURRENT_SHOOTING_SCRIPT_OPERATION: &str = "novel_planning.shooting_script.current";
 pub const EDIT_SHOOTING_SCRIPT_OPERATION: &str = "novel_planning.shooting_script.edit";
 pub const DELETE_SHOOTING_SCRIPT_OPERATION: &str = "novel_planning.shooting_script.delete";
+pub const PUBLISH_SHOOTING_SCRIPT_OPERATION: &str = "novel_planning.shooting_script.publish";
 
 pub const SHOOTING_SCRIPT_CURRENT_CAPABILITY: &str = "shooting_script.current";
 pub const SHOOTING_SCRIPT_EDIT_CAPABILITY: &str = "shooting_script.edit";
 pub const SHOOTING_SCRIPT_DELETE_CAPABILITY: &str = "shooting_script.delete";
+pub const SHOOTING_SCRIPT_PUBLISH_CAPABILITY: &str = "shooting_script.publish";
 
 pub type CurrentShootingScriptPayload = ChapterShootingScriptSourceInput;
 pub type EditShootingScriptPayload = EditChapterShootingScriptInput;
 pub type DeleteShootingScriptPayload = DeleteChapterShootingScriptInput;
+pub type PublishShootingScriptPayload = PublishChapterShootingScriptInput;
 
 #[cfg(test)]
 mod tests {

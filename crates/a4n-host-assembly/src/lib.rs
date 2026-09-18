@@ -15,6 +15,8 @@ pub async fn initialize_runtime(
     runtime_role: RuntimeRole,
 ) -> Result<AppState, AppError> {
     let bootstrap = RuntimeBootstrap::prepare(config, runtime_profile, runtime_role).await?;
+    let novel_planning_worker =
+        Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
     let mut provider_runtime = None;
     let orchestrator = OrchestratorContext::bootstrap(
         bootstrap.database(),
@@ -28,6 +30,7 @@ pub async fn initialize_runtime(
         bootstrap.prompt_engine(),
         bootstrap.snapshot_store(),
         bootstrap.document_export_renderer()?,
+        novel_planning_worker.clone(),
         |provider_port| {
             let (provider_facade, llm, embedding) = bootstrap.create_provider(provider_port)?;
             provider_runtime = Some(provider_facade);
@@ -43,8 +46,6 @@ pub async fn initialize_runtime(
     let package_mutation_application = Arc::new(orchestrator.clone());
     let rag_search = Arc::new(orchestrator.clone());
     let rag_ingest = Arc::new(orchestrator.clone());
-    let novel_planning_worker =
-        Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
     let artifact_media_worker =
         a4n_artifact_media_client::ArtifactMediaWorkerClient::from_env().map(Arc::new);
     let artifact_media_publication_application = artifact_media_worker

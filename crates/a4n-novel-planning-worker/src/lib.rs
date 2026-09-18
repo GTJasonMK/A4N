@@ -5,15 +5,16 @@ use std::{env, net::SocketAddr, sync::Arc};
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSourceInput,
     ChapterShootingScriptView, DeleteChapterShootingScriptInput, EditChapterShootingScriptInput,
-    EditedChapterShootingScriptView,
+    EditedChapterShootingScriptView, PublishChapterShootingScriptInput,
 };
 use a4n_db::{DbHandle, chapter_visual_plan::ChapterVisualPlanDbError};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_novel_planning_worker_contract::{
     DELETE_SHOOTING_SCRIPT_OPERATION, EDIT_SHOOTING_SCRIPT_OPERATION,
     GET_CURRENT_SHOOTING_SCRIPT_OPERATION, NOVEL_PLANNING_WORKER_CONTRACT_VERSION,
-    NOVEL_PLANNING_WORKER_ID, SHOOTING_SCRIPT_CURRENT_CAPABILITY,
-    SHOOTING_SCRIPT_DELETE_CAPABILITY, SHOOTING_SCRIPT_EDIT_CAPABILITY,
+    NOVEL_PLANNING_WORKER_ID, PUBLISH_SHOOTING_SCRIPT_OPERATION,
+    SHOOTING_SCRIPT_CURRENT_CAPABILITY, SHOOTING_SCRIPT_DELETE_CAPABILITY,
+    SHOOTING_SCRIPT_EDIT_CAPABILITY, SHOOTING_SCRIPT_PUBLISH_CAPABILITY,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -85,6 +86,10 @@ impl NovelPlanningWorker {
             .route(
                 "/v1/commands/novel_planning.shooting_script.delete",
                 post(delete),
+            )
+            .route(
+                "/v1/commands/novel_planning.shooting_script.publish",
+                post(publish),
             )
             .with_state(self.state.clone())
     }
@@ -181,6 +186,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 version: NOVEL_PLANNING_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
             },
+            WorkerCapability {
+                name: SHOOTING_SCRIPT_PUBLISH_CAPABILITY.into(),
+                version: NOVEL_PLANNING_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
         ],
     })
     .into_response()
@@ -226,6 +236,21 @@ async fn delete(
     }
     let response = match state.delete(request.clone()).await {
         Ok(()) => completed(&request, ()),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn publish(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<PublishChapterShootingScriptInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.publish(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
         Err(error) => failed(&request, error),
     };
     Json(response).into_response()
@@ -304,6 +329,108 @@ impl WorkerState {
                 script: outcome.shooting_script.script,
             },
             invalidated_project_ids: outcome.invalidated_project_ids,
+        })
+    }
+
+    async fn publish(
+        &self,
+        request: WorkerEnvelope<PublishChapterShootingScriptInput>,
+    ) -> Result<ChapterShootingScriptView, WorkerFailure> {
+        validate_request(&request, PUBLISH_SHOOTING_SCRIPT_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        validate_optional_target_revision(&request, request.payload.expected_revision)?;
+        let user_id = user_id(&request)?;
+        verify_family_permission(
+            self.database.connection(),
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+
+        let source = a4n_db::project::resolve_chapter_source(
+            self.database.connection(),
+            request.payload.project_id,
+            request.payload.source_chapter_id,
+        )
+        .await
+        .map_err(source_error)?;
+        let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(
+            self.database.connection(),
+            &source,
+        )
+        .await
+        .map_err(shooting_script_error)?;
+        let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
+            self.database.connection(),
+            &source,
+        )
+        .await
+        .map_err(visual_plan_error)?
+        .ok_or_else(|| WorkerFailure::not_found("当前正文缺少 confirmed 导演编排方案"))?;
+        if confirmed.record.id != request.payload.visual_plan_id
+            || confirmed.record.plan_version != request.payload.visual_plan_version
+            || confirmed.record.plan_sha256 != request.payload.visual_plan_sha256
+        {
+            return Err(WorkerFailure::conflict(
+                "发布的拍摄剧本未绑定当前 confirmed 导演编排",
+            ));
+        }
+
+        let visual_plan = a4n_db::shooting_script::ChapterVisualPlanIdentity {
+            id: request.payload.visual_plan_id,
+            version: request.payload.visual_plan_version,
+            sha256: request.payload.visual_plan_sha256.clone(),
+        };
+        let record = match (existing, request.payload.expected_revision) {
+            (Some(existing), Some(expected_revision)) => {
+                if existing.record.revision != expected_revision {
+                    return Err(WorkerFailure::conflict(format!(
+                        "shooting_script_revision_conflict:id={},expected={expected_revision}",
+                        existing.record.id
+                    )));
+                }
+                a4n_db::shooting_script::update_chapter_shooting_script(
+                    self.database.connection(),
+                    a4n_db::shooting_script::UpdateChapterShootingScriptInput {
+                        record_id: existing.record.id,
+                        expected_revision,
+                        input_fingerprint_sha256: request.payload.input_fingerprint_sha256,
+                        visual_plan,
+                        script: request.payload.script,
+                        workflow_run_id: Some(request.payload.workflow_run_id),
+                    },
+                )
+                .await
+                .map_err(shooting_script_error)?
+            }
+            (None, None) => a4n_db::shooting_script::insert_chapter_shooting_script(
+                self.database.connection(),
+                a4n_db::shooting_script::InsertChapterShootingScriptInput {
+                    source,
+                    input_fingerprint_sha256: request.payload.input_fingerprint_sha256,
+                    visual_plan,
+                    script: request.payload.script,
+                    workflow_run_id: Some(request.payload.workflow_run_id),
+                },
+            )
+            .await
+            .map_err(shooting_script_error)?,
+            (Some(existing), None) => {
+                return Err(WorkerFailure::conflict(format!(
+                    "shooting_script_revision_conflict:id={},expected_revision_required",
+                    existing.record.id
+                )));
+            }
+            (None, Some(expected_revision)) => {
+                return Err(WorkerFailure::not_found(format!(
+                    "expected_revision={expected_revision} 对应的章节拍摄剧本不存在"
+                )));
+            }
+        };
+        Ok(ChapterShootingScriptView {
+            record: record_summary(record.record),
+            script: record.script,
         })
     }
 
@@ -460,6 +587,19 @@ fn validate_target_revision<T>(
         )));
     }
     Ok(())
+}
+
+fn validate_optional_target_revision<T>(
+    request: &WorkerEnvelope<T>,
+    expected_revision: Option<i32>,
+) -> Result<(), WorkerFailure> {
+    match expected_revision {
+        Some(expected_revision) => validate_target_revision(request, expected_revision),
+        None if request.target_revision.is_some() => Err(WorkerFailure::invalid_request(
+            "新建拍摄剧本不能携带 target_revision",
+        )),
+        None => Ok(()),
+    }
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {

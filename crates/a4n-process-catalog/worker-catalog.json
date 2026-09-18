@@ -50,7 +50,8 @@
     "capabilities": [
       "shooting_script.current",
       "shooting_script.edit",
-      "shooting_script.delete"
+      "shooting_script.delete",
+      "shooting_script.publish"
     ],
     "dependencies": [
       "a4n-migration"

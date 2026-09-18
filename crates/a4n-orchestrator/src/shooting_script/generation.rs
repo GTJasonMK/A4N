@@ -180,6 +180,7 @@ impl OrchestratorContext {
         self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
             .await?;
         self.generate_chapter_shooting_script_with_progress(
+            user_id,
             source,
             progress,
             stream_reporter,
@@ -206,6 +207,7 @@ impl OrchestratorContext {
         let workflow_run_id = input.workflow_run_id;
         let result = self
             .regenerate_chapter_shooting_script_units_with_progress(
+                user_id,
                 input,
                 true,
                 progress,
@@ -262,6 +264,7 @@ impl OrchestratorContext {
 
     async fn generate_chapter_shooting_script_with_progress(
         &self,
+        user_id: i64,
         source: GenerateChapterShootingScriptInput,
         progress: ShootingScriptProgressReporter<'_>,
         stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
@@ -274,6 +277,7 @@ impl OrchestratorContext {
         let workflow_run_id = input.workflow_run_id;
         let result = self
             .regenerate_chapter_shooting_script_units_with_progress(
+                user_id,
                 input,
                 false,
                 progress,
@@ -347,6 +351,7 @@ impl OrchestratorContext {
 
     async fn regenerate_chapter_shooting_script_units_with_progress(
         &self,
+        user_id: i64,
         input: RegenerateChapterShootingScriptInput,
         stop_after_next_unit: bool,
         progress: ShootingScriptProgressReporter<'_>,
@@ -447,6 +452,7 @@ impl OrchestratorContext {
         )?;
         let resolved = self
             .publish_chapter_shooting_script(
+                user_id,
                 prepared.source,
                 prepared.existing,
                 prepared.input_fingerprint_sha256,

@@ -56,6 +56,8 @@ mod rag_store;
 mod scene_profile;
 mod settings;
 mod shooting_script;
+#[cfg(test)]
+pub(crate) use shooting_script::test_shooting_script_publication;
 mod source_sync;
 mod task_queue;
 mod text_anchor;
