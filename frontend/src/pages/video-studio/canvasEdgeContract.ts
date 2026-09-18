@@ -41,7 +41,7 @@ export function inferCanvasEdgeContract(
   const sourceContract = studioNodeContract(contractsByKind, source.data.nodeKind);
   const targetContract = studioNodeContract(contractsByKind, target.data.nodeKind);
   if (!sourceContract || !targetContract) return null;
-  if (sourceContract.category === "output" || targetContract.category === "input") return null;
+  if (sourceContract.outputs.length === 0 || targetContract.inputs.length === 0) return null;
 
   const sourceHandle = connection.sourceHandle?.trim();
   const targetHandle = connection.targetHandle?.trim();

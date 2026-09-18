@@ -83,3 +83,24 @@ fn document_edge_contract_accepts_contiguous_assembly_clips() {
     validate_canvas_record_document_edge_contract(&document)
         .expect("persisted assembly clip order should accept contiguous indexes");
 }
+
+#[test]
+fn document_edge_contract_accepts_image_output_as_downstream_image_source() {
+    let edge = canvas_edge::Model {
+        id: 1,
+        graph_id: 1,
+        source_node_id: 1,
+        source_port: "image".to_string(),
+        target_node_id: 2,
+        target_port: "first_frame".to_string(),
+        role: "first_frame".to_string(),
+        config_json: json!({}),
+    };
+    let document = graph_document(
+        vec![node(1, "ImageOutputNode"), node(2, "GenerateVideoNode")],
+        vec![edge],
+    );
+
+    validate_canvas_record_document_edge_contract(&document)
+        .expect("image output should pass an image to a downstream image input");
+}

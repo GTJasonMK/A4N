@@ -101,7 +101,11 @@ fn is_canvas_record_text_producer(kind: &str) -> bool {
 fn is_canvas_record_image_producer(kind: &str) -> bool {
     matches!(
         kind,
-        "ImageInputNode" | "GenerateImageNode" | "ExtractFrameNode" | "ImageProbeNode"
+        "ImageInputNode"
+            | "GenerateImageNode"
+            | "ExtractFrameNode"
+            | "ImageProbeNode"
+            | "ImageOutputNode"
     )
 }
 
