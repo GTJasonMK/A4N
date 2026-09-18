@@ -18,7 +18,7 @@ mod workflow_rules;
 pub use a4n_outline_contract::{
     OutlineBatchPartGenerationPreviewApplicationPort, OutlineBeatMappingPreviewApplicationPort,
     OutlineChapterCountGenerationPreviewApplicationPort,
-    OutlineChapterRegenerationPreviewApplicationPort, OutlineGenerationApplicationPort,
+    OutlineChapterRegenerationPreviewApplicationPort,
     OutlinePartChapterGenerationPreviewApplicationPort,
     OutlinePartGenerationPreviewApplicationPort, OutlinePartMutationPreviewApplicationPort,
     OutlineRequestPreviewStep,

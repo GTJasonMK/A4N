@@ -6,9 +6,12 @@ use super::{
 };
 
 pub use a4n_domain::workflow::{
-    UnifiedResumeDispatch, is_video_status_final_for_cancel_interrupt,
-    require_positive_workflow_run_id, validate_optional_project_id,
+    is_video_status_final_for_cancel_interrupt, require_positive_workflow_run_id,
+    validate_optional_project_id,
 };
+
+#[cfg(test)]
+use a4n_domain::workflow::UnifiedResumeDispatch;
 
 /// 工作流终态结果（纯规则）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,7 +75,8 @@ pub(crate) fn require_workflow_can_resume(
 }
 
 /// 可恢复校验 + kind 分发的单一规划入口（Host 访问校验仍在调用方）。
-pub fn plan_unified_resume(
+#[cfg(test)]
+fn plan_unified_resume(
     status: &str,
     can_resume: bool,
     resume_block_reason: Option<&str>,

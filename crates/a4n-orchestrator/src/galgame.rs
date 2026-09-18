@@ -119,4 +119,3 @@ use a4n_db::galgame::{
 use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};
 
 pub(crate) use a4n_galgame_host_contract::GalgameAssetGenerationHostPort;
-pub use application::GalgamePipelineApplicationInput;

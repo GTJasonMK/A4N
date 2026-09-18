@@ -82,7 +82,6 @@ pub(crate) use a4n_api_contract::project_transfer::{
     ProjectPackageTransferError, ProjectPackageTransferHostPort,
     VideoStudioProjectTransferApplicationPort,
 };
-pub use duplication::{ProjectDuplicationApplicationPort, ProjectDuplicationHostPort};
 #[cfg(test)]
 pub(crate) use family_package::PROJECT_FAMILY_PACKAGE_VERSION;
 pub(crate) use family_package::{

@@ -7,10 +7,6 @@ mod application;
 mod rules;
 mod sync;
 
-pub use a4n_api_contract::chapter::{
-    ChapterContentMutationApplicationPort, ChapterContentSyncApplicationPort,
-    ChapterDerivedCleanupHostPort,
-};
 pub(crate) use sync::CHAPTER_CONTENT_SYNC_RAG_STEP;
 pub(crate) use sync::CHAPTER_CONTENT_SYNC_WORKFLOW_KIND;
 pub(crate) use sync::chapter_content_sync_run_input_matches;
