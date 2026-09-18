@@ -154,7 +154,7 @@ function Fixture() {
         activeOutline={null} activeChapterContext={null} activeChapterBusy={false}
         activeChapterGeneratingMessage="" analysisBlockedReason={null}
         editorContent={chapter.content} dirty={false} savingContent={false}
-        optimizationPatchPreview={null} autoScrollEditorContent={false} wordCount={chapter.word_count}
+        autoScrollEditorContent={false} wordCount={chapter.word_count}
         generatingAnalysis={false} bottomTab={bottomTab} onBottomTabChange={setBottomTab}
         onEditorContentChange={unavailable} onGenerateAnalysis={unavailable}
         onPreviewGenerateAnalysis={unavailable} onResumeAnalysisSync={unavailable}

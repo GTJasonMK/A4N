@@ -63,6 +63,7 @@ fn content_optimization_analysis_prompt_detection_uses_payload_task_name() {
             agent_instruction: None,
             fixes_applied: 0,
             summary: None,
+            archived_at: None,
             created_at: now,
             updated_at: now,
         },

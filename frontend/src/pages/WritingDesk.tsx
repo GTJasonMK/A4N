@@ -64,7 +64,6 @@ import {
   getProjectPrimaryRoute,
 } from "../utils/projectRouting";
 import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
-import type { OptimizationPatchPreviewController } from "./novel-detail/optimize/patchPreviewTypes";
 import { useChapterAnalysisActions } from "./writing-desk/useChapterAnalysisActions";
 import { useChapterPromptPreview } from "./writing-desk/useChapterPromptPreview";
 import { useChapterStreamGeneration } from "./writing-desk/useChapterStreamGeneration";
@@ -180,8 +179,6 @@ export const WritingDesk: React.FC = () => {
     agentRequested ? "optimize" : "none",
     WRITING_DESK_RIGHT_PANELS,
   );
-  const [optimizationPatchPreview, setOptimizationPatchPreview] =
-    useState<OptimizationPatchPreviewController | null>(null);
   const {
     rightPanelWidth,
     rightPanelMaxWidth,
@@ -250,7 +247,6 @@ export const WritingDesk: React.FC = () => {
     activeChapter,
     activeOutline,
     activeOutlineText,
-    visibleOptimizationPatchPreview,
     activeChapterContext,
     chapterNumbers,
     filteredChapterNumbers,
@@ -259,7 +255,6 @@ export const WritingDesk: React.FC = () => {
     outlines,
     activeNumber,
     chapterQuery,
-    optimizationPatchPreview,
   });
   const activeChapterIndex = useMemo(
     () => (activeNumber == null ? -1 : chapterNumbers.indexOf(activeNumber)),
@@ -405,21 +400,6 @@ export const WritingDesk: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
-
-  useEffect(() => {
-    if (
-      optimizationPatchPreview &&
-      optimizationPatchPreview.proposal.chapter_id !== activeChapter?.id
-    ) {
-      setOptimizationPatchPreview(null);
-    }
-  }, [activeChapter?.id, optimizationPatchPreview]);
-
-  useEffect(() => {
-    if (visibleOptimizationPatchPreview) {
-      setBottomTab("content");
-    }
-  }, [visibleOptimizationPatchPreview]);
 
   const safeSelectChapter = useCallback(
     async (chapterNumber: number) => {
@@ -710,7 +690,6 @@ export const WritingDesk: React.FC = () => {
     setActiveNumber(null);
     setChapterQuery("");
     setWritingNotesByChapter({});
-    setOptimizationPatchPreview(null);
     setScenesOpen(false);
     setRightPanel("none");
     resetPromptPreview();
@@ -1051,7 +1030,6 @@ export const WritingDesk: React.FC = () => {
     onPreviewPrompt: handlePreviewPrompt,
     onOpenScenes: handleOpenScenes,
     onChapterContentChanged: handleOptimizedChapterContentChanged,
-    onPatchPreviewChange: setOptimizationPatchPreview,
   };
 
   return (
@@ -1140,7 +1118,6 @@ export const WritingDesk: React.FC = () => {
           editorContent={editorContent}
           dirty={dirty}
           savingContent={savingContent}
-          optimizationPatchPreview={visibleOptimizationPatchPreview}
           autoScrollEditorContent={streamingActiveChapter}
           wordCount={wordCount}
           generatingAnalysis={analysisBusy}

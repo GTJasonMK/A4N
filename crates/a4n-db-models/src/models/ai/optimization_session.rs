@@ -34,6 +34,9 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub summary: Option<String>,
 
+    /// 旧版用户侧优化会话归档时间；归档记录保留供历史任务使用。
+    pub archived_at: Option<chrono::NaiveDateTime>,
+
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }

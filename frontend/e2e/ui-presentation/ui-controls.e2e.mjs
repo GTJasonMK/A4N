@@ -163,32 +163,4 @@ describe("nested editor and input contracts", () => {
     assert.equal(await orb.getCSSProperty("transform").then((property) => property.value), "none");
   });
 
-  it("keeps composer toolbar keyboard actions separate from sending", async () => {
-    const choice = await $$('#composer-case .a4n-seg__btn')[1];
-    await choice.execute((element) => element.focus());
-    await browser.keys("Enter");
-    assert.equal(await $('[data-composer-actions]').getText(), "[]");
-    assert.equal(await choice.getAttribute("aria-pressed"), "true");
-    await $('#composer-case button[aria-haspopup="menu"]').execute((element) => element.focus());
-    await browser.keys("Enter");
-    await $('[role="menu"]').waitForDisplayed();
-    assert.equal(await $('[data-composer-actions]').getText(), "[]");
-  });
-
-  it("keeps Enter sending from the message editor and from its send button", async () => {
-    await $('#composer-case textarea').click();
-    await browser.keys("Enter");
-    assert.equal(await $('[data-composer-actions]').getText(), '["send"]');
-    await $('#composer-case button[type="submit"]').execute((element) => element.focus());
-    await browser.keys("Enter");
-    assert.equal(await $('[data-composer-actions]').getText(), '["send","send"]');
-  });
-
-  it("allows keyboard cancellation of a running composer task", async () => {
-    await $("#running-task").click();
-    const cancel = await $('#composer-case form button[title]:not([aria-haspopup])');
-    await cancel.execute((element) => element.focus());
-    await browser.keys("Enter");
-    assert.equal(await $('[data-composer-actions]').getText(), '["cancel"]');
-  });
 });

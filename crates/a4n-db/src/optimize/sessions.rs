@@ -9,7 +9,8 @@ where
     C: ConnectionTrait,
 {
     let mut query = optimization_session::Entity::find()
-        .filter(optimization_session::Column::ProjectId.eq(project_id));
+        .filter(optimization_session::Column::ProjectId.eq(project_id))
+        .filter(optimization_session::Column::ArchivedAt.is_null());
     if let Some(chapter_id) = chapter_id {
         query = query.filter(optimization_session::Column::ChapterId.eq(chapter_id));
     }
@@ -48,6 +49,7 @@ where
         .column(optimization_session::Column::Id)
         .filter(optimization_session::Column::ProjectId.eq(project_id))
         .filter(optimization_session::Column::ChapterId.eq(chapter_id))
+        .filter(optimization_session::Column::ArchivedAt.is_null())
         .filter(optimization_session::Column::Name.eq(name))
         .into_tuple::<i64>()
         .one(db)
@@ -74,6 +76,7 @@ where
         agent_instruction: Set(input.agent_instruction),
         fixes_applied: Set(input.fixes_applied),
         summary: Set(input.summary),
+        archived_at: Set(None),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

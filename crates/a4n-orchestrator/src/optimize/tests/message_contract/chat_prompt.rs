@@ -19,6 +19,7 @@ fn content_optimization_chat_user_message_uses_session_context() {
         agent_instruction: Some("优先检查动机".to_string()),
         fixes_applied: 0,
         summary: Some("发现 1 个问题".to_string()),
+        archived_at: None,
         created_at: now,
         updated_at: now,
     };

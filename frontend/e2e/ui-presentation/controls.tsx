@@ -7,8 +7,6 @@ import { ThemedCombobox } from "../../src/components/ui/ThemedCombobox";
 import { StatusBar, StatusBarProvider } from "../../src/components/ui/StatusBar";
 import { ChapterOutlineSection } from "../../src/pages/novel-detail/outlines/ChapterOutlineSection";
 import type { ChapterOutline } from "../../src/api/outline";
-import { OptimizeComposer } from "../../src/pages/novel-detail/optimize/OptimizeComposer";
-import type { ChapterSummary } from "../../src/api/chapter";
 import "../../src/index.css";
 
 const poseOptions = ["普通", "思考", "惊讶"].map((value) => ({ value, label: value }));
@@ -19,16 +17,6 @@ const outline: ChapterOutline = {
   beats: null, characters_involved: null, foreshadowing_payoff: null, foreshadowing_setup: null,
   key_scenes: null, pacing_score: null, created_at: null, updated_at: null,
 };
-const chapter: ChapterSummary = {
-  id: 1, project_id: 1, chapter_number: 1, title: "雨夜", content: "旅人在旧书店发现一封信。",
-  word_count: 12, status: "draft", outline_id: null, analysis_data: null, style_tags: null,
-  summary: null, created_at: null, updated_at: null, analysis_sync_status: null,
-  analysis_sync_error: null, analysis_sync_can_resume: false, analysis_sync_has_saved_analysis: false,
-  analysis_sync_resume_block_reason: null, derived_sync_status: "completed", derived_sync_error: null,
-  derived_sync_can_resume: false, derived_sync_workflow_run_id: null, material_updates: [],
-  material_sync: { characters: "completed", objects: "completed", scenes: "completed", content_index: "completed", outline_and_foreshadowing: "completed" },
-};
-
 function Controls() {
   const [dialog, setDialog] = useState<string | null>(null);
   const [childOpen, setChildOpen] = useState(false);
@@ -39,10 +27,6 @@ function Controls() {
   const [selectDisabled, setSelectDisabled] = useState(false);
   const [outlineActions, setOutlineActions] = useState<string[]>([]);
   const [autoFocusOpen, setAutoFocusOpen] = useState(false);
-  const [instruction, setInstruction] = useState("请让转场更自然");
-  const [automaticWriteback, setAutomaticWriteback] = useState(false);
-  const [taskRunning, setTaskRunning] = useState(false);
-  const [composerActions, setComposerActions] = useState<string[]>([]);
   const [catalogModel, setCatalogModel] = useState("model-0");
   const [handoffPhase, setHandoffPhase] = useState<"detail" | "edit" | null>(null);
 
@@ -79,18 +63,6 @@ function Controls() {
           </label>
           <span id="mode-error">请选择合适的场景类型。</span>
           <button className="pyqt-btn-secondary" onClick={() => setSelectDisabled((value) => !value)}>切换类型禁用</button>
-        </section>
-        <section id="composer-case" className="a4n-flat-surface overflow-hidden">
-          <OptimizeComposer activeChapter={chapter} automaticWriteback={automaticWriteback} canProposePatches
-            cancellingOptimize={false} input={instruction} pendingPatchProposal={null} reviewInEditor={false}
-            taskRunning={taskRunning} onInputChange={setInstruction}
-            onToggleAutomaticWriteback={() => setAutomaticWriteback((value) => !value)}
-            onSubmit={() => setComposerActions((items) => [...items, "send"])}
-            onCancelTask={() => setComposerActions((items) => [...items, "cancel"])}
-            onAnalyze={() => {}} onApplyPendingPatches={() => {}} onDiscardPendingPatches={() => {}}
-            onPreviewAnalyze={() => {}} onPreviewMessage={() => {}} onPreviewProposePatches={() => {}} onProposePatches={() => {}} />
-          <label className="flex items-center gap-2 p-3"><input id="running-task" type="checkbox" checked={taskRunning} onChange={(event) => setTaskRunning(event.target.checked)} />模拟任务运行</label>
-          <output data-composer-actions>{JSON.stringify(composerActions)}</output>
         </section>
         <section>
           <ChapterOutlineSection outlines={[outline]} canEdit chapterCount={1} generating={false}

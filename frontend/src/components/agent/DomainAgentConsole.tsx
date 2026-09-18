@@ -295,7 +295,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [deliveryMode, setDeliveryMode] =
     useState<AgentDeliveryMode>("followup");
   const [executionMode, setExecutionMode] =
-    useState<AgentExecutionMode>("autonomous");
+    useState<AgentExecutionMode>(() =>
+      capability === "content_optimization" ? "review_writes" : "autonomous",
+    );
   const [controlBusy, setControlBusy] =
     useState<AgentControlAction | null>(null);
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null);

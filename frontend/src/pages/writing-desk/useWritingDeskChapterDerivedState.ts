@@ -1,7 +1,6 @@
 import { useDeferredValue, useMemo } from "react";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
-import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import type { ChapterRow } from "../novel-detail/shared";
 import { useI18n } from "../../i18n";
 
@@ -10,7 +9,6 @@ interface UseWritingDeskChapterDerivedStateParams {
   outlines: ChapterOutline[];
   activeNumber: number | null;
   chapterQuery: string;
-  optimizationPatchPreview: OptimizationPatchPreviewController | null;
 }
 
 export function useWritingDeskChapterDerivedState({
@@ -18,7 +16,6 @@ export function useWritingDeskChapterDerivedState({
   outlines,
   activeNumber,
   chapterQuery,
-  optimizationPatchPreview,
 }: UseWritingDeskChapterDerivedStateParams) {
   const { t } = useI18n();
   const chaptersByNumber = useMemo(
@@ -44,10 +41,6 @@ export function useWritingDeskChapterDerivedState({
     const title = activeOutline.title?.trim();
     return title || null;
   }, [activeOutline]);
-  const visibleOptimizationPatchPreview =
-    optimizationPatchPreview?.proposal.chapter_id === activeChapter?.id
-      ? optimizationPatchPreview
-      : null;
   const activeChapterContext = useMemo<ChapterRow | null>(
     () =>
       activeChapter
@@ -106,7 +99,6 @@ export function useWritingDeskChapterDerivedState({
     activeChapter,
     activeOutline,
     activeOutlineText,
-    visibleOptimizationPatchPreview,
     activeChapterContext,
     chapterNumbers,
     filteredChapterNumbers,

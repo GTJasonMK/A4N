@@ -3,7 +3,6 @@ import { AlertTriangle, CheckCircle2, CircleDot, Settings } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
-import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import {
   getChapterSyncFailurePresentation,
   getOperationStatusLabel,
@@ -33,12 +32,6 @@ const ShootingScriptTab = lazy(() =>
     default: module.ShootingScriptTab,
   })),
 );
-const InlineOptimizationPatchPreview = lazy(() =>
-  import("./InlineOptimizationPatchPreview").then((module) => ({
-    default: module.InlineOptimizationPatchPreview,
-  })),
-);
-
 export type BottomTab =
   | "content"
   | "analysis"
@@ -58,7 +51,6 @@ interface ChapterWorkspaceProps {
   editorContent: string;
   dirty: boolean;
   savingContent: boolean;
-  optimizationPatchPreview: OptimizationPatchPreviewController | null;
   autoScrollEditorContent: boolean;
   wordCount: number;
   generatingAnalysis: boolean;
@@ -107,7 +99,6 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   editorContent,
   dirty,
   savingContent,
-  optimizationPatchPreview,
   autoScrollEditorContent,
   wordCount,
   generatingAnalysis,
@@ -354,29 +345,21 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
             className="a4n-writing-tab-panel mt-2 min-h-0 min-w-0 flex-1"
           >
             {bottomTab === "content" && (
-              optimizationPatchPreview ? (
-                <Suspense fallback={<WorkspaceTabFallback text={t("common.loading")} />}>
-                  <InlineOptimizationPatchPreview
-                    preview={optimizationPatchPreview}
-                  />
-                </Suspense>
-              ) : (
-                <textarea
-                  ref={editorRef}
-                  value={editorContent}
-                  onScroll={updateEditorScrollIntent}
-                  onChange={(event) => onEditorContentChange(event.target.value)}
-                  readOnly={activeChapterBusy}
-                  title={activeChapterBusy ? activeChapterGeneratingMessage : undefined}
-                  placeholder={
-                    activeChapter
-                      ? t("writing.startWriting")
-                      : t("writing.chapterNotGenerated")
-                  }
-                  aria-label={t("writing.chapterBody")}
-                  className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
-                />
-              )
+              <textarea
+                ref={editorRef}
+                value={editorContent}
+                onScroll={updateEditorScrollIntent}
+                onChange={(event) => onEditorContentChange(event.target.value)}
+                readOnly={activeChapterBusy}
+                title={activeChapterBusy ? activeChapterGeneratingMessage : undefined}
+                placeholder={
+                  activeChapter
+                    ? t("writing.startWriting")
+                    : t("writing.chapterNotGenerated")
+                }
+                aria-label={t("writing.chapterBody")}
+                className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
+              />
             )}
             {bottomTab === "analysis" && activeChapter && (
               <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingAnalysis")} />}>
