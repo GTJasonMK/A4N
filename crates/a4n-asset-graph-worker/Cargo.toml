@@ -5,7 +5,6 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-asset-graph-worker-contract = { path = "../a4n-asset-graph-worker-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-db = { path = "../a4n-db" }
@@ -20,5 +19,4 @@ sea-orm = { workspace = true }
 serde = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

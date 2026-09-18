@@ -5,14 +5,12 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-artifact-media-contract = { path = "../a4n-artifact-media-contract" }
 a4n-worker-client = { path = "../a4n-worker-client" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 async-trait = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 

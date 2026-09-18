@@ -350,7 +350,6 @@ fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_worker_contract::{WorkerCapabilities, WorkerHealth, WorkerHealthStatus};
 
     #[test]
     fn client_debug_does_not_expose_worker_url_or_token() {
@@ -374,11 +373,5 @@ mod tests {
             worker_response_error(&error, EDIT_SHOOTING_SCRIPT_OPERATION),
             AppError::InvalidState { .. }
         ));
-    }
-
-    #[allow(dead_code)]
-    fn _shared_health_types_compile(health: WorkerHealth, capabilities: WorkerCapabilities) {
-        assert_eq!(health.status, WorkerHealthStatus::Healthy);
-        assert!(capabilities.capabilities.is_empty());
     }
 }
