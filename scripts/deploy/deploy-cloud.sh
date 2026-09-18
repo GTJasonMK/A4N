@@ -89,7 +89,7 @@ DEPLOY_STARTED_EPOCH="$(date +%s)"
 BUILD_ELAPSED_SECONDS=""
 DEPLOY_LOCK_FILE="${A4N_DEPLOY_LOCK_FILE:-$CARGO_TARGET_DIR/deploy-cloud.lock}"
 DEPLOY_LOCK_FD=""
-DOCKER_BUILD_CIDFILE=""
+DOCKER_BUILD_CIDFILE="$CACHE_ROOT/build-container.cid"
 DOCKER_BUILD_PID=""
 
 usage() {
@@ -101,6 +101,21 @@ acquire_deploy_lock() {
     mkdir -p "$(dirname "$DEPLOY_LOCK_FILE")"
     exec {DEPLOY_LOCK_FD}>"$DEPLOY_LOCK_FILE"
     flock -n "$DEPLOY_LOCK_FD" || die "已有部署正在运行；锁文件: $DEPLOY_LOCK_FILE"
+    cleanup_stale_build_container
+}
+
+cleanup_stale_build_container() {
+    local cid image
+    [[ -r "$DOCKER_BUILD_CIDFILE" ]] || return 0
+    command -v docker >/dev/null 2>&1 || return 0
+    cid="$(tr -d '[:space:]' < "$DOCKER_BUILD_CIDFILE")"
+    if [[ "$cid" =~ ^[0-9a-f]{12,64}$ ]]; then
+        image="$(docker inspect --format '{{.Config.Image}}' "$cid" 2>/dev/null || true)"
+        if [[ "$image" == "$BUILDER_IMAGE" ]]; then
+            docker rm -f "$cid" >/dev/null 2>&1 || true
+        fi
+    fi
+    rm -f -- "$DOCKER_BUILD_CIDFILE"
 }
 
 load_release_inventory() {
@@ -476,7 +491,6 @@ build_backend() {
     done
     log_info "Cargo 构建 ${#BUILD_PACKAGES[@]} 个 package，实时显示编译进度"
 
-    DOCKER_BUILD_CIDFILE="$CACHE_ROOT/build-container.cid"
     rm -f -- "$DOCKER_BUILD_CIDFILE"
     docker run --rm -t --cidfile "$DOCKER_BUILD_CIDFILE" \
         -e CARGO_HOME=/usr/local/cargo \
