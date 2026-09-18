@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 4);
+        assert_eq!(entries.len(), 5);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -445,12 +445,25 @@ mod tests {
                 "outline.records.mutation".to_string()
             ]
         );
+        let blueprint = entries
+            .iter()
+            .find(|entry| entry.name == "blueprint-worker")
+            .expect("blueprint worker entry");
+        assert_eq!(blueprint.kind, ProcessKind::StatefulWorker);
+        assert_eq!(blueprint.binary, "a4n-blueprint-worker");
+        assert_eq!(blueprint.contract_version, "blueprint-read-v1");
+        assert_eq!(blueprint.addr_env, "A4N_BLUEPRINT_WORKER_ADDR");
+        assert_eq!(blueprint.default_addr, "127.0.0.1:47654");
+        assert_eq!(
+            blueprint.capabilities,
+            vec!["blueprint.records.read".to_string()]
+        );
     }
 
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 13);
+        assert_eq!(entries.len(), 14);
         assert_eq!(
             entries
                 .iter()

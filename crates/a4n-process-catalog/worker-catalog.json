@@ -139,5 +139,27 @@
       "min_compatible": "outline_records",
       "max_compatible": "outline_records"
     }
+  },
+  {
+    "name": "blueprint-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-blueprint-worker",
+    "contract_version": "blueprint-read-v1",
+    "capability_version": "blueprint-read-v1",
+    "addr_env": "A4N_BLUEPRINT_WORKER_ADDR",
+    "url_env": "A4N_BLUEPRINT_WORKER_URL",
+    "default_addr": "127.0.0.1:47654",
+    "local_only": true,
+    "data_scope": [
+      "novel_blueprint",
+      "blueprint_version"
+    ],
+    "capabilities": ["blueprint.records.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "blueprint_read",
+      "min_compatible": "blueprint_read",
+      "max_compatible": "blueprint_read"
+    }
   }
 ]

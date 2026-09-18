@@ -206,6 +206,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-blueprint-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-blueprint-worker-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "chrono",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "subtle",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-blueprint-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-blueprint-worker-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-blueprint-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-canvas-contract"
 version = "0.1.0"
 dependencies = [
@@ -661,6 +709,7 @@ dependencies = [
  "a4n-agent-worker-client",
  "a4n-artifact-media-client",
  "a4n-artifact-media-contract",
+ "a4n-blueprint-worker-client",
  "a4n-config",
  "a4n-error",
  "a4n-novel-planning-worker-client",
@@ -1618,6 +1667,7 @@ dependencies = [
  "a4n-agent-worker",
  "a4n-api-contract",
  "a4n-artifact-media-worker",
+ "a4n-blueprint-worker",
  "a4n-control",
  "a4n-db",
  "a4n-db-models",

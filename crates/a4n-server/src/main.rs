@@ -24,6 +24,8 @@ const EDGE_PROCESS_ENV: &str = "A4N_EDGE_PROCESS";
 const ARTIFACT_MEDIA_WORKER_PROCESS_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const OUTLINE_WORKER_PROCESS_ENV: &str = "A4N_OUTLINE_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const BLUEPRINT_WORKER_PROCESS_ENV: &str = "A4N_BLUEPRINT_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -40,6 +42,10 @@ const OUTLINE_WORKER_CATALOG_NAME: &str = "outline-worker";
 const OUTLINE_WORKER_BINARY_ENV: &str = "A4N_OUTLINE_WORKER_BINARY";
 const OUTLINE_WORKER_TOKEN_ENV: &str = "A4N_OUTLINE_WORKER_TOKEN";
 const OUTLINE_WORKER_URL_ENV: &str = "A4N_OUTLINE_WORKER_URL";
+const BLUEPRINT_WORKER_CATALOG_NAME: &str = "blueprint-worker";
+const BLUEPRINT_WORKER_BINARY_ENV: &str = "A4N_BLUEPRINT_WORKER_BINARY";
+const BLUEPRINT_WORKER_TOKEN_ENV: &str = "A4N_BLUEPRINT_WORKER_TOKEN";
+const BLUEPRINT_WORKER_URL_ENV: &str = "A4N_BLUEPRINT_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -65,12 +71,14 @@ enum ChildWatchEvent {
     NovelPlanningWorkerExited(ExitStatus),
     ArtifactMediaWorkerExited(ExitStatus),
     OutlineWorkerExited(ExitStatus),
+    BlueprintWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
     NovelPlanningWorkerChanged,
     ArtifactMediaWorkerChanged,
     OutlineWorkerChanged,
+    BlueprintWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -92,6 +100,9 @@ fn main() -> anyhow::Result<()> {
         if env::var(OUTLINE_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_outline_worker::run();
         }
+        if env::var(BLUEPRINT_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_blueprint_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -103,6 +114,8 @@ fn main() -> anyhow::Result<()> {
     let artifact_media_worker_token = worker_token_for_env(ARTIFACT_MEDIA_WORKER_TOKEN_ENV)?;
     let outline_worker_addr = outline_worker_addr()?;
     let outline_worker_token = worker_token_for_env(OUTLINE_WORKER_TOKEN_ENV)?;
+    let blueprint_worker_addr = blueprint_worker_addr()?;
+    let blueprint_worker_token = worker_token_for_env(BLUEPRINT_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -115,6 +128,8 @@ fn main() -> anyhow::Result<()> {
     let mut artifact_media_worker_fingerprint = binary_fingerprint(&artifact_media_worker_binary)?;
     let outline_worker_binary = outline_worker_binary()?;
     let mut outline_worker_fingerprint = binary_fingerprint(&outline_worker_binary)?;
+    let blueprint_worker_binary = blueprint_worker_binary()?;
+    let mut blueprint_worker_fingerprint = binary_fingerprint(&blueprint_worker_binary)?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -172,6 +187,30 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         return Err(error);
     }
+    let mut blueprint_worker = match spawn_blueprint_worker(
+        &blueprint_worker_binary,
+        blueprint_worker_addr,
+        &blueprint_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_blueprint_worker(
+        &mut blueprint_worker,
+        blueprint_worker_addr,
+        &blueprint_worker_token,
+    ) {
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        return Err(error);
+    }
     let mut control = match spawn_control(
         &control_binary,
         control_addr,
@@ -182,12 +221,15 @@ fn main() -> anyhow::Result<()> {
         &artifact_media_worker_token,
         outline_worker_addr,
         &outline_worker_token,
+        blueprint_worker_addr,
+        &blueprint_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
             let _ = stop_artifact_media_worker(&mut artifact_media_worker);
             let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
             return Err(error);
         }
     };
@@ -196,6 +238,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         let _ = stop_novel_planning_worker(&mut novel_planning_worker);
         let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
         return match cleanup_result {
             Ok(()) => Err(error),
             Err(cleanup_error) => Err(anyhow::anyhow!(
@@ -215,6 +258,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_artifact_media_worker(&mut artifact_media_worker);
             let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
             return Err(error);
         }
     };
@@ -224,6 +268,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         let _ = stop_novel_planning_worker(&mut novel_planning_worker);
         let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
         return Err(error);
     }
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
@@ -234,6 +279,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_artifact_media_worker(&mut artifact_media_worker);
             let _ = stop_novel_planning_worker(&mut novel_planning_worker);
             let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
             return Err(error);
         }
     };
@@ -263,6 +309,11 @@ fn main() -> anyhow::Result<()> {
         &mut outline_worker,
         &outline_worker_binary,
         &mut outline_worker_fingerprint,
+        blueprint_worker_addr,
+        &blueprint_worker_token,
+        &mut blueprint_worker,
+        &blueprint_worker_binary,
+        &mut blueprint_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -274,6 +325,7 @@ fn main() -> anyhow::Result<()> {
     let novel_planning_worker_result = stop_novel_planning_worker(&mut novel_planning_worker);
     let artifact_media_worker_result = stop_artifact_media_worker(&mut artifact_media_worker);
     let outline_worker_result = stop_outline_worker(&mut outline_worker);
+    let blueprint_worker_result = stop_blueprint_worker(&mut blueprint_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -281,6 +333,7 @@ fn main() -> anyhow::Result<()> {
         novel_planning_worker_result,
         artifact_media_worker_result,
         outline_worker_result,
+        blueprint_worker_result,
     )
 }
 
@@ -310,6 +363,11 @@ fn supervise_runtime_children(
     outline_worker: &mut Child,
     outline_worker_binary: &Path,
     outline_worker_fingerprint: &mut BinaryFingerprint,
+    blueprint_worker_addr: SocketAddr,
+    blueprint_worker_token: &str,
+    blueprint_worker: &mut Child,
+    blueprint_worker_binary: &Path,
+    blueprint_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -334,6 +392,11 @@ fn supervise_runtime_children(
                 outline_worker,
                 outline_worker_binary,
                 *outline_worker_fingerprint,
+            )),
+            Some((
+                blueprint_worker,
+                blueprint_worker_binary,
+                *blueprint_worker_fingerprint,
             )),
             edge_binary,
             *edge_fingerprint,
@@ -364,6 +427,8 @@ fn supervise_runtime_children(
                     artifact_media_worker_token,
                     outline_worker_addr,
                     outline_worker_token,
+                    blueprint_worker_addr,
+                    blueprint_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -423,6 +488,21 @@ fn supervise_runtime_children(
                 wait_for_outline_worker(outline_worker, outline_worker_addr, outline_worker_token)?;
                 *outline_worker_fingerprint = binary_fingerprint(outline_worker_binary)?;
             }
+            ChildWatchEvent::BlueprintWorkerExited(status) => {
+                eprintln!("A4N Blueprint worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *blueprint_worker = spawn_blueprint_worker(
+                    blueprint_worker_binary,
+                    blueprint_worker_addr,
+                    blueprint_worker_token,
+                )?;
+                wait_for_blueprint_worker(
+                    blueprint_worker,
+                    blueprint_worker_addr,
+                    blueprint_worker_token,
+                )?;
+                *blueprint_worker_fingerprint = binary_fingerprint(blueprint_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -443,6 +523,8 @@ fn supervise_runtime_children(
                     artifact_media_worker_token,
                     outline_worker_addr,
                     outline_worker_token,
+                    blueprint_worker_addr,
+                    blueprint_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -510,6 +592,22 @@ fn supervise_runtime_children(
                 wait_for_outline_worker(outline_worker, outline_worker_addr, outline_worker_token)?;
                 *outline_worker_fingerprint = binary_fingerprint(outline_worker_binary)?;
             }
+            ChildWatchEvent::BlueprintWorkerChanged => {
+                eprintln!("检测到 A4N Blueprint worker 构建完成；只替换 Blueprint worker");
+                stop_blueprint_worker(blueprint_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *blueprint_worker = spawn_blueprint_worker(
+                    blueprint_worker_binary,
+                    blueprint_worker_addr,
+                    blueprint_worker_token,
+                )?;
+                wait_for_blueprint_worker(
+                    blueprint_worker,
+                    blueprint_worker_addr,
+                    blueprint_worker_token,
+                )?;
+                *blueprint_worker_fingerprint = binary_fingerprint(blueprint_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -555,6 +653,7 @@ fn wait_for_edge_or_child(
         artifact_media_worker_binary,
         artifact_media_worker_fingerprint,
         None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -577,6 +676,7 @@ fn wait_for_edge_or_child_with_outline(
     artifact_media_worker_binary: &Path,
     artifact_media_worker_fingerprint: BinaryFingerprint,
     mut outline_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut blueprint_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -602,6 +702,11 @@ fn wait_for_edge_or_child_with_outline(
             if let Some(status) = outline_worker.try_wait()? {
                 return Ok(Some(ChildWatchEvent::OutlineWorkerExited(status)));
             }
+        }
+        if let Some((blueprint_worker, _, _)) = blueprint_worker.as_mut()
+            && let Some(status) = blueprint_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::BlueprintWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -629,6 +734,12 @@ fn wait_for_edge_or_child_with_outline(
             && binary_fingerprint(outline_worker_binary)? != *outline_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::OutlineWorkerChanged));
+        }
+        if let Some((_, blueprint_worker_binary, blueprint_worker_fingerprint)) =
+            blueprint_worker.as_ref()
+            && binary_fingerprint(blueprint_worker_binary)? != *blueprint_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::BlueprintWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -821,6 +932,25 @@ fn outline_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn blueprint_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(BLUEPRINT_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            BLUEPRINT_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn blueprint_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = blueprint_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -838,6 +968,8 @@ fn spawn_control(
     artifact_media_worker_token: &str,
     outline_worker_addr: SocketAddr,
     outline_worker_token: &str,
+    blueprint_worker_addr: SocketAddr,
+    blueprint_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -858,6 +990,11 @@ fn spawn_control(
             format!("http://{outline_worker_addr}"),
         )
         .env(OUTLINE_WORKER_TOKEN_ENV, outline_worker_token)
+        .env(
+            BLUEPRINT_WORKER_URL_ENV,
+            format!("http://{blueprint_worker_addr}"),
+        )
+        .env(BLUEPRINT_WORKER_TOKEN_ENV, blueprint_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -934,6 +1071,30 @@ fn spawn_outline_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Outline worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_blueprint_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = blueprint_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(BLUEPRINT_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(BLUEPRINT_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Blueprint worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -1062,6 +1223,28 @@ fn wait_for_outline_worker(
         Some(OUTLINE_WORKER_CATALOG_NAME),
         &required,
         "A4N Outline worker",
+    )
+}
+
+fn wait_for_blueprint_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = blueprint_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(BLUEPRINT_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Blueprint worker",
     )
 }
 
@@ -1205,6 +1388,13 @@ fn outline_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn blueprint_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        BLUEPRINT_WORKER_BINARY_ENV,
+        &blueprint_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -1276,6 +1466,10 @@ fn stop_outline_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_blueprint_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_control(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -1314,6 +1508,7 @@ fn finish_shutdown(
     novel_planning_worker_result: anyhow::Result<()>,
     artifact_media_worker_result: anyhow::Result<()>,
     outline_worker_result: anyhow::Result<()>,
+    blueprint_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -1323,6 +1518,7 @@ fn finish_shutdown(
         ("Novel Planning worker", novel_planning_worker_result),
         ("Artifact/Media worker", artifact_media_worker_result),
         ("Outline worker", outline_worker_result),
+        ("Blueprint worker", blueprint_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
