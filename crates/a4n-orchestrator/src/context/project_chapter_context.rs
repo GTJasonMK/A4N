@@ -1,6 +1,6 @@
 use a4n_api_contract::profile::{
-    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingSummary,
-    ForeshadowingWriteResult, UpdateForeshadowingInput,
+    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingWriteResult,
+    UpdateForeshadowingInput,
 };
 use a4n_db::{
     DbHandle,
@@ -14,7 +14,6 @@ use a4n_db_models::models::{
     character::{character_state_index, foreshadowing_index, protagonist_profile},
     scene::scene_profile,
 };
-use a4n_domain::character::ForeshadowingStatus;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -59,15 +58,6 @@ impl ProjectChapterContextApplication {
         )
         .await
         .map_err(foreshadowing_db_error_to_app_error)
-    }
-
-    async fn foreshadowing_records_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
-        a4n_db::project::foreshadowing_records_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(foreshadowing_db_error_to_app_error)
     }
 
     async fn create_foreshadowing_record(
@@ -183,15 +173,6 @@ impl ProjectChapterContextApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn foreshadowing_records_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
-        self.project_chapter_context
-            .foreshadowing_records_by_project(project_id)
-            .await
-    }
-
     pub(crate) async fn create_foreshadowing_record(
         &self,
         project_id: i64,
@@ -296,34 +277,6 @@ impl OrchestratorContext {
     }
 }
 
-fn foreshadowing_summary(
-    record: &foreshadowing_index::Model,
-) -> Result<ForeshadowingSummary, AppError> {
-    Ok(ForeshadowingSummary {
-        id: record.id,
-        project_id: record.project_id,
-        description: record.description.clone(),
-        setup_chapter: record.setup_chapter,
-        payoff_chapter: record.payoff_chapter,
-        status: ForeshadowingStatus::parse(&record.status).ok_or_else(|| {
-            AppError::InvalidArgument(format!("伏笔 #{} 状态非法：{}", record.id, record.status))
-        })?,
-        related_characters: record
-            .related_characters
-            .as_ref()
-            .map_or_else(
-                || Ok(Vec::new()),
-                |value| serde_json::from_value::<Vec<String>>(value.clone()),
-            )
-            .map_err(|error| {
-                AppError::InvalidArgument(format!("伏笔 #{} 关联角色格式非法：{error}", record.id))
-            })?,
-        importance: record.importance,
-        created_at: record.created_at.to_string(),
-        updated_at: record.updated_at.to_string(),
-    })
-}
-
 async fn foreshadowing_rag_warning(
     context: &OrchestratorContext,
     record: &foreshadowing_index::Model,
@@ -342,23 +295,6 @@ async fn foreshadowing_rag_warning(
             );
             vec!["伏笔已保存，但检索索引更新失败，可稍后重试".to_string()]
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::profile::ForeshadowingReadApplicationPort for OrchestratorContext {
-    async fn list(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ForeshadowingSummary>, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.foreshadowing_records_by_project(project_id)
-            .await?
-            .iter()
-            .map(foreshadowing_summary)
-            .collect()
     }
 }
 

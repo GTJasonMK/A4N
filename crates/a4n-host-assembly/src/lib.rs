@@ -53,6 +53,8 @@ pub async fn initialize_runtime(
     let outline_worker = Arc::new(a4n_outline_worker_client::OutlineWorkerClient::from_env());
     let asset_graph_worker =
         Arc::new(a4n_asset_graph_worker_client::AssetGraphWorkerClient::from_env());
+    let foreshadowing_worker =
+        Arc::new(a4n_foreshadowing_worker_client::ForeshadowingWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -119,7 +121,7 @@ pub async fn initialize_runtime(
         character_profile_deletion_application: Arc::new(orchestrator.clone()),
         character_conflict_application: Arc::new(orchestrator.clone()),
         scene_profile_mutation_application: Arc::new(orchestrator.clone()),
-        foreshadowing_read_application: Arc::new(orchestrator.clone()),
+        foreshadowing_read_application: foreshadowing_worker,
         foreshadowing_mutation_application: Arc::new(orchestrator.clone()),
         blueprint_read_application: blueprint_worker.clone(),
         blueprint_generation_preview_application: Arc::new(orchestrator.clone()),

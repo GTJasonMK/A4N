@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 6);
+        assert_eq!(entries.len(), 7);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -471,12 +471,25 @@ mod tests {
             asset_graph.capabilities,
             vec!["project.asset_graph.read".to_string()]
         );
+        let foreshadowing = entries
+            .iter()
+            .find(|entry| entry.name == "foreshadowing-worker")
+            .expect("foreshadowing worker entry");
+        assert_eq!(foreshadowing.kind, ProcessKind::StatefulWorker);
+        assert_eq!(foreshadowing.binary, "a4n-foreshadowing-worker");
+        assert_eq!(foreshadowing.contract_version, "foreshadowing-read-v1");
+        assert_eq!(foreshadowing.addr_env, "A4N_FORESHADOWING_WORKER_ADDR");
+        assert_eq!(foreshadowing.default_addr, "127.0.0.1:47656");
+        assert_eq!(
+            foreshadowing.capabilities,
+            vec!["profile.foreshadowing.read".to_string()]
+        );
     }
 
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 15);
+        assert_eq!(entries.len(), 16);
         assert_eq!(
             entries
                 .iter()

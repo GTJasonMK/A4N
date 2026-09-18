@@ -28,6 +28,8 @@ const OUTLINE_WORKER_PROCESS_ENV: &str = "A4N_OUTLINE_WORKER_PROCESS";
 const BLUEPRINT_WORKER_PROCESS_ENV: &str = "A4N_BLUEPRINT_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const ASSET_GRAPH_WORKER_PROCESS_ENV: &str = "A4N_ASSET_GRAPH_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const FORESHADOWING_WORKER_PROCESS_ENV: &str = "A4N_FORESHADOWING_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -52,6 +54,10 @@ const ASSET_GRAPH_WORKER_CATALOG_NAME: &str = "asset-graph-worker";
 const ASSET_GRAPH_WORKER_BINARY_ENV: &str = "A4N_ASSET_GRAPH_WORKER_BINARY";
 const ASSET_GRAPH_WORKER_TOKEN_ENV: &str = "A4N_ASSET_GRAPH_WORKER_TOKEN";
 const ASSET_GRAPH_WORKER_URL_ENV: &str = "A4N_ASSET_GRAPH_WORKER_URL";
+const FORESHADOWING_WORKER_CATALOG_NAME: &str = "foreshadowing-worker";
+const FORESHADOWING_WORKER_BINARY_ENV: &str = "A4N_FORESHADOWING_WORKER_BINARY";
+const FORESHADOWING_WORKER_TOKEN_ENV: &str = "A4N_FORESHADOWING_WORKER_TOKEN";
+const FORESHADOWING_WORKER_URL_ENV: &str = "A4N_FORESHADOWING_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -79,6 +85,7 @@ enum ChildWatchEvent {
     OutlineWorkerExited(ExitStatus),
     BlueprintWorkerExited(ExitStatus),
     AssetGraphWorkerExited(ExitStatus),
+    ForeshadowingWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -87,6 +94,7 @@ enum ChildWatchEvent {
     OutlineWorkerChanged,
     BlueprintWorkerChanged,
     AssetGraphWorkerChanged,
+    ForeshadowingWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -114,6 +122,9 @@ fn main() -> anyhow::Result<()> {
         if env::var(ASSET_GRAPH_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_asset_graph_worker::run();
         }
+        if env::var(FORESHADOWING_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_foreshadowing_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -129,6 +140,8 @@ fn main() -> anyhow::Result<()> {
     let blueprint_worker_token = worker_token_for_env(BLUEPRINT_WORKER_TOKEN_ENV)?;
     let asset_graph_worker_addr = asset_graph_worker_addr()?;
     let asset_graph_worker_token = worker_token_for_env(ASSET_GRAPH_WORKER_TOKEN_ENV)?;
+    let foreshadowing_worker_addr = foreshadowing_worker_addr()?;
+    let foreshadowing_worker_token = worker_token_for_env(FORESHADOWING_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -145,6 +158,8 @@ fn main() -> anyhow::Result<()> {
     let mut blueprint_worker_fingerprint = binary_fingerprint(&blueprint_worker_binary)?;
     let asset_graph_worker_binary = asset_graph_worker_binary()?;
     let mut asset_graph_worker_fingerprint = binary_fingerprint(&asset_graph_worker_binary)?;
+    let foreshadowing_worker_binary = foreshadowing_worker_binary()?;
+    let mut foreshadowing_worker_fingerprint = binary_fingerprint(&foreshadowing_worker_binary)?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -252,6 +267,34 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         return Err(error);
     }
+    let mut foreshadowing_worker = match spawn_foreshadowing_worker(
+        &foreshadowing_worker_binary,
+        foreshadowing_worker_addr,
+        &foreshadowing_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_foreshadowing_worker(
+        &mut foreshadowing_worker,
+        foreshadowing_worker_addr,
+        &foreshadowing_worker_token,
+    ) {
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        return Err(error);
+    }
     let mut control = match spawn_control(
         &control_binary,
         control_addr,
@@ -266,6 +309,8 @@ fn main() -> anyhow::Result<()> {
         &blueprint_worker_token,
         asset_graph_worker_addr,
         &asset_graph_worker_token,
+        foreshadowing_worker_addr,
+        &foreshadowing_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -274,6 +319,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_outline_worker(&mut outline_worker);
             let _ = stop_blueprint_worker(&mut blueprint_worker);
             let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
             return Err(error);
         }
     };
@@ -284,6 +330,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_outline_worker(&mut outline_worker);
         let _ = stop_blueprint_worker(&mut blueprint_worker);
         let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
         return match cleanup_result {
             Ok(()) => Err(error),
             Err(cleanup_error) => Err(anyhow::anyhow!(
@@ -305,6 +352,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_outline_worker(&mut outline_worker);
             let _ = stop_blueprint_worker(&mut blueprint_worker);
             let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
             return Err(error);
         }
     };
@@ -316,6 +364,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_outline_worker(&mut outline_worker);
         let _ = stop_blueprint_worker(&mut blueprint_worker);
         let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
         return Err(error);
     }
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
@@ -328,6 +377,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_outline_worker(&mut outline_worker);
             let _ = stop_blueprint_worker(&mut blueprint_worker);
             let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
             return Err(error);
         }
     };
@@ -367,6 +417,11 @@ fn main() -> anyhow::Result<()> {
         &mut asset_graph_worker,
         &asset_graph_worker_binary,
         &mut asset_graph_worker_fingerprint,
+        foreshadowing_worker_addr,
+        &foreshadowing_worker_token,
+        &mut foreshadowing_worker,
+        &foreshadowing_worker_binary,
+        &mut foreshadowing_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -380,6 +435,7 @@ fn main() -> anyhow::Result<()> {
     let outline_worker_result = stop_outline_worker(&mut outline_worker);
     let blueprint_worker_result = stop_blueprint_worker(&mut blueprint_worker);
     let asset_graph_worker_result = stop_asset_graph_worker(&mut asset_graph_worker);
+    let foreshadowing_worker_result = stop_foreshadowing_worker(&mut foreshadowing_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -389,6 +445,7 @@ fn main() -> anyhow::Result<()> {
         outline_worker_result,
         blueprint_worker_result,
         asset_graph_worker_result,
+        foreshadowing_worker_result,
     )
 }
 
@@ -428,13 +485,18 @@ fn supervise_runtime_children(
     asset_graph_worker: &mut Child,
     asset_graph_worker_binary: &Path,
     asset_graph_worker_fingerprint: &mut BinaryFingerprint,
+    foreshadowing_worker_addr: SocketAddr,
+    foreshadowing_worker_token: &str,
+    foreshadowing_worker: &mut Child,
+    foreshadowing_worker_binary: &Path,
+    foreshadowing_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
     reload_marker_fingerprint: &mut Option<BinaryFingerprint>,
 ) -> anyhow::Result<Option<String>> {
     loop {
-        let Some(event) = wait_for_edge_or_child_with_outline(
+        let Some(event) = wait_for_edge_or_child_with_workers(
             edge,
             control,
             agent_worker,
@@ -462,6 +524,11 @@ fn supervise_runtime_children(
                 asset_graph_worker,
                 asset_graph_worker_binary,
                 *asset_graph_worker_fingerprint,
+            )),
+            Some((
+                foreshadowing_worker,
+                foreshadowing_worker_binary,
+                *foreshadowing_worker_fingerprint,
             )),
             edge_binary,
             *edge_fingerprint,
@@ -496,6 +563,8 @@ fn supervise_runtime_children(
                     blueprint_worker_token,
                     asset_graph_worker_addr,
                     asset_graph_worker_token,
+                    foreshadowing_worker_addr,
+                    foreshadowing_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -585,6 +654,22 @@ fn supervise_runtime_children(
                 )?;
                 *asset_graph_worker_fingerprint = binary_fingerprint(asset_graph_worker_binary)?;
             }
+            ChildWatchEvent::ForeshadowingWorkerExited(status) => {
+                eprintln!("A4N Foreshadowing worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *foreshadowing_worker = spawn_foreshadowing_worker(
+                    foreshadowing_worker_binary,
+                    foreshadowing_worker_addr,
+                    foreshadowing_worker_token,
+                )?;
+                wait_for_foreshadowing_worker(
+                    foreshadowing_worker,
+                    foreshadowing_worker_addr,
+                    foreshadowing_worker_token,
+                )?;
+                *foreshadowing_worker_fingerprint =
+                    binary_fingerprint(foreshadowing_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -609,6 +694,8 @@ fn supervise_runtime_children(
                     blueprint_worker_token,
                     asset_graph_worker_addr,
                     asset_graph_worker_token,
+                    foreshadowing_worker_addr,
+                    foreshadowing_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -708,6 +795,23 @@ fn supervise_runtime_children(
                 )?;
                 *asset_graph_worker_fingerprint = binary_fingerprint(asset_graph_worker_binary)?;
             }
+            ChildWatchEvent::ForeshadowingWorkerChanged => {
+                eprintln!("检测到 A4N Foreshadowing worker 构建完成；只替换 Foreshadowing worker");
+                stop_foreshadowing_worker(foreshadowing_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *foreshadowing_worker = spawn_foreshadowing_worker(
+                    foreshadowing_worker_binary,
+                    foreshadowing_worker_addr,
+                    foreshadowing_worker_token,
+                )?;
+                wait_for_foreshadowing_worker(
+                    foreshadowing_worker,
+                    foreshadowing_worker_addr,
+                    foreshadowing_worker_token,
+                )?;
+                *foreshadowing_worker_fingerprint =
+                    binary_fingerprint(foreshadowing_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -762,7 +866,55 @@ fn wait_for_edge_or_child(
     )
 }
 
+#[cfg(test)]
 fn wait_for_edge_or_child_with_outline(
+    edge: &mut Child,
+    control: &mut Child,
+    agent_worker: &mut Child,
+    control_binary: &Path,
+    control_fingerprint: BinaryFingerprint,
+    worker_binary: &Path,
+    worker_fingerprint: BinaryFingerprint,
+    novel_planning_worker: &mut Child,
+    novel_planning_worker_binary: &Path,
+    novel_planning_worker_fingerprint: BinaryFingerprint,
+    artifact_media_worker: &mut Child,
+    artifact_media_worker_binary: &Path,
+    artifact_media_worker_fingerprint: BinaryFingerprint,
+    outline_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    blueprint_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    asset_graph_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    edge_binary: &Path,
+    edge_fingerprint: BinaryFingerprint,
+    reload_marker: Option<&Path>,
+    reload_marker_fingerprint: Option<BinaryFingerprint>,
+) -> anyhow::Result<Option<ChildWatchEvent>> {
+    wait_for_edge_or_child_with_workers(
+        edge,
+        control,
+        agent_worker,
+        control_binary,
+        control_fingerprint,
+        worker_binary,
+        worker_fingerprint,
+        novel_planning_worker,
+        novel_planning_worker_binary,
+        novel_planning_worker_fingerprint,
+        artifact_media_worker,
+        artifact_media_worker_binary,
+        artifact_media_worker_fingerprint,
+        outline_worker,
+        blueprint_worker,
+        asset_graph_worker,
+        None,
+        edge_binary,
+        edge_fingerprint,
+        reload_marker,
+        reload_marker_fingerprint,
+    )
+}
+
+fn wait_for_edge_or_child_with_workers(
     edge: &mut Child,
     control: &mut Child,
     agent_worker: &mut Child,
@@ -779,6 +931,7 @@ fn wait_for_edge_or_child_with_outline(
     mut outline_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut blueprint_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut asset_graph_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut foreshadowing_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -814,6 +967,11 @@ fn wait_for_edge_or_child_with_outline(
             && let Some(status) = asset_graph_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::AssetGraphWorkerExited(status)));
+        }
+        if let Some((foreshadowing_worker, _, _)) = foreshadowing_worker.as_mut()
+            && let Some(status) = foreshadowing_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::ForeshadowingWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -853,6 +1011,12 @@ fn wait_for_edge_or_child_with_outline(
             && binary_fingerprint(asset_graph_worker_binary)? != *asset_graph_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::AssetGraphWorkerChanged));
+        }
+        if let Some((_, foreshadowing_worker_binary, foreshadowing_worker_fingerprint)) =
+            foreshadowing_worker.as_ref()
+            && binary_fingerprint(foreshadowing_worker_binary)? != *foreshadowing_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ForeshadowingWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -1083,6 +1247,25 @@ fn asset_graph_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn foreshadowing_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(FORESHADOWING_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            FORESHADOWING_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn foreshadowing_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = foreshadowing_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -1104,6 +1287,8 @@ fn spawn_control(
     blueprint_worker_token: &str,
     asset_graph_worker_addr: SocketAddr,
     asset_graph_worker_token: &str,
+    foreshadowing_worker_addr: SocketAddr,
+    foreshadowing_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -1134,6 +1319,11 @@ fn spawn_control(
             format!("http://{asset_graph_worker_addr}"),
         )
         .env(ASSET_GRAPH_WORKER_TOKEN_ENV, asset_graph_worker_token)
+        .env(
+            FORESHADOWING_WORKER_URL_ENV,
+            format!("http://{foreshadowing_worker_addr}"),
+        )
+        .env(FORESHADOWING_WORKER_TOKEN_ENV, foreshadowing_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -1258,6 +1448,30 @@ fn spawn_asset_graph_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Asset Graph worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_foreshadowing_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = foreshadowing_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(FORESHADOWING_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(FORESHADOWING_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Foreshadowing worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -1433,6 +1647,28 @@ fn wait_for_asset_graph_worker(
     )
 }
 
+fn wait_for_foreshadowing_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = foreshadowing_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(FORESHADOWING_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Foreshadowing worker",
+    )
+}
+
 fn wait_for_worker_contract(
     child: &mut Child,
     address: SocketAddr,
@@ -1587,6 +1823,13 @@ fn asset_graph_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn foreshadowing_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        FORESHADOWING_WORKER_BINARY_ENV,
+        &foreshadowing_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -1666,6 +1909,10 @@ fn stop_asset_graph_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_foreshadowing_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_control(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -1706,6 +1953,7 @@ fn finish_shutdown(
     outline_worker_result: anyhow::Result<()>,
     blueprint_worker_result: anyhow::Result<()>,
     asset_graph_worker_result: anyhow::Result<()>,
+    foreshadowing_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -1717,6 +1965,7 @@ fn finish_shutdown(
         ("Outline worker", outline_worker_result),
         ("Blueprint worker", blueprint_worker_result),
         ("Asset Graph worker", asset_graph_worker_result),
+        ("Foreshadowing worker", foreshadowing_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
@@ -2268,6 +2517,86 @@ mod tests {
             &mut worker,
             &mut novel_planning_worker,
             &mut artifact_media_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
+    }
+
+    #[test]
+    fn foreshadowing_worker_binary_change_only_selects_foreshadowing_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let mut foreshadowing_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
+        let foreshadowing_binary = tempdir.path().join("a4n-foreshadowing-worker");
+        for (path, content) in [
+            (&control_binary, b"control".as_slice()),
+            (&worker_binary, b"worker".as_slice()),
+            (&edge_binary, b"edge".as_slice()),
+            (&novel_binary, b"novel".as_slice()),
+            (&artifact_binary, b"artifact".as_slice()),
+            (&foreshadowing_binary, b"old-foreshadowing".as_slice()),
+        ] {
+            std::fs::write(path, content).expect("worker fixture should be written");
+        }
+        let control_fingerprint = super::binary_fingerprint(&control_binary).unwrap();
+        let worker_fingerprint = super::binary_fingerprint(&worker_binary).unwrap();
+        let edge_fingerprint = super::binary_fingerprint(&edge_binary).unwrap();
+        let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
+        let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
+        let foreshadowing_fingerprint = super::binary_fingerprint(&foreshadowing_binary).unwrap();
+        std::fs::write(&foreshadowing_binary, b"new-foreshadowing")
+            .expect("foreshadowing replacement should be written");
+
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            Some((
+                &mut foreshadowing_worker,
+                &foreshadowing_binary,
+                foreshadowing_fingerprint,
+            )),
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ForeshadowingWorkerChanged)
+        ));
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+            &mut foreshadowing_worker,
         ] {
             child.kill().expect("test child should stop");
             child.wait().expect("test child should be reaped");
