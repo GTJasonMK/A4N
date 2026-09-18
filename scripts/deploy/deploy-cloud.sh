@@ -807,8 +807,19 @@ restart_remote_service() {
 set -euo pipefail
 service="$1"
 sudo systemctl restart "$service"
-sleep 3
-systemctl is-active "$service"
+state=activating
+for _ in {1..60}; do
+    state="$(systemctl is-active "$service" 2>/dev/null || true)"
+    [[ "$state" == active || "$state" == failed ]] && break
+    sleep 1
+done
+if [[ "$state" != active ]]; then
+    echo "服务启动失败或超时: $service state=$state" >&2
+    systemctl status "$service" --no-pager --lines=80 >&2 || true
+    journalctl -u "$service" --since "5 minutes ago" --no-pager | tail -n 120 >&2 || true
+    exit 1
+fi
+echo "service_state=$state"
 systemctl status "$service" --no-pager --lines=20
 if command -v nginx >/dev/null 2>&1; then sudo nginx -t; fi
 journalctl -u "$service" --since "5 minutes ago" --no-pager | grep -E "ERROR|panic|failed|Failed|Error" || true
