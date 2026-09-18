@@ -3712,7 +3712,7 @@ async fn execute_tool_call(
                     success_criteria: input.success_criteria,
                     budget_json: serde_json::to_value(child_budget)?,
                     parent_execution_id: Some(execution.id),
-                    runtime_config_snapshot: None,
+                    runtime_config_snapshot: state.agent_runtime_snapshot(claimed.run.id).await,
                 },
             )
             .await?;
