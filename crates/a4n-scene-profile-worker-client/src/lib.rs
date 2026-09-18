@@ -1,4 +1,4 @@
-//! Typed Host adapter for the scene profile read worker.
+//! Typed Host adapter for the scene profile worker.
 
 use a4n_api_contract::profile::{
     CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteOutcome,

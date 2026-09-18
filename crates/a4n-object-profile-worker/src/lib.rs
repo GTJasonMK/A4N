@@ -1,4 +1,4 @@
-//! PostgreSQL-backed object profile read worker.
+//! PostgreSQL-backed object profile worker.
 
 use std::{env, net::SocketAddr, sync::Arc};
 

@@ -1,4 +1,4 @@
-//! PostgreSQL-backed scene profile read worker.
+//! PostgreSQL-backed scene profile worker.
 
 use std::{env, net::SocketAddr, sync::Arc};
 
