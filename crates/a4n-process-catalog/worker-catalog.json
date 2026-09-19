@@ -525,5 +525,24 @@
       "min_compatible": "config",
       "max_compatible": "config"
     }
+  },
+  {
+    "name": "character-mutation-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-character-mutation-worker",
+    "contract_version": "character-mutation-v1",
+    "capability_version": "character-mutation-v1",
+    "addr_env": "A4N_CHARACTER_MUTATION_WORKER_ADDR",
+    "url_env": "A4N_CHARACTER_MUTATION_WORKER_URL",
+    "default_addr": "127.0.0.1:47674",
+    "local_only": true,
+    "data_scope": ["protagonist_profile"],
+    "capabilities": ["character.mutation"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "character_profile",
+      "min_compatible": "character_profile",
+      "max_compatible": "character_profile"
+    }
   }
 ]

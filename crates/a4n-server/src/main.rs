@@ -64,6 +64,8 @@ const CHAPTER_CONTENT_WORKER_PROCESS_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_PRO
 const WORKFLOW_READ_WORKER_PROCESS_ENV: &str = "A4N_WORKFLOW_READ_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const CONFIG_READ_WORKER_PROCESS_ENV: &str = "A4N_CONFIG_READ_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const CHARACTER_MUTATION_WORKER_PROCESS_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -160,6 +162,10 @@ const CONFIG_READ_WORKER_CATALOG_NAME: &str = "config-read-worker";
 const CONFIG_READ_WORKER_BINARY_ENV: &str = "A4N_CONFIG_READ_WORKER_BINARY";
 const CONFIG_READ_WORKER_TOKEN_ENV: &str = "A4N_CONFIG_READ_WORKER_TOKEN";
 const CONFIG_READ_WORKER_URL_ENV: &str = "A4N_CONFIG_READ_WORKER_URL";
+const CHARACTER_MUTATION_WORKER_CATALOG_NAME: &str = "character-mutation-worker";
+const CHARACTER_MUTATION_WORKER_BINARY_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_BINARY";
+const CHARACTER_MUTATION_WORKER_TOKEN_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_TOKEN";
+const CHARACTER_MUTATION_WORKER_URL_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -205,6 +211,7 @@ enum ChildWatchEvent {
     ChapterContentWorkerExited(ExitStatus),
     WorkflowReadWorkerExited(ExitStatus),
     ConfigReadWorkerExited(ExitStatus),
+    CharacterMutationWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -231,6 +238,7 @@ enum ChildWatchEvent {
     ChapterContentWorkerChanged,
     WorkflowReadWorkerChanged,
     ConfigReadWorkerChanged,
+    CharacterMutationWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -312,6 +320,9 @@ fn main() -> anyhow::Result<()> {
         if env::var(CONFIG_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_config_read_worker::run();
         }
+        if env::var(CHARACTER_MUTATION_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_character_mutation_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -366,6 +377,9 @@ fn main() -> anyhow::Result<()> {
     let workflow_read_worker_token = worker_token_for_env(WORKFLOW_READ_WORKER_TOKEN_ENV)?;
     let config_read_worker_addr = config_read_worker_addr()?;
     let config_read_worker_token = worker_token_for_env(CONFIG_READ_WORKER_TOKEN_ENV)?;
+    let character_mutation_worker_addr = character_mutation_worker_addr()?;
+    let character_mutation_worker_token =
+        worker_token_for_env(CHARACTER_MUTATION_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -408,6 +422,7 @@ fn main() -> anyhow::Result<()> {
     let chapter_content_worker_binary = chapter_content_worker_binary()?;
     let workflow_read_worker_binary = workflow_read_worker_binary()?;
     let config_read_worker_binary = config_read_worker_binary()?;
+    let character_mutation_worker_binary = character_mutation_worker_binary()?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -725,6 +740,8 @@ fn main() -> anyhow::Result<()> {
         &workflow_read_worker_token,
         config_read_worker_addr,
         &config_read_worker_token,
+        character_mutation_worker_addr,
+        &character_mutation_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -1394,6 +1411,30 @@ fn main() -> anyhow::Result<()> {
         return Err(error);
     }
     let mut config_read_worker_fingerprint = binary_fingerprint(&config_read_worker_binary)?;
+    let mut character_mutation_worker = match spawn_character_mutation_worker(
+        &character_mutation_worker_binary,
+        character_mutation_worker_addr,
+        &character_mutation_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_config_read_worker(&mut config_read_worker);
+            let _ = stop_workflow_read_worker(&mut workflow_read_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_character_mutation_worker(
+        &mut character_mutation_worker,
+        character_mutation_worker_addr,
+        &character_mutation_worker_token,
+    ) {
+        let _ = stop_character_mutation_worker(&mut character_mutation_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
+        let _ = stop_workflow_read_worker(&mut workflow_read_worker);
+        return Err(error);
+    }
+    let mut character_mutation_worker_fingerprint =
+        binary_fingerprint(&character_mutation_worker_binary)?;
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
         Ok(child) => child,
         Err(error) => {
@@ -1547,6 +1588,11 @@ fn main() -> anyhow::Result<()> {
         &mut config_read_worker,
         &config_read_worker_binary,
         &mut config_read_worker_fingerprint,
+        character_mutation_worker_addr,
+        &character_mutation_worker_token,
+        &mut character_mutation_worker,
+        &character_mutation_worker_binary,
+        &mut character_mutation_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -1581,6 +1627,8 @@ fn main() -> anyhow::Result<()> {
     let chapter_content_worker_result = stop_chapter_content_worker(&mut chapter_content_worker);
     let workflow_read_worker_result = stop_workflow_read_worker(&mut workflow_read_worker);
     let config_read_worker_result = stop_config_read_worker(&mut config_read_worker);
+    let character_mutation_worker_result =
+        stop_character_mutation_worker(&mut character_mutation_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -1608,6 +1656,7 @@ fn main() -> anyhow::Result<()> {
         chapter_content_worker_result,
         workflow_read_worker_result,
         config_read_worker_result,
+        character_mutation_worker_result,
     )
 }
 
@@ -1737,6 +1786,11 @@ fn supervise_runtime_children(
     config_read_worker: &mut Child,
     config_read_worker_binary: &Path,
     config_read_worker_fingerprint: &mut BinaryFingerprint,
+    character_mutation_worker_addr: SocketAddr,
+    character_mutation_worker_token: &str,
+    character_mutation_worker: &mut Child,
+    character_mutation_worker_binary: &Path,
+    character_mutation_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -1862,6 +1916,11 @@ fn supervise_runtime_children(
                 config_read_worker_binary,
                 *config_read_worker_fingerprint,
             )),
+            Some((
+                character_mutation_worker,
+                character_mutation_worker_binary,
+                *character_mutation_worker_fingerprint,
+            )),
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -1931,6 +1990,8 @@ fn supervise_runtime_children(
                     workflow_read_worker_token,
                     config_read_worker_addr,
                     config_read_worker_token,
+                    character_mutation_worker_addr,
+                    character_mutation_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -2304,6 +2365,22 @@ fn supervise_runtime_children(
                 )?;
                 *config_read_worker_fingerprint = binary_fingerprint(config_read_worker_binary)?;
             }
+            ChildWatchEvent::CharacterMutationWorkerExited(status) => {
+                eprintln!("A4N Character Mutation worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *character_mutation_worker = spawn_character_mutation_worker(
+                    character_mutation_worker_binary,
+                    character_mutation_worker_addr,
+                    character_mutation_worker_token,
+                )?;
+                wait_for_character_mutation_worker(
+                    character_mutation_worker,
+                    character_mutation_worker_addr,
+                    character_mutation_worker_token,
+                )?;
+                *character_mutation_worker_fingerprint =
+                    binary_fingerprint(character_mutation_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -2364,6 +2441,8 @@ fn supervise_runtime_children(
                     workflow_read_worker_token,
                     config_read_worker_addr,
                     config_read_worker_token,
+                    character_mutation_worker_addr,
+                    character_mutation_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -2785,6 +2864,25 @@ fn supervise_runtime_children(
                 )?;
                 *config_read_worker_fingerprint = binary_fingerprint(config_read_worker_binary)?;
             }
+            ChildWatchEvent::CharacterMutationWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Character Mutation worker 构建完成；只替换 Character Mutation worker"
+                );
+                stop_character_mutation_worker(character_mutation_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *character_mutation_worker = spawn_character_mutation_worker(
+                    character_mutation_worker_binary,
+                    character_mutation_worker_addr,
+                    character_mutation_worker_token,
+                )?;
+                wait_for_character_mutation_worker(
+                    character_mutation_worker,
+                    character_mutation_worker_addr,
+                    character_mutation_worker_token,
+                )?;
+                *character_mutation_worker_fingerprint =
+                    binary_fingerprint(character_mutation_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -3013,6 +3111,7 @@ fn wait_for_edge_or_child_with_mutation(
     mut chapter_content_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut workflow_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut config_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut character_mutation_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -3142,6 +3241,11 @@ fn wait_for_edge_or_child_with_mutation(
             && let Some(status) = config_read_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::ConfigReadWorkerExited(status)));
+        }
+        if let Some((character_mutation_worker, _, _)) = character_mutation_worker.as_mut()
+            && let Some(status) = character_mutation_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::CharacterMutationWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -3302,6 +3406,13 @@ fn wait_for_edge_or_child_with_mutation(
             && binary_fingerprint(config_read_worker_binary)? != *config_read_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::ConfigReadWorkerChanged));
+        }
+        if let Some((_, character_mutation_worker_binary, character_mutation_worker_fingerprint)) =
+            character_mutation_worker.as_ref()
+            && binary_fingerprint(character_mutation_worker_binary)?
+                != *character_mutation_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::CharacterMutationWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -3874,6 +3985,25 @@ fn config_read_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn character_mutation_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(CHARACTER_MUTATION_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            CHARACTER_MUTATION_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn character_mutation_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = character_mutation_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -3931,6 +4061,8 @@ fn spawn_control(
     workflow_read_worker_token: &str,
     config_read_worker_addr: SocketAddr,
     config_read_worker_token: &str,
+    character_mutation_worker_addr: SocketAddr,
+    character_mutation_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -4072,6 +4204,14 @@ fn spawn_control(
             format!("http://{config_read_worker_addr}"),
         )
         .env(CONFIG_READ_WORKER_TOKEN_ENV, config_read_worker_token)
+        .env(
+            CHARACTER_MUTATION_WORKER_URL_ENV,
+            format!("http://{character_mutation_worker_addr}"),
+        )
+        .env(
+            CHARACTER_MUTATION_WORKER_TOKEN_ENV,
+            character_mutation_worker_token,
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -4580,6 +4720,30 @@ fn spawn_config_read_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Config Read worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_character_mutation_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = character_mutation_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(CHARACTER_MUTATION_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(CHARACTER_MUTATION_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Character Mutation worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -5155,6 +5319,28 @@ fn wait_for_config_read_worker(
     )
 }
 
+fn wait_for_character_mutation_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = character_mutation_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(CHARACTER_MUTATION_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Character Mutation worker",
+    )
+}
+
 fn wait_for_portrait_worker(
     child: &mut Child,
     address: SocketAddr,
@@ -5479,6 +5665,13 @@ fn config_read_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn character_mutation_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        CHARACTER_MUTATION_WORKER_BINARY_ENV,
+        &character_mutation_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -5617,6 +5810,10 @@ fn stop_config_read_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_character_mutation_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_portrait_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -5683,6 +5880,7 @@ fn finish_shutdown(
     chapter_content_worker_result: anyhow::Result<()>,
     workflow_read_worker_result: anyhow::Result<()>,
     config_read_worker_result: anyhow::Result<()>,
+    character_mutation_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -5721,6 +5919,10 @@ fn finish_shutdown(
         ("Chapter Content worker", chapter_content_worker_result),
         ("Workflow Read worker", workflow_read_worker_result),
         ("Config Read worker", config_read_worker_result),
+        (
+            "Character Mutation worker",
+            character_mutation_worker_result,
+        ),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));

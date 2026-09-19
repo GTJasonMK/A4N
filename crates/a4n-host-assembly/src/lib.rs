@@ -87,6 +87,8 @@ pub async fn initialize_runtime(
         Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
     let config_read_worker =
         Arc::new(a4n_config_read_worker_client::ConfigReadWorkerClient::from_env());
+    let character_mutation_worker =
+        Arc::new(a4n_character_mutation_worker_client::CharacterMutationWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -147,7 +149,7 @@ pub async fn initialize_runtime(
         object_profile_read_application: object_profile_worker,
         scene_profile_read_application: scene_profile_worker,
         character_profile_read_application: orchestrator.clone(),
-        character_profile_mutation_application: orchestrator.clone(),
+        character_profile_mutation_application: character_mutation_worker,
         character_profile_timeline_mutation_application: orchestrator.clone(),
         character_profile_attribute_mutation_application: orchestrator.clone(),
         character_profile_attribute_deletion_application: orchestrator.clone(),

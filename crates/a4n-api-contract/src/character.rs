@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateProfileInput {
     #[schemars(range(min = 1))]
@@ -16,7 +16,7 @@ pub struct CreateProfileInput {
     pub base_attributes: Value,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateCharacterProfileInput {
     #[schemars(range(min = 1))]
@@ -96,14 +96,14 @@ pub struct CharacterConflictSummary {
     pub severity: CharacterConflictSeverity,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AttributeCountsSummary {
     pub explicit: usize,
     pub implicit: usize,
     pub social: usize,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CharacterProfileSummary {
     pub id: i64,
     pub project_id: i64,
@@ -296,13 +296,13 @@ pub trait CharacterProfileAttributeDeletionApplicationPort: Send + Sync {
     ) -> Result<u64, a4n_error::AppError>;
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CharacterProfileCreateResult {
     pub profile_id: i64,
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CharacterProfileMutationResult {
     pub profile: CharacterProfileSummary,
     pub warnings: Vec<String>,
