@@ -42,7 +42,6 @@ pub async fn initialize_runtime(
 
     let prompt_read_application = orchestrator.clone();
     let prompt_mutation_application = orchestrator.clone();
-    let config_read_application = orchestrator.clone();
     let config_mutation_application = orchestrator.clone();
     let package_read_application = orchestrator.clone();
     let package_mutation_application = orchestrator.clone();
@@ -86,6 +85,8 @@ pub async fn initialize_runtime(
         Arc::new(a4n_chapter_content_worker_client::ChapterContentWorkerClient::from_env());
     let workflow_read_worker =
         Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
+    let config_read_worker =
+        Arc::new(a4n_config_read_worker_client::ConfigReadWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -182,7 +183,7 @@ pub async fn initialize_runtime(
         outline_beat_mapping_preview_application: orchestrator.clone(),
         theme_read_application: theme_read_worker,
         theme_mutation_application: orchestrator.clone(),
-        config_read_application,
+        config_read_application: config_read_worker,
         config_mutation_application,
         settings_export_application: orchestrator.clone(),
         settings_import_application: orchestrator.clone(),

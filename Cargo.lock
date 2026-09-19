@@ -509,6 +509,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-config-read-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-provider-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "a4n-config-read-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-config-read-core",
+ "a4n-config-read-worker-contract",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-provider-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-config-read-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config-read-worker-contract",
+ "a4n-error",
+ "a4n-provider-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-config-read-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-provider-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-control"
 version = "0.1.0"
 dependencies = [
@@ -895,6 +957,7 @@ dependencies = [
  "a4n-chapter-content-worker-client",
  "a4n-chapter-scene-worker-client",
  "a4n-config",
+ "a4n-config-read-worker-client",
  "a4n-error",
  "a4n-foreshadowing-worker-client",
  "a4n-import-review-worker-client",
@@ -2100,6 +2163,7 @@ name = "a4n-provider-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "serde",
  "serde_json",
 ]
 
@@ -2396,6 +2460,7 @@ dependencies = [
  "a4n-blueprint-worker",
  "a4n-chapter-content-worker",
  "a4n-chapter-scene-worker",
+ "a4n-config-read-worker",
  "a4n-control",
  "a4n-db",
  "a4n-db-models",

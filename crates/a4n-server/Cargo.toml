@@ -29,6 +29,7 @@ test-embedded-processes = [
     "dep:a4n-chapter-scene-worker",
     "dep:a4n-chapter-content-worker",
     "dep:a4n-workflow-read-worker",
+    "dep:a4n-config-read-worker",
     "dep:a4n-control",
     "dep:a4n-edge",
 ]
@@ -71,6 +72,7 @@ a4n-project-mutation-worker = { path = "../a4n-project-mutation-worker", optiona
 a4n-chapter-scene-worker = { path = "../a4n-chapter-scene-worker", optional = true }
 a4n-chapter-content-worker = { path = "../a4n-chapter-content-worker", optional = true }
 a4n-workflow-read-worker = { path = "../a4n-workflow-read-worker", optional = true }
+a4n-config-read-worker = { path = "../a4n-config-read-worker", optional = true }
 a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge", optional = true }
 a4n-process-catalog = { path = "../a4n-process-catalog" }
