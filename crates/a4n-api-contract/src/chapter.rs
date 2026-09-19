@@ -55,7 +55,7 @@ pub struct ChapterAnalysisInput {
     pub chapter_id: i64,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterSceneSummary {
     pub id: i64,
     pub chapter_id: i64,

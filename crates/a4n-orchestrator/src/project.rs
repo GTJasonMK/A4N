@@ -56,7 +56,6 @@ pub(crate) fn ensure_positive_project_id(project_id: i64) -> Result<(), a4n_erro
     Ok(())
 }
 
-mod chapter_scene_rules;
 mod chapters;
 mod cleanup;
 mod duplication;
@@ -128,7 +127,6 @@ pub(crate) use video_studio_package::{
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 
-pub(crate) use chapter_scene_rules::chapter_scene_update_record_input;
 pub(crate) use chapters::{
     is_character_sync_available_chapter, validate_chapter_generation_number,
 };
