@@ -354,10 +354,8 @@ pub async fn dispatch_agent_host_command_value(
     runtime: &a4n_runtime::AppState,
     user_id: i64,
     request: WorkerRequest<AgentHostCommandPayload>,
-) -> Result<Value, Value> {
-    dispatch_agent_host_command_inner(runtime, user_id, request)
-        .await
-        .map_err(ApiError::into_value)
+) -> Result<Value, ApiError> {
+    dispatch_agent_host_command_inner(runtime, user_id, request).await
 }
 
 async fn dispatch_agent_host_command_inner(

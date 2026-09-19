@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use super::specs::INFORMATION_SOURCES;
+use a4n_api_contract::optimize::OPTIMIZATION_CONTEXT_SOURCES;
 
 pub(super) fn search_context(
     context: &Value,
@@ -17,7 +17,7 @@ pub(super) fn search_context(
             }
         }
         None => {
-            for source in INFORMATION_SOURCES {
+            for source in OPTIMIZATION_CONTEXT_SOURCES {
                 if let Some(value) = context.get(*source) {
                     collect_matches(source, value, "$", &query_lower, limit, &mut out);
                     if out.len() >= limit {

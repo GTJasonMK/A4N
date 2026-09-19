@@ -12,7 +12,6 @@ pub(in crate::optimize) use agent_context::{
 pub(in crate::optimize) use execution::execute_optimization_runtime_tool;
 pub(in crate::optimize) use read::observed_evidence_context;
 pub(in crate::optimize) use read::source_hash;
-pub(in crate::optimize) use specs::INFORMATION_SOURCES;
 pub(crate) use specs::optimization_runtime_tool_specs;
 pub(in crate::optimize) use specs::{EDIT_ARTICLE_TOOL, GET_PROJECT_INFORMATION_TOOL};
 
