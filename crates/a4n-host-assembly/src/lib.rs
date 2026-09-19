@@ -80,6 +80,8 @@ pub async fn initialize_runtime(
     );
     let project_mutation_worker =
         Arc::new(a4n_project_mutation_worker_client::ProjectMutationWorkerClient::from_env());
+    let chapter_scene_worker =
+        Arc::new(a4n_chapter_scene_worker_client::ChapterSceneWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -116,8 +118,8 @@ pub async fn initialize_runtime(
         project_family_transfer_application: orchestrator.clone(),
         project_bundle_transfer_application: orchestrator.clone(),
         video_studio_transfer_application: orchestrator.clone(),
-        chapter_scene_read_application: orchestrator.clone(),
-        chapter_scene_mutation_application: orchestrator.clone(),
+        chapter_scene_read_application: chapter_scene_worker.clone(),
+        chapter_scene_mutation_application: chapter_scene_worker,
         chapter_scene_generation_application: orchestrator.clone(),
         optimize_session_read_application: orchestrator.clone(),
         optimize_agent_tool_application: orchestrator.clone(),
