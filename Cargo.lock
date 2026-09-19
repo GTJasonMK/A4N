@@ -2853,6 +2853,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
+ "a4n-queue",
  "a4n-worker-client",
  "a4n-worker-contract",
  "a4n-workflow-core",

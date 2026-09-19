@@ -2,6 +2,7 @@
 
 use std::{collections::HashSet, env, net::SocketAddr, sync::Arc};
 
+use a4n_api_contract::task::{GetTaskHistoryInput, TaskInfoSummary};
 use a4n_api_contract::workflow::{GetWorkflowRunInput, ListWorkflowRunsInput};
 use a4n_db::DbHandle;
 use a4n_db_models::models::user::role::{UserRole, parse_user_role};
@@ -15,8 +16,8 @@ use a4n_worker_contract::{
 };
 use a4n_workflow_core::{workflow_run_detail_to_api, workflow_run_summary_to_api};
 use a4n_workflow_read_worker_contract::{
-    WORKFLOW_READ_CAPABILITY, WORKFLOW_READ_DETAIL_OPERATION, WORKFLOW_READ_LIST_OPERATION,
-    WORKFLOW_READ_WORKER_CONTRACT_VERSION, WORKFLOW_READ_WORKER_ID,
+    TASK_READ_HISTORY_OPERATION, WORKFLOW_READ_CAPABILITY, WORKFLOW_READ_DETAIL_OPERATION,
+    WORKFLOW_READ_LIST_OPERATION, WORKFLOW_READ_WORKER_CONTRACT_VERSION, WORKFLOW_READ_WORKER_ID,
 };
 use axum::{
     Json, Router,
@@ -73,6 +74,7 @@ impl WorkflowReadWorker {
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/workflow.read.list", post(list))
             .route("/v1/commands/workflow.read.detail", post(detail))
+            .route("/v1/commands/task.read.history", post(task_history))
             .with_state(self.state.clone())
     }
 
@@ -175,6 +177,17 @@ async fn detail(
     Json(request): Json<WorkerEnvelope<GetWorkflowRunInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.detail(request)).await
+}
+
+async fn task_history(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<GetTaskHistoryInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.task_history(request)
+    })
+    .await
 }
 
 async fn command_response<T, O, F, Fut>(
@@ -284,6 +297,37 @@ impl WorkerState {
         Ok(workflow_run_detail_to_api(detail))
     }
 
+    async fn task_history(
+        &self,
+        request: WorkerEnvelope<GetTaskHistoryInput>,
+    ) -> Result<Vec<TaskInfoSummary>, WorkerFailure> {
+        validate_request(&request, TASK_READ_HISTORY_OPERATION)?;
+        if request.principal.kind != WorkerPrincipalKind::Service {
+            return Err(WorkerFailure::unauthorized(
+                "task history 仅允许 service principal",
+            ));
+        }
+        let input = request.payload;
+        if input.project_id.is_some_and(|id| id <= 0) {
+            return Err(WorkerFailure::invalid_request("project_id 必须大于 0"));
+        }
+        if input.limit == 0 {
+            return Err(WorkerFailure::invalid_request("limit 必须大于 0"));
+        }
+        let tasks = a4n_db::workflow::persisted_task_history(
+            self.database.connection(),
+            input.project_id,
+            input.offset,
+            input.limit,
+        )
+        .await
+        .map_err(workflow_error)?;
+        Ok(tasks
+            .into_iter()
+            .map(|task| task_info_summary(&task.task))
+            .collect())
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -323,6 +367,29 @@ fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, Work
         .ok()
         .filter(|id| *id > 0)
         .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+}
+
+fn task_info_summary(info: &a4n_queue::priority::TaskInfo) -> TaskInfoSummary {
+    TaskInfoSummary {
+        id: info.id.clone(),
+        task_type: info.task_type.as_str().to_string(),
+        priority: info.priority.as_str().to_string(),
+        status: info.status.as_str().to_string(),
+        root_project_id: info.root_project_id,
+        source_snapshot_id: info.source_snapshot_id,
+        task_scope: info.task_scope.clone(),
+        progress: info.progress.as_ref().map(|progress| {
+            a4n_api_contract::task::TaskProgressSummary {
+                current: progress.current,
+                total: progress.total,
+                message: progress.message.clone(),
+                meta: progress.meta.clone(),
+            }
+        }),
+        created_at: info.created_at.to_string(),
+        started_at: info.started_at.map(|value| value.to_string()),
+        completed_at: info.completed_at.map(|value| value.to_string()),
+    }
 }
 
 async fn verify_project_editor(

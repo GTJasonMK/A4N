@@ -15,6 +15,7 @@ a4n-worker-client = { path = "../a4n-worker-client" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 a4n-workflow-core = { path = "../a4n-workflow-core" }
 a4n-workflow-read-worker-contract = { path = "../a4n-workflow-read-worker-contract" }
+a4n-queue = { path = "../a4n-queue" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

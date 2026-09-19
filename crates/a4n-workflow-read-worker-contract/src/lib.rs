@@ -1,5 +1,6 @@
 //! Typed workflow read commands owned by the workflow read worker.
 
+pub use a4n_api_contract::task::{GetTaskHistoryInput, TaskInfoSummary};
 pub use a4n_api_contract::workflow::{
     GetWorkflowRunInput, ListWorkflowRunsInput, WorkflowRunDetailSummary, WorkflowRunSummary,
 };
@@ -10,6 +11,7 @@ pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v1";
 pub const WORKFLOW_READ_LIST_OPERATION: &str = "workflow.read.list";
 pub const WORKFLOW_READ_DETAIL_OPERATION: &str = "workflow.read.detail";
 pub const WORKFLOW_READ_CAPABILITY: &str = "workflow.read";
+pub const TASK_READ_HISTORY_OPERATION: &str = "task.read.history";
 
 #[cfg(test)]
 mod tests {

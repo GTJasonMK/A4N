@@ -1,5 +1,6 @@
 //! Typed Host adapter for the workflow read worker.
 
+use a4n_api_contract::task::{TaskInfoSummary, TaskReadApplicationPort};
 use a4n_api_contract::workflow::{
     GetWorkflowRunInput, ListWorkflowRunsInput, WorkflowReadApplicationPort,
     WorkflowRunDetailSummary, WorkflowRunSummary,
@@ -11,7 +12,8 @@ use a4n_worker_contract::{
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
 use a4n_workflow_read_worker_contract::{
-    WORKFLOW_READ_DETAIL_OPERATION, WORKFLOW_READ_LIST_OPERATION, WORKFLOW_READ_WORKER_ID,
+    GetTaskHistoryInput, TASK_READ_HISTORY_OPERATION, WORKFLOW_READ_DETAIL_OPERATION,
+    WORKFLOW_READ_LIST_OPERATION, WORKFLOW_READ_WORKER_ID,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47672";
@@ -55,7 +57,7 @@ impl WorkflowReadWorkerClient {
 
     async fn command<I, O>(
         &self,
-        user_id: i64,
+        principal: WorkerPrincipal,
         project_id: Option<i64>,
         operation: &str,
         payload: I,
@@ -64,9 +66,6 @@ impl WorkflowReadWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if user_id <= 0 {
-            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
-        }
         if project_id.is_some_and(|id| id <= 0) {
             return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
         }
@@ -75,10 +74,7 @@ impl WorkflowReadWorkerClient {
             schema_version: WORKER_SCHEMA_VERSION,
             request_id: request_id.clone(),
             trace_id: request_id,
-            principal: WorkerPrincipal {
-                kind: WorkerPrincipalKind::User,
-                subject: user_id.to_string(),
-            },
+            principal,
             operation_id: operation.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
             project_id,
@@ -113,6 +109,23 @@ impl WorkflowReadWorkerClient {
             ))),
         }
     }
+
+    fn user_principal(user_id: i64) -> Result<WorkerPrincipal, AppError> {
+        if user_id <= 0 {
+            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
+        }
+        Ok(WorkerPrincipal {
+            kind: WorkerPrincipalKind::User,
+            subject: user_id.to_string(),
+        })
+    }
+
+    fn service_principal() -> WorkerPrincipal {
+        WorkerPrincipal {
+            kind: WorkerPrincipalKind::Service,
+            subject: "runtime".into(),
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -123,7 +136,7 @@ impl WorkflowReadApplicationPort for WorkflowReadWorkerClient {
         input: ListWorkflowRunsInput,
     ) -> Result<Vec<WorkflowRunSummary>, AppError> {
         self.command(
-            user_id,
+            Self::user_principal(user_id)?,
             input.project_id,
             WORKFLOW_READ_LIST_OPERATION,
             input,
@@ -136,8 +149,35 @@ impl WorkflowReadApplicationPort for WorkflowReadWorkerClient {
         user_id: i64,
         input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, AppError> {
-        self.command(user_id, None, WORKFLOW_READ_DETAIL_OPERATION, input)
-            .await
+        self.command(
+            Self::user_principal(user_id)?,
+            None,
+            WORKFLOW_READ_DETAIL_OPERATION,
+            input,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl TaskReadApplicationPort for WorkflowReadWorkerClient {
+    async fn history(
+        &self,
+        project_id: Option<i64>,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<TaskInfoSummary>, AppError> {
+        self.command(
+            Self::service_principal(),
+            project_id,
+            TASK_READ_HISTORY_OPERATION,
+            GetTaskHistoryInput {
+                project_id,
+                offset,
+                limit,
+            },
+        )
+        .await
     }
 }
 
