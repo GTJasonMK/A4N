@@ -244,7 +244,7 @@ pub async fn initialize_runtime(
         chapter_analysis_resume_preview_application: orchestrator.clone(),
         import_review_ingestion_application: orchestrator.clone(),
         import_review_acceptance_application: orchestrator.clone(),
-        import_review_mutation_application: orchestrator.clone(),
+        import_review_mutation_application: import_review_worker.clone(),
         import_review_read_application: import_review_worker,
         project_export_application: orchestrator.clone(),
         galgame_export_application: orchestrator.clone(),

@@ -1,12 +1,13 @@
 //! Typed Host adapter for the import-review read worker.
 
 use a4n_api_contract::import_review::{
-    CheckImportDedupInput, DedupResult, ImportProjectReviewsInput, ImportReviewReadApplicationPort,
-    ImportReviewSummary,
+    CheckImportDedupInput, DedupResult, ImportProjectReviewsInput, ImportReviewIdInput,
+    ImportReviewMutationApplicationPort, ImportReviewReadApplicationPort, ImportReviewSummary,
 };
 use a4n_error::AppError;
 use a4n_import_review_worker_contract::{
-    IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_LIST_OPERATION, IMPORT_REVIEW_READ_WORKER_ID,
+    IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_DELETE_OPERATION, IMPORT_REVIEW_LIST_OPERATION,
+    IMPORT_REVIEW_READ_WORKER_ID, IMPORT_REVIEW_REJECT_OPERATION,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -56,7 +57,7 @@ impl ImportReviewWorkerClient {
     async fn command<I, O>(
         &self,
         user_id: i64,
-        project_id: i64,
+        project_id: Option<i64>,
         operation_id: &str,
         payload: I,
     ) -> Result<O, AppError>
@@ -67,7 +68,7 @@ impl ImportReviewWorkerClient {
         if user_id <= 0 {
             return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
         }
-        if project_id <= 0 {
+        if project_id.is_some_and(|project_id| project_id <= 0) {
             return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
         }
         let request_id = uuid::Uuid::new_v4().to_string();
@@ -81,7 +82,7 @@ impl ImportReviewWorkerClient {
             },
             operation_id: operation_id.to_string(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
-            project_id: Some(project_id),
+            project_id,
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
@@ -124,7 +125,7 @@ impl ImportReviewReadApplicationPort for ImportReviewWorkerClient {
     ) -> Result<Vec<ImportReviewSummary>, AppError> {
         self.command(
             user_id,
-            input.project_id,
+            Some(input.project_id),
             IMPORT_REVIEW_LIST_OPERATION,
             input,
         )
@@ -138,11 +139,28 @@ impl ImportReviewReadApplicationPort for ImportReviewWorkerClient {
     ) -> Result<DedupResult, AppError> {
         self.command(
             user_id,
-            input.project_id,
+            Some(input.project_id),
             IMPORT_REVIEW_DEDUP_OPERATION,
             input,
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ImportReviewMutationApplicationPort for ImportReviewWorkerClient {
+    async fn delete(&self, user_id: i64, input: ImportReviewIdInput) -> Result<(), AppError> {
+        self.command(user_id, None, IMPORT_REVIEW_DELETE_OPERATION, input)
+            .await
+    }
+
+    async fn reject(
+        &self,
+        user_id: i64,
+        input: ImportReviewIdInput,
+    ) -> Result<ImportReviewSummary, AppError> {
+        self.command(user_id, None, IMPORT_REVIEW_REJECT_OPERATION, input)
+            .await
     }
 }
 

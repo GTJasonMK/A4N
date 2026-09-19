@@ -366,7 +366,7 @@
     "default_addr": "127.0.0.1:47665",
     "local_only": true,
     "data_scope": ["import_review", "chapter_content"],
-    "capabilities": ["import_review.read"],
+    "capabilities": ["import_review.read", "import_review.mutation"],
     "dependencies": ["a4n-migration"],
     "migration": {
       "current": "import_review_read",

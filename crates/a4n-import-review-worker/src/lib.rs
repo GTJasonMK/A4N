@@ -6,9 +6,11 @@ use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_import_review_core::{calculate_dedup, summary_from_model};
 use a4n_import_review_worker_contract::{
-    CheckImportDedupInput, IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_LIST_OPERATION,
-    IMPORT_REVIEW_READ_CAPABILITY, IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION,
-    IMPORT_REVIEW_READ_WORKER_ID, ImportProjectReviewsInput, ImportReviewSummary,
+    CheckImportDedupInput, IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_DELETE_OPERATION,
+    IMPORT_REVIEW_LIST_OPERATION, IMPORT_REVIEW_MUTATION_CAPABILITY, IMPORT_REVIEW_READ_CAPABILITY,
+    IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION, IMPORT_REVIEW_READ_WORKER_ID,
+    IMPORT_REVIEW_REJECT_OPERATION, ImportProjectReviewsInput, ImportReviewIdInput,
+    ImportReviewSummary,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -72,6 +74,8 @@ impl ImportReviewWorker {
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/import_review.read.list", post(list))
             .route("/v1/commands/import_review.read.dedup", post(dedup))
+            .route("/v1/commands/import_review.mutation.delete", post(delete))
+            .route("/v1/commands/import_review.mutation.reject", post(reject))
             .with_state(self.state.clone())
     }
 
@@ -151,11 +155,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: IMPORT_REVIEW_READ_CAPABILITY.into(),
-            version: IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: IMPORT_REVIEW_READ_CAPABILITY.into(),
+                version: IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: IMPORT_REVIEW_MUTATION_CAPABILITY.into(),
+                version: IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -174,6 +185,22 @@ async fn dedup(
     Json(request): Json<WorkerEnvelope<CheckImportDedupInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.dedup(request)).await
+}
+
+async fn delete(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ImportReviewIdInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.delete(request)).await
+}
+
+async fn reject(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ImportReviewIdInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.reject(request)).await
 }
 
 async fn command_response<T, O, F, Fut>(
@@ -232,6 +259,32 @@ impl WorkerState {
         calculate_dedup(&input.content, &chapters).map_err(app_error)
     }
 
+    async fn delete(
+        &self,
+        request: WorkerEnvelope<ImportReviewIdInput>,
+    ) -> Result<(), WorkerFailure> {
+        validate_mutation_request(&request, IMPORT_REVIEW_DELETE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
+        a4n_db::import_review::delete_import_review(self.database.connection(), review.id)
+            .await
+            .map_err(mutation_error)
+    }
+
+    async fn reject(
+        &self,
+        request: WorkerEnvelope<ImportReviewIdInput>,
+    ) -> Result<ImportReviewSummary, WorkerFailure> {
+        validate_mutation_request(&request, IMPORT_REVIEW_REJECT_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
+        let review =
+            a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
+                .await
+                .map_err(mutation_error)?;
+        a4n_import_review_core::summary_from_model(&review).map_err(app_error)
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -279,6 +332,14 @@ fn validate_request<T: serde::Serialize>(
     Ok(())
 }
 
+fn validate_mutation_request<T: serde::Serialize>(
+    request: &WorkerEnvelope<T>,
+    operation: &str,
+) -> Result<(), WorkerFailure> {
+    validate_request(request, operation)?;
+    Ok(())
+}
+
 fn scoped_project_id<T>(
     request: &WorkerEnvelope<T>,
     project_id: i64,
@@ -289,6 +350,24 @@ fn scoped_project_id<T>(
         ));
     }
     Ok(project_id)
+}
+
+async fn review_for_editor(
+    database: &DbHandle,
+    user_id: i64,
+    review_id: i64,
+) -> Result<a4n_db_models::models::project::import_review_queue::Model, WorkerFailure> {
+    if review_id <= 0 {
+        return Err(WorkerFailure::invalid_request("review_id 必须大于 0"));
+    }
+    let review = a4n_db::import_review::import_review_by_id(database.connection(), review_id)
+        .await
+        .map_err(database_error)?
+        .ok_or_else(|| {
+            WorkerFailure::not_found(format!("导入审核不存在: review_id={review_id}"))
+        })?;
+    verify_editor(database, review.project_id, user_id).await?;
+    Ok(review)
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
@@ -324,6 +403,23 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
 
 fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
+}
+
+fn mutation_error(error: a4n_db::import_review::ImportReviewMutationError) -> WorkerFailure {
+    match error {
+        a4n_db::import_review::ImportReviewMutationError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+        a4n_db::import_review::ImportReviewMutationError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::import_review::ImportReviewMutationError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::import_review::ImportReviewMutationError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
+    }
 }
 
 fn app_error(error: a4n_error::AppError) -> WorkerFailure {

@@ -1,7 +1,8 @@
 //! Typed read commands owned by the import-review worker.
 
 pub use a4n_api_contract::import_review::{
-    CheckImportDedupInput, DedupResult, ImportProjectReviewsInput, ImportReviewSummary,
+    CheckImportDedupInput, DedupResult, ImportProjectReviewsInput, ImportReviewIdInput,
+    ImportReviewSummary,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
@@ -10,6 +11,9 @@ pub const IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION: &str = "import-review-read
 pub const IMPORT_REVIEW_LIST_OPERATION: &str = "import_review.read.list";
 pub const IMPORT_REVIEW_DEDUP_OPERATION: &str = "import_review.read.dedup";
 pub const IMPORT_REVIEW_READ_CAPABILITY: &str = "import_review.read";
+pub const IMPORT_REVIEW_MUTATION_CAPABILITY: &str = "import_review.mutation";
+pub const IMPORT_REVIEW_DELETE_OPERATION: &str = "import_review.mutation.delete";
+pub const IMPORT_REVIEW_REJECT_OPERATION: &str = "import_review.mutation.reject";
 
 #[cfg(test)]
 mod tests {

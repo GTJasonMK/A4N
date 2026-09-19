@@ -583,7 +583,10 @@ mod tests {
         assert_eq!(import_review_read.default_addr, "127.0.0.1:47665");
         assert_eq!(
             import_review_read.capabilities,
-            vec!["import_review.read".to_string()]
+            vec![
+                "import_review.read".to_string(),
+                "import_review.mutation".to_string()
+            ]
         );
         let inspiration_history = entries
             .iter()
