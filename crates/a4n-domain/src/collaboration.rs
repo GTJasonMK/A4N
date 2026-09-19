@@ -109,7 +109,7 @@ impl From<ProjectMemberRole> for ProjectAccessRole {
     }
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ProjectMemberSummary {
     pub user_id: i64,
     pub username: String,
@@ -117,7 +117,7 @@ pub struct ProjectMemberSummary {
     pub role: ProjectAccessRole,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ProjectInviteSummary {
     pub id: i64,
     pub project_title: String,
