@@ -79,6 +79,7 @@ pub struct HttpWorkerClient {
     client: reqwest::Client,
     expected_worker_id: String,
     request_timeout: Duration,
+    auth_header: &'static str,
     auth_token: Option<String>,
 }
 
@@ -111,8 +112,14 @@ impl HttpWorkerClient {
                 .expect("static worker HTTP client configuration must be valid"),
             expected_worker_id: expected_worker_id.into(),
             request_timeout: config.request_timeout,
+            auth_header: WORKER_AUTH_HEADER,
             auth_token: None,
         }
+    }
+
+    pub fn with_auth_header(mut self, header: &'static str) -> Self {
+        self.auth_header = header;
+        self
     }
 
     pub fn with_auth_token(mut self, token: impl Into<String>) -> Self {
@@ -237,7 +244,7 @@ impl HttpWorkerClient {
 
     fn authorize(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         match &self.auth_token {
-            Some(token) => request.header(WORKER_AUTH_HEADER, token),
+            Some(token) => request.header(self.auth_header, token),
             None => request,
         }
     }
