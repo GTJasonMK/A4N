@@ -1492,12 +1492,19 @@ impl AgentApplication {
         &self,
         input: SearchAgentToolsInput,
     ) -> Result<(Vec<AgentToolDescriptor>, usize), AppError> {
-        let query = input
+        let query_terms = input
             .query
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(str::to_lowercase);
+            .map(|query| {
+                query
+                    .to_lowercase()
+                    .split_whitespace()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|terms| !terms.is_empty());
         let capability = input
             .capability
             .as_deref()
@@ -1540,14 +1547,16 @@ impl AgentApplication {
                 if policy.exposure == AgentToolExposure::Hidden
                     || capability_tools
                         .is_some_and(|allowed| !allowed.contains(&descriptor.name.as_str()))
-                    || query.as_ref().is_some_and(|query| {
-                        !descriptor.name.to_lowercase().contains(query)
-                            && !descriptor.summary.to_lowercase().contains(query)
-                            && !descriptor.domain.to_lowercase().contains(query)
-                            && !policy
-                                .tags
-                                .iter()
-                                .any(|tag| tag.to_lowercase().contains(query))
+                    || query_terms.as_ref().is_some_and(|terms| {
+                        !terms.iter().any(|term| {
+                            descriptor.name.to_lowercase().contains(term)
+                                || descriptor.summary.to_lowercase().contains(term)
+                                || descriptor.domain.to_lowercase().contains(term)
+                                || policy
+                                    .tags
+                                    .iter()
+                                    .any(|tag| tag.to_lowercase().contains(term))
+                        })
                     })
                 {
                     return None;
@@ -5431,6 +5440,23 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["create_project"]
         );
+
+        let optimization = application
+            .search_tools(SearchAgentToolsInput {
+                query: Some("edit article apply patches".into()),
+                domain: None,
+                effect: None,
+                capability: Some("content_optimization".into()),
+                limit: Some(20),
+            })
+            .expect("multi-term searches should use token matches");
+        let names = optimization
+            .tools
+            .iter()
+            .map(|tool| tool.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(names.contains(&"edit_article"));
+        assert!(names.contains(&"apply_optimization_patches"));
     }
 
     #[test]

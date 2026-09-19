@@ -59,8 +59,11 @@ pub fn configure_agent_request(request: &mut ChatRequest, protocol: &str, tools:
 }
 
 pub fn agent_protocol_prompt(protocol: &str, tools: &[Value]) -> String {
+    const TOOL_SEARCH_RULES: &str = "search_agent_tools 规则：query 使用空格分隔的关键词；domain 填 manifest domain（如 optimize、canvas、project、task），不要填 Agent capability；effect 只能是 read、write 或 destructive；受限 capability Agent 省略 capability 字段，运行时会自动限制到当前 capability。";
     if protocol != AGENT_PROTOCOL_JSON_COMPAT {
-        return "模型协议：使用服务商原生 Tool Calling。工具名称和参数必须通过原生工具调用发送，不要把工具名写成普通文本。".into();
+        return format!(
+            "模型协议：使用服务商原生 Tool Calling。工具名称和参数必须通过原生工具调用发送，不要把工具名写成普通文本。{TOOL_SEARCH_RULES}"
+        );
     }
     format!(
         "模型协议：当前 LLM 未启用原生 Tool Calling。每次只能输出一个严格 JSON 对象，不要 Markdown、代码围栏或解释。\n\
@@ -68,6 +71,7 @@ pub fn agent_protocol_prompt(protocol: &str, tools: &[Value]) -> String {
          think 的 arguments 为 {{\"thought\": string, \"public_update\": string}}；\n\
          run_tool 的 arguments 为 {{\"tool\": string, \"arguments\": object}}；\n\
          final 的 arguments 为 {{\"reply\": string}}。\n\
+         {TOOL_SEARCH_RULES}\n\
          可用工具定义：{}",
         serde_json::to_string(tools).expect("Agent tool schemas must serialize")
     )

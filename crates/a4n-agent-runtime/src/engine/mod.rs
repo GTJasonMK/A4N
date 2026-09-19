@@ -250,20 +250,7 @@ impl RuntimeAgentToolExecutor {
         match name {
             "search_agent_tools" => {
                 let mut input = parse_arguments::<SearchAgentToolsInput>(arguments, name)?;
-                if a4n_api_contract::agent::capability_has_restricted_tool_catalog(
-                    &context.profile_id,
-                ) {
-                    if input
-                        .capability
-                        .as_deref()
-                        .is_some_and(|capability| capability != context.profile_id)
-                    {
-                        return Err(AppError::Forbidden(
-                            "不能搜索当前 Agent 能力域之外的工具".into(),
-                        ));
-                    }
-                    input.capability = Some(context.profile_id.clone());
-                }
+                a4n_api_contract::agent::scope_agent_tool_search(&context.profile_id, &mut input);
                 serde_json::to_value(
                     self.state
                         .host()
