@@ -3,12 +3,17 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::character::{
-    AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
-    CharacterProfileCreateResult, CharacterProfileMutationResult, CharacterProfileSummary,
-    DeletionMarkSummary, GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput,
-    ListProfilesInput, ListSnapshotsInput, ProfileChapterStateSummary, SnapshotReferenceSummary,
+    AddProfileAttributeInput, AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput,
+    BehaviorRecordSummary, CharacterProfileCreateResult, CharacterProfileMutationResult,
+    CharacterProfileSummary, DeletionMarkSummary, ExecuteAttributeDeletionInput,
+    GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
+    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput, SnapshotReferenceSummary,
 };
 use a4n_character_mutation_worker_contract::{
+    AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
+    CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION, CHARACTER_ATTRIBUTE_MODIFY_OPERATION,
+    CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION, CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION,
     CHARACTER_MUTATION_CAPABILITY, CHARACTER_MUTATION_CREATE_OPERATION,
     CHARACTER_MUTATION_UPDATE_OPERATION, CHARACTER_MUTATION_WORKER_CONTRACT_VERSION,
     CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_CAPABILITY,
@@ -21,7 +26,9 @@ use a4n_character_mutation_worker_contract::{
 };
 use a4n_db::DbHandle;
 use a4n_domain::character::{
-    CharacterAttributeCategory, CharacterAttributeOperation, CharacterTimelineSourceKind,
+    CharacterAttributeCategory, CharacterAttributeDeletionExecutionInput,
+    CharacterAttributeDeletionRequestInput, CharacterAttributeOperation,
+    CharacterAttributeValueChangeInput, CharacterTimelineSourceKind,
 };
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_worker_client::WORKER_AUTH_HEADER;
@@ -113,6 +120,23 @@ impl CharacterMutationWorker {
             .route(
                 "/v1/commands/character.timeline.state_at_chapter",
                 post(state_at_chapter),
+            )
+            .route("/v1/commands/character.attribute.add", post(add_attribute))
+            .route(
+                "/v1/commands/character.attribute.modify",
+                post(modify_attribute),
+            )
+            .route(
+                "/v1/commands/character.attribute.request_deletion",
+                post(request_attribute_deletion),
+            )
+            .route(
+                "/v1/commands/character.attribute.execute_deletion",
+                post(execute_attribute_deletion),
+            )
+            .route(
+                "/v1/commands/character.attribute.reset_deletion",
+                post(reset_attribute_deletion),
             )
             .with_state(self.state.clone())
     }
@@ -325,6 +349,61 @@ async fn state_at_chapter(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.state_at_chapter(request)
+    })
+    .await
+}
+
+async fn add_attribute(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<AddProfileAttributeInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.add_attribute(request)
+    })
+    .await
+}
+
+async fn modify_attribute(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ModifyProfileAttributeInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.modify_attribute(request)
+    })
+    .await
+}
+
+async fn request_attribute_deletion(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<RequestAttributeDeletionInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.request_attribute_deletion(request)
+    })
+    .await
+}
+
+async fn execute_attribute_deletion(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ExecuteAttributeDeletionInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.execute_attribute_deletion(request)
+    })
+    .await
+}
+
+async fn reset_attribute_deletion(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ResetDeletionMarksInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.reset_attribute_deletion(request)
     })
     .await
 }
@@ -565,6 +644,133 @@ impl WorkerState {
             WorkerFailure::not_found(format!("第 {} 章没有角色快照", input.chapter_number))
         })?;
         profile_state_summary(&snapshot)
+    }
+
+    async fn add_attribute(
+        &self,
+        request: WorkerEnvelope<AddProfileAttributeInput>,
+    ) -> Result<AttributeEventMutationResult, WorkerFailure> {
+        validate_request(&request, CHARACTER_ATTRIBUTE_ADD_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let result = a4n_db::character::add_profile_attribute(
+            self.database.connection(),
+            CharacterAttributeValueChangeInput {
+                profile_id: input.profile_id,
+                chapter_number: input.chapter_number,
+                category: input.category.as_str().to_string(),
+                key: input.key,
+                value: input.value,
+                change_description: None,
+                cause: input.cause,
+                evidence: input.evidence,
+            },
+        )
+        .await
+        .map_err(character_db_error)?;
+        Ok(AttributeEventMutationResult {
+            project_id: profile.project_id,
+            event_id: result.event.id,
+        })
+    }
+
+    async fn modify_attribute(
+        &self,
+        request: WorkerEnvelope<ModifyProfileAttributeInput>,
+    ) -> Result<AttributeEventMutationResult, WorkerFailure> {
+        validate_request(&request, CHARACTER_ATTRIBUTE_MODIFY_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let result = a4n_db::character::modify_profile_attribute(
+            self.database.connection(),
+            CharacterAttributeValueChangeInput {
+                profile_id: input.profile_id,
+                chapter_number: input.chapter_number,
+                category: input.category.as_str().to_string(),
+                key: input.key,
+                value: input.new_value,
+                change_description: None,
+                cause: input.cause,
+                evidence: input.evidence,
+            },
+        )
+        .await
+        .map_err(character_db_error)?;
+        Ok(AttributeEventMutationResult {
+            project_id: profile.project_id,
+            event_id: result.event.id,
+        })
+    }
+
+    async fn request_attribute_deletion(
+        &self,
+        request: WorkerEnvelope<RequestAttributeDeletionInput>,
+    ) -> Result<DeletionMarkSummary, WorkerFailure> {
+        validate_request(&request, CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let mark = a4n_db::character::request_attribute_deletion(
+            self.database.connection(),
+            CharacterAttributeDeletionRequestInput {
+                profile_id: input.profile_id,
+                category: input.category.as_str().to_string(),
+                key: input.key,
+                chapter_number: input.chapter_number,
+                reason: input.reason,
+                evidence: input.evidence,
+            },
+        )
+        .await
+        .map_err(character_db_error)?;
+        deletion_mark_summary(&mark)
+    }
+
+    async fn execute_attribute_deletion(
+        &self,
+        request: WorkerEnvelope<ExecuteAttributeDeletionInput>,
+    ) -> Result<AttributeEventMutationResult, WorkerFailure> {
+        validate_request(&request, CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let result = a4n_db::character::execute_ready_attribute_deletion(
+            self.database.connection(),
+            CharacterAttributeDeletionExecutionInput {
+                profile_id: input.profile_id,
+                category: input.category.as_str().to_string(),
+                key: input.key,
+                event_cause: input.cause,
+                evidence: input.evidence,
+                chapter_number: input.chapter_number,
+            },
+        )
+        .await
+        .map_err(character_db_error)?;
+        Ok(AttributeEventMutationResult {
+            project_id: profile.project_id,
+            event_id: result.event.id,
+        })
+    }
+
+    async fn reset_attribute_deletion(
+        &self,
+        request: WorkerEnvelope<ResetDeletionMarksInput>,
+    ) -> Result<u64, WorkerFailure> {
+        validate_request(&request, CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        a4n_db::character::reset_deletion_marks_in(
+            self.database.connection(),
+            input.profile_id,
+            input.category.as_str(),
+            &input.key,
+        )
+        .await
+        .map_err(character_db_error)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -924,19 +1130,6 @@ fn create_error(error: a4n_db::character::CharacterProfileCreateError) -> Worker
         a4n_db::character::CharacterProfileCreateError::Generation(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
-    }
-}
-
-fn character_error(error: a4n_db::character::CharacterDbError) -> WorkerFailure {
-    match error {
-        a4n_db::character::CharacterDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::character::CharacterDbError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::character::CharacterDbError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{current}: {operation}"))
-        }
-        other => WorkerFailure::unavailable(other.to_string()),
     }
 }
 

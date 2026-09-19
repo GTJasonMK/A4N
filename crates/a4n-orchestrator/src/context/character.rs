@@ -1,6 +1,7 @@
 use a4n_api_contract::character::{
     AddProfileAttributeInput, AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput,
-    BehaviorRecordSummary, CharacterProfileAttributeDeletionApplicationPort,
+    BehaviorRecordSummary, CharacterAttributeRagSyncHostPort,
+    CharacterProfileAttributeDeletionApplicationPort,
     CharacterProfileAttributeMutationApplicationPort, CharacterProfileCreateResult,
     CharacterProfileDeleteResult, CharacterProfileDeletionApplicationPort,
     CharacterProfileMutationApplicationPort, CharacterProfileMutationResult,
@@ -1014,7 +1015,12 @@ impl CharacterProfileTimelineMutationApplicationPort for OrchestratorContext {
 
 #[async_trait::async_trait]
 impl CharacterProfileAttributeMutationApplicationPort for OrchestratorContext {
-    async fn add(&self, user_id: i64, input: AddProfileAttributeInput) -> Result<(), AppError> {
+    async fn add(
+        &self,
+        user_id: i64,
+        _host_port: &dyn CharacterAttributeRagSyncHostPort,
+        input: AddProfileAttributeInput,
+    ) -> Result<(), AppError> {
         self.character_profile_for_user_validated(user_id, input.profile_id)
             .await?;
         self.add_profile_attribute_validated(CharacterAttributeValueChangeInput {
@@ -1035,6 +1041,7 @@ impl CharacterProfileAttributeMutationApplicationPort for OrchestratorContext {
     async fn modify(
         &self,
         user_id: i64,
+        _host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ModifyProfileAttributeInput,
     ) -> Result<(), AppError> {
         self.character_profile_for_user_validated(user_id, input.profile_id)
@@ -1080,6 +1087,7 @@ impl CharacterProfileAttributeDeletionApplicationPort for OrchestratorContext {
     async fn execute(
         &self,
         user_id: i64,
+        _host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ExecuteAttributeDeletionInput,
     ) -> Result<(), AppError> {
         self.character_profile_for_user_validated(user_id, input.profile_id)

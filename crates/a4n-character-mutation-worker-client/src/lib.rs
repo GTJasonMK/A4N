@@ -1,15 +1,21 @@
 //! Typed Host adapter for initial character profile mutations.
 
 use a4n_api_contract::character::{
-    AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
-    CharacterProfileCreateResult, CharacterProfileMutationApplicationPort,
-    CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
-    CharacterProfileSummary, CharacterTimelineReadApplicationPort, CreateProfileInput,
-    DeletionMarkSummary, GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput,
-    ListProfilesInput, ListSnapshotsInput, ProfileChapterStateSummary, SnapshotReferenceSummary,
-    UpdateCharacterProfileInput,
+    AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
+    CharacterAttributeRagSyncHostPort, CharacterProfileAttributeDeletionApplicationPort,
+    CharacterProfileAttributeMutationApplicationPort, CharacterProfileCreateResult,
+    CharacterProfileMutationApplicationPort, CharacterProfileMutationResult,
+    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
+    CharacterTimelineReadApplicationPort, CreateProfileInput, DeletionMarkSummary,
+    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, ListBehaviorsInput,
+    ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput,
+    ProfileChapterStateSummary, RequestAttributeDeletionInput, ResetDeletionMarksInput,
+    SnapshotReferenceSummary, UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
+    AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
+    CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION, CHARACTER_ATTRIBUTE_MODIFY_OPERATION,
+    CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION, CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION,
     CHARACTER_MUTATION_CREATE_OPERATION, CHARACTER_MUTATION_UPDATE_OPERATION,
     CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION,
     CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
@@ -280,6 +286,96 @@ impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
             user_id,
             input.profile_id,
             CHARACTER_TIMELINE_STATE_OPERATION,
+            input,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CharacterProfileAttributeMutationApplicationPort for CharacterMutationWorkerClient {
+    async fn add(
+        &self,
+        user_id: i64,
+        host_port: &dyn CharacterAttributeRagSyncHostPort,
+        input: AddProfileAttributeInput,
+    ) -> Result<(), AppError> {
+        let profile_id = input.profile_id;
+        let project: AttributeEventMutationResult = self
+            .command(
+                user_id,
+                profile_id,
+                CHARACTER_ATTRIBUTE_ADD_OPERATION,
+                input,
+            )
+            .await?;
+        host_port
+            .sync_attribute_event(project.project_id, project.event_id)
+            .await
+    }
+
+    async fn modify(
+        &self,
+        user_id: i64,
+        host_port: &dyn CharacterAttributeRagSyncHostPort,
+        input: ModifyProfileAttributeInput,
+    ) -> Result<(), AppError> {
+        let profile_id = input.profile_id;
+        let project: AttributeEventMutationResult = self
+            .command(
+                user_id,
+                profile_id,
+                CHARACTER_ATTRIBUTE_MODIFY_OPERATION,
+                input,
+            )
+            .await?;
+        host_port
+            .sync_attribute_event(project.project_id, project.event_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CharacterProfileAttributeDeletionApplicationPort for CharacterMutationWorkerClient {
+    async fn request(
+        &self,
+        user_id: i64,
+        input: RequestAttributeDeletionInput,
+    ) -> Result<DeletionMarkSummary, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn execute(
+        &self,
+        user_id: i64,
+        host_port: &dyn CharacterAttributeRagSyncHostPort,
+        input: ExecuteAttributeDeletionInput,
+    ) -> Result<(), AppError> {
+        let profile_id = input.profile_id;
+        let project: AttributeEventMutationResult = self
+            .command(
+                user_id,
+                profile_id,
+                CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION,
+                input,
+            )
+            .await?;
+        host_port
+            .sync_attribute_event(project.project_id, project.event_id)
+            .await
+    }
+
+    async fn reset(&self, user_id: i64, input: ResetDeletionMarksInput) -> Result<u64, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION,
             input,
         )
         .await

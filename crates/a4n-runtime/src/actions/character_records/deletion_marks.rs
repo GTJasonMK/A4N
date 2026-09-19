@@ -34,9 +34,10 @@ pub async fn execute_attribute_deletion(
     user_id: i64,
     input: ExecuteAttributeDeletionInput,
 ) -> Result<(), String> {
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .character_profile_attribute_deletion_application()
-        .execute(user_id, input)
+        .execute(user_id, &host_port, input)
         .await
         .map_err(app_error_message)
 }

@@ -1,18 +1,19 @@
 //! Typed initial character profile mutation commands.
 
 pub use a4n_api_contract::character::{
-    AttributeHistoryInput, CharacterProfileCreateResult, CharacterProfileMutationResult,
-    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
-    CharacterTimelineReadApplicationPort, CreateProfileInput, GetProfileStateAtChapterInput,
-    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
-    UpdateCharacterProfileInput,
+    AddProfileAttributeInput, AttributeHistoryInput, CharacterProfileCreateResult,
+    CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
+    CharacterProfileSummary, CharacterTimelineReadApplicationPort, CreateProfileInput,
+    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, ListBehaviorsInput,
+    ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput, UpdateCharacterProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const CHARACTER_MUTATION_WORKER_ID: &str = "character-mutation-worker";
-pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v1";
+pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v2";
 pub const CHARACTER_MUTATION_CREATE_OPERATION: &str = "character.mutation.create";
 pub const CHARACTER_MUTATION_UPDATE_OPERATION: &str = "character.mutation.update";
 pub const CHARACTER_OVERVIEW_PROJECT_OPERATION: &str = "character.overview.project";
@@ -27,6 +28,20 @@ pub const CHARACTER_TIMELINE_DELETION_OPERATION: &str = "character.timeline.dele
 pub const CHARACTER_TIMELINE_SNAPSHOTS_OPERATION: &str = "character.timeline.snapshots";
 pub const CHARACTER_TIMELINE_STATE_OPERATION: &str = "character.timeline.state_at_chapter";
 pub const CHARACTER_TIMELINE_CAPABILITY: &str = "character.timeline.read";
+pub const CHARACTER_ATTRIBUTE_ADD_OPERATION: &str = "character.attribute.add";
+pub const CHARACTER_ATTRIBUTE_MODIFY_OPERATION: &str = "character.attribute.modify";
+pub const CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION: &str =
+    "character.attribute.request_deletion";
+pub const CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION: &str =
+    "character.attribute.execute_deletion";
+pub const CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION: &str = "character.attribute.reset_deletion";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AttributeEventMutationResult {
+    pub project_id: i64,
+    pub event_id: i64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

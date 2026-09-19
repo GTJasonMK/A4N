@@ -323,6 +323,31 @@ pub(crate) fn map_sync_error(error: RagSyncError) -> AppError {
 
 #[async_trait::async_trait]
 impl RagIngestPort for OrchestratorContext {
+    async fn sync_character_attribute_event(
+        &self,
+        project_id: i64,
+        event_id: i64,
+    ) -> Result<(), AppError> {
+        let event = self
+            .attribute_events_by_ids(&[event_id])
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::NotFound(format!("属性事件不存在: {event_id}")))?;
+        let profile = self
+            .profile_by_id(event.profile_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("角色档案不存在: {}", event.profile_id)))?;
+        if profile.project_id != project_id {
+            return Err(AppError::NotFound(format!(
+                "项目 {project_id} 不存在属性事件 {event_id}"
+            )));
+        }
+        self.sync_character_attribute_event_rag(project_id, &event, &profile.name)
+            .await
+            .map_err(AppError::VectorStoreError)
+    }
+
     async fn sync_chapter_records(
         &self,
         project_id: i64,

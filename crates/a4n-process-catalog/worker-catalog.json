@@ -537,13 +537,19 @@
     "name": "character-mutation-worker",
     "kind": "stateful_worker",
     "binary": "a4n-character-mutation-worker",
-    "contract_version": "character-mutation-v1",
-    "capability_version": "character-mutation-v1",
+    "contract_version": "character-mutation-v2",
+    "capability_version": "character-mutation-v2",
     "addr_env": "A4N_CHARACTER_MUTATION_WORKER_ADDR",
     "url_env": "A4N_CHARACTER_MUTATION_WORKER_URL",
     "default_addr": "127.0.0.1:47674",
     "local_only": true,
-    "data_scope": ["protagonist_profile"],
+    "data_scope": [
+      "protagonist_profile",
+      "attribute_event",
+      "protagonist_behavior_record",
+      "protagonist_deletion_mark",
+      "snapshot_reference"
+    ],
     "capabilities": [
       "character.mutation",
       "character.overview",

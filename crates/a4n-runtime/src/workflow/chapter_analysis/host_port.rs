@@ -1,4 +1,5 @@
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
+use a4n_api_contract::character::CharacterAttributeRagSyncHostPort;
 use a4n_chapter_analysis_host_contract::ChapterAnalysisHostPort;
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
@@ -24,6 +25,17 @@ impl RuntimeChapterAnalysisHostPort {
             state: state.clone(),
             scene_profile: RuntimeSceneProfileSyncHostPort::new(state),
         }
+    }
+}
+
+#[async_trait]
+impl CharacterAttributeRagSyncHostPort for RuntimeChapterAnalysisHostPort {
+    async fn sync_attribute_event(&self, project_id: i64, event_id: i64) -> Result<(), AppError> {
+        self.state
+            .rag_ingest()
+            .sync_character_attribute_event(project_id, event_id)
+            .await
+            .map_err(|error| AppError::Internal(anyhow::anyhow!(error.to_string())))
     }
 }
 

@@ -10,9 +10,10 @@ pub async fn add_profile_attribute(
     user_id: i64,
     input: AddProfileAttributeInput,
 ) -> Result<(), String> {
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .character_profile_attribute_mutation_application()
-        .add(user_id, input)
+        .add(user_id, &host_port, input)
         .await
         .map_err(app_error_message)
 }
@@ -22,9 +23,10 @@ pub async fn modify_profile_attribute(
     user_id: i64,
     input: ModifyProfileAttributeInput,
 ) -> Result<(), String> {
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .character_profile_attribute_mutation_application()
-        .modify(user_id, input)
+        .modify(user_id, &host_port, input)
         .await
         .map_err(app_error_message)
 }

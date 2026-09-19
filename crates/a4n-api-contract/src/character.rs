@@ -322,19 +322,30 @@ pub trait CharacterProfileTimelineMutationApplicationPort: Send + Sync {
 
 /// Host-facing mutation boundary for explicit character attribute changes.
 ///
-/// Attribute validation, persistence and the post-write RAG synchronization
-/// stay with the character owner.
+/// Attribute validation and persistence stay with the character owner; the
+/// Host callback owns the post-write RAG side effect.
+#[async_trait::async_trait]
+pub trait CharacterAttributeRagSyncHostPort: Send + Sync {
+    async fn sync_attribute_event(
+        &self,
+        project_id: i64,
+        event_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 #[async_trait::async_trait]
 pub trait CharacterProfileAttributeMutationApplicationPort: Send + Sync {
     async fn add(
         &self,
         user_id: i64,
+        host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: AddProfileAttributeInput,
     ) -> Result<(), a4n_error::AppError>;
 
     async fn modify(
         &self,
         user_id: i64,
+        host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ModifyProfileAttributeInput,
     ) -> Result<(), a4n_error::AppError>;
 }
@@ -354,6 +365,7 @@ pub trait CharacterProfileAttributeDeletionApplicationPort: Send + Sync {
     async fn execute(
         &self,
         user_id: i64,
+        host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ExecuteAttributeDeletionInput,
     ) -> Result<(), a4n_error::AppError>;
 
@@ -533,7 +545,7 @@ pub struct SyncAllCharacterProfilesResult {
     pub failed: Vec<CharacterProfileSyncFailure>,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AddProfileAttributeInput {
     #[schemars(range(min = 1))]
@@ -550,7 +562,7 @@ pub struct AddProfileAttributeInput {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ModifyProfileAttributeInput {
     #[schemars(range(min = 1))]
@@ -853,7 +865,7 @@ pub struct DeletionMarkSummary {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RequestAttributeDeletionInput {
     #[schemars(range(min = 1))]
@@ -869,7 +881,7 @@ pub struct RequestAttributeDeletionInput {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ExecuteAttributeDeletionInput {
     #[schemars(range(min = 1))]
@@ -885,7 +897,7 @@ pub struct ExecuteAttributeDeletionInput {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ResetDeletionMarksInput {
     #[schemars(range(min = 1))]
