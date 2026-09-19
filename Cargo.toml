@@ -177,6 +177,7 @@ members = [
     "crates/a4n-video-record-worker-contract",
     "crates/a4n-video-record-worker-client",
     "crates/a4n-video-record-worker",
+    "crates/a4n-manga-core",
     "crates/a4n-character-host-contract",
     "crates/a4n-optimize-host-contract",
     "crates/a4n-portrait-host-contract",

@@ -1431,6 +1431,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-manga-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-db-models",
+ "a4n-domain",
+ "chrono",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-media"
 version = "0.1.0"
 dependencies = [
@@ -1683,6 +1694,7 @@ dependencies = [
  "a4n-llm-provider-contract",
  "a4n-llm-structured-stream",
  "a4n-llm-trace",
+ "a4n-manga-core",
  "a4n-media",
  "a4n-migration",
  "a4n-novel-host-contract",
