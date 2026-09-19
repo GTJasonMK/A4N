@@ -1,20 +1,9 @@
 use serde_json::{Value, json};
 
+use a4n_api_contract::optimize::OPTIMIZATION_CONTEXT_SOURCES;
+
 pub(in crate::optimize) const GET_PROJECT_INFORMATION_TOOL: &str = "get_project_information";
 pub(in crate::optimize) const EDIT_ARTICLE_TOOL: &str = "edit_article";
-
-pub(in crate::optimize) const INFORMATION_SOURCES: &[&str] = &[
-    "current_chapter",
-    "current_chapter_outline",
-    "project_detail",
-    "blueprint",
-    "part_outlines",
-    "chapter_outlines",
-    "character_profiles",
-    "foreshadowing_index",
-    "previous_chapters",
-    "next_chapters",
-];
 
 pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
     vec![
@@ -35,7 +24,7 @@ pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
                         },
                         "source": {
                             "type": "string",
-                            "enum": INFORMATION_SOURCES,
+                            "enum": OPTIMIZATION_CONTEXT_SOURCES,
                             "description": "read 模式必填；search 模式可选，不填时搜索全部上下文段。"
                         },
                         "query": {

@@ -1,6 +1,7 @@
 use a4n_api_contract::optimize::{
-    InspectOptimizationContextInput, OptimizationContextSelection, ReadOptimizationContextInput,
-    SearchOptimizationContextInput,
+    InspectOptimizationContextInput, OPTIMIZATION_CONTEXT_SOURCES, OptimizationContextSelection,
+    ReadOptimizationContextInput, SearchOptimizationContextInput,
+    canonical_optimization_context_source,
 };
 use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
@@ -9,7 +10,7 @@ use serde_json::{Value, json};
 use super::super::OrchestratorContext;
 use super::super::context::build_content_optimization_context;
 use super::super::permissions::OptimizeAgentPermissions;
-use super::{INFORMATION_SOURCES, source_hash};
+use super::source_hash;
 
 const CONTEXT_RESULT_BYTES: usize = 12 * 1024;
 const PREVIEW_CHARS: usize = 120;
@@ -32,11 +33,11 @@ pub(in crate::optimize) async fn inspect_project_context(
             "信息源快照已变化，请重新检查当前上下文目录".into(),
         ));
     }
-    let source = input.source.as_deref();
+    let source = input.source.as_deref().map(canonical_source).transpose()?;
     let result = match source {
         None => json!({
             "kind": "context_index",
-            "sources": INFORMATION_SOURCES.iter().filter_map(|name| {
+            "sources": OPTIMIZATION_CONTEXT_SOURCES.iter().filter_map(|name| {
                 context_value.get(*name).map(|value| json!({
                     "source": name,
                     "kind": value_kind(value),
@@ -74,7 +75,7 @@ pub(in crate::optimize) async fn read_project_context(
     let context_value = context
         .agent_context_value(user_id, project_id, chapter_id)
         .await?;
-    let source = input.source.trim();
+    let source = canonical_source(&input.source)?;
     let value = context_value.get(source).ok_or_else(|| {
         AppError::InvalidArgument(format!("当前会话没有可读取的信息源: {source}"))
     })?;
@@ -131,9 +132,10 @@ pub(in crate::optimize) async fn search_project_context(
     }
     let limit = input.limit.unwrap_or(8).clamp(1, 20) as usize;
     let mut matches = Vec::new();
-    let sources = match input.source.as_deref() {
+    let source = input.source.as_deref().map(canonical_source).transpose()?;
+    let sources = match source {
         Some(source) => vec![source],
-        None => INFORMATION_SOURCES.to_vec(),
+        None => OPTIMIZATION_CONTEXT_SOURCES.to_vec(),
     };
     for source in sources {
         let Some(value) = context_value.get(source) else {
@@ -161,7 +163,7 @@ pub(in crate::optimize) async fn search_project_context(
     Ok(json!({
         "tool": "search_project_context",
         "mode": "search",
-        "source": input.source,
+        "source": source,
         "query": query,
         "matches": matches,
     }))
@@ -462,7 +464,7 @@ fn source_hash_for_requested_source(
     context: &Value,
     source: Option<&str>,
 ) -> Result<String, AppError> {
-    match source {
+    match source.map(canonical_source).transpose()? {
         Some(source) => context
             .get(source)
             .ok_or_else(|| {
@@ -471,6 +473,11 @@ fn source_hash_for_requested_source(
             .and_then(source_hash),
         None => source_hash(context),
     }
+}
+
+fn canonical_source(source: &str) -> Result<&'static str, AppError> {
+    canonical_optimization_context_source(source)
+        .ok_or_else(|| AppError::InvalidArgument(format!("未知信息源: {}", source.trim())))
 }
 
 fn value_kind(value: &Value) -> &'static str {
@@ -597,7 +604,10 @@ fn collect_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::{inspect_source, paragraph_ranges, read_chapter_paragraphs, read_paths};
+    use super::{
+        canonical_source, inspect_source, paragraph_ranges, read_chapter_paragraphs, read_paths,
+        source_hash_for_requested_source,
+    };
     use serde_json::json;
 
     #[test]
@@ -656,5 +666,12 @@ mod tests {
                 .as_str()
                 .is_some_and(|cursor| cursor.starts_with("paragraph:"))
         );
+    }
+
+    #[test]
+    fn legacy_chapter_source_resolves_to_current_chapter() {
+        let context = json!({"current_chapter": {"content": "正文"}});
+        assert_eq!(canonical_source("chapter").unwrap(), "current_chapter");
+        assert!(source_hash_for_requested_source(&context, Some("chapter")).is_ok());
     }
 }
