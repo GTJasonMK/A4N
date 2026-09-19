@@ -69,6 +69,10 @@ pub async fn initialize_runtime(
         Arc::new(a4n_project_status_worker_client::ProjectStatusWorkerClient::from_env());
     let project_read_worker =
         Arc::new(a4n_project_read_worker_client::ProjectReadWorkerClient::from_env());
+    let import_review_worker =
+        Arc::new(a4n_import_review_worker_client::ImportReviewWorkerClient::from_env());
+    let inspiration_worker =
+        Arc::new(a4n_inspiration_worker_client::InspirationWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -217,7 +221,7 @@ pub async fn initialize_runtime(
         import_review_ingestion_application: orchestrator.clone(),
         import_review_acceptance_application: orchestrator.clone(),
         import_review_mutation_application: orchestrator.clone(),
-        import_review_read_application: orchestrator.clone(),
+        import_review_read_application: import_review_worker,
         project_export_application: orchestrator.clone(),
         galgame_export_application: orchestrator.clone(),
         video_record_read_application: orchestrator.clone(),
@@ -292,7 +296,7 @@ pub async fn initialize_runtime(
         manga_record_read_application: orchestrator.clone(),
         manga_record_mutation_application: orchestrator.clone(),
         galgame_read_application: orchestrator.clone(),
-        inspiration_history_read_application: orchestrator.clone(),
+        inspiration_history_read_application: inspiration_worker,
         inspiration_generation_application: orchestrator.clone(),
         inspiration_request_application: orchestrator.clone(),
     };

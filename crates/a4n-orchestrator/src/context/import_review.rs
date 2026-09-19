@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::import_review::{
-    AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
-    ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
+    AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewIdInput,
+    ImportReviewSummary,
 };
 use a4n_db::{
     DbHandle,
@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::OrchestratorContext;
-use crate::{collaboration::ProjectAccessRole, import_review::calculate_import_dedup};
+use crate::collaboration::ProjectAccessRole;
 
 #[derive(Clone)]
 pub(super) struct ImportReviewApplication {
@@ -27,15 +27,6 @@ pub(super) struct ImportReviewApplication {
 impl ImportReviewApplication {
     pub(super) fn new(database: DbHandle) -> Self {
         Self { database }
-    }
-
-    async fn import_reviews_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<import_review_queue::Model>, AppError> {
-        a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(AppError::Database)
     }
 
     async fn import_review_by_id(
@@ -97,12 +88,6 @@ impl ImportReviewApplication {
             .await
             .map_err(import_review_mutation_error)
     }
-
-    async fn import_dedup_chapters(&self, project_id: i64) -> Result<Vec<(i64, String)>, AppError> {
-        a4n_db::import_review::import_dedup_chapters(self.database.connection(), project_id)
-            .await
-            .map_err(AppError::Database)
-    }
 }
 
 fn import_review_mutation_error(error: ImportReviewMutationError) -> AppError {
@@ -117,18 +102,6 @@ fn import_review_mutation_error(error: ImportReviewMutationError) -> AppError {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn import_reviews_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<import_review_queue::Model>, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.import_review
-            .import_reviews_by_project(project_id)
-            .await
-    }
-
     pub(crate) async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
@@ -246,23 +219,6 @@ impl OrchestratorContext {
         Ok(accepted)
     }
 
-    pub(crate) async fn check_import_dedup_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        content: &str,
-    ) -> Result<DedupResult, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        let chapters = self
-            .import_review
-            .import_dedup_chapters(project_id)
-            .await?
-            .into_iter()
-            .collect::<Vec<_>>();
-        calculate_import_dedup(content, &chapters)
-    }
-
     async fn import_review_for_editor(
         &self,
         user_id: i64,
@@ -299,29 +255,6 @@ fn import_review_summary(
         created_at: review.created_at.to_string(),
         updated_at: review.updated_at.to_string(),
     })
-}
-
-#[async_trait]
-impl a4n_api_contract::import_review::ImportReviewReadApplicationPort for OrchestratorContext {
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ImportProjectReviewsInput,
-    ) -> Result<Vec<ImportReviewSummary>, AppError> {
-        let reviews = self
-            .import_reviews_for_user_validated(user_id, input.project_id)
-            .await?;
-        reviews.iter().map(import_review_summary).collect()
-    }
-
-    async fn dedup(
-        &self,
-        user_id: i64,
-        input: CheckImportDedupInput,
-    ) -> Result<DedupResult, AppError> {
-        self.check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
-            .await
-    }
 }
 
 #[async_trait]

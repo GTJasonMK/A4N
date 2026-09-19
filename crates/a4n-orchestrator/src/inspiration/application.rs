@@ -1,10 +1,7 @@
 use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
-    inspiration::{
-        InspirationMessageSummary, PreviewInspirationRequestInput, StartInspirationGenerationInput,
-    },
+    inspiration::{PreviewInspirationRequestInput, StartInspirationGenerationInput},
 };
-use a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT;
 use a4n_error::AppError;
 use a4n_inspiration_host_contract::{
     InspirationGenerationApplicationPort, InspirationRequestPreviewApplicationPort,
@@ -35,34 +32,6 @@ use crate::{
 use super::{
     request::build_inspiration_request_from_context, validation::validate_inspiration_response_json,
 };
-
-#[async_trait::async_trait]
-impl a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort for OrchestratorContext {
-    async fn history(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::inspiration::InspirationHistoryInput,
-    ) -> Result<Vec<InspirationMessageSummary>, AppError> {
-        self.verify_project_permission(
-            input.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-
-        Ok(self
-            .inspiration_messages(input.project_id, INSPIRATION_HISTORY_LIMIT)
-            .await?
-            .into_iter()
-            .map(|message| InspirationMessageSummary {
-                id: message.id,
-                role: message.role,
-                content: message.content,
-                created_at: message.created_at.to_string(),
-            })
-            .collect())
-    }
-}
 
 #[async_trait::async_trait]
 impl InspirationRequestPreviewApplicationPort for OrchestratorContext {

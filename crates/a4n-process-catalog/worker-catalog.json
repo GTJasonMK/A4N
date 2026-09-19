@@ -354,5 +354,43 @@
       "min_compatible": "project_read",
       "max_compatible": "project_read"
     }
+  },
+  {
+    "name": "import-review-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-import-review-worker",
+    "contract_version": "import-review-read-v1",
+    "capability_version": "import-review-read-v1",
+    "addr_env": "A4N_IMPORT_REVIEW_READ_WORKER_ADDR",
+    "url_env": "A4N_IMPORT_REVIEW_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47665",
+    "local_only": true,
+    "data_scope": ["import_review", "chapter_content"],
+    "capabilities": ["import_review.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "import_review_read",
+      "min_compatible": "import_review_read",
+      "max_compatible": "import_review_read"
+    }
+  },
+  {
+    "name": "inspiration-history-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-inspiration-worker",
+    "contract_version": "inspiration-history-v1",
+    "capability_version": "inspiration-history-v1",
+    "addr_env": "A4N_INSPIRATION_HISTORY_WORKER_ADDR",
+    "url_env": "A4N_INSPIRATION_HISTORY_WORKER_URL",
+    "default_addr": "127.0.0.1:47666",
+    "local_only": true,
+    "data_scope": ["conversation", "message"],
+    "capabilities": ["inspiration.history.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "inspiration_history",
+      "min_compatible": "inspiration_history",
+      "max_compatible": "inspiration_history"
+    }
   }
 ]

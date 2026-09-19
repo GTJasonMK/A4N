@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 15);
+        assert_eq!(entries.len(), 17);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -563,6 +563,41 @@ mod tests {
         assert_eq!(project_read.addr_env, "A4N_PROJECT_READ_WORKER_ADDR");
         assert_eq!(project_read.default_addr, "127.0.0.1:47664");
         assert_eq!(project_read.capabilities, vec!["project.read".to_string()]);
+        let import_review_read = entries
+            .iter()
+            .find(|entry| entry.name == "import-review-read-worker")
+            .expect("import review read worker entry");
+        assert_eq!(import_review_read.kind, ProcessKind::StatefulWorker);
+        assert_eq!(import_review_read.binary, "a4n-import-review-worker");
+        assert_eq!(import_review_read.contract_version, "import-review-read-v1");
+        assert_eq!(
+            import_review_read.addr_env,
+            "A4N_IMPORT_REVIEW_READ_WORKER_ADDR"
+        );
+        assert_eq!(import_review_read.default_addr, "127.0.0.1:47665");
+        assert_eq!(
+            import_review_read.capabilities,
+            vec!["import_review.read".to_string()]
+        );
+        let inspiration_history = entries
+            .iter()
+            .find(|entry| entry.name == "inspiration-history-worker")
+            .expect("inspiration history worker entry");
+        assert_eq!(inspiration_history.kind, ProcessKind::StatefulWorker);
+        assert_eq!(inspiration_history.binary, "a4n-inspiration-worker");
+        assert_eq!(
+            inspiration_history.contract_version,
+            "inspiration-history-v1"
+        );
+        assert_eq!(
+            inspiration_history.addr_env,
+            "A4N_INSPIRATION_HISTORY_WORKER_ADDR"
+        );
+        assert_eq!(inspiration_history.default_addr, "127.0.0.1:47666");
+        assert_eq!(
+            inspiration_history.capabilities,
+            vec!["inspiration.history.read".to_string()]
+        );
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")
@@ -597,7 +632,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 24);
+        assert_eq!(entries.len(), 26);
         assert_eq!(
             entries
                 .iter()

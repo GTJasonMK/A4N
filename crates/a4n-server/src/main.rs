@@ -46,6 +46,10 @@ const SOURCE_SNAPSHOT_WORKER_PROCESS_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_PRO
 const THEME_READ_WORKER_PROCESS_ENV: &str = "A4N_THEME_READ_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const PROJECT_READ_WORKER_PROCESS_ENV: &str = "A4N_PROJECT_READ_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const IMPORT_REVIEW_READ_WORKER_PROCESS_ENV: &str = "A4N_IMPORT_REVIEW_READ_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const INSPIRATION_HISTORY_WORKER_PROCESS_ENV: &str = "A4N_INSPIRATION_HISTORY_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -106,6 +110,14 @@ const PROJECT_READ_WORKER_CATALOG_NAME: &str = "project-read-worker";
 const PROJECT_READ_WORKER_BINARY_ENV: &str = "A4N_PROJECT_READ_WORKER_BINARY";
 const PROJECT_READ_WORKER_TOKEN_ENV: &str = "A4N_PROJECT_READ_WORKER_TOKEN";
 const PROJECT_READ_WORKER_URL_ENV: &str = "A4N_PROJECT_READ_WORKER_URL";
+const IMPORT_REVIEW_READ_WORKER_CATALOG_NAME: &str = "import-review-read-worker";
+const IMPORT_REVIEW_READ_WORKER_BINARY_ENV: &str = "A4N_IMPORT_REVIEW_READ_WORKER_BINARY";
+const IMPORT_REVIEW_READ_WORKER_TOKEN_ENV: &str = "A4N_IMPORT_REVIEW_READ_WORKER_TOKEN";
+const IMPORT_REVIEW_READ_WORKER_URL_ENV: &str = "A4N_IMPORT_REVIEW_READ_WORKER_URL";
+const INSPIRATION_HISTORY_WORKER_CATALOG_NAME: &str = "inspiration-history-worker";
+const INSPIRATION_HISTORY_WORKER_BINARY_ENV: &str = "A4N_INSPIRATION_HISTORY_WORKER_BINARY";
+const INSPIRATION_HISTORY_WORKER_TOKEN_ENV: &str = "A4N_INSPIRATION_HISTORY_WORKER_TOKEN";
+const INSPIRATION_HISTORY_WORKER_URL_ENV: &str = "A4N_INSPIRATION_HISTORY_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -142,6 +154,8 @@ enum ChildWatchEvent {
     SourceSnapshotWorkerExited(ExitStatus),
     ThemeReadWorkerExited(ExitStatus),
     ProjectReadWorkerExited(ExitStatus),
+    ImportReviewReadWorkerExited(ExitStatus),
+    InspirationHistoryWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -159,6 +173,8 @@ enum ChildWatchEvent {
     SourceSnapshotWorkerChanged,
     ThemeReadWorkerChanged,
     ProjectReadWorkerChanged,
+    ImportReviewReadWorkerChanged,
+    InspirationHistoryWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -213,6 +229,12 @@ fn main() -> anyhow::Result<()> {
         if env::var(PROJECT_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_project_read_worker::run();
         }
+        if env::var(IMPORT_REVIEW_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_import_review_worker::run();
+        }
+        if env::var(INSPIRATION_HISTORY_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_inspiration_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -246,6 +268,12 @@ fn main() -> anyhow::Result<()> {
     let theme_read_worker_token = worker_token_for_env(THEME_READ_WORKER_TOKEN_ENV)?;
     let project_read_worker_addr = project_read_worker_addr()?;
     let project_read_worker_token = worker_token_for_env(PROJECT_READ_WORKER_TOKEN_ENV)?;
+    let import_review_read_worker_addr = import_review_read_worker_addr()?;
+    let import_review_read_worker_token =
+        worker_token_for_env(IMPORT_REVIEW_READ_WORKER_TOKEN_ENV)?;
+    let inspiration_history_worker_addr = inspiration_history_worker_addr()?;
+    let inspiration_history_worker_token =
+        worker_token_for_env(INSPIRATION_HISTORY_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -279,6 +307,8 @@ fn main() -> anyhow::Result<()> {
     let mut source_snapshot_worker_fingerprint =
         binary_fingerprint(&source_snapshot_worker_binary)?;
     let theme_read_worker_binary = theme_read_worker_binary()?;
+    let import_review_read_worker_binary = import_review_read_worker_binary()?;
+    let inspiration_history_worker_binary = inspiration_history_worker_binary()?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -578,6 +608,10 @@ fn main() -> anyhow::Result<()> {
         &theme_read_worker_token,
         project_read_worker_addr,
         &project_read_worker_token,
+        import_review_read_worker_addr,
+        &import_review_read_worker_token,
+        inspiration_history_worker_addr,
+        &inspiration_history_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -833,6 +867,112 @@ fn main() -> anyhow::Result<()> {
         return Err(error);
     }
     let mut project_read_worker_fingerprint = binary_fingerprint(&project_read_worker_binary)?;
+    let mut import_review_read_worker = match spawn_import_review_read_worker(
+        &import_review_read_worker_binary,
+        import_review_read_worker_addr,
+        &import_review_read_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_project_read_worker(&mut project_read_worker);
+            let _ = stop_theme_read_worker(&mut theme_read_worker);
+            let _ = stop_project_status_worker(&mut project_status_worker);
+            let _ = stop_profile_material_worker(&mut profile_material_worker);
+            let _ = stop_agent_worker(&mut agent_worker);
+            let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+            let _ = stop_portrait_worker(&mut portrait_worker);
+            let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_import_review_read_worker(
+        &mut import_review_read_worker,
+        import_review_read_worker_addr,
+        &import_review_read_worker_token,
+    ) {
+        let _ = stop_import_review_read_worker(&mut import_review_read_worker);
+        let _ = stop_project_read_worker(&mut project_read_worker);
+        let _ = stop_theme_read_worker(&mut theme_read_worker);
+        let _ = stop_project_status_worker(&mut project_status_worker);
+        let _ = stop_profile_material_worker(&mut profile_material_worker);
+        let _ = stop_agent_worker(&mut agent_worker);
+        let _ = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_portrait_worker(&mut portrait_worker);
+        let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        return Err(error);
+    }
+    let mut import_review_read_worker_fingerprint =
+        binary_fingerprint(&import_review_read_worker_binary)?;
+    let mut inspiration_history_worker = match spawn_inspiration_history_worker(
+        &inspiration_history_worker_binary,
+        inspiration_history_worker_addr,
+        &inspiration_history_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_import_review_read_worker(&mut import_review_read_worker);
+            let _ = stop_project_read_worker(&mut project_read_worker);
+            let _ = stop_theme_read_worker(&mut theme_read_worker);
+            let _ = stop_project_status_worker(&mut project_status_worker);
+            let _ = stop_profile_material_worker(&mut profile_material_worker);
+            let _ = stop_agent_worker(&mut agent_worker);
+            let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+            let _ = stop_portrait_worker(&mut portrait_worker);
+            let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_inspiration_history_worker(
+        &mut inspiration_history_worker,
+        inspiration_history_worker_addr,
+        &inspiration_history_worker_token,
+    ) {
+        let _ = stop_inspiration_history_worker(&mut inspiration_history_worker);
+        let _ = stop_import_review_read_worker(&mut import_review_read_worker);
+        let _ = stop_project_read_worker(&mut project_read_worker);
+        let _ = stop_theme_read_worker(&mut theme_read_worker);
+        let _ = stop_project_status_worker(&mut project_status_worker);
+        let _ = stop_profile_material_worker(&mut profile_material_worker);
+        let _ = stop_agent_worker(&mut agent_worker);
+        let _ = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_portrait_worker(&mut portrait_worker);
+        let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        return Err(error);
+    }
+    let mut inspiration_history_worker_fingerprint =
+        binary_fingerprint(&inspiration_history_worker_binary)?;
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
         Ok(child) => child,
         Err(error) => {
@@ -850,6 +990,8 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_project_status_worker(&mut project_status_worker);
             let _ = stop_theme_read_worker(&mut theme_read_worker);
             let _ = stop_project_read_worker(&mut project_read_worker);
+            let _ = stop_import_review_read_worker(&mut import_review_read_worker);
+            let _ = stop_inspiration_history_worker(&mut inspiration_history_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
             return Err(error);
@@ -936,6 +1078,16 @@ fn main() -> anyhow::Result<()> {
         &mut project_read_worker,
         &project_read_worker_binary,
         &mut project_read_worker_fingerprint,
+        import_review_read_worker_addr,
+        &import_review_read_worker_token,
+        &mut import_review_read_worker,
+        &import_review_read_worker_binary,
+        &mut import_review_read_worker_fingerprint,
+        inspiration_history_worker_addr,
+        &inspiration_history_worker_token,
+        &mut inspiration_history_worker,
+        &inspiration_history_worker_binary,
+        &mut inspiration_history_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -958,6 +1110,10 @@ fn main() -> anyhow::Result<()> {
     let source_snapshot_worker_result = stop_source_snapshot_worker(&mut source_snapshot_worker);
     let theme_read_worker_result = stop_theme_read_worker(&mut theme_read_worker);
     let project_read_worker_result = stop_project_read_worker(&mut project_read_worker);
+    let import_review_read_worker_result =
+        stop_import_review_read_worker(&mut import_review_read_worker);
+    let inspiration_history_worker_result =
+        stop_inspiration_history_worker(&mut inspiration_history_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -976,6 +1132,8 @@ fn main() -> anyhow::Result<()> {
         source_snapshot_worker_result,
         theme_read_worker_result,
         project_read_worker_result,
+        import_review_read_worker_result,
+        inspiration_history_worker_result,
     )
 }
 
@@ -1060,6 +1218,16 @@ fn supervise_runtime_children(
     project_read_worker: &mut Child,
     project_read_worker_binary: &Path,
     project_read_worker_fingerprint: &mut BinaryFingerprint,
+    import_review_read_worker_addr: SocketAddr,
+    import_review_read_worker_token: &str,
+    import_review_read_worker: &mut Child,
+    import_review_read_worker_binary: &Path,
+    import_review_read_worker_fingerprint: &mut BinaryFingerprint,
+    inspiration_history_worker_addr: SocketAddr,
+    inspiration_history_worker_token: &str,
+    inspiration_history_worker: &mut Child,
+    inspiration_history_worker_binary: &Path,
+    inspiration_history_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -1140,6 +1308,16 @@ fn supervise_runtime_children(
                 project_read_worker_binary,
                 *project_read_worker_fingerprint,
             )),
+            Some((
+                import_review_read_worker,
+                import_review_read_worker_binary,
+                *import_review_read_worker_fingerprint,
+            )),
+            Some((
+                inspiration_history_worker,
+                inspiration_history_worker_binary,
+                *inspiration_history_worker_fingerprint,
+            )),
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -1191,6 +1369,10 @@ fn supervise_runtime_children(
                     theme_read_worker_token,
                     project_read_worker_addr,
                     project_read_worker_token,
+                    import_review_read_worker_addr,
+                    import_review_read_worker_token,
+                    inspiration_history_worker_addr,
+                    inspiration_history_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -1421,6 +1603,38 @@ fn supervise_runtime_children(
                 )?;
                 *project_read_worker_fingerprint = binary_fingerprint(project_read_worker_binary)?;
             }
+            ChildWatchEvent::ImportReviewReadWorkerExited(status) => {
+                eprintln!("A4N Import Review Read worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *import_review_read_worker = spawn_import_review_read_worker(
+                    import_review_read_worker_binary,
+                    import_review_read_worker_addr,
+                    import_review_read_worker_token,
+                )?;
+                wait_for_import_review_read_worker(
+                    import_review_read_worker,
+                    import_review_read_worker_addr,
+                    import_review_read_worker_token,
+                )?;
+                *import_review_read_worker_fingerprint =
+                    binary_fingerprint(import_review_read_worker_binary)?;
+            }
+            ChildWatchEvent::InspirationHistoryWorkerExited(status) => {
+                eprintln!("A4N Inspiration History worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *inspiration_history_worker = spawn_inspiration_history_worker(
+                    inspiration_history_worker_binary,
+                    inspiration_history_worker_addr,
+                    inspiration_history_worker_token,
+                )?;
+                wait_for_inspiration_history_worker(
+                    inspiration_history_worker,
+                    inspiration_history_worker_addr,
+                    inspiration_history_worker_token,
+                )?;
+                *inspiration_history_worker_fingerprint =
+                    binary_fingerprint(inspiration_history_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -1463,6 +1677,10 @@ fn supervise_runtime_children(
                     theme_read_worker_token,
                     project_read_worker_addr,
                     project_read_worker_token,
+                    import_review_read_worker_addr,
+                    import_review_read_worker_token,
+                    inspiration_history_worker_addr,
+                    inspiration_history_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -1720,6 +1938,44 @@ fn supervise_runtime_children(
                 )?;
                 *project_read_worker_fingerprint = binary_fingerprint(project_read_worker_binary)?;
             }
+            ChildWatchEvent::ImportReviewReadWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Import Review Read worker 构建完成；只替换 Import Review Read worker"
+                );
+                stop_import_review_read_worker(import_review_read_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *import_review_read_worker = spawn_import_review_read_worker(
+                    import_review_read_worker_binary,
+                    import_review_read_worker_addr,
+                    import_review_read_worker_token,
+                )?;
+                wait_for_import_review_read_worker(
+                    import_review_read_worker,
+                    import_review_read_worker_addr,
+                    import_review_read_worker_token,
+                )?;
+                *import_review_read_worker_fingerprint =
+                    binary_fingerprint(import_review_read_worker_binary)?;
+            }
+            ChildWatchEvent::InspirationHistoryWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Inspiration History worker 构建完成；只替换 Inspiration History worker"
+                );
+                stop_inspiration_history_worker(inspiration_history_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *inspiration_history_worker = spawn_inspiration_history_worker(
+                    inspiration_history_worker_binary,
+                    inspiration_history_worker_addr,
+                    inspiration_history_worker_token,
+                )?;
+                wait_for_inspiration_history_worker(
+                    inspiration_history_worker,
+                    inspiration_history_worker_addr,
+                    inspiration_history_worker_token,
+                )?;
+                *inspiration_history_worker_fingerprint =
+                    binary_fingerprint(inspiration_history_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -1823,6 +2079,8 @@ fn wait_for_edge_or_child_with_outline(
         None,
         None,
         None,
+        None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -1856,6 +2114,8 @@ fn wait_for_edge_or_child_with_workers(
     mut source_snapshot_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut theme_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut project_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut import_review_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut inspiration_history_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -1936,6 +2196,18 @@ fn wait_for_edge_or_child_with_workers(
             && let Some(status) = project_read_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::ProjectReadWorkerExited(status)));
+        }
+        if let Some((import_review_read_worker, _, _)) = import_review_read_worker.as_mut()
+            && let Some(status) = import_review_read_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::ImportReviewReadWorkerExited(status)));
+        }
+        if let Some((inspiration_history_worker, _, _)) = inspiration_history_worker.as_mut()
+            && let Some(status) = inspiration_history_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::InspirationHistoryWorkerExited(
+                status,
+            )));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -2033,6 +2305,20 @@ fn wait_for_edge_or_child_with_workers(
             && binary_fingerprint(project_read_worker_binary)? != *project_read_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::ProjectReadWorkerChanged));
+        }
+        if let Some((_, import_review_read_worker_binary, import_review_read_worker_fingerprint)) =
+            import_review_read_worker.as_ref()
+            && binary_fingerprint(import_review_read_worker_binary)?
+                != *import_review_read_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ImportReviewReadWorkerChanged));
+        }
+        if let Some((_, inspiration_history_worker_binary, inspiration_history_worker_fingerprint)) =
+            inspiration_history_worker.as_ref()
+            && binary_fingerprint(inspiration_history_worker_binary)?
+                != *inspiration_history_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::InspirationHistoryWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -2434,6 +2720,44 @@ fn project_read_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn import_review_read_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(IMPORT_REVIEW_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            IMPORT_REVIEW_READ_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn import_review_read_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = import_review_read_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
+fn inspiration_history_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(INSPIRATION_HISTORY_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            INSPIRATION_HISTORY_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn inspiration_history_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = inspiration_history_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -2473,6 +2797,10 @@ fn spawn_control(
     theme_read_worker_token: &str,
     project_read_worker_addr: SocketAddr,
     project_read_worker_token: &str,
+    import_review_read_worker_addr: SocketAddr,
+    import_review_read_worker_token: &str,
+    inspiration_history_worker_addr: SocketAddr,
+    inspiration_history_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -2554,6 +2882,22 @@ fn spawn_control(
             format!("http://{project_read_worker_addr}"),
         )
         .env(PROJECT_READ_WORKER_TOKEN_ENV, project_read_worker_token)
+        .env(
+            IMPORT_REVIEW_READ_WORKER_URL_ENV,
+            format!("http://{import_review_read_worker_addr}"),
+        )
+        .env(
+            IMPORT_REVIEW_READ_WORKER_TOKEN_ENV,
+            import_review_read_worker_token,
+        )
+        .env(
+            INSPIRATION_HISTORY_WORKER_URL_ENV,
+            format!("http://{inspiration_history_worker_addr}"),
+        )
+        .env(
+            INSPIRATION_HISTORY_WORKER_TOKEN_ENV,
+            inspiration_history_worker_token,
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -2846,6 +3190,54 @@ fn spawn_project_read_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Project Read worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_import_review_read_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = import_review_read_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(IMPORT_REVIEW_READ_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(IMPORT_REVIEW_READ_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Import Review Read worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_inspiration_history_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = inspiration_history_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(INSPIRATION_HISTORY_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(INSPIRATION_HISTORY_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Inspiration History worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -3223,6 +3615,50 @@ fn wait_for_project_read_worker(
     )
 }
 
+fn wait_for_import_review_read_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = import_review_read_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(IMPORT_REVIEW_READ_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Import Review Read worker",
+    )
+}
+
+fn wait_for_inspiration_history_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = inspiration_history_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(INSPIRATION_HISTORY_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Inspiration History worker",
+    )
+}
+
 fn wait_for_portrait_worker(
     child: &mut Child,
     address: SocketAddr,
@@ -3484,6 +3920,20 @@ fn project_read_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn import_review_read_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        IMPORT_REVIEW_READ_WORKER_BINARY_ENV,
+        &import_review_read_worker_metadata()?.binary,
+    )
+}
+
+fn inspiration_history_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        INSPIRATION_HISTORY_WORKER_BINARY_ENV,
+        &inspiration_history_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -3586,6 +4036,14 @@ fn stop_project_read_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_import_review_read_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
+fn stop_inspiration_history_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_portrait_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -3643,6 +4101,8 @@ fn finish_shutdown(
     source_snapshot_worker_result: anyhow::Result<()>,
     theme_read_worker_result: anyhow::Result<()>,
     project_read_worker_result: anyhow::Result<()>,
+    import_review_read_worker_result: anyhow::Result<()>,
+    inspiration_history_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -3663,6 +4123,14 @@ fn finish_shutdown(
         ("Source Snapshot worker", source_snapshot_worker_result),
         ("Theme Read worker", theme_read_worker_result),
         ("Project Read worker", project_read_worker_result),
+        (
+            "Import Review Read worker",
+            import_review_read_worker_result,
+        ),
+        (
+            "Inspiration History worker",
+            inspiration_history_worker_result,
+        ),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
@@ -4284,6 +4752,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -4385,6 +4855,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -4428,6 +4900,8 @@ mod tests {
                 &profile_material_binary,
                 profile_material_fingerprint,
             )),
+            None,
+            None,
             None,
             None,
             None,
@@ -4477,6 +4951,8 @@ mod tests {
                 &profile_material_binary,
                 profile_material_fingerprint,
             )),
+            None,
+            None,
             None,
             None,
             None,
@@ -4829,6 +5305,8 @@ mod tests {
             None,
             Some((&mut theme_read_worker, &theme_binary, theme_fingerprint)),
             None,
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -4917,6 +5395,8 @@ mod tests {
                 &project_binary,
                 project_fingerprint,
             )),
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -4935,6 +5415,186 @@ mod tests {
             &mut novel_planning_worker,
             &mut artifact_media_worker,
             &mut project_read_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
+    }
+
+    #[test]
+    fn import_review_read_worker_binary_changes_select_only_import_review_read_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let mut import_review_read_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
+        let import_review_binary = tempdir.path().join("a4n-import-review-worker");
+        for (path, content) in [
+            (&control_binary, b"control".as_slice()),
+            (&worker_binary, b"worker".as_slice()),
+            (&edge_binary, b"edge".as_slice()),
+            (&novel_binary, b"novel".as_slice()),
+            (&artifact_binary, b"artifact".as_slice()),
+            (&import_review_binary, b"old-import-review".as_slice()),
+        ] {
+            std::fs::write(path, content).expect("worker fixture should be written");
+        }
+        let control_fingerprint = super::binary_fingerprint(&control_binary).unwrap();
+        let worker_fingerprint = super::binary_fingerprint(&worker_binary).unwrap();
+        let edge_fingerprint = super::binary_fingerprint(&edge_binary).unwrap();
+        let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
+        let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
+        let import_review_fingerprint = super::binary_fingerprint(&import_review_binary).unwrap();
+        std::fs::write(&import_review_binary, b"new-import-review")
+            .expect("import review replacement should be written");
+
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some((
+                &mut import_review_read_worker,
+                &import_review_binary,
+                import_review_fingerprint,
+            )),
+            None,
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ImportReviewReadWorkerChanged)
+        ));
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+            &mut import_review_read_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
+    }
+
+    #[test]
+    fn inspiration_history_worker_binary_changes_select_only_inspiration_history_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let mut inspiration_history_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
+        let inspiration_binary = tempdir.path().join("a4n-inspiration-worker");
+        for (path, content) in [
+            (&control_binary, b"control".as_slice()),
+            (&worker_binary, b"worker".as_slice()),
+            (&edge_binary, b"edge".as_slice()),
+            (&novel_binary, b"novel".as_slice()),
+            (&artifact_binary, b"artifact".as_slice()),
+            (&inspiration_binary, b"old-inspiration".as_slice()),
+        ] {
+            std::fs::write(path, content).expect("worker fixture should be written");
+        }
+        let control_fingerprint = super::binary_fingerprint(&control_binary).unwrap();
+        let worker_fingerprint = super::binary_fingerprint(&worker_binary).unwrap();
+        let edge_fingerprint = super::binary_fingerprint(&edge_binary).unwrap();
+        let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
+        let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
+        let inspiration_fingerprint = super::binary_fingerprint(&inspiration_binary).unwrap();
+        std::fs::write(&inspiration_binary, b"new-inspiration")
+            .expect("inspiration replacement should be written");
+
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some((
+                &mut inspiration_history_worker,
+                &inspiration_binary,
+                inspiration_fingerprint,
+            )),
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::InspirationHistoryWorkerChanged)
+        ));
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+            &mut inspiration_history_worker,
         ] {
             child.kill().expect("test child should stop");
             child.wait().expect("test child should be reaped");
