@@ -334,7 +334,7 @@ pub async fn initialize_runtime(
         galgame_media_mutation_application: orchestrator.clone(),
         manga_pipeline_execution_application: orchestrator.clone(),
         manga_pipeline_preview_application: orchestrator.clone(),
-        manga_pipeline_read_application: orchestrator.clone(),
+        manga_pipeline_read_application: manga_record_worker.clone(),
         manga_pipeline_cancellation_application: orchestrator.clone(),
         manga_record_read_application: manga_record_worker,
         manga_record_mutation_application: orchestrator.clone(),

@@ -681,6 +681,7 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "a4n-export-contract",
+ "a4n-manga-core",
  "a4n-migration",
  "a4n-progress",
  "a4n-queue",
