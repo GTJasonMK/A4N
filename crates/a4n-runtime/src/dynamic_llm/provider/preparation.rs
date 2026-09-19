@@ -33,22 +33,25 @@ impl DynamicLlmProvider {
             model.capabilities.max_output_tokens,
             model.model_name(),
         )?);
-        let trace = if request.context_manifest_json.is_some()
+        let already_prepared = request.context_manifest_json.is_some()
             && request.trace_context.as_ref().is_some_and(|trace| {
                 trace.context_plan_json.is_some() && trace.context_pack_refs_json.is_some()
-            }) {
+            });
+        let trace = if already_prepared {
             request.trace_context.clone()
         } else {
             prepare_dynamic_llm_trace_context(&self.facade, &model.planner(), &mut request).await?
         };
-        request.configure_prompt_cache(
-            &model.model.provider,
-            model.model_name(),
-            model.model.extra_body_json.as_ref(),
-            trace
-                .as_ref()
-                .and_then(|trace| trace.root_project_id.or(trace.project_id)),
-        )?;
+        if !already_prepared {
+            request.configure_prompt_cache(
+                &model.model.provider,
+                model.model_name(),
+                model.model.extra_body_json.as_ref(),
+                trace
+                    .as_ref()
+                    .and_then(|trace| trace.root_project_id.or(trace.project_id)),
+            )?;
+        }
         if self.sidecar_client.is_some() {
             require_sidecar_business_trace(trace.as_ref(), "LLM sidecar stream 请求")?;
         }
