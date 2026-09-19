@@ -182,15 +182,6 @@ pub fn scope_agent_tool_search(capability: &str, input: &mut SearchAgentToolsInp
     }
 }
 
-/// These tool names only exist so persisted pre-unification Runs can finish.
-/// They must never enter a new Agent's discoverable catalog.
-pub fn is_legacy_agent_tool(name: &str) -> bool {
-    matches!(
-        name,
-        "ensure_content_optimization_session" | "send_content_optimization_message"
-    )
-}
-
 pub fn agent_tool_requires_user_approval(name: &str, effect: &str) -> bool {
     effect == "destructive"
         || matches!(
@@ -204,10 +195,6 @@ pub fn agent_tool_requires_user_approval(name: &str, effect: &str) -> bool {
                 | "edit_chapter_visual_plan_draft"
                 | "save_editor_draft"
         )
-}
-
-pub fn agent_tool_allowed_in_advice_only(name: &str) -> bool {
-    is_legacy_agent_tool(name)
 }
 
 pub fn is_agent_skill_tool(name: &str) -> bool {
@@ -226,43 +213,113 @@ pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
     }
 }
 
-/// Common tools are available immediately; the rest of the same domain catalog
-/// remains discoverable. Visibility does not grant additional permissions.
+/// Restricted capabilities receive their operational tools up front. Only the
+/// main/general profiles use discovery to extend the initial window.
 pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
     match capability.trim() {
+        CONTENT_OPTIMIZATION_AGENT_CAPABILITY => &[
+            "inspect_project_context",
+            "read_project_context",
+            "search_project_context",
+            "edit_article",
+            "get_optimize_session",
+            "list_optimize_turns",
+            "list_optimize_patch_sets",
+            "apply_optimization_patches",
+            "read_agent_execution_result",
+            "read_image",
+            "get_generation_task_summary",
+            "wait_generation_task",
+        ],
         DIRECTOR_AGENT_CAPABILITY => &[
             "inspect_editor_target",
             "read_editor_draft",
             "save_editor_draft",
-            "search_agent_tools",
-            "describe_agent_tool",
-            "search_agent_skills",
-            "load_agent_skill",
             "read_agent_execution_result",
             "read_chapter_visual_plan",
             "read_image",
-            "web_search",
-            "web_fetch",
             "edit_chapter_visual_plan_draft",
             "validate_chapter_visual_plan",
-        ],
-        CANVAS_AGENT_CAPABILITY => &[
-            "search_agent_tools",
-            "describe_agent_tool",
-            "search_agent_skills",
-            "load_agent_skill",
-            "read_agent_execution_result",
-            "read_canvas_graph",
-            "read_image",
+            "save_chapter_visual_plan_draft",
+            "get_chapter_visual_plan",
+            "get_project",
+            "list_chapter_outlines",
+            "list_chapter_scenes",
             "web_search",
             "web_fetch",
+        ],
+        CANVAS_AGENT_CAPABILITY => &[
+            "read_agent_execution_result",
+            "get_canvas_graph",
+            "read_canvas_graph",
+            "read_image",
             "edit_canvas_graph",
             "get_canvas_node_contracts",
             "run_canvas_node",
             "run_canvas_graph",
+            "get_workflow_run_detail",
             "wait_workflow_run",
+            "get_project",
         ],
         _ => agent_tools_for_capability(capability),
+    }
+}
+
+pub fn capability_allows_tool(capability: &str, tool: &str) -> bool {
+    if capability_has_restricted_tool_catalog(capability) {
+        initial_agent_tools(capability).contains(&tool)
+    } else {
+        true
+    }
+}
+
+pub const AGENT_PHASE_DISCOVER: &str = "discover";
+pub const AGENT_PHASE_CONTEXT_READ: &str = "context_read";
+pub const AGENT_PHASE_ANALYZE: &str = "analyze";
+pub const AGENT_PHASE_PROPOSE: &str = "propose";
+pub const AGENT_PHASE_APPLY: &str = "apply";
+pub const AGENT_PHASE_VERIFY: &str = "verify";
+pub const AGENT_PHASE_FINAL: &str = "final";
+
+pub fn agent_phase_for_tool(tool: &str) -> &'static str {
+    match tool {
+        "search_agent_tools"
+        | "describe_agent_tool"
+        | "search_agent_skills"
+        | "load_agent_skill"
+        | "locate_writing_target" => AGENT_PHASE_DISCOVER,
+        "edit_article" => AGENT_PHASE_PROPOSE,
+        "apply_optimization_patches"
+        | "save_canvas_graph"
+        | "edit_canvas_graph"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "save_chapter_visual_plan_draft"
+        | "edit_chapter_visual_plan_draft"
+        | "save_editor_draft" => AGENT_PHASE_APPLY,
+        "validate_chapter_visual_plan"
+        | "read_agent_execution_result"
+        | "get_generation_task_summary"
+        | "wait_generation_task"
+        | "get_workflow_run_detail"
+        | "wait_workflow_run" => AGENT_PHASE_VERIFY,
+        _ if tool.starts_with("read_")
+            || tool.starts_with("get_")
+            || tool.starts_with("list_")
+            || tool.starts_with("inspect_")
+            || tool.starts_with("search_") =>
+        {
+            AGENT_PHASE_CONTEXT_READ
+        }
+        _ => AGENT_PHASE_ANALYZE,
+    }
+}
+
+pub fn agent_phase_allows_tool(phase: &str, tool: &str) -> bool {
+    match phase {
+        AGENT_PHASE_DISCOVER => agent_phase_for_tool(tool) != AGENT_PHASE_APPLY,
+        AGENT_PHASE_VERIFY | AGENT_PHASE_FINAL => agent_phase_for_tool(tool) != AGENT_PHASE_APPLY,
+        _ => true,
     }
 }
 
@@ -279,9 +336,7 @@ pub fn synthetic_agent_tool_descriptor(
         | "read_project_context"
         | "search_project_context"
         | "edit_article"
-        | "apply_optimization_patches"
-        | "ensure_content_optimization_session"
-        | "send_content_optimization_message" => "optimize",
+        | "apply_optimization_patches" => "optimize",
         "run_canvas_graph" | "run_canvas_node" => "canvas",
         "start_visual_plan_prompt_generation" | "start_image_generation" => "director",
         "get_generation_task_summary" | "wait_generation_task" | "wait_workflow_run" => "task",
@@ -389,12 +444,6 @@ pub fn synthetic_agent_tool_descriptor(
             "Locate a recent writing project and its latest applicable chapter".into()
         }
         "delegate" => "Delegate a focused objective to a domain sub-agent".into(),
-        "ensure_content_optimization_session" => {
-            "Create or reuse the chapter's durable content-optimization session".into()
-        }
-        "send_content_optimization_message" => {
-            "Send a focused instruction to the content-optimization Agent and return its generation task handle".into()
-        }
         "start_visual_plan_prompt_generation" => {
             "Start asynchronous Director prompt generation for one observed visual-plan segment".into()
         }
@@ -427,8 +476,7 @@ pub fn synthetic_agent_tool_descriptor(
     descriptor.execution = match name {
         "delegate" => "agent".into(),
         "wait_generation_task" | "wait_workflow_run" => "wait".into(),
-        "send_content_optimization_message"
-        | "run_canvas_graph"
+        "run_canvas_graph"
         | "run_canvas_node"
         | "start_visual_plan_prompt_generation"
         | "start_image_generation" => "task".into(),
@@ -523,25 +571,6 @@ pub fn synthetic_agent_tool_descriptor(
             "required": ["capability", "task"],
             "additionalProperties": false
         }),
-        "ensure_content_optimization_session" => json!({
-            "type": "object",
-            "properties": {
-                "projectId": { "type": "integer", "minimum": 1 },
-                "chapterId": { "type": "integer", "minimum": 1 },
-                "name": { "type": ["string", "null"], "minLength": 1, "maxLength": 200 }
-            },
-            "required": ["projectId", "chapterId"],
-            "additionalProperties": false
-        }),
-        "send_content_optimization_message" => json!({
-            "type": "object",
-            "properties": {
-                "sessionId": { "type": "integer", "minimum": 1 },
-                "message": { "type": "string", "minLength": 1, "maxLength": 32768 }
-            },
-            "required": ["sessionId", "message"],
-            "additionalProperties": false
-        }),
         "get_generation_task_summary" | "wait_generation_task" => json!({
             "type": "object",
             "properties": {
@@ -593,12 +622,6 @@ pub fn synthetic_agent_tool_descriptor(
             "additionalProperties": true,
             "x-a4n-schema-quality": "typed"
         }),
-        "ensure_content_optimization_session" => {
-            typed_schema::<crate::optimize::OptimizationSessionSummary>()
-        }
-        "send_content_optimization_message" => {
-            typed_schema::<crate::generation_tasks::GenerationTaskHandle>()
-        }
         "get_generation_task_summary" | "wait_generation_task" => {
             typed_schema::<crate::generation_tasks::GenerationTaskSummary>()
         }
@@ -625,20 +648,6 @@ pub fn synthetic_agent_tool_descriptor(
             AgentToolReversibility::Reversible,
             AgentToolReplayPolicy::Idempotent,
             vec!["delegate".into(), "subagent".into()],
-        ),
-        "ensure_content_optimization_session" => (
-            AgentToolExposure::Preloaded,
-            AgentToolRisk::Low,
-            AgentToolReversibility::Reversible,
-            AgentToolReplayPolicy::Idempotent,
-            vec!["optimize".into()],
-        ),
-        "send_content_optimization_message" => (
-            AgentToolExposure::Preloaded,
-            AgentToolRisk::Medium,
-            AgentToolReversibility::Reversible,
-            AgentToolReplayPolicy::Idempotent,
-            vec!["optimize".into(), "task".into()],
         ),
         "apply_optimization_patches" | "save_editor_draft" => (
             AgentToolExposure::Preloaded,
@@ -667,10 +676,7 @@ pub fn synthetic_agent_tool_descriptor(
         risk,
         reversibility,
         replay_policy,
-        cost_class: if matches!(
-            name,
-            "send_content_optimization_message" | "run_canvas_graph" | "run_canvas_node"
-        ) {
+        cost_class: if matches!(name, "run_canvas_graph" | "run_canvas_node") {
             AgentToolCostClass::Llm
         } else {
             AgentToolCostClass::None
@@ -701,12 +707,8 @@ pub fn agent_execution_tool_descriptor(
     }
 }
 
-/// Resolve a tool that may be exposed to a new Agent. Legacy recovery tools
-/// deliberately remain outside this catalog.
+/// Resolve a tool exposed to an Agent.
 pub fn agent_tool_descriptor(name: &str) -> Option<crate::command_manifest::CommandDescriptor> {
-    if is_legacy_agent_tool(name) {
-        return None;
-    }
     agent_execution_tool_descriptor(name)
 }
 
@@ -1847,11 +1849,13 @@ pub trait AgentResourceAccessApplicationPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{
-        AGENT_CAPABILITIES, AgentToolExposure, CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
-        LocateWritingTargetInput, MAIN_AGENT_CAPABILITY, SearchAgentToolsInput,
-        agent_execution_tool_descriptor, agent_tool_allowed_in_advice_only, agent_tool_descriptor,
-        agent_tool_requires_user_approval, agent_tools_for_capability, is_legacy_agent_tool,
-        scope_agent_tool_search, synthetic_agent_tool_descriptor, synthetic_agent_tool_descriptors,
+        AGENT_CAPABILITIES, AGENT_PHASE_APPLY, AGENT_PHASE_DISCOVER, AGENT_PHASE_VERIFY,
+        AgentToolExposure, CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+        DIRECTOR_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
+        SearchAgentToolsInput, agent_phase_allows_tool, agent_phase_for_tool,
+        agent_tool_descriptor, agent_tool_requires_user_approval, agent_tools_for_capability,
+        capability_allows_tool, initial_agent_tools, scope_agent_tool_search,
+        synthetic_agent_tool_descriptor,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1932,21 +1936,47 @@ mod tests {
     }
 
     #[test]
-    fn legacy_agent_tools_are_execution_only() {
-        for name in [
-            "ensure_content_optimization_session",
-            "send_content_optimization_message",
+    fn restricted_capabilities_start_with_operational_tools_only() {
+        for capability in [
+            CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+            CANVAS_AGENT_CAPABILITY,
+            DIRECTOR_AGENT_CAPABILITY,
         ] {
-            assert!(is_legacy_agent_tool(name));
-            assert!(agent_execution_tool_descriptor(name).is_some());
-            assert!(agent_tool_descriptor(name).is_none());
+            let tools = initial_agent_tools(capability);
+            assert!(!tools.is_empty());
+            assert!(!tools.contains(&"describe_agent_tool"));
+            assert!(!tools.contains(&"load_agent_skill"));
             assert!(
-                !synthetic_agent_tool_descriptors()
+                tools
                     .iter()
-                    .any(|descriptor| descriptor.name == name)
+                    .all(|tool| capability_allows_tool(capability, tool))
             );
-            assert!(agent_tool_allowed_in_advice_only(name));
         }
+        assert!(capability_allows_tool(
+            MAIN_AGENT_CAPABILITY,
+            "describe_agent_tool"
+        ));
+    }
+
+    #[test]
+    fn phase_gate_rejects_write_before_read_and_after_verify() {
+        assert_eq!(agent_phase_for_tool("read_project_context"), "context_read");
+        assert_eq!(
+            agent_phase_for_tool("apply_optimization_patches"),
+            AGENT_PHASE_APPLY
+        );
+        assert!(!agent_phase_allows_tool(
+            AGENT_PHASE_DISCOVER,
+            "apply_optimization_patches"
+        ));
+        assert!(!agent_phase_allows_tool(
+            AGENT_PHASE_VERIFY,
+            "save_chapter_visual_plan_draft"
+        ));
+        assert!(agent_phase_allows_tool(
+            AGENT_PHASE_VERIFY,
+            "read_agent_execution_result"
+        ));
     }
 
     #[test]
@@ -1962,9 +1992,6 @@ mod tests {
         assert!(!agent_tool_requires_user_approval(
             "create_project",
             "write"
-        ));
-        assert!(!agent_tool_allowed_in_advice_only(
-            "apply_optimization_patches"
         ));
     }
 

@@ -377,24 +377,6 @@ async fn dispatch_agent_host_command_inner(
         .payload
         .arguments_with_runtime_snapshot()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
-    let generation_start_request_id = if command == "send_content_optimization_message" {
-        let value = request
-            .payload
-            .generation_start_request_id
-            .as_deref()
-            .ok_or_else(|| ApiError::bad_request("内容优化启动缺少持久幂等 ID".to_string()))?;
-        let parsed = uuid::Uuid::parse_str(value).map_err(|_| {
-            ApiError::bad_request("generation_start_request_id 必须是 UUID".to_string())
-        })?;
-        if parsed.get_version() != Some(uuid::Version::Random) {
-            return Err(ApiError::bad_request(
-                "generation_start_request_id 必须是 UUID v4".to_string(),
-            ));
-        }
-        Some(parsed.to_string())
-    } else {
-        None
-    };
     // The manifest is the exposure gate for both kinds of Agent tools. Only
     // synthetic tools belong to the Agent-native dispatcher; ordinary
     // manifest tools must retain their existing command dispatch path.
@@ -411,7 +393,6 @@ async fn dispatch_agent_host_command_inner(
                 turn_id: request.payload.turn_id,
                 execution_id: request.payload.execution_id,
                 lease_token: request.lease.fence_token.clone(),
-                start_request_id: generation_start_request_id,
             }
         });
     dispatch_runtime_command_inner(runtime, user_id, arguments, command, agent_context).await
@@ -423,7 +404,6 @@ struct AgentHostDispatchContext {
     turn_id: i64,
     execution_id: Option<i64>,
     lease_token: String,
-    start_request_id: Option<String>,
 }
 
 async fn dispatch_runtime_command_inner(
@@ -459,7 +439,6 @@ async fn dispatch_runtime_command_inner(
                 context.turn_id,
                 context.execution_id,
                 context.lease_token,
-                context.start_request_id,
                 cmd,
                 command_args,
             )

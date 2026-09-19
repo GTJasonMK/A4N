@@ -52,6 +52,7 @@ pub struct AgentLlmCapabilities {
 }
 
 pub const AGENT_WORKER_ID: &str = "agent-worker";
+pub const AGENT_FAILURE_PROVIDER_UNAVAILABLE: &str = "provider_unavailable";
 pub const AGENT_THREAD_ENSURE_MAIN_OPERATION: &str = "agent.thread.ensure_main";
 pub const AGENT_THREAD_CREATE_OPERATION: &str = "agent.thread.create";
 pub const AGENT_THREAD_FORK_OPERATION: &str = "agent.thread.fork";
@@ -78,6 +79,15 @@ pub const AGENT_RUN_SEND_OPERATION: &str = "agent.run.send";
 pub const AGENT_RUN_CONTROL_OPERATION: &str = "agent.run.control";
 pub const AGENT_RUN_SEND_CHILD_OPERATION: &str = "agent.run.send_child";
 pub const AGENT_RUN_CONTROL_CHILD_OPERATION: &str = "agent.run.control_child";
+
+pub fn provider_failure_class(error: &AppError) -> Option<&'static str> {
+    let detail = error.to_string().to_ascii_lowercase();
+    (detail.contains("503")
+        || detail.contains("no healthy upstream")
+        || detail.contains("service unavailable")
+        || detail.contains("provider unavailable"))
+    .then_some(AGENT_FAILURE_PROVIDER_UNAVAILABLE)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -219,6 +229,62 @@ impl AgentContextSummary {
         }
         Ok(())
     }
+}
+
+pub fn deterministic_context_summary(
+    previous: Option<&Value>,
+    goal: Option<&str>,
+    source: &str,
+    covered_through_sequence: i64,
+) -> Result<AgentContextSummary, AppError> {
+    let strings = |name: &str| {
+        previous
+            .and_then(|value| value.get(name))
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(|value| bound_summary_text(value, 1_000))
+                    .take(64)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    let current_goal = previous
+        .and_then(|value| value.get("current_goal"))
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| goal.filter(|value| !value.trim().is_empty()))
+        .unwrap_or("未提供显式目标")
+        .to_string();
+    let mut facts_resources = strings("facts_resources");
+    if !source.trim().is_empty() {
+        facts_resources.push(bound_summary_text(source, 2_000));
+    }
+    let mut tool_state = strings("tool_state");
+    tool_state.push(format!(
+        "上下文已确定性压缩，覆盖到事件序列 {covered_through_sequence}"
+    ));
+    let summary = AgentContextSummary {
+        current_goal: bound_summary_text(&current_goal, 4_000),
+        constraints: strings("constraints"),
+        decisions: strings("decisions"),
+        facts_resources,
+        completed: strings("completed"),
+        pending: strings("pending"),
+        tool_state,
+        covered_through_sequence,
+    };
+    summary.validate()?;
+    Ok(summary)
+}
+
+fn bound_summary_text(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+    value.chars().take(max_chars).collect()
 }
 
 pub fn parse_agent_context_summary(raw: Option<&str>) -> Result<Option<Value>, AppError> {
@@ -1062,6 +1128,32 @@ mod tests {
     }
 
     #[test]
+    fn deterministic_context_summary_preserves_shape_without_model_output() {
+        let summary = deterministic_context_summary(
+            Some(&json!({
+                "current_goal": "继续阅读正文",
+                "constraints": ["保持人物声音"],
+                "pending": ["读取下一段"],
+            })),
+            Some("fallback goal"),
+            "{\"tool\":\"read_project_context\",\"result\":true}",
+            12,
+        )
+        .expect("deterministic summary must validate");
+
+        assert_eq!(summary.current_goal, "继续阅读正文");
+        assert_eq!(summary.constraints, ["保持人物声音"]);
+        assert_eq!(summary.pending, ["读取下一段"]);
+        assert_eq!(summary.covered_through_sequence, 12);
+        assert!(
+            summary
+                .tool_state
+                .iter()
+                .any(|value| value.contains("确定性压缩"))
+        );
+    }
+
+    #[test]
     fn skill_runtime_helpers_keep_catalog_behavior_in_one_place() {
         assert!(a4n_api_contract::agent::is_agent_skill_tool(
             "search_agent_skills"
@@ -1112,5 +1204,19 @@ mod tests {
             Some(Some(7))
         );
         assert!(restored.context_manifest_json.is_none());
+    }
+
+    #[test]
+    fn provider_503_is_classified_without_hiding_other_failures() {
+        assert_eq!(
+            provider_failure_class(&AppError::LlmError(
+                "LLM API 返回错误 503：no healthy upstream".into()
+            )),
+            Some(AGENT_FAILURE_PROVIDER_UNAVAILABLE)
+        );
+        assert_eq!(
+            provider_failure_class(&AppError::LlmError("模型输出被 max_tokens 截断".into())),
+            None
+        );
     }
 }

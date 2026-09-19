@@ -31,7 +31,7 @@ use a4n_worker_contract::{
     AgentWorkerSkillSearchRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -41,6 +41,11 @@ pub struct AgentRuntimeState {
     host: Arc<dyn AgentRuntimeHost>,
     agent_worker_cancel: CancellationToken,
     agent_worker_notify: Arc<Notify>,
+    shared: AgentRuntimeShared,
+}
+
+#[derive(Clone)]
+pub struct AgentRuntimeShared {
     agent_admission: Arc<Mutex<()>>,
     agent_run_cancellations: Arc<Mutex<HashMap<i64, AgentRunCancellation>>>,
     agent_runtime_snapshots: Arc<RwLock<HashMap<i64, AgentRuntimeSnapshot>>>,
@@ -88,15 +93,132 @@ struct AgentRuntimeSnapshot {
     value: RuntimeConfigSnapshot,
 }
 
+impl AgentRuntimeShared {
+    pub fn new() -> Self {
+        Self {
+            agent_admission: Arc::new(Mutex::new(())),
+            agent_run_cancellations: Arc::new(Mutex::new(HashMap::new())),
+            agent_runtime_snapshots: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn lock_agent_admission(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        self.agent_admission.lock().await
+    }
+
+    pub async fn store_agent_runtime_snapshot(
+        &self,
+        run_id: i64,
+        parent_run_id: Option<i64>,
+        value: RuntimeConfigSnapshot,
+    ) {
+        self.agent_runtime_snapshots.write().await.insert(
+            run_id,
+            AgentRuntimeSnapshot {
+                parent_run_id,
+                value,
+            },
+        );
+    }
+
+    pub async fn agent_runtime_snapshot(&self, run_id: i64) -> Option<RuntimeConfigSnapshot> {
+        self.agent_runtime_snapshots
+            .read()
+            .await
+            .get(&run_id)
+            .map(|snapshot| snapshot.value.clone())
+    }
+
+    async fn take_agent_runtime_snapshot(&self, run_id: i64) -> Option<RuntimeConfigSnapshot> {
+        self.agent_runtime_snapshots
+            .write()
+            .await
+            .remove(&run_id)
+            .map(|snapshot| snapshot.value)
+    }
+
+    pub async fn remove_agent_runtime_snapshot_tree(&self, run_id: i64) {
+        let mut snapshots = self.agent_runtime_snapshots.write().await;
+        let run_ids = snapshots
+            .keys()
+            .copied()
+            .filter(|candidate| {
+                is_descendant(*candidate, run_id, |candidate| {
+                    snapshots
+                        .get(&candidate)
+                        .and_then(|snapshot| snapshot.parent_run_id)
+                })
+            })
+            .collect::<Vec<_>>();
+        for run_id in run_ids {
+            snapshots.remove(&run_id);
+        }
+    }
+
+    async fn register_agent_run_cancellation(
+        &self,
+        run_id: i64,
+        parent_run_id: Option<i64>,
+    ) -> CancellationToken {
+        let token = CancellationToken::new();
+        self.agent_run_cancellations.lock().await.insert(
+            run_id,
+            AgentRunCancellation {
+                parent_run_id,
+                token: token.clone(),
+            },
+        );
+        token
+    }
+
+    pub async fn cancel_agent_run_tree(&self, run_id: i64) {
+        let cancellations = self.agent_run_cancellations.lock().await;
+        for (&active_run_id, cancellation) in cancellations.iter() {
+            if is_descendant(active_run_id, run_id, |candidate| {
+                cancellations
+                    .get(&candidate)
+                    .and_then(|run| run.parent_run_id)
+            }) {
+                cancellation.token.cancel();
+            }
+        }
+    }
+
+    async fn unregister_agent_run_cancellation(&self, run_id: i64) {
+        self.agent_run_cancellations.lock().await.remove(&run_id);
+    }
+}
+
+fn is_descendant<F>(mut candidate: i64, ancestor: i64, mut parent_of: F) -> bool
+where
+    F: FnMut(i64) -> Option<i64>,
+{
+    let mut seen = HashSet::new();
+    loop {
+        if candidate == ancestor {
+            return true;
+        }
+        if !seen.insert(candidate) {
+            return false;
+        }
+        let Some(parent) = parent_of(candidate) else {
+            return false;
+        };
+        candidate = parent;
+    }
+}
+
 impl AgentRuntimeState {
     pub fn new(host: Arc<dyn AgentRuntimeHost>) -> Self {
+        Self::with_shared(host, AgentRuntimeShared::new())
+    }
+
+    pub fn with_shared(host: Arc<dyn AgentRuntimeHost>, shared: AgentRuntimeShared) -> Self {
         Self {
             host,
             agent_worker_cancel: CancellationToken::new(),
             agent_worker_notify: Arc::new(Notify::new()),
-            agent_admission: Arc::new(Mutex::new(())),
-            agent_run_cancellations: Arc::new(Mutex::new(HashMap::new())),
-            agent_runtime_snapshots: Arc::new(RwLock::new(HashMap::new())),
+            shared,
         }
     }
 
@@ -117,7 +239,7 @@ impl AgentRuntimeState {
     }
 
     pub async fn lock_agent_admission(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        self.agent_admission.lock().await
+        self.shared.lock_agent_admission().await
     }
 
     pub async fn load_agent_run_context(
@@ -798,17 +920,7 @@ impl AgentRuntimeState {
         arguments: Value,
         worker_request: &WorkerRequest<AgentRunPayload>,
         execution_id: Option<i64>,
-        execution: Option<&AgentExecutionSnapshot>,
     ) -> Result<Value, AppError> {
-        let generation_start_request_id = if command == "send_content_optimization_message" {
-            execution
-                .and_then(|execution| execution.resource_preconditions_json.as_ref())
-                .and_then(|preconditions| preconditions.get("generation_start_request_id"))
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        } else {
-            None
-        };
         let payload = AgentHostCommandPayload {
             run_id: worker_request.payload.run_id,
             turn_id: worker_request.payload.turn_id,
@@ -816,7 +928,6 @@ impl AgentRuntimeState {
             execution_id,
             command: command.clone(),
             arguments,
-            generation_start_request_id,
             runtime_config_snapshot: worker_request.payload.runtime_config_snapshot.clone(),
         };
         payload.validate().map_err(|error| AppError::InvalidState {
@@ -855,44 +966,21 @@ impl AgentRuntimeState {
         parent_run_id: Option<i64>,
         value: RuntimeConfigSnapshot,
     ) {
-        self.agent_runtime_snapshots.write().await.insert(
-            run_id,
-            AgentRuntimeSnapshot {
-                parent_run_id,
-                value,
-            },
-        );
+        self.shared
+            .store_agent_runtime_snapshot(run_id, parent_run_id, value)
+            .await;
     }
 
     pub async fn agent_runtime_snapshot(&self, run_id: i64) -> Option<RuntimeConfigSnapshot> {
-        self.agent_runtime_snapshots
-            .read()
-            .await
-            .get(&run_id)
-            .map(|snapshot| snapshot.value.clone())
+        self.shared.agent_runtime_snapshot(run_id).await
     }
 
     pub async fn take_agent_runtime_snapshot(&self, run_id: i64) -> Option<RuntimeConfigSnapshot> {
-        self.agent_runtime_snapshots
-            .write()
-            .await
-            .remove(&run_id)
-            .map(|snapshot| snapshot.value)
+        self.shared.take_agent_runtime_snapshot(run_id).await
     }
 
     pub async fn remove_agent_runtime_snapshot_tree(&self, run_id: i64) {
-        let mut snapshots = self.agent_runtime_snapshots.write().await;
-        let mut pending = vec![run_id];
-        while let Some(current) = pending.pop() {
-            let children = snapshots
-                .iter()
-                .filter_map(|(id, snapshot)| {
-                    (snapshot.parent_run_id == Some(current)).then_some(*id)
-                })
-                .collect::<Vec<_>>();
-            snapshots.remove(&current);
-            pending.extend(children);
-        }
+        self.shared.remove_agent_runtime_snapshot_tree(run_id).await;
     }
 
     pub async fn register_agent_run_cancellation(
@@ -900,34 +988,17 @@ impl AgentRuntimeState {
         run_id: i64,
         parent_run_id: Option<i64>,
     ) -> CancellationToken {
-        let token = CancellationToken::new();
-        self.agent_run_cancellations.lock().await.insert(
-            run_id,
-            AgentRunCancellation {
-                parent_run_id,
-                token: token.clone(),
-            },
-        );
-        token
+        self.shared
+            .register_agent_run_cancellation(run_id, parent_run_id)
+            .await
     }
 
     pub async fn cancel_agent_run_tree(&self, run_id: i64) {
-        let cancellations = self.agent_run_cancellations.lock().await;
-        let mut pending = vec![run_id];
-        while let Some(current) = pending.pop() {
-            if let Some(entry) = cancellations.get(&current) {
-                entry.token.cancel();
-            }
-            pending.extend(
-                cancellations.iter().filter_map(|(id, entry)| {
-                    (entry.parent_run_id == Some(current)).then_some(*id)
-                }),
-            );
-        }
+        self.shared.cancel_agent_run_tree(run_id).await;
     }
 
     pub async fn unregister_agent_run_cancellation(&self, run_id: i64) {
-        self.agent_run_cancellations.lock().await.remove(&run_id);
+        self.shared.unregister_agent_run_cancellation(run_id).await;
     }
 
     pub async fn shutdown(&self) {
@@ -1359,5 +1430,26 @@ impl AgentWorkerMessageApplicationPort for AgentWorkerMessageHostPort<'_> {
             .apply_message_request(request)
             .await
             .map(|snapshot| snapshot.map(Into::into))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AgentRuntimeShared;
+
+    #[tokio::test]
+    async fn cancelling_run_tree_only_cancels_descendants() {
+        let shared = AgentRuntimeShared::new();
+        let root = shared.register_agent_run_cancellation(10, None).await;
+        let child = shared.register_agent_run_cancellation(11, Some(10)).await;
+        let grandchild = shared.register_agent_run_cancellation(12, Some(11)).await;
+        let sibling = shared.register_agent_run_cancellation(20, None).await;
+
+        shared.cancel_agent_run_tree(10).await;
+
+        assert!(root.is_cancelled());
+        assert!(child.is_cancelled());
+        assert!(grandchild.is_cancelled());
+        assert!(!sibling.is_cancelled());
     }
 }

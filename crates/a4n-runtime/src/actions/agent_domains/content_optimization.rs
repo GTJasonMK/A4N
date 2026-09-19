@@ -1,12 +1,11 @@
 use crate::AppState;
 use a4n_api_contract::{
     agent::AgentScope,
-    generation_tasks::{GenerationStartRequestMeta, GenerationTaskHandle, GenerationTaskSummary},
+    generation_tasks::GenerationTaskSummary,
     optimize::{
         ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
-        CreateOptimizationChatSessionInput, OptimizationAgentPermissions,
         OptimizationPatchSetSummary, OptimizationSessionSummary, OptimizationTurnSummary,
-        OptimizeSessionInput, SendOptimizationMessageInput, StartOptimizeChatGenerationInput,
+        OptimizeSessionInput,
     },
 };
 use a4n_error::AppError;
@@ -14,119 +13,9 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct EnsureContentOptimizationSessionInput {
-    pub project_id: i64,
-    pub chapter_id: i64,
-    #[serde(default)]
-    pub name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct SendContentOptimizationMessageInput {
-    pub session_id: i64,
-    pub message: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct GenerationTaskSummaryInput {
     pub task_id: String,
     pub attempt: u32,
-}
-
-pub(crate) async fn ensure_session(
-    state: &AppState,
-    user_id: i64,
-    scope: &AgentScope,
-    input: EnsureContentOptimizationSessionInput,
-) -> Result<OptimizationSessionSummary, AppError> {
-    ensure_positive(input.project_id, "projectId")?;
-    ensure_positive(input.chapter_id, "chapterId")?;
-    super::super::agent_runtime::ensure_project_scope(scope, input.project_id)?;
-    super::super::agent_runtime::ensure_chapter_scope(scope, input.chapter_id)?;
-
-    let chapter = crate::actions::chapter_content::list_chapters(state, user_id, input.project_id)
-        .await?
-        .into_iter()
-        .find(|chapter| chapter.id == input.chapter_id)
-        .ok_or_else(|| {
-            AppError::NotFound(format!(
-                "项目 {} 中不存在章节 {}",
-                input.project_id, input.chapter_id
-            ))
-        })?;
-    let sessions = crate::actions::optimize::list_optimize_sessions(
-        state,
-        user_id,
-        a4n_api_contract::optimize::ListOptimizeSessionsInput {
-            project_id: input.project_id,
-            chapter_id: Some(input.chapter_id),
-        },
-    )
-    .await
-    .map_err(AppError::InvalidArgument)?;
-    if let Some(session) = sessions
-        .into_iter()
-        .find(|session| session.status != "cancelled")
-    {
-        return Ok(session);
-    }
-
-    let requested_name = input
-        .name
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| format!("章节 {} Agent 优化", chapter.chapter_number));
-    crate::actions::optimize::create_optimization_chat_session(
-        state,
-        user_id,
-        CreateOptimizationChatSessionInput {
-            project_id: input.project_id,
-            chapter_number: chapter.chapter_number,
-            name: requested_name,
-            permissions: default_permissions(),
-        },
-    )
-    .await
-    .map_err(AppError::InvalidArgument)
-}
-
-pub(crate) async fn send_message(
-    state: &AppState,
-    user_id: i64,
-    scope: &AgentScope,
-    input: SendContentOptimizationMessageInput,
-    start_request_id: String,
-    max_output_tokens: usize,
-) -> Result<GenerationTaskHandle, AppError> {
-    ensure_positive(input.session_id, "sessionId")?;
-    let message = input.message.trim();
-    if message.is_empty() {
-        return Err(AppError::InvalidArgument("message 不能为空".into()));
-    }
-    let session = scoped_session(state, user_id, scope, input.session_id).await?;
-    let request = StartOptimizeChatGenerationInput {
-        meta: GenerationStartRequestMeta {
-            start_request_id,
-            retry_of_task_id: None,
-        },
-        request: SendOptimizationMessageInput {
-            session_id: session.id,
-            message: message.to_string(),
-            permissions: session.agent_permissions,
-        },
-    };
-    crate::actions::optimize::start_optimize_chat_generation_with_output_limit(
-        state,
-        user_id,
-        request,
-        Some(max_output_tokens),
-    )
-    .await
-    .map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
 pub(crate) async fn get_session(
@@ -302,17 +191,6 @@ async fn scoped_session(
     super::super::agent_runtime::ensure_project_scope(scope, session.project_id)?;
     super::super::agent_runtime::ensure_chapter_scope(scope, session.chapter_id)?;
     Ok(session)
-}
-
-fn default_permissions() -> OptimizationAgentPermissions {
-    OptimizationAgentPermissions {
-        read_project_detail: true,
-        read_blueprint: true,
-        read_outlines: true,
-        read_character_profiles: true,
-        read_foreshadowing: true,
-        automatic_writeback: false,
-    }
 }
 
 fn ensure_positive(value: i64, field: &str) -> Result<(), AppError> {

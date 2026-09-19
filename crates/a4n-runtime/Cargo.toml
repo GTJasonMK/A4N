@@ -24,6 +24,7 @@ embedded-media-providers = [
 ]
 
 [dependencies]
+a4n-agent-runtime = { path = "../a4n-agent-runtime" }
 a4n-agent-runtime-contract = { path = "../a4n-agent-runtime-contract" }
 a4n-artifact-media-contract = { path = "../a4n-artifact-media-contract" }
 a4n-api-contract = { path = "../a4n-api-contract" }

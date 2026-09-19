@@ -4,4 +4,4 @@ mod state;
 pub mod engine;
 
 pub use host::{AgentChatStream, AgentRuntimeHost};
-pub use state::AgentRuntimeState;
+pub use state::{AgentRuntimeShared, AgentRuntimeState};

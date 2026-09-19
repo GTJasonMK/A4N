@@ -45,7 +45,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -1872,6 +1871,7 @@ dependencies = [
 name = "a4n-runtime"
 version = "0.1.0"
 dependencies = [
+ "a4n-agent-runtime",
  "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-archive-core",
