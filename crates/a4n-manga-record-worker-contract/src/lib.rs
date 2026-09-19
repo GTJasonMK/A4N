@@ -13,6 +13,7 @@ pub const MANGA_PIPELINE_CAPABILITY: &str = "manga.pipeline.read";
 pub const MANGA_RECORD_LIST_OPERATION: &str = "manga.record.list_page_prompts";
 pub const MANGA_PIPELINE_STATUS_OPERATION: &str = "manga.pipeline.status";
 pub const MANGA_PIPELINE_STATUSES_OPERATION: &str = "manga.pipeline.statuses";
+pub const MANGA_PIPELINE_CANCEL_OPERATION: &str = "manga.pipeline.cancel";
 
 #[cfg(test)]
 mod tests {

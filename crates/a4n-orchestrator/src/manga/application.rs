@@ -12,13 +12,11 @@ use super::layout_rules::{
     bind_reference_asset_in_layout, manga_page_generation_layout,
     resolve_manga_prompt_downstream_conflict,
 };
-use super::record_errors::manga_pipeline_db_error;
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
     MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
     manga_page_prompt_summary, manga_pipeline_fingerprint,
 };
-use crate::workflow::{ListWorkflowRunsInput, WORKFLOW_STATUS_RUNNING};
 use crate::{
     OrchestratorContext, collaboration::ProjectAccessRole, prompt_records::PromptRendererAdapter,
     shooting_script::ChapterShootingScriptSourceInput,
@@ -248,42 +246,6 @@ impl OrchestratorContext {
         self.delete_manga_prompt_record(prompt_id).await
     }
 
-    pub async fn cancel_manga_pipeline_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<i64, AppError> {
-        self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Editor)
-            .await?;
-        let source = self
-            .chapter_manga_source_by_id(chapter_id, project_id, false)
-            .await?;
-        ensure_manga_source_can_write(&source, "取消漫画流水线")?;
-        let run = self
-            .workflow_run_models(ListWorkflowRunsInput {
-                project_id: Some(project_id),
-                chapter_id: Some(chapter_id),
-                chapter_ids: None,
-                workflow_kind: Some("manga_pipeline".to_string()),
-                status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
-                resumable_only: None,
-                limit: Some(1),
-            })
-            .await?
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "no_running_manga_pipeline".to_string(),
-                operation: "取消漫画流水线".to_string(),
-            })?;
-        self.cancel_workflow_run_status_validated(run.id, "用户请求取消漫画流水线")
-            .await?;
-        a4n_db::manga::cancel_manga_page_prompts(self.database.connection(), project_id, chapter_id)
-            .await
-            .map_err(manga_pipeline_db_error)
-    }
-
     pub async fn optimize_manga_prompt_record_validated(
         &self,
         user_id: i64,
@@ -414,19 +376,6 @@ impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for Orchestrat
         .into_iter()
         .map(manga_pipeline_preview_step)
         .collect()
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::manga::MangaPipelineCancellationApplicationPort for OrchestratorContext {
-    async fn cancel(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<i64, AppError> {
-        self.cancel_manga_pipeline_validated(user_id, project_id, chapter_id)
-            .await
     }
 }
 

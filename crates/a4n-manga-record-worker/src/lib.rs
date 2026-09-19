@@ -11,9 +11,10 @@ use a4n_api_contract::manga::{MangaPagePromptSummary, MangaPipelineStatusSummary
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_manga_record_worker_contract::{
-    MANGA_PIPELINE_CAPABILITY, MANGA_PIPELINE_STATUS_OPERATION, MANGA_PIPELINE_STATUSES_OPERATION,
-    MANGA_RECORD_CAPABILITY, MANGA_RECORD_LIST_OPERATION, MANGA_RECORD_WORKER_CONTRACT_VERSION,
-    MANGA_RECORD_WORKER_ID, MangaChapterInput, MangaPipelineStatusesInput,
+    MANGA_PIPELINE_CANCEL_OPERATION, MANGA_PIPELINE_CAPABILITY, MANGA_PIPELINE_STATUS_OPERATION,
+    MANGA_PIPELINE_STATUSES_OPERATION, MANGA_RECORD_CAPABILITY, MANGA_RECORD_LIST_OPERATION,
+    MANGA_RECORD_WORKER_CONTRACT_VERSION, MANGA_RECORD_WORKER_ID, MangaChapterInput,
+    MangaPipelineStatusesInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -84,6 +85,7 @@ impl MangaRecordWorker {
                 "/v1/commands/manga.pipeline.statuses",
                 post(pipeline_statuses),
             )
+            .route("/v1/commands/manga.pipeline.cancel", post(pipeline_cancel))
             .with_state(self.state.clone())
     }
 
@@ -212,6 +214,17 @@ async fn pipeline_statuses(
     .await
 }
 
+async fn pipeline_cancel(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<MangaChapterInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.pipeline_cancel(request)
+    })
+    .await
+}
+
 async fn command_response<T, O, F, Fut>(
     state: &WorkerState,
     headers: &HeaderMap,
@@ -285,6 +298,77 @@ impl WorkerState {
         let input = request.payload;
         self.pipeline_statuses_for(user_id, input.project_id, &input.chapter_ids)
             .await
+    }
+
+    async fn pipeline_cancel(
+        &self,
+        request: WorkerEnvelope<MangaChapterInput>,
+    ) -> Result<i64, WorkerFailure> {
+        validate_request(&request, MANGA_PIPELINE_CANCEL_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        positive(input.project_id, "project_id")?;
+        positive(input.chapter_id, "chapter_id")?;
+        verify_project_permission(
+            &self.database,
+            input.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let source = a4n_db::project::chapter_manga_source_by_id(
+            self.database.connection(),
+            input.chapter_id,
+            input.project_id,
+            false,
+        )
+        .await
+        .map_err(project_family_error)?;
+        if source.status == "deleted" {
+            return Err(WorkerFailure::invalid_request(format!(
+                "第 {} 章已删除，无法取消漫画流水线",
+                source.chapter_number
+            )));
+        }
+        if source.status == "generating" {
+            return Err(WorkerFailure::invalid_request(format!(
+                "第 {} 章正在生成中，请等待完成后再取消漫画流水线",
+                source.chapter_number
+            )));
+        }
+        let run = a4n_db::workflow::list_workflow_runs(
+            self.database.connection(),
+            a4n_db::workflow::ListWorkflowRunsInput {
+                project_id: Some(input.project_id),
+                chapter_id: Some(input.chapter_id),
+                chapter_ids: None,
+                workflow_kind: Some("manga_pipeline".to_string()),
+                status: Some("running".to_string()),
+                resumable_only: None,
+                limit: Some(1),
+            },
+        )
+        .await
+        .map_err(workflow_error)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| WorkerFailure::conflict("no_running_manga_pipeline: 取消漫画流水线"))?;
+        a4n_db::workflow::mark_workflow_status(
+            self.database.connection(),
+            run.id,
+            "cancelled",
+            true,
+            Some("用户请求取消漫画流水线"),
+        )
+        .await
+        .map_err(workflow_write_error)?;
+        a4n_db::manga::cancel_manga_page_prompts(
+            self.database.connection(),
+            input.project_id,
+            input.chapter_id,
+        )
+        .await
+        .map_err(manga_pipeline_error)
     }
 
     async fn pipeline_statuses_for(
@@ -498,6 +582,23 @@ async fn verify_manga_viewer(
     .map_err(collaboration_error)
 }
 
+async fn verify_project_permission(
+    database: &DbHandle,
+    project_id: i64,
+    user_id: i64,
+    role: ProjectAccessRole,
+) -> Result<(), WorkerFailure> {
+    a4n_db::collaboration::verify_project_permission(
+        database.connection(),
+        project_id,
+        user_id,
+        role,
+    )
+    .await
+    .map(|_| ())
+    .map_err(collaboration_error)
+}
+
 fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
@@ -591,6 +692,40 @@ fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
         }
         a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
         a4n_db::workflow::WorkflowReadError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn workflow_write_error(error: a4n_db::workflow::WorkflowWriteError) -> WorkerFailure {
+    match error {
+        a4n_db::workflow::WorkflowWriteError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::workflow::WorkflowWriteError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::workflow::WorkflowWriteError::InvalidData(message) => {
+            WorkerFailure::unavailable(message)
+        }
+        a4n_db::workflow::WorkflowWriteError::StatusConflict { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
+        a4n_db::workflow::WorkflowWriteError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn manga_pipeline_error(error: a4n_db::manga::MangaPipelineDbError) -> WorkerFailure {
+    match error {
+        a4n_db::manga::MangaPipelineDbError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::manga::MangaPipelineDbError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+        a4n_db::manga::MangaPipelineDbError::Generation(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }
