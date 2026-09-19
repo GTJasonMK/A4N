@@ -5,9 +5,10 @@
 //! implementation; runtime provider code only depends on this crate.
 
 use a4n_domain::cost::PricingPlan;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LlmProviderConfig {
     pub id: i64,
     pub name: String,
@@ -24,7 +25,7 @@ pub struct LlmProviderConfig {
     pub pricing: PricingPlan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EmbeddingProviderConfig {
     pub id: i64,
     pub name: String,
@@ -38,7 +39,7 @@ pub struct EmbeddingProviderConfig {
     pub pricing: PricingPlan,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImageProviderConfig {
     pub id: i64,
     pub name: String,
@@ -51,7 +52,7 @@ pub struct ImageProviderConfig {
     pub pricing: PricingPlan,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VideoProviderConfig {
     pub id: i64,
     pub name: String,

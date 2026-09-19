@@ -3830,7 +3830,7 @@ fi
 if ! rg -n 'agent_run_lease_recovery_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
-   ! rg -U -n 'run_lease_recovery_application\s*\.\s*recover_expired_runs\(16' \
+   ! rg -U -n '(run_lease_recovery_application|agent_run_lease_recovery_application\(\))\s*\.\s*recover_expired_runs\((16|request\.limit)' \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent expired-run recovery must use its typed narrow accessor\n' >&2
     exit 1
@@ -3852,7 +3852,7 @@ fi
 if ! rg -n 'agent_worker_lease_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
-   ! rg -U -n 'renew_agent\s*\.\s*renew_worker_lease\(\s*&renew_claim\s*\)' \
+   ! rg -U -n '(renew_agent\s*\.\s*renew_worker_lease\(\s*&renew_claim\s*\)|agent_worker_lease_application\(\)\s*\.\s*renew_worker_lease_request\(\s*request)' \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent worker lease renewal must use its typed narrow accessor\n' >&2
     exit 1
@@ -3874,7 +3874,7 @@ fi
 if ! rg -n 'agent_worker_claim_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
-   ! rg -U -n 'claim_application\s*\.\s*claim_worker_run\(\s*&worker_id\s*\)' \
+   ! rg -U -n '(claim_application\s*\.\s*claim_worker_run\(\s*&worker_id\s*\)|agent_worker_claim_application\(\)\s*\.\s*claim_worker_run\(\s*worker_id\s*\))' \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent worker claim must use its typed narrow accessor\n' >&2
     exit 1
@@ -3896,7 +3896,9 @@ fi
 if ! rg -n 'agent_worker_failure_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
-   ! rg -U -n 'failure_application\s*\.\s*fail_child_run\(\s*&claimed' \
+   ! rg -U -n 'agent_worker_failure_application\(\)\s*\.\s*fail_child_run\(\s*&claimed' \
+    crates/a4n-runtime/src/actions/agent_runtime.rs || \
+   ! rg -U -n 'agent_worker_failure_application\(\)\s*\.\s*fail_worker_run\(\s*request' \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent worker failure persistence must use its typed narrow accessor\n' >&2
     exit 1
@@ -3918,7 +3920,7 @@ fi
 if ! rg -n 'agent_approval_expiry_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
-   ! rg -U -n 'approval_expiry_application\s*\.\s*expire_pending_approvals\(32\)' \
+   ! rg -U -n 'agent_approval_expiry_application\(\)\s*\.\s*expire_pending_approvals\(\s*(32|request\.limit)\s*\)' \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent approval expiry scan must use its typed narrow accessor\n' >&2
     exit 1
@@ -3946,7 +3948,7 @@ fi
 if ! rg -n 'agent_editor_wait_application\(\)' \
     crates/a4n-runtime/src/state/app.rs \
     crates/a4n-runtime/src/actions/agent_runtime.rs || \
-   ! rg -n 'editor_wait_application\.expire_editor_requests\(32\)' \
+   ! rg -U -n 'agent_editor_wait_application\(\)\s*\.\s*expire_editor_requests\(\s*(32|request\.limit)\s*\)' \
     crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent editor-wait expiry scan must use its typed narrow accessor\n' >&2
     exit 1
@@ -4031,7 +4033,7 @@ if rg -n 'active_owned_workflows|workflow_owner|generation_owner_stopped' \
 fi
 
 if ! rg -n 'agent_external_task_wait_application\(\)' \
-    crates/a4n-runtime/src/actions/agent_runtime/task_wait.rs; then
+    crates/a4n-runtime/src/actions/agent_runtime.rs; then
     printf 'Agent external-task wait recovery must use its narrow application port\n' >&2
     exit 1
 fi

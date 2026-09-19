@@ -11,11 +11,13 @@ a4n-db = { path = "../a4n-db" }
 a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-project-status-worker-contract = { path = "../a4n-project-status-worker-contract" }
+a4n-project-read-core = { path = "../a4n-project-read-core" }
 a4n-worker-client = { path = "../a4n-worker-client" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
+chrono = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 subtle = { workspace = true }

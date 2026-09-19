@@ -687,6 +687,10 @@ impl AppState {
         self.event_bus.subscribe()
     }
 
+    pub(crate) fn event_bus(&self) -> Arc<BroadcastEventBus> {
+        self.event_bus.clone()
+    }
+
     pub(crate) fn auth_read_application(
         &self,
     ) -> &dyn a4n_api_contract::auth::AuthReadApplicationPort {
@@ -949,6 +953,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_api_contract::character::CharacterProfileReadApplicationPort {
         self.character_profile_read_application.as_ref()
+    }
+
+    pub(crate) fn character_profile_overview_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::character::CharacterProfileOverviewReadApplicationPort {
+        self.character_profile_overview_read_application.as_ref()
     }
 
     pub(crate) fn character_profile_mutation_application(
@@ -1862,6 +1872,12 @@ impl AppState {
         &self,
     ) -> &dyn a4n_api_contract::image::ImageRecordReadApplicationPort {
         self.image_record_read_application.as_ref()
+    }
+
+    pub(crate) fn image_library_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::image::ImageLibraryReadApplicationPort {
+        self.image_library_read_application.as_ref()
     }
 
     pub(crate) fn image_record_mutation_application(

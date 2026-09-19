@@ -82,6 +82,38 @@ pub(super) async fn build_manifest_requirements(
     Ok((requirements, content_by_ref))
 }
 
+/// Global Agent threads have no project owner for the context-pack ledger.
+/// Keep their plan/trace deterministic locally instead of inventing a project
+/// association; scoped requests continue through the durable ledger above.
+pub(super) fn build_local_manifest_requirements(
+    provider: &dyn LlmProvider,
+    manifest: &LlmContextManifest,
+) -> Result<(Vec<LlmContextPackRequirement>, ContextContentByRef), AppError> {
+    let mut requirements = Vec::with_capacity(manifest.packs.len());
+    let mut content_by_ref = HashMap::new();
+    for pack in &manifest.packs {
+        let mut variants = Vec::with_capacity(pack.variants.len());
+        for variant in &pack.variants {
+            let content = a4n_llm_context::canonical_json_text(&variant.canonical_content_json)?;
+            let pack_ref = LlmContextPackRef {
+                pack_kind: pack.pack_kind.clone(),
+                content_sha256: a4n_domain::source_text_hash(&content),
+                compression_level: variant.compression_level.clone(),
+                token_estimate: provider.count_tokens(&content),
+            };
+            content_by_ref.insert(selected_pack_key(&pack_ref), content);
+            variants.push(pack_ref);
+        }
+        requirements.push(LlmContextPackRequirement {
+            pack_kind: pack.pack_kind.clone(),
+            required: pack.required,
+            stable_prefix: pack.stable_prefix,
+            variants,
+        });
+    }
+    Ok((requirements, content_by_ref))
+}
+
 pub(super) fn hydrate_selected_context_pack_content(
     selected_packs: &mut [PlannedContextPack],
     content_by_ref: &ContextContentByRef,

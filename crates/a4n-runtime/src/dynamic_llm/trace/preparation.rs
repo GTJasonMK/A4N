@@ -6,9 +6,10 @@ use a4n_llm_context::{
     validate_context_manifest,
 };
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmProvider, LlmTraceContext};
+use serde_json::json;
 
 use super::super::context::{
-    build_manifest_requirements, build_system_prefix_pack_ref,
+    build_local_manifest_requirements, build_manifest_requirements, build_system_prefix_pack_ref,
     hydrate_selected_context_pack_content, non_system_messages, system_messages,
 };
 use super::complete_llm_trace_project_scope;
@@ -63,8 +64,11 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                     AppError::InvalidArgument(format!("LLM 上下文 manifest 解析失败: {err}"))
                 })?;
             validate_context_manifest(&manifest)?;
-            let (mut requirements, content_by_ref) =
-                build_manifest_requirements(facade, provider, &trace_context, &manifest).await?;
+            let (mut requirements, content_by_ref) = if trace_context.project_id.is_some() {
+                build_manifest_requirements(facade, provider, &trace_context, &manifest).await?
+            } else {
+                build_local_manifest_requirements(provider, &manifest)?
+            };
             let mut all_requirements = system_requirements;
             all_requirements.append(&mut requirements);
             let dynamic_delta_tokens = provider
@@ -105,8 +109,11 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     };
     trace_context.context_plan_json =
         Some(serde_json::to_value(&plan).map_err(AppError::Serialization)?);
-    trace_context.context_pack_refs_json =
-        Some(serde_json::to_value(&plan.selected_pack_refs).map_err(AppError::Serialization)?);
+    trace_context.context_pack_refs_json = Some(json!({
+        "schema_version": 1,
+        "selected": plan.selected_pack_refs,
+        "dropped_optional": plan.dropped_optional_pack_refs,
+    }));
     request.trace_context = Some(trace_context.clone());
     Ok(Some(trace_context))
 }

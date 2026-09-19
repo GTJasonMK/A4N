@@ -5,6 +5,56 @@ use a4n_db::collaboration::ProjectAccessInfo;
 use a4n_db::project::ProjectFamilyMetadata;
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{ProjectKind, ProjectProgressSummary, ProjectSourceMode, ProjectStatus};
+use sea_orm::DatabaseConnection;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectSummaryError {
+    #[error(transparent)]
+    Progress(#[from] a4n_db::project::ProjectProgressReadError),
+    #[error(transparent)]
+    Family(#[from] a4n_db::project::ProjectFamilyMetadataReadError),
+    #[error(transparent)]
+    Collaboration(#[from] a4n_db::collaboration::CollaborationDbError),
+}
+
+pub async fn project_summary_for_user(
+    database: &DatabaseConnection,
+    user_id: i64,
+    project: &novel_project::Model,
+) -> Result<ProjectSummary, ProjectSummaryError> {
+    let progress_query = a4n_db::project::ProjectProgressQuery::from_project(project)?;
+    let project_kind = progress_query.project_kind;
+    let source_mode = progress_query.source_mode;
+    let status = progress_query.status;
+    let family_query = a4n_db::project::ProjectFamilyMetadataQuery::from_project(project);
+    let access_query = a4n_db::collaboration::ProjectAccessInfoQuery::from_project(project);
+    let (progress, metadata, access) = tokio::try_join!(
+        async {
+            a4n_db::project::project_progress_summary(database, progress_query)
+                .await
+                .map_err(ProjectSummaryError::from)
+        },
+        async {
+            a4n_db::project::project_family_metadata(database, family_query)
+                .await
+                .map_err(ProjectSummaryError::from)
+        },
+        async {
+            a4n_db::collaboration::project_access_info(database, access_query, user_id)
+                .await
+                .map_err(ProjectSummaryError::from)
+        },
+    )?;
+    Ok(project_summary_from_parts(
+        project,
+        &metadata,
+        &access,
+        project_kind,
+        source_mode,
+        status,
+        progress,
+    ))
+}
 
 pub fn project_summary_from_parts(
     project: &novel_project::Model,

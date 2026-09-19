@@ -3,6 +3,7 @@
 //! This crate owns construction only. HTTP routing, Tauri commands, and domain
 //! behavior remain in their respective owners.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use a4n_error::AppError;
@@ -42,8 +43,6 @@ pub async fn initialize_runtime(
 
     let prompt_read_application = orchestrator.clone();
     let prompt_mutation_application = orchestrator.clone();
-    let config_read_application = orchestrator.clone();
-    let config_mutation_application = orchestrator.clone();
     let package_read_application = orchestrator.clone();
     let package_mutation_application = orchestrator.clone();
     let rag_search = orchestrator.clone();
@@ -69,11 +68,53 @@ pub async fn initialize_runtime(
         Arc::new(a4n_project_status_worker_client::ProjectStatusWorkerClient::from_env());
     let project_read_worker =
         Arc::new(a4n_project_read_worker_client::ProjectReadWorkerClient::from_env());
+    let import_review_worker =
+        Arc::new(a4n_import_review_worker_client::ImportReviewWorkerClient::from_env());
+    let inspiration_worker =
+        Arc::new(a4n_inspiration_worker_client::InspirationWorkerClient::from_env());
+    let project_access_worker =
+        Arc::new(a4n_project_access_worker_client::ProjectAccessWorkerClient::from_env());
+    let project_collaboration_worker = Arc::new(
+        a4n_project_collaboration_worker_client::ProjectCollaborationWorkerClient::from_env(),
+    );
+    let project_mutation_worker =
+        Arc::new(a4n_project_mutation_worker_client::ProjectMutationWorkerClient::from_env());
+    let chapter_scene_worker =
+        Arc::new(a4n_chapter_scene_worker_client::ChapterSceneWorkerClient::from_env());
+    let chapter_content_worker =
+        Arc::new(a4n_chapter_content_worker_client::ChapterContentWorkerClient::from_env());
+    let workflow_read_worker =
+        Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
+    let config_read_worker =
+        Arc::new(a4n_config_read_worker_client::ConfigReadWorkerClient::from_env());
+    let character_mutation_worker =
+        Arc::new(a4n_character_mutation_worker_client::CharacterMutationWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
+    let image_media_reference_application: Arc<
+        dyn a4n_api_contract::image::ImageMediaReferencePort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        Arc::new(ArtifactMediaImageReferenceAdapter { client })
+    } else {
+        orchestrator.clone()
+    };
+    let image_library_read_application: Arc<
+        dyn a4n_api_contract::image::ImageLibraryReadApplicationPort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        client
+    } else {
+        orchestrator.clone()
+    };
+    let image_record_mutation_application: Arc<
+        dyn a4n_api_contract::image::ImageRecordMutationApplicationPort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        client
+    } else {
+        orchestrator.clone()
+    };
     let artifact_media_reference_application = artifact_media_worker
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>);
     let application_ports = ApplicationPorts {
@@ -93,20 +134,20 @@ pub async fn initialize_runtime(
         admin_read_application: orchestrator.clone(),
         model_usage_read_application: orchestrator.clone(),
         admin_mutation_application: orchestrator.clone(),
-        project_status_read_application: project_status_worker,
-        project_status_mutation_application: orchestrator.clone(),
-        project_collaboration_application: orchestrator.clone(),
-        project_access_application: orchestrator.clone(),
+        project_status_read_application: project_status_worker.clone(),
+        project_status_mutation_application: project_status_worker,
+        project_collaboration_application: project_collaboration_worker,
+        project_access_application: project_access_worker,
         project_read_application: project_read_worker,
         project_source_snapshot_read_application: source_snapshot_worker,
-        project_mutation_application: orchestrator.clone(),
+        project_mutation_application: project_mutation_worker,
         project_asset_graph_application: asset_graph_worker,
         project_duplication_application: orchestrator.clone(),
         project_family_transfer_application: orchestrator.clone(),
         project_bundle_transfer_application: orchestrator.clone(),
         video_studio_transfer_application: orchestrator.clone(),
-        chapter_scene_read_application: orchestrator.clone(),
-        chapter_scene_mutation_application: orchestrator.clone(),
+        chapter_scene_read_application: chapter_scene_worker.clone(),
+        chapter_scene_mutation_application: chapter_scene_worker,
         chapter_scene_generation_application: orchestrator.clone(),
         optimize_session_read_application: orchestrator.clone(),
         optimize_agent_tool_application: orchestrator.clone(),
@@ -122,14 +163,15 @@ pub async fn initialize_runtime(
         cleanup_outbox_application: orchestrator.clone(),
         character_discovery_application: orchestrator.clone(),
         character_profile_sync_application: orchestrator.clone(),
-        workflow_read_application: orchestrator.clone(),
+        workflow_read_application: workflow_read_worker.clone(),
         workflow_task_lookup_application: orchestrator.clone(),
-        task_read_application: orchestrator.clone(),
+        task_read_application: workflow_read_worker,
         workflow_cancellation_application: orchestrator.clone(),
         object_profile_read_application: object_profile_worker,
         scene_profile_read_application: scene_profile_worker,
         character_profile_read_application: orchestrator.clone(),
-        character_profile_mutation_application: orchestrator.clone(),
+        character_profile_overview_read_application: character_mutation_worker.clone(),
+        character_profile_mutation_application: character_mutation_worker,
         character_profile_timeline_mutation_application: orchestrator.clone(),
         character_profile_attribute_mutation_application: orchestrator.clone(),
         character_profile_attribute_deletion_application: orchestrator.clone(),
@@ -147,7 +189,7 @@ pub async fn initialize_runtime(
         blueprint_generation_application: orchestrator.clone(),
         blueprint_refinement_application: orchestrator.clone(),
         blueprint_mutation_application: orchestrator.clone(),
-        chapter_content_read_application: orchestrator.clone(),
+        chapter_content_read_application: chapter_content_worker,
         chapter_content_mutation_application: orchestrator.clone(),
         chapter_content_sync_application: orchestrator.clone(),
         chapter_generation_request_preview_application: orchestrator.clone(),
@@ -163,10 +205,10 @@ pub async fn initialize_runtime(
         outline_chapter_count_generation_preview_application: orchestrator.clone(),
         outline_chapter_regeneration_preview_application: orchestrator.clone(),
         outline_beat_mapping_preview_application: orchestrator.clone(),
-        theme_read_application: theme_read_worker,
-        theme_mutation_application: orchestrator.clone(),
-        config_read_application,
-        config_mutation_application,
+        theme_read_application: theme_read_worker.clone(),
+        theme_mutation_application: theme_read_worker,
+        config_read_application: config_read_worker.clone(),
+        config_mutation_application: config_read_worker.clone(),
         settings_export_application: orchestrator.clone(),
         settings_import_application: orchestrator.clone(),
         prompt_read_application,
@@ -216,8 +258,8 @@ pub async fn initialize_runtime(
         chapter_analysis_resume_preview_application: orchestrator.clone(),
         import_review_ingestion_application: orchestrator.clone(),
         import_review_acceptance_application: orchestrator.clone(),
-        import_review_mutation_application: orchestrator.clone(),
-        import_review_read_application: orchestrator.clone(),
+        import_review_mutation_application: import_review_worker.clone(),
+        import_review_read_application: import_review_worker,
         project_export_application: orchestrator.clone(),
         galgame_export_application: orchestrator.clone(),
         video_record_read_application: orchestrator.clone(),
@@ -244,14 +286,15 @@ pub async fn initialize_runtime(
         video_prompt_timeline_application: orchestrator.clone(),
         video_prompt_draft_application: orchestrator.clone(),
         image_record_read_application: orchestrator.clone(),
-        image_record_mutation_application: orchestrator.clone(),
+        image_library_read_application,
+        image_record_mutation_application,
         image_import_preparation_application: orchestrator.clone(),
         image_import_publication_application: orchestrator.clone(),
         artifact_media_publication_application,
         artifact_media_reference_application,
         image_publication_recovery_application: orchestrator.clone(),
         image_publication_recovery_read_application: orchestrator.clone(),
-        image_media_reference_application: orchestrator.clone(),
+        image_media_reference_application,
         image_provider_config: orchestrator.clone(),
         galgame_image_generation_application: orchestrator.clone(),
         image_canvas_request_preview_application: orchestrator.clone(),
@@ -292,7 +335,7 @@ pub async fn initialize_runtime(
         manga_record_read_application: orchestrator.clone(),
         manga_record_mutation_application: orchestrator.clone(),
         galgame_read_application: orchestrator.clone(),
-        inspiration_history_read_application: orchestrator.clone(),
+        inspiration_history_read_application: inspiration_worker,
         inspiration_generation_application: orchestrator.clone(),
         inspiration_request_application: orchestrator.clone(),
     };
@@ -303,6 +346,65 @@ pub async fn initialize_runtime(
     bootstrap
         .finish(application_ports, provider_runtime, rag_search, rag_ingest)
         .await
+}
+
+struct ArtifactMediaImageReferenceAdapter {
+    client: Arc<a4n_artifact_media_client::ArtifactMediaWorkerClient>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::image::ImageMediaReferencePort for ArtifactMediaImageReferenceAdapter {
+    async fn unreferenced_media_paths(
+        &self,
+        paths: &[String],
+    ) -> Result<Vec<String>, a4n_error::AppError> {
+        self.client
+            .unreferenced_paths(a4n_artifact_media_contract::MediaPathsRequest {
+                paths: paths.to_vec(),
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))
+    }
+
+    async fn media_path_prefix_has_persisted_reference(
+        &self,
+        prefix: &str,
+    ) -> Result<bool, a4n_error::AppError> {
+        self.client
+            .path_prefix_has_reference(a4n_artifact_media_contract::MediaPathPrefixRequest {
+                prefix: prefix.to_string(),
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))
+    }
+
+    async fn project_has_active_image_publication(
+        &self,
+        project_id: i64,
+    ) -> Result<bool, a4n_error::AppError> {
+        self.client
+            .project_has_publication(a4n_artifact_media_contract::ProjectPublicationRequest {
+                project_id,
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))
+    }
+
+    async fn protected_image_publication_cleanup_paths(
+        &self,
+        project_id: i64,
+        paths: &[String],
+    ) -> Result<HashSet<String>, a4n_error::AppError> {
+        let paths = self
+            .client
+            .protected_paths(a4n_artifact_media_contract::ProjectPathsRequest {
+                project_id,
+                paths: paths.to_vec(),
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))?;
+        Ok(paths.into_iter().collect())
+    }
 }
 
 fn artifact_media_worker_for_profile(

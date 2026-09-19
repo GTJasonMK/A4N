@@ -45,7 +45,7 @@ pub async fn list_profiles(
     input: ListProfilesInput,
 ) -> Result<Vec<CharacterProfileSummary>, String> {
     state
-        .character_profile_read_application()
+        .character_profile_overview_read_application()
         .list(user_id, input.project_id)
         .await
         .map_err(app_error_message)
@@ -57,7 +57,7 @@ pub async fn delete_profile(
     profile_id: i64,
 ) -> Result<CharacterProfileDeleteResult, String> {
     let project_id = state
-        .character_profile_read_application()
+        .character_profile_overview_read_application()
         .profile_project_id(user_id, profile_id)
         .await
         .map_err(app_error_message)?;
@@ -100,7 +100,7 @@ pub async fn get_character_arc_status(
     name: String,
 ) -> Result<Option<Value>, String> {
     state
-        .character_profile_read_application()
+        .character_profile_overview_read_application()
         .character_arc_by_name(user_id, project_id, name)
         .await
         .map_err(app_error_message)
@@ -113,7 +113,7 @@ pub async fn get_character_voice_fingerprint(
     name: String,
 ) -> Result<Option<Value>, String> {
     state
-        .character_profile_read_application()
+        .character_profile_overview_read_application()
         .voice_fingerprint_by_name(user_id, project_id, name)
         .await
         .map_err(app_error_message)

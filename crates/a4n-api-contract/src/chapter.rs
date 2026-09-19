@@ -55,7 +55,7 @@ pub struct ChapterAnalysisInput {
     pub chapter_id: i64,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterSceneSummary {
     pub id: i64,
     pub chapter_id: i64,
@@ -207,7 +207,7 @@ pub trait ChapterSceneMutationApplicationPort: Send + Sync {
     ) -> Result<Vec<ChapterSceneSummary>, a4n_error::AppError>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChapterMaterialSyncStatus {
     Completed,
@@ -219,7 +219,7 @@ pub enum ChapterMaterialSyncStatus {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ChapterMaterialSyncState {
     pub content_index: ChapterMaterialSyncStatus,
     pub outline_and_foreshadowing: ChapterMaterialSyncStatus,
@@ -228,7 +228,7 @@ pub struct ChapterMaterialSyncState {
     pub scenes: ChapterMaterialSyncStatus,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChapterMaterialUpdateKind {
     Outline,
@@ -238,7 +238,7 @@ pub enum ChapterMaterialUpdateKind {
     Scene,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChapterMaterialUpdateAction {
     Created,
@@ -249,14 +249,14 @@ pub enum ChapterMaterialUpdateAction {
     Resolved,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ChapterMaterialUpdate {
     pub material_kind: ChapterMaterialUpdateKind,
     pub action: ChapterMaterialUpdateAction,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterSummary {
     pub id: i64,
     pub project_id: i64,

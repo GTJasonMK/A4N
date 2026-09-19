@@ -296,46 +296,13 @@ impl WorkerState {
         user_id: i64,
         project: a4n_db_models::models::project::novel_project::Model,
     ) -> Result<ProjectSummary, WorkerFailure> {
-        let progress_query = a4n_db::project::ProjectProgressQuery::from_project(&project)
-            .map_err(progress_error)?;
-        let project_kind = progress_query.project_kind;
-        let source_mode = progress_query.source_mode;
-        let status = progress_query.status;
-        let family_query = a4n_db::project::ProjectFamilyMetadataQuery::from_project(&project);
-        let access_query = a4n_db::collaboration::ProjectAccessInfoQuery::from_project(&project);
-        let (progress, metadata, access) = tokio::try_join!(
-            async {
-                a4n_db::project::project_progress_summary(
-                    self.database.connection(),
-                    progress_query,
-                )
-                .await
-                .map_err(progress_error)
-            },
-            async {
-                a4n_db::project::project_family_metadata(self.database.connection(), family_query)
-                    .await
-                    .map_err(family_error)
-            },
-            async {
-                a4n_db::collaboration::project_access_info(
-                    self.database.connection(),
-                    access_query,
-                    user_id,
-                )
-                .await
-                .map_err(collaboration_error)
-            },
-        )?;
-        Ok(project_summary_from_parts(
+        a4n_project_read_core::project_summary_for_user(
+            self.database.connection(),
+            user_id,
             &project,
-            &metadata,
-            &access,
-            project_kind,
-            source_mode,
-            status,
-            progress,
-        ))
+        )
+        .await
+        .map_err(summary_error)
     }
 
     async fn summary_for_projects(
@@ -494,6 +461,16 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
         }
         a4n_db::collaboration::CollaborationDbError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
+    match error {
+        a4n_project_read_core::ProjectSummaryError::Progress(error) => progress_error(error),
+        a4n_project_read_core::ProjectSummaryError::Family(error) => family_error(error),
+        a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
+            collaboration_error(error)
         }
     }
 }
