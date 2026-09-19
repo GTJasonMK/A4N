@@ -75,6 +75,9 @@ pub async fn initialize_runtime(
         Arc::new(a4n_inspiration_worker_client::InspirationWorkerClient::from_env());
     let project_access_worker =
         Arc::new(a4n_project_access_worker_client::ProjectAccessWorkerClient::from_env());
+    let project_collaboration_worker = Arc::new(
+        a4n_project_collaboration_worker_client::ProjectCollaborationWorkerClient::from_env(),
+    );
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -101,7 +104,7 @@ pub async fn initialize_runtime(
         admin_mutation_application: orchestrator.clone(),
         project_status_read_application: project_status_worker,
         project_status_mutation_application: orchestrator.clone(),
-        project_collaboration_application: orchestrator.clone(),
+        project_collaboration_application: project_collaboration_worker,
         project_access_application: project_access_worker,
         project_read_application: project_read_worker,
         project_source_snapshot_read_application: source_snapshot_worker,
