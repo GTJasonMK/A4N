@@ -203,7 +203,7 @@ pub trait ThemeMutationApplicationPort: Send + Sync {
 }
 
 /// Persisted resource metadata supplied after Runtime has written the file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PersistThemeResourceInput {
     pub theme_id: i64,
     pub resource_key: String,

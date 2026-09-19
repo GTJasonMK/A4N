@@ -328,7 +328,7 @@
     "default_addr": "127.0.0.1:47663",
     "local_only": true,
     "data_scope": ["theme_config", "theme_resource", "theme_preference"],
-    "capabilities": ["theme.read"],
+    "capabilities": ["theme.read", "theme.mutation"],
     "dependencies": ["a4n-migration"],
     "migration": {
       "current": "theme_read",

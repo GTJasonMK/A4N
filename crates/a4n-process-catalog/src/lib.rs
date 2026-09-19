@@ -555,7 +555,10 @@ mod tests {
         assert_eq!(theme_read.contract_version, "theme-read-v1");
         assert_eq!(theme_read.addr_env, "A4N_THEME_READ_WORKER_ADDR");
         assert_eq!(theme_read.default_addr, "127.0.0.1:47663");
-        assert_eq!(theme_read.capabilities, vec!["theme.read".to_string()]);
+        assert_eq!(
+            theme_read.capabilities,
+            vec!["theme.read".to_string(), "theme.mutation".to_string()]
+        );
         let project_read = entries
             .iter()
             .find(|entry| entry.name == "project-read-worker")

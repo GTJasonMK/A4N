@@ -1,6 +1,9 @@
 //! Typed read commands owned by the theme worker.
 
-pub use a4n_api_contract::theme::{ThemePreferenceSummary, ThemeResourceRecord, ThemeSummary};
+pub use a4n_api_contract::theme::{
+    CreateThemeInput, PersistThemeResourceInput, ThemePreferenceSummary, ThemeResourceRecord,
+    ThemeSummary, UpdateThemeInput, UpdateThemePreferenceInput,
+};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
@@ -12,6 +15,15 @@ pub const THEME_EXPORT_OPERATION: &str = "theme.read.export";
 pub const THEME_RESOURCES_OPERATION: &str = "theme.read.resources";
 pub const THEME_PREFERENCE_OPERATION: &str = "theme.read.preference";
 pub const THEME_READ_CAPABILITY: &str = "theme.read";
+pub const THEME_CREATE_OPERATION: &str = "theme.mutation.create";
+pub const THEME_UPDATE_OPERATION: &str = "theme.mutation.update";
+pub const THEME_DELETE_OPERATION: &str = "theme.mutation.delete";
+pub const THEME_ACTIVATE_OPERATION: &str = "theme.mutation.activate";
+pub const THEME_IMPORT_OPERATION: &str = "theme.mutation.import";
+pub const THEME_RESOURCE_UPSERT_OPERATION: &str = "theme.mutation.resource_upsert";
+pub const THEME_RESOURCE_DELETE_OPERATION: &str = "theme.mutation.resource_delete";
+pub const THEME_PREFERENCE_UPDATE_OPERATION: &str = "theme.mutation.preference_update";
+pub const THEME_MUTATION_CAPABILITY: &str = "theme.mutation";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +33,19 @@ pub struct ThemeUserInput {}
 #[serde(deny_unknown_fields)]
 pub struct ThemeIdInput {
     pub theme_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeUpdateInput {
+    pub theme_id: i64,
+    pub input: a4n_api_contract::theme::UpdateThemeInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceIdInput {
+    pub resource_id: i64,
 }
 
 #[cfg(test)]

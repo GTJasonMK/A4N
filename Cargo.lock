@@ -2784,6 +2784,7 @@ dependencies = [
  "a4n-config",
  "a4n-db",
  "a4n-db-models",
+ "a4n-domain",
  "a4n-error",
  "a4n-theme-core",
  "a4n-theme-read-worker-contract",
@@ -2809,6 +2810,7 @@ dependencies = [
  "a4n-worker-contract",
  "async-trait",
  "serde",
+ "serde_json",
  "uuid",
 ]
 
