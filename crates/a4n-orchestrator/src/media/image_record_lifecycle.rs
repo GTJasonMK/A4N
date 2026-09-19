@@ -528,6 +528,41 @@ impl ImageRecordReadApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
+impl a4n_api_contract::image::ImageLibraryReadApplicationPort for OrchestratorContext {
+    async fn by_id(
+        &self,
+        user_id: i64,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageSummary>, AppError> {
+        ImageRecordReadApplicationPort::by_id(self, user_id, image_id).await
+    }
+
+    async fn list_by_project(
+        &self,
+        user_id: i64,
+        input: ListImagesByProjectInput,
+    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
+        ImageRecordReadApplicationPort::list_by_project(self, user_id, input).await
+    }
+
+    async fn list_by_projects(
+        &self,
+        user_id: i64,
+        input: ListImagesByProjectsInput,
+    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
+        ImageRecordReadApplicationPort::list_by_projects(self, user_id, input).await
+    }
+
+    async fn list_by_chapter(
+        &self,
+        user_id: i64,
+        input: ListImagesByChapterInput,
+    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
+        ImageRecordReadApplicationPort::list_by_chapter(self, user_id, input).await
+    }
+}
+
+#[async_trait]
 impl ImageRecordMutationApplicationPort for OrchestratorContext {
     async fn update(
         &self,

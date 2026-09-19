@@ -101,6 +101,20 @@ pub async fn initialize_runtime(
     } else {
         orchestrator.clone()
     };
+    let image_library_read_application: Arc<
+        dyn a4n_api_contract::image::ImageLibraryReadApplicationPort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        client
+    } else {
+        orchestrator.clone()
+    };
+    let image_record_mutation_application: Arc<
+        dyn a4n_api_contract::image::ImageRecordMutationApplicationPort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        client
+    } else {
+        orchestrator.clone()
+    };
     let artifact_media_reference_application = artifact_media_worker
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>);
     let application_ports = ApplicationPorts {
@@ -272,7 +286,8 @@ pub async fn initialize_runtime(
         video_prompt_timeline_application: orchestrator.clone(),
         video_prompt_draft_application: orchestrator.clone(),
         image_record_read_application: orchestrator.clone(),
-        image_record_mutation_application: orchestrator.clone(),
+        image_library_read_application,
+        image_record_mutation_application,
         image_import_preparation_application: orchestrator.clone(),
         image_import_publication_application: orchestrator.clone(),
         artifact_media_publication_application,

@@ -9,6 +9,12 @@ pub const ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND: &str = "path-prefix-ref
 pub const ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND: &str = "project-has-publication";
 pub const ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND: &str = "protected-publication-paths";
 pub const ARTIFACT_MEDIA_PUBLISH_IMAGE_COMMAND: &str = "publish-image";
+pub const ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND: &str = "image-by-id";
+pub const ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND: &str = "image-list-project";
+pub const ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND: &str = "image-list-projects";
+pub const ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND: &str = "image-list-chapter";
+pub const ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND: &str = "image-update";
+pub const ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND: &str = "image-delete";
 pub const ARTIFACT_MEDIA_CAPABILITY_VERSION: &str = "artifact-media-v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

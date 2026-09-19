@@ -1874,6 +1874,12 @@ impl AppState {
         self.image_record_read_application.as_ref()
     }
 
+    pub(crate) fn image_library_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::image::ImageLibraryReadApplicationPort {
+        self.image_library_read_application.as_ref()
+    }
+
     pub(crate) fn image_record_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::image::ImageRecordMutationApplicationPort {

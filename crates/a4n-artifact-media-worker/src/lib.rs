@@ -1,7 +1,20 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
+use a4n_api_contract::image::{
+    DeleteImageInput, GeneratedImageSummary, ListImagesByChapterInput, ListImagesByProjectInput,
+    ListImagesByProjectsInput, UpdateGeneratedImageInput,
+};
 use a4n_artifact_media_contract::{
-    ARTIFACT_MEDIA_CAPABILITY_VERSION, ARTIFACT_MEDIA_MAINTENANCE_COMMAND,
+    ARTIFACT_MEDIA_CAPABILITY_VERSION, ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND,
+    ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND, ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND,
+    ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND, ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND,
+    ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND, ARTIFACT_MEDIA_MAINTENANCE_COMMAND,
     ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND, ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND,
     ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND, ARTIFACT_MEDIA_PUBLISH_IMAGE_COMMAND,
     ARTIFACT_MEDIA_UNREFERENCED_PATHS_COMMAND, ARTIFACT_MEDIA_WORKER_ID,
@@ -42,6 +55,12 @@ struct WorkerState {
     db: a4n_db::DbHandle,
     data_dir: Arc<PathBuf>,
     token: Arc<str>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ImageIdRequest {
+    image_id: i64,
 }
 
 impl WorkerState {
@@ -546,6 +565,133 @@ impl WorkerState {
             revision: publication.version,
         })
     }
+
+    async fn image_by_id(
+        &self,
+        user_id: i64,
+        request: ImageIdRequest,
+    ) -> Result<Option<GeneratedImageSummary>, String> {
+        if request.image_id <= 0 {
+            return Err("image_id must be positive".to_string());
+        }
+        let Some(image) =
+            a4n_db::video::generated_image_by_id(self.db.connection(), request.image_id)
+                .await
+                .map_err(|error| error.to_string())?
+        else {
+            return Ok(None);
+        };
+        verify_image_permission(&self.db, user_id, image.project_id, "viewer").await?;
+        Ok(Some(generated_image_summary(&image)))
+    }
+
+    async fn image_list_by_project(
+        &self,
+        user_id: i64,
+        request: ListImagesByProjectInput,
+    ) -> Result<Vec<GeneratedImageSummary>, String> {
+        if request.project_id <= 0 {
+            return Err("project_id must be positive".to_string());
+        }
+        verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
+        a4n_db::video::generated_images_for_project(self.db.connection(), request.project_id)
+            .await
+            .map(|images| images.iter().map(generated_image_summary).collect())
+            .map_err(|error| error.to_string())
+    }
+
+    async fn image_list_by_projects(
+        &self,
+        user_id: i64,
+        request: ListImagesByProjectsInput,
+    ) -> Result<Vec<GeneratedImageSummary>, String> {
+        let project_ids = normalized_project_ids(request.project_ids)?;
+        for project_id in &project_ids {
+            verify_image_permission(&self.db, user_id, *project_id, "viewer").await?;
+        }
+        let mut images =
+            a4n_db::video::generated_images_for_projects(self.db.connection(), &project_ids)
+                .await
+                .map_err(|error| error.to_string())?;
+        sort_images_by_project_order(&mut images, &project_ids);
+        Ok(images.iter().map(generated_image_summary).collect())
+    }
+
+    async fn image_list_by_chapter(
+        &self,
+        user_id: i64,
+        request: ListImagesByChapterInput,
+    ) -> Result<Vec<GeneratedImageSummary>, String> {
+        if request.project_id <= 0 || request.chapter_id <= 0 {
+            return Err("project_id 和 chapter_id must be positive".to_string());
+        }
+        verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
+        a4n_db::video::ensure_image_chapter_belongs_to_project_record(
+            self.db.connection(),
+            request.project_id,
+            request.chapter_id,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+        a4n_db::video::generated_images_for_chapter(
+            self.db.connection(),
+            request.project_id,
+            request.chapter_id,
+        )
+        .await
+        .map(|images| images.iter().map(generated_image_summary).collect())
+        .map_err(|error| error.to_string())
+    }
+
+    async fn update_image(
+        &self,
+        user_id: i64,
+        input: UpdateGeneratedImageInput,
+    ) -> Result<GeneratedImageSummary, String> {
+        if input.is_empty() {
+            return Err("图片更新至少需要一个字段".to_string());
+        }
+        let image = a4n_db::video::generated_image_by_id(self.db.connection(), input.image_id)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "图片不存在".to_string())?;
+        verify_image_permission(&self.db, user_id, image.project_id, "editor").await?;
+        let updated = a4n_db::video::update_generated_image_record(
+            self.db.connection(),
+            input.image_id,
+            a4n_domain::media::UpdateGeneratedImageRecordInput {
+                prompt: input.prompt,
+                image_type: input.image_type,
+                chapter_id: input.chapter_id.flatten(),
+                clear_chapter_id: input.chapter_id.as_ref().is_some_and(Option::is_none),
+                panel_id: input.panel_id.clone().flatten(),
+                clear_panel_id: input.panel_id.as_ref().is_some_and(Option::is_none),
+                ai_score: input.ai_score.flatten(),
+                clear_ai_score: input.ai_score.as_ref().is_some_and(Option::is_none),
+                is_favorite: input.is_favorite,
+            },
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+        Ok(generated_image_summary(&updated))
+    }
+
+    async fn delete_image(&self, user_id: i64, input: DeleteImageInput) -> Result<(), String> {
+        if input.image_id <= 0 {
+            return Err("image_id must be positive".to_string());
+        }
+        let image = a4n_db::video::generated_image_by_id(self.db.connection(), input.image_id)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "图片不存在".to_string())?;
+        verify_image_permission(&self.db, user_id, image.project_id, "editor").await?;
+        a4n_db::video::delete_generated_image_record_with_cleanup(
+            self.db.connection(),
+            input.image_id,
+        )
+        .await
+        .map_err(|error| error.to_string())
+    }
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -669,10 +815,19 @@ async fn command(
         ))
         .into_response();
     }
-    let publish_command = command == ARTIFACT_MEDIA_PUBLISH_IMAGE_COMMAND;
-    if (!publish_command
+    let user_command = command == ARTIFACT_MEDIA_PUBLISH_IMAGE_COMMAND
+        || matches!(
+            command.as_str(),
+            ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND
+                | ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND
+                | ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND
+                | ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND
+                | ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND
+                | ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND
+        );
+    if (!user_command
         && request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::Service)
-        || (publish_command
+        || (user_command
             && request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User)
     {
         return Json(failed_response(
@@ -737,6 +892,78 @@ async fn command(
                 Err(error) => Err(error),
             }
         }
+        ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND => {
+            match parse_payload::<ImageIdRequest>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .image_by_id(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
+        ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND => {
+            match parse_payload::<ListImagesByProjectInput>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .image_list_by_project(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
+        ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND => {
+            match parse_payload::<ListImagesByProjectsInput>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .image_list_by_projects(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
+        ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND => {
+            match parse_payload::<ListImagesByChapterInput>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .image_list_by_chapter(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
+        ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND => {
+            match parse_payload::<UpdateGeneratedImageInput>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .update_image(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
+        ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND => {
+            match parse_payload::<DeleteImageInput>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .delete_image(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
         _ => Err(format!("unsupported artifact media command: {command}")),
     };
     match result {
@@ -749,6 +976,16 @@ async fn command(
 
 fn parse_payload<T: serde::de::DeserializeOwned>(payload: Value) -> Result<T, String> {
     serde_json::from_value(payload).map_err(|error| format!("请求 payload 无效: {error}"))
+}
+
+fn actor_user_id(request: &WorkerEnvelope<Value>) -> Result<i64, String> {
+    request
+        .principal
+        .subject
+        .parse::<i64>()
+        .ok()
+        .filter(|user_id| *user_id > 0)
+        .ok_or_else(|| "user principal subject must be a positive integer".to_string())
 }
 
 fn completed_response(request: &WorkerEnvelope<Value>, payload: Value) -> WorkerResponse<Value> {
@@ -815,6 +1052,88 @@ fn authorized(state: &WorkerState, headers: &HeaderMap) -> bool {
         .get(AUTH_HEADER)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value == state.token.as_ref())
+}
+
+fn generated_image_summary(
+    image: &a4n_db_models::models::ai::generated_image::Model,
+) -> GeneratedImageSummary {
+    GeneratedImageSummary {
+        id: image.id,
+        project_id: image.project_id,
+        image_type: image.image_type.clone(),
+        file_path: image.file_path.clone(),
+        prompt: image.prompt.clone(),
+        model: image.model.clone(),
+        width: image.width,
+        height: image.height,
+        file_size: image.file_size,
+        ai_score: image.ai_score,
+        is_favorite: image.is_favorite,
+        is_system_managed: a4n_domain::image::is_system_managed_image_type(&image.image_type),
+        chapter_id: image.chapter_id,
+        panel_id: image.panel_id.clone(),
+        metadata_json: image.metadata_json.clone(),
+        created_at: image.created_at.to_string(),
+    }
+}
+
+fn normalized_project_ids(project_ids: Vec<i64>) -> Result<Vec<i64>, String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::with_capacity(project_ids.len());
+    for project_id in project_ids {
+        if project_id <= 0 {
+            return Err("project_ids 必须全部大于 0".to_string());
+        }
+        if seen.insert(project_id) {
+            normalized.push(project_id);
+        }
+    }
+    if normalized.is_empty() {
+        return Err("project_ids 不能为空".to_string());
+    }
+    Ok(normalized)
+}
+
+fn sort_images_by_project_order(
+    images: &mut [a4n_db_models::models::ai::generated_image::Model],
+    project_ids: &[i64],
+) {
+    let project_order = project_ids
+        .iter()
+        .enumerate()
+        .map(|(index, project_id)| (*project_id, index))
+        .collect::<HashMap<_, _>>();
+    images.sort_by(|left, right| {
+        project_order[&left.project_id]
+            .cmp(&project_order[&right.project_id])
+            .then_with(|| right.created_at.cmp(&left.created_at))
+            .then_with(|| right.id.cmp(&left.id))
+    });
+}
+
+async fn verify_image_permission(
+    database: &a4n_db::DbHandle,
+    user_id: i64,
+    project_id: i64,
+    role: &str,
+) -> Result<(), String> {
+    if user_id <= 0 || project_id <= 0 {
+        return Err("user_id 和 project_id must be positive".to_string());
+    }
+    let required = match role {
+        "viewer" => a4n_domain::collaboration::ProjectAccessRole::Viewer,
+        "editor" => a4n_domain::collaboration::ProjectAccessRole::Editor,
+        _ => return Err(format!("unsupported image permission role: {role}")),
+    };
+    a4n_db::collaboration::verify_project_permission(
+        database.connection(),
+        project_id,
+        user_id,
+        required,
+    )
+    .await
+    .map(|_| ())
+    .map_err(|error| error.to_string())
 }
 
 fn recovery_record(
