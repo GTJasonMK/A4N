@@ -787,6 +787,8 @@ dependencies = [
  "a4n-config",
  "a4n-error",
  "a4n-foreshadowing-worker-client",
+ "a4n-import-review-worker-client",
+ "a4n-inspiration-worker-client",
  "a4n-novel-planning-worker-client",
  "a4n-object-profile-worker-client",
  "a4n-orchestrator",
@@ -932,6 +934,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-import-review-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-import-core",
+]
+
+[[package]]
+name = "a4n-import-review-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-config",
+ "a4n-db",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-import-review-core",
+ "a4n-import-review-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-import-review-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-import-review-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-import-review-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-import-service"
 version = "0.1.0"
 dependencies = [
@@ -949,6 +1006,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-inspiration-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-db-models",
+ "a4n-error",
+]
+
+[[package]]
 name = "a4n-inspiration-host-contract"
 version = "0.1.0"
 dependencies = [
@@ -957,6 +1023,50 @@ dependencies = [
  "a4n-llm-provider-contract",
  "a4n-prompt-contract",
  "async-trait",
+]
+
+[[package]]
+name = "a4n-inspiration-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-config",
+ "a4n-db",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-inspiration-core",
+ "a4n-inspiration-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-inspiration-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-inspiration-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-inspiration-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
 ]
 
 [[package]]
@@ -2047,6 +2157,8 @@ dependencies = [
  "a4n-domain",
  "a4n-edge",
  "a4n-foreshadowing-worker",
+ "a4n-import-review-worker",
+ "a4n-inspiration-worker",
  "a4n-migration",
  "a4n-object-profile-worker",
  "a4n-outline-worker",
