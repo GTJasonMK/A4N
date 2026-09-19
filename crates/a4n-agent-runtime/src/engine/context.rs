@@ -15,12 +15,6 @@ pub(super) fn build_manifest(
     messages: &[ChatMessage],
     skills: &AgentSkillSearchResult,
 ) -> Result<Option<LlmContextManifest>, AppError> {
-    if context.scope.project_id.is_none() {
-        // Context-pack persistence is project-scoped. Global Agents keep the
-        // existing request path until a global pack owner exists.
-        return Ok(None);
-    }
-
     let mut ledger = LlmContextLedger::new();
     add_pack(
         &mut ledger,
@@ -234,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn global_agents_keep_the_legacy_request_path_without_project_packs() {
+    fn global_agents_build_local_context_packs_without_project_scope() {
         let manifest = build_manifest(
             &context(None),
             &[ChatMessage::user("继续")],
@@ -244,7 +238,13 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(manifest.is_none());
+        let manifest = manifest.unwrap();
+        assert!(
+            manifest
+                .packs
+                .iter()
+                .any(|pack| pack.pack_kind == "agent_history_units")
+        );
     }
 
     #[test]
