@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-artifact-media-contract = { path = "../a4n-artifact-media-contract" }
 a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
 a4n-config = { path = "../a4n-config" }

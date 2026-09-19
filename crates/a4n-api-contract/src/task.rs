@@ -2,14 +2,14 @@ use a4n_progress::ProgressMeta;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CancelTaskInput {
     #[schemars(length(min = 1, max = 160))]
     pub task_id: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GetTaskHistoryInput {
     pub project_id: Option<i64>,
@@ -18,7 +18,7 @@ pub struct GetTaskHistoryInput {
     pub limit: u64,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TaskProgressSummary {
     pub current: u32,
     pub total: u32,
@@ -26,7 +26,7 @@ pub struct TaskProgressSummary {
     pub meta: Option<ProgressMeta>,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TaskInfoSummary {
     pub id: String,
     pub task_type: String,

@@ -1,17 +1,20 @@
 //! Typed read commands owned by the project-status worker.
 
 pub use a4n_api_contract::project::{
-    ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary,
+    ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary, ProjectStatusMutationResult,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const PROJECT_STATUS_WORKER_ID: &str = "project-status-worker";
-pub const PROJECT_STATUS_WORKER_CONTRACT_VERSION: &str = "project-status-read-v1";
+pub const PROJECT_STATUS_WORKER_CONTRACT_VERSION: &str = "project-status-v2";
 pub const PROJECT_STATUS_MACHINE_OPERATION: &str = "project.status.machine";
 pub const PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION: &str = "project.status.preview_rollback";
+pub const PROJECT_STATUS_FORWARD_OPERATION: &str = "project.status.forward";
+pub const PROJECT_STATUS_ROLLBACK_OPERATION: &str = "project.status.rollback";
 pub const PROJECT_STATUS_READ_CAPABILITY: &str = "project.status.read";
+pub const PROJECT_STATUS_WRITE_CAPABILITY: &str = "project.status.write";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

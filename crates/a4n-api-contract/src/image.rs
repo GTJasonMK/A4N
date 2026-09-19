@@ -61,6 +61,35 @@ pub trait ImageRecordReadApplicationPort: Send + Sync {
     ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
 }
 
+/// Narrow generated-image library reads. Video-reference selection keeps its
+/// own cross-project rules and stays on `ImageRecordReadApplicationPort`.
+#[async_trait::async_trait]
+pub trait ImageLibraryReadApplicationPort: Send + Sync {
+    async fn by_id(
+        &self,
+        user_id: i64,
+        image_id: i64,
+    ) -> Result<Option<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_by_project(
+        &self,
+        user_id: i64,
+        input: ListImagesByProjectInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_by_projects(
+        &self,
+        user_id: i64,
+        input: ListImagesByProjectsInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_by_chapter(
+        &self,
+        user_id: i64,
+        input: ListImagesByChapterInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+}
+
 /// Host-facing mutation boundary for generated image records.
 #[async_trait::async_trait]
 pub trait ImageRecordMutationApplicationPort: Send + Sync {

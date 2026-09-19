@@ -24,7 +24,7 @@ pub async fn read_image(
 
     for image_id in &input.image_ids {
         let image = state
-            .image_record_read_application()
+            .image_library_read_application()
             .by_id(user_id, *image_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("图片记录不存在: {image_id}")))?;

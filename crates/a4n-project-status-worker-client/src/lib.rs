@@ -2,11 +2,13 @@
 
 use a4n_api_contract::project::{
     ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary,
+    ProjectStatusMutationApplicationPort, ProjectStatusMutationResult,
     ProjectStatusReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_project_status_worker_contract::{
-    PROJECT_STATUS_MACHINE_OPERATION, PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION,
+    PROJECT_STATUS_FORWARD_OPERATION, PROJECT_STATUS_MACHINE_OPERATION,
+    PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION, PROJECT_STATUS_ROLLBACK_OPERATION,
     PROJECT_STATUS_WORKER_ID, ProjectStatusProjectInput, ProjectStatusRollbackInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -141,6 +143,39 @@ impl ProjectStatusReadApplicationPort for ProjectStatusWorkerClient {
             user_id,
             project_id,
             PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION,
+            ProjectStatusRollbackInput { project_id, target },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ProjectStatusMutationApplicationPort for ProjectStatusWorkerClient {
+    async fn forward_status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<ProjectStatusMutationResult, AppError> {
+        self.command(
+            user_id,
+            project_id,
+            PROJECT_STATUS_FORWARD_OPERATION,
+            ProjectStatusRollbackInput { project_id, target },
+        )
+        .await
+    }
+
+    async fn rollback_status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<ProjectStatusMutationResult, AppError> {
+        self.command(
+            user_id,
+            project_id,
+            PROJECT_STATUS_ROLLBACK_OPERATION,
             ProjectStatusRollbackInput { project_id, target },
         )
         .await

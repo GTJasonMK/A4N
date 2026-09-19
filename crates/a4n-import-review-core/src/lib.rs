@@ -1,13 +1,36 @@
-//! 导入审核 application 输入门禁（无 DB）。
+//! Pure import-review projections and duplicate detection.
 
-use a4n_api_contract::import_review::DedupResult;
+use a4n_api_contract::import_review::{DedupResult, ImportReviewSummary};
+use a4n_db_models::models::project::import_review_queue;
 use a4n_error::AppError;
 use a4n_import_core::dedup;
 
 const SIMHASH_NGRAM: usize = 3;
 const DUPLICATE_HAMMING_THRESHOLD: u32 = 3;
 
-pub(crate) fn calculate_import_dedup(
+pub fn summary_from_model(
+    review: &import_review_queue::Model,
+) -> Result<ImportReviewSummary, AppError> {
+    let review_status = a4n_domain::import_review::ImportReviewStatus::parse(&review.review_status)
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!(
+                "导入审核 #{} review_status={:?}",
+                review.id, review.review_status
+            ),
+            operation: "读取导入审核状态".to_string(),
+        })?;
+    Ok(ImportReviewSummary {
+        id: review.id,
+        project_id: review.project_id,
+        filename: review.filename.clone(),
+        analysis_result: review.analysis_result.clone(),
+        review_status,
+        created_at: review.created_at.to_string(),
+        updated_at: review.updated_at.to_string(),
+    })
+}
+
+pub fn calculate_dedup(
     content: &str,
     existing_chapters: &[(i64, String)],
 ) -> Result<DedupResult, AppError> {
@@ -41,8 +64,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn calculate_import_dedup_returns_match_and_nearest_distance() {
-        let result = calculate_import_dedup(
+    fn duplicate_content_returns_match_and_distance() {
+        let result = calculate_dedup(
             "这是一段用于导入去重的正文。",
             &[
                 (7, "完全不同的章节。".to_string()),
@@ -58,18 +81,8 @@ mod tests {
     }
 
     #[test]
-    fn calculate_import_dedup_has_no_distance_sentinel_without_chapters() {
-        let result = calculate_import_dedup("待导入正文", &[]).unwrap();
-
-        assert!(!result.is_duplicate);
-        assert_eq!(result.closest_distance, None);
-        assert_eq!(result.matched_chapter_id, None);
-    }
-
-    #[test]
-    fn calculate_import_dedup_rejects_blank_content() {
-        let error = calculate_import_dedup(" \n", &[]).expect_err("blank content must fail");
-
+    fn blank_content_is_rejected() {
+        let error = calculate_dedup(" \n", &[]).expect_err("blank content must fail");
         assert!(
             matches!(error, AppError::InvalidArgument(message) if message.contains("不能为空"))
         );

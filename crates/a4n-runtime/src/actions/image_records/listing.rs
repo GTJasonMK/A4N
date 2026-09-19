@@ -12,7 +12,7 @@ pub async fn list_images_by_project(
     input: ListImagesByProjectInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_read_application()
+        .image_library_read_application()
         .list_by_project(user_id, input)
         .await
         .map_err(app_error_message)
@@ -24,7 +24,7 @@ pub async fn list_images_by_projects(
     input: ListImagesByProjectsInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_read_application()
+        .image_library_read_application()
         .list_by_projects(user_id, input)
         .await
         .map_err(app_error_message)
@@ -36,7 +36,7 @@ pub async fn list_images_by_chapter(
     input: ListImagesByChapterInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_read_application()
+        .image_library_read_application()
         .list_by_chapter(user_id, input)
         .await
         .map_err(app_error_message)

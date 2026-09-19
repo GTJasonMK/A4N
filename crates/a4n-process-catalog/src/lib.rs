@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 15);
+        assert_eq!(entries.len(), 25);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -536,12 +536,15 @@ mod tests {
             .expect("project status worker entry");
         assert_eq!(project_status.kind, ProcessKind::StatefulWorker);
         assert_eq!(project_status.binary, "a4n-project-status-worker");
-        assert_eq!(project_status.contract_version, "project-status-read-v1");
+        assert_eq!(project_status.contract_version, "project-status-v2");
         assert_eq!(project_status.addr_env, "A4N_PROJECT_STATUS_WORKER_ADDR");
         assert_eq!(project_status.default_addr, "127.0.0.1:47662");
         assert_eq!(
             project_status.capabilities,
-            vec!["project.status.read".to_string()]
+            vec![
+                "project.status.read".to_string(),
+                "project.status.write".to_string()
+            ]
         );
         let theme_read = entries
             .iter()
@@ -552,7 +555,10 @@ mod tests {
         assert_eq!(theme_read.contract_version, "theme-read-v1");
         assert_eq!(theme_read.addr_env, "A4N_THEME_READ_WORKER_ADDR");
         assert_eq!(theme_read.default_addr, "127.0.0.1:47663");
-        assert_eq!(theme_read.capabilities, vec!["theme.read".to_string()]);
+        assert_eq!(
+            theme_read.capabilities,
+            vec!["theme.read".to_string(), "theme.mutation".to_string()]
+        );
         let project_read = entries
             .iter()
             .find(|entry| entry.name == "project-read-worker")
@@ -563,6 +569,166 @@ mod tests {
         assert_eq!(project_read.addr_env, "A4N_PROJECT_READ_WORKER_ADDR");
         assert_eq!(project_read.default_addr, "127.0.0.1:47664");
         assert_eq!(project_read.capabilities, vec!["project.read".to_string()]);
+        let import_review_read = entries
+            .iter()
+            .find(|entry| entry.name == "import-review-read-worker")
+            .expect("import review read worker entry");
+        assert_eq!(import_review_read.kind, ProcessKind::StatefulWorker);
+        assert_eq!(import_review_read.binary, "a4n-import-review-worker");
+        assert_eq!(import_review_read.contract_version, "import-review-read-v1");
+        assert_eq!(
+            import_review_read.addr_env,
+            "A4N_IMPORT_REVIEW_READ_WORKER_ADDR"
+        );
+        assert_eq!(import_review_read.default_addr, "127.0.0.1:47665");
+        assert_eq!(
+            import_review_read.capabilities,
+            vec![
+                "import_review.read".to_string(),
+                "import_review.mutation".to_string()
+            ]
+        );
+        let inspiration_history = entries
+            .iter()
+            .find(|entry| entry.name == "inspiration-history-worker")
+            .expect("inspiration history worker entry");
+        assert_eq!(inspiration_history.kind, ProcessKind::StatefulWorker);
+        assert_eq!(inspiration_history.binary, "a4n-inspiration-worker");
+        assert_eq!(
+            inspiration_history.contract_version,
+            "inspiration-history-v1"
+        );
+        assert_eq!(
+            inspiration_history.addr_env,
+            "A4N_INSPIRATION_HISTORY_WORKER_ADDR"
+        );
+        assert_eq!(inspiration_history.default_addr, "127.0.0.1:47666");
+        assert_eq!(
+            inspiration_history.capabilities,
+            vec!["inspiration.history.read".to_string()]
+        );
+        let project_access = entries
+            .iter()
+            .find(|entry| entry.name == "project-access-worker")
+            .expect("project access worker entry");
+        assert_eq!(project_access.kind, ProcessKind::StatefulWorker);
+        assert_eq!(project_access.binary, "a4n-project-access-worker");
+        assert_eq!(project_access.contract_version, "project-access-v1");
+        assert_eq!(project_access.addr_env, "A4N_PROJECT_ACCESS_WORKER_ADDR");
+        assert_eq!(project_access.default_addr, "127.0.0.1:47667");
+        assert_eq!(
+            project_access.capabilities,
+            vec!["project.access.read".to_string()]
+        );
+        let project_collaboration = entries
+            .iter()
+            .find(|entry| entry.name == "project-collaboration-worker")
+            .expect("project collaboration worker entry");
+        assert_eq!(project_collaboration.kind, ProcessKind::StatefulWorker);
+        assert_eq!(
+            project_collaboration.binary,
+            "a4n-project-collaboration-worker"
+        );
+        assert_eq!(
+            project_collaboration.contract_version,
+            "project-collaboration-v1"
+        );
+        assert_eq!(
+            project_collaboration.addr_env,
+            "A4N_PROJECT_COLLABORATION_WORKER_ADDR"
+        );
+        assert_eq!(project_collaboration.default_addr, "127.0.0.1:47668");
+        assert_eq!(
+            project_collaboration.capabilities,
+            vec!["project.collaboration".to_string()]
+        );
+        let project_mutation = entries
+            .iter()
+            .find(|entry| entry.name == "project-mutation-worker")
+            .expect("project mutation worker entry");
+        assert_eq!(project_mutation.kind, ProcessKind::StatefulWorker);
+        assert_eq!(project_mutation.binary, "a4n-project-mutation-worker");
+        assert_eq!(project_mutation.contract_version, "project-mutation-v1");
+        assert_eq!(
+            project_mutation.addr_env,
+            "A4N_PROJECT_MUTATION_WORKER_ADDR"
+        );
+        assert_eq!(project_mutation.default_addr, "127.0.0.1:47669");
+        assert_eq!(
+            project_mutation.capabilities,
+            vec!["project.mutation".to_string()]
+        );
+        let chapter_scene = entries
+            .iter()
+            .find(|entry| entry.name == "chapter-scene-worker")
+            .expect("chapter scene worker entry");
+        assert_eq!(chapter_scene.kind, ProcessKind::StatefulWorker);
+        assert_eq!(chapter_scene.binary, "a4n-chapter-scene-worker");
+        assert_eq!(chapter_scene.contract_version, "chapter-scene-v1");
+        assert_eq!(chapter_scene.addr_env, "A4N_CHAPTER_SCENE_WORKER_ADDR");
+        assert_eq!(chapter_scene.default_addr, "127.0.0.1:47670");
+        assert_eq!(
+            chapter_scene.capabilities,
+            vec!["chapter.scene".to_string()]
+        );
+        let chapter_content = entries
+            .iter()
+            .find(|entry| entry.name == "chapter-content-worker")
+            .expect("chapter content worker entry");
+        assert_eq!(chapter_content.kind, ProcessKind::StatefulWorker);
+        assert_eq!(chapter_content.binary, "a4n-chapter-content-worker");
+        assert_eq!(chapter_content.contract_version, "chapter-content-v1");
+        assert_eq!(chapter_content.addr_env, "A4N_CHAPTER_CONTENT_WORKER_ADDR");
+        assert_eq!(chapter_content.default_addr, "127.0.0.1:47671");
+        assert_eq!(
+            chapter_content.capabilities,
+            vec!["chapter.content".to_string()]
+        );
+        let workflow_read = entries
+            .iter()
+            .find(|entry| entry.name == "workflow-read-worker")
+            .expect("workflow read worker entry");
+        assert_eq!(workflow_read.kind, ProcessKind::StatefulWorker);
+        assert_eq!(workflow_read.binary, "a4n-workflow-read-worker");
+        assert_eq!(workflow_read.contract_version, "workflow-read-v1");
+        assert_eq!(workflow_read.addr_env, "A4N_WORKFLOW_READ_WORKER_ADDR");
+        assert_eq!(workflow_read.default_addr, "127.0.0.1:47672");
+        assert_eq!(
+            workflow_read.capabilities,
+            vec!["workflow.read".to_string()]
+        );
+        let config_read = entries
+            .iter()
+            .find(|entry| entry.name == "config-read-worker")
+            .expect("config read worker entry");
+        assert_eq!(config_read.kind, ProcessKind::StatefulWorker);
+        assert_eq!(config_read.binary, "a4n-config-read-worker");
+        assert_eq!(config_read.contract_version, "config-read-v1");
+        assert_eq!(config_read.addr_env, "A4N_CONFIG_READ_WORKER_ADDR");
+        assert_eq!(config_read.default_addr, "127.0.0.1:47673");
+        assert_eq!(
+            config_read.capabilities,
+            vec!["config.read".to_string(), "config.mutation".to_string()]
+        );
+        let character_mutation = entries
+            .iter()
+            .find(|entry| entry.name == "character-mutation-worker")
+            .expect("character mutation worker entry");
+        assert_eq!(character_mutation.kind, ProcessKind::StatefulWorker);
+        assert_eq!(character_mutation.binary, "a4n-character-mutation-worker");
+        assert_eq!(character_mutation.contract_version, "character-mutation-v1");
+        assert_eq!(
+            character_mutation.addr_env,
+            "A4N_CHARACTER_MUTATION_WORKER_ADDR"
+        );
+        assert_eq!(character_mutation.default_addr, "127.0.0.1:47674");
+        assert_eq!(
+            character_mutation.capabilities,
+            vec![
+                "character.mutation".to_string(),
+                "character.overview".to_string()
+            ]
+        );
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")
@@ -597,7 +763,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 24);
+        assert_eq!(entries.len(), 34);
         assert_eq!(
             entries
                 .iter()

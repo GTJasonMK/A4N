@@ -157,6 +157,10 @@ pub struct ApplicationPorts {
     /// Host-facing character profile read boundary.
     pub character_profile_read_application:
         Arc<dyn a4n_api_contract::character::CharacterProfileReadApplicationPort>,
+    /// Narrow character overview reads are independently replaceable from
+    /// timeline/history projections.
+    pub character_profile_overview_read_application:
+        Arc<dyn a4n_api_contract::character::CharacterProfileOverviewReadApplicationPort>,
     /// Host-facing character profile mutation boundary. Runtime keeps only
     /// post-commit RAG warning handling outside the character owner.
     pub character_profile_mutation_application:
@@ -494,6 +498,8 @@ pub struct ApplicationPorts {
     /// projection stay in the media owner.
     pub image_record_read_application:
         Arc<dyn a4n_api_contract::image::ImageRecordReadApplicationPort>,
+    pub image_library_read_application:
+        Arc<dyn a4n_api_contract::image::ImageLibraryReadApplicationPort>,
     /// Host-facing generated-image mutation boundary.
     pub image_record_mutation_application:
         Arc<dyn a4n_api_contract::image::ImageRecordMutationApplicationPort>,

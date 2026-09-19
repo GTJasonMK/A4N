@@ -98,16 +98,6 @@ impl OrchestratorContext {
         )))
     }
 
-    pub(crate) async fn project_summary_required_for_user(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<ProjectSummary, AppError> {
-        self.project_summary_for_user(user_id, project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
-    }
-
     pub(crate) async fn project_family_metadata(
         &self,
         query: ProjectFamilyMetadataQuery,

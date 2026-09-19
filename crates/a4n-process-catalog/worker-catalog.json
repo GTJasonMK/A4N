@@ -264,19 +264,19 @@
     "name": "project-status-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-status-worker",
-    "contract_version": "project-status-read-v1",
-    "capability_version": "project-status-read-v1",
+    "contract_version": "project-status-v2",
+    "capability_version": "project-status-v2",
     "addr_env": "A4N_PROJECT_STATUS_WORKER_ADDR",
     "url_env": "A4N_PROJECT_STATUS_WORKER_URL",
     "default_addr": "127.0.0.1:47662",
     "local_only": true,
     "data_scope": ["project_status", "project_status_history", "project_rollback_impact"],
-    "capabilities": ["project.status.read"],
+    "capabilities": ["project.status.read", "project.status.write"],
     "dependencies": ["a4n-migration"],
     "migration": {
-      "current": "project_status_read",
-      "min_compatible": "project_status_read",
-      "max_compatible": "project_status_read"
+      "current": "project_status",
+      "min_compatible": "project_status",
+      "max_compatible": "project_status"
     }
   },
   {
@@ -328,7 +328,7 @@
     "default_addr": "127.0.0.1:47663",
     "local_only": true,
     "data_scope": ["theme_config", "theme_resource", "theme_preference"],
-    "capabilities": ["theme.read"],
+    "capabilities": ["theme.read", "theme.mutation"],
     "dependencies": ["a4n-migration"],
     "migration": {
       "current": "theme_read",
@@ -353,6 +353,196 @@
       "current": "project_read",
       "min_compatible": "project_read",
       "max_compatible": "project_read"
+    }
+  },
+  {
+    "name": "import-review-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-import-review-worker",
+    "contract_version": "import-review-read-v1",
+    "capability_version": "import-review-read-v1",
+    "addr_env": "A4N_IMPORT_REVIEW_READ_WORKER_ADDR",
+    "url_env": "A4N_IMPORT_REVIEW_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47665",
+    "local_only": true,
+    "data_scope": ["import_review", "chapter_content"],
+    "capabilities": ["import_review.read", "import_review.mutation"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "import_review_read",
+      "min_compatible": "import_review_read",
+      "max_compatible": "import_review_read"
+    }
+  },
+  {
+    "name": "inspiration-history-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-inspiration-worker",
+    "contract_version": "inspiration-history-v1",
+    "capability_version": "inspiration-history-v1",
+    "addr_env": "A4N_INSPIRATION_HISTORY_WORKER_ADDR",
+    "url_env": "A4N_INSPIRATION_HISTORY_WORKER_URL",
+    "default_addr": "127.0.0.1:47666",
+    "local_only": true,
+    "data_scope": ["conversation", "message"],
+    "capabilities": ["inspiration.history.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "inspiration_history",
+      "min_compatible": "inspiration_history",
+      "max_compatible": "inspiration_history"
+    }
+  },
+  {
+    "name": "project-access-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-project-access-worker",
+    "contract_version": "project-access-v1",
+    "capability_version": "project-access-v1",
+    "addr_env": "A4N_PROJECT_ACCESS_WORKER_ADDR",
+    "url_env": "A4N_PROJECT_ACCESS_WORKER_URL",
+    "default_addr": "127.0.0.1:47667",
+    "local_only": true,
+    "data_scope": ["project", "project_member"],
+    "capabilities": ["project.access.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_access",
+      "min_compatible": "project_access",
+      "max_compatible": "project_access"
+    }
+  },
+  {
+    "name": "project-collaboration-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-project-collaboration-worker",
+    "contract_version": "project-collaboration-v1",
+    "capability_version": "project-collaboration-v1",
+    "addr_env": "A4N_PROJECT_COLLABORATION_WORKER_ADDR",
+    "url_env": "A4N_PROJECT_COLLABORATION_WORKER_URL",
+    "default_addr": "127.0.0.1:47668",
+    "local_only": true,
+    "data_scope": ["project", "project_member", "project_invite"],
+    "capabilities": ["project.collaboration"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_collaboration",
+      "min_compatible": "project_collaboration",
+      "max_compatible": "project_collaboration"
+    }
+  },
+  {
+    "name": "project-mutation-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-project-mutation-worker",
+    "contract_version": "project-mutation-v1",
+    "capability_version": "project-mutation-v1",
+    "addr_env": "A4N_PROJECT_MUTATION_WORKER_ADDR",
+    "url_env": "A4N_PROJECT_MUTATION_WORKER_URL",
+    "default_addr": "127.0.0.1:47669",
+    "local_only": true,
+    "data_scope": ["project", "project_family", "project_progress"],
+    "capabilities": ["project.mutation"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_mutation",
+      "min_compatible": "project_mutation",
+      "max_compatible": "project_mutation"
+    }
+  },
+  {
+    "name": "chapter-scene-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-chapter-scene-worker",
+    "contract_version": "chapter-scene-v1",
+    "capability_version": "chapter-scene-v1",
+    "addr_env": "A4N_CHAPTER_SCENE_WORKER_ADDR",
+    "url_env": "A4N_CHAPTER_SCENE_WORKER_URL",
+    "default_addr": "127.0.0.1:47670",
+    "local_only": true,
+    "data_scope": ["chapter", "chapter_scene"],
+    "capabilities": ["chapter.scene"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "chapter_scene",
+      "min_compatible": "chapter_scene",
+      "max_compatible": "chapter_scene"
+    }
+  },
+  {
+    "name": "chapter-content-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-chapter-content-worker",
+    "contract_version": "chapter-content-v1",
+    "capability_version": "chapter-content-v1",
+    "addr_env": "A4N_CHAPTER_CONTENT_WORKER_ADDR",
+    "url_env": "A4N_CHAPTER_CONTENT_WORKER_URL",
+    "default_addr": "127.0.0.1:47671",
+    "local_only": true,
+    "data_scope": ["chapter"],
+    "capabilities": ["chapter.content"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "chapter_content",
+      "min_compatible": "chapter_content",
+      "max_compatible": "chapter_content"
+    }
+  },
+  {
+    "name": "workflow-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-workflow-read-worker",
+    "contract_version": "workflow-read-v1",
+    "capability_version": "workflow-read-v1",
+    "addr_env": "A4N_WORKFLOW_READ_WORKER_ADDR",
+    "url_env": "A4N_WORKFLOW_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47672",
+    "local_only": true,
+    "data_scope": ["workflow_run", "workflow_checkpoint", "generation_run"],
+    "capabilities": ["workflow.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "workflow",
+      "min_compatible": "workflow",
+      "max_compatible": "workflow"
+    }
+  },
+  {
+    "name": "config-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-config-read-worker",
+    "contract_version": "config-read-v1",
+    "capability_version": "config-read-v1",
+    "addr_env": "A4N_CONFIG_READ_WORKER_ADDR",
+    "url_env": "A4N_CONFIG_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47673",
+    "local_only": true,
+    "data_scope": ["llm_config", "image_config", "video_config", "embedding_config"],
+    "capabilities": ["config.read", "config.mutation"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "config",
+      "min_compatible": "config",
+      "max_compatible": "config"
+    }
+  },
+  {
+    "name": "character-mutation-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-character-mutation-worker",
+    "contract_version": "character-mutation-v1",
+    "capability_version": "character-mutation-v1",
+    "addr_env": "A4N_CHARACTER_MUTATION_WORKER_ADDR",
+    "url_env": "A4N_CHARACTER_MUTATION_WORKER_URL",
+    "default_addr": "127.0.0.1:47674",
+    "local_only": true,
+    "data_scope": ["protagonist_profile"],
+    "capabilities": ["character.mutation", "character.overview"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "character_profile",
+      "min_compatible": "character_profile",
+      "max_compatible": "character_profile"
     }
   }
 ]

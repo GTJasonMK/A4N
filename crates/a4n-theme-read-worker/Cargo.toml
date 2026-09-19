@@ -9,6 +9,7 @@ a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-db = { path = "../a4n-db" }
 a4n-db-models = { path = "../a4n-db-models" }
+a4n-domain = { path = "../a4n-domain" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-theme-core = { path = "../a4n-theme-core" }
 a4n-theme-read-worker-contract = { path = "../a4n-theme-read-worker-contract" }

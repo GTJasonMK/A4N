@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-error = { path = "../a4n-error", features = ["database"] }
 a4n-artifact-media-client = { path = "../a4n-artifact-media-client" }
@@ -21,7 +22,19 @@ a4n-portrait-worker-client = { path = "../a4n-portrait-worker-client" }
 a4n-profile-material-worker-client = { path = "../a4n-profile-material-worker-client" }
 a4n-project-status-worker-client = { path = "../a4n-project-status-worker-client" }
 a4n-project-read-worker-client = { path = "../a4n-project-read-worker-client" }
+a4n-import-review-worker-client = { path = "../a4n-import-review-worker-client" }
+a4n-inspiration-worker-client = { path = "../a4n-inspiration-worker-client" }
+a4n-project-access-worker-client = { path = "../a4n-project-access-worker-client" }
+a4n-project-collaboration-worker-client = { path = "../a4n-project-collaboration-worker-client" }
+a4n-project-mutation-worker-client = { path = "../a4n-project-mutation-worker-client" }
+a4n-chapter-scene-worker-client = { path = "../a4n-chapter-scene-worker-client" }
+a4n-chapter-content-worker-client = { path = "../a4n-chapter-content-worker-client" }
+a4n-workflow-read-worker-client = { path = "../a4n-workflow-read-worker-client" }
+a4n-config-read-worker-client = { path = "../a4n-config-read-worker-client" }
+a4n-character-mutation-worker-client = { path = "../a4n-character-mutation-worker-client" }
 a4n-scene-profile-worker-client = { path = "../a4n-scene-profile-worker-client" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-source-snapshot-worker-client = { path = "../a4n-source-snapshot-worker-client" }
 a4n-theme-read-worker-client = { path = "../a4n-theme-read-worker-client" }
+
+async-trait = { workspace = true }

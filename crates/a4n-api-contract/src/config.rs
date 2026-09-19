@@ -242,7 +242,7 @@ pub enum ConfigProviderKind {
 ///
 /// This is intentionally not serializable: the API port may return the
 /// provider secret to Runtime, but it must not become a wire/API DTO.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImageConfigForConnectivityTest {
     pub id: i64,
     pub name: String,

@@ -1,13 +1,9 @@
+pub(crate) use a4n_db::project::PROJECT_KIND_TEXT;
 pub(crate) use a4n_db::project::{
     ChapterMangaSourceSummary, ForeshadowingAnalysisDraft, PROJECT_KIND_VIDEO,
     ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyTextCoreRows,
-    ProjectGeneratedChapterSceneSaveInput, SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
-    is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
-    normalize_project_type,
-};
-pub(crate) use a4n_db::project::{
-    CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
-    DerivedChapterScope, PROJECT_KIND_TEXT,
+    ProjectGeneratedChapterSceneSaveInput, SOURCE_SYNC_CURRENT, is_valid_source_sync_status,
+    normalize_derived_project_kind, normalize_project_kind, normalize_project_type,
 };
 pub(crate) use a4n_db::project::{
     ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
@@ -60,7 +56,6 @@ pub(crate) fn ensure_positive_project_id(project_id: i64) -> Result<(), a4n_erro
     Ok(())
 }
 
-mod chapter_scene_rules;
 mod chapters;
 mod cleanup;
 mod duplication;
@@ -132,7 +127,6 @@ pub(crate) use video_studio_package::{
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 
-pub(crate) use chapter_scene_rules::chapter_scene_update_record_input;
 pub(crate) use chapters::{
     is_character_sync_available_chapter, validate_chapter_generation_number,
 };

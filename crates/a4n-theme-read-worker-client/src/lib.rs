@@ -1,12 +1,17 @@
 //! Typed Host adapter for the theme read worker.
 
 use a4n_api_contract::theme::{
+    CreateThemeInput, PersistThemeResourceInput, ThemeMutationApplicationPort,
     ThemePreferenceSummary, ThemeReadApplicationPort, ThemeResourceRecord, ThemeSummary,
+    UpdateThemeInput, UpdateThemePreferenceInput,
 };
 use a4n_error::AppError;
 use a4n_theme_read_worker_contract::{
-    THEME_EXPORT_OPERATION, THEME_LIST_OPERATION, THEME_PREFERENCE_OPERATION, THEME_READ_WORKER_ID,
-    THEME_RESOURCES_OPERATION, ThemeIdInput, ThemeUserInput,
+    ResourceIdInput, THEME_ACTIVATE_OPERATION, THEME_CREATE_OPERATION, THEME_DELETE_OPERATION,
+    THEME_EXPORT_OPERATION, THEME_IMPORT_OPERATION, THEME_LIST_OPERATION,
+    THEME_PREFERENCE_OPERATION, THEME_PREFERENCE_UPDATE_OPERATION, THEME_READ_WORKER_ID,
+    THEME_RESOURCE_DELETE_OPERATION, THEME_RESOURCE_UPSERT_OPERATION, THEME_RESOURCES_OPERATION,
+    THEME_UPDATE_OPERATION, ThemeIdInput, ThemeUpdateInput, ThemeUserInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -137,6 +142,82 @@ impl ThemeReadApplicationPort for ThemeReadWorkerClient {
 
     async fn get_preference(&self, user_id: i64) -> Result<ThemePreferenceSummary, AppError> {
         self.command(user_id, THEME_PREFERENCE_OPERATION, ThemeUserInput {})
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ThemeMutationApplicationPort for ThemeReadWorkerClient {
+    async fn create_theme(
+        &self,
+        user_id: i64,
+        input: CreateThemeInput,
+    ) -> Result<ThemeSummary, AppError> {
+        self.command(user_id, THEME_CREATE_OPERATION, input).await
+    }
+
+    async fn update_theme(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+        input: UpdateThemeInput,
+    ) -> Result<ThemeSummary, AppError> {
+        self.command(
+            user_id,
+            THEME_UPDATE_OPERATION,
+            ThemeUpdateInput { theme_id, input },
+        )
+        .await
+    }
+
+    async fn delete_theme(&self, user_id: i64, theme_id: i64) -> Result<(), AppError> {
+        let _: serde_json::Value = self
+            .command(user_id, THEME_DELETE_OPERATION, ThemeIdInput { theme_id })
+            .await?;
+        Ok(())
+    }
+
+    async fn activate_theme(&self, user_id: i64, theme_id: i64) -> Result<ThemeSummary, AppError> {
+        self.command(user_id, THEME_ACTIVATE_OPERATION, ThemeIdInput { theme_id })
+            .await
+    }
+
+    async fn import_theme(
+        &self,
+        user_id: i64,
+        input: CreateThemeInput,
+    ) -> Result<ThemeSummary, AppError> {
+        self.command(user_id, THEME_IMPORT_OPERATION, input).await
+    }
+
+    async fn upsert_resource(
+        &self,
+        user_id: i64,
+        input: PersistThemeResourceInput,
+    ) -> Result<ThemeResourceRecord, AppError> {
+        self.command(user_id, THEME_RESOURCE_UPSERT_OPERATION, input)
+            .await
+    }
+
+    async fn delete_resource(
+        &self,
+        user_id: i64,
+        resource_id: i64,
+    ) -> Result<ThemeResourceRecord, AppError> {
+        self.command(
+            user_id,
+            THEME_RESOURCE_DELETE_OPERATION,
+            ResourceIdInput { resource_id },
+        )
+        .await
+    }
+
+    async fn update_preference(
+        &self,
+        user_id: i64,
+        input: UpdateThemePreferenceInput,
+    ) -> Result<ThemePreferenceSummary, AppError> {
+        self.command(user_id, THEME_PREFERENCE_UPDATE_OPERATION, input)
             .await
     }
 }
