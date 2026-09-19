@@ -241,7 +241,6 @@ export const SceneProfilesTab: React.FC<{
           startMessage: t("common.loading"),
           successMessage: t("novel.profile.generateSceneImage"),
           errorMessage: t("novel.profile.generateError", { name: t("novel.profile.scene") }),
-          total: 3,
           cancelLabel: t("workflow.stop"),
         },
         async (task) => {

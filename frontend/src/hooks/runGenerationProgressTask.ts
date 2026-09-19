@@ -13,7 +13,7 @@ import type { ProgressTaskControl, ProgressTaskOptions, RunProgressTask } from "
 
 export type GenerationProgressUiOptions = Omit<
   ProgressTaskOptions,
-  "cancelTaskId" | "cancelTask" | "pollTaskProgress"
+  "total" | "cancelTaskId" | "cancelTask" | "pollTaskProgress"
 >;
 
 /**

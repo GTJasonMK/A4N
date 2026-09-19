@@ -491,7 +491,6 @@ export function useVideoRecordActions({
           startMessage: t("video.actions.preparing", { operation: t("video.chapter.generateVideo") }),
           successMessage: t("video.actions.videoGenerated"),
           errorMessage: t("video.actions.failed", { operation: t("video.chapter.generateVideo") }),
-          total: 7,
           cancelLabel: t("workflow.stop"),
         },
         async (task) => {

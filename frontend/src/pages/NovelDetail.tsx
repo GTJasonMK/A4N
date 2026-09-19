@@ -24,11 +24,8 @@ import {
   type NovelProject,
 } from "../api/project";
 import {
-  loadBlueprintTaskResult,
   refineBlueprint,
-  syncBlueprintMaterials,
 } from "../api/blueprint";
-import { generationClient } from "../api/generationTasks";
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { OverviewTab } from "./novel-detail/OverviewTab";
 import { useStatusBarPermanent } from "../components/ui/StatusBar";
@@ -47,6 +44,7 @@ import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import { getScrollRailCue, scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
+import { runBlueprintRefinementWithProgress } from "./novel-detail/blueprintRefinement";
 
 const AssetDependencyGraphDialog = lazy(() =>
   import("./novel-detail/asset-graph/AssetDependencyGraphDialog").then(
@@ -489,8 +487,9 @@ export const NovelDetail: React.FC = () => {
         confirmText: t("novel.startRefine"),
       });
       if (focus === null || !isCurrentProject(requestProjectId)) return;
-      requestSeq = refineSeqRef.current + 1;
-      refineSeqRef.current = requestSeq;
+      const activeRequestSeq = refineSeqRef.current + 1;
+      requestSeq = activeRequestSeq;
+      refineSeqRef.current = activeRequestSeq;
       setRefining(true);
       const handle = await refineBlueprint({
         project_id: requestProjectId,
@@ -498,14 +497,18 @@ export const NovelDetail: React.FC = () => {
         variables: null,
       });
       if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      const task = await generationClient.waitForTerminal(handle);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      await refresh(requestProjectId);
-      if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
+      const syncWarnings = await runBlueprintRefinementWithProgress({
+        runProgressTask,
+        handle,
+        projectId: requestProjectId,
+        title: t("novel.refineBlueprint"),
+        startMessage: t("novel.refiningBlueprint"),
+        successMessage: t("novel.blueprintRefined"),
+        errorMessage: t("novel.refineBlueprintFailed"),
+        isCurrent: () => isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq),
+        refresh: () => refresh(requestProjectId),
+        t,
+      });
       addToast(
         syncWarnings.length > 0
           ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
@@ -513,12 +516,20 @@ export const NovelDetail: React.FC = () => {
         syncWarnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
+      const message = extractErrorMessage(err, t("novel.refineBlueprintFailed"));
+      const cancelled = isCancelledOperation(message);
       if (requestSeq == null) {
         if (isCurrentProject(requestProjectId)) {
-          addToast(extractErrorMessage(err, t("novel.refineBlueprintFailed")), "error");
+          addToast(
+            cancelled ? t("feedback.progressCancelled") : message,
+            cancelled ? "info" : "error",
+          );
         }
       } else if (isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.refineBlueprintFailed")), "error");
+        addToast(
+          cancelled ? t("feedback.progressCancelled") : message,
+          cancelled ? "info" : "error",
+        );
       }
     } finally {
       if (requestSeq == null) {

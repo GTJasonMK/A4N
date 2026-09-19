@@ -380,7 +380,6 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
           startMessage: t("video.material.preparingGeneration"),
           successMessage: t("video.material.generationCompleted"),
           errorMessage: t("video.material.generationFailed"),
-          total: 3,
           cancelLabel: t("video.material.stopGeneration"),
         },
         async (task) => {

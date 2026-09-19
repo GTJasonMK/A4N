@@ -143,7 +143,6 @@ export const ObjectProfilesTab: React.FC<{
           startMessage: t("common.loading"),
           successMessage: t("novel.profile.generateObjectImage"),
           errorMessage: t("novel.profile.generateError", { name: t("novel.profile.object") }),
-          total: 3,
           cancelLabel: t("workflow.stop"),
         },
         async (task) => {

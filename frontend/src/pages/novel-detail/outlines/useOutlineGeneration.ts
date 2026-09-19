@@ -17,10 +17,8 @@ import { useGenerationTask } from "../../../hooks/useGenerationTask";
 import type { GenerationTaskViewState } from "../../../utils/generationEventReducer";
 import { useI18n } from "../../../i18n";
 
-type OutlineGenerationUiOptions = GenerationProgressUiOptions;
-
 export type RunOutlineGeneration = (
-  options: OutlineGenerationUiOptions,
+  options: GenerationProgressUiOptions,
   input: OutlineGenerationInput,
   afterCompletion?: (
     control: ProgressTaskControl,

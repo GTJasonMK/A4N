@@ -1069,7 +1069,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           startMessage: t("comic.portraitGenerationStart"),
           successMessage: t("comic.portraitGenerationSuccess"),
           errorMessage: t("comic.portraitGenerationFailed"),
-          total: 1,
           cancelLabel: t("comic.stopGeneration"),
         },
         async (task) => {

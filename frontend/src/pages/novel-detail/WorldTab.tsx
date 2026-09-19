@@ -5,13 +5,10 @@ import { promptDialog } from "../../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../../api";
 import {
   getBlueprint,
-  loadBlueprintTaskResult,
   refineBlueprint,
-  syncBlueprintMaterials,
   updateWorldSetting,
   type Blueprint,
 } from "../../api/blueprint";
-import { generationClient } from "../../api/generationTasks";
 import { WorldDetailModal } from "./world/WorldDetailModal";
 import { WorldEditor } from "./world/WorldEditor";
 import { WorldPanelHeader } from "./world/WorldPanelHeader";
@@ -23,7 +20,10 @@ import {
   type WorldEditMode,
   worldSettingSaveNotice,
 } from "./world/worldTabUtils";
+import { isCancelledOperation } from "../../utils/cancellation";
 import { nonEmptyText } from "../../utils/text";
+import { useProgressTask } from "../../hooks/useProgressTask";
+import { runBlueprintRefinementWithProgress } from "./blueprintRefinement";
 import { useI18n } from "../../i18n";
 
 interface WorldTabProps {
@@ -39,6 +39,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
+  const { runProgressTask } = useProgressTask();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [worldValue, setWorldValue] = useState<unknown | null>(null);
@@ -222,14 +223,18 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         variables: null,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const task = await generationClient.waitForTerminal(handle);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      await load();
-      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      const syncWarnings = await runBlueprintRefinementWithProgress({
+        runProgressTask,
+        handle,
+        projectId: requestProjectId,
+        title: t("novel.world.refine"),
+        startMessage: t("novel.world.refining"),
+        successMessage: t("novel.world.refined"),
+        errorMessage: t("novel.world.refineFailed"),
+        isCurrent: () => isCurrentRefine(requestProjectId, requestSeq),
+        refresh: load,
+        t,
+      });
       addToast(
         syncWarnings.length > 0
           ? t("novel.world.refinedWithWarnings", {
@@ -240,7 +245,12 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       );
     } catch (err) {
       if (isCurrentRefine(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.world.refineFailed")), "error");
+        const message = extractErrorMessage(err, t("novel.world.refineFailed"));
+        const cancelled = isCancelledOperation(message);
+        addToast(
+          cancelled ? t("feedback.progressCancelled") : message,
+          cancelled ? "info" : "error",
+        );
       }
     } finally {
       if (refineSeqRef.current === requestSeq) {

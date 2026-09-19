@@ -217,19 +217,20 @@ pub struct RecordOptimizeAgentEventInput {
 /// Agent context sources are inspected and read through the same domain owner
 /// as the optimization session. The selection is intentionally explicit so a
 /// model can choose paragraphs/fields/items without guessing a character page.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OptimizationContextSelection {
+    #[default]
     All,
-    Paragraphs { indexes: Vec<u32> },
-    Paths { paths: Vec<String> },
-    Items { indexes: Vec<u32> },
-}
-
-impl Default for OptimizationContextSelection {
-    fn default() -> Self {
-        Self::All
-    }
+    Paragraphs {
+        indexes: Vec<u32>,
+    },
+    Paths {
+        paths: Vec<String>,
+    },
+    Items {
+        indexes: Vec<u32>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

@@ -245,7 +245,6 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           startMessage: t("characterDetail.portrait.generationStart"),
           successMessage: t("characterDetail.portrait.generationSuccess"),
           errorMessage: t("characterDetail.portrait.generationFailed"),
-          total: 6,
           cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {

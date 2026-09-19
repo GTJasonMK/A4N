@@ -397,7 +397,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           errorMessage: extendingParts
             ? t("outline.partsAppendFailed")
             : t("outline.partsGenerationFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -502,7 +501,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           }),
           successMessage: t("outline.chaptersGenerated", { count: requestedChapterCount }),
           errorMessage: t("outline.chaptersGenerationFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -788,7 +786,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           startMessage: t("outline.rewritingChapter", { chapter: o.chapter_number }),
           successMessage: t("outline.regeneratedChapter", { chapter: o.chapter_number }),
           errorMessage: t("outline.regenerateFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -842,7 +839,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           startMessage: t("outline.refiningPart", { part: part.part_number }),
           successMessage: t("outline.refinedPart", { part: part.part_number }),
           errorMessage: t("outline.regenerateFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -1092,7 +1088,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           startMessage: t("outline.regenerateLastPartStart"),
           successMessage: t("outline.regeneratedLastPart"),
           errorMessage: t("outline.regenerateFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,

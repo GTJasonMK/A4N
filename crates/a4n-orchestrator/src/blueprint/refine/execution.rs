@@ -13,7 +13,7 @@ use a4n_domain::project::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WOR
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use a4n_prompt::rendering::PromptRenderer;
-use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
+use a4n_service_protocol::{GenerationError, GenerationResultRef, ProgressEvent, StreamTextHash};
 use futures::future::BoxFuture;
 
 use crate::OrchestratorContext;
@@ -26,6 +26,8 @@ use crate::generation::{
 use self::call::execute_blueprint_refine_call;
 use self::persistence::persist_blueprint_refinement_in_transaction;
 use self::preparation::prepare_blueprint_refine;
+
+const REFINEMENT_PROGRESS_TOTAL: u64 = 4;
 
 impl OrchestratorContext {
     pub async fn run_blueprint_refinement_task(
@@ -59,6 +61,7 @@ impl OrchestratorContext {
             &publisher,
             "blueprint_refine_prepare",
             ProgressPhaseKind::Prepare,
+            0,
             "正在准备蓝图优化上下文",
         )
         .await
@@ -95,6 +98,7 @@ impl OrchestratorContext {
             &publisher,
             "blueprint_refine_stream",
             ProgressPhaseKind::ModelStream,
+            1,
             "正在流式生成蓝图优化结果",
         )
         .await
@@ -158,7 +162,26 @@ impl OrchestratorContext {
             &publisher,
             "blueprint_refine_validate",
             ProgressPhaseKind::Validate,
+            2,
             "正在校验蓝图优化结果",
+        )
+        .await
+        {
+            return fail_generation_workflow_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                error,
+            )
+            .await;
+        }
+
+        if let Err(error) = publish_refinement_progress(
+            &publisher,
+            "blueprint_refine_persist",
+            ProgressPhaseKind::Save,
+            3,
+            "正在保存蓝图优化结果",
         )
         .await
         {
@@ -255,10 +278,46 @@ async fn publish_refinement_progress(
     publisher: &dyn GenerationEventPublisher,
     stage_code: &str,
     phase_kind: ProgressPhaseKind,
+    current: u64,
     message: &str,
 ) -> Result<(), GenerationError> {
     publisher
-        .progress(generation_progress(stage_code, phase_kind, message))
+        .progress(refinement_progress_event(
+            stage_code, phase_kind, current, message,
+        ))
         .await
         .map_err(|error| generation_public_error(error.code(), stage_code, error))
+}
+
+fn refinement_progress_event(
+    stage_code: &str,
+    phase_kind: ProgressPhaseKind,
+    current: u64,
+    message: &str,
+) -> ProgressEvent {
+    let mut progress = generation_progress(stage_code, phase_kind, message);
+    progress.current = Some(current);
+    progress.total = Some(REFINEMENT_PROGRESS_TOTAL);
+    progress.unit_label = Some("步骤".to_string());
+    progress
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refinement_progress_reports_a_stable_step_total() {
+        let progress = refinement_progress_event(
+            "blueprint_refine_validate",
+            ProgressPhaseKind::Validate,
+            2,
+            "正在校验蓝图优化结果",
+        );
+
+        assert_eq!(progress.current, Some(2));
+        assert_eq!(progress.total, Some(REFINEMENT_PROGRESS_TOTAL));
+        assert_eq!(progress.unit_label.as_deref(), Some("步骤"));
+        assert_eq!(progress.phase_kind, ProgressPhaseKind::Validate);
+    }
 }

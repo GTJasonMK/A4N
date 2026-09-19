@@ -543,7 +543,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           startMessage: t("outline.advancedPanel.applyingBeat"),
           successMessage: t("outline.advancedPanel.beatApplied"),
           errorMessage: t("outline.advancedPanel.applyBeatFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -620,7 +619,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           startMessage: t("outline.advancedPanel.generatingPartChapters", { part: formatNumber(requestPart.part_number, locale) }),
           successMessage: t("outline.advancedPanel.generatedPartChapters", { part: formatNumber(requestPart.part_number, locale) }),
           errorMessage: t("outline.advancedPanel.generateFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -687,7 +685,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           startMessage: t("outline.advancedPanel.batchGenerating", { count: formatNumber(partIds.length, locale) }),
           successMessage: t("outline.advancedPanel.batchGenerated"),
           errorMessage: t("outline.advancedPanel.batchFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -758,7 +755,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           startMessage: t("outline.advancedPanel.regeneratingPart", { part: formatNumber(requestPart.part_number, locale) }),
           successMessage: t("outline.advancedPanel.regeneratedPart"),
           errorMessage: t("outline.regenerateFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -853,7 +849,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           startMessage: t("outline.advancedPanel.regeneratingAll"),
           successMessage: t("outline.advancedPanel.regeneratedAll"),
           errorMessage: t("outline.regenerateFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,
@@ -943,7 +938,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           }),
           successMessage: t("outline.advancedPanel.continuedPart", { part: formatNumber(lastPart.part_number + 1, locale) }),
           errorMessage: t("outline.advancedPanel.continueFailed"),
-          total: 3,
         },
         {
           project_id: requestProjectId,

@@ -441,7 +441,6 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           startMessage: t("novel.imageLibrary.generating"),
           successMessage: requestChapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle"),
           errorMessage: t("novel.imageLibrary.generationFailed"),
-          total: 3,
           cancelLabel: t("workflow.stop"),
         },
         async (task) => {
@@ -628,7 +627,6 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           startMessage: t("novel.imageLibrary.generating"),
           successMessage: t("novel.profile.generateObjectImage"),
           errorMessage: t("novel.imageLibrary.generationFailed"),
-          total: 3,
           cancelLabel: t("workflow.stop"),
         },
         async (task) => {

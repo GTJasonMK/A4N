@@ -117,7 +117,6 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
           startMessage: t("characterDetail.portrait.ageStart"),
           successMessage: t("characterDetail.portrait.ageSuccess"),
           errorMessage: t("characterDetail.portrait.generationFailed"),
-          total: 4,
           cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
