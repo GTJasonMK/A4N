@@ -307,6 +307,50 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertIn("-p a4n-control", commands[0])
         self.assertNotIn("-p a4n-source-snapshot-worker ", commands[0])
 
+    def test_theme_read_worker_change_builds_only_theme_read_worker(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/a4n-theme-read-worker/src/lib.rs")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-theme-read-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+
+    def test_theme_read_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-theme-read-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-theme-read-worker", commands[0])
+
+    def test_theme_read_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-theme-read-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-theme-read-worker ", commands[0])
+
+    def test_project_read_worker_change_builds_only_project_read_worker(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/a4n-project-read-worker/src/lib.rs")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-project-read-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+
+    def test_project_read_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-project-read-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-project-read-worker", commands[0])
+
+    def test_project_read_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/a4n-project-read-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-project-read-worker ", commands[0])
+
     def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
@@ -323,6 +367,8 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
             "a4n-scene-profile-worker",
             "a4n-portrait-worker",
             "a4n-source-snapshot-worker",
+            "a4n-theme-read-worker",
+            "a4n-project-read-worker",
         ):
             self.assertIn(f"-p {package}", commands[0])
 

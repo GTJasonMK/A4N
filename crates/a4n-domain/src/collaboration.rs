@@ -10,7 +10,7 @@ const MEMBER_ROLE_EDITOR: &str = "editor";
 const MEMBER_ROLE_VIEWER: &str = "viewer";
 const ACCESS_ROLE_OWNER: &str = "owner";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectAccessScope {
     All,
@@ -33,7 +33,7 @@ impl FromStr for ProjectAccessScope {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectAccessRole {
     Owner,

@@ -1,6 +1,6 @@
 use a4n_db::project::{
     ProjectBasicRecordError, ProjectFamilyDbError, ProjectFamilyExportError,
-    ProjectFamilyMetadataReadError, ProjectProgressReadError, ProjectRollbackImpactReadError,
+    ProjectFamilyMetadataReadError, ProjectProgressReadError,
 };
 use a4n_db::project_family_import::ProjectFamilyImportError;
 use a4n_error::AppError;
@@ -64,17 +64,6 @@ pub(crate) fn project_progress_read_error_to_app_error(
             AppError::Internal(anyhow::anyhow!(error.to_string()))
         }
         ProjectProgressReadError::Database { source, .. } => AppError::Database(source),
-    }
-}
-
-pub(crate) fn project_rollback_impact_read_error_to_app_error(
-    error: ProjectRollbackImpactReadError,
-) -> AppError {
-    match error {
-        ProjectRollbackImpactReadError::InvalidArgument(message) => {
-            AppError::InvalidArgument(message)
-        }
-        ProjectRollbackImpactReadError::Database { source, .. } => AppError::Database(source),
     }
 }
 

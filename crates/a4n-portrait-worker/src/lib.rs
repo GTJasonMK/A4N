@@ -7,9 +7,10 @@ use a4n_db::DbHandle;
 use a4n_domain::character::{CharacterPortraitProfile, profile_portrait_seed_prompt};
 use a4n_portrait_worker_contract::{
     PORTRAIT_BY_ID_OPERATION, PORTRAIT_LIST_OPERATION, PORTRAIT_MISSING_SEEDS_OPERATION,
-    PORTRAIT_PRIMARY_OPERATION, PORTRAIT_READ_CAPABILITY, PORTRAIT_WORKER_CONTRACT_VERSION,
-    PORTRAIT_WORKER_ID, PortraitGenerationSeedWire, PortraitLookupResponse, PortraitProfileInput,
-    PortraitProjectInput, PortraitRecordInput,
+    PORTRAIT_MUTATION_CAPABILITY, PORTRAIT_PRIMARY_OPERATION, PORTRAIT_READ_CAPABILITY,
+    PORTRAIT_SET_PRIMARY_OPERATION, PORTRAIT_WORKER_CONTRACT_VERSION, PORTRAIT_WORKER_ID,
+    PortraitGenerationSeedWire, PortraitLookupResponse, PortraitProfileInput, PortraitProjectInput,
+    PortraitRecordInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -73,6 +74,10 @@ impl PortraitWorker {
             .route("/v1/commands/portrait.records.list", post(list))
             .route("/v1/commands/portrait.records.primary", post(primary))
             .route("/v1/commands/portrait.records.by_id", post(by_id))
+            .route(
+                "/v1/commands/portrait.records.set_primary",
+                post(set_primary),
+            )
             .route(
                 "/v1/commands/portrait.records.missing_seeds",
                 post(missing_seeds),
@@ -156,11 +161,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: PORTRAIT_READ_CAPABILITY.into(),
-            version: PORTRAIT_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: PORTRAIT_READ_CAPABILITY.into(),
+                version: PORTRAIT_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: PORTRAIT_MUTATION_CAPABILITY.into(),
+                version: PORTRAIT_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -194,6 +206,17 @@ async fn by_id(
 ) -> Response {
     command_response(&state, headers, request, |state, request| async move {
         state.by_id(request).await
+    })
+    .await
+}
+
+async fn set_primary(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<PortraitRecordInput>>,
+) -> Response {
+    command_response(&state, headers, request, |state, request| async move {
+        state.set_primary(request).await
     })
     .await
 }
@@ -347,6 +370,36 @@ impl WorkerState {
             .collect()
     }
 
+    async fn set_primary(
+        &self,
+        request: WorkerEnvelope<PortraitRecordInput>,
+    ) -> Result<(), WorkerFailure> {
+        validate_request(&request, PORTRAIT_SET_PRIMARY_OPERATION)?;
+        let portrait_id = request.payload.portrait_id;
+        if portrait_id <= 0 {
+            return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
+        }
+        let portrait =
+            a4n_db::character::character_portrait_by_id(self.database.connection(), portrait_id)
+                .await
+                .map_err(database_error)?
+                .ok_or_else(|| WorkerFailure::not_found("立绘不存在"))?;
+        let user_id = user_id(&request)?;
+        verify_permission(
+            self,
+            portrait.project_id,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        a4n_db::character::set_primary_character_portrait_record(
+            self.database.connection(),
+            portrait_id,
+        )
+        .await
+        .map_err(portrait_record_error)
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -492,6 +545,20 @@ fn project_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure 
 
 fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
+}
+
+fn portrait_record_error(error: a4n_db::character::CharacterPortraitRecordError) -> WorkerFailure {
+    match error {
+        a4n_db::character::CharacterPortraitRecordError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::character::CharacterPortraitRecordError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::character::CharacterPortraitRecordError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
 }
 
 impl WorkerFailure {

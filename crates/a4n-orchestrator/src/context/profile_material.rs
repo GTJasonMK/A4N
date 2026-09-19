@@ -53,22 +53,6 @@ impl ProfileMaterialApplication {
         .await
         .map_err(profile_material_db_error)
     }
-
-    async fn delete_profile_primary_material(
-        &self,
-        project_id: i64,
-        profile_kind: &str,
-        profile_id: i64,
-    ) -> Result<(), AppError> {
-        a4n_db::profile_material::delete_profile_primary_material(
-            self.connection(),
-            project_id,
-            profile_kind,
-            profile_id,
-        )
-        .await
-        .map_err(profile_material_db_error)
-    }
 }
 
 fn profile_material_db_error(error: ProfileMaterialDbError) -> AppError {
@@ -98,17 +82,6 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         self.profile_material
             .upsert_profile_primary_material(project_id, profile_kind, profile_id, image_id)
-            .await
-    }
-
-    pub(crate) async fn delete_profile_primary_material(
-        &self,
-        project_id: i64,
-        profile_kind: &str,
-        profile_id: i64,
-    ) -> Result<(), AppError> {
-        self.profile_material
-            .delete_profile_primary_material(project_id, profile_kind, profile_id)
             .await
     }
 }

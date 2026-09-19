@@ -57,7 +57,7 @@ pub struct ThemeResourceSummary {
 
 /// Internal application projection used by resource persistence and package
 /// assembly. It deliberately keeps the checksum while avoiding ORM models.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ThemeResourceRecord {
     pub id: i64,
     pub theme_id: i64,

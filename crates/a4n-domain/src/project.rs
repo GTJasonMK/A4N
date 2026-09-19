@@ -535,7 +535,7 @@ impl ProjectStatusArtifacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectStatusHistorySummary {
     pub id: i64,
     pub from_status: ProjectStatus,
@@ -544,7 +544,7 @@ pub struct ProjectStatusHistorySummary {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectStatusMachineSummary {
     pub current_status: ProjectStatus,
     pub forward_targets: Vec<ProjectStatus>,
@@ -552,7 +552,7 @@ pub struct ProjectStatusMachineSummary {
     pub history: Vec<ProjectStatusHistorySummary>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectRollbackImpactSummary {
     pub title: String,
     pub count: i32,
@@ -563,13 +563,13 @@ pub struct ProjectRollbackImpactSummary {
     pub note: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectRollbackPreview {
     pub path: Vec<ProjectStatus>,
     pub impacts: Vec<ProjectRollbackImpactSummary>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectProgressSummary {
     pub label: String,
     pub detail: Option<String>,

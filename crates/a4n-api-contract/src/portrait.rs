@@ -79,7 +79,7 @@ pub struct PortraitReferenceImageSource {
 /// Host-facing portrait record read boundary.
 ///
 /// Authorization, persistence and ORM-to-summary projection stay in the
-/// character/portrait owner; hosts consume only stable summaries.
+/// portrait worker; hosts consume only stable summaries.
 #[async_trait::async_trait]
 pub trait PortraitRecordReadApplicationPort: Send + Sync {
     async fn list_by_project(
@@ -107,7 +107,7 @@ pub trait PortraitRecordReadApplicationPort: Send + Sync {
     ) -> Result<Vec<PortraitGenerationSeed>, a4n_error::AppError>;
 }
 
-/// Host-facing portrait record mutation boundary.
+/// Host-facing portrait record mutation boundary owned by the portrait worker.
 #[async_trait::async_trait]
 pub trait PortraitRecordMutationApplicationPort: Send + Sync {
     async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), a4n_error::AppError>;

@@ -773,10 +773,16 @@ impl AppState {
         self.admin_mutation_application.as_ref()
     }
 
-    pub(crate) fn project_status_application(
+    pub(crate) fn project_status_read_application(
         &self,
-    ) -> &dyn a4n_api_contract::project::ProjectStatusApplicationPort {
-        self.project_status_application.as_ref()
+    ) -> &dyn a4n_api_contract::project::ProjectStatusReadApplicationPort {
+        self.project_status_read_application.as_ref()
+    }
+
+    pub(crate) fn project_status_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::project::ProjectStatusMutationApplicationPort {
+        self.project_status_mutation_application.as_ref()
     }
 
     pub(crate) fn project_collaboration_application(

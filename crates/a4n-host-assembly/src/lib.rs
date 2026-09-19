@@ -63,6 +63,14 @@ pub async fn initialize_runtime(
     let portrait_worker = Arc::new(a4n_portrait_worker_client::PortraitWorkerClient::from_env());
     let source_snapshot_worker =
         Arc::new(a4n_source_snapshot_worker_client::SourceSnapshotWorkerClient::from_env());
+    let profile_material_worker =
+        Arc::new(a4n_profile_material_worker_client::ProfileMaterialWorkerClient::from_env());
+    let project_status_worker =
+        Arc::new(a4n_project_status_worker_client::ProjectStatusWorkerClient::from_env());
+    let project_read_worker =
+        Arc::new(a4n_project_read_worker_client::ProjectReadWorkerClient::from_env());
+    let theme_read_worker =
+        Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -85,10 +93,11 @@ pub async fn initialize_runtime(
         admin_read_application: orchestrator.clone(),
         model_usage_read_application: orchestrator.clone(),
         admin_mutation_application: orchestrator.clone(),
-        project_status_application: orchestrator.clone(),
+        project_status_read_application: project_status_worker,
+        project_status_mutation_application: orchestrator.clone(),
         project_collaboration_application: orchestrator.clone(),
         project_access_application: orchestrator.clone(),
-        project_read_application: orchestrator.clone(),
+        project_read_application: project_read_worker,
         project_source_snapshot_read_application: source_snapshot_worker,
         project_mutation_application: orchestrator.clone(),
         project_asset_graph_application: asset_graph_worker,
@@ -154,7 +163,7 @@ pub async fn initialize_runtime(
         outline_chapter_count_generation_preview_application: orchestrator.clone(),
         outline_chapter_regeneration_preview_application: orchestrator.clone(),
         outline_beat_mapping_preview_application: orchestrator.clone(),
-        theme_read_application: orchestrator.clone(),
+        theme_read_application: theme_read_worker,
         theme_mutation_application: orchestrator.clone(),
         config_read_application,
         config_mutation_application,
@@ -252,11 +261,11 @@ pub async fn initialize_runtime(
         image_scene_request_preview_application: orchestrator.clone(),
         image_generation_task_application: orchestrator.clone(),
         image_profile_prompt_application: orchestrator.clone(),
-        profile_material_read_application: orchestrator.clone(),
-        profile_material_mutation_application: orchestrator.clone(),
+        profile_material_read_application: profile_material_worker.clone(),
+        profile_material_mutation_application: profile_material_worker,
         profile_material_upload_application: orchestrator.clone(),
-        portrait_record_read_application: portrait_worker,
-        portrait_record_mutation_application: orchestrator.clone(),
+        portrait_record_read_application: portrait_worker.clone(),
+        portrait_record_mutation_application: portrait_worker,
         portrait_prompt_request_preview_application: orchestrator.clone(),
         portrait_image_request_preview_application: orchestrator.clone(),
         portrait_prompt_application: orchestrator.clone(),

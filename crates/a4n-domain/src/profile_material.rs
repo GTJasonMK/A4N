@@ -1,5 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -15,6 +18,28 @@ impl ProfileMaterialKind {
             Self::Object => "object",
         }
     }
+}
+
+pub fn profile_material_identity(
+    image_type: &str,
+    metadata: Option<&Value>,
+) -> Option<(&'static str, i64)> {
+    let expected_kind = match image_type {
+        IMAGE_TYPE_SCENE_MATERIAL => ProfileMaterialKind::Scene,
+        IMAGE_TYPE_OBJECT_MATERIAL => ProfileMaterialKind::Object,
+        _ => return None,
+    };
+    let metadata_kind = metadata
+        .and_then(|metadata| metadata.get("profile_kind"))
+        .and_then(Value::as_str);
+    if metadata_kind != Some(expected_kind.as_str()) {
+        return None;
+    }
+    metadata
+        .and_then(|metadata| metadata.get("profile_id"))
+        .and_then(Value::as_i64)
+        .filter(|id| *id > 0)
+        .map(|id| (expected_kind.as_str(), id))
 }
 
 pub fn resolve_downstream_image_ids(
@@ -79,4 +104,35 @@ pub enum ProfileMaterialSort {
     StaleFirst,
     Newest,
     Importance,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn identity_requires_matching_kind_and_positive_id() {
+        assert_eq!(
+            profile_material_identity(
+                IMAGE_TYPE_OBJECT_MATERIAL,
+                Some(&json!({ "profile_kind": "object", "profile_id": 8 })),
+            ),
+            Some(("object", 8))
+        );
+        assert_eq!(
+            profile_material_identity(
+                IMAGE_TYPE_SCENE_MATERIAL,
+                Some(&json!({ "profile_kind": "object", "profile_id": 8 })),
+            ),
+            None
+        );
+        assert_eq!(
+            profile_material_identity(
+                IMAGE_TYPE_OBJECT_MATERIAL,
+                Some(&json!({ "profile_kind": "object", "profile_id": 0 })),
+            ),
+            None
+        );
+    }
 }

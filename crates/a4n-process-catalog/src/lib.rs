@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 11);
+        assert_eq!(entries.len(), 15);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -511,18 +511,73 @@ mod tests {
             scene.migration.current.as_deref(),
             Some("scene_profile_mutation")
         );
+        let profile_material = entries
+            .iter()
+            .find(|entry| entry.name == "profile-material-worker")
+            .expect("profile material worker entry");
+        assert_eq!(profile_material.kind, ProcessKind::StatefulWorker);
+        assert_eq!(profile_material.binary, "a4n-profile-material-worker");
+        assert_eq!(profile_material.contract_version, "profile-material-v1");
+        assert_eq!(
+            profile_material.addr_env,
+            "A4N_PROFILE_MATERIAL_WORKER_ADDR"
+        );
+        assert_eq!(profile_material.default_addr, "127.0.0.1:47661");
+        assert_eq!(
+            profile_material.capabilities,
+            vec![
+                "profile.material.read".to_string(),
+                "profile.material.mutation".to_string()
+            ]
+        );
+        let project_status = entries
+            .iter()
+            .find(|entry| entry.name == "project-status-worker")
+            .expect("project status worker entry");
+        assert_eq!(project_status.kind, ProcessKind::StatefulWorker);
+        assert_eq!(project_status.binary, "a4n-project-status-worker");
+        assert_eq!(project_status.contract_version, "project-status-read-v1");
+        assert_eq!(project_status.addr_env, "A4N_PROJECT_STATUS_WORKER_ADDR");
+        assert_eq!(project_status.default_addr, "127.0.0.1:47662");
+        assert_eq!(
+            project_status.capabilities,
+            vec!["project.status.read".to_string()]
+        );
+        let theme_read = entries
+            .iter()
+            .find(|entry| entry.name == "theme-read-worker")
+            .expect("theme read worker entry");
+        assert_eq!(theme_read.kind, ProcessKind::StatefulWorker);
+        assert_eq!(theme_read.binary, "a4n-theme-read-worker");
+        assert_eq!(theme_read.contract_version, "theme-read-v1");
+        assert_eq!(theme_read.addr_env, "A4N_THEME_READ_WORKER_ADDR");
+        assert_eq!(theme_read.default_addr, "127.0.0.1:47663");
+        assert_eq!(theme_read.capabilities, vec!["theme.read".to_string()]);
+        let project_read = entries
+            .iter()
+            .find(|entry| entry.name == "project-read-worker")
+            .expect("project read worker entry");
+        assert_eq!(project_read.kind, ProcessKind::StatefulWorker);
+        assert_eq!(project_read.binary, "a4n-project-read-worker");
+        assert_eq!(project_read.contract_version, "project-read-v1");
+        assert_eq!(project_read.addr_env, "A4N_PROJECT_READ_WORKER_ADDR");
+        assert_eq!(project_read.default_addr, "127.0.0.1:47664");
+        assert_eq!(project_read.capabilities, vec!["project.read".to_string()]);
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")
             .expect("portrait worker entry");
         assert_eq!(portrait.kind, ProcessKind::StatefulWorker);
         assert_eq!(portrait.binary, "a4n-portrait-worker");
-        assert_eq!(portrait.contract_version, "portrait-read-v2");
+        assert_eq!(portrait.contract_version, "portrait-records-v3");
         assert_eq!(portrait.addr_env, "A4N_PORTRAIT_WORKER_ADDR");
         assert_eq!(portrait.default_addr, "127.0.0.1:47659");
         assert_eq!(
             portrait.capabilities,
-            vec!["portrait.records.read".to_string()]
+            vec![
+                "portrait.records.read".to_string(),
+                "portrait.records.mutation".to_string()
+            ]
         );
         let source_snapshot = entries
             .iter()
@@ -542,7 +597,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 20);
+        assert_eq!(entries.len(), 24);
         assert_eq!(
             entries
                 .iter()

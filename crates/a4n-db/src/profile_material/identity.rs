@@ -9,11 +9,7 @@ pub fn profile_material_identity(
     image_type: &str,
     metadata: Option<&Value>,
 ) -> Option<(&'static str, i64)> {
-    profile_material_identity_from_fields(
-        image_type,
-        metadata_profile_kind(metadata),
-        metadata_number(metadata, "profile_id"),
-    )
+    a4n_domain::profile_material::profile_material_identity(image_type, metadata)
 }
 
 pub fn profile_material_identity_from_fields(
@@ -45,17 +41,4 @@ pub fn is_project_reusable_video_material_image(
     metadata: Option<&Value>,
 ) -> bool {
     profile_material_identity(image_type, metadata).is_some()
-}
-
-fn metadata_number(metadata: Option<&Value>, key: &str) -> Option<i64> {
-    metadata
-        .and_then(|metadata| metadata.get(key))
-        .and_then(Value::as_i64)
-        .filter(|id| *id > 0)
-}
-
-fn metadata_profile_kind(metadata: Option<&Value>) -> Option<&str> {
-    metadata
-        .and_then(|metadata| metadata.get("profile_kind"))
-        .and_then(Value::as_str)
 }

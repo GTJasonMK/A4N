@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
 use a4n_db::{DbHandle, collaboration::CollaborationDbError};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::collaboration::{
-    AccessibleProjectListInput, AccessibleProjectsPage, CollaborationRootProject,
-    ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, ProjectInviteSummary,
-    ProjectMemberRole, ProjectMemberSummary,
+    CollaborationRootProject, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole,
+    ProjectInviteSummary, ProjectMemberRole, ProjectMemberSummary,
 };
 
 fn collaboration_db_error_to_app_error(error: CollaborationDbError) -> AppError {
@@ -34,15 +31,6 @@ impl CollaborationApplication {
         Self { database }
     }
 
-    async fn accessible_projects(
-        &self,
-        input: AccessibleProjectListInput,
-    ) -> Result<AccessibleProjectsPage, AppError> {
-        a4n_db::collaboration::list_accessible_projects(self.database.connection(), input)
-            .await
-            .map_err(collaboration_db_error_to_app_error)
-    }
-
     async fn project_access_info(
         &self,
         query: ProjectAccessInfoQuery,
@@ -51,20 +39,6 @@ impl CollaborationApplication {
         a4n_db::collaboration::project_access_info(self.database.connection(), query, user_id)
             .await
             .map_err(collaboration_db_error_to_app_error)
-    }
-
-    async fn project_access_info_batch(
-        &self,
-        queries: &[ProjectAccessInfoQuery],
-        user_id: i64,
-    ) -> Result<HashMap<i64, ProjectAccessInfo>, AppError> {
-        a4n_db::collaboration::project_access_info_batch(
-            self.database.connection(),
-            queries,
-            user_id,
-        )
-        .await
-        .map_err(collaboration_db_error_to_app_error)
     }
 
     async fn collaboration_root_project(
@@ -253,29 +227,12 @@ impl CollaborationApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn accessible_projects(
-        &self,
-        input: AccessibleProjectListInput,
-    ) -> Result<AccessibleProjectsPage, AppError> {
-        self.collaboration.accessible_projects(input).await
-    }
-
     pub(crate) async fn project_access_info(
         &self,
         query: ProjectAccessInfoQuery,
         user_id: i64,
     ) -> Result<ProjectAccessInfo, AppError> {
         self.collaboration.project_access_info(query, user_id).await
-    }
-
-    pub(crate) async fn project_access_info_batch(
-        &self,
-        queries: &[ProjectAccessInfoQuery],
-        user_id: i64,
-    ) -> Result<HashMap<i64, ProjectAccessInfo>, AppError> {
-        self.collaboration
-            .project_access_info_batch(queries, user_id)
-            .await
     }
 
     pub(crate) async fn collaboration_root_project(

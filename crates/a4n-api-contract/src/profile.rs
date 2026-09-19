@@ -344,8 +344,8 @@ pub struct ProfileMaterialGroup {
 
 /// Host-facing profile-material read boundary.
 ///
-/// Authorization, persistence and group projection stay with the media
-/// owner; Runtime only routes the stable API contract.
+/// Authorization, persistence and group projection stay with the profile
+/// material worker; Runtime only routes the stable API contract.
 #[async_trait::async_trait]
 pub trait ProfileMaterialReadApplicationPort: Send + Sync {
     async fn list(
@@ -355,7 +355,8 @@ pub trait ProfileMaterialReadApplicationPort: Send + Sync {
     ) -> Result<Vec<ProfileMaterialGroup>, a4n_error::AppError>;
 }
 
-/// Host-facing profile-material mutation boundary.
+/// Host-facing profile-material mutation boundary owned by the profile
+/// material worker.
 #[async_trait::async_trait]
 pub trait ProfileMaterialMutationApplicationPort: Send + Sync {
     async fn set_primary(

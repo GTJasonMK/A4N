@@ -12,7 +12,7 @@ pub use a4n_domain::project::{
     PromptSource, SourceSnapshotChapterSummary,
 };
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ProjectSummary {
     pub id: i64,
     pub title: String,
@@ -67,13 +67,9 @@ pub trait ProjectDuplicationApplicationPort: Send + Sync {
     ) -> Result<ProjectSummary, a4n_error::AppError>;
 }
 
-/// Host-facing project status application boundary.
-///
-/// Status transitions, rollback impact checks, permissions and project-family
-/// projections remain owned by the project application. Hosts receive only
-/// stable API DTOs and never handle the persisted project model.
+/// Host-facing project status read boundary owned by the project-status worker.
 #[async_trait::async_trait]
-pub trait ProjectStatusApplicationPort: Send + Sync {
+pub trait ProjectStatusReadApplicationPort: Send + Sync {
     async fn status_machine(
         &self,
         user_id: i64,
@@ -86,7 +82,11 @@ pub trait ProjectStatusApplicationPort: Send + Sync {
         project_id: i64,
         target: ProjectStatus,
     ) -> Result<ProjectRollbackPreview, a4n_error::AppError>;
+}
 
+/// Host-facing project status mutation boundary.
+#[async_trait::async_trait]
+pub trait ProjectStatusMutationApplicationPort: Send + Sync {
     async fn forward_status(
         &self,
         user_id: i64,
@@ -102,7 +102,7 @@ pub trait ProjectStatusApplicationPort: Send + Sync {
     ) -> Result<ProjectSummary, a4n_error::AppError>;
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PaginatedProjects {
     pub items: Vec<ProjectSummary>,
     pub total: u64,
@@ -110,7 +110,7 @@ pub struct PaginatedProjects {
     pub page_size: u64,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectListInput {
     pub page: u64,

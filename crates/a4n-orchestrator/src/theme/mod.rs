@@ -5,24 +5,18 @@ use std::collections::HashSet;
 mod rules;
 
 use a4n_api_contract::theme::{
-    CreateThemeInput, PersistThemeResourceInput, ThemeResourceRecord, ThemeResourceSummary,
-    ThemeSummary, UpdateThemeInput,
+    CreateThemeInput, PersistThemeResourceInput, ThemeResourceRecord, ThemeSummary,
+    UpdateThemeInput,
 };
 use a4n_db_models::models::user::{theme_config, theme_preference, theme_resource};
-use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
+use a4n_domain::ThemeAppearance;
 use a4n_error::AppError;
+use a4n_theme_core::theme_resource_record;
 
 use crate::{OrchestratorContext, auth::ensure_same_user};
 use rules::{ensure_theme_can_be_deleted, normalize_theme_name};
 
 impl OrchestratorContext {
-    pub async fn list_themes_for_user_validated(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<theme_config::Model>, AppError> {
-        self.list_themes_visible_to_user(user_id).await
-    }
-
     pub async fn create_theme_for_user_validated(
         &self,
         user_id: i64,
@@ -87,14 +81,6 @@ impl OrchestratorContext {
         self.activate_theme(theme_id).await
     }
 
-    pub async fn export_theme_for_user_validated(
-        &self,
-        user_id: i64,
-        theme_id: i64,
-    ) -> Result<theme_config::Model, AppError> {
-        self.require_theme_access(user_id, theme_id).await
-    }
-
     pub async fn import_theme_for_user_validated(
         &self,
         user_id: i64,
@@ -120,15 +106,6 @@ impl OrchestratorContext {
             input.name = name;
         }
         self.create_theme_for_user_validated(user_id, input).await
-    }
-
-    pub async fn list_theme_resources_for_user_validated(
-        &self,
-        user_id: i64,
-        theme_id: i64,
-    ) -> Result<Vec<theme_resource::Model>, AppError> {
-        self.require_theme_access(user_id, theme_id).await?;
-        self.list_theme_resources(theme_id).await
     }
 
     pub async fn upsert_theme_resource_for_user_validated(
@@ -170,13 +147,6 @@ impl OrchestratorContext {
         self.delete_theme_resource(resource_id).await
     }
 
-    pub async fn get_theme_preference_for_user_validated(
-        &self,
-        user_id: i64,
-    ) -> Result<Option<theme_preference::Model>, AppError> {
-        self.theme_preference(user_id).await
-    }
-
     pub async fn update_theme_preference_for_user_validated(
         &self,
         user_id: i64,
@@ -215,66 +185,6 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::theme::ThemeReadApplicationPort for OrchestratorContext {
-    async fn list_themes(&self, user_id: i64) -> Result<Vec<ThemeSummary>, AppError> {
-        let themes = self.list_themes_visible_to_user(user_id).await?;
-        let theme_ids = themes.iter().map(|theme| theme.id).collect::<Vec<_>>();
-        let resources = self.list_theme_resources_for_themes(&theme_ids).await?;
-        let mut resources_by_theme = std::collections::HashMap::<i64, Vec<_>>::new();
-        for resource in resources {
-            resources_by_theme
-                .entry(resource.theme_id)
-                .or_default()
-                .push(resource);
-        }
-        themes
-            .into_iter()
-            .map(|theme| {
-                let theme_id = theme.id;
-                theme_summary_with_resources(
-                    theme,
-                    resources_by_theme.remove(&theme_id).unwrap_or_default(),
-                )
-            })
-            .collect()
-    }
-
-    async fn export_theme(&self, user_id: i64, theme_id: i64) -> Result<ThemeSummary, AppError> {
-        let theme = self
-            .export_theme_for_user_validated(user_id, theme_id)
-            .await?;
-        self.theme_summary(user_id, theme).await
-    }
-
-    async fn list_resources(
-        &self,
-        user_id: i64,
-        theme_id: i64,
-    ) -> Result<Vec<ThemeResourceRecord>, AppError> {
-        self.list_theme_resources_for_user_validated(user_id, theme_id)
-            .await
-            .map(|resources| resources.into_iter().map(theme_resource_record).collect())
-    }
-
-    async fn get_preference(
-        &self,
-        user_id: i64,
-    ) -> Result<a4n_api_contract::theme::ThemePreferenceSummary, AppError> {
-        let appearance = self
-            .get_theme_preference_for_user_validated(user_id)
-            .await?
-            .map(|preference| preference.appearance.parse::<ThemeAppearance>())
-            .transpose()
-            .map_err(|error| AppError::ConfigError(format!("主题外观偏好无效：{error}")))?
-            .unwrap_or(ThemeAppearance::System);
-        Ok(a4n_api_contract::theme::ThemePreferenceSummary {
-            user_id,
-            appearance,
-        })
-    }
-}
-
-#[async_trait::async_trait]
 impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorContext {
     async fn create_theme(
         &self,
@@ -282,7 +192,7 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         input: CreateThemeInput,
     ) -> Result<ThemeSummary, AppError> {
         let theme = self.create_theme_for_user_validated(user_id, input).await?;
-        self.theme_summary(user_id, theme).await
+        self.theme_summary(theme).await
     }
 
     async fn update_theme(
@@ -294,7 +204,7 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         let theme = self
             .update_theme_for_user_validated(user_id, theme_id, input)
             .await?;
-        self.theme_summary(user_id, theme).await
+        self.theme_summary(theme).await
     }
 
     async fn delete_theme(&self, user_id: i64, theme_id: i64) -> Result<(), AppError> {
@@ -306,7 +216,7 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         let theme = self
             .activate_theme_for_user_validated(user_id, theme_id)
             .await?;
-        self.theme_summary(user_id, theme).await
+        self.theme_summary(theme).await
     }
 
     async fn import_theme(
@@ -315,7 +225,7 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         input: CreateThemeInput,
     ) -> Result<ThemeSummary, AppError> {
         let theme = self.import_theme_for_user_validated(user_id, input).await?;
-        self.theme_summary(user_id, theme).await
+        self.theme_summary(theme).await
     }
 
     async fn upsert_resource(
@@ -369,64 +279,8 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
 }
 
 impl OrchestratorContext {
-    async fn theme_summary(
-        &self,
-        user_id: i64,
-        theme: theme_config::Model,
-    ) -> Result<ThemeSummary, AppError> {
-        let resources = self
-            .list_theme_resources_for_user_validated(user_id, theme.id)
-            .await?;
-        theme_summary_with_resources(theme, resources)
-    }
-}
-
-fn theme_summary_with_resources(
-    theme: theme_config::Model,
-    resources: Vec<theme_resource::Model>,
-) -> Result<ThemeSummary, AppError> {
-    let mode = theme.mode.parse::<ThemeMode>().map_err(|error| {
-        AppError::ConfigError(format!("主题 {} 的持久化 mode 无效：{error}", theme.id))
-    })?;
-    let document =
-        serde_json::from_value::<ThemeDocument>(theme.theme_document.clone()).map_err(|error| {
-            AppError::ConfigError(format!(
-                "主题 {} 的持久化 theme_document 无效：{error}",
-                theme.id
-            ))
-        })?;
-    Ok(ThemeSummary {
-        id: theme.id,
-        user_id: theme.user_id,
-        name: theme.name,
-        mode,
-        document,
-        resources: resources
-            .into_iter()
-            .map(|resource| ThemeResourceSummary {
-                id: resource.id,
-                theme_id: resource.theme_id,
-                resource_key: resource.resource_key,
-                file_name: resource.file_name,
-                mime_type: resource.mime_type,
-                file_path: resource.file_path,
-                byte_size: resource.byte_size,
-            })
-            .collect(),
-        is_system_default: theme.is_system_default,
-        is_active: theme.is_active,
-    })
-}
-
-fn theme_resource_record(resource: theme_resource::Model) -> ThemeResourceRecord {
-    ThemeResourceRecord {
-        id: resource.id,
-        theme_id: resource.theme_id,
-        resource_key: resource.resource_key,
-        file_name: resource.file_name,
-        mime_type: resource.mime_type,
-        file_path: resource.file_path,
-        sha256: resource.sha256,
-        byte_size: resource.byte_size,
+    async fn theme_summary(&self, theme: theme_config::Model) -> Result<ThemeSummary, AppError> {
+        let resources = self.list_theme_resources(theme.id).await?;
+        a4n_theme_core::theme_summary_with_resources(theme, resources)
     }
 }
