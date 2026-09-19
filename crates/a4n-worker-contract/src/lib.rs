@@ -66,8 +66,6 @@ impl AgentWorkerRunLeaseRequest {
     }
 }
 
-pub type AgentWorkerLeaseRenewRequest = AgentWorkerRunLeaseRequest;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentWorkerUsageRequest {
