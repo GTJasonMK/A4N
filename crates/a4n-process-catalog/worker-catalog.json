@@ -468,5 +468,24 @@
       "min_compatible": "chapter_scene",
       "max_compatible": "chapter_scene"
     }
+  },
+  {
+    "name": "chapter-content-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-chapter-content-worker",
+    "contract_version": "chapter-content-v1",
+    "capability_version": "chapter-content-v1",
+    "addr_env": "A4N_CHAPTER_CONTENT_WORKER_ADDR",
+    "url_env": "A4N_CHAPTER_CONTENT_WORKER_URL",
+    "default_addr": "127.0.0.1:47671",
+    "local_only": true,
+    "data_scope": ["chapter"],
+    "capabilities": ["chapter.content"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "chapter_content",
+      "min_compatible": "chapter_content",
+      "max_compatible": "chapter_content"
+    }
   }
 ]

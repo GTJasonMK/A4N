@@ -82,6 +82,8 @@ pub async fn initialize_runtime(
         Arc::new(a4n_project_mutation_worker_client::ProjectMutationWorkerClient::from_env());
     let chapter_scene_worker =
         Arc::new(a4n_chapter_scene_worker_client::ChapterSceneWorkerClient::from_env());
+    let chapter_content_worker =
+        Arc::new(a4n_chapter_content_worker_client::ChapterContentWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -160,7 +162,7 @@ pub async fn initialize_runtime(
         blueprint_generation_application: orchestrator.clone(),
         blueprint_refinement_application: orchestrator.clone(),
         blueprint_mutation_application: orchestrator.clone(),
-        chapter_content_read_application: orchestrator.clone(),
+        chapter_content_read_application: chapter_content_worker,
         chapter_content_mutation_application: orchestrator.clone(),
         chapter_content_sync_application: orchestrator.clone(),
         chapter_generation_request_preview_application: orchestrator.clone(),

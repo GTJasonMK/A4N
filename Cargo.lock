@@ -335,6 +335,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-chapter-content-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-chapter-analysis",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "chrono",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-chapter-content-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-chapter-analysis",
+ "a4n-chapter-content-core",
+ "a4n-chapter-content-worker-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-chapter-content-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-chapter-content-worker-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-chapter-content-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-chapter-generation-contract"
 version = "0.1.0"
 dependencies = [
@@ -831,6 +892,7 @@ dependencies = [
  "a4n-artifact-media-contract",
  "a4n-asset-graph-worker-client",
  "a4n-blueprint-worker-client",
+ "a4n-chapter-content-worker-client",
  "a4n-chapter-scene-worker-client",
  "a4n-config",
  "a4n-error",
@@ -1467,6 +1529,7 @@ dependencies = [
  "a4n-canvas-host-contract",
  "a4n-chapter-analysis",
  "a4n-chapter-analysis-host-contract",
+ "a4n-chapter-content-core",
  "a4n-chapter-generation-contract",
  "a4n-character-host-contract",
  "a4n-cleanup-contract",
@@ -2329,6 +2392,7 @@ dependencies = [
  "a4n-artifact-media-worker",
  "a4n-asset-graph-worker",
  "a4n-blueprint-worker",
+ "a4n-chapter-content-worker",
  "a4n-chapter-scene-worker",
  "a4n-control",
  "a4n-db",

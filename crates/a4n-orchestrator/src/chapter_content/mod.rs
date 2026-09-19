@@ -7,9 +7,7 @@ mod application;
 mod rules;
 mod sync;
 
-pub(crate) use sync::CHAPTER_CONTENT_SYNC_RAG_STEP;
 pub(crate) use sync::CHAPTER_CONTENT_SYNC_WORKFLOW_KIND;
-pub(crate) use sync::chapter_content_sync_run_input_matches;
 pub(crate) use sync::{
     CHAPTER_CONTENT_SYNC_CLEANUP_STEP, chapter_content_sync_checkpoint_artifacts,
     chapter_content_sync_checkpoint_input, chapter_content_sync_workflow_business_key,
