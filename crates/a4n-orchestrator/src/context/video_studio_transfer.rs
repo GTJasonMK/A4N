@@ -45,8 +45,6 @@ impl OrchestratorContext {
             crate::project::MANIFEST_PATH,
             "视频画布项目清单",
             "视频画布项目导出包",
-            Some(package.project.id),
-            Some(package.project.id),
         )?;
         let package_bytes = host_port
             .render_export_package(host_input)

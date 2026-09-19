@@ -536,7 +536,7 @@ fn preview(value: &str) -> String {
     let mut chars = value.chars();
     let mut text = chars.by_ref().take(PREVIEW_CHARS).collect::<String>();
     if chars.next().is_some() {
-        text.push_str("…");
+        text.push('…');
     }
     text.trim().to_string()
 }

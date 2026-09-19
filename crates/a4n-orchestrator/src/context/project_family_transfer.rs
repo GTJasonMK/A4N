@@ -46,8 +46,6 @@ impl OrchestratorContext {
             crate::project::FAMILY_PACKAGE_MANIFEST_PATH,
             "项目族清单",
             "项目族导出包",
-            Some(package.root_project_id),
-            Some(package.root_project_id),
         )?;
         let package_bytes = host_port
             .render_export_package(host_input)
@@ -89,8 +87,6 @@ impl OrchestratorContext {
             crate::project::FAMILY_PACKAGE_MANIFEST_PATH,
             "项目族清单",
             "项目族导出包",
-            Some(package.root_project_id),
-            Some(package.root_project_id),
         )?;
         let package_bytes = host_port
             .render_export_package(host_input)

@@ -671,7 +671,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Run FFmpeg smoke tests
-        run: timeout 600 cargo test -p a4n-media --test ffmpeg_smoke -- --ignored --nocapture --test-threads=1
+        run: timeout 600 cargo test -p a4n-media-processing-core --test ffmpeg_smoke -- --ignored --nocapture --test-threads=1
 
   qdrant-live:
     name: Qdrant live vector-store smoke

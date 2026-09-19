@@ -9,7 +9,7 @@ import {
 } from "../utils/projectRouting";
 import { isCancelledOperation } from "../utils/cancellation";
 import { useToast } from "../components/feedback/Toast";
-import { confirmDialog } from "../components/feedback/ConfirmDialog";
+import { choiceDialog, confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../api";
@@ -481,9 +481,21 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const actionKey = `export-${project.id}`;
     if (!beginProjectAction(actionKey)) return;
     try {
+      let includeDerivedProjects = false;
+      if (project.project_kind === "text") {
+        const scope = await choiceDialog({
+          title: t("novel.projectListActions.exportTitle"),
+          message: t("novel.projectListActions.exportScopeMessage", { title: project.title }),
+          confirmText: t("novel.projectListActions.exportCurrent"),
+          secondaryText: t("novel.projectListActions.exportFamily"),
+          cancelText: t("common.cancel"),
+        });
+        if (scope === "cancel") return;
+        includeDerivedProjects = scope === "secondary";
+      }
       const result = await exportProjectBundleData({
         project_id: project.id,
-        include_derived_projects: project.project_kind === "text",
+        include_derived_projects: includeDerivedProjects,
       });
       if (!mountedRef.current) return;
       downloadBlob(

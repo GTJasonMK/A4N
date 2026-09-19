@@ -98,8 +98,6 @@ pub struct ProjectPackageExportInput {
     pub manifest_label: String,
     pub package_label: String,
     pub media_files: Vec<MediaFileEntry>,
-    pub project_id: Option<i64>,
-    pub root_project_id: Option<i64>,
 }
 
 #[derive(Debug)]

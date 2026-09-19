@@ -10,6 +10,7 @@
 #     --ssh-key ~/.ssh/a4n-deploy \
 #     --public-origin https://app.example.com
 #   ./scripts/deploy/deploy-cloud.sh --online          # 容器内允许 cargo 联网拉取缺失依赖
+#   ./scripts/deploy/deploy-cloud.sh --full            # 强制全量构建、上传和重启
 #   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/工具/sidecar/ONNX Runtime 和 frontend/dist
 #   ./scripts/deploy/deploy-cloud.sh --rebuild-builder # 重建本地 Ubuntu 24 构建镜像
 #   ./scripts/deploy/deploy-cloud.sh --no-smoke        # 跳过公网 smoke test
@@ -20,7 +21,7 @@
 #
 # 约束:
 #   - 后端只在本地 Ubuntu 24 / glibc 2.39 Docker 容器中构建，不在 2G 云服务器上构建。
-#   - 只上传服务器 Host、工具、完整 sidecar、ONNX Runtime、static 和 prompts，不覆盖远端 .env 与 data。
+#   - 默认按部署计划上传变化组件；全量模式上传 Host、工具、sidecar、ONNX Runtime、static 和 prompts，不覆盖远端 .env 与 data。
 #   - 部署 Host、SSH key 和公网 origin 必须显式提供，根路径默认期望 404。
 #
 # 常用环境变量覆盖:
@@ -66,24 +67,39 @@ MIGRATION_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-migration"
 HOST_PACKAGE="a4n-server"
 TARGET_PLATFORM="linux-x86_64"
 RELEASE_MANIFEST_TOOL="$PROJECT_ROOT/scripts/release_manifest.rb"
+DEPLOY_PLAN_TOOL="$PROJECT_ROOT/scripts/deploy/deploy-plan.rb"
 SERVICE_BINARIES=()
 TOOL_SPECS=()
 BUILD_PACKAGES=()
+PLAN_ARTIFACT_PATHS=()
+PLAN_PAYLOADS=()
 
 CARGO_OFFLINE="${A4N_DEPLOY_CARGO_OFFLINE:-true}"
 SKIP_BUILD=false
+FORCE_FULL=false
 REBUILD_BUILDER=false
 RUN_SMOKE=true
 KEEP_PACKAGE=false
 
 CACHE_ROOT="$CARGO_TARGET_DIR/deploy-cloud"
 PACKAGE_DIR="$CACHE_ROOT/package"
+DELTA_DIR="$CACHE_ROOT/delta-package"
 PACKAGE_PATH="$CACHE_ROOT/a4n-deploy.tar.gz"
+DELTA_MANIFEST_PATH="$DELTA_DIR/delta-manifest.json"
 PACKAGE_SHA256=""
 PACKAGE_CREATED_AT=""
 PACKAGE_SIZE=""
+RELEASE_ID=""
 DEPLOY_RECORD_DIR="${A4N_DEPLOY_RECORD_DIR:-$PROJECT_ROOT/deploy-records}"
 DEPLOY_RECORD_PATH=""
+DEPLOY_RECORD_JSON_PATH=""
+DEPLOY_PLAN_PATH="$CACHE_ROOT/deploy-plan.json"
+DEPLOY_STATE_JSON_PATH="$CACHE_ROOT/deploy-state.json"
+DEPLOY_ID=""
+REMOTE_STATE_PATH=""
+REMOTE_STATE_CACHE="$CACHE_ROOT/remote-state.json"
+DEPLOY_MODE="full"
+DEPLOY_FALLBACK_REASON=""
 DEPLOY_STARTED_AT="$(date --iso-8601=seconds)"
 DEPLOY_STARTED_EPOCH="$(date +%s)"
 BUILD_ELAPSED_SECONDS=""
@@ -166,12 +182,52 @@ format_elapsed() {
         "$((total_seconds % 60))"
 }
 
+plan_emit() {
+    local field="$1"
+    ruby "$DEPLOY_PLAN_TOOL" emit --plan "$DEPLOY_PLAN_PATH" --output "$field"
+}
+
+write_deploy_record_json() {
+    local status="$1"
+    local exit_status="$2"
+    local finished_at elapsed_seconds
+    local -a record_args
+    finished_at="$(date --iso-8601=seconds)"
+    elapsed_seconds=$(( $(date +%s) - DEPLOY_STARTED_EPOCH ))
+    [[ -n "$DEPLOY_RECORD_JSON_PATH" ]] || return 0
+    record_args=(
+        record
+        --plan "$DEPLOY_PLAN_PATH" \
+        --manifest "$PACKAGE_DIR/release-manifest.json"
+        --output "$DEPLOY_RECORD_JSON_PATH"
+        --status "$status"
+        --exit-status "$exit_status"
+        --deployment-id "$DEPLOY_ID"
+        --started-at "$DEPLOY_STARTED_AT"
+        --finished-at "$finished_at"
+        --elapsed-seconds "$elapsed_seconds"
+        --remote "$REMOTE" \
+        --remote-dir "$REMOTE_DIR" \
+        --service "$REMOTE_SERVICE" \
+        --public-app-url "$PUBLIC_APP_URL"
+    )
+    [[ -n "$RELEASE_ID" ]] && record_args+=(--release-id "$RELEASE_ID")
+    [[ -n "$BUILD_ELAPSED_SECONDS" ]] && record_args+=(--build-elapsed-seconds "$BUILD_ELAPSED_SECONDS")
+    [[ -n "$PACKAGE_SHA256" ]] && record_args+=(--package-sha256 "$PACKAGE_SHA256")
+    [[ -n "$PACKAGE_SIZE" ]] && record_args+=(--package-size "$PACKAGE_SIZE")
+    [[ -n "$PACKAGE_CREATED_AT" ]] && record_args+=(--package-created-at "$PACKAGE_CREATED_AT")
+    ruby "$DEPLOY_PLAN_TOOL" "${record_args[@]}" \
+        || log_warn "无法生成机器可读部署记录: $DEPLOY_RECORD_JSON_PATH"
+}
+
 start_deploy_record() {
     command -v tee >/dev/null 2>&1 || die "未找到命令: tee"
     DEPLOY_STARTED_AT="$(date --iso-8601=seconds)"
     DEPLOY_STARTED_EPOCH="$(date +%s)"
     mkdir -p "$DEPLOY_RECORD_DIR"
-    DEPLOY_RECORD_PATH="$DEPLOY_RECORD_DIR/deploy-$(date +%Y%m%d%H%M%S).log"
+    DEPLOY_ID="$(date +%Y%m%d%H%M%S)-$$"
+    DEPLOY_RECORD_PATH="$DEPLOY_RECORD_DIR/deploy-$DEPLOY_ID.log"
+    DEPLOY_RECORD_JSON_PATH="$DEPLOY_RECORD_DIR/deploy-$DEPLOY_ID.json"
     exec > >(tee -a "$DEPLOY_RECORD_PATH") 2>&1
     {
         echo "started_at=$DEPLOY_STARTED_AT"
@@ -227,6 +283,7 @@ finish_deploy_record() {
             [[ -n "$PACKAGE_SIZE" ]] && echo "package_size=$PACKAGE_SIZE"
             [[ -n "$PACKAGE_SHA256" ]] && echo "package_sha256=$PACKAGE_SHA256"
         } >> "$DEPLOY_RECORD_PATH"
+        write_deploy_record_json "$([[ "$status" -eq 0 ]] && echo success || echo failed)" "$status"
     else
         exit "$status"
     fi
@@ -309,6 +366,10 @@ while [[ $# -gt 0 ]]; do
             CARGO_OFFLINE=false
             shift
             ;;
+        --full)
+            FORCE_FULL=true
+            shift
+            ;;
         --skip-build)
             SKIP_BUILD=true
             shift
@@ -355,6 +416,7 @@ PUBLIC_ORIGIN="${PUBLIC_ORIGIN%/}"
 if [[ -z "$REMOTE_PACKAGE" ]]; then
     REMOTE_PACKAGE="$(dirname "$REMOTE_DIR")/a4n-deploy.tar.gz"
 fi
+REMOTE_STATE_PATH="$REMOTE_DIR/.deploy-state/current.json"
 SSH_OPTS=(
     -i "$SSH_KEY"
     -o "StrictHostKeyChecking=${A4N_DEPLOY_STRICT_HOST_KEY_CHECKING:-yes}"
@@ -367,9 +429,10 @@ PUBLIC_APP_URL="$PUBLIC_ORIGIN$PUBLIC_BASE_PATH"
 check_prerequisites() {
     log_section "前置检查"
     local command
-    for command in ssh scp curl tar sha256sum file strings ruby tee flock; do
+    for command in ssh scp curl tar sha256sum file strings ruby tee flock cargo; do
         require_command "$command"
     done
+    [[ -r "$DEPLOY_PLAN_TOOL" ]] || die "缺少部署计划工具: $DEPLOY_PLAN_TOOL"
 
     load_release_inventory
     require_onnxruntime
@@ -408,6 +471,81 @@ REMOTE
     log_ok "远端目录、数据目录、.env、sudo 和服务状态正常"
 }
 
+fetch_remote_state() {
+    log_section "读取远端部署状态"
+    mkdir -p "$CACHE_ROOT"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" <<'REMOTE' > "$REMOTE_STATE_CACHE"
+set -euo pipefail
+app="$1"
+state="$app/.deploy-state/current.json"
+if [[ -r "$state" ]]; then
+    cat "$state"
+else
+    printf '{}\n'
+fi
+REMOTE
+    ruby -rjson -e 'JSON.parse(File.read(ARGV.fetch(0)))' "$REMOTE_STATE_CACHE" \
+        || die "远端部署状态不是有效 JSON: $REMOTE_STATE_CACHE"
+    if [[ "$(ruby -rjson -e 'puts JSON.parse(File.read(ARGV.fetch(0))).fetch("release_id", "")' "$REMOTE_STATE_CACHE")" == "" ]]; then
+        log_warn "远端尚未建立部署基线，首次部署将执行全量模式"
+    else
+        log_ok "已读取远端 release 基线"
+    fi
+}
+
+prepare_deploy_plan() {
+    log_section "分析增量部署范围"
+    mkdir -p "$CACHE_ROOT"
+    local metadata_path="$CACHE_ROOT/cargo-metadata.json"
+    local -a metadata_args=(metadata --format-version 1 --locked --manifest-path "$PROJECT_ROOT/Cargo.toml")
+    [[ "$CARGO_OFFLINE" == true ]] && metadata_args+=(--offline)
+    cargo "${metadata_args[@]}" > "$metadata_path"
+
+    local requested_mode=auto
+    $FORCE_FULL && requested_mode=full
+    ruby "$DEPLOY_PLAN_TOOL" plan \
+        --root "$PROJECT_ROOT" \
+        --metadata "$metadata_path" \
+        --state "$REMOTE_STATE_CACHE" \
+        --output "$DEPLOY_PLAN_PATH" \
+        --mode "$requested_mode" \
+        --target "$TARGET_PLATFORM" \
+        --builder "$BUILDER_IMAGE" \
+        --cargo-offline "$CARGO_OFFLINE" \
+        --public-app-url "$PUBLIC_APP_URL" \
+        --public-base-path "$PUBLIC_BASE_PATH" \
+        --api-base-url "$API_BASE_URL"
+
+    DEPLOY_MODE="$(plan_emit mode)"
+    DEPLOY_FALLBACK_REASON="$(plan_emit fallback-reason)"
+    mapfile -t BUILD_PACKAGES < <(plan_emit build-packages)
+    mapfile -t PLAN_ARTIFACT_PATHS < <(plan_emit artifact-paths)
+    mapfile -t PLAN_PAYLOADS < <(plan_emit payloads)
+
+    if [[ "$DEPLOY_MODE" == delta ]]; then
+        local reusable=true binary
+        while IFS= read -r binary; do
+            if [[ ! -x "$binary" ]]; then
+                reusable=false
+                break
+            fi
+        done < <(required_binary_paths)
+        [[ -f "$FRONTEND_DIST/index.html" ]] || reusable=false
+        if ! $reusable; then
+            FORCE_FULL=true
+            log_warn "本地缺少未变化的基线产物，回退全量构建"
+            prepare_deploy_plan
+            return
+        fi
+    fi
+
+    if [[ -n "$DEPLOY_FALLBACK_REASON" ]]; then
+        log_warn "部署范围: $DEPLOY_MODE，原因: $DEPLOY_FALLBACK_REASON"
+    else
+        log_ok "部署范围: $DEPLOY_MODE；构建 package: ${BUILD_PACKAGES[*]:-无}"
+    fi
+}
+
 build_frontend() {
     log_section "构建前端"
     ensure_frontend_dependencies
@@ -423,6 +561,14 @@ build_frontend() {
         die "前端资源路径未使用 $PUBLIC_BASE_PATH/assets，请检查 Vite base 配置"
     fi
     log_ok "前端 dist 已生成: $FRONTEND_DIST"
+}
+
+plan_has_payload() {
+    local requested="$1" payload
+    for payload in "${PLAN_PAYLOADS[@]}"; do
+        [[ "$payload" == "$requested" ]] && return 0
+    done
+    return 1
 }
 
 write_builder_dockerfile() {
@@ -546,6 +692,10 @@ verify_backend_binaries() {
 }
 
 build_all() {
+    [[ "$DEPLOY_MODE" == noop ]] && {
+        log_ok "没有新的应用变更，跳过构建"
+        return
+    }
     if $SKIP_BUILD; then
         log_warn "跳过构建，使用现有产物"
         local binary
@@ -556,13 +706,21 @@ build_all() {
         return
     fi
 
-    build_frontend
-    build_backend
+    if [[ "$DEPLOY_MODE" == full ]] || plan_has_payload static; then
+        build_frontend
+    else
+        log_info "前端未变化，复用现有 frontend/dist"
+    fi
+    if ((${#BUILD_PACKAGES[@]} > 0)); then
+        build_backend
+    else
+        log_info "没有受影响的 Rust package，复用现有二进制"
+    fi
 }
 
 prepare_package() {
     log_section "制作部署包"
-    rm -rf "$PACKAGE_DIR" "$PACKAGE_PATH"
+    rm -rf "$PACKAGE_DIR" "$DELTA_DIR" "$PACKAGE_PATH"
     mkdir -p "$PACKAGE_DIR/bin/services" "$PACKAGE_DIR/static" "$PACKAGE_DIR/prompts"
 
     cp "$BINARY_PATH" "$PACKAGE_DIR/bin/a4n-server"
@@ -591,8 +749,29 @@ prepare_package() {
         --package-root "$PACKAGE_DIR" \
         --manifest "$PACKAGE_DIR/release-manifest.json"
     (cd "$PACKAGE_DIR" && sha256sum -c release-manifest.sha256 >/dev/null)
+    RELEASE_ID="$(sha256sum "$PACKAGE_DIR/release-manifest.json" | cut -d' ' -f1)"
 
-    tar -C "$PACKAGE_DIR" -czf "$PACKAGE_PATH" .
+    if [[ "$DEPLOY_MODE" == delta ]]; then
+        mkdir -p "$DELTA_DIR"
+        cp "$PACKAGE_DIR/release-manifest.json" "$DELTA_DIR/release-manifest.json"
+        cp "$PACKAGE_DIR/release-manifest.sha256" "$DELTA_DIR/release-manifest.sha256"
+        ruby "$DEPLOY_PLAN_TOOL" delta \
+            --plan "$DEPLOY_PLAN_PATH" \
+            --manifest "$PACKAGE_DIR/release-manifest.json" \
+            --output "$DELTA_MANIFEST_PATH"
+        local relative
+        while IFS= read -r relative; do
+            [[ -n "$relative" ]] || continue
+            mkdir -p "$DELTA_DIR/$(dirname "$relative")"
+            cp -a "$PACKAGE_DIR/$relative" "$DELTA_DIR/$relative"
+        done < <(printf '%s\n' "${PLAN_ARTIFACT_PATHS[@]}")
+        if plan_has_payload static; then
+            cp -a "$PACKAGE_DIR/static" "$DELTA_DIR/static"
+        fi
+        tar -C "$DELTA_DIR" -czf "$PACKAGE_PATH" .
+    else
+        tar -C "$PACKAGE_DIR" -czf "$PACKAGE_PATH" .
+    fi
     sha256sum "$PACKAGE_PATH" > "$PACKAGE_PATH.sha256"
     PACKAGE_SHA256="$(cut -d' ' -f1 "$PACKAGE_PATH.sha256")"
     PACKAGE_CREATED_AT="$(date --iso-8601=seconds)"
@@ -600,7 +779,8 @@ prepare_package() {
 
     log_ok "部署包: $PACKAGE_PATH"
     log_ok "SHA256: $PACKAGE_SHA256"
-    log_ok "完整 release manifest: ${#SERVICE_BINARIES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具 + ONNX Runtime"
+    log_ok "部署模式: $DEPLOY_MODE"
+    log_ok "release manifest: ${#SERVICE_BINARIES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具 + ONNX Runtime"
     du -sh "$PACKAGE_PATH"
 }
 
@@ -614,6 +794,213 @@ upload_package() {
     remote_sum=$(ssh "${SSH_OPTS[@]}" "$REMOTE" "sha256sum '$REMOTE_PACKAGE' | cut -d' ' -f1")
     [[ "$local_sum" == "$remote_sum" ]] || die "上传包校验和不一致"
     log_ok "上传完成并通过 SHA256 校验"
+}
+
+replace_remote_delta() {
+    log_section "远端增量替换（不停止 Host）"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" <<'REMOTE'
+set -euo pipefail
+app="$1"
+package_path="$2"
+service="$3"
+stage="$app/.deploy-delta"
+state="$app/.deploy-state/current.json"
+rm -rf "$stage"
+mkdir -p "$stage"
+cleanup_delta_stage() {
+    rm -rf "$stage"
+}
+trap cleanup_delta_stage EXIT
+tar -xzf "$package_path" -C "$stage"
+test -f "$stage/delta-manifest.json"
+test -f "$stage/release-manifest.json"
+test -f "$stage/release-manifest.sha256"
+
+changed_files="$stage/.changed-files"
+python3 - "$stage/delta-manifest.json" "$stage" "$state" > "$changed_files" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+manifest_path = pathlib.Path(sys.argv[1]).resolve()
+root = manifest_path.parent
+delta = json.loads(manifest_path.read_text())
+state_path = pathlib.Path(sys.argv[3])
+state = json.loads(state_path.read_text())
+if delta.get("schema_version") != 1 or delta.get("mode") != "delta":
+    raise SystemExit("invalid delta manifest")
+if state.get("release_id") != delta.get("base_release_id"):
+    raise SystemExit(42)
+release_manifest = root / "release-manifest.json"
+release_id = hashlib.sha256(release_manifest.read_bytes()).hexdigest()
+if release_id != delta.get("target_release_id"):
+    raise SystemExit("delta target release does not match release manifest")
+seen = set()
+for entry in delta.get("files", []):
+    relative = entry.get("path")
+    kind = entry.get("kind")
+    if not isinstance(relative, str) or relative in seen:
+        raise SystemExit("delta file list is invalid")
+    seen.add(relative)
+    candidate = pathlib.PurePosixPath(relative)
+    if candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts):
+        raise SystemExit(f"unsafe delta path: {relative}")
+    if kind == "directory":
+        if relative not in {"static", "prompts"}:
+            raise SystemExit(f"unsupported delta directory: {relative}")
+        if not (root / relative).is_dir():
+            raise SystemExit(f"missing delta directory: {relative}")
+    elif kind == "file":
+        if not relative.startswith("bin/") or not (root / pathlib.Path(*candidate.parts)).is_file():
+            raise SystemExit(f"missing or unsafe delta file: {relative}")
+    else:
+        raise SystemExit(f"invalid delta file kind: {relative}")
+    print(f"{kind}\t{relative}")
+PY
+
+current_manifest_id="$(sha256sum "$app/release-manifest.json" | cut -d' ' -f1)"
+base_release_id="$(python3 - "$state" <<'PY'
+import json
+import sys
+print(json.loads(open(sys.argv[1]).read()).get("release_id", ""))
+PY
+)"
+expected_base_id="$(python3 - "$stage/delta-manifest.json" <<'PY'
+import json
+import sys
+print(json.loads(open(sys.argv[1]).read()).get("base_release_id", ""))
+PY
+)"
+if [[ -z "$base_release_id" || "$current_manifest_id" != "$base_release_id" || "$base_release_id" != "$expected_base_id" ]]; then
+    echo "远端 release 基线不一致，需要全量部署" >&2
+    rm -rf "$stage"
+    exit 42
+fi
+
+ts="$(date +%Y%m%d%H%M%S)"
+backup="$app/backups/deploy-$ts"
+mkdir -p "$backup"
+applied=false
+
+restore_delta() {
+    local status=$?
+    if [[ "$applied" == true && "$status" -ne 0 ]]; then
+        while IFS=$'\t' read -r kind relative; do
+            [[ -n "$relative" ]] || continue
+            if [[ "$kind" == directory ]]; then
+                rm -rf "$app/$relative"
+                [[ -d "$backup/$relative" ]] && cp -a "$backup/$relative" "$app/$relative"
+            elif [[ -f "$backup/$relative" ]]; then
+                install -m 755 "$backup/$relative" "$app/$relative"
+            else
+                rm -f "$app/$relative"
+            fi
+        done < "$changed_files"
+        [[ -f "$backup/release-manifest.json" ]] && install -m 644 "$backup/release-manifest.json" "$app/release-manifest.json"
+        [[ -f "$backup/release-manifest.sha256" ]] && install -m 644 "$backup/release-manifest.sha256" "$app/release-manifest.sha256"
+        sudo systemctl restart "$service" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$stage"
+    exit "$status"
+}
+trap restore_delta EXIT
+
+cp -a "$app/release-manifest.json" "$backup/release-manifest.json"
+cp -a "$app/release-manifest.sha256" "$backup/release-manifest.sha256"
+while IFS=$'\t' read -r kind relative; do
+    [[ -n "$relative" ]] || continue
+    if [[ "$kind" == directory ]]; then
+        [[ -d "$app/$relative" ]] && cp -a "$app/$relative" "$backup/$relative"
+    elif [[ -f "$app/$relative" ]]; then
+        mkdir -p "$backup/$(dirname "$relative")"
+        cp -a "$app/$relative" "$backup/$relative"
+    fi
+done < "$changed_files"
+
+applied=true
+while IFS=$'\t' read -r kind relative; do
+    [[ -n "$relative" ]] || continue
+    if [[ "$kind" == directory ]]; then
+        rm -rf "$app/$relative.new"
+        cp -a "$stage/$relative" "$app/$relative.new"
+        rm -rf "$app/$relative"
+        mv "$app/$relative.new" "$app/$relative"
+    else
+        destination="$app/$relative"
+        mkdir -p "$(dirname "$destination")"
+        install -m 755 "$stage/$relative" "$destination.new"
+        mv "$destination.new" "$destination"
+    fi
+done < "$changed_files"
+install -m 644 "$stage/release-manifest.json" "$app/release-manifest.json.new"
+mv "$app/release-manifest.json.new" "$app/release-manifest.json"
+install -m 644 "$stage/release-manifest.sha256" "$app/release-manifest.sha256.new"
+mv "$app/release-manifest.sha256.new" "$app/release-manifest.sha256"
+
+python3 - "$app" "$app/release-manifest.json" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1]).resolve()
+manifest = json.loads(pathlib.Path(sys.argv[2]).read_text())
+for entry in manifest["binaries"] + manifest["tools"] + manifest["runtime_files"]:
+    relative = entry["path"]
+    candidate = pathlib.PurePosixPath(relative)
+    if candidate.is_absolute() or not relative.startswith("bin/") or any(part in {"", ".", ".."} for part in candidate.parts):
+        raise SystemExit(f"unsafe release path: {relative}")
+    path = (root / pathlib.Path(*candidate.parts)).resolve()
+    if root not in path.parents or not path.is_file():
+        raise SystemExit(f"missing release path: {relative}")
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual.lower() != entry["sha256"].lower():
+        raise SystemExit(f"release checksum mismatch: {relative}")
+PY
+(cd "$app" && sha256sum -c release-manifest.sha256 >/dev/null)
+systemctl is-active --quiet "$service"
+health="$(curl -fsS --max-time 10 http://127.0.0.1:8080/api/health)"
+[[ "$health" == "ok" ]] || { echo "增量替换后 Host health 异常: $health" >&2; exit 1; }
+echo "backup=$backup"
+echo "release_id=$(sha256sum "$app/release-manifest.json" | cut -d' ' -f1)"
+echo "health=$health"
+trap - EXIT
+rm -rf "$stage"
+REMOTE
+    log_ok "远端增量替换与 Host health 校验完成"
+}
+
+prepare_active_state() {
+    ruby "$DEPLOY_PLAN_TOOL" record \
+        --plan "$DEPLOY_PLAN_PATH" \
+        --manifest "$PACKAGE_DIR/release-manifest.json" \
+        --output "$DEPLOY_STATE_JSON_PATH" \
+        --status active \
+        --deployment-id "$DEPLOY_ID" \
+        --started-at "$DEPLOY_STARTED_AT" \
+        --remote "$REMOTE" \
+        --remote-dir "$REMOTE_DIR" \
+        --service "$REMOTE_SERVICE" \
+        --public-app-url "$PUBLIC_APP_URL" \
+        --public-base-path "$PUBLIC_BASE_PATH" \
+        --api-base-url "$API_BASE_URL"
+}
+
+sync_remote_state() {
+    log_section "更新远端部署状态"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" <<'REMOTE'
+set -euo pipefail
+app="$1"
+mkdir -p "$app/.deploy-state"
+REMOTE
+    scp "${SSH_OPTS[@]}" "$DEPLOY_STATE_JSON_PATH" "$REMOTE:$REMOTE_STATE_PATH.tmp"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" <<'REMOTE'
+set -euo pipefail
+app="$1"
+mv "$app/.deploy-state/current.json.tmp" "$app/.deploy-state/current.json"
+REMOTE
+    log_ok "远端部署状态已原子更新"
 }
 
 replace_remote_app() {
@@ -650,7 +1037,7 @@ case "$database_url" in
     *) echo "A4N_DATABASE_URL 必须使用 postgres:// 或 postgresql://" >&2; exit 1 ;;
 esac
 
-rm -rf "$app/.deploy-new"
+rm -rf "$app/.deploy-new" "$app/.deploy-delta"
 mkdir -p "$app/.deploy-new"
 tar -xzf "$package_path" -C "$app/.deploy-new"
 test -f "$app/.deploy-new/release-manifest.json"
@@ -905,8 +1292,12 @@ smoke_test() {
 
 cleanup() {
     log_section "清理临时文件"
+    if [[ "$DEPLOY_MODE" == noop ]]; then
+        log_ok "无增量部署包需要清理"
+        return
+    fi
     if ! $KEEP_PACKAGE; then
-        rm -rf "$PACKAGE_DIR" "$PACKAGE_PATH" "$PACKAGE_PATH.sha256"
+        rm -rf "$PACKAGE_DIR" "$DELTA_DIR" "$PACKAGE_PATH" "$PACKAGE_PATH.sha256"
         ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -f '$REMOTE_PACKAGE'"
         log_ok "已清理本地部署包和远端上传包"
     else
@@ -915,28 +1306,66 @@ cleanup() {
     fi
 }
 
+build_package_and_upload() {
+    local build_started_epoch build_elapsed
+    build_started_epoch="$(date +%s)"
+    build_all
+    build_elapsed=$(( $(date +%s) - build_started_epoch ))
+    BUILD_ELAPSED_SECONDS=$(( ${BUILD_ELAPSED_SECONDS:-0} + build_elapsed ))
+    log_info "构建阶段耗时: $(format_elapsed "$build_elapsed")"
+    [[ "$DEPLOY_MODE" == noop ]] && return
+    verify_backend_binaries
+    prepare_package
+    upload_package
+}
+
 main() {
     acquire_deploy_lock
     start_deploy_record
     echo -e "${BOLD}${CYAN}A4N 云端一键部署${NC}"
     echo -e "  目标: ${CYAN}$REMOTE${NC}"
     echo -e "  入口: ${CYAN}$PUBLIC_APP_URL/${NC}"
-    echo -e "  后端: ${CYAN}本地 Docker 构建 Host、工具、${#SERVICE_BINARIES[@]} 个 sidecar 和 ONNX Runtime${NC}"
+    echo -e "  后端: ${CYAN}本地 Docker 按部署计划构建受影响组件${NC}"
 
     check_prerequisites
     remote_preflight
-    local build_started_epoch="$(date +%s)"
-    build_all
-    BUILD_ELAPSED_SECONDS=$(( $(date +%s) - build_started_epoch ))
-    log_info "构建阶段耗时: $(format_elapsed "$BUILD_ELAPSED_SECONDS")"
-    verify_backend_binaries
-    prepare_package
-    upload_package
-    update_remote_public_app_env
-    replace_remote_app
-    restart_remote_service
+    fetch_remote_state
+    prepare_deploy_plan
+    build_package_and_upload
+    if [[ "$DEPLOY_MODE" == noop ]]; then
+        verify_remote_runtime
+        smoke_test
+        cleanup
+        echo ""
+        echo -e "${GREEN}${BOLD}无需部署，当前 release 已是最新: $PUBLIC_APP_URL/${NC}"
+        return
+    fi
+
+    if [[ "$DEPLOY_MODE" == delta ]]; then
+        if replace_remote_delta; then
+            :
+        else
+            delta_status=$?
+            if [[ "$delta_status" -ne 42 ]]; then
+                return "$delta_status"
+            fi
+            log_warn "远端基线已变化，重新计算并执行全量部署"
+            FORCE_FULL=true
+            prepare_deploy_plan
+            build_package_and_upload
+            update_remote_public_app_env
+            replace_remote_app
+            restart_remote_service
+        fi
+    else
+        update_remote_public_app_env
+        replace_remote_app
+        restart_remote_service
+    fi
     verify_remote_runtime
     smoke_test
+    prepare_active_state
+    sync_remote_state
     cleanup
 
     echo ""

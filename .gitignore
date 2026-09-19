@@ -23,6 +23,8 @@ data/
 .env.*
 !.env.example
 /.deploy.env
+/scripts/deploy/deploy-cloud.env
+deploy-records/
 *.local
 *.pem
 *.key

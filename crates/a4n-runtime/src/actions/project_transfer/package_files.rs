@@ -7,6 +7,30 @@ use a4n_storage::canonicalize_data_file_path;
 use base64::Engine as _;
 use std::path::Path;
 
+pub(super) fn write_project_package_zip(
+    manifest_path: String,
+    manifest_bytes: Vec<u8>,
+    manifest_label: String,
+    entries: Vec<ExportZipEntryBytes>,
+    package_label: String,
+) -> Result<Vec<u8>, String> {
+    let archive_entries = std::iter::once(a4n_archive_core::ArchiveEntry {
+        path: manifest_path,
+        bytes: manifest_bytes,
+        label: manifest_label,
+    })
+    .chain(
+        entries
+            .into_iter()
+            .map(|entry| a4n_archive_core::ArchiveEntry {
+                path: entry.path,
+                bytes: entry.bytes,
+                label: entry.label,
+            }),
+    );
+    a4n_archive_core::write_zip(archive_entries, package_label).map_err(|error| error.to_string())
+}
+
 pub(super) fn export_package_data(
     project_title: &str,
     bytes: Vec<u8>,
@@ -156,5 +180,26 @@ mod tests {
     #[test]
     fn export_file_name_rejects_empty_sanitized_title() {
         assert!(project_package_file_name("...", PROJECT_FAMILY_PACKAGE_SUFFIX).is_err());
+    }
+
+    #[test]
+    fn project_package_zip_is_written_without_transport_encoding() {
+        let zip = write_project_package_zip(
+            "manifest.json".to_string(),
+            br#"{"version":1}"#.to_vec(),
+            "测试清单".to_string(),
+            vec![ExportZipEntryBytes {
+                path: "media/file.txt".to_string(),
+                bytes: b"content".to_vec(),
+                label: "媒体文件".to_string(),
+            }],
+            "测试项目包".to_string(),
+        )
+        .expect("project package should be written locally");
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip))
+            .expect("project package should be a valid zip");
+        assert_eq!(archive.len(), 2);
+        assert!(archive.by_name("manifest.json").is_ok());
+        assert!(archive.by_name("media/file.txt").is_ok());
     }
 }

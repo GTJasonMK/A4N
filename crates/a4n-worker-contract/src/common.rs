@@ -113,7 +113,7 @@ pub enum WorkerPrincipalKind {
     Service,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerScope {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -124,17 +124,6 @@ pub struct WorkerScope {
     pub resource_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_id: Option<String>,
-}
-
-impl Default for WorkerScope {
-    fn default() -> Self {
-        Self {
-            project_id: None,
-            root_project_id: None,
-            resource_type: None,
-            resource_id: None,
-        }
-    }
 }
 
 impl WorkerScope {

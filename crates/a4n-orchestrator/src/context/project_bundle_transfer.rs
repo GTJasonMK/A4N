@@ -168,8 +168,6 @@ impl OrchestratorContext {
             PROJECT_BUNDLE_MANIFEST_PATH,
             "统一项目包清单",
             "统一项目导出包",
-            Some(project.id),
-            project.root_project_id.or(Some(project.id)),
         )?;
         let package_bytes = host_port
             .render_export_package(host_input)

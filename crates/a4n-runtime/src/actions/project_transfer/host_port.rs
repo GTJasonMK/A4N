@@ -7,6 +7,8 @@ use sha2::{Digest, Sha256};
 use crate::{AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project};
 use a4n_storage::write_new_data_file;
 
+use super::package_files::write_project_package_zip;
+
 pub(super) struct RuntimeProjectPackageTransferHostPort<'a> {
     state: &'a AppState,
     written_paths: Vec<String>,
@@ -49,18 +51,19 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
         &self,
         mut input: ProjectPackageExportInput,
     ) -> Result<Vec<u8>, String> {
+        let entries = super::package_files::project_package_media_zip_entries(
+            self.state.data_dir(),
+            input
+                .media_files
+                .iter()
+                .map(|media| (media.original_path.as_str(), media.package_path.as_str())),
+            &input.package_label,
+        )?;
         let mut media_sha256 = serde_json::Map::new();
-        for media in &input.media_files {
-            let source = a4n_storage::canonicalize_data_file_path(
-                self.state.data_dir(),
-                &media.original_path,
-                &input.package_label,
-            )?;
-            let bytes = std::fs::read(&source)
-                .map_err(|error| format!("读取媒体文件失败: {}: {error}", source.display()))?;
-            let digest = Sha256::digest(&bytes);
+        for entry in &entries {
+            let digest = Sha256::digest(&entry.bytes);
             media_sha256.insert(
-                media.package_path.clone(),
+                entry.path.clone(),
                 serde_json::Value::String(
                     digest.iter().map(|byte| format!("{byte:02x}")).collect(),
                 ),
@@ -74,37 +77,17 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
                 serde_json::Value::Object(media_sha256),
             );
         }
-        let manifest = crate::sidecar_clients::render_export_json_manifest_bytes(
-            self.state.runtime_profile(),
-            self.state.capabilities().export.clone(),
-            &input.manifest,
-            &input.manifest_label,
-            input.project_id,
-            input.root_project_id,
+        // Project packages may contain large videos. Keep raw media out of the
+        // sidecar JSON transport; the Host owns this archive boundary.
+        let manifest = serde_json::to_vec_pretty(&input.manifest)
+            .map_err(|error| format!("{}序列化失败：{error}", input.manifest_label))?;
+        write_project_package_zip(
+            input.manifest_path,
+            manifest,
+            input.manifest_label,
+            entries,
+            input.package_label,
         )
-        .await?;
-        let entries = super::package_files::project_package_media_zip_entries(
-            self.state.data_dir(),
-            input
-                .media_files
-                .iter()
-                .map(|media| (media.original_path.as_str(), media.package_path.as_str())),
-            &input.package_label,
-        )?;
-        crate::sidecar_clients::render_export_zip_package(
-            self.state.runtime_profile(),
-            self.state.capabilities().export.clone(),
-            a4n_export_contract::ExportZipPackageInput {
-                manifest_path: input.manifest_path,
-                manifest_bytes: manifest,
-                manifest_label: input.manifest_label,
-                entries,
-                package_label: input.package_label,
-            },
-            input.project_id,
-            input.root_project_id,
-        )
-        .await
     }
 
     async fn read_import_package(

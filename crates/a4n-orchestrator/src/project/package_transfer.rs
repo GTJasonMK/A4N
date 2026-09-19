@@ -14,8 +14,6 @@ pub(crate) fn project_package_export_input<T: Serialize>(
     manifest_path: &str,
     manifest_label: &str,
     package_label: &str,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
 ) -> Result<ProjectPackageExportInput, ProjectPackageTransferError> {
     Ok(ProjectPackageExportInput {
         manifest: serde_json::to_value(package)
@@ -24,8 +22,6 @@ pub(crate) fn project_package_export_input<T: Serialize>(
         manifest_label: manifest_label.to_string(),
         package_label: package_label.to_string(),
         media_files: media_files.to_vec(),
-        project_id,
-        root_project_id,
     })
 }
 
