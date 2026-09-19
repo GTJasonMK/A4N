@@ -7,14 +7,16 @@ use a4n_api_contract::profile::{
     ObjectProfileMutationResult, ObjectProfileSummary, UpdateObjectProfileInput,
 };
 use a4n_db::DbHandle;
-use a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL;
+use a4n_domain::{
+    image::IMAGE_TYPE_OBJECT_MATERIAL, object_profile::normalize_object_profile_record_input,
+    profile_material::resolve_downstream_image_ids,
+};
 use a4n_object_profile_worker_contract::{
     OBJECT_PROFILE_CREATE_OPERATION, OBJECT_PROFILE_DELETE_OPERATION,
     OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_MUTATION_CAPABILITY,
     OBJECT_PROFILE_READ_CAPABILITY, OBJECT_PROFILE_UPDATE_OPERATION,
     OBJECT_PROFILE_WORKER_CONTRACT_VERSION, OBJECT_PROFILE_WORKER_ID, ObjectProfileDeleteResponse,
     ObjectProfileMutationResponse, ObjectProfileProjectInput,
-    normalize_object_profile_record_input, resolve_downstream_image_ids,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{

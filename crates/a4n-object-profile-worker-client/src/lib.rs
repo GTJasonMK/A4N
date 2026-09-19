@@ -114,21 +114,6 @@ impl ObjectProfileWorkerClient {
             ))),
         }
     }
-
-    async fn mutation_command<I, O>(
-        &self,
-        user_id: i64,
-        project_id: Option<i64>,
-        operation_id: &str,
-        payload: I,
-    ) -> Result<O, AppError>
-    where
-        I: serde::Serialize,
-        O: serde::de::DeserializeOwned,
-    {
-        self.command(user_id, project_id, operation_id, payload)
-            .await
-    }
 }
 
 #[async_trait::async_trait]
@@ -156,7 +141,7 @@ impl a4n_api_contract::profile::ObjectProfileMutationApplicationPort for ObjectP
         input: CreateObjectProfileInput,
     ) -> Result<a4n_api_contract::profile::ObjectProfileMutationOutcome, AppError> {
         let response: ObjectProfileMutationResponse = self
-            .mutation_command(
+            .command(
                 user_id,
                 Some(input.project_id),
                 OBJECT_PROFILE_CREATE_OPERATION,
@@ -175,7 +160,7 @@ impl a4n_api_contract::profile::ObjectProfileMutationApplicationPort for ObjectP
         input: UpdateObjectProfileInput,
     ) -> Result<a4n_api_contract::profile::ObjectProfileMutationOutcome, AppError> {
         let response: ObjectProfileMutationResponse = self
-            .mutation_command(user_id, None, OBJECT_PROFILE_UPDATE_OPERATION, input)
+            .command(user_id, None, OBJECT_PROFILE_UPDATE_OPERATION, input)
             .await?;
         Ok(a4n_api_contract::profile::ObjectProfileMutationOutcome {
             result: response.result,
@@ -189,7 +174,7 @@ impl a4n_api_contract::profile::ObjectProfileMutationApplicationPort for ObjectP
         input: DeleteObjectProfileInput,
     ) -> Result<a4n_api_contract::profile::ObjectProfileDeleteOutcome, AppError> {
         let response: ObjectProfileDeleteResponse = self
-            .mutation_command(user_id, None, OBJECT_PROFILE_DELETE_OPERATION, input)
+            .command(user_id, None, OBJECT_PROFILE_DELETE_OPERATION, input)
             .await?;
         Ok(a4n_api_contract::profile::ObjectProfileDeleteOutcome {
             result: response.result,

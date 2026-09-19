@@ -126,25 +126,6 @@ pub fn normalize_scene_profile_record_input(
     })
 }
 
-pub fn resolve_downstream_image_ids(
-    image_ids: Vec<i64>,
-    strategy: crate::DownstreamConflictStrategy,
-    subject: &str,
-    operation: &str,
-) -> Result<Vec<i64>, String> {
-    if image_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    match strategy {
-        crate::DownstreamConflictStrategy::Reject => Err(format!(
-            "{subject}已派生 {} 张素材图，{operation}前需要选择：删除下游派生产物，或保留下游只覆盖源档案",
-            image_ids.len()
-        )),
-        crate::DownstreamConflictStrategy::KeepDownstream => Ok(Vec::new()),
-        crate::DownstreamConflictStrategy::DeleteDownstream => Ok(image_ids),
-    }
-}
-
 fn normalize_optional_scene_type(value: &str) -> Result<String, SceneProfileInputError> {
     let value = value.trim();
     if value.is_empty() {

@@ -60,7 +60,6 @@ a4n-import-analysis-host-contract = { path = "../a4n-import-analysis-host-contra
 a4n-video = { path = "../a4n-video" }
 a4n-video-contract = { path = "../a4n-video-contract" }
 a4n-video-host-contract = { path = "../a4n-video-host-contract" }
-a4n-object-profile-worker-contract = { path = "../a4n-object-profile-worker-contract" }
 a4n-service-client = { path = "../a4n-service-client" }
 
 anyhow = { workspace = true }

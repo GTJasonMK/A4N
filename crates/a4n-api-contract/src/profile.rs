@@ -1,4 +1,5 @@
 pub use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
+pub use a4n_domain::object_profile::ObjectProfileInput;
 pub use a4n_domain::scene_profile::SceneProfileInput;
 use a4n_domain::{
     DownstreamConflictStrategy,
@@ -15,28 +16,6 @@ use serde_json::Value;
 #[serde(deny_unknown_fields)]
 pub struct ListObjectProfilesInput {
     pub project_id: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ObjectProfileInput {
-    pub name: String,
-    #[serde(default)]
-    pub aliases: Vec<String>,
-    pub object_type: String,
-    pub importance: String,
-    pub visual_description: String,
-    pub material_and_state: String,
-    pub story_usage: String,
-    pub visual_usage: String,
-    pub generation_usage: String,
-    #[serde(default)]
-    pub location_context: Option<String>,
-    pub first_seen_chapter: i32,
-    pub last_seen_chapter: i32,
-    #[serde(default)]
-    pub evidence: Vec<String>,
-    pub image_prompt_seed: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

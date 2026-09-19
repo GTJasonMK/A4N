@@ -507,6 +507,10 @@ mod tests {
                 "profile.scene.mutation".to_string()
             ]
         );
+        assert_eq!(
+            scene.migration.current.as_deref(),
+            Some("scene_profile_mutation")
+        );
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")

@@ -1278,11 +1278,8 @@ name = "a4n-object-profile-worker-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-domain",
- "a4n-error",
  "a4n-worker-contract",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1337,7 +1334,6 @@ dependencies = [
  "a4n-media",
  "a4n-migration",
  "a4n-novel-host-contract",
- "a4n-object-profile-worker-contract",
  "a4n-optimize-host-contract",
  "a4n-outline-contract",
  "a4n-portrait-host-contract",

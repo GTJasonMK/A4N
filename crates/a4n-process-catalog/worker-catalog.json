@@ -233,9 +233,9 @@
     "capabilities": ["profile.scene.read", "profile.scene.mutation"],
     "dependencies": ["a4n-migration"],
     "migration": {
-      "current": "scene_profile_read",
-      "min_compatible": "scene_profile_read",
-      "max_compatible": "scene_profile_read"
+      "current": "scene_profile_mutation",
+      "min_compatible": "scene_profile_mutation",
+      "max_compatible": "scene_profile_mutation"
     }
   },
   {

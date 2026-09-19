@@ -6,7 +6,9 @@ use a4n_api_contract::profile::{
     SceneProfileDeleteResult, SceneProfileMutationResult, SceneProfileSummary,
 };
 use a4n_db::DbHandle;
-use a4n_domain::image::IMAGE_TYPE_SCENE_MATERIAL;
+use a4n_domain::{
+    image::IMAGE_TYPE_SCENE_MATERIAL, profile_material::resolve_downstream_image_ids,
+};
 use a4n_scene_profile_worker_contract::{
     CreateSceneProfileInput, DeleteSceneProfileInput, SCENE_PROFILE_CREATE_OPERATION,
     SCENE_PROFILE_DELETE_OPERATION, SCENE_PROFILE_LIST_OPERATION,
@@ -295,7 +297,8 @@ impl WorkerState {
             request.payload.downstream_strategy,
             &format!("场景档案 #{} ", existing.id),
             "修改",
-        )?;
+        )
+        .map_err(WorkerFailure::invalid_request)?;
         let record = a4n_domain::scene_profile::normalize_scene_profile_record_input(
             request.payload.profile,
         )
@@ -336,7 +339,8 @@ impl WorkerState {
             request.payload.downstream_strategy,
             &format!("场景档案 #{} ", existing.id),
             "删除",
-        )?;
+        )
+        .map_err(WorkerFailure::invalid_request)?;
         a4n_db::scene_profile::delete_scene_profile_records(
             self.database.connection(),
             existing.id,
@@ -477,16 +481,6 @@ fn validate_project_scope<T>(
         ));
     }
     Ok(())
-}
-
-fn resolve_downstream_image_ids(
-    image_ids: Vec<i64>,
-    strategy: a4n_domain::DownstreamConflictStrategy,
-    subject: &str,
-    operation: &str,
-) -> Result<Vec<i64>, WorkerFailure> {
-    a4n_domain::scene_profile::resolve_downstream_image_ids(image_ids, strategy, subject, operation)
-        .map_err(WorkerFailure::invalid_request)
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
