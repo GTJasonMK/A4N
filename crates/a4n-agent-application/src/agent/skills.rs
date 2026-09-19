@@ -137,12 +137,19 @@ impl AgentApplication {
             return Err(AppError::InvalidArgument("Skill 搜索关键词无效".into()));
         }
         let enabled = self.enabled_skill_ids(user_id, &capability).await?;
-        let query = input
+        let query_terms = input
             .query
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(str::to_lowercase);
+            .map(|query| {
+                query
+                    .to_lowercase()
+                    .split_whitespace()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|terms| !terms.is_empty());
         let limit = super::bounded_limit(
             input.limit,
             a4n_api_contract::agent::AGENT_SKILLS_DEFAULT_LIMIT,
@@ -153,11 +160,9 @@ impl AgentApplication {
             .into_iter()
             .filter(|skill| enabled.contains(skill.id))
             .filter(|skill| {
-                query.as_ref().is_none_or(|query| {
-                    skill.id.to_lowercase().contains(query)
-                        || skill.name.to_lowercase().contains(query)
-                        || skill.description.to_lowercase().contains(query)
-                })
+                query_terms
+                    .as_ref()
+                    .is_none_or(|terms| skill_matches_query(skill, terms))
             })
             .map(|skill| skill_descriptor(skill, true))
             .collect::<Vec<_>>();
@@ -354,9 +359,17 @@ fn skill_descriptor(skill: &BuiltinSkill, enabled: bool) -> AgentSkillDescriptor
     }
 }
 
+fn skill_matches_query(skill: &BuiltinSkill, terms: &[String]) -> bool {
+    terms.iter().any(|term| {
+        skill.id.to_lowercase().contains(term)
+            || skill.name.to_lowercase().contains(term)
+            || skill.description.to_lowercase().contains(term)
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{BUILTIN_SKILLS, applicable_skills, skill_descriptor};
+    use super::{BUILTIN_SKILLS, applicable_skills, skill_descriptor, skill_matches_query};
 
     #[test]
     fn builtin_skills_have_bounded_content_and_stable_metadata() {
@@ -376,5 +389,21 @@ mod tests {
         }
         assert_eq!(applicable_skills("director").len(), 2);
         assert_eq!(applicable_skills("main").len(), 2);
+    }
+
+    #[test]
+    fn skill_search_matches_any_query_term() {
+        let skill = BUILTIN_SKILLS
+            .iter()
+            .find(|skill| skill.id == "a4n-novel-writing")
+            .expect("builtin novel skill");
+        assert!(skill_matches_query(
+            skill,
+            &["novel".into(), "声音".into(), "missing".into()]
+        ));
+        assert!(!skill_matches_query(
+            skill,
+            &["canvas".into(), "director".into()]
+        ));
     }
 }

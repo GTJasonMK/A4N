@@ -1265,8 +1265,6 @@ pub struct AgentHostCommandPayload {
     pub execution_id: Option<i64>,
     pub command: String,
     pub arguments: serde_json::Value,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub generation_start_request_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime_config_snapshot: Option<serde_json::Value>,
 }
@@ -1287,9 +1285,6 @@ impl AgentHostCommandPayload {
         }
         validate_positive_optional_id("execution_id", self.execution_id)?;
         validate_non_blank("command", &self.command)?;
-        if let Some(request_id) = &self.generation_start_request_id {
-            validate_non_blank("generation_start_request_id", request_id)?;
-        }
         if !self.arguments.is_object() {
             return Err(WorkerContractError::InvalidValue {
                 field: "arguments",
@@ -1505,7 +1500,6 @@ mod tests {
             execution_id: None,
             command: "read_chapter_visual_plan".into(),
             arguments: serde_json::json!([]),
-            generation_start_request_id: None,
             runtime_config_snapshot: None,
         };
         assert!(matches!(
@@ -1515,19 +1509,6 @@ mod tests {
                 ..
             })
         ));
-
-        let payload = AgentHostCommandPayload {
-            command: "send_content_optimization_message".into(),
-            arguments: serde_json::json!({"sessionId": 7, "message": "建议"}),
-            generation_start_request_id: Some("request-1".into()),
-            ..payload
-        };
-        assert!(payload.validate().is_ok());
-        let encoded = serde_json::to_value(&payload).expect("payload should serialize");
-        assert_eq!(
-            encoded["generation_start_request_id"],
-            serde_json::json!("request-1")
-        );
 
         let payload = AgentHostCommandPayload {
             command: "start_image_generation".into(),

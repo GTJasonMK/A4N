@@ -106,9 +106,6 @@ def main():
             def cancel(thread_id, run_id):
                 checked(cli, ["agent", "run", run_id, "cancel", "--thread-id", thread_id], "cancel")
 
-            def task_summary(handle):
-                return data(checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "task get")[0], "task get")
-
             project = data(checked(cli, ["project", "create", "--title", "Agent C/D 隔离验证", "--project-type", "novel_long", "--use-context"], "project")[0], "project")
             original = "林岚在雨夜收到一封信。" + "未请求的后文哨兵_。" * 500
             chapter = data(checked(cli, ["chapter", "import", "--number", "1", "--title", "局部优化", "--content", original], "chapter")[0], "chapter")
@@ -116,80 +113,22 @@ def main():
             thread_id = thread["id"]
             report.update(project_id=project["id"], chapter_id=chapter["id"], optimization_thread_id=thread_id)
             run_id = send(thread_id, "A4N_OPTIMIZATION_WAIT 请只润色开头一句，提出补丁，保留其他正文。")
-            pending = wait_state(thread_id, run_id, "external")
-            waiting_run = next(row for row in pending["runs"] if row["id"] == run_id)
-            assert waiting_run["lease_owner"] is None and waiting_run["lease_expires_at"] is None
-            handle = next(row["metadata"]["result"] for row in pending["messages"]
-                          if row["run_id"] == run_id and row["role"] == "tool" and row["metadata"]["tool"] == "send_content_optimization_message")
-            session = next(row["metadata"]["result"] for row in pending["messages"]
-                           if row["run_id"] == run_id and row["role"] == "tool" and row["metadata"]["tool"] == "ensure_content_optimization_session")
-            observer = data(checked(cli, ["agent", "thread", "create", "--kind", "main", "--title", "任务观察者", "--project-id", str(project["id"])], "observer thread")[0], "thread")
-            observer_run = send(observer["id"], MARKER + json.dumps({"mode": "wait_generation", "task_id": handle["task_id"], "attempt": handle["attempt"]}))
-            wait_state(observer["id"], observer_run, "external")
-            cancel(observer["id"], observer_run)
-            summary = task_summary(handle)
-            assert summary["handle"]["status"] in {"running", "completed"}, summary
             run, completed = finish(thread_id, run_id)
             executions = [row for row in completed["executions"] if row["run_id"] == run_id]
             assert run["status"] == "completed"
             assert [row["tool_name"] for row in executions if row["status"] == "succeeded"] == [
-                "ensure_content_optimization_session",
-                "send_content_optimization_message",
-                "wait_generation_task",
+                "inspect_project_context",
+                "read_project_context",
+                "edit_article",
             ]
             assert data(checked(cli, ["chapter", "get", str(chapter["id"])], "unchanged chapter")[0], "chapter")["content"] == original
-            report["checks"].append("professional content-optimization execution reserves a real Generation task, waits for completion, and leaves writeback pending")
-            report["checks"].append("durable wait releases its lease and reuses one execution; cancelling an observer preserves the owned task")
+            report["checks"].append("content-optimization Agent reads bounded chapter evidence and leaves a reviewable article patch without writeback")
 
             plain_id = send(thread_id, "A4N_OPTIMIZATION_PLAIN 仅回答：补丁何时会写回正文？")
             plain, plain_snapshot = finish(thread_id, plain_id)
             assert plain["status"] == "completed" and not plain.get("error"), plain
             assert not any(row["status"] == "failed" for row in plain_snapshot["executions"])
             report["checks"].append("a follow-up content-optimization request completes through the same durable workflow")
-
-            cancel_id = send(thread_id, "A4N_OPTIMIZATION_CANCEL_WAIT 请检查并润色开头句。")
-            cancellation = wait_state(thread_id, cancel_id, "external")
-            cancelled_handle = next(row["metadata"]["result"] for row in cancellation["messages"]
-                                    if row["run_id"] == cancel_id and row["role"] == "tool" and row["metadata"]["tool"] == "send_content_optimization_message")
-            cancel(thread_id, cancel_id)
-            deadline = time.monotonic() + 60
-            while time.monotonic() < deadline:
-                task = task_summary(cancelled_handle)
-                if task["handle"]["status"] in {"cancelled", "interrupted"}:
-                    break
-                time.sleep(0.1)
-            assert task["handle"]["status"] in {"cancelled", "completed"}, task
-            report["checks"].append(
-                "cancelling the owner drives its actual Generation task to a terminal state: "
-                + task["handle"]["status"]
-            )
-
-            patch_sets = call("list_optimize_patch_sets", {"session_id": session["id"]})
-            pending_patch = next(
-                patch_set
-                for patch_set in patch_sets
-                if patch_set["status"] == "pending" and patch_set["patches"]
-            )
-            call("apply_optimization_patches", {
-                "session_id": session["id"],
-                "base_content_hash": "stale-content-hash",
-                "patches": pending_patch["patches"],
-            }, failure=True, destructive=True)
-            assert data(checked(cli, ["chapter", "get", str(chapter["id"])], "stale apply chapter")[0], "chapter")["content"] == original
-            report["checks"].append("stale optimization PatchSet hash is rejected without changing chapter content")
-            applied = call("apply_optimization_patches", {
-                "session_id": session["id"],
-                "base_content_hash": pending_patch["base_content_hash"],
-                "patches": pending_patch["patches"],
-            }, destructive=True)
-            assert applied["chapter_id"] == chapter["id"]
-            assert applied["applied_count"] == len(pending_patch["patches"])
-            rewritten = data(
-                checked(cli, ["chapter", "get", str(chapter["id"])], "applied chapter")[0],
-                "chapter",
-            )["content"]
-            assert rewritten != original and "未请求的后文哨兵_" in rewritten
-            report["checks"].append("user approval applies the pending optimization PatchSet and persists the rewritten chapter")
 
             video = call("create_freeform_video_project", {"title": "Canvas 局部验证", "description": "isolated fixture"})
             checked(cli, ["context", "set", "--project-id", str(video["id"])], "canvas context")

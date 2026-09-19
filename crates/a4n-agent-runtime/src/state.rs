@@ -41,9 +41,14 @@ pub struct AgentRuntimeState {
     host: Arc<dyn AgentRuntimeHost>,
     agent_worker_cancel: CancellationToken,
     agent_worker_notify: Arc<Notify>,
-    agent_admission: Arc<Mutex<()>>,
-    agent_run_cancellations: Arc<Mutex<HashMap<i64, AgentRunCancellation>>>,
-    agent_runtime_snapshots: Arc<RwLock<HashMap<i64, AgentRuntimeSnapshot>>>,
+    shared: AgentRuntimeShared,
+}
+
+#[derive(Clone)]
+pub struct AgentRuntimeShared {
+    pub agent_admission: Arc<Mutex<()>>,
+    pub agent_run_cancellations: Arc<Mutex<HashMap<i64, AgentRunCancellation>>>,
+    pub agent_runtime_snapshots: Arc<RwLock<HashMap<i64, AgentRuntimeSnapshot>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -77,26 +82,38 @@ pub(crate) struct AgentWorkerFailureHostPort<'a> {
 }
 
 #[derive(Clone)]
-struct AgentRunCancellation {
-    parent_run_id: Option<i64>,
-    token: CancellationToken,
+pub struct AgentRunCancellation {
+    pub parent_run_id: Option<i64>,
+    pub token: CancellationToken,
 }
 
 #[derive(Clone)]
-struct AgentRuntimeSnapshot {
-    parent_run_id: Option<i64>,
-    value: RuntimeConfigSnapshot,
+pub struct AgentRuntimeSnapshot {
+    pub parent_run_id: Option<i64>,
+    pub value: RuntimeConfigSnapshot,
+}
+
+impl AgentRuntimeShared {
+    pub fn new() -> Self {
+        Self {
+            agent_admission: Arc::new(Mutex::new(())),
+            agent_run_cancellations: Arc::new(Mutex::new(HashMap::new())),
+            agent_runtime_snapshots: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
 }
 
 impl AgentRuntimeState {
     pub fn new(host: Arc<dyn AgentRuntimeHost>) -> Self {
+        Self::with_shared(host, AgentRuntimeShared::new())
+    }
+
+    pub fn with_shared(host: Arc<dyn AgentRuntimeHost>, shared: AgentRuntimeShared) -> Self {
         Self {
             host,
             agent_worker_cancel: CancellationToken::new(),
             agent_worker_notify: Arc::new(Notify::new()),
-            agent_admission: Arc::new(Mutex::new(())),
-            agent_run_cancellations: Arc::new(Mutex::new(HashMap::new())),
-            agent_runtime_snapshots: Arc::new(RwLock::new(HashMap::new())),
+            shared,
         }
     }
 
@@ -117,7 +134,7 @@ impl AgentRuntimeState {
     }
 
     pub async fn lock_agent_admission(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        self.agent_admission.lock().await
+        self.shared.agent_admission.lock().await
     }
 
     pub async fn load_agent_run_context(
@@ -798,17 +815,7 @@ impl AgentRuntimeState {
         arguments: Value,
         worker_request: &WorkerRequest<AgentRunPayload>,
         execution_id: Option<i64>,
-        execution: Option<&AgentExecutionSnapshot>,
     ) -> Result<Value, AppError> {
-        let generation_start_request_id = if command == "send_content_optimization_message" {
-            execution
-                .and_then(|execution| execution.resource_preconditions_json.as_ref())
-                .and_then(|preconditions| preconditions.get("generation_start_request_id"))
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        } else {
-            None
-        };
         let payload = AgentHostCommandPayload {
             run_id: worker_request.payload.run_id,
             turn_id: worker_request.payload.turn_id,
@@ -816,7 +823,6 @@ impl AgentRuntimeState {
             execution_id,
             command: command.clone(),
             arguments,
-            generation_start_request_id,
             runtime_config_snapshot: worker_request.payload.runtime_config_snapshot.clone(),
         };
         payload.validate().map_err(|error| AppError::InvalidState {
@@ -855,7 +861,7 @@ impl AgentRuntimeState {
         parent_run_id: Option<i64>,
         value: RuntimeConfigSnapshot,
     ) {
-        self.agent_runtime_snapshots.write().await.insert(
+        self.shared.agent_runtime_snapshots.write().await.insert(
             run_id,
             AgentRuntimeSnapshot {
                 parent_run_id,
@@ -865,7 +871,8 @@ impl AgentRuntimeState {
     }
 
     pub async fn agent_runtime_snapshot(&self, run_id: i64) -> Option<RuntimeConfigSnapshot> {
-        self.agent_runtime_snapshots
+        self.shared
+            .agent_runtime_snapshots
             .read()
             .await
             .get(&run_id)
@@ -873,7 +880,8 @@ impl AgentRuntimeState {
     }
 
     pub async fn take_agent_runtime_snapshot(&self, run_id: i64) -> Option<RuntimeConfigSnapshot> {
-        self.agent_runtime_snapshots
+        self.shared
+            .agent_runtime_snapshots
             .write()
             .await
             .remove(&run_id)
@@ -881,7 +889,7 @@ impl AgentRuntimeState {
     }
 
     pub async fn remove_agent_runtime_snapshot_tree(&self, run_id: i64) {
-        let mut snapshots = self.agent_runtime_snapshots.write().await;
+        let mut snapshots = self.shared.agent_runtime_snapshots.write().await;
         let mut pending = vec![run_id];
         while let Some(current) = pending.pop() {
             let children = snapshots
@@ -901,7 +909,7 @@ impl AgentRuntimeState {
         parent_run_id: Option<i64>,
     ) -> CancellationToken {
         let token = CancellationToken::new();
-        self.agent_run_cancellations.lock().await.insert(
+        self.shared.agent_run_cancellations.lock().await.insert(
             run_id,
             AgentRunCancellation {
                 parent_run_id,
@@ -912,7 +920,7 @@ impl AgentRuntimeState {
     }
 
     pub async fn cancel_agent_run_tree(&self, run_id: i64) {
-        let cancellations = self.agent_run_cancellations.lock().await;
+        let cancellations = self.shared.agent_run_cancellations.lock().await;
         let mut pending = vec![run_id];
         while let Some(current) = pending.pop() {
             if let Some(entry) = cancellations.get(&current) {
@@ -927,7 +935,11 @@ impl AgentRuntimeState {
     }
 
     pub async fn unregister_agent_run_cancellation(&self, run_id: i64) {
-        self.agent_run_cancellations.lock().await.remove(&run_id);
+        self.shared
+            .agent_run_cancellations
+            .lock()
+            .await
+            .remove(&run_id);
     }
 
     pub async fn shutdown(&self) {

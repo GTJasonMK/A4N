@@ -585,21 +585,14 @@ def main_fixture(body, messages):
     user_text = "\n".join(message.get("content", "") for message in messages if message.get("role") == "user")
     if "A4N_REVIEW_SKIP" in user_text:
         return {"content": "子任务已返回，尚未验收。"}
-    refs = child["result_refs"]
-    if "get_generation_task_summary" not in observations:
-        task = next(ref for ref in refs if ref["kind"] == "generation_task")
-        return call("get_generation_task_summary", {"taskId": task["id"], "attempt": int(task["revision"])})
-    session = observations.get("ensure_content_optimization_session")
-    if session is None:
-        return call("ensure_content_optimization_session", {
-            "projectId": int(target["project"]["id"]), "chapterId": int(target["chapter"]["id"]),
+    if "inspect_project_context" not in observations:
+        return call("inspect_project_context", {"paths": ["chapter.content"]})
+    if "read_project_context" not in observations:
+        return call("read_project_context", {"selectors": ["chapter.content"]})
+    if "edit_article" not in observations:
+        return call("edit_article", {
+            "patches": [{"old_text": "林岚在雨夜收到一封信。", "new_text": "林岚在雨夜拆开一封无署名的信。", "reason": "强化动作与悬念"}]
         })
-    for name in ("list_optimize_turns", "list_optimize_patch_sets"):
-        if name not in observations:
-            return call(name, {"input": {"session_id": session["id"]}})
-    patches = observations["list_optimize_patch_sets"]
-    if not any(patch["patches"] and patch["status"] == "pending" for patch in patches):
-        raise ValueError("child produced no real pending patch proposal")
     if "review_agent_delegation" not in observations:
         return call("review_agent_delegation", {"input": {
             "delegation_id": child["delegation_id"], "expected_child_run_id": child["child_run_id"],

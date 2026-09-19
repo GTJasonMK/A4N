@@ -1,5 +1,6 @@
 /// 业务实现体（crate 内）。宿主请使用 [`host_api`]。
 pub(crate) mod actions;
+pub(crate) mod agent_runtime_host;
 /// 阶段 11：宿主侧唯一业务编排入口（orchestrator facade）。
 ///
 /// `a4n-server` / `a4n-tauri` 只能通过本模块调用业务。

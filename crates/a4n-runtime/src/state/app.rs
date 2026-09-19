@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
 };
 
+use a4n_agent_runtime::{AgentRunCancellation, AgentRuntimeShared, AgentRuntimeSnapshot};
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_config::app_config::AppConfig;
 use a4n_db::character::Sha256SnapshotStore;
@@ -109,18 +110,6 @@ pub type AgentHostCommandDispatcher = Arc<
         + Sync,
 >;
 
-#[derive(Clone)]
-struct AgentRunCancellation {
-    parent_run_id: Option<i64>,
-    token: tokio_util::sync::CancellationToken,
-}
-
-#[derive(Clone)]
-struct AgentRuntimeSnapshot {
-    parent_run_id: Option<i64>,
-    value: crate::runtime_config::RuntimeConfigSnapshot,
-}
-
 impl AppState {
     /// 启动唯一的 Agent durable-run worker；重复调用不会创建第二个 worker。
     ///
@@ -158,6 +147,14 @@ impl AppState {
         self.agent_admission.lock().await
     }
 
+    pub(crate) fn agent_runtime_shared(&self) -> AgentRuntimeShared {
+        AgentRuntimeShared {
+            agent_admission: self.agent_admission.clone(),
+            agent_run_cancellations: self.agent_run_cancellations.clone(),
+            agent_runtime_snapshots: self.agent_runtime_snapshots.clone(),
+        }
+    }
+
     /// Installs the host-owned command dispatch used by dynamically discovered
     /// Agent tools. Hosts may replace the dispatcher during startup, but a
     /// missing dispatcher is surfaced as an error instead of a fake success.
@@ -187,7 +184,6 @@ impl AppState {
         args: Value,
         worker_request: &WorkerRequest<AgentRunPayload>,
         execution_id: Option<i64>,
-        execution: Option<&a4n_agent_runtime_contract::AgentExecutionSnapshot>,
     ) -> Result<Value, a4n_error::AppError> {
         let run_id = worker_request.payload.run_id;
         let runtime_config_snapshot = self
@@ -195,15 +191,6 @@ impl AppState {
             .await
             .map(serde_json::to_value)
             .transpose()?;
-        let generation_start_request_id = if command == "send_content_optimization_message" {
-            execution
-                .and_then(|execution| execution.resource_preconditions_json.as_ref())
-                .and_then(|preconditions| preconditions.get("generation_start_request_id"))
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        } else {
-            None
-        };
         let payload = AgentHostCommandPayload {
             run_id,
             turn_id: worker_request.payload.turn_id,
@@ -211,7 +198,6 @@ impl AppState {
             execution_id,
             command: command.clone(),
             arguments: args,
-            generation_start_request_id,
             runtime_config_snapshot,
         };
         payload
@@ -259,6 +245,33 @@ impl AppState {
             })
     }
 
+    pub(crate) async fn dispatch_agent_host_command_request(
+        &self,
+        user_id: i64,
+        request: WorkerRequest<AgentHostCommandPayload>,
+    ) -> Result<Value, a4n_error::AppError> {
+        request
+            .validate()
+            .map_err(|error| a4n_error::AppError::InvalidState {
+                current: format!("Agent Host command request 无效: {error}"),
+                operation: "执行 Agent Host command".into(),
+            })?;
+        let command = request.payload.command.clone();
+        let dispatcher = self.agent_host_dispatcher.read().await.clone();
+        let Some(dispatcher) = dispatcher else {
+            return Err(a4n_error::AppError::InvalidState {
+                current: "当前 Host 未注册 Agent 动态命令 dispatch".into(),
+                operation: format!("执行 Agent Host command {command}"),
+            });
+        };
+        dispatcher(user_id, command, request.payload.clone(), request)
+            .await
+            .map_err(|error| a4n_error::AppError::InvalidState {
+                current: error,
+                operation: "执行 Agent 动态 Host command".into(),
+            })
+    }
+
     /// Authorizes a Host command at the durable lease boundary.
     pub async fn authorize_agent_host_command(
         &self,
@@ -267,22 +280,6 @@ impl AppState {
         self.agent_worker_application
             .authorize_worker_host_command(request)
             .await
-    }
-
-    pub(crate) async fn register_agent_run_cancellation(
-        &self,
-        run_id: i64,
-        parent_run_id: Option<i64>,
-    ) -> tokio_util::sync::CancellationToken {
-        let token = tokio_util::sync::CancellationToken::new();
-        self.agent_run_cancellations.lock().await.insert(
-            run_id,
-            AgentRunCancellation {
-                parent_run_id,
-                token: token.clone(),
-            },
-        );
-        token
     }
 
     pub(crate) async fn cancel_agent_run_tree(&self, run_id: i64) {
@@ -296,10 +293,6 @@ impl AppState {
                 cancellation.token.cancel();
             }
         }
-    }
-
-    pub(crate) async fn unregister_agent_run_cancellation(&self, run_id: i64) {
-        self.agent_run_cancellations.lock().await.remove(&run_id);
     }
 
     pub(crate) async fn store_agent_runtime_snapshot(
@@ -326,18 +319,6 @@ impl AppState {
             .await
             .get(&run_id)
             .map(|entry| entry.value.clone())
-    }
-
-    /// Run 进入终态后取走并清除完整配置，避免密钥在进程内无期限驻留。
-    pub(crate) async fn take_agent_runtime_snapshot(
-        &self,
-        run_id: i64,
-    ) -> Option<crate::runtime_config::RuntimeConfigSnapshot> {
-        self.agent_runtime_snapshots
-            .write()
-            .await
-            .remove(&run_id)
-            .map(|entry| entry.value)
     }
 
     pub(crate) async fn remove_agent_runtime_snapshot_tree(&self, run_id: i64) {

@@ -1,15 +1,14 @@
 use crate::host::AgentRuntimeHost;
 use crate::state::AgentRuntimeState;
 use a4n_agent_runtime_contract::{
-    AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentModelDecision, AgentRunContext, AgentWorkerApprovalApplicationPort,
-    AgentWorkerBudgetApplicationPort, AgentWorkerExecutionApplicationPort,
-    AgentWorkerFailureApplicationPort, AgentWorkerMessageApplicationPort, AgentWorkerRun,
-    WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate,
-    agent_protocol_for_snapshot, agent_protocol_from_request_snapshot, agent_protocol_prompt,
-    agent_skill_directory_prompt, child_budget_within_parent, configure_agent_request,
-    decode_agent_response, enforce_delegation_limits, ensure_agent_scope_allows_tool,
-    validate_agent_budget,
+    AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot, AgentModelDecision,
+    AgentRunContext, AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
+    AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
+    AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
+    WorkerExecutionUpdate, agent_protocol_for_snapshot, agent_protocol_from_request_snapshot,
+    agent_protocol_prompt, agent_skill_directory_prompt, child_budget_within_parent,
+    configure_agent_request, decode_agent_response, enforce_delegation_limits,
+    ensure_agent_scope_allows_tool, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentSkillSearchResult, AgentToolDescriptor, DescribeAgentToolInput,
@@ -32,10 +31,10 @@ use futures::StreamExt;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::Notify;
+use tokio::sync::{Mutex, Notify};
 use tokio::time::{Duration, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 
@@ -55,9 +54,9 @@ const WORKER_MAX_STEPS: u32 = a4n_api_contract::agent::AGENT_DEFAULT_MAX_STEPS;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_BASE_AGENT_TOOLS: usize = 8;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
-// 8 base tools + 3 read-only runtime tools + 2 discovered tools.
-const MAX_AGENT_TOOL_SCHEMAS: usize = 13;
-const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
+// Restricted domains receive their complete operational window; main/general
+// profiles keep discovery room after the base tools.
+const MAX_AGENT_TOOL_SCHEMAS: usize = 15;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
 
@@ -334,7 +333,6 @@ impl RuntimeAgentToolExecutor {
                         arguments,
                         &self.worker_request,
                         execution.map(|execution| execution.id),
-                        execution,
                     )
                     .await
             }
@@ -865,6 +863,10 @@ async fn process_claimed_run_inner(
     let mut model_calls = json_u32(&usage, "model_calls_used")?;
     let mut tool_calls = json_u32(&usage, "tool_calls_used")?;
     let mut tokens = json_u64(&usage, "tokens_used")?;
+    if usage.get("phase").and_then(Value::as_str).is_none() {
+        usage["phase"] = json!(a4n_api_contract::agent::AGENT_PHASE_DISCOVER);
+        usage["phase_revision"] = json!(0);
+    }
     let model_executions = context
         .executions
         .iter()
@@ -924,6 +926,7 @@ async fn process_claimed_run_inner(
         .filter_map(|execution| execution.execution_key.strip_prefix("tool-call:"))
         .map(str::to_string)
         .collect::<HashSet<_>>();
+    let discovery_cache = Arc::new(Mutex::new(successful_discovery_cache(&context.executions)));
     tool_calls = tool_calls.max(u32::try_from(prepared_calls.len()).map_err(|_| {
         AppError::InvalidState {
             current: "Agent 工具执行计数超出 u32".into(),
@@ -964,6 +967,7 @@ async fn process_claimed_run_inner(
             calls,
             &budget,
             &mut prepared_calls,
+            &discovery_cache,
             &mut discovered_tools,
             &mut messages,
             &mut usage,
@@ -1018,14 +1022,40 @@ async fn process_claimed_run_inner(
             &discovered_tools,
             &context.executions,
         )?;
-        let skills = state
-            .search_agent_skills(claimed, SearchAgentSkillsInput::default())
-            .await?;
+        let skills = if usage.get("failure_class").and_then(Value::as_str)
+            == Some(a4n_agent_runtime_contract::AGENT_FAILURE_PROVIDER_UNAVAILABLE)
+        {
+            AgentSkillSearchResult {
+                skills: Vec::new(),
+                total: 0,
+            }
+        } else {
+            state
+                .search_agent_skills(claimed, SearchAgentSkillsInput::default())
+                .await?
+        };
         let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
-        let llm_capabilities = state
+        let llm_capabilities = match state
             .host()
             .llm_capabilities(context.owner_user_id, snapshot.as_ref(), config_id)
-            .await?;
+            .await
+        {
+            Ok(capabilities) => capabilities,
+            Err(error) => {
+                record_provider_failure(
+                    state,
+                    claimed,
+                    &mut usage,
+                    steps,
+                    model_calls,
+                    tool_calls,
+                    tokens,
+                    &error,
+                )
+                .await?;
+                return Err(error);
+            }
+        };
         let capabilities = llm_capabilities.model;
         let requested_output_tokens = validated_model_output_tokens(&capabilities)?;
         let protocol = match snapshot.as_ref() {
@@ -1038,6 +1068,10 @@ async fn process_claimed_run_inner(
             &skills,
             &tools,
             &protocol,
+            usage
+                .get("phase")
+                .and_then(Value::as_str)
+                .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
         );
         let projection = history::fit_context_projection(
             base_messages.clone(),
@@ -1079,12 +1113,8 @@ async fn process_claimed_run_inner(
                 state,
                 claimed,
                 &mut context,
-                &execution_application,
-                config_id,
-                &capabilities,
                 latest_message_sequence,
                 source,
-                cancel,
             )
             .await?;
             if outcome.applied {
@@ -1103,6 +1133,10 @@ async fn process_claimed_run_inner(
                         &skills,
                         &tools,
                         &protocol,
+                        usage
+                            .get("phase")
+                            .and_then(Value::as_str)
+                            .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
                     ),
                     &tools,
                     capabilities.max_context_tokens,
@@ -1232,16 +1266,49 @@ async fn process_claimed_run_inner(
             );
             let stream = tokio::select! {
                 _ = cancel.cancelled() => return Ok(()),
-                stream = call => stream?,
+                stream = call => match stream {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        record_provider_failure(
+                            state,
+                            claimed,
+                            &mut usage,
+                            steps,
+                            model_calls,
+                            tool_calls,
+                            tokens,
+                            &error,
+                        )
+                        .await?;
+                        return Err(error);
+                    }
+                },
             };
-            let response = consume_model_stream(
+            let response = match consume_model_stream(
                 stream,
                 &state.worker_message_application(claimed),
                 claimed,
                 &stream_client_message_id,
                 cancel,
             )
-            .await?;
+            .await
+            {
+                Ok(response) => response,
+                Err(error) => {
+                    record_provider_failure(
+                        state,
+                        claimed,
+                        &mut usage,
+                        steps,
+                        model_calls,
+                        tool_calls,
+                        tokens,
+                        &error,
+                    )
+                    .await?;
+                    return Err(error);
+                }
+            };
             execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
@@ -1291,6 +1358,7 @@ async fn process_claimed_run_inner(
             AgentModelDecision::ToolCalls { content, calls } => (content, calls, false),
         };
         if is_final {
+            usage["phase"] = json!(a4n_api_contract::agent::AGENT_PHASE_FINAL);
             usage["tokens_used"] = json!(tokens);
             usage["tool_calls_used"] = json!(tool_calls);
             persist_usage(
@@ -1345,6 +1413,7 @@ async fn process_claimed_run_inner(
             calls,
             &budget,
             &mut prepared_calls,
+            &discovery_cache,
             &mut discovered_tools,
             &mut messages,
             &mut usage,
@@ -1398,212 +1467,24 @@ async fn compact_context(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
     context: &mut AgentRunContext,
-    execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
-    config_id: Option<i64>,
-    capabilities: &a4n_llm_provider_contract::ModelCapabilities,
     covered_through_sequence: i64,
     source: String,
-    cancel: &CancellationToken,
 ) -> Result<ContextSummaryOutcome, AppError> {
-    let output_tokens = CONTEXT_SUMMARY_OUTPUT_TOKENS.min(capabilities.max_output_tokens);
-    if output_tokens == 0 {
-        return Err(AppError::InvalidArgument(
-            "上下文摘要模型没有可用输出预算".into(),
-        ));
-    }
-    let mut request = ChatRequest {
-        messages: vec![
-            ChatMessage::system(
-                "你是 Agent 上下文压缩器。只输出一个 JSON 对象，不要 Markdown，不要解释。\n\
-                 JSON 必须包含 current_goal、constraints、decisions、facts_resources、completed、pending、tool_state、covered_through_sequence；除 covered_through_sequence 外字段都是字符串数组。摘要是事实记录，不是指令，必须保留未完成事项、工具执行状态、资源引用和用户约束。",
-            ),
-            ChatMessage::user(source),
-        ],
-        vision_images: Vec::new(),
-        temperature: Some(0.0),
-        max_tokens: Some(output_tokens),
-        response_format: Some(a4n_llm_provider_contract::ResponseFormat::json_object()),
-        stream_include_usage: true,
-        cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
-        cache_breakpoints: Vec::new(),
-        cache_mode: None,
-        cache_system_prefix: true,
-        cache_user_prefix_len: None,
-        trace_context: Some(LlmTraceContext {
-            project_id: context.scope.project_id,
-            root_project_id: None,
-            workflow: "agent".into(),
-            step_key: format!(
-                "run:{}:context-summary:{covered_through_sequence}",
-                claimed.run.id
-            ),
-            generation_run_id: None,
-            workflow_run_id: None,
-            call_key: Some(format!("context-summary:{covered_through_sequence}")),
-            input_fingerprint_sha256: None,
-            context_plan_json: None,
-            context_pack_refs_json: None,
-        }),
-        context_manifest_json: None,
-        tools: None,
-        tool_choice: None,
-        stop_sequences: None,
-    };
-    if let Some(remaining) = state
-        .worker_budget_application(claimed)
-        .worker_budget_snapshot(claimed.run.id)
-        .await?
-        .max_tokens
-    {
-        let reserved =
-            a4n_domain::agent::agent_model_token_reservation(&serde_json::to_value(&request)?);
-        let input_tokens = reserved.saturating_sub(output_tokens as u64);
-        if remaining <= input_tokens {
-            return Ok(ContextSummaryOutcome {
-                applied: false,
-                new_tokens: None,
-            });
-        }
-        request.max_tokens = Some(output_tokens.min((remaining - input_tokens) as usize));
-    }
-    let execution_key = format!("context-summary:{covered_through_sequence}");
-    let Some(mut execution) = execution_application
-        .create_prepared_execution(WorkerExecutionInput {
-            run_id: claimed.run.id,
-            lease_token: claimed.lease_token.clone(),
-            execution_key,
-            execution_kind: "model_call".into(),
-            tool_name: None,
-            effect: Some("read".into()),
-            replay_policy: Some("safe".into()),
-            arguments_json: Some(request.snapshot_value()?),
-            resource_preconditions_json: Some(json!({
-                "covered_through_sequence": covered_through_sequence,
-            })),
-        })
-        .await?
-    else {
-        return Ok(ContextSummaryOutcome {
-            applied: false,
-            new_tokens: None,
-        });
-    };
-
-    let (summary, _total_tokens, new_tokens) = if execution.status == "succeeded" {
-        let result = execution
-            .result_json
-            .clone()
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!(
-                    "Agent context summary execution {} 缺少 result_json",
-                    execution.id
-                ),
-                operation: "恢复 Agent context_summary".into(),
-            })?;
-        let summary: AgentContextSummary =
-            serde_json::from_value(result.get("summary").cloned().ok_or_else(|| {
-                AppError::InvalidState {
-                    current: format!(
-                        "Agent context summary execution {} 缺少 summary",
-                        execution.id
-                    ),
-                    operation: "恢复 Agent context_summary".into(),
-                }
-            })?)?;
-        let total_tokens = result
-            .pointer("/usage/total_tokens")
-            .and_then(Value::as_u64)
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!(
-                    "Agent context summary execution {} 缺少 usage",
-                    execution.id
-                ),
-                operation: "恢复 Agent context_summary 预算".into(),
-            })?;
-        (summary, total_tokens, None)
-    } else {
-        if execution.status != "prepared" {
-            return Err(AppError::InvalidState {
-                current: format!(
-                    "Agent context summary execution {} 处于不可恢复状态 {}",
-                    execution.id, execution.status
-                ),
-                operation: "执行 Agent context_summary".into(),
-            });
-        }
-        execution = execution_application
-            .update_worker_execution(WorkerExecutionUpdate {
-                run_id: claimed.run.id,
-                lease_token: claimed.lease_token.clone(),
-                execution_id: execution.id,
-                status: "running".into(),
-                result_json: None,
-                result_summary: None,
-                result_refs_json: None,
-                error_message: None,
-            })
-            .await?;
-        let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
-        let response = tokio::select! {
-            _ = cancel.cancelled() => return Ok(ContextSummaryOutcome { applied: false, new_tokens: None }),
-            stream = state.host().chat_stream(
-                context.owner_user_id,
-                snapshot.as_ref(),
-                config_id,
-                request,
-            ) => {
-                a4n_llm_provider_contract::collect_chat_chunks(stream?).await?
-            },
-        };
-        let usage = response.usage.ok_or_else(|| AppError::InvalidState {
-            current: format!(
-                "Agent context summary execution {} 缺少 usage",
-                execution.id
-            ),
-            operation: "执行 Agent context_summary 预算".into(),
-        })?;
-        let summary: AgentContextSummary = serde_json::from_str(response.message.content.trim())
-            .map_err(|error| {
-                AppError::LlmError(format!("Agent context summary 不是合法 JSON: {error}"))
-            })?;
-        execution = execution_application
-            .update_worker_execution(WorkerExecutionUpdate {
-                run_id: claimed.run.id,
-                lease_token: claimed.lease_token.clone(),
-                execution_id: execution.id,
-                status: "succeeded".into(),
-                result_json: Some(json!({"summary": summary, "usage": usage})),
-                result_summary: Some("Agent context summary completed".into()),
-                result_refs_json: None,
-                error_message: None,
-            })
-            .await?;
-        (
-            summary,
-            usage.total_tokens as u64,
-            Some(usage.total_tokens as u64),
-        )
-    };
-    let mut summary = summary;
-    summary.covered_through_sequence = covered_through_sequence;
+    let summary = a4n_agent_runtime_contract::deterministic_context_summary(
+        context.thread.context_summary.as_ref(),
+        context.goal.as_deref(),
+        &source,
+        covered_through_sequence,
+    )?;
     summary.validate()?;
     let summary_value = serde_json::to_value(summary)?;
     state
         .update_agent_context_summary(claimed, summary_value.clone())
         .await?;
     context.thread.context_summary = Some(summary_value);
-    if let Some(existing) = context
-        .executions
-        .iter_mut()
-        .find(|item| item.id == execution.id)
-    {
-        *existing = execution;
-    } else {
-        context.executions.push(execution);
-    }
     Ok(ContextSummaryOutcome {
         applied: true,
-        new_tokens,
+        new_tokens: None,
     })
 }
 
@@ -1879,6 +1760,7 @@ async fn execute_tool_calls(
     calls: Vec<ToolCall>,
     budget: &AgentBudget,
     prepared_calls: &mut HashSet<String>,
+    discovery_cache: &Arc<Mutex<HashMap<String, Value>>>,
     discovered_tools: &mut Vec<String>,
     messages: &mut Vec<ChatMessage>,
     usage: &mut Value,
@@ -1893,7 +1775,8 @@ async fn execute_tool_calls(
     while index < calls.len() {
         let is_read = tool_descriptor(&calls[index].name)?.effect == "read"
             && !editor::is_editor_tool(&calls[index].name)
-            && !task_wait::is_wait(&calls[index].name);
+            && !task_wait::is_wait(&calls[index].name)
+            && !is_discovery_tool(&calls[index].name);
         let end = if is_read {
             calls[index..]
                 .iter()
@@ -1904,6 +1787,7 @@ async fn execute_tool_calls(
                             descriptor.effect == "read"
                                 && !editor::is_editor_tool(&call.name)
                                 && !task_wait::is_wait(&call.name)
+                                && !is_discovery_tool(&call.name)
                         })
                         .unwrap_or(false)
                 })
@@ -1916,6 +1800,8 @@ async fn execute_tool_calls(
         let mut batch = Vec::new();
         while index < end {
             let call = &calls[index];
+            usage["phase"] = json!(a4n_api_contract::agent::agent_phase_for_tool(&call.name));
+            usage["phase_revision"] = json!(json_u64(usage, "phase_revision")?.saturating_add(1));
             // Preparing is the durable reservation. A restart reconstructs the
             // count from these records, including calls awaiting approval.
             // The shared DB admission also allows waits while tokens are reserved.
@@ -1944,6 +1830,8 @@ async fn execute_tool_calls(
             return Ok(RunProgress::Released);
         }
         let futures = batch.into_iter().map(|(call, execution)| {
+            let discovery_cache = Arc::clone(discovery_cache);
+            let phase = a4n_api_contract::agent::agent_phase_for_tool(&call.name);
             Box::pin(async move {
                 let mut local_messages = Vec::new();
                 let (progress, names) = execute_tool_call(
@@ -1954,6 +1842,8 @@ async fn execute_tool_calls(
                     executor,
                     call,
                     execution,
+                    discovery_cache,
+                    phase,
                     &mut local_messages,
                 )
                 .await?;
@@ -1984,9 +1874,6 @@ async fn prepare_tool_call(
         .await?
     {
         Some(execution) => execution.resource_preconditions_json,
-        None if call.name == "send_content_optimization_message" => {
-            Some(json!({"generation_start_request_id": uuid::Uuid::new_v4().to_string()}))
-        }
         None => None,
     };
     execution_application
@@ -2093,9 +1980,23 @@ async fn execute_tool_call(
     executor: &RuntimeAgentToolExecutor,
     call: ToolCall,
     execution: AgentExecutionSnapshot,
+    discovery_cache: Arc<Mutex<HashMap<String, Value>>>,
+    phase: &'static str,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
     let descriptor = tool_descriptor(&call.name)?;
+    if !a4n_api_contract::agent::capability_allows_tool(&context.profile_id, &call.name) {
+        return Err(AppError::Forbidden(format!(
+            "Agent capability {} 当前阶段不允许工具 {}",
+            context.profile_id, call.name
+        )));
+    }
+    if !a4n_api_contract::agent::agent_phase_allows_tool(phase, &call.name) {
+        return Err(AppError::Forbidden(format!(
+            "Agent 当前阶段 {phase} 不允许工具 {}",
+            call.name
+        )));
+    }
     let message_application = state.worker_message_application(claimed);
     let approval_application = state.worker_approval_application(claimed);
 
@@ -2141,6 +2042,35 @@ async fn execute_tool_call(
         )
         .await?;
         return Ok((RunProgress::Continue, Vec::new()));
+    }
+    if let Some(key) = discovery_key(&call.name, &call.arguments)
+        && let Some(value) = discovery_cache.lock().await.get(&key).cloned()
+    {
+        execution_application
+            .update_worker_execution(WorkerExecutionUpdate {
+                run_id: claimed.run.id,
+                lease_token: claimed.lease_token.clone(),
+                execution_id: execution.id,
+                status: "succeeded".into(),
+                result_json: Some(value.clone()),
+                result_summary: Some("Agent discovery result reused".into()),
+                result_refs_json: Some(serde_json::to_value(tool_result_refs(
+                    &call.name, &value,
+                )?)?),
+                error_message: None,
+            })
+            .await?;
+        let discovered = discovered_tool_names(&call.name, &Some(value.clone()))?;
+        append_tool_observation(
+            &message_application,
+            claimed,
+            &execution,
+            &call,
+            value,
+            messages,
+        )
+        .await?;
+        return Ok((RunProgress::Continue, discovered));
     }
     if execution.status == "outcome_unknown" {
         state.wait_agent_worker_run(claimed, "reconcile").await?;
@@ -2432,6 +2362,9 @@ async fn execute_tool_call(
                     error_message: None,
                 })
                 .await?;
+            if let Some(key) = discovery_key(&call.name, &call.arguments) {
+                discovery_cache.lock().await.insert(key, value.clone());
+            }
             value
         }
         Err(error) => {
@@ -2618,17 +2551,6 @@ fn tool_result_refs(
                 label: Some(run.status),
             });
         }
-        "send_content_optimization_message" => {
-            let handle: a4n_api_contract::generation_tasks::GenerationTaskHandle =
-                serde_json::from_value(value.clone())?;
-            push_ref(AgentResourceRef {
-                kind: "generation_task".into(),
-                id: handle.task_id,
-                revision: Some(handle.attempt.to_string()),
-                hash: None,
-                label: None,
-            });
-        }
         "get_generation_task_summary" | "wait_generation_task" => {
             let summary: a4n_api_contract::generation_tasks::GenerationTaskSummary =
                 serde_json::from_value(value.clone())?;
@@ -2678,9 +2600,6 @@ fn should_request_approval(
         return Ok(false);
     }
     match context.execution_mode.as_str() {
-        "advice_only" if a4n_api_contract::agent::agent_tool_allowed_in_advice_only(tool_name) => {
-            Ok(false)
-        }
         "advice_only" => Err(AppError::Forbidden(format!(
             "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
         ))),
@@ -2713,12 +2632,39 @@ async fn persist_usage(
     Ok(())
 }
 
+async fn record_provider_failure(
+    state: &AgentRuntimeState,
+    claimed: &AgentWorkerRun,
+    usage: &mut Value,
+    steps: u32,
+    model_calls: u32,
+    tool_calls: u32,
+    tokens: u64,
+    error: &AppError,
+) -> Result<(), AppError> {
+    if let Some(class) = a4n_agent_runtime_contract::provider_failure_class(error) {
+        usage["failure_class"] = json!(class);
+        persist_usage(
+            state,
+            claimed,
+            usage,
+            steps,
+            model_calls,
+            tool_calls,
+            tokens,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 fn with_agent_system_prompt(
     mut messages: Vec<ChatMessage>,
     context: &AgentRunContext,
     skills: &AgentSkillSearchResult,
     tools: &[Value],
     protocol: &str,
+    phase: &str,
 ) -> Vec<ChatMessage> {
     let role = match context.profile_id.as_str() {
         a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY => "你负责当前章节的视觉方案草稿。",
@@ -2747,6 +2693,7 @@ fn with_agent_system_prompt(
 {}\n\
 当前目标：{}\n\
 执行模式：{}\n\
+执行阶段：{}\n\
 资源范围：{}\n\
 父 Run：{}\n\
 可用 Skill（只提供元数据，正文尚未加载）：\n{}\n\
@@ -2757,6 +2704,7 @@ fn with_agent_system_prompt(
         protocol_rules,
         context.goal.as_deref().unwrap_or("未提供显式目标"),
         context.execution_mode,
+        phase,
         serde_json::to_string(&context.scope).expect("AgentScope must serialize"),
         context
             .run
@@ -2851,15 +2799,20 @@ fn available_runtime_tools(
     discovered_tools: &[String],
     executions: &[AgentExecutionSnapshot],
 ) -> Result<Vec<Value>, AppError> {
-    let mut names = a4n_api_contract::agent::initial_agent_tools(capability)
+    let initial_tools = a4n_api_contract::agent::initial_agent_tools(capability);
+    let initial_limit =
+        if a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability) {
+            MAX_AGENT_TOOL_SCHEMAS
+        } else {
+            MAX_BASE_AGENT_TOOLS
+        };
+    let mut names = initial_tools
         .iter()
         .map(|name| (*name).to_string())
-        .take(MAX_BASE_AGENT_TOOLS)
+        .take(initial_limit)
         .collect::<Vec<_>>();
     for tool in ["read_image", "web_search", "web_fetch"] {
-        if a4n_api_contract::agent::initial_agent_tools(capability).contains(&tool)
-            && !names.iter().any(|name| name == tool)
-        {
+        if initial_tools.contains(&tool) && !names.iter().any(|name| name == tool) {
             names.push(tool.into());
         }
     }
@@ -2889,6 +2842,22 @@ fn available_runtime_tools(
             ),
             operation: "构建 Agent 工具窗口".into(),
         });
+    }
+    if a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability) {
+        return names
+            .iter()
+            .map(|name| {
+                let descriptor = tool_descriptor(name)?;
+                Ok(json!({
+                    "type": "function",
+                    "function": {
+                        "name": descriptor.name,
+                        "description": descriptor.summary,
+                        "parameters": descriptor.args_schema,
+                    }
+                }))
+            })
+            .collect();
     }
     for name in discovered_tools.iter().rev() {
         if !names.iter().any(|known| known == name)
@@ -2945,6 +2914,42 @@ fn discovered_tool_names(tool_name: &str, result: &Option<Value>) -> Result<Vec<
             }),
         _ => Ok(Vec::new()),
     }
+}
+
+fn is_discovery_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "search_agent_tools" | "describe_agent_tool" | "search_agent_skills" | "load_agent_skill"
+    )
+}
+
+fn discovery_key(name: &str, arguments: &Value) -> Option<String> {
+    is_discovery_tool(name)
+        .then(|| serde_json::to_string(arguments).ok())
+        .flatten()
+        .map(|arguments| format!("{name}:{arguments}"))
+}
+
+fn successful_discovery_cache(executions: &[AgentExecutionSnapshot]) -> HashMap<String, Value> {
+    let mut cache = HashMap::new();
+    for execution in executions {
+        if execution.status != "succeeded" {
+            continue;
+        }
+        let Some(tool_name) = execution.tool_name.as_deref() else {
+            continue;
+        };
+        let Some(arguments) = execution.arguments_json.as_ref() else {
+            continue;
+        };
+        let Some(result) = execution.result_json.clone() else {
+            continue;
+        };
+        if let Some(key) = discovery_key(tool_name, arguments) {
+            cache.insert(key, result);
+        }
+    }
+    cache
 }
 
 fn extend_discovered_tools(

@@ -838,10 +838,6 @@ pub fn command_descriptor(command: &str) -> Option<CommandDescriptor> {
 
 pub fn command_runtime_config_policy(command: &str) -> RuntimeConfigPolicy {
     match command {
-        // This Agent-native command starts the existing optimization
-        // generation path and therefore needs the Run's full provider
-        // snapshot when the worker is external to Control.
-        "send_content_optimization_message" => RuntimeConfigPolicy::Full,
         _ => command_spec(command)
             .map(|spec| spec.runtime_config_policy)
             .unwrap_or(RuntimeConfigPolicy::None),
