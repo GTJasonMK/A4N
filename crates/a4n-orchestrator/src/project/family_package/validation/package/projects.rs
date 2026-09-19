@@ -10,7 +10,10 @@ pub(super) fn validate_package_projects(package: &ProjectFamilyPackage) -> Resul
     if package.version != PROJECT_FAMILY_PACKAGE_VERSION {
         return Err(format!("项目族导入包版本无效: {}", package.version));
     }
-    if package.mode != "project_family" && package.mode != "derived_project" {
+    if !matches!(
+        package.mode.as_str(),
+        "project_family" | "derived_project" | "project_bundle_family" | "project_bundle_derived"
+    ) {
         return Err(format!("项目族导入包模式无效: {}", package.mode));
     }
     let root = package
