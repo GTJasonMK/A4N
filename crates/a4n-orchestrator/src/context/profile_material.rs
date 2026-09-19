@@ -3,9 +3,7 @@
 //! 持有 `DbHandle`，封装资料列表、按类型图片查询与主素材 upsert/delete。
 
 use a4n_db::DbHandle;
-use a4n_db::profile_material::{
-    ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows,
-};
+use a4n_db::profile_material::{ProfileMaterialDbError, ProfileMaterialListRows};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -33,20 +31,6 @@ impl ProfileMaterialApplication {
             self.connection(),
             project_id,
             image_types,
-        )
-        .await
-        .map_err(profile_material_db_error)
-    }
-
-    async fn profile_material_image_identity_rows_by_type(
-        &self,
-        project_id: i64,
-        image_type: &str,
-    ) -> Result<Vec<ProfileMaterialImageIdentityRow>, AppError> {
-        a4n_db::profile_material::profile_material_image_identity_rows_by_type(
-            self.connection(),
-            project_id,
-            image_type,
         )
         .await
         .map_err(profile_material_db_error)
@@ -102,16 +86,6 @@ impl OrchestratorContext {
     ) -> Result<ProfileMaterialListRows, AppError> {
         self.profile_material
             .profile_material_list_rows(project_id, image_types)
-            .await
-    }
-
-    pub(crate) async fn profile_material_image_identity_rows_by_type(
-        &self,
-        project_id: i64,
-        image_type: &str,
-    ) -> Result<Vec<ProfileMaterialImageIdentityRow>, AppError> {
-        self.profile_material
-            .profile_material_image_identity_rows_by_type(project_id, image_type)
             .await
     }
 

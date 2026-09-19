@@ -15,7 +15,7 @@ pub(crate) use contracts::{
     SceneEntityStateDraft, SceneOccurrenceDraft, SceneProfileDraft, SceneSyncInput,
     SceneTransitionDraft,
 };
-pub(crate) use mapping::{normalize_scene_profile_record_input, normalize_scene_sync_record_input};
+pub(crate) use mapping::normalize_scene_sync_record_input;
 pub(crate) use rules::{
     normalize_movement_type_value, normalize_scene_entity_state_key_value,
     normalize_scene_entity_type_value, normalize_scene_type_value,

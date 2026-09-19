@@ -149,9 +149,6 @@ pub struct ApplicationPorts {
     /// Host-facing object profile read boundary.
     pub object_profile_read_application:
         Arc<dyn a4n_api_contract::profile::ObjectProfileReadApplicationPort>,
-    /// Host-facing object profile mutation boundary.
-    pub object_profile_mutation_application:
-        Arc<dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort>,
     /// Host-facing scene profile read boundary.
     pub scene_profile_read_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileReadApplicationPort>,
@@ -191,9 +188,6 @@ pub struct ApplicationPorts {
     /// progress, and task lifecycle adapters.
     pub character_conflict_application:
         Arc<dyn a4n_character_host_contract::CharacterConflictApplicationPort>,
-    /// Host-facing scene profile mutation boundary.
-    pub scene_profile_mutation_application:
-        Arc<dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort>,
     /// Host-facing foreshadowing read boundary. Authorization and DTO
     /// projection stay in the owner.
     pub foreshadowing_read_application:

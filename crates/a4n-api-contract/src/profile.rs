@@ -1,4 +1,6 @@
 pub use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
+pub use a4n_domain::object_profile::ObjectProfileInput;
+pub use a4n_domain::scene_profile::SceneProfileInput;
 use a4n_domain::{
     DownstreamConflictStrategy,
     profile_material::{
@@ -14,28 +16,6 @@ use serde_json::Value;
 #[serde(deny_unknown_fields)]
 pub struct ListObjectProfilesInput {
     pub project_id: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ObjectProfileInput {
-    pub name: String,
-    #[serde(default)]
-    pub aliases: Vec<String>,
-    pub object_type: String,
-    pub importance: String,
-    pub visual_description: String,
-    pub material_and_state: String,
-    pub story_usage: String,
-    pub visual_usage: String,
-    pub generation_usage: String,
-    #[serde(default)]
-    pub location_context: Option<String>,
-    pub first_seen_chapter: i32,
-    pub last_seen_chapter: i32,
-    #[serde(default)]
-    pub evidence: Vec<String>,
-    pub image_prompt_seed: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -114,31 +94,6 @@ pub struct SyncSceneProfilesInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_number: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct SceneProfileInput {
-    pub name: String,
-    #[serde(default)]
-    pub aliases: Vec<String>,
-    pub scene_type: String,
-    pub importance: String,
-    #[serde(default)]
-    pub parent_scene_id: Option<i64>,
-    pub base_description: String,
-    pub visual_description: String,
-    pub spatial_layout: String,
-    pub atmosphere: String,
-    #[serde(default)]
-    pub entry_points_json: Option<Value>,
-    #[serde(default)]
-    pub rules_json: Option<Value>,
-    pub first_seen_chapter: i32,
-    pub last_seen_chapter: i32,
-    #[serde(default)]
-    pub evidence: Vec<String>,
-    pub image_prompt_seed: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -234,6 +189,28 @@ pub struct SceneProfileDeleteOutcome {
     pub downstream_image_ids: Vec<i64>,
 }
 
+/// Host-facing scene profile mutation boundary implemented by the scene worker client.
+#[async_trait::async_trait]
+pub trait SceneProfileMutationApplicationPort: Send + Sync {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteSceneProfileInput,
+    ) -> Result<SceneProfileDeleteOutcome, a4n_error::AppError>;
+}
+
 /// Host-facing object profile mutation boundary.
 ///
 /// Authorization, conflict policy, persistence and DTO projection stay with
@@ -258,28 +235,6 @@ pub trait ObjectProfileMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: DeleteObjectProfileInput,
     ) -> Result<ObjectProfileDeleteOutcome, a4n_error::AppError>;
-}
-
-/// Host-facing scene profile mutation boundary.
-#[async_trait::async_trait]
-pub trait SceneProfileMutationApplicationPort: Send + Sync {
-    async fn create(
-        &self,
-        user_id: i64,
-        input: CreateSceneProfileInput,
-    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
-
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateSceneProfileInput,
-    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteSceneProfileInput,
-    ) -> Result<SceneProfileDeleteOutcome, a4n_error::AppError>;
 }
 
 /// Host-facing object profile read boundary.

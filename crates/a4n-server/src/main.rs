@@ -1567,10 +1567,6 @@ fn wait_for_control(child: &mut Child, address: SocketAddr) -> anyhow::Result<()
     let started = Instant::now();
     let mut last_error = None;
     while started.elapsed() < CONTROL_READY_TIMEOUT {
-        match TcpStream::connect_timeout(&address, CONTROL_READY_CONNECT_TIMEOUT) {
-            Ok(_) => return Ok(()),
-            Err(error) => last_error = Some(error),
-        }
         if let Some(status) = child.try_wait()? {
             anyhow::bail!(
                 "A4N Control 在 listener 就绪前退出: {status}; 最后一次连接错误: {}",
@@ -1579,6 +1575,10 @@ fn wait_for_control(child: &mut Child, address: SocketAddr) -> anyhow::Result<()
                     .map(ToString::to_string)
                     .unwrap_or_else(|| "无".to_string())
             );
+        }
+        match TcpStream::connect_timeout(&address, CONTROL_READY_CONNECT_TIMEOUT) {
+            Ok(_) => return Ok(()),
+            Err(error) => last_error = Some(error),
         }
         std::thread::sleep(CONTROL_READY_RETRY_INTERVAL);
     }

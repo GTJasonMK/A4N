@@ -92,6 +92,8 @@ a4n-import-core = { path = "../a4n-import-core" }
 a4n-image-providers = { path = "../a4n-image-providers", optional = true }
 a4n-model-discovery = { path = "../a4n-model-discovery" }
 a4n-model-discovery-contract = { path = "../a4n-model-discovery-contract" }
+a4n-object-profile-worker-client = { path = "../a4n-object-profile-worker-client" }
+a4n-scene-profile-worker-client = { path = "../a4n-scene-profile-worker-client" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-storage = { path = "../a4n-storage" }
 a4n-video = { path = "../a4n-video" }

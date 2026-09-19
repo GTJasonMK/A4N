@@ -1,19 +1,41 @@
-//! Typed commands owned by the object profile read worker.
+//! Typed commands owned by the object-profile worker.
 
-pub use a4n_api_contract::profile::ObjectProfileSummary;
+pub use a4n_api_contract::profile::{
+    CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteResult,
+    ObjectProfileInput, ObjectProfileMutationResult, ObjectProfileSummary,
+    UpdateObjectProfileInput,
+};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const OBJECT_PROFILE_WORKER_ID: &str = "object-profile-worker";
-pub const OBJECT_PROFILE_WORKER_CONTRACT_VERSION: &str = "object-profile-read-v1";
+pub const OBJECT_PROFILE_WORKER_CONTRACT_VERSION: &str = "object-profile-mutation-v1";
 pub const OBJECT_PROFILE_LIST_OPERATION: &str = "profile.object.list";
+pub const OBJECT_PROFILE_CREATE_OPERATION: &str = "profile.object.create";
+pub const OBJECT_PROFILE_UPDATE_OPERATION: &str = "profile.object.update";
+pub const OBJECT_PROFILE_DELETE_OPERATION: &str = "profile.object.delete";
 pub const OBJECT_PROFILE_READ_CAPABILITY: &str = "profile.object.read";
+pub const OBJECT_PROFILE_MUTATION_CAPABILITY: &str = "profile.object.mutation";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ObjectProfileProjectInput {
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ObjectProfileMutationResponse {
+    pub result: ObjectProfileMutationResult,
+    pub downstream_image_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ObjectProfileDeleteResponse {
+    pub result: ObjectProfileDeleteResult,
+    pub downstream_image_ids: Vec<i64>,
 }
 
 #[cfg(test)]

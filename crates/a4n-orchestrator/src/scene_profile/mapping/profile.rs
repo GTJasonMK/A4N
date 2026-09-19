@@ -1,7 +1,5 @@
-use a4n_api_contract::profile::SceneProfileInput;
 use a4n_domain::profile_text::{
-    normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
-    validate_importance,
+    normalize_aliases, normalize_required_text_set, required_text, validate_importance,
 };
 use a4n_domain::scene_profile::SceneProfileRecordInput;
 use a4n_error::AppError;
@@ -9,42 +7,6 @@ use serde_json::json;
 
 use super::super::contracts::SceneProfileDraft;
 use super::super::rules::normalize_scene_type_value;
-
-/// 将 API 场景档案输入转换并规范化为 DB 写入 DTO。
-pub fn normalize_scene_profile_record_input(
-    input: SceneProfileInput,
-) -> Result<SceneProfileRecordInput, AppError> {
-    let draft = manual_scene_profile_draft(input);
-    let normalized = normalize_scene_name(&draft.name)?;
-    let draft = normalize_manual_profile_draft(draft)?;
-    Ok(scene_profile_record_input(draft, normalized))
-}
-
-fn manual_scene_profile_draft(input: SceneProfileInput) -> SceneProfileDraft {
-    SceneProfileDraft {
-        scene_ref: input.name.clone(),
-        scene_profile_id: None,
-        name: input.name,
-        aliases: input.aliases,
-        scene_type: input.scene_type,
-        importance: input.importance,
-        parent_scene_id: input.parent_scene_id,
-        base_description: input.base_description,
-        visual_description: input.visual_description,
-        spatial_layout: input.spatial_layout,
-        atmosphere: input.atmosphere,
-        entry_points: input
-            .entry_points_json
-            .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
-        rules: input
-            .rules_json
-            .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
-        first_seen_chapter: input.first_seen_chapter,
-        last_seen_chapter: input.last_seen_chapter,
-        evidence: input.evidence,
-        image_prompt_seed: input.image_prompt_seed,
-    }
-}
 
 pub(super) fn normalize_scene_name(name: &str) -> Result<String, AppError> {
     let normalized = name.trim().to_lowercase();
@@ -70,25 +32,6 @@ pub(super) fn normalize_profile_draft(
     validate_scene_json_fields(&draft)?;
     validate_scene_chapter_range(&draft)?;
     draft.evidence = normalize_required_text_set(draft.evidence, "场景证据")?;
-    Ok(draft)
-}
-
-fn normalize_manual_profile_draft(
-    mut draft: SceneProfileDraft,
-) -> Result<SceneProfileDraft, AppError> {
-    draft.scene_ref = required_text(&draft.scene_ref, "场景引用")?;
-    draft.name = required_text(&draft.name, "场景名称")?;
-    draft.aliases = normalize_aliases(draft.aliases);
-    draft.scene_type = normalize_optional_scene_type(&draft.scene_type)?;
-    draft.importance = normalize_optional_importance(&draft.importance, "场景重要性")?;
-    draft.base_description = draft.base_description.trim().to_string();
-    draft.visual_description = draft.visual_description.trim().to_string();
-    draft.spatial_layout = draft.spatial_layout.trim().to_string();
-    draft.atmosphere = draft.atmosphere.trim().to_string();
-    draft.image_prompt_seed = draft.image_prompt_seed.trim().to_string();
-    validate_scene_json_fields(&draft)?;
-    validate_scene_chapter_range(&draft)?;
-    draft.evidence = normalize_text_set(draft.evidence);
     Ok(draft)
 }
 
@@ -118,24 +61,6 @@ fn validate_scene_chapter_range(draft: &SceneProfileDraft) -> Result<(), AppErro
         ));
     }
     Ok(())
-}
-
-fn normalize_optional_scene_type(value: &str) -> Result<String, AppError> {
-    let value = value.trim();
-    if value.is_empty() {
-        Ok(String::new())
-    } else {
-        normalize_scene_type_value(value)
-    }
-}
-
-fn normalize_optional_importance(value: &str, field_name: &str) -> Result<String, AppError> {
-    let value = value.trim();
-    if value.is_empty() {
-        Ok(String::new())
-    } else {
-        Ok(validate_importance(value, field_name)?)
-    }
 }
 
 pub(super) fn scene_profile_record_input(

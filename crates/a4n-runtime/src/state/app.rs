@@ -989,12 +989,6 @@ impl AppState {
         self.object_profile_read_application.as_ref()
     }
 
-    pub(crate) fn object_profile_mutation_application(
-        &self,
-    ) -> &dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort {
-        self.object_profile_mutation_application.as_ref()
-    }
-
     pub(crate) fn scene_profile_read_application(
         &self,
     ) -> &dyn a4n_api_contract::profile::SceneProfileReadApplicationPort {
@@ -1068,12 +1062,6 @@ impl AppState {
         &self,
     ) -> &dyn a4n_character_host_contract::CharacterConflictApplicationPort {
         self.character_conflict_application.as_ref()
-    }
-
-    pub(crate) fn scene_profile_mutation_application(
-        &self,
-    ) -> &dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort {
-        self.scene_profile_mutation_application.as_ref()
     }
 
     pub(crate) fn foreshadowing_read_application(

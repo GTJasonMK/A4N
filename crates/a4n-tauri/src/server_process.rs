@@ -18,6 +18,11 @@ const ARTIFACT_MEDIA_WORKER_BINARY_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_BINARY
 const OUTLINE_WORKER_BINARY_ENV: &str = "A4N_OUTLINE_WORKER_BINARY";
 const BLUEPRINT_WORKER_BINARY_ENV: &str = "A4N_BLUEPRINT_WORKER_BINARY";
 const ASSET_GRAPH_WORKER_BINARY_ENV: &str = "A4N_ASSET_GRAPH_WORKER_BINARY";
+const FORESHADOWING_WORKER_BINARY_ENV: &str = "A4N_FORESHADOWING_WORKER_BINARY";
+const OBJECT_PROFILE_WORKER_BINARY_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_BINARY";
+const SCENE_PROFILE_WORKER_BINARY_ENV: &str = "A4N_SCENE_PROFILE_WORKER_BINARY";
+const PORTRAIT_WORKER_BINARY_ENV: &str = "A4N_PORTRAIT_WORKER_BINARY";
+const SOURCE_SNAPSHOT_WORKER_BINARY_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -71,6 +76,28 @@ impl LocalServerProcess {
             resolve_binary(app, "a4n-blueprint-worker", BLUEPRINT_WORKER_BINARY_ENV)?;
         let asset_graph_worker =
             resolve_binary(app, "a4n-asset-graph-worker", ASSET_GRAPH_WORKER_BINARY_ENV)?;
+        let foreshadowing_worker = resolve_binary(
+            app,
+            "a4n-foreshadowing-worker",
+            FORESHADOWING_WORKER_BINARY_ENV,
+        )?;
+        let object_profile_worker = resolve_binary(
+            app,
+            "a4n-object-profile-worker",
+            OBJECT_PROFILE_WORKER_BINARY_ENV,
+        )?;
+        let scene_profile_worker = resolve_binary(
+            app,
+            "a4n-scene-profile-worker",
+            SCENE_PROFILE_WORKER_BINARY_ENV,
+        )?;
+        let portrait_worker =
+            resolve_binary(app, "a4n-portrait-worker", PORTRAIT_WORKER_BINARY_ENV)?;
+        let source_snapshot_worker = resolve_binary(
+            app,
+            "a4n-source-snapshot-worker",
+            SOURCE_SNAPSHOT_WORKER_BINARY_ENV,
+        )?;
         let migration = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
         run_migration(&migration)?;
 
@@ -85,6 +112,11 @@ impl LocalServerProcess {
             .env(OUTLINE_WORKER_BINARY_ENV, &outline_worker)
             .env(BLUEPRINT_WORKER_BINARY_ENV, &blueprint_worker)
             .env(ASSET_GRAPH_WORKER_BINARY_ENV, &asset_graph_worker)
+            .env(FORESHADOWING_WORKER_BINARY_ENV, &foreshadowing_worker)
+            .env(OBJECT_PROFILE_WORKER_BINARY_ENV, &object_profile_worker)
+            .env(SCENE_PROFILE_WORKER_BINARY_ENV, &scene_profile_worker)
+            .env(PORTRAIT_WORKER_BINARY_ENV, &portrait_worker)
+            .env(SOURCE_SNAPSHOT_WORKER_BINARY_ENV, &source_snapshot_worker)
             .env("A4N_RUNTIME_PROFILE", "sidecar")
             .env("A4N_MANAGED_SIDECARS", "1")
             .env("A4N_PORTABLE_HOME", server_portable_home())
@@ -468,6 +500,11 @@ mod tests {
             "a4n-outline-worker",
             "a4n-blueprint-worker",
             "a4n-asset-graph-worker",
+            "a4n-foreshadowing-worker",
+            "a4n-object-profile-worker",
+            "a4n-scene-profile-worker",
+            "a4n-portrait-worker",
+            "a4n-source-snapshot-worker",
             "a4n-migration",
         ] {
             std::fs::write(directory.path().join(name), name).expect("binary fixture should write");

@@ -5,7 +5,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOr
 
 use super::{
     contracts::{ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows},
-    identity::profile_material_identity,
+    identity::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE, profile_material_identity},
     validation::{database, require_positive, require_text},
 };
 
@@ -110,4 +110,35 @@ pub async fn profile_material_image_counts_by_profile(
         }
     }
     Ok(counts)
+}
+
+pub async fn profile_material_image_ids_by_profile(
+    db: &DatabaseConnection,
+    project_id: i64,
+    image_type: &str,
+    profile_id: i64,
+) -> Result<Vec<i64>, ProfileMaterialDbError> {
+    let project_id = require_positive(project_id, "project_id")?;
+    let profile_id = require_positive(profile_id, "profile_id")?;
+    let image_type = require_text(image_type, "image_type")?;
+    let expected_kind = match image_type {
+        a4n_domain::image::IMAGE_TYPE_SCENE_MATERIAL => PROFILE_KIND_SCENE,
+        a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL => PROFILE_KIND_OBJECT,
+        _ => {
+            return Err(ProfileMaterialDbError::InvalidArgument(
+                "image_type 不是档案素材类型".to_string(),
+            ));
+        }
+    };
+    Ok(
+        profile_material_image_identity_rows_by_type(db, project_id, image_type)
+            .await?
+            .into_iter()
+            .filter(|image| {
+                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
+                    == Some((expected_kind, profile_id))
+            })
+            .map(|image| image.id)
+            .collect(),
+    )
 }

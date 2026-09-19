@@ -481,20 +481,36 @@ mod tests {
             .expect("object profile worker entry");
         assert_eq!(object.kind, ProcessKind::StatefulWorker);
         assert_eq!(object.binary, "a4n-object-profile-worker");
-        assert_eq!(object.contract_version, "object-profile-read-v1");
+        assert_eq!(object.contract_version, "object-profile-mutation-v1");
         assert_eq!(object.addr_env, "A4N_OBJECT_PROFILE_WORKER_ADDR");
         assert_eq!(object.default_addr, "127.0.0.1:47657");
-        assert_eq!(object.capabilities, vec!["profile.object.read".to_string()]);
+        assert_eq!(
+            object.capabilities,
+            vec![
+                "profile.object.read".to_string(),
+                "profile.object.mutation".to_string()
+            ]
+        );
         let scene = entries
             .iter()
             .find(|entry| entry.name == "scene-profile-worker")
             .expect("scene profile worker entry");
         assert_eq!(scene.kind, ProcessKind::StatefulWorker);
         assert_eq!(scene.binary, "a4n-scene-profile-worker");
-        assert_eq!(scene.contract_version, "scene-profile-read-v1");
+        assert_eq!(scene.contract_version, "scene-profile-records-v1");
         assert_eq!(scene.addr_env, "A4N_SCENE_PROFILE_WORKER_ADDR");
         assert_eq!(scene.default_addr, "127.0.0.1:47658");
-        assert_eq!(scene.capabilities, vec!["profile.scene.read".to_string()]);
+        assert_eq!(
+            scene.capabilities,
+            vec![
+                "profile.scene.read".to_string(),
+                "profile.scene.mutation".to_string()
+            ]
+        );
+        assert_eq!(
+            scene.migration.current.as_deref(),
+            Some("scene_profile_mutation")
+        );
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")

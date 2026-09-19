@@ -1,9 +1,15 @@
-//! Typed Host adapter for the scene profile read worker.
+//! Typed Host adapter for the scene profile worker.
 
-use a4n_api_contract::profile::{SceneProfileReadApplicationPort, SceneProfileSummary};
+use a4n_api_contract::profile::{
+    CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteOutcome,
+    SceneProfileMutationApplicationPort, SceneProfileMutationOutcome,
+    SceneProfileReadApplicationPort, SceneProfileSummary, UpdateSceneProfileInput,
+};
 use a4n_error::AppError;
 use a4n_scene_profile_worker_contract::{
-    SCENE_PROFILE_LIST_OPERATION, SCENE_PROFILE_WORKER_ID, SceneProfileProjectInput,
+    SCENE_PROFILE_CREATE_OPERATION, SCENE_PROFILE_DELETE_OPERATION, SCENE_PROFILE_LIST_OPERATION,
+    SCENE_PROFILE_UPDATE_OPERATION, SCENE_PROFILE_WORKER_ID, SceneProfileDeleteWorkerResult,
+    SceneProfileMutationWorkerResult, SceneProfileProjectInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -53,7 +59,7 @@ impl SceneProfileWorkerClient {
     async fn command<I, O>(
         &self,
         user_id: i64,
-        project_id: i64,
+        project_id: Option<i64>,
         operation_id: &str,
         payload: I,
     ) -> Result<O, AppError>
@@ -61,7 +67,7 @@ impl SceneProfileWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if user_id <= 0 || project_id <= 0 {
+        if user_id <= 0 || project_id.is_some_and(|project_id| project_id <= 0) {
             return Err(AppError::InvalidArgument(
                 "user_id 和 project_id 必须大于 0".into(),
             ));
@@ -77,7 +83,7 @@ impl SceneProfileWorkerClient {
             },
             operation_id: operation_id.to_string(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
-            project_id: Some(project_id),
+            project_id,
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
@@ -120,11 +126,63 @@ impl SceneProfileReadApplicationPort for SceneProfileWorkerClient {
     ) -> Result<Vec<SceneProfileSummary>, AppError> {
         self.command(
             user_id,
-            project_id,
+            Some(project_id),
             SCENE_PROFILE_LIST_OPERATION,
             SceneProfileProjectInput { project_id },
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl SceneProfileMutationApplicationPort for SceneProfileWorkerClient {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, AppError> {
+        let project_id = input.project_id;
+        let response: SceneProfileMutationWorkerResult = self
+            .command(
+                user_id,
+                Some(project_id),
+                SCENE_PROFILE_CREATE_OPERATION,
+                input,
+            )
+            .await?;
+        Ok(SceneProfileMutationOutcome {
+            result: response.result,
+            downstream_image_ids: response.downstream_image_ids,
+        })
+    }
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, AppError> {
+        let response: SceneProfileMutationWorkerResult = self
+            .command(user_id, None, SCENE_PROFILE_UPDATE_OPERATION, input)
+            .await?;
+        Ok(SceneProfileMutationOutcome {
+            result: response.result,
+            downstream_image_ids: response.downstream_image_ids,
+        })
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteSceneProfileInput,
+    ) -> Result<SceneProfileDeleteOutcome, AppError> {
+        let response: SceneProfileDeleteWorkerResult = self
+            .command(user_id, None, SCENE_PROFILE_DELETE_OPERATION, input)
+            .await?;
+        Ok(SceneProfileDeleteOutcome {
+            result: response.result,
+            project_id: response.project_id,
+            downstream_image_ids: response.downstream_image_ids,
+        })
     }
 }
 

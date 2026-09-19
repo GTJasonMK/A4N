@@ -1,13 +1,22 @@
-//! PostgreSQL-backed object profile read worker.
+//! PostgreSQL-backed object profile worker.
 
 use std::{env, net::SocketAddr, sync::Arc};
 
-use a4n_api_contract::profile::ObjectProfileSummary;
+use a4n_api_contract::profile::{
+    CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteResult,
+    ObjectProfileMutationResult, ObjectProfileSummary, UpdateObjectProfileInput,
+};
 use a4n_db::DbHandle;
-use a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL;
+use a4n_domain::{
+    image::IMAGE_TYPE_OBJECT_MATERIAL, object_profile::normalize_object_profile_record_input,
+    profile_material::resolve_downstream_image_ids,
+};
 use a4n_object_profile_worker_contract::{
-    OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_READ_CAPABILITY,
-    OBJECT_PROFILE_WORKER_CONTRACT_VERSION, OBJECT_PROFILE_WORKER_ID, ObjectProfileProjectInput,
+    OBJECT_PROFILE_CREATE_OPERATION, OBJECT_PROFILE_DELETE_OPERATION,
+    OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_MUTATION_CAPABILITY,
+    OBJECT_PROFILE_READ_CAPABILITY, OBJECT_PROFILE_UPDATE_OPERATION,
+    OBJECT_PROFILE_WORKER_CONTRACT_VERSION, OBJECT_PROFILE_WORKER_ID, ObjectProfileDeleteResponse,
+    ObjectProfileMutationResponse, ObjectProfileProjectInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -69,6 +78,9 @@ impl ObjectProfileWorker {
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/profile.object.list", post(list))
+            .route("/v1/commands/profile.object.create", post(create))
+            .route("/v1/commands/profile.object.update", post(update))
+            .route("/v1/commands/profile.object.delete", post(delete))
             .with_state(self.state.clone())
     }
 
@@ -148,11 +160,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: OBJECT_PROFILE_READ_CAPABILITY.into(),
-            version: OBJECT_PROFILE_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: OBJECT_PROFILE_READ_CAPABILITY.into(),
+                version: OBJECT_PROFILE_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: OBJECT_PROFILE_MUTATION_CAPABILITY.into(),
+                version: OBJECT_PROFILE_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -172,12 +191,57 @@ async fn list(
     Json(response).into_response()
 }
 
+async fn create(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<CreateObjectProfileInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.create(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn update(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<UpdateObjectProfileInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.update(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn delete(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<DeleteObjectProfileInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.delete(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
 impl WorkerState {
     async fn list(
         &self,
         request: WorkerEnvelope<ObjectProfileProjectInput>,
     ) -> Result<Vec<ObjectProfileSummary>, WorkerFailure> {
-        validate_request(&request)?;
+        validate_request(&request, OBJECT_PROFILE_LIST_OPERATION)?;
         let project_id = request.payload.project_id;
         if request.project_id != Some(project_id) || project_id <= 0 {
             return Err(WorkerFailure::invalid_request(
@@ -217,6 +281,159 @@ impl WorkerState {
             .collect())
     }
 
+    async fn create(
+        &self,
+        request: WorkerEnvelope<CreateObjectProfileInput>,
+    ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
+        validate_request(&request, OBJECT_PROFILE_CREATE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let project_id = request.payload.project_id;
+        if request.project_id != Some(project_id) || project_id <= 0 {
+            return Err(WorkerFailure::invalid_request(
+                "worker scope project_id 与 payload 不一致或无效",
+            ));
+        }
+        a4n_db::collaboration::verify_project_permission(
+            self.database.connection(),
+            project_id,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map_err(collaboration_error)?;
+        let record = normalize_object_profile_record_input(request.payload.profile)
+            .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        let profile = a4n_db::asset::create_object_profile_record(
+            self.database.connection(),
+            project_id,
+            record,
+        )
+        .await
+        .map_err(asset_error)?;
+        Ok(ObjectProfileMutationResponse {
+            result: ObjectProfileMutationResult {
+                profile: object_profile_summary(&profile, 0),
+                warnings: Vec::new(),
+            },
+            downstream_image_ids: Vec::new(),
+        })
+    }
+
+    async fn update(
+        &self,
+        request: WorkerEnvelope<UpdateObjectProfileInput>,
+    ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
+        validate_request(&request, OBJECT_PROFILE_UPDATE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let existing = a4n_db::asset::object_profile_by_id(
+            self.database.connection(),
+            request.payload.object_profile_id,
+        )
+        .await
+        .map_err(asset_error)?;
+        ensure_scope_project(&request, existing.project_id)?;
+        a4n_db::collaboration::verify_project_permission(
+            self.database.connection(),
+            existing.project_id,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map_err(collaboration_error)?;
+        let image_ids = self
+            .object_profile_image_ids(existing.project_id, existing.id)
+            .await?;
+        let image_count = i64::try_from(image_ids.len())
+            .map_err(|_| WorkerFailure::conflict("物体档案素材数量超过 i64 上限"))?;
+        let downstream_image_ids = resolve_downstream_image_ids(
+            image_ids,
+            request.payload.downstream_strategy,
+            &format!("物体档案 #{} ", existing.id),
+            "修改",
+        )
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        let record = normalize_object_profile_record_input(request.payload.profile)
+            .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        let profile = a4n_db::asset::update_object_profile_record(
+            self.database.connection(),
+            existing.id,
+            record,
+        )
+        .await
+        .map_err(asset_error)?;
+        Ok(ObjectProfileMutationResponse {
+            result: ObjectProfileMutationResult {
+                profile: object_profile_summary(&profile, image_count),
+                warnings: Vec::new(),
+            },
+            downstream_image_ids,
+        })
+    }
+
+    async fn delete(
+        &self,
+        request: WorkerEnvelope<DeleteObjectProfileInput>,
+    ) -> Result<ObjectProfileDeleteResponse, WorkerFailure> {
+        validate_request(&request, OBJECT_PROFILE_DELETE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let existing = a4n_db::asset::object_profile_by_id(
+            self.database.connection(),
+            request.payload.object_profile_id,
+        )
+        .await
+        .map_err(asset_error)?;
+        ensure_scope_project(&request, existing.project_id)?;
+        a4n_db::collaboration::verify_project_permission(
+            self.database.connection(),
+            existing.project_id,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map_err(collaboration_error)?;
+        let downstream_image_ids = resolve_downstream_image_ids(
+            self.object_profile_image_ids(existing.project_id, existing.id)
+                .await?,
+            request.payload.downstream_strategy,
+            &format!("物体档案 #{} ", existing.id),
+            "删除",
+        )
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        a4n_db::asset::delete_object_profile_record(self.database.connection(), existing.id)
+            .await
+            .map_err(asset_error)?;
+        Ok(ObjectProfileDeleteResponse {
+            result: ObjectProfileDeleteResult {
+                warnings: Vec::new(),
+            },
+            downstream_image_ids,
+        })
+    }
+
+    async fn object_profile_image_ids(
+        &self,
+        project_id: i64,
+        profile_id: i64,
+    ) -> Result<Vec<i64>, WorkerFailure> {
+        let rows = a4n_db::profile_material::profile_material_image_identity_rows_by_type(
+            self.database.connection(),
+            project_id,
+            a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL,
+        )
+        .await
+        .map_err(profile_material_error)?;
+        Ok(rows
+            .into_iter()
+            .filter(|row| {
+                a4n_db::profile_material::profile_material_identity(
+                    &row.image_type,
+                    row.metadata_json.as_ref(),
+                ) == Some((a4n_db::profile_material::PROFILE_KIND_OBJECT, profile_id))
+            })
+            .map(|row| row.id)
+            .collect())
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -224,19 +441,34 @@ impl WorkerState {
     }
 }
 
-fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {
+fn validate_request<T: serde::Serialize>(
+    request: &WorkerEnvelope<T>,
+    expected_operation: &str,
+) -> Result<(), WorkerFailure> {
     request
         .validate()
         .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != OBJECT_PROFILE_LIST_OPERATION {
+    if request.operation_id != expected_operation {
         return Err(WorkerFailure::invalid_request(format!(
             "operation_id 不匹配: expected={}, actual={}",
-            OBJECT_PROFILE_LIST_OPERATION, request.operation_id
+            expected_operation, request.operation_id
         )));
     }
     if request.lease.worker_id != OBJECT_PROFILE_WORKER_ID {
         return Err(WorkerFailure::invalid_request(
             "lease.worker_id 不属于 object profile worker",
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_scope_project<T>(
+    request: &WorkerEnvelope<T>,
+    project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if request.project_id.is_some_and(|scope| scope != project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与档案所属项目不一致",
         ));
     }
     Ok(())
@@ -458,7 +690,7 @@ mod tests {
                 kind: WorkerPrincipalKind::User,
                 subject: "7".into(),
             },
-            operation_id: "unknown".into(),
+            operation_id: OBJECT_PROFILE_LIST_OPERATION.into(),
             idempotency_key: "key".into(),
             project_id: Some(1),
             root_project_id: None,
@@ -472,7 +704,8 @@ mod tests {
             },
             payload: ObjectProfileProjectInput { project_id: 1 },
         };
-        assert!(validate_request(&request).is_err());
+        assert!(validate_request(&request, OBJECT_PROFILE_LIST_OPERATION).is_ok());
+        assert!(validate_request(&request, "unknown").is_err());
         assert_eq!(OBJECT_PROFILE_LIST_OPERATION, "profile.object.list");
     }
 }
