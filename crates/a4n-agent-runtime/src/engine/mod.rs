@@ -1100,6 +1100,7 @@ async fn process_claimed_run_inner(
         )?;
         let mut context_input_tokens = projection.input_tokens;
         let mut context_capacity_tokens = projection.capacity;
+        let mut legacy_omitted_message_count = projection.omitted.len();
         let latest_message_sequence = loaded_message_ids.iter().copied().max().unwrap_or(0);
         let summary_covered_sequence = context
             .thread
@@ -1163,12 +1164,20 @@ async fn process_claimed_run_inner(
                 )?;
                 context_input_tokens = post_compaction.input_tokens;
                 context_capacity_tokens = post_compaction.capacity;
+                legacy_omitted_message_count = post_compaction.omitted.len();
                 output_tokens = post_compaction.output_tokens;
                 request_messages = post_compaction.messages;
             }
         }
         usage["context_input_tokens"] = json!(context_input_tokens);
         usage["context_capacity_tokens"] = json!(context_capacity_tokens);
+        usage["context_shadow"] = json!({
+            "history_watermark": latest_message_sequence,
+            "legacy_input_tokens": context_input_tokens,
+            "legacy_capacity_tokens": context_capacity_tokens,
+            "legacy_output_token_reserve": output_tokens,
+            "legacy_omitted_message_count": legacy_omitted_message_count,
+        });
         persist_usage(
             state,
             claimed,
@@ -1183,6 +1192,7 @@ async fn process_claimed_run_inner(
             &context,
             &request_messages,
             &skills,
+            latest_message_sequence,
         )?)?);
         let mut request = ChatRequest {
             messages: request_messages,

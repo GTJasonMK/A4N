@@ -14,6 +14,7 @@ pub(super) fn build_manifest(
     context: &AgentRunContext,
     messages: &[ChatMessage],
     skills: &AgentSkillSearchResult,
+    history_watermark: i64,
 ) -> Result<LlmContextManifest, AppError> {
     let mut ledger = LlmContextLedger::new();
     add_pack(
@@ -31,7 +32,11 @@ pub(super) fn build_manifest(
                 .map(|call| call.id.clone())
                 .collect::<Vec<_>>(),
         }),
-        Some(json!({"run_id": context.run.id, "turn_id": context.turn.id})),
+        Some(json!({
+            "run_id": context.run.id,
+            "turn_id": context.turn.id,
+            "history_watermark": history_watermark,
+        })),
         true,
         false,
     )?;
@@ -236,6 +241,7 @@ mod tests {
                 skills: Vec::new(),
                 total: 0,
             },
+            40,
         )
         .unwrap();
         assert!(
@@ -255,10 +261,15 @@ mod tests {
                 skills: Vec::new(),
                 total: 0,
             },
+            40,
         )
         .unwrap();
         assert_eq!(manifest.schema_version, 1);
         assert_eq!(manifest.dynamic_user_content, "继续");
+        assert_eq!(
+            manifest.packs[0].source_refs_json.as_ref().unwrap()["history_watermark"],
+            40
+        );
         assert!(
             manifest
                 .packs

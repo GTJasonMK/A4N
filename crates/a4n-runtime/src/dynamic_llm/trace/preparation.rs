@@ -6,7 +6,7 @@ use a4n_llm_context::{
     validate_context_manifest,
 };
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmProvider, LlmTraceContext};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::super::context::{
     build_local_manifest_requirements, build_manifest_requirements, build_system_prefix_pack_ref,
@@ -57,6 +57,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
         });
     }
 
+    let mut history_watermark = None;
     let plan = match request.context_manifest_json.clone() {
         Some(manifest_json) => {
             let manifest: LlmContextManifest =
@@ -64,6 +65,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                     AppError::InvalidArgument(format!("LLM 上下文 manifest 解析失败: {err}"))
                 })?;
             validate_context_manifest(&manifest)?;
+            history_watermark = manifest_history_watermark(&manifest);
             let (mut requirements, content_by_ref) = if trace_context.project_id.is_some() {
                 build_manifest_requirements(facade, provider, &trace_context, &manifest).await?
             } else {
@@ -107,8 +109,11 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             )?
         }
     };
-    trace_context.context_plan_json =
-        Some(serde_json::to_value(&plan).map_err(AppError::Serialization)?);
+    let mut plan_json = serde_json::to_value(&plan).map_err(AppError::Serialization)?;
+    if let Some(history_watermark) = history_watermark {
+        plan_json["history_watermark"] = json!(history_watermark);
+    }
+    trace_context.context_plan_json = Some(plan_json);
     trace_context.context_pack_refs_json = Some(json!({
         "schema_version": 1,
         "selected": plan.selected_pack_refs,
@@ -116,4 +121,47 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     }));
     request.trace_context = Some(trace_context.clone());
     Ok(Some(trace_context))
+}
+
+fn manifest_history_watermark(manifest: &LlmContextManifest) -> Option<i64> {
+    manifest
+        .packs
+        .iter()
+        .find(|pack| pack.pack_kind == "agent_history_units")
+        .and_then(|pack| pack.source_refs_json.as_ref())
+        .and_then(|refs| refs.get("history_watermark"))
+        .and_then(Value::as_i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::manifest_history_watermark;
+    use a4n_llm_context::{
+        CONTEXT_MANIFEST_SCHEMA_VERSION, LlmContextManifest, LlmContextManifestPack,
+        LlmContextManifestPackVariant,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn shadow_plan_reads_history_watermark_from_agent_history_pack() {
+        let manifest = LlmContextManifest {
+            schema_version: CONTEXT_MANIFEST_SCHEMA_VERSION,
+            packs: vec![LlmContextManifestPack {
+                scope_kind: "agent_run".into(),
+                pack_kind: "agent_history_units".into(),
+                source_refs_json: Some(json!({"history_watermark": 42})),
+                config_hash: "hash".into(),
+                required: true,
+                stable_prefix: false,
+                variants: vec![LlmContextManifestPackVariant {
+                    compression_level: "full_raw".into(),
+                    canonical_content_json: json!({"message_count": 2}),
+                }],
+            }],
+            dynamic_user_content: "继续".into(),
+            output_contract: None,
+        };
+
+        assert_eq!(manifest_history_watermark(&manifest), Some(42));
+    }
 }
