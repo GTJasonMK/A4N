@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -12,7 +13,7 @@ pub use a4n_domain::project::{
     PromptSource, SourceSnapshotChapterSummary,
 };
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectSummary {
     pub id: i64,
     pub title: String,
@@ -92,14 +93,24 @@ pub trait ProjectStatusMutationApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
         target: ProjectStatus,
-    ) -> Result<ProjectSummary, a4n_error::AppError>;
+    ) -> Result<ProjectStatusMutationResult, a4n_error::AppError>;
 
     async fn rollback_status(
         &self,
         user_id: i64,
         project_id: i64,
         target: ProjectStatus,
-    ) -> Result<ProjectSummary, a4n_error::AppError>;
+    ) -> Result<ProjectStatusMutationResult, a4n_error::AppError>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ProjectStatusMutationResult {
+    pub project: ProjectSummary,
+    pub from: ProjectStatus,
+    pub to: ProjectStatus,
+    #[schemars(with = "String")]
+    pub changed_at: NaiveDateTime,
+    pub needs_rag_clear: bool,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

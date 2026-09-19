@@ -536,12 +536,15 @@ mod tests {
             .expect("project status worker entry");
         assert_eq!(project_status.kind, ProcessKind::StatefulWorker);
         assert_eq!(project_status.binary, "a4n-project-status-worker");
-        assert_eq!(project_status.contract_version, "project-status-read-v1");
+        assert_eq!(project_status.contract_version, "project-status-v2");
         assert_eq!(project_status.addr_env, "A4N_PROJECT_STATUS_WORKER_ADDR");
         assert_eq!(project_status.default_addr, "127.0.0.1:47662");
         assert_eq!(
             project_status.capabilities,
-            vec!["project.status.read".to_string()]
+            vec![
+                "project.status.read".to_string(),
+                "project.status.write".to_string()
+            ]
         );
         let theme_read = entries
             .iter()

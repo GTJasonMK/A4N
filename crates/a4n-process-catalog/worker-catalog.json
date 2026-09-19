@@ -264,19 +264,19 @@
     "name": "project-status-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-status-worker",
-    "contract_version": "project-status-read-v1",
-    "capability_version": "project-status-read-v1",
+    "contract_version": "project-status-v2",
+    "capability_version": "project-status-v2",
     "addr_env": "A4N_PROJECT_STATUS_WORKER_ADDR",
     "url_env": "A4N_PROJECT_STATUS_WORKER_URL",
     "default_addr": "127.0.0.1:47662",
     "local_only": true,
     "data_scope": ["project_status", "project_status_history", "project_rollback_impact"],
-    "capabilities": ["project.status.read"],
+    "capabilities": ["project.status.read", "project.status.write"],
     "dependencies": ["a4n-migration"],
     "migration": {
-      "current": "project_status_read",
-      "min_compatible": "project_status_read",
-      "max_compatible": "project_status_read"
+      "current": "project_status",
+      "min_compatible": "project_status",
+      "max_compatible": "project_status"
     }
   },
   {
