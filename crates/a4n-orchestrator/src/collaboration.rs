@@ -1,5 +1,4 @@
 pub(crate) use a4n_db::collaboration::{
-    AccessibleProjectListInput, AccessibleProjectsPage, CollaborationRootProject,
-    ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, ProjectAccessScope,
+    CollaborationRootProject, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole,
     ProjectInviteSummary, ProjectMemberRole, ProjectMemberSummary,
 };

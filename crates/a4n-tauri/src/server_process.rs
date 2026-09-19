@@ -23,6 +23,8 @@ const OBJECT_PROFILE_WORKER_BINARY_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_BINARY
 const SCENE_PROFILE_WORKER_BINARY_ENV: &str = "A4N_SCENE_PROFILE_WORKER_BINARY";
 const PROFILE_MATERIAL_WORKER_BINARY_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_BINARY";
 const PROJECT_STATUS_WORKER_BINARY_ENV: &str = "A4N_PROJECT_STATUS_WORKER_BINARY";
+const THEME_READ_WORKER_BINARY_ENV: &str = "A4N_THEME_READ_WORKER_BINARY";
+const PROJECT_READ_WORKER_BINARY_ENV: &str = "A4N_PROJECT_READ_WORKER_BINARY";
 const PORTRAIT_WORKER_BINARY_ENV: &str = "A4N_PORTRAIT_WORKER_BINARY";
 const SOURCE_SNAPSHOT_WORKER_BINARY_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
@@ -103,6 +105,13 @@ impl LocalServerProcess {
             "a4n-project-status-worker",
             PROJECT_STATUS_WORKER_BINARY_ENV,
         )?;
+        let theme_read_worker =
+            resolve_binary(app, "a4n-theme-read-worker", THEME_READ_WORKER_BINARY_ENV)?;
+        let project_read_worker = resolve_binary(
+            app,
+            "a4n-project-read-worker",
+            PROJECT_READ_WORKER_BINARY_ENV,
+        )?;
         let portrait_worker =
             resolve_binary(app, "a4n-portrait-worker", PORTRAIT_WORKER_BINARY_ENV)?;
         let source_snapshot_worker = resolve_binary(
@@ -129,6 +138,8 @@ impl LocalServerProcess {
             .env(SCENE_PROFILE_WORKER_BINARY_ENV, &scene_profile_worker)
             .env(PROFILE_MATERIAL_WORKER_BINARY_ENV, &profile_material_worker)
             .env(PROJECT_STATUS_WORKER_BINARY_ENV, &project_status_worker)
+            .env(THEME_READ_WORKER_BINARY_ENV, &theme_read_worker)
+            .env(PROJECT_READ_WORKER_BINARY_ENV, &project_read_worker)
             .env(PORTRAIT_WORKER_BINARY_ENV, &portrait_worker)
             .env(SOURCE_SNAPSHOT_WORKER_BINARY_ENV, &source_snapshot_worker)
             .env("A4N_RUNTIME_PROFILE", "sidecar")
@@ -519,6 +530,8 @@ mod tests {
             "a4n-scene-profile-worker",
             "a4n-profile-material-worker",
             "a4n-project-status-worker",
+            "a4n-theme-read-worker",
+            "a4n-project-read-worker",
             "a4n-portrait-worker",
             "a4n-source-snapshot-worker",
             "a4n-migration",

@@ -1894,6 +1894,11 @@ if ! rg -n 'pub trait ProjectReadApplicationPort' crates/a4n-api-contract/src/pr
     exit 1
 fi
 
+if rg -n 'ProjectReadApplicationPort for OrchestratorContext' crates/a4n-orchestrator/src; then
+    printf 'ProjectReadApplicationPort must be owned by the project read worker\n' >&2
+    exit 1
+fi
+
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/chapter_scene/records.rs; then
     printf 'Runtime chapter scene record actions must consume split chapter-scene ports\n' >&2

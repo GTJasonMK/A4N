@@ -67,6 +67,10 @@ pub async fn initialize_runtime(
         Arc::new(a4n_profile_material_worker_client::ProfileMaterialWorkerClient::from_env());
     let project_status_worker =
         Arc::new(a4n_project_status_worker_client::ProjectStatusWorkerClient::from_env());
+    let project_read_worker =
+        Arc::new(a4n_project_read_worker_client::ProjectReadWorkerClient::from_env());
+    let theme_read_worker =
+        Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -93,7 +97,7 @@ pub async fn initialize_runtime(
         project_status_mutation_application: orchestrator.clone(),
         project_collaboration_application: orchestrator.clone(),
         project_access_application: orchestrator.clone(),
-        project_read_application: orchestrator.clone(),
+        project_read_application: project_read_worker,
         project_source_snapshot_read_application: source_snapshot_worker,
         project_mutation_application: orchestrator.clone(),
         project_asset_graph_application: asset_graph_worker,
@@ -159,7 +163,7 @@ pub async fn initialize_runtime(
         outline_chapter_count_generation_preview_application: orchestrator.clone(),
         outline_chapter_regeneration_preview_application: orchestrator.clone(),
         outline_beat_mapping_preview_application: orchestrator.clone(),
-        theme_read_application: orchestrator.clone(),
+        theme_read_application: theme_read_worker,
         theme_mutation_application: orchestrator.clone(),
         config_read_application,
         config_mutation_application,

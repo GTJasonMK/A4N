@@ -42,6 +42,10 @@ const PROJECT_STATUS_WORKER_PROCESS_ENV: &str = "A4N_PROJECT_STATUS_WORKER_PROCE
 const PORTRAIT_WORKER_PROCESS_ENV: &str = "A4N_PORTRAIT_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const SOURCE_SNAPSHOT_WORKER_PROCESS_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const THEME_READ_WORKER_PROCESS_ENV: &str = "A4N_THEME_READ_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const PROJECT_READ_WORKER_PROCESS_ENV: &str = "A4N_PROJECT_READ_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -94,6 +98,14 @@ const SOURCE_SNAPSHOT_WORKER_CATALOG_NAME: &str = "source-snapshot-worker";
 const SOURCE_SNAPSHOT_WORKER_BINARY_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_BINARY";
 const SOURCE_SNAPSHOT_WORKER_TOKEN_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_TOKEN";
 const SOURCE_SNAPSHOT_WORKER_URL_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_URL";
+const THEME_READ_WORKER_CATALOG_NAME: &str = "theme-read-worker";
+const THEME_READ_WORKER_BINARY_ENV: &str = "A4N_THEME_READ_WORKER_BINARY";
+const THEME_READ_WORKER_TOKEN_ENV: &str = "A4N_THEME_READ_WORKER_TOKEN";
+const THEME_READ_WORKER_URL_ENV: &str = "A4N_THEME_READ_WORKER_URL";
+const PROJECT_READ_WORKER_CATALOG_NAME: &str = "project-read-worker";
+const PROJECT_READ_WORKER_BINARY_ENV: &str = "A4N_PROJECT_READ_WORKER_BINARY";
+const PROJECT_READ_WORKER_TOKEN_ENV: &str = "A4N_PROJECT_READ_WORKER_TOKEN";
+const PROJECT_READ_WORKER_URL_ENV: &str = "A4N_PROJECT_READ_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -128,6 +140,8 @@ enum ChildWatchEvent {
     ProjectStatusWorkerExited(ExitStatus),
     PortraitWorkerExited(ExitStatus),
     SourceSnapshotWorkerExited(ExitStatus),
+    ThemeReadWorkerExited(ExitStatus),
+    ProjectReadWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -143,6 +157,8 @@ enum ChildWatchEvent {
     ProjectStatusWorkerChanged,
     PortraitWorkerChanged,
     SourceSnapshotWorkerChanged,
+    ThemeReadWorkerChanged,
+    ProjectReadWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -191,6 +207,12 @@ fn main() -> anyhow::Result<()> {
         if env::var(SOURCE_SNAPSHOT_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_source_snapshot_worker::run();
         }
+        if env::var(THEME_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_theme_read_worker::run();
+        }
+        if env::var(PROJECT_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_project_read_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -220,6 +242,10 @@ fn main() -> anyhow::Result<()> {
     let portrait_worker_token = worker_token_for_env(PORTRAIT_WORKER_TOKEN_ENV)?;
     let source_snapshot_worker_addr = source_snapshot_worker_addr()?;
     let source_snapshot_worker_token = worker_token_for_env(SOURCE_SNAPSHOT_WORKER_TOKEN_ENV)?;
+    let theme_read_worker_addr = theme_read_worker_addr()?;
+    let theme_read_worker_token = worker_token_for_env(THEME_READ_WORKER_TOKEN_ENV)?;
+    let project_read_worker_addr = project_read_worker_addr()?;
+    let project_read_worker_token = worker_token_for_env(PROJECT_READ_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -252,6 +278,7 @@ fn main() -> anyhow::Result<()> {
     let source_snapshot_worker_binary = source_snapshot_worker_binary()?;
     let mut source_snapshot_worker_fingerprint =
         binary_fingerprint(&source_snapshot_worker_binary)?;
+    let theme_read_worker_binary = theme_read_worker_binary()?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -547,6 +574,10 @@ fn main() -> anyhow::Result<()> {
         &portrait_worker_token,
         source_snapshot_worker_addr,
         &source_snapshot_worker_token,
+        theme_read_worker_addr,
+        &theme_read_worker_token,
+        project_read_worker_addr,
+        &project_read_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -705,6 +736,103 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
         return Err(error);
     }
+    let mut theme_read_worker = match spawn_theme_read_worker(
+        &theme_read_worker_binary,
+        theme_read_worker_addr,
+        &theme_read_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_project_status_worker(&mut project_status_worker);
+            let _ = stop_profile_material_worker(&mut profile_material_worker);
+            let _ = stop_agent_worker(&mut agent_worker);
+            let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+            let _ = stop_portrait_worker(&mut portrait_worker);
+            let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_theme_read_worker(
+        &mut theme_read_worker,
+        theme_read_worker_addr,
+        &theme_read_worker_token,
+    ) {
+        let _ = stop_theme_read_worker(&mut theme_read_worker);
+        let _ = stop_project_status_worker(&mut project_status_worker);
+        let _ = stop_profile_material_worker(&mut profile_material_worker);
+        let _ = stop_agent_worker(&mut agent_worker);
+        let _ = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_portrait_worker(&mut portrait_worker);
+        let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        return Err(error);
+    }
+    let mut theme_read_worker_fingerprint = binary_fingerprint(&theme_read_worker_binary)?;
+    let project_read_worker_binary = project_read_worker_binary()?;
+    let mut project_read_worker = match spawn_project_read_worker(
+        &project_read_worker_binary,
+        project_read_worker_addr,
+        &project_read_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_theme_read_worker(&mut theme_read_worker);
+            let _ = stop_project_status_worker(&mut project_status_worker);
+            let _ = stop_profile_material_worker(&mut profile_material_worker);
+            let _ = stop_agent_worker(&mut agent_worker);
+            let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+            let _ = stop_portrait_worker(&mut portrait_worker);
+            let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_project_read_worker(
+        &mut project_read_worker,
+        project_read_worker_addr,
+        &project_read_worker_token,
+    ) {
+        let _ = stop_project_read_worker(&mut project_read_worker);
+        let _ = stop_theme_read_worker(&mut theme_read_worker);
+        let _ = stop_project_status_worker(&mut project_status_worker);
+        let _ = stop_profile_material_worker(&mut profile_material_worker);
+        let _ = stop_agent_worker(&mut agent_worker);
+        let _ = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_portrait_worker(&mut portrait_worker);
+        let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        return Err(error);
+    }
+    let mut project_read_worker_fingerprint = binary_fingerprint(&project_read_worker_binary)?;
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
         Ok(child) => child,
         Err(error) => {
@@ -720,6 +848,8 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_profile_material_worker(&mut profile_material_worker);
             let _ = stop_project_status_worker(&mut project_status_worker);
+            let _ = stop_theme_read_worker(&mut theme_read_worker);
+            let _ = stop_project_read_worker(&mut project_read_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
             return Err(error);
@@ -796,6 +926,16 @@ fn main() -> anyhow::Result<()> {
         &mut source_snapshot_worker,
         &source_snapshot_worker_binary,
         &mut source_snapshot_worker_fingerprint,
+        theme_read_worker_addr,
+        &theme_read_worker_token,
+        &mut theme_read_worker,
+        &theme_read_worker_binary,
+        &mut theme_read_worker_fingerprint,
+        project_read_worker_addr,
+        &project_read_worker_token,
+        &mut project_read_worker,
+        &project_read_worker_binary,
+        &mut project_read_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -816,6 +956,8 @@ fn main() -> anyhow::Result<()> {
     let project_status_worker_result = stop_project_status_worker(&mut project_status_worker);
     let portrait_worker_result = stop_portrait_worker(&mut portrait_worker);
     let source_snapshot_worker_result = stop_source_snapshot_worker(&mut source_snapshot_worker);
+    let theme_read_worker_result = stop_theme_read_worker(&mut theme_read_worker);
+    let project_read_worker_result = stop_project_read_worker(&mut project_read_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -832,6 +974,8 @@ fn main() -> anyhow::Result<()> {
         project_status_worker_result,
         portrait_worker_result,
         source_snapshot_worker_result,
+        theme_read_worker_result,
+        project_read_worker_result,
     )
 }
 
@@ -906,6 +1050,16 @@ fn supervise_runtime_children(
     source_snapshot_worker: &mut Child,
     source_snapshot_worker_binary: &Path,
     source_snapshot_worker_fingerprint: &mut BinaryFingerprint,
+    theme_read_worker_addr: SocketAddr,
+    theme_read_worker_token: &str,
+    theme_read_worker: &mut Child,
+    theme_read_worker_binary: &Path,
+    theme_read_worker_fingerprint: &mut BinaryFingerprint,
+    project_read_worker_addr: SocketAddr,
+    project_read_worker_token: &str,
+    project_read_worker: &mut Child,
+    project_read_worker_binary: &Path,
+    project_read_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -976,6 +1130,16 @@ fn supervise_runtime_children(
                 source_snapshot_worker_binary,
                 *source_snapshot_worker_fingerprint,
             )),
+            Some((
+                theme_read_worker,
+                theme_read_worker_binary,
+                *theme_read_worker_fingerprint,
+            )),
+            Some((
+                project_read_worker,
+                project_read_worker_binary,
+                *project_read_worker_fingerprint,
+            )),
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -1023,6 +1187,10 @@ fn supervise_runtime_children(
                     portrait_worker_token,
                     source_snapshot_worker_addr,
                     source_snapshot_worker_token,
+                    theme_read_worker_addr,
+                    theme_read_worker_token,
+                    project_read_worker_addr,
+                    project_read_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -1223,6 +1391,36 @@ fn supervise_runtime_children(
                 *source_snapshot_worker_fingerprint =
                     binary_fingerprint(source_snapshot_worker_binary)?;
             }
+            ChildWatchEvent::ThemeReadWorkerExited(status) => {
+                eprintln!("A4N Theme Read worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *theme_read_worker = spawn_theme_read_worker(
+                    theme_read_worker_binary,
+                    theme_read_worker_addr,
+                    theme_read_worker_token,
+                )?;
+                wait_for_theme_read_worker(
+                    theme_read_worker,
+                    theme_read_worker_addr,
+                    theme_read_worker_token,
+                )?;
+                *theme_read_worker_fingerprint = binary_fingerprint(theme_read_worker_binary)?;
+            }
+            ChildWatchEvent::ProjectReadWorkerExited(status) => {
+                eprintln!("A4N Project Read worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *project_read_worker = spawn_project_read_worker(
+                    project_read_worker_binary,
+                    project_read_worker_addr,
+                    project_read_worker_token,
+                )?;
+                wait_for_project_read_worker(
+                    project_read_worker,
+                    project_read_worker_addr,
+                    project_read_worker_token,
+                )?;
+                *project_read_worker_fingerprint = binary_fingerprint(project_read_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -1261,6 +1459,10 @@ fn supervise_runtime_children(
                     portrait_worker_token,
                     source_snapshot_worker_addr,
                     source_snapshot_worker_token,
+                    theme_read_worker_addr,
+                    theme_read_worker_token,
+                    project_read_worker_addr,
+                    project_read_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -1486,6 +1688,38 @@ fn supervise_runtime_children(
                 *source_snapshot_worker_fingerprint =
                     binary_fingerprint(source_snapshot_worker_binary)?;
             }
+            ChildWatchEvent::ThemeReadWorkerChanged => {
+                eprintln!("检测到 A4N Theme Read worker 构建完成；只替换 Theme Read worker");
+                stop_theme_read_worker(theme_read_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *theme_read_worker = spawn_theme_read_worker(
+                    theme_read_worker_binary,
+                    theme_read_worker_addr,
+                    theme_read_worker_token,
+                )?;
+                wait_for_theme_read_worker(
+                    theme_read_worker,
+                    theme_read_worker_addr,
+                    theme_read_worker_token,
+                )?;
+                *theme_read_worker_fingerprint = binary_fingerprint(theme_read_worker_binary)?;
+            }
+            ChildWatchEvent::ProjectReadWorkerChanged => {
+                eprintln!("检测到 A4N Project Read worker 构建完成；只替换 Project Read worker");
+                stop_project_read_worker(project_read_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *project_read_worker = spawn_project_read_worker(
+                    project_read_worker_binary,
+                    project_read_worker_addr,
+                    project_read_worker_token,
+                )?;
+                wait_for_project_read_worker(
+                    project_read_worker,
+                    project_read_worker_addr,
+                    project_read_worker_token,
+                )?;
+                *project_read_worker_fingerprint = binary_fingerprint(project_read_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -1587,6 +1821,8 @@ fn wait_for_edge_or_child_with_outline(
         None,
         None,
         None,
+        None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -1618,6 +1854,8 @@ fn wait_for_edge_or_child_with_workers(
     mut project_status_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut portrait_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut source_snapshot_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut theme_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut project_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -1688,6 +1926,16 @@ fn wait_for_edge_or_child_with_workers(
             && let Some(status) = source_snapshot_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::SourceSnapshotWorkerExited(status)));
+        }
+        if let Some((theme_read_worker, _, _)) = theme_read_worker.as_mut()
+            && let Some(status) = theme_read_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::ThemeReadWorkerExited(status)));
+        }
+        if let Some((project_read_worker, _, _)) = project_read_worker.as_mut()
+            && let Some(status) = project_read_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::ProjectReadWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -1773,6 +2021,18 @@ fn wait_for_edge_or_child_with_workers(
                 != *source_snapshot_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::SourceSnapshotWorkerChanged));
+        }
+        if let Some((_, theme_read_worker_binary, theme_read_worker_fingerprint)) =
+            theme_read_worker.as_ref()
+            && binary_fingerprint(theme_read_worker_binary)? != *theme_read_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ThemeReadWorkerChanged));
+        }
+        if let Some((_, project_read_worker_binary, project_read_worker_fingerprint)) =
+            project_read_worker.as_ref()
+            && binary_fingerprint(project_read_worker_binary)? != *project_read_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ProjectReadWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -2136,6 +2396,44 @@ fn source_snapshot_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn theme_read_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(THEME_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            THEME_READ_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn theme_read_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = theme_read_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
+fn project_read_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(PROJECT_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            PROJECT_READ_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn project_read_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = project_read_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -2171,6 +2469,10 @@ fn spawn_control(
     portrait_worker_token: &str,
     source_snapshot_worker_addr: SocketAddr,
     source_snapshot_worker_token: &str,
+    theme_read_worker_addr: SocketAddr,
+    theme_read_worker_token: &str,
+    project_read_worker_addr: SocketAddr,
+    project_read_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -2242,6 +2544,16 @@ fn spawn_control(
             SOURCE_SNAPSHOT_WORKER_TOKEN_ENV,
             source_snapshot_worker_token,
         )
+        .env(
+            THEME_READ_WORKER_URL_ENV,
+            format!("http://{theme_read_worker_addr}"),
+        )
+        .env(THEME_READ_WORKER_TOKEN_ENV, theme_read_worker_token)
+        .env(
+            PROJECT_READ_WORKER_URL_ENV,
+            format!("http://{project_read_worker_addr}"),
+        )
+        .env(PROJECT_READ_WORKER_TOKEN_ENV, project_read_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -2486,6 +2798,54 @@ fn spawn_project_status_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Project Status worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_theme_read_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = theme_read_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(THEME_READ_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(THEME_READ_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Theme Read worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_project_read_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = project_read_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(PROJECT_READ_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(PROJECT_READ_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Project Read worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -2819,6 +3179,50 @@ fn wait_for_project_status_worker(
     )
 }
 
+fn wait_for_theme_read_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = theme_read_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(THEME_READ_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Theme Read worker",
+    )
+}
+
+fn wait_for_project_read_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = project_read_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(PROJECT_READ_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Project Read worker",
+    )
+}
+
 fn wait_for_portrait_worker(
     child: &mut Child,
     address: SocketAddr,
@@ -3066,6 +3470,20 @@ fn source_snapshot_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn theme_read_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        THEME_READ_WORKER_BINARY_ENV,
+        &theme_read_worker_metadata()?.binary,
+    )
+}
+
+fn project_read_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        PROJECT_READ_WORKER_BINARY_ENV,
+        &project_read_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -3160,6 +3578,14 @@ fn stop_project_status_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_theme_read_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
+fn stop_project_read_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_portrait_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -3215,6 +3641,8 @@ fn finish_shutdown(
     project_status_worker_result: anyhow::Result<()>,
     portrait_worker_result: anyhow::Result<()>,
     source_snapshot_worker_result: anyhow::Result<()>,
+    theme_read_worker_result: anyhow::Result<()>,
+    project_read_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -3233,6 +3661,8 @@ fn finish_shutdown(
         ("Project Status worker", project_status_worker_result),
         ("Portrait worker", portrait_worker_result),
         ("Source Snapshot worker", source_snapshot_worker_result),
+        ("Theme Read worker", theme_read_worker_result),
+        ("Project Read worker", project_read_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));
@@ -3852,6 +4282,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -3951,6 +4383,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -3994,6 +4428,8 @@ mod tests {
                 &profile_material_binary,
                 profile_material_fingerprint,
             )),
+            None,
+            None,
             None,
             None,
             None,
@@ -4041,6 +4477,8 @@ mod tests {
                 &profile_material_binary,
                 profile_material_fingerprint,
             )),
+            None,
+            None,
             None,
             None,
             None,
@@ -4330,5 +4768,176 @@ mod tests {
         control.wait().expect("test control should be reaped");
         worker.kill().expect("test worker should stop");
         worker.wait().expect("test worker should be reaped");
+    }
+
+    #[test]
+    fn theme_read_worker_binary_changes_select_only_theme_read_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let mut theme_read_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
+        let theme_binary = tempdir.path().join("a4n-theme-read-worker");
+        for (path, content) in [
+            (&control_binary, b"control".as_slice()),
+            (&worker_binary, b"worker".as_slice()),
+            (&edge_binary, b"edge".as_slice()),
+            (&novel_binary, b"novel".as_slice()),
+            (&artifact_binary, b"artifact".as_slice()),
+            (&theme_binary, b"old-theme".as_slice()),
+        ] {
+            std::fs::write(path, content).expect("worker fixture should be written");
+        }
+        let control_fingerprint = super::binary_fingerprint(&control_binary).unwrap();
+        let worker_fingerprint = super::binary_fingerprint(&worker_binary).unwrap();
+        let edge_fingerprint = super::binary_fingerprint(&edge_binary).unwrap();
+        let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
+        let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
+        let theme_fingerprint = super::binary_fingerprint(&theme_binary).unwrap();
+        std::fs::write(&theme_binary, b"new-theme").expect("theme replacement should be written");
+
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some((&mut theme_read_worker, &theme_binary, theme_fingerprint)),
+            None,
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ThemeReadWorkerChanged)
+        ));
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+            &mut theme_read_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
+    }
+
+    #[test]
+    fn project_read_worker_binary_changes_select_only_project_read_worker() {
+        let mut edge = live_child();
+        let mut control = live_child();
+        let mut worker = live_child();
+        let mut novel_planning_worker = live_child();
+        let mut artifact_media_worker = live_child();
+        let mut project_read_worker = live_child();
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let control_binary = tempdir.path().join("a4n-control");
+        let worker_binary = tempdir.path().join("a4n-agent-worker");
+        let edge_binary = tempdir.path().join("a4n-edge");
+        let novel_binary = tempdir.path().join("a4n-novel-planning-worker");
+        let artifact_binary = tempdir.path().join("a4n-artifact-media-worker");
+        let project_binary = tempdir.path().join("a4n-project-read-worker");
+        for (path, content) in [
+            (&control_binary, b"control".as_slice()),
+            (&worker_binary, b"worker".as_slice()),
+            (&edge_binary, b"edge".as_slice()),
+            (&novel_binary, b"novel".as_slice()),
+            (&artifact_binary, b"artifact".as_slice()),
+            (&project_binary, b"old-project".as_slice()),
+        ] {
+            std::fs::write(path, content).expect("worker fixture should be written");
+        }
+        let control_fingerprint = super::binary_fingerprint(&control_binary).unwrap();
+        let worker_fingerprint = super::binary_fingerprint(&worker_binary).unwrap();
+        let edge_fingerprint = super::binary_fingerprint(&edge_binary).unwrap();
+        let novel_fingerprint = super::binary_fingerprint(&novel_binary).unwrap();
+        let artifact_fingerprint = super::binary_fingerprint(&artifact_binary).unwrap();
+        let project_fingerprint = super::binary_fingerprint(&project_binary).unwrap();
+        std::fs::write(&project_binary, b"new-project")
+            .expect("project read replacement should be written");
+
+        let result = super::wait_for_edge_or_child_with_workers(
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &control_binary,
+            control_fingerprint,
+            &worker_binary,
+            worker_fingerprint,
+            &mut novel_planning_worker,
+            &novel_binary,
+            novel_fingerprint,
+            &mut artifact_media_worker,
+            &artifact_binary,
+            artifact_fingerprint,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some((
+                &mut project_read_worker,
+                &project_binary,
+                project_fingerprint,
+            )),
+            &edge_binary,
+            edge_fingerprint,
+            None,
+            None,
+        )
+        .expect("child polling should succeed");
+
+        assert!(matches!(
+            result,
+            Some(super::ChildWatchEvent::ProjectReadWorkerChanged)
+        ));
+        for child in [
+            &mut edge,
+            &mut control,
+            &mut worker,
+            &mut novel_planning_worker,
+            &mut artifact_media_worker,
+            &mut project_read_worker,
+        ] {
+            child.kill().expect("test child should stop");
+            child.wait().expect("test child should be reaped");
+        }
     }
 }

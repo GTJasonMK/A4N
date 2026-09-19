@@ -127,13 +127,6 @@ impl ConfigApplication {
         a4n_db::config::list_theme_resources(self.database.connection(), theme_id).await
     }
 
-    async fn list_theme_resources_for_themes(
-        &self,
-        theme_ids: &[i64],
-    ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
-        a4n_db::config::list_theme_resources_for_themes(self.database.connection(), theme_ids).await
-    }
-
     async fn theme_resource_by_id(
         &self,
         resource_id: i64,
@@ -169,13 +162,6 @@ impl ConfigApplication {
         resource_id: i64,
     ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
         a4n_db::config::delete_theme_resource(self.database.connection(), resource_id).await
-    }
-
-    async fn theme_preference(
-        &self,
-        user_id: i64,
-    ) -> Result<Option<a4n_db_models::models::user::theme_preference::Model>, AppError> {
-        a4n_db::config::theme_preference(self.database.connection(), user_id).await
     }
 
     async fn upsert_theme_preference(
@@ -657,15 +643,6 @@ impl OrchestratorContext {
         self.settings.list_theme_resources(theme_id).await
     }
 
-    pub(crate) async fn list_theme_resources_for_themes(
-        &self,
-        theme_ids: &[i64],
-    ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
-        self.settings
-            .list_theme_resources_for_themes(theme_ids)
-            .await
-    }
-
     pub(crate) async fn theme_resource_by_id(
         &self,
         resource_id: i64,
@@ -701,13 +678,6 @@ impl OrchestratorContext {
         resource_id: i64,
     ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
         self.settings.delete_theme_resource(resource_id).await
-    }
-
-    pub(crate) async fn theme_preference(
-        &self,
-        user_id: i64,
-    ) -> Result<Option<a4n_db_models::models::user::theme_preference::Model>, AppError> {
-        self.settings.theme_preference(user_id).await
     }
 
     pub(crate) async fn upsert_theme_preference(

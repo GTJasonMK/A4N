@@ -19,6 +19,8 @@ test-embedded-processes = [
     "dep:a4n-portrait-worker",
     "dep:a4n-source-snapshot-worker",
     "dep:a4n-scene-profile-worker",
+    "dep:a4n-theme-read-worker",
+    "dep:a4n-project-read-worker",
     "dep:a4n-control",
     "dep:a4n-edge",
 ]
@@ -51,6 +53,8 @@ a4n-outline-worker = { path = "../a4n-outline-worker", optional = true }
 a4n-portrait-worker = { path = "../a4n-portrait-worker", optional = true }
 a4n-source-snapshot-worker = { path = "../a4n-source-snapshot-worker", optional = true }
 a4n-scene-profile-worker = { path = "../a4n-scene-profile-worker", optional = true }
+a4n-theme-read-worker = { path = "../a4n-theme-read-worker", optional = true }
+a4n-project-read-worker = { path = "../a4n-project-read-worker", optional = true }
 a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge", optional = true }
 a4n-process-catalog = { path = "../a4n-process-catalog" }

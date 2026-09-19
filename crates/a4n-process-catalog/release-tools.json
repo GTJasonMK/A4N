@@ -14,6 +14,8 @@
   {"package":"a4n-scene-profile-worker","binary":"a4n-scene-profile-worker"},
   {"package":"a4n-profile-material-worker","binary":"a4n-profile-material-worker"},
   {"package":"a4n-project-status-worker","binary":"a4n-project-status-worker"},
+  {"package":"a4n-theme-read-worker","binary":"a4n-theme-read-worker"},
+  {"package":"a4n-project-read-worker","binary":"a4n-project-read-worker"},
   {"package":"a4n-portrait-worker","binary":"a4n-portrait-worker"},
   {"package":"a4n-source-snapshot-worker","binary":"a4n-source-snapshot-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}

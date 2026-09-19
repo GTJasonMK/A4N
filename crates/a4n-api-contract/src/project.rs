@@ -12,7 +12,7 @@ pub use a4n_domain::project::{
     PromptSource, SourceSnapshotChapterSummary,
 };
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ProjectSummary {
     pub id: i64,
     pub title: String,
@@ -102,7 +102,7 @@ pub trait ProjectStatusMutationApplicationPort: Send + Sync {
     ) -> Result<ProjectSummary, a4n_error::AppError>;
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PaginatedProjects {
     pub items: Vec<ProjectSummary>,
     pub total: u64,
@@ -110,7 +110,7 @@ pub struct PaginatedProjects {
     pub page_size: u64,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectListInput {
     pub page: u64,

@@ -120,6 +120,8 @@ cargo_target_args() {
             printf '%s\n' "-p" "a4n-scene-profile-worker"
             printf '%s\n' "-p" "a4n-profile-material-worker"
             printf '%s\n' "-p" "a4n-project-status-worker"
+            printf '%s\n' "-p" "a4n-theme-read-worker"
+            printf '%s\n' "-p" "a4n-project-read-worker"
             printf '%s\n' "-p" "a4n-portrait-worker"
             printf '%s\n' "-p" "a4n-source-snapshot-worker"
         fi

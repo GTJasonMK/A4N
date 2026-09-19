@@ -569,7 +569,7 @@ pub struct ProjectRollbackPreview {
     pub impacts: Vec<ProjectRollbackImpactSummary>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectProgressSummary {
     pub label: String,
     pub detail: Option<String>,

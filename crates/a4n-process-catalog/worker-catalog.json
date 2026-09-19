@@ -316,5 +316,43 @@
       "min_compatible": "source_snapshot_read",
       "max_compatible": "source_snapshot_read"
     }
+  },
+  {
+    "name": "theme-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-theme-read-worker",
+    "contract_version": "theme-read-v1",
+    "capability_version": "theme-read-v1",
+    "addr_env": "A4N_THEME_READ_WORKER_ADDR",
+    "url_env": "A4N_THEME_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47663",
+    "local_only": true,
+    "data_scope": ["theme_config", "theme_resource", "theme_preference"],
+    "capabilities": ["theme.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "theme_read",
+      "min_compatible": "theme_read",
+      "max_compatible": "theme_read"
+    }
+  },
+  {
+    "name": "project-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-project-read-worker",
+    "contract_version": "project-read-v1",
+    "capability_version": "project-read-v1",
+    "addr_env": "A4N_PROJECT_READ_WORKER_ADDR",
+    "url_env": "A4N_PROJECT_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47664",
+    "local_only": true,
+    "data_scope": ["project", "project_family", "project_progress", "project_access"],
+    "capabilities": ["project.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_read",
+      "min_compatible": "project_read",
+      "max_compatible": "project_read"
+    }
   }
 ]

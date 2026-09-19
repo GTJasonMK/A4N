@@ -190,7 +190,7 @@ impl a4n_api_contract::project::ProjectMutationApplicationPort for OrchestratorC
             },
         )
         .await?;
-        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project.id)
+        self.project_summary_required_for_user(user_id, project.id)
             .await
     }
 
@@ -229,7 +229,7 @@ impl a4n_api_contract::project::ProjectMutationApplicationPort for OrchestratorC
             },
         )
         .await?;
-        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project.id)
+        self.project_summary_required_for_user(user_id, project.id)
             .await
     }
 
@@ -248,7 +248,7 @@ impl a4n_api_contract::project::ProjectMutationApplicationPort for OrchestratorC
             CreateFreeformVideoProjectParams { title, description },
         )
         .await?;
-        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project.id)
+        self.project_summary_required_for_user(user_id, project.id)
             .await
     }
 
@@ -272,7 +272,7 @@ impl a4n_api_contract::project::ProjectMutationApplicationPort for OrchestratorC
             input.description,
         )
         .await?;
-        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project_id)
+        self.project_summary_required_for_user(user_id, project_id)
             .await
     }
 }
