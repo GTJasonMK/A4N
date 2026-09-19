@@ -144,24 +144,15 @@ pub fn ensure_agent_scope_allows_tool(scope: &AgentScope, name: &str) -> Result<
     }
 }
 
-/// Serialize the Agent worker-to-Control request without exposing durable-only
-/// context, while preserving the trace required by the Control LLM runtime.
+/// Serialize the trusted Agent worker-to-Control request with the internal
+/// context needed by the Control LLM runtime. `ChatRequest` still omits this
+/// context from provider wire serialization.
 pub fn model_request_wire_value(request: &ChatRequest) -> Result<Value, AppError> {
-    let mut value = serde_json::to_value(request)?;
-    if let Some(trace_context) = request.trace_context.as_ref() {
-        value["trace_context"] = serde_json::to_value(trace_context)?;
-    }
-    Ok(value)
+    request.snapshot_value()
 }
 
-pub fn restore_model_request_wire(mut value: Value) -> Result<ChatRequest, AppError> {
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidArgument("模型请求 wire 必须是对象".into()))?;
-    let trace = object.remove("trace_context");
-    let mut request: ChatRequest = serde_json::from_value(value)?;
-    request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
-    Ok(request)
+pub fn restore_model_request_wire(value: Value) -> Result<ChatRequest, AppError> {
+    ChatRequest::from_snapshot_value(value)
 }
 /// Stable worker-facing projection of a durable Agent run.
 #[derive(Debug, Clone)]
@@ -1174,7 +1165,7 @@ mod tests {
     }
 
     #[test]
-    fn model_request_wire_round_trips_trace_without_durable_context() {
+    fn model_request_wire_round_trips_trace_and_context_manifest() {
         let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
         request.trace_context = Some(LlmTraceContext {
             project_id: Some(7),
@@ -1192,8 +1183,16 @@ mod tests {
 
         let wire = model_request_wire_value(&request).expect("request must serialize");
         assert_eq!(wire["trace_context"]["project_id"], 7);
-        assert!(wire.get("context_manifest_json").is_none());
-        assert!(restore_model_request_wire(request.snapshot_value().unwrap()).is_err());
+        assert_eq!(
+            wire["context_manifest_json"],
+            json!({"packs": ["durable-only"]})
+        );
+        let snapshot = restore_model_request_wire(request.snapshot_value().unwrap())
+            .expect("durable snapshot must restore");
+        assert_eq!(
+            snapshot.context_manifest_json,
+            Some(json!({"packs": ["durable-only"]}))
+        );
 
         let restored = restore_model_request_wire(wire).expect("wire must restore");
         assert_eq!(
@@ -1203,7 +1202,10 @@ mod tests {
                 .map(|trace| trace.project_id),
             Some(Some(7))
         );
-        assert!(restored.context_manifest_json.is_none());
+        assert_eq!(
+            restored.context_manifest_json,
+            Some(json!({"packs": ["durable-only"]}))
+        );
     }
 
     #[test]

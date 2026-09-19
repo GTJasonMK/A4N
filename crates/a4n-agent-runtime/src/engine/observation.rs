@@ -236,8 +236,13 @@ fn value_text(value: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{AgentToolObservation, error_code, from_result, parse, retry_policy};
+    use super::{
+        AgentToolObservation, error_code, from_result, parse, record_failure, retry_limit_reached,
+        retry_policy,
+    };
     use serde_json::json;
+    use std::{collections::HashMap, sync::Arc};
+    use tokio::sync::Mutex;
 
     #[test]
     fn observation_distinguishes_success_partial_and_error() {
@@ -292,5 +297,48 @@ mod tests {
         let mut value = value;
         value["observation_version"] = json!(99);
         assert!(parse(&value).is_err());
+    }
+
+    #[tokio::test]
+    async fn repeated_same_tool_arguments_hit_retry_limit() {
+        let counts = Arc::new(Mutex::new(HashMap::new()));
+        let arguments = json!({"project_id": 7});
+        for expected in 1..=3 {
+            let (_, count) = record_failure(&counts, "read_project", &arguments, "资源不存在")
+                .await
+                .expect("failure should be recorded");
+            assert_eq!(count, expected);
+        }
+        assert!(
+            retry_limit_reached(&counts, "read_project", &arguments)
+                .await
+                .expect("retry limit should be readable")
+        );
+        assert!(
+            !retry_limit_reached(&counts, "read_project", &json!({"project_id": 8}))
+                .await
+                .expect("different arguments should remain retryable")
+        );
+    }
+
+    #[test]
+    fn outcome_unknown_is_an_error_observation_not_success() {
+        let observation: AgentToolObservation = serde_json::from_value(
+            from_result(
+                9,
+                "save_editor_draft",
+                json!({"error": "等待对账", "code": "OUTCOME_UNKNOWN"}),
+                Vec::new(),
+                32,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(observation.status, "error");
+        assert_eq!(
+            observation.error.as_ref().map(|error| error.code.as_str()),
+            Some("OUTCOME_UNKNOWN")
+        );
+        assert!(!observation.error.unwrap().retryable);
     }
 }
