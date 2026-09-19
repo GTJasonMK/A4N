@@ -1850,8 +1850,8 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ProjectStatusApplicationPort' crates/a4n-api-contract/src/project.rs; then
-    printf 'ProjectStatusApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait ProjectStatus(Read|Mutation)ApplicationPort' crates/a4n-api-contract/src/project.rs; then
+    printf 'ProjectStatus read/mutation contracts are missing\n' >&2
     exit 1
 fi
 

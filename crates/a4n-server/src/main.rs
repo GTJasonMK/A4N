@@ -37,6 +37,8 @@ const SCENE_PROFILE_WORKER_PROCESS_ENV: &str = "A4N_SCENE_PROFILE_WORKER_PROCESS
 #[cfg(feature = "test-embedded-processes")]
 const PROFILE_MATERIAL_WORKER_PROCESS_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
+const PROJECT_STATUS_WORKER_PROCESS_ENV: &str = "A4N_PROJECT_STATUS_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
 const PORTRAIT_WORKER_PROCESS_ENV: &str = "A4N_PORTRAIT_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const SOURCE_SNAPSHOT_WORKER_PROCESS_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_PROCESS";
@@ -80,6 +82,10 @@ const PROFILE_MATERIAL_WORKER_CATALOG_NAME: &str = "profile-material-worker";
 const PROFILE_MATERIAL_WORKER_BINARY_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_BINARY";
 const PROFILE_MATERIAL_WORKER_TOKEN_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_TOKEN";
 const PROFILE_MATERIAL_WORKER_URL_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_URL";
+const PROJECT_STATUS_WORKER_CATALOG_NAME: &str = "project-status-worker";
+const PROJECT_STATUS_WORKER_BINARY_ENV: &str = "A4N_PROJECT_STATUS_WORKER_BINARY";
+const PROJECT_STATUS_WORKER_TOKEN_ENV: &str = "A4N_PROJECT_STATUS_WORKER_TOKEN";
+const PROJECT_STATUS_WORKER_URL_ENV: &str = "A4N_PROJECT_STATUS_WORKER_URL";
 const PORTRAIT_WORKER_CATALOG_NAME: &str = "portrait-worker";
 const PORTRAIT_WORKER_BINARY_ENV: &str = "A4N_PORTRAIT_WORKER_BINARY";
 const PORTRAIT_WORKER_TOKEN_ENV: &str = "A4N_PORTRAIT_WORKER_TOKEN";
@@ -119,6 +125,7 @@ enum ChildWatchEvent {
     ObjectProfileWorkerExited(ExitStatus),
     SceneProfileWorkerExited(ExitStatus),
     ProfileMaterialWorkerExited(ExitStatus),
+    ProjectStatusWorkerExited(ExitStatus),
     PortraitWorkerExited(ExitStatus),
     SourceSnapshotWorkerExited(ExitStatus),
     EdgeChanged,
@@ -133,6 +140,7 @@ enum ChildWatchEvent {
     ObjectProfileWorkerChanged,
     SceneProfileWorkerChanged,
     ProfileMaterialWorkerChanged,
+    ProjectStatusWorkerChanged,
     PortraitWorkerChanged,
     SourceSnapshotWorkerChanged,
     ReloadMarkerChanged,
@@ -174,6 +182,9 @@ fn main() -> anyhow::Result<()> {
         if env::var(PROFILE_MATERIAL_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_profile_material_worker::run();
         }
+        if env::var(PROJECT_STATUS_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_project_status_worker::run();
+        }
         if env::var(PORTRAIT_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_portrait_worker::run();
         }
@@ -203,6 +214,8 @@ fn main() -> anyhow::Result<()> {
     let scene_profile_worker_token = worker_token_for_env(SCENE_PROFILE_WORKER_TOKEN_ENV)?;
     let profile_material_worker_addr = profile_material_worker_addr()?;
     let profile_material_worker_token = worker_token_for_env(PROFILE_MATERIAL_WORKER_TOKEN_ENV)?;
+    let project_status_worker_addr = project_status_worker_addr()?;
+    let project_status_worker_token = worker_token_for_env(PROJECT_STATUS_WORKER_TOKEN_ENV)?;
     let portrait_worker_addr = portrait_worker_addr()?;
     let portrait_worker_token = worker_token_for_env(PORTRAIT_WORKER_TOKEN_ENV)?;
     let source_snapshot_worker_addr = source_snapshot_worker_addr()?;
@@ -232,6 +245,8 @@ fn main() -> anyhow::Result<()> {
     let profile_material_worker_binary = profile_material_worker_binary()?;
     let mut profile_material_worker_fingerprint =
         binary_fingerprint(&profile_material_worker_binary)?;
+    let project_status_worker_binary = project_status_worker_binary()?;
+    let mut project_status_worker_fingerprint = binary_fingerprint(&project_status_worker_binary)?;
     let portrait_worker_binary = portrait_worker_binary()?;
     let mut portrait_worker_fingerprint = binary_fingerprint(&portrait_worker_binary)?;
     let source_snapshot_worker_binary = source_snapshot_worker_binary()?;
@@ -526,6 +541,8 @@ fn main() -> anyhow::Result<()> {
         &scene_profile_worker_token,
         profile_material_worker_addr,
         &profile_material_worker_token,
+        project_status_worker_addr,
+        &project_status_worker_token,
         portrait_worker_addr,
         &portrait_worker_token,
         source_snapshot_worker_addr,
@@ -644,6 +661,50 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
         return Err(error);
     }
+    let mut project_status_worker = match spawn_project_status_worker(
+        &project_status_worker_binary,
+        project_status_worker_addr,
+        &project_status_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_profile_material_worker(&mut profile_material_worker);
+            let _ = stop_agent_worker(&mut agent_worker);
+            let _ = stop_control(&mut control);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+            let _ = stop_portrait_worker(&mut portrait_worker);
+            let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_project_status_worker(
+        &mut project_status_worker,
+        project_status_worker_addr,
+        &project_status_worker_token,
+    ) {
+        let _ = stop_project_status_worker(&mut project_status_worker);
+        let _ = stop_profile_material_worker(&mut profile_material_worker);
+        let _ = stop_agent_worker(&mut agent_worker);
+        let _ = stop_control(&mut control);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_portrait_worker(&mut portrait_worker);
+        let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        return Err(error);
+    }
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
         Ok(child) => child,
         Err(error) => {
@@ -658,6 +719,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_object_profile_worker(&mut object_profile_worker);
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_profile_material_worker(&mut profile_material_worker);
+            let _ = stop_project_status_worker(&mut project_status_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
             return Err(error);
@@ -719,6 +781,11 @@ fn main() -> anyhow::Result<()> {
         &mut profile_material_worker,
         &profile_material_worker_binary,
         &mut profile_material_worker_fingerprint,
+        project_status_worker_addr,
+        &project_status_worker_token,
+        &mut project_status_worker,
+        &project_status_worker_binary,
+        &mut project_status_worker_fingerprint,
         portrait_worker_addr,
         &portrait_worker_token,
         &mut portrait_worker,
@@ -746,6 +813,7 @@ fn main() -> anyhow::Result<()> {
     let object_profile_worker_result = stop_object_profile_worker(&mut object_profile_worker);
     let scene_profile_worker_result = stop_scene_profile_worker(&mut scene_profile_worker);
     let profile_material_worker_result = stop_profile_material_worker(&mut profile_material_worker);
+    let project_status_worker_result = stop_project_status_worker(&mut project_status_worker);
     let portrait_worker_result = stop_portrait_worker(&mut portrait_worker);
     let source_snapshot_worker_result = stop_source_snapshot_worker(&mut source_snapshot_worker);
     finish_shutdown(
@@ -761,6 +829,7 @@ fn main() -> anyhow::Result<()> {
         object_profile_worker_result,
         scene_profile_worker_result,
         profile_material_worker_result,
+        project_status_worker_result,
         portrait_worker_result,
         source_snapshot_worker_result,
     )
@@ -822,6 +891,11 @@ fn supervise_runtime_children(
     profile_material_worker: &mut Child,
     profile_material_worker_binary: &Path,
     profile_material_worker_fingerprint: &mut BinaryFingerprint,
+    project_status_worker_addr: SocketAddr,
+    project_status_worker_token: &str,
+    project_status_worker: &mut Child,
+    project_status_worker_binary: &Path,
+    project_status_worker_fingerprint: &mut BinaryFingerprint,
     portrait_worker_addr: SocketAddr,
     portrait_worker_token: &str,
     portrait_worker: &mut Child,
@@ -888,6 +962,11 @@ fn supervise_runtime_children(
                 *profile_material_worker_fingerprint,
             )),
             Some((
+                project_status_worker,
+                project_status_worker_binary,
+                *project_status_worker_fingerprint,
+            )),
+            Some((
                 portrait_worker,
                 portrait_worker_binary,
                 *portrait_worker_fingerprint,
@@ -938,6 +1017,8 @@ fn supervise_runtime_children(
                     scene_profile_worker_token,
                     profile_material_worker_addr,
                     profile_material_worker_token,
+                    project_status_worker_addr,
+                    project_status_worker_token,
                     portrait_worker_addr,
                     portrait_worker_token,
                     source_snapshot_worker_addr,
@@ -1095,6 +1176,22 @@ fn supervise_runtime_children(
                 *profile_material_worker_fingerprint =
                     binary_fingerprint(profile_material_worker_binary)?;
             }
+            ChildWatchEvent::ProjectStatusWorkerExited(status) => {
+                eprintln!("A4N Project Status worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *project_status_worker = spawn_project_status_worker(
+                    project_status_worker_binary,
+                    project_status_worker_addr,
+                    project_status_worker_token,
+                )?;
+                wait_for_project_status_worker(
+                    project_status_worker,
+                    project_status_worker_addr,
+                    project_status_worker_token,
+                )?;
+                *project_status_worker_fingerprint =
+                    binary_fingerprint(project_status_worker_binary)?;
+            }
             ChildWatchEvent::PortraitWorkerExited(status) => {
                 eprintln!("A4N Portrait worker 意外退出: {status}；准备重启");
                 std::thread::sleep(WORKER_RESTART_DELAY);
@@ -1158,6 +1255,8 @@ fn supervise_runtime_children(
                     scene_profile_worker_token,
                     profile_material_worker_addr,
                     profile_material_worker_token,
+                    project_status_worker_addr,
+                    project_status_worker_token,
                     portrait_worker_addr,
                     portrait_worker_token,
                     source_snapshot_worker_addr,
@@ -1333,6 +1432,25 @@ fn supervise_runtime_children(
                 *profile_material_worker_fingerprint =
                     binary_fingerprint(profile_material_worker_binary)?;
             }
+            ChildWatchEvent::ProjectStatusWorkerChanged => {
+                eprintln!(
+                    "检测到 A4N Project Status worker 构建完成；只替换 Project Status worker"
+                );
+                stop_project_status_worker(project_status_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *project_status_worker = spawn_project_status_worker(
+                    project_status_worker_binary,
+                    project_status_worker_addr,
+                    project_status_worker_token,
+                )?;
+                wait_for_project_status_worker(
+                    project_status_worker,
+                    project_status_worker_addr,
+                    project_status_worker_token,
+                )?;
+                *project_status_worker_fingerprint =
+                    binary_fingerprint(project_status_worker_binary)?;
+            }
             ChildWatchEvent::PortraitWorkerChanged => {
                 eprintln!("检测到 A4N Portrait worker 构建完成；只替换 Portrait worker");
                 stop_portrait_worker(portrait_worker)?;
@@ -1468,6 +1586,7 @@ fn wait_for_edge_or_child_with_outline(
         None,
         None,
         None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -1496,6 +1615,7 @@ fn wait_for_edge_or_child_with_workers(
     mut object_profile_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut scene_profile_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut profile_material_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut project_status_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut portrait_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut source_snapshot_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
@@ -1553,6 +1673,11 @@ fn wait_for_edge_or_child_with_workers(
             && let Some(status) = profile_material_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::ProfileMaterialWorkerExited(status)));
+        }
+        if let Some((project_status_worker, _, _)) = project_status_worker.as_mut()
+            && let Some(status) = project_status_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::ProjectStatusWorkerExited(status)));
         }
         if let Some((portrait_worker, _, _)) = portrait_worker.as_mut()
             && let Some(status) = portrait_worker.try_wait()?
@@ -1628,6 +1753,13 @@ fn wait_for_edge_or_child_with_workers(
                 != *profile_material_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::ProfileMaterialWorkerChanged));
+        }
+        if let Some((_, project_status_worker_binary, project_status_worker_fingerprint)) =
+            project_status_worker.as_ref()
+            && binary_fingerprint(project_status_worker_binary)?
+                != *project_status_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::ProjectStatusWorkerChanged));
         }
         if let Some((_, portrait_worker_binary, portrait_worker_fingerprint)) =
             portrait_worker.as_ref()
@@ -1947,6 +2079,25 @@ fn profile_material_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn project_status_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(PROJECT_STATUS_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            PROJECT_STATUS_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn project_status_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = project_status_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn portrait_worker_metadata()
 -> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
     stateful_worker_catalog_entry_ref(PORTRAIT_WORKER_CATALOG_NAME).ok_or_else(|| {
@@ -2014,6 +2165,8 @@ fn spawn_control(
     scene_profile_worker_token: &str,
     profile_material_worker_addr: SocketAddr,
     profile_material_worker_token: &str,
+    project_status_worker_addr: SocketAddr,
+    project_status_worker_token: &str,
     portrait_worker_addr: SocketAddr,
     portrait_worker_token: &str,
     source_snapshot_worker_addr: SocketAddr,
@@ -2071,6 +2224,11 @@ fn spawn_control(
             PROFILE_MATERIAL_WORKER_TOKEN_ENV,
             profile_material_worker_token,
         )
+        .env(
+            PROJECT_STATUS_WORKER_URL_ENV,
+            format!("http://{project_status_worker_addr}"),
+        )
+        .env(PROJECT_STATUS_WORKER_TOKEN_ENV, project_status_worker_token)
         .env(
             PORTRAIT_WORKER_URL_ENV,
             format!("http://{portrait_worker_addr}"),
@@ -2304,6 +2462,30 @@ fn spawn_profile_material_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Profile Material worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_project_status_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = project_status_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(PROJECT_STATUS_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(PROJECT_STATUS_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Project Status worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -2615,6 +2797,28 @@ fn wait_for_profile_material_worker(
     )
 }
 
+fn wait_for_project_status_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = project_status_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(PROJECT_STATUS_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Project Status worker",
+    )
+}
+
 fn wait_for_portrait_worker(
     child: &mut Child,
     address: SocketAddr,
@@ -2841,6 +3045,13 @@ fn profile_material_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn project_status_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        PROJECT_STATUS_WORKER_BINARY_ENV,
+        &project_status_worker_metadata()?.binary,
+    )
+}
+
 fn portrait_worker_binary() -> anyhow::Result<PathBuf> {
     child_binary(
         PORTRAIT_WORKER_BINARY_ENV,
@@ -2945,6 +3156,10 @@ fn stop_profile_material_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_project_status_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_portrait_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -2997,6 +3212,7 @@ fn finish_shutdown(
     object_profile_worker_result: anyhow::Result<()>,
     scene_profile_worker_result: anyhow::Result<()>,
     profile_material_worker_result: anyhow::Result<()>,
+    project_status_worker_result: anyhow::Result<()>,
     portrait_worker_result: anyhow::Result<()>,
     source_snapshot_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
@@ -3014,6 +3230,7 @@ fn finish_shutdown(
         ("Object Profile worker", object_profile_worker_result),
         ("Scene Profile worker", scene_profile_worker_result),
         ("Profile Material worker", profile_material_worker_result),
+        ("Project Status worker", project_status_worker_result),
         ("Portrait worker", portrait_worker_result),
         ("Source Snapshot worker", source_snapshot_worker_result),
     ] {
@@ -3634,6 +3851,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -3732,6 +3950,7 @@ mod tests {
             )),
             None,
             None,
+            None,
             &edge_binary,
             edge_fingerprint,
             None,
@@ -3775,6 +3994,7 @@ mod tests {
                 &profile_material_binary,
                 profile_material_fingerprint,
             )),
+            None,
             None,
             None,
             &edge_binary,
@@ -3821,6 +4041,7 @@ mod tests {
                 &profile_material_binary,
                 profile_material_fingerprint,
             )),
+            None,
             None,
             None,
             &edge_binary,

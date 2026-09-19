@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 12);
+        assert_eq!(entries.len(), 13);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -530,6 +530,19 @@ mod tests {
                 "profile.material.mutation".to_string()
             ]
         );
+        let project_status = entries
+            .iter()
+            .find(|entry| entry.name == "project-status-worker")
+            .expect("project status worker entry");
+        assert_eq!(project_status.kind, ProcessKind::StatefulWorker);
+        assert_eq!(project_status.binary, "a4n-project-status-worker");
+        assert_eq!(project_status.contract_version, "project-status-read-v1");
+        assert_eq!(project_status.addr_env, "A4N_PROJECT_STATUS_WORKER_ADDR");
+        assert_eq!(project_status.default_addr, "127.0.0.1:47662");
+        assert_eq!(
+            project_status.capabilities,
+            vec!["project.status.read".to_string()]
+        );
         let portrait = entries
             .iter()
             .find(|entry| entry.name == "portrait-worker")
@@ -564,7 +577,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 21);
+        assert_eq!(entries.len(), 22);
         assert_eq!(
             entries
                 .iter()

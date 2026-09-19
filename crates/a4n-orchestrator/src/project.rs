@@ -152,6 +152,5 @@ pub(crate) use errors::project_mutation_error_to_app_error;
 pub(crate) use errors::project_outline_record_error_to_app_error;
 pub(crate) use errors::project_progress_read_error_to_app_error;
 pub(crate) use errors::project_reset_error_to_app_error;
-pub(crate) use errors::project_rollback_impact_read_error_to_app_error;
 pub(crate) use errors::project_status_read_error_to_app_error;
 pub(crate) use errors::project_status_write_error_to_app_error;

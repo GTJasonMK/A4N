@@ -43,8 +43,10 @@ pub struct ApplicationPorts {
     pub admin_mutation_application: Arc<dyn a4n_api_contract::admin::AdminMutationApplicationPort>,
     /// Host-facing project status boundary. Status transitions and family
     /// projections stay in the project owner and return API DTOs only.
-    pub project_status_application:
-        Arc<dyn a4n_api_contract::project::ProjectStatusApplicationPort>,
+    pub project_status_read_application:
+        Arc<dyn a4n_api_contract::project::ProjectStatusReadApplicationPort>,
+    pub project_status_mutation_application:
+        Arc<dyn a4n_api_contract::project::ProjectStatusMutationApplicationPort>,
     /// Host-facing project collaboration boundary. Membership and invitation
     /// state transitions stay in the project collaboration owner.
     pub project_collaboration_application:

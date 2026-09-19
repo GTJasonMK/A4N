@@ -65,6 +65,8 @@ pub async fn initialize_runtime(
         Arc::new(a4n_source_snapshot_worker_client::SourceSnapshotWorkerClient::from_env());
     let profile_material_worker =
         Arc::new(a4n_profile_material_worker_client::ProfileMaterialWorkerClient::from_env());
+    let project_status_worker =
+        Arc::new(a4n_project_status_worker_client::ProjectStatusWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
@@ -87,7 +89,8 @@ pub async fn initialize_runtime(
         admin_read_application: orchestrator.clone(),
         model_usage_read_application: orchestrator.clone(),
         admin_mutation_application: orchestrator.clone(),
-        project_status_application: orchestrator.clone(),
+        project_status_read_application: project_status_worker,
+        project_status_mutation_application: orchestrator.clone(),
         project_collaboration_application: orchestrator.clone(),
         project_access_application: orchestrator.clone(),
         project_read_application: orchestrator.clone(),

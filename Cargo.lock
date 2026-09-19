@@ -794,6 +794,7 @@ dependencies = [
  "a4n-outline-worker-client",
  "a4n-portrait-worker-client",
  "a4n-profile-material-worker-client",
+ "a4n-project-status-worker-client",
  "a4n-runtime",
  "a4n-scene-profile-worker-client",
  "a4n-source-snapshot-worker-client",
@@ -1566,6 +1567,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-project-status-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-project-status-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-project-status-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-project-status-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-project-status-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-prompt"
 version = "0.1.0"
 dependencies = [
@@ -1951,6 +1996,7 @@ dependencies = [
  "a4n-portrait-worker",
  "a4n-process-catalog",
  "a4n-profile-material-worker",
+ "a4n-project-status-worker",
  "a4n-queue",
  "a4n-scene-profile-worker",
  "a4n-service-protocol",

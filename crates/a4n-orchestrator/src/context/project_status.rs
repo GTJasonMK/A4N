@@ -1,9 +1,6 @@
 use a4n_db::{DbHandle, project_reset::ProjectStatusRollbackOutcome};
 use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::{
-    ProjectRollbackPreview, ProjectStatus, ProjectStatusArtifacts, ProjectStatusMachineSummary,
-    rollback_actions,
-};
+use a4n_domain::project::{ProjectStatus, ProjectStatusArtifacts};
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
 use chrono::{NaiveDateTime, Utc};
@@ -13,8 +10,7 @@ use crate::{
     collaboration::ProjectAccessRole,
     project::{
         PROJECT_KIND_TEXT, project_mutation_error_to_app_error, project_reset_error_to_app_error,
-        project_rollback_impact_read_error_to_app_error, project_status_read_error_to_app_error,
-        project_status_write_error_to_app_error,
+        project_status_read_error_to_app_error, project_status_write_error_to_app_error,
     },
 };
 
@@ -68,69 +64,6 @@ impl ProjectStatusApplication {
         a4n_db::project::project_status_artifacts(self.database.connection(), project_id)
             .await
             .map_err(project_status_read_error_to_app_error)
-    }
-
-    async fn machine(&self, project_id: i64) -> Result<ProjectStatusMachineSummary, AppError> {
-        let (project_result, artifacts_result, history_result) = futures::join!(
-            self.project_with_status(project_id, "读取项目状态机"),
-            self.artifacts(project_id),
-            async {
-                a4n_db::project::project_status_history(self.database.connection(), project_id)
-                    .await
-                    .map_err(project_status_read_error_to_app_error)
-            },
-        );
-        let (_, current_status) = project_result?;
-        let artifacts = artifacts_result?;
-        let forward_targets = ProjectStatus::ALL
-            .into_iter()
-            .filter(|target| current_status < *target && artifacts.supports(*target))
-            .collect();
-        let rollback_targets = ProjectStatus::ALL
-            .into_iter()
-            .filter(|target| current_status > *target)
-            .collect();
-        let history = history_result?;
-
-        Ok(ProjectStatusMachineSummary {
-            current_status,
-            forward_targets,
-            rollback_targets,
-            history,
-        })
-    }
-
-    async fn preview_rollback(
-        &self,
-        project_id: i64,
-        target: ProjectStatus,
-    ) -> Result<ProjectRollbackPreview, AppError> {
-        let (_, current_status) = self
-            .project_with_status(project_id, "预览项目状态回退")
-            .await?;
-        if current_status <= target {
-            return Err(AppError::InvalidState {
-                current: current_status.as_str().to_string(),
-                operation: format!("回退到状态 {}", target.as_str()),
-            });
-        }
-        let actions = rollback_actions(current_status, target);
-        let impacts = a4n_db::project::project_rollback_impacts(
-            self.database.connection(),
-            project_id,
-            &actions,
-        )
-        .await
-        .map_err(project_rollback_impact_read_error_to_app_error)?;
-
-        Ok(ProjectRollbackPreview {
-            path: ProjectStatus::ALL
-                .into_iter()
-                .rev()
-                .filter(|status| *status <= current_status && *status >= target)
-                .collect(),
-            impacts,
-        })
     }
 
     async fn forward(
@@ -276,29 +209,6 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub(crate) async fn project_status_machine_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<ProjectStatusMachineSummary, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.project_status.machine(project_id).await
-    }
-
-    pub(crate) async fn preview_project_status_rollback_for_user_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        target: ProjectStatus,
-    ) -> Result<ProjectRollbackPreview, AppError> {
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.project_status
-            .preview_rollback(project_id, target)
-            .await
-    }
-
     pub(crate) async fn forward_project_status_for_user_validated(
         &self,
         user_id: i64,
@@ -366,26 +276,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::project::ProjectStatusApplicationPort for OrchestratorContext {
-    async fn status_machine(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<ProjectStatusMachineSummary, AppError> {
-        self.project_status_machine_for_user_validated(user_id, project_id)
-            .await
-    }
-
-    async fn preview_rollback(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        target: ProjectStatus,
-    ) -> Result<ProjectRollbackPreview, AppError> {
-        self.preview_project_status_rollback_for_user_validated(user_id, project_id, target)
-            .await
-    }
-
+impl a4n_api_contract::project::ProjectStatusMutationApplicationPort for OrchestratorContext {
     async fn forward_status(
         &self,
         user_id: i64,

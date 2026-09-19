@@ -11,7 +11,6 @@ pub(crate) use family::{
     project_basic_record_error_to_app_error, project_family_error_to_app_error,
     project_family_export_error_to_app_error, project_family_import_error_to_app_error,
     project_family_metadata_read_error_to_app_error, project_progress_read_error_to_app_error,
-    project_rollback_impact_read_error_to_app_error,
 };
 pub(crate) use lifecycle::{
     project_duplicate_error_to_app_error, project_mutation_error_to_app_error,
