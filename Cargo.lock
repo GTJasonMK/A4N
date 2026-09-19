@@ -797,6 +797,7 @@ dependencies = [
  "a4n-profile-material-worker-client",
  "a4n-project-access-worker-client",
  "a4n-project-collaboration-worker-client",
+ "a4n-project-mutation-worker-client",
  "a4n-project-read-worker-client",
  "a4n-project-status-worker-client",
  "a4n-runtime",
@@ -1759,6 +1760,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-project-mutation-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-project-mutation-worker-contract",
+ "a4n-project-read-core",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-project-mutation-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-project-mutation-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-project-mutation-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+]
+
+[[package]]
 name = "a4n-project-read-core"
 version = "0.1.0"
 dependencies = [
@@ -1766,6 +1811,9 @@ dependencies = [
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
+ "sea-orm",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -2247,6 +2295,7 @@ dependencies = [
  "a4n-profile-material-worker",
  "a4n-project-access-worker",
  "a4n-project-collaboration-worker",
+ "a4n-project-mutation-worker",
  "a4n-project-read-worker",
  "a4n-project-status-worker",
  "a4n-queue",
