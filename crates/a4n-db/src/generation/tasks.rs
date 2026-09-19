@@ -1355,7 +1355,7 @@ fn build_reserved_checkpoint(
         attempt: attempt_u32,
         covers_through_sequence: 1,
         status: GenerationTaskStatus::Reserved,
-        started: started.clone(),
+        started,
         cancel_reason: None,
         progress: None,
         streams: Vec::new(),

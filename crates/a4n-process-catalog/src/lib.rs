@@ -258,7 +258,7 @@ pub fn process_catalog_entry(name: &str) -> Option<ProcessMetadata> {
     process_catalog_entry_ref(name).cloned()
 }
 
-pub fn process_catalog_entry_ref(name: &str) -> Option<&'static ProcessMetadata> {
+fn process_catalog_entry_ref(name: &str) -> Option<&'static ProcessMetadata> {
     embedded_process_catalog()
         .iter()
         .find(|entry| entry.name == name)

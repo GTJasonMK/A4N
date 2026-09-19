@@ -130,6 +130,7 @@ pub(in crate::optimize) async fn search_project_context(
     if query.is_empty() {
         return Err(AppError::InvalidArgument("query 不能为空".into()));
     }
+    let query_lower = query.to_lowercase();
     let limit = input.limit.unwrap_or(8).clamp(1, 20) as usize;
     let mut matches = Vec::new();
     let source = input.source.as_deref().map(canonical_source).transpose()?;
@@ -141,7 +142,7 @@ pub(in crate::optimize) async fn search_project_context(
         let Some(value) = context_value.get(source) else {
             continue;
         };
-        collect_matches(source, value, "$", query, limit, &mut matches);
+        collect_matches(source, value, "$", &query_lower, limit, &mut matches);
         if matches.len() >= limit {
             break;
         }
@@ -552,16 +553,15 @@ fn collect_matches(
     source: &str,
     value: &Value,
     path: &str,
-    query: &str,
+    query_lower: &str,
     limit: usize,
     out: &mut Vec<Value>,
 ) {
     if out.len() >= limit {
         return;
     }
-    let query_lower = query.to_lowercase();
     match value {
-        Value::String(text) if text.to_lowercase().contains(&query_lower) => {
+        Value::String(text) if text.to_lowercase().contains(query_lower) => {
             out.push(json!({
                 "source": source,
                 "path": path,
@@ -574,7 +574,7 @@ fn collect_matches(
                     source,
                     item,
                     &format!("{path}/{index}"),
-                    &query_lower,
+                    query_lower,
                     limit,
                     out,
                 );
@@ -589,7 +589,7 @@ fn collect_matches(
                     source,
                     child,
                     &format!("{path}/{}", escape_pointer(key)),
-                    &query_lower,
+                    query_lower,
                     limit,
                     out,
                 );

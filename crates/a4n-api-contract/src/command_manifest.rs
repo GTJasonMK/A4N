@@ -837,11 +837,9 @@ pub fn command_descriptor(command: &str) -> Option<CommandDescriptor> {
 }
 
 pub fn command_runtime_config_policy(command: &str) -> RuntimeConfigPolicy {
-    match command {
-        _ => command_spec(command)
-            .map(|spec| spec.runtime_config_policy)
-            .unwrap_or(RuntimeConfigPolicy::None),
-    }
+    command_spec(command)
+        .map(|spec| spec.runtime_config_policy)
+        .unwrap_or(RuntimeConfigPolicy::None)
 }
 
 pub fn is_destructive(command: &str) -> bool {
