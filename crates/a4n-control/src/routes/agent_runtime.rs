@@ -1,7 +1,9 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_agent_runtime_contract::{AgentExternalTaskWaitSnapshot, restore_model_request_wire};
+use a4n_agent_runtime_contract::{
+    AgentExternalTaskWaitSnapshot, model_request_wire_value, restore_model_request_wire,
+};
 use a4n_api_contract::agent::{
     AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
     AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
@@ -831,6 +833,28 @@ pub(super) async fn agent_chat(
         ),
     )
         .into_response())
+}
+
+pub(super) async fn prepare_agent_chat(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerChatRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    let request = restore_model_request_wire(input.request)
+        .map_err(|error| ApiError::bad_request(format!("Agent LLM request 无效: {error}")))?;
+    let request = agent_actions::prepare_agent_chat_request(
+        state.runtime(),
+        input.user_id,
+        input.snapshot,
+        input.config_id,
+        request,
+    )
+    .await?;
+    Ok(Json(model_request_wire_value(&request)?))
 }
 
 pub(super) async fn project_agent_editor(

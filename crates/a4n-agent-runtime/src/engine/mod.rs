@@ -8,7 +8,7 @@ use a4n_agent_runtime_contract::{
     WorkerExecutionUpdate, agent_protocol_for_snapshot, agent_protocol_from_request_snapshot,
     agent_protocol_prompt, agent_skill_directory_prompt, child_budget_within_parent,
     configure_agent_request, decode_agent_response, enforce_delegation_limits,
-    ensure_agent_scope_allows_tool, validate_agent_budget,
+    ensure_agent_scope_allows_tool, restore_model_request_wire, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentSkillSearchResult, AgentToolDescriptor, DescribeAgentToolInput,
@@ -1022,6 +1022,10 @@ async fn process_claimed_run_inner(
         model_calls = model_calls.saturating_add(1);
         usage["steps_used"] = json!(steps);
         usage["model_calls_used"] = json!(model_calls);
+        let model_execution_key = format!("model-call:{model_calls}");
+        let existing_model_execution = state
+            .worker_execution_by_key(claimed, &model_execution_key)
+            .await?;
         let tool_window = available_runtime_tools(
             &context.profile_id,
             &context.scope,
@@ -1119,6 +1123,9 @@ async fn process_claimed_run_inner(
             && !projection.omitted.is_empty()
             && latest_message_sequence > summary_covered_sequence
             && can_spend_summary_call
+            && !existing_model_execution
+                .as_ref()
+                .is_some_and(|execution| execution.status == "succeeded")
         {
             let source = history::summary_source(
                 &projection.omitted,
@@ -1224,26 +1231,45 @@ async fn process_claimed_run_inner(
             stop_sequences: None,
         };
         configure_agent_request(&mut request, &protocol, tools.clone());
-        if let Some(remaining) = state
-            .worker_budget_application(claimed)
-            .worker_budget_snapshot(claimed.run.id)
-            .await?
-            .max_tokens
-        {
-            let reserved =
-                a4n_domain::agent::agent_model_token_reservation(&serde_json::to_value(&request)?);
-            let input_tokens = reserved.saturating_sub(output_tokens as u64);
-            if remaining <= input_tokens {
-                state.wait_agent_worker_run(claimed, "budget").await?;
-                return Ok(());
+        if let Some(existing) = existing_model_execution.as_ref() {
+            request =
+                restore_model_request_wire(existing.arguments_json.clone().ok_or_else(|| {
+                    AppError::InvalidState {
+                        current: format!(
+                            "Agent model execution {} 缺少原始 request snapshot",
+                            existing.id
+                        ),
+                        operation: "恢复 Agent model execution request".into(),
+                    }
+                })?)?;
+        } else {
+            if let Some(remaining) = state
+                .worker_budget_application(claimed)
+                .worker_budget_snapshot(claimed.run.id)
+                .await?
+                .max_tokens
+            {
+                let reserved = a4n_domain::agent::agent_model_token_reservation(
+                    &serde_json::to_value(&request)?,
+                );
+                let input_tokens = reserved.saturating_sub(output_tokens as u64);
+                if remaining <= input_tokens {
+                    state.wait_agent_worker_run(claimed, "budget").await?;
+                    return Ok(());
+                }
+                request.max_tokens = Some(output_tokens.min((remaining - input_tokens) as usize));
             }
-            request.max_tokens = Some(output_tokens.min((remaining - input_tokens) as usize));
+            let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
+            request = state
+                .host()
+                .prepare_chat_request(context.owner_user_id, snapshot.as_ref(), config_id, request)
+                .await?;
         }
         let Some(model_execution) = execution_application
             .create_prepared_execution(WorkerExecutionInput {
                 run_id: claimed.run.id,
                 lease_token: claimed.lease_token.clone(),
-                execution_key: format!("model-call:{model_calls}"),
+                execution_key: model_execution_key,
                 execution_kind: "model_call".into(),
                 tool_name: None,
                 effect: Some("read".into()),
@@ -1261,7 +1287,19 @@ async fn process_claimed_run_inner(
             state.wait_agent_worker_run(claimed, "budget").await?;
             return Ok(());
         };
+        let request =
+            restore_model_request_wire(model_execution.arguments_json.clone().ok_or_else(
+                || AppError::InvalidState {
+                    current: format!(
+                        "Agent model execution {} 缺少原始 request snapshot",
+                        model_execution.id
+                    ),
+                    operation: "恢复 Agent model execution request".into(),
+                },
+            )?)?;
         let replayed_model_execution = model_execution.status == "succeeded";
+        let request_protocol =
+            agent_protocol_from_request_snapshot(&request.snapshot_value()?).to_string();
         let response: ChatResponse = if replayed_model_execution {
             serde_json::from_value(model_execution.result_json.clone().ok_or_else(|| {
                 AppError::InvalidState {
@@ -1294,10 +1332,10 @@ async fn process_claimed_run_inner(
                 config_id,
                 request,
             );
-            let stream = tokio::select! {
+            let call = tokio::select! {
                 _ = cancel.cancelled() => return Ok(()),
                 stream = call => match stream {
-                    Ok(stream) => stream,
+                    Ok(call) => call,
                     Err(error) => {
                         record_provider_failure(
                             state,
@@ -1314,6 +1352,7 @@ async fn process_claimed_run_inner(
                     }
                 },
             };
+            let stream = call.stream;
             let response = match consume_model_stream(
                 stream,
                 &state.worker_message_application(claimed),
@@ -1381,7 +1420,7 @@ async fn process_claimed_run_inner(
             tokens,
         )
         .await?;
-        let decision = decode_agent_response(&response, &protocol, model_execution.id)?;
+        let decision = decode_agent_response(&response, &request_protocol, model_execution.id)?;
         let (assistant_content, calls, is_final) = match decision {
             AgentModelDecision::Final { reply } => (reply, Vec::new(), true),
             AgentModelDecision::Think { content } => (content, Vec::new(), false),

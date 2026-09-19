@@ -1873,6 +1873,22 @@ pub async fn agent_chat_stream(
     .await
 }
 
+pub async fn prepare_agent_chat_request(
+    state: &AppState,
+    user_id: i64,
+    runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
+    config_id: Option<i64>,
+    request: ChatRequest,
+) -> Result<ChatRequest, AppError> {
+    crate::runtime_config::request_scope(user_id, runtime_snapshot, async {
+        state
+            .dynamic_llm_provider_for_profile()?
+            .prepare_chat_request_with_config_id(config_id, request)
+            .await
+    })
+    .await
+}
+
 pub fn project_agent_editor_draft(
     state: &AppState,
     plan: &a4n_api_contract::chapter_visual_plan::ChapterVisualPlanV3,
