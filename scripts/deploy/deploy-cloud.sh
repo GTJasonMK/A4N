@@ -1239,8 +1239,21 @@ for binary in "$@"; do
         exit 1
     fi
 done
-health="$(curl -fsS --max-time 10 http://127.0.0.1:8080/api/health)"
-[[ "$health" == "ok" ]] || { echo "内部 health 异常: $health" >&2; exit 1; }
+health=""
+for _ in {1..60}; do
+    if health="$(curl -fsS --connect-timeout 1 --max-time 1 http://127.0.0.1:8080/api/health 2>/dev/null)" \
+        && [[ "$health" == "ok" ]]; then
+        break
+    fi
+    health=""
+    sleep 1
+done
+if [[ "$health" != "ok" ]]; then
+    echo "内部 health 未在 60 秒内就绪: ${health:-连接失败}" >&2
+    systemctl status "$service" --no-pager --lines=80 >&2 || true
+    journalctl -u "$service" --since "2 minutes ago" --no-pager | tail -n 120 >&2 || true
+    exit 1
+fi
 echo "service=$service"
 echo "sidecars=$#"
 echo "health=$health"
