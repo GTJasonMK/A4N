@@ -23,6 +23,7 @@ a4n-project-status-worker-client = { path = "../a4n-project-status-worker-client
 a4n-project-read-worker-client = { path = "../a4n-project-read-worker-client" }
 a4n-import-review-worker-client = { path = "../a4n-import-review-worker-client" }
 a4n-inspiration-worker-client = { path = "../a4n-inspiration-worker-client" }
+a4n-project-access-worker-client = { path = "../a4n-project-access-worker-client" }
 a4n-scene-profile-worker-client = { path = "../a4n-scene-profile-worker-client" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-source-snapshot-worker-client = { path = "../a4n-source-snapshot-worker-client" }

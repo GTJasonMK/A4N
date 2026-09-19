@@ -380,49 +380,6 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl a4n_api_contract::collaboration::ProjectAccessApplicationPort for OrchestratorContext {
-    async fn verify_permission(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        required: ProjectAccessRole,
-    ) -> Result<ProjectAccessRole, AppError> {
-        OrchestratorContext::verify_project_permission(self, project_id, user_id, required).await
-    }
-
-    async fn verify_permissions(
-        &self,
-        user_id: i64,
-        project_ids: &[i64],
-        required: ProjectAccessRole,
-    ) -> Result<(), AppError> {
-        OrchestratorContext::verify_project_permissions(self, project_ids, user_id, required).await
-    }
-
-    async fn project_ids_with_permission(
-        &self,
-        user_id: i64,
-        project_ids: &[i64],
-        required: ProjectAccessRole,
-    ) -> Result<Vec<i64>, AppError> {
-        OrchestratorContext::project_ids_with_permission(self, project_ids, user_id, required).await
-    }
-
-    async fn collaboration_root(
-        &self,
-        project_id: i64,
-    ) -> Result<a4n_api_contract::collaboration::ProjectCollaborationRootSummary, AppError> {
-        let root = OrchestratorContext::collaboration_root_project(self, project_id).await?;
-        Ok(
-            a4n_api_contract::collaboration::ProjectCollaborationRootSummary {
-                id: root.id,
-                user_id: root.user_id,
-            },
-        )
-    }
-}
-
-#[async_trait::async_trait]
 impl a4n_api_contract::collaboration::ProjectCollaborationApplicationPort for OrchestratorContext {
     async fn list_project_members(
         &self,
