@@ -414,7 +414,6 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
             "a4n-theme-read-worker",
             "a4n-project-read-worker",
             "a4n-import-review-worker",
-            "a4n-import-review-worker",
             "a4n-inspiration-worker",
         ):
             self.assertIn(f"-p {package}", commands[0])

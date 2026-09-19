@@ -22,7 +22,6 @@ test-embedded-processes = [
     "dep:a4n-theme-read-worker",
     "dep:a4n-project-read-worker",
     "dep:a4n-import-review-worker",
-    "dep:a4n-import-review-worker",
     "dep:a4n-inspiration-worker",
     "dep:a4n-control",
     "dep:a4n-edge",

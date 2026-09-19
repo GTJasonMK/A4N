@@ -66,7 +66,6 @@ build_children() {
   [[ "$build_theme_read_worker" == true ]] && cargo_command+=(-p a4n-theme-read-worker)
   [[ "$build_project_read_worker" == true ]] && cargo_command+=(-p a4n-project-read-worker)
   [[ "$build_import_review_read_worker" == true ]] && cargo_command+=(-p a4n-import-review-worker)
-  [[ "$build_import_review_read_worker" == true ]] && cargo_command+=(-p a4n-import-review-worker)
   [[ "$build_inspiration_history_worker" == true ]] && cargo_command+=(-p a4n-inspiration-worker)
   $FULL_HOST && {
     [[ "$build_control" == true || "$build_agent_worker" == true ]] \
@@ -388,7 +387,6 @@ while IFS= read -r changed_path; do
         [[ "$build_project_status_worker" == true ]] && printf ' a4n-project-status-worker'
         [[ "$build_theme_read_worker" == true ]] && printf ' a4n-theme-read-worker'
         [[ "$build_project_read_worker" == true ]] && printf ' a4n-project-read-worker'
-        [[ "$build_import_review_read_worker" == true ]] && printf ' a4n-import-review-worker'
         [[ "$build_import_review_read_worker" == true ]] && printf ' a4n-import-review-worker'
         [[ "$build_inspiration_history_worker" == true ]] && printf ' a4n-inspiration-worker'
     )"

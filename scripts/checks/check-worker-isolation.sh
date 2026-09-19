@@ -41,7 +41,6 @@ STATEFUL_WORKER_PACKAGES=(
     a4n-theme-read-worker
     a4n-project-read-worker
     a4n-import-review-worker
-    a4n-import-review-worker
     a4n-inspiration-worker
     a4n-portrait-worker
     a4n-source-snapshot-worker
