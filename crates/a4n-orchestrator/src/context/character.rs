@@ -6,10 +6,10 @@ use a4n_api_contract::character::{
     CharacterProfileDeleteResult, CharacterProfileDeletionApplicationPort,
     CharacterProfileDeletionHostPort, CharacterProfileMutationApplicationPort,
     CharacterProfileMutationResult, CharacterProfileReadApplicationPort, CharacterProfileSummary,
-    CharacterProfileTimelineMutationApplicationPort, CheckImplicitUpdateInput,
-    CheckProfileSyncConflictInput, CreateProfileInput, DeletionMarkSummary,
-    DiffProfileChaptersInput, ExecuteAttributeDeletionInput, GetImplicitReviewInput,
-    GetProfileStateAtChapterInput, GetSnapshotInput, ImplicitReviewSummary,
+    CharacterProfileTimelineMutationApplicationPort, CharacterProfileTimelineMutationHostPort,
+    CheckImplicitUpdateInput, CheckProfileSyncConflictInput, CreateProfileInput,
+    DeletionMarkSummary, DiffProfileChaptersInput, ExecuteAttributeDeletionInput,
+    GetImplicitReviewInput, GetProfileStateAtChapterInput, GetSnapshotInput, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary, ListBehaviorsInput, ListDeletionMarksInput, ListSnapshotsInput,
     ModifyProfileAttributeInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,
     RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackResultSummary,
@@ -993,6 +993,7 @@ impl CharacterProfileTimelineMutationApplicationPort for OrchestratorContext {
     async fn rollback(
         &self,
         user_id: i64,
+        _host_port: &dyn CharacterProfileTimelineMutationHostPort,
         input: RollbackToChapterInput,
     ) -> Result<RollbackResultSummary, AppError> {
         self.character_profile_for_user_validated(user_id, input.profile_id)

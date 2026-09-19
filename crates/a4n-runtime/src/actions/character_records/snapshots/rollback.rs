@@ -20,11 +20,12 @@ pub async fn rollback_to_chapter(
         input.profile_id,
         input.chapter_number,
     )?;
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     crate::sidecar_clients::scope_rag_operation_trace(
         trace_id,
         state
             .character_profile_timeline_mutation_application()
-            .rollback(user_id, input),
+            .rollback(user_id, &host_port, input),
     )
     .await
     .map_err(app_error_message)

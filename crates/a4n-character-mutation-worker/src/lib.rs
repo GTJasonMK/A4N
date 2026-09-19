@@ -22,9 +22,10 @@ use a4n_character_mutation_worker_contract::{
     CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
     CHARACTER_OVERVIEW_VOICE_OPERATION, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
     CHARACTER_TIMELINE_BEHAVIOR_OPERATION, CHARACTER_TIMELINE_CAPABILITY,
-    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
-    CHARACTER_TIMELINE_STATE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
-    UpdateInput,
+    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_ROLLBACK_OPERATION,
+    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION,
+    CharacterTimelineRollbackMutationResult, CreateInput, NamedProfileInput, ProfileIdInput,
+    RollbackToChapterInput, UpdateInput,
 };
 use a4n_db::DbHandle;
 use a4n_domain::character::{
@@ -126,6 +127,10 @@ impl CharacterMutationWorker {
             .route(
                 "/v1/commands/character.timeline.state_at_chapter",
                 post(state_at_chapter),
+            )
+            .route(
+                "/v1/commands/character.timeline.rollback",
+                post(rollback_timeline),
             )
             .route("/v1/commands/character.attribute.add", post(add_attribute))
             .route(
@@ -366,6 +371,17 @@ async fn state_at_chapter(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.state_at_chapter(request)
+    })
+    .await
+}
+
+async fn rollback_timeline(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<RollbackToChapterInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.rollback_timeline(request)
     })
     .await
 }
@@ -680,6 +696,34 @@ impl WorkerState {
             WorkerFailure::not_found(format!("第 {} 章没有角色快照", input.chapter_number))
         })?;
         profile_state_summary(&snapshot)
+    }
+
+    async fn rollback_timeline(
+        &self,
+        request: WorkerEnvelope<RollbackToChapterInput>,
+    ) -> Result<CharacterTimelineRollbackMutationResult, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_ROLLBACK_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let result = a4n_db::character::rollback_profile_to_chapter(
+            self.database.connection(),
+            input.profile_id,
+            input.chapter_number,
+        )
+        .await
+        .map_err(character_db_error)?;
+        Ok(CharacterTimelineRollbackMutationResult {
+            project_id: profile.project_id,
+            deleted_events: result.deleted_timeline.deleted_attribute_events,
+            deleted_snapshots: result.deleted_timeline.deleted_snapshots,
+            deleted_behaviors: result.deleted_timeline.deleted_behaviors,
+            deleted_state_indexes: result.deleted_timeline.deleted_state_indexes,
+            deleted_deletion_marks: result.deletion_mark_rewind.deleted,
+            rewound_deletion_marks: result.deletion_mark_rewind.rewound,
+            state_index_ids: result.deleted_timeline.state_index_ids,
+            attribute_event_ids: result.deleted_timeline.attribute_event_ids,
+        })
     }
 
     async fn add_attribute(

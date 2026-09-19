@@ -315,14 +315,24 @@ pub trait CharacterProfileDeletionApplicationPort: Send + Sync {
 
 /// Host-facing mutation boundary for character timeline rollback.
 ///
-/// The character owner keeps authorization, timeline persistence, RAG cleanup
-/// and the final result projection together; Runtime only scopes the RAG trace
-/// and forwards the command.
+/// The character owner keeps authorization and timeline persistence; the Host
+/// callback owns deletion of the committed timeline's RAG records.
+#[async_trait::async_trait]
+pub trait CharacterProfileTimelineMutationHostPort: Send + Sync {
+    async fn delete_timeline_rag(
+        &self,
+        project_id: i64,
+        state_index_ids: Vec<i64>,
+        attribute_event_ids: Vec<i64>,
+    ) -> Result<(usize, usize), a4n_error::AppError>;
+}
+
 #[async_trait::async_trait]
 pub trait CharacterProfileTimelineMutationApplicationPort: Send + Sync {
     async fn rollback(
         &self,
         user_id: i64,
+        host_port: &dyn CharacterProfileTimelineMutationHostPort,
         input: RollbackToChapterInput,
     ) -> Result<RollbackResultSummary, a4n_error::AppError>;
 }
@@ -828,7 +838,7 @@ pub struct ProfileSyncConflictSummary {
     pub available_snapshot_chapters: Vec<i32>,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RollbackToChapterInput {
     #[schemars(range(min = 1))]

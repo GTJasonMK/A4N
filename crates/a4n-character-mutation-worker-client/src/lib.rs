@@ -7,11 +7,13 @@ use a4n_api_contract::character::{
     CharacterProfileDeleteResult, CharacterProfileDeletionApplicationPort,
     CharacterProfileDeletionHostPort, CharacterProfileMutationApplicationPort,
     CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
-    CharacterProfileSummary, CharacterTimelineReadApplicationPort, CreateProfileInput,
-    DeletionMarkSummary, ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput,
-    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
-    ModifyProfileAttributeInput, ProfileChapterStateSummary, RequestAttributeDeletionInput,
-    ResetDeletionMarksInput, SnapshotReferenceSummary, UpdateCharacterProfileInput,
+    CharacterProfileSummary, CharacterProfileTimelineMutationApplicationPort,
+    CharacterProfileTimelineMutationHostPort, CharacterTimelineReadApplicationPort,
+    CreateProfileInput, DeletionMarkSummary, ExecuteAttributeDeletionInput,
+    GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
+    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackResultSummary,
+    RollbackToChapterInput, SnapshotReferenceSummary, UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
     AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
@@ -22,8 +24,9 @@ use a4n_character_mutation_worker_contract::{
     CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_LIST_OPERATION,
     CHARACTER_OVERVIEW_PROJECT_OPERATION, CHARACTER_OVERVIEW_VOICE_OPERATION,
     CHARACTER_TIMELINE_ATTRIBUTE_OPERATION, CHARACTER_TIMELINE_BEHAVIOR_OPERATION,
-    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
-    CHARACTER_TIMELINE_STATE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
+    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_ROLLBACK_OPERATION,
+    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION,
+    CharacterTimelineRollbackMutationResult, CreateInput, NamedProfileInput, ProfileIdInput,
     UpdateInput,
 };
 use a4n_error::AppError;
@@ -291,6 +294,42 @@ impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
             input,
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CharacterProfileTimelineMutationApplicationPort for CharacterMutationWorkerClient {
+    async fn rollback(
+        &self,
+        user_id: i64,
+        host_port: &dyn CharacterProfileTimelineMutationHostPort,
+        input: RollbackToChapterInput,
+    ) -> Result<RollbackResultSummary, AppError> {
+        let result: CharacterTimelineRollbackMutationResult = self
+            .command(
+                user_id,
+                input.profile_id,
+                CHARACTER_TIMELINE_ROLLBACK_OPERATION,
+                input,
+            )
+            .await?;
+        let (deleted_state_rag, deleted_attribute_event_rag) = host_port
+            .delete_timeline_rag(
+                result.project_id,
+                result.state_index_ids,
+                result.attribute_event_ids,
+            )
+            .await?;
+        Ok(RollbackResultSummary {
+            deleted_events: result.deleted_events,
+            deleted_snapshots: result.deleted_snapshots,
+            deleted_behaviors: result.deleted_behaviors,
+            deleted_state_indexes: result.deleted_state_indexes,
+            deleted_state_rag,
+            deleted_attribute_event_rag,
+            deleted_deletion_marks: result.deleted_deletion_marks,
+            rewound_deletion_marks: result.rewound_deletion_marks,
+        })
     }
 }
 

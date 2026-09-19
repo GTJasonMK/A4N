@@ -70,6 +70,13 @@ pub trait RagSearchPort: Send + Sync {
 /// Narrow application boundary for RAG ingestion and synchronization.
 #[async_trait]
 pub trait RagIngestPort: Send + Sync {
+    async fn delete_character_timeline_rag_records(
+        &self,
+        project_id: i64,
+        state_index_ids: Vec<i64>,
+        attribute_event_ids: Vec<i64>,
+    ) -> Result<(usize, usize), AppError>;
+
     async fn sync_character_attribute_event(
         &self,
         project_id: i64,

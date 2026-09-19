@@ -323,6 +323,27 @@ pub(crate) fn map_sync_error(error: RagSyncError) -> AppError {
 
 #[async_trait::async_trait]
 impl RagIngestPort for OrchestratorContext {
+    async fn delete_character_timeline_rag_records(
+        &self,
+        project_id: i64,
+        state_index_ids: Vec<i64>,
+        attribute_event_ids: Vec<i64>,
+    ) -> Result<(usize, usize), AppError> {
+        let deletion = crate::character::CharacterTimelineDeletionSummary {
+            state_index_ids,
+            attribute_event_ids,
+            ..Default::default()
+        };
+        let summary = self
+            .delete_character_timeline_rag_records(project_id, &deletion)
+            .await
+            .map_err(map_sync_error)?;
+        Ok((
+            summary.deleted_state_rag,
+            summary.deleted_attribute_event_rag,
+        ))
+    }
+
     async fn sync_character_attribute_event(
         &self,
         project_id: i64,

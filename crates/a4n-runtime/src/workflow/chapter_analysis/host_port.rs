@@ -1,6 +1,7 @@
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::character::{
     CharacterAttributeRagSyncHostPort, CharacterProfileDeletionHostPort,
+    CharacterProfileTimelineMutationHostPort,
 };
 use a4n_chapter_analysis_host_contract::ChapterAnalysisHostPort;
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
@@ -47,6 +48,21 @@ impl CharacterProfileDeletionHostPort for RuntimeChapterAnalysisHostPort {
         crate::rag_ingest::sync_protagonist_rag_records(&self.state, project_id)
             .await
             .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
+    }
+}
+
+#[async_trait]
+impl CharacterProfileTimelineMutationHostPort for RuntimeChapterAnalysisHostPort {
+    async fn delete_timeline_rag(
+        &self,
+        project_id: i64,
+        state_index_ids: Vec<i64>,
+        attribute_event_ids: Vec<i64>,
+    ) -> Result<(usize, usize), AppError> {
+        self.state
+            .rag_ingest()
+            .delete_character_timeline_rag_records(project_id, state_index_ids, attribute_event_ids)
+            .await
     }
 }
 

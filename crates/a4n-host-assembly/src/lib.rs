@@ -173,7 +173,7 @@ pub async fn initialize_runtime(
         character_profile_overview_read_application: character_mutation_worker.clone(),
         character_timeline_read_application: character_mutation_worker.clone(),
         character_profile_mutation_application: character_mutation_worker.clone(),
-        character_profile_timeline_mutation_application: orchestrator.clone(),
+        character_profile_timeline_mutation_application: character_mutation_worker.clone(),
         character_profile_attribute_mutation_application: character_mutation_worker.clone(),
         character_profile_attribute_deletion_application: character_mutation_worker.clone(),
         character_implicit_review_check_application: orchestrator.clone(),
