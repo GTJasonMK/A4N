@@ -1,12 +1,19 @@
 //! Typed Manga prompt read commands owned by the Manga record worker.
 
-pub use a4n_api_contract::manga::{MangaChapterInput, MangaPagePromptSummary};
+pub use a4n_api_contract::manga::{
+    MangaChapterInput, MangaPagePromptSummary, MangaPipelineStatusSummary,
+    MangaPipelineStatusesInput,
+};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const MANGA_RECORD_WORKER_ID: &str = "manga-record-worker";
-pub const MANGA_RECORD_WORKER_CONTRACT_VERSION: &str = "manga-record-v1";
+pub const MANGA_RECORD_WORKER_CONTRACT_VERSION: &str = "manga-record-v2";
 pub const MANGA_RECORD_CAPABILITY: &str = "manga.record.read";
+pub const MANGA_PIPELINE_CAPABILITY: &str = "manga.pipeline.read";
 pub const MANGA_RECORD_LIST_OPERATION: &str = "manga.record.list_page_prompts";
+pub const MANGA_PIPELINE_STATUS_OPERATION: &str = "manga.pipeline.status";
+pub const MANGA_PIPELINE_STATUSES_OPERATION: &str = "manga.pipeline.statuses";
+pub const MANGA_PIPELINE_CANCEL_OPERATION: &str = "manga.pipeline.cancel";
 
 #[cfg(test)]
 mod tests {

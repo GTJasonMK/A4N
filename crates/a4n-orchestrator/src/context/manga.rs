@@ -23,20 +23,6 @@ impl MangaApplication {
         Self { database }
     }
 
-    async fn manga_page_prompt_statuses_by_chapters(
-        &self,
-        project_id: i64,
-        chapter_ids: &[i64],
-    ) -> Result<Vec<(i64, i64, String)>, AppError> {
-        a4n_db::manga::manga_page_prompt_statuses_by_chapters(
-            self.database.connection(),
-            project_id,
-            chapter_ids,
-        )
-        .await
-        .map_err(manga_prompt_record_error)
-    }
-
     async fn delete_manga_prompts_by_chapter(
         &self,
         project_id: i64,
@@ -144,16 +130,6 @@ impl MangaApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn manga_page_prompt_statuses_by_chapters(
-        &self,
-        project_id: i64,
-        chapter_ids: &[i64],
-    ) -> Result<Vec<(i64, i64, String)>, AppError> {
-        self.manga
-            .manga_page_prompt_statuses_by_chapters(project_id, chapter_ids)
-            .await
-    }
-
     pub(crate) async fn delete_manga_prompts_by_chapter(
         &self,
         project_id: i64,

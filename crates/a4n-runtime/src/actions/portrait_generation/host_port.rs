@@ -87,7 +87,7 @@ pub(super) async fn build_portrait_image_request_preview_with_config(
     ensure_image_size_supported(&supported_sizes, width, height)
         .map_err(|error| error.to_string())?;
     let records = state
-        .image_record_read_application()
+        .image_reference_read_application()
         .reference_by_ids(user_id, project_id, &image_ids)
         .await
         .map_err(|error| error.to_string())?;

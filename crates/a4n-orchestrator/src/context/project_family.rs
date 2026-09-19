@@ -99,22 +99,6 @@ impl ProjectFamilyApplication {
         .map_err(project_family_error_to_app_error)
     }
 
-    async fn chapter_manga_sources_by_ids(
-        &self,
-        project_id: i64,
-        chapter_ids: &[i64],
-        require_content: bool,
-    ) -> Result<Vec<ChapterMangaSourceSummary>, AppError> {
-        a4n_db::project::chapter_manga_sources_by_ids(
-            self.database.connection(),
-            project_id,
-            chapter_ids,
-            require_content,
-        )
-        .await
-        .map_err(project_family_error_to_app_error)
-    }
-
     pub(super) async fn export_selection(
         &self,
         root_project_id: i64,
@@ -556,17 +540,6 @@ impl OrchestratorContext {
     ) -> Result<ChapterMangaSourceSummary, AppError> {
         self.project_family
             .chapter_manga_source_by_number(project_id, chapter_number, require_content)
-            .await
-    }
-
-    pub(crate) async fn chapter_manga_sources_by_ids(
-        &self,
-        project_id: i64,
-        chapter_ids: &[i64],
-        require_content: bool,
-    ) -> Result<Vec<ChapterMangaSourceSummary>, AppError> {
-        self.project_family
-            .chapter_manga_sources_by_ids(project_id, chapter_ids, require_content)
             .await
     }
 

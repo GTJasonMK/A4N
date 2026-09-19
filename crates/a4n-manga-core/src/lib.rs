@@ -2,7 +2,35 @@
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
 use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::MangaPageGenerationLayoutV2;
+use a4n_domain::manga::{MangaPageGenerationLayoutV2, MangaPortraitReference};
+use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
+use serde_json::{Value, json};
+
+pub fn manga_reference_assets_json<P: MangaPortraitReference>(refs: &[P]) -> Value {
+    json!({
+        "character_portraits": refs.iter().map(|portrait| json!({
+            "profile_id": portrait.profile_id(),
+            "portrait_id": portrait.portrait_id(),
+            "character_name": portrait.character_name(),
+            "image_path": portrait.image_path(),
+            "prompt": portrait.prompt(),
+            "portrait_type": portrait.portrait_type(),
+            "expression": portrait.expression(),
+            "pose": portrait.pose(),
+            "is_primary": true,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
+    content: &str,
+    character_portraits: &[P],
+) -> Value {
+    json!({
+        "source": source_metadata(ChapterSourceContext { content }),
+        "reference_assets": manga_reference_assets_json(character_portraits),
+    })
+}
 
 pub fn manga_page_generation_layout(
     prompt: &chapter_manga_prompt::Model,

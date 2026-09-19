@@ -119,6 +119,13 @@ pub async fn initialize_runtime(
     } else {
         orchestrator.clone()
     };
+    let image_reference_read_application: Arc<
+        dyn a4n_api_contract::image::ImageReferenceReadApplicationPort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        client
+    } else {
+        orchestrator.clone()
+    };
     let artifact_media_reference_application = artifact_media_worker
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>);
     let application_ports = ApplicationPorts {
@@ -266,7 +273,7 @@ pub async fn initialize_runtime(
         import_review_read_application: import_review_worker,
         project_export_application: orchestrator.clone(),
         galgame_export_application: orchestrator.clone(),
-        video_record_read_application: video_record_worker,
+        video_record_read_application: video_record_worker.clone(),
         video_record_mutation_application: orchestrator.clone(),
         video_chapter_import_application: orchestrator.clone(),
         video_reference_media_import_application: orchestrator.clone(),
@@ -285,11 +292,12 @@ pub async fn initialize_runtime(
         chapter_visual_plan_record_read_application: novel_planning_worker.clone(),
         chapter_visual_plan_mutation_application: orchestrator.clone(),
         chapter_visual_plan_record_persistence_application: novel_planning_worker.clone(),
-        video_prompt_read_application: orchestrator.clone(),
+        video_prompt_read_application: video_record_worker.clone(),
         video_prompt_mutation_application: orchestrator.clone(),
         video_prompt_timeline_application: orchestrator.clone(),
         video_prompt_draft_application: orchestrator.clone(),
         image_record_read_application: orchestrator.clone(),
+        image_reference_read_application,
         image_library_read_application,
         image_record_mutation_application,
         image_import_preparation_application: orchestrator.clone(),
@@ -334,8 +342,8 @@ pub async fn initialize_runtime(
         galgame_media_mutation_application: orchestrator.clone(),
         manga_pipeline_execution_application: orchestrator.clone(),
         manga_pipeline_preview_application: orchestrator.clone(),
-        manga_pipeline_read_application: orchestrator.clone(),
-        manga_pipeline_cancellation_application: orchestrator.clone(),
+        manga_pipeline_read_application: manga_record_worker.clone(),
+        manga_pipeline_cancellation_application: manga_record_worker.clone(),
         manga_record_read_application: manga_record_worker,
         manga_record_mutation_application: orchestrator.clone(),
         galgame_read_application: orchestrator.clone(),

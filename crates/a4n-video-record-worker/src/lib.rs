@@ -3,13 +3,14 @@
 use std::{collections::HashSet, env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_api_contract::video::GeneratedVideoSummary;
+use a4n_api_contract::video::{ChapterVideoPromptSummary, GeneratedVideoSummary};
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_video_record_worker_contract::{
-    ChapterVideosInput, ReferenceImagesInput, VIDEO_RECORD_CAPABILITY, VIDEO_RECORD_LIST_OPERATION,
+    ChapterVideosInput, ReferenceImagesInput, VIDEO_PROMPT_CAPABILITY, VIDEO_PROMPT_LIST_OPERATION,
+    VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_CAPABILITY, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
-    VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput,
+    VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -79,6 +80,14 @@ impl VideoRecordWorker {
             .route(
                 "/v1/commands/video.record.reference_images",
                 post(validated_reference_images),
+            )
+            .route(
+                "/v1/commands/video.prompt.list_by_chapter",
+                post(list_prompts),
+            )
+            .route(
+                "/v1/commands/video.prompt.validate_source",
+                post(validate_source),
             )
             .with_state(self.state.clone())
     }
@@ -159,11 +168,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: VIDEO_RECORD_CAPABILITY.into(),
-            version: VIDEO_RECORD_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: VIDEO_RECORD_CAPABILITY.into(),
+                version: VIDEO_RECORD_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: VIDEO_PROMPT_CAPABILITY.into(),
+                version: VIDEO_RECORD_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -197,6 +213,28 @@ async fn validated_reference_images(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.validated_reference_images(request)
+    })
+    .await
+}
+
+async fn list_prompts(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ChapterVideosInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.list_prompts(request)
+    })
+    .await
+}
+
+async fn validate_source(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<VideoSourceInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.validate_source(request)
     })
     .await
 }
@@ -315,6 +353,61 @@ impl WorkerState {
             .await?;
         }
         Ok(images.iter().map(image_summary).collect())
+    }
+
+    async fn list_prompts(
+        &self,
+        request: WorkerEnvelope<ChapterVideosInput>,
+    ) -> Result<Vec<ChapterVideoPromptSummary>, WorkerFailure> {
+        validate_request(&request, VIDEO_PROMPT_LIST_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        positive(input.project_id, "project_id")?;
+        positive(input.chapter_id, "chapter_id")?;
+        verify_project_permission(
+            &self.database,
+            input.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        validate_video_source(
+            &self.database,
+            input.project_id,
+            input.chapter_id,
+            "查看视频提示词",
+            false,
+        )
+        .await?;
+        let prompts = a4n_db::video::chapter_video_prompts_for_chapter(
+            self.database.connection(),
+            input.project_id,
+            input.chapter_id,
+        )
+        .await
+        .map_err(database_error)?;
+        Ok(prompts
+            .iter()
+            .map(a4n_video::chapter_video_prompt_summary)
+            .collect())
+    }
+
+    async fn validate_source(
+        &self,
+        request: WorkerEnvelope<VideoSourceInput>,
+    ) -> Result<(), WorkerFailure> {
+        validate_request(&request, VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION)?;
+        let input = request.payload;
+        positive(input.project_id, "project_id")?;
+        positive(input.chapter_id, "chapter_id")?;
+        validate_video_source(
+            &self.database,
+            input.project_id,
+            input.chapter_id,
+            &input.operation,
+            input.writable,
+        )
+        .await
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -438,6 +531,65 @@ fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {
             "{field} 必须大于 0"
         )))
     }
+}
+
+async fn validate_video_source(
+    database: &DbHandle,
+    project_id: i64,
+    chapter_id: i64,
+    operation: &str,
+    writable: bool,
+) -> Result<(), WorkerFailure> {
+    let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source(
+        database.connection(),
+        project_id,
+        chapter_id,
+    )
+    .await
+    .map_err(video_error)?;
+    match project.project_kind.as_str() {
+        "text" => {
+            if chapter.project_id != project.id {
+                return Err(WorkerFailure::invalid_request(format!(
+                    "{operation}失败：章节不属于文本项目 {project_id}"
+                )));
+            }
+            if chapter.status == "deleted" || (writable && chapter.status == "generating") {
+                return Err(WorkerFailure::conflict(format!(
+                    "{}: {operation}",
+                    chapter.status
+                )));
+            }
+        }
+        "video" => {
+            if project.root_project_id != Some(chapter.project_id) {
+                return Err(WorkerFailure::invalid_request(format!(
+                    "{operation}失败：章节不属于视频项目 {project_id} 绑定的根文本项目"
+                )));
+            }
+            let snapshot_id = project.source_snapshot_id.ok_or_else(|| {
+                WorkerFailure::conflict(format!("missing_source_snapshot: {operation}"))
+            })?;
+            a4n_db::video::source_snapshot_chapter_for_video_source(
+                database.connection(),
+                snapshot_id,
+                chapter_id,
+            )
+            .await
+            .map_err(video_error)?
+            .ok_or_else(|| {
+                WorkerFailure::not_found(format!(
+                    "{operation}失败：视频项目 {project_id} 的源快照不包含章节 {chapter_id}"
+                ))
+            })?;
+        }
+        other => {
+            return Err(WorkerFailure::invalid_request(format!(
+                "{operation}失败：视频链路不支持项目类型 {other}: project_id={project_id}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn database_error(error: sea_orm::DbErr) -> WorkerFailure {

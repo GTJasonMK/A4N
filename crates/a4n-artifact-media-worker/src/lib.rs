@@ -14,13 +14,13 @@ use a4n_artifact_media_contract::{
     ARTIFACT_MEDIA_CAPABILITY_VERSION, ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND,
     ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND, ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND,
     ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND, ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND,
-    ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND, ARTIFACT_MEDIA_MAINTENANCE_COMMAND,
-    ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND, ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND,
-    ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND, ARTIFACT_MEDIA_PUBLISH_IMAGE_COMMAND,
-    ARTIFACT_MEDIA_UNREFERENCED_PATHS_COMMAND, ARTIFACT_MEDIA_WORKER_ID,
-    ArtifactMediaMaintenanceReport, ArtifactMediaMaintenanceRequest, MediaPathPrefixRequest,
-    MediaPathsRequest, ProjectPathsRequest, ProjectPublicationRequest, PublishImageRequest,
-    PublishedImageResponse,
+    ARTIFACT_MEDIA_IMAGE_REFERENCE_IDS_COMMAND, ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND,
+    ARTIFACT_MEDIA_MAINTENANCE_COMMAND, ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND,
+    ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND, ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND,
+    ARTIFACT_MEDIA_PUBLISH_IMAGE_COMMAND, ARTIFACT_MEDIA_UNREFERENCED_PATHS_COMMAND,
+    ARTIFACT_MEDIA_WORKER_ID, ArtifactMediaMaintenanceReport, ArtifactMediaMaintenanceRequest,
+    ImageReferenceIdsRequest, MediaPathPrefixRequest, MediaPathsRequest, ProjectPathsRequest,
+    ProjectPublicationRequest, PublishImageRequest, PublishedImageResponse,
 };
 use a4n_db::cleanup_outbox::FileArtifactCleanupPayload;
 use a4n_domain::media::{
@@ -643,6 +643,25 @@ impl WorkerState {
         .map_err(|error| error.to_string())
     }
 
+    async fn image_reference_by_ids(
+        &self,
+        user_id: i64,
+        request: ImageReferenceIdsRequest,
+    ) -> Result<Vec<GeneratedImageSummary>, String> {
+        if request.project_id <= 0 || request.image_ids.iter().any(|id| *id <= 0) {
+            return Err("project_id 和 image_ids 必须为正整数".to_string());
+        }
+        verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
+        a4n_db::character::portrait_reference_images_by_ids(
+            self.db.connection(),
+            request.project_id,
+            &request.image_ids,
+        )
+        .await
+        .map(|images| images.iter().map(generated_image_summary).collect())
+        .map_err(|error| error.to_string())
+    }
+
     async fn update_image(
         &self,
         user_id: i64,
@@ -933,6 +952,18 @@ async fn command(
                 Ok(payload) => match actor_user_id(&request) {
                     Ok(user_id) => state
                         .image_list_by_chapter(user_id, payload)
+                        .await
+                        .map(|payload| json!(payload)),
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error),
+            }
+        }
+        ARTIFACT_MEDIA_IMAGE_REFERENCE_IDS_COMMAND => {
+            match parse_payload::<ImageReferenceIdsRequest>(request.payload.clone()) {
+                Ok(payload) => match actor_user_id(&request) {
+                    Ok(user_id) => state
+                        .image_reference_by_ids(user_id, payload)
                         .await
                         .map(|payload| json!(payload)),
                     Err(error) => Err(error),

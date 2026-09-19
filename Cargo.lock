@@ -2904,6 +2904,8 @@ dependencies = [
 name = "a4n-video"
 version = "0.1.0"
 dependencies = [
+ "a4n-api-contract",
+ "a4n-db-models",
  "a4n-domain",
  "a4n-video-provider-contract",
  "a4n-video-sidecar-contract",
@@ -2985,6 +2987,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
+ "a4n-video",
  "a4n-video-record-worker-contract",
  "a4n-worker-client",
  "a4n-worker-contract",

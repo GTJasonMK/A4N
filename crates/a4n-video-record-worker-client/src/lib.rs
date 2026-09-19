@@ -1,12 +1,16 @@
 //! Typed Host adapter for the video-record read worker.
 
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_api_contract::video::{GeneratedVideoSummary, VideoRecordReadApplicationPort};
+use a4n_api_contract::video::{
+    ChapterVideoPromptSummary, GeneratedVideoSummary, VideoPromptReadApplicationPort,
+    VideoRecordReadApplicationPort,
+};
 use a4n_error::AppError;
 use a4n_video_record_worker_contract::{
-    ChapterVideosInput, ReferenceImagesInput, VIDEO_RECORD_LIST_OPERATION,
+    ChapterVideosInput, ReferenceImagesInput, VIDEO_PROMPT_LIST_OPERATION,
+    VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
-    VIDEO_RECORD_WORKER_ID, VideoIdInput,
+    VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -56,9 +60,9 @@ impl VideoRecordWorkerClient {
         Self::new(url, token)
     }
 
-    async fn command<I, O>(
+    async fn command_with_principal<I, O>(
         &self,
-        user_id: i64,
+        principal: WorkerPrincipal,
         project_id: Option<i64>,
         operation: &str,
         payload: I,
@@ -67,18 +71,12 @@ impl VideoRecordWorkerClient {
         I: Serialize,
         O: DeserializeOwned,
     {
-        if user_id <= 0 {
-            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
-        }
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,
             request_id: request_id.clone(),
             trace_id: request_id,
-            principal: WorkerPrincipal {
-                kind: WorkerPrincipalKind::User,
-                subject: user_id.to_string(),
-            },
+            principal,
             operation_id: operation.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
             project_id,
@@ -111,6 +109,39 @@ impl VideoRecordWorkerClient {
             status => Err(AppError::ConfigError(format!(
                 "video record worker 返回未完成状态: operation={operation}, status={status:?}"
             ))),
+        }
+    }
+
+    async fn command<I, O>(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        operation: &str,
+        payload: I,
+    ) -> Result<O, AppError>
+    where
+        I: Serialize,
+        O: DeserializeOwned,
+    {
+        if user_id <= 0 {
+            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
+        }
+        self.command_with_principal(
+            WorkerPrincipal {
+                kind: WorkerPrincipalKind::User,
+                subject: user_id.to_string(),
+            },
+            project_id,
+            operation,
+            payload,
+        )
+        .await
+    }
+
+    fn service_principal() -> WorkerPrincipal {
+        WorkerPrincipal {
+            kind: WorkerPrincipalKind::Service,
+            subject: "runtime".into(),
         }
     }
 }
@@ -164,6 +195,48 @@ impl VideoRecordReadApplicationPort for VideoRecordWorkerClient {
                 project_id,
                 chapter_id,
                 reference_image_ids_json: reference_image_ids_json.cloned(),
+            },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl VideoPromptReadApplicationPort for VideoRecordWorkerClient {
+    async fn list_chapter(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
+        self.command(
+            user_id,
+            Some(project_id),
+            VIDEO_PROMPT_LIST_OPERATION,
+            ChapterVideosInput {
+                project_id,
+                chapter_id,
+            },
+        )
+        .await
+    }
+
+    async fn validate_project_chapter_source(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        operation: &str,
+        writable: bool,
+    ) -> Result<(), AppError> {
+        self.command_with_principal(
+            Self::service_principal(),
+            Some(project_id),
+            VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION,
+            VideoSourceInput {
+                project_id,
+                chapter_id,
+                operation: operation.to_string(),
+                writable,
             },
         )
         .await

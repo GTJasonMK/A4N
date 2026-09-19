@@ -44,6 +44,40 @@ pub struct MangaCharacterPortraitRefSummary {
     pub pose: Option<String>,
 }
 
+impl a4n_domain::manga::MangaPortraitReference for MangaCharacterPortraitRefSummary {
+    fn profile_id(&self) -> i64 {
+        self.profile_id
+    }
+
+    fn portrait_id(&self) -> i64 {
+        self.portrait_id
+    }
+
+    fn character_name(&self) -> &str {
+        &self.character_name
+    }
+
+    fn image_path(&self) -> &str {
+        &self.image_path
+    }
+
+    fn prompt(&self) -> &str {
+        &self.prompt
+    }
+
+    fn portrait_type(&self) -> &str {
+        &self.portrait_type
+    }
+
+    fn expression(&self) -> Option<&str> {
+        self.expression.as_deref()
+    }
+
+    fn pose(&self) -> Option<&str> {
+        self.pose.as_deref()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ChapterMangaSourceSummary {
     pub chapter_id: i64,

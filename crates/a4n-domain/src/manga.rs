@@ -38,6 +38,17 @@ pub enum MangaReferenceAssetKind {
     GeneratedImage,
 }
 
+pub trait MangaPortraitReference {
+    fn profile_id(&self) -> i64;
+    fn portrait_id(&self) -> i64;
+    fn character_name(&self) -> &str;
+    fn image_path(&self) -> &str;
+    fn prompt(&self) -> &str;
+    fn portrait_type(&self) -> &str;
+    fn expression(&self) -> Option<&str>;
+    fn pose(&self) -> Option<&str>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MangaBoundReferenceAsset {

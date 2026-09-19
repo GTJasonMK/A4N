@@ -1,28 +1,21 @@
 use a4n_api_contract::manga::{
     BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaPagePromptSummary,
-    MangaPipelinePreviewStep, MangaPipelineStatusSummary, MangaPromptDownstreamCleanupPort,
-    OptimizeMangaPromptInput, UpdateMangaPromptInput,
+    MangaPipelinePreviewStep, MangaPromptDownstreamCleanupPort, OptimizeMangaPromptInput,
+    UpdateMangaPromptInput,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{DownstreamConflictStrategy, project::required_text};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
-use std::collections::{HashMap, HashSet};
 
 use super::layout_rules::{
     bind_reference_asset_in_layout, manga_page_generation_layout,
     resolve_manga_prompt_downstream_conflict,
 };
-use super::record_errors::manga_pipeline_db_error;
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
     MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
     manga_page_prompt_summary, manga_pipeline_fingerprint,
-};
-use crate::workflow::{
-    ListWorkflowRunsInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
-    WorkflowRunSummary,
 };
 use crate::{
     OrchestratorContext, collaboration::ProjectAccessRole, prompt_records::PromptRendererAdapter,
@@ -253,243 +246,6 @@ impl OrchestratorContext {
         self.delete_manga_prompt_record(prompt_id).await
     }
 
-    pub async fn get_manga_pipeline_status_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<MangaPipelineStatusSummary, AppError> {
-        self.list_manga_pipeline_statuses_validated(user_id, project_id, &[chapter_id])
-            .await?
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::InvalidArgument("章节状态列表为空".to_string()))
-    }
-
-    pub async fn list_manga_pipeline_statuses_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_ids: &[i64],
-    ) -> Result<Vec<MangaPipelineStatusSummary>, AppError> {
-        self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Viewer)
-            .await?;
-        if chapter_ids.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "chapter_ids 不能为空".to_string(),
-            ));
-        }
-        if chapter_ids.len() > 200 {
-            return Err(AppError::InvalidArgument(
-                "chapter_ids 最多支持 200 个章节".to_string(),
-            ));
-        }
-        let mut seen = HashSet::with_capacity(chapter_ids.len());
-        for chapter_id in chapter_ids {
-            if *chapter_id <= 0 {
-                return Err(AppError::InvalidArgument(
-                    "chapter_id 必须是正整数".to_string(),
-                ));
-            }
-            if !seen.insert(*chapter_id) {
-                return Err(AppError::InvalidArgument(format!(
-                    "chapter_id 重复: {chapter_id}"
-                )));
-            }
-        }
-
-        let mut summaries: HashMap<i64, MangaPipelineStatusSummary> = chapter_ids
-            .iter()
-            .copied()
-            .map(|chapter_id| {
-                (
-                    chapter_id,
-                    MangaPipelineStatusSummary {
-                        chapter_id,
-                        pending: 0,
-                        generating: 0,
-                        completed: 0,
-                        failed: 0,
-                        cancelled: 0,
-                        pipeline_status: None,
-                        stage: None,
-                        current: None,
-                        total: None,
-                        message: None,
-                        task_id: None,
-                        can_cancel: false,
-                        can_resume: false,
-                        has_checkpoint: false,
-                        checkpoint_valid: false,
-                    },
-                )
-            })
-            .collect();
-        let (page_prompt_statuses_result, runs_result) = futures::join!(
-            self.manga_page_prompt_statuses_by_chapters(project_id, chapter_ids),
-            self.workflow_runs(ListWorkflowRunsInput {
-                project_id: Some(project_id),
-                chapter_id: None,
-                chapter_ids: Some(chapter_ids.to_vec()),
-                workflow_kind: Some("manga_pipeline".to_string()),
-                status: None,
-                resumable_only: None,
-                limit: None,
-            }),
-        );
-        let page_prompt_statuses = page_prompt_statuses_result?;
-        for (chapter_id, prompt_id, status) in page_prompt_statuses {
-            let summary = summaries.get_mut(&chapter_id).ok_or_else(|| {
-                AppError::InvalidArgument(format!("批量状态返回未知章节: {chapter_id}"))
-            })?;
-            match status.as_str() {
-                "pending" => summary.pending += 1,
-                "generating" => summary.generating += 1,
-                "completed" => summary.completed += 1,
-                "failed" => summary.failed += 1,
-                "cancelled" => summary.cancelled += 1,
-                status => {
-                    return Err(AppError::InvalidArgument(format!(
-                        "漫画页面提示词 #{} 包含未知状态: {status}",
-                        prompt_id
-                    )));
-                }
-            }
-        }
-
-        // ponytail: chapter-filtered history stays unbounded to keep the latest row for every
-        // chapter; use PostgreSQL DISTINCT ON if workflow history volume becomes large.
-        let runs = runs_result?;
-        let mut latest_runs: HashMap<i64, WorkflowRunSummary> = HashMap::new();
-        for run in runs {
-            let chapter_id = run.chapter_id.ok_or_else(|| {
-                AppError::InvalidArgument("漫画流水线 workflow 缺少 chapter_id".to_string())
-            })?;
-            latest_runs.entry(chapter_id).or_insert(run);
-        }
-
-        let run_ids = latest_runs.values().map(|run| run.id).collect::<Vec<_>>();
-        let checkpoints = self.workflow_checkpoint_statuses_for_runs(&run_ids).await?;
-        let mut completed_checkpoint_runs = HashSet::new();
-        for (workflow_run_id, status) in checkpoints {
-            if status == WORKFLOW_STATUS_COMPLETED {
-                completed_checkpoint_runs.insert(workflow_run_id);
-            }
-        }
-        let checkpoint_chapter_ids = latest_runs
-            .iter()
-            .filter_map(|(chapter_id, run)| {
-                completed_checkpoint_runs
-                    .contains(&run.id)
-                    .then_some(*chapter_id)
-            })
-            .collect::<Vec<_>>();
-        let (sources_result, character_portraits_result) = futures::join!(
-            self.chapter_manga_sources_by_ids(project_id, &checkpoint_chapter_ids, false),
-            async {
-                if checkpoint_chapter_ids.is_empty() {
-                    Ok(Vec::new())
-                } else {
-                    self.manga_character_portrait_refs(project_id).await
-                }
-            },
-        );
-        let sources = sources_result?;
-        let sources_by_chapter = sources
-            .into_iter()
-            .map(|source| (source.chapter_id, source))
-            .collect::<HashMap<_, _>>();
-        let character_portraits = character_portraits_result?;
-
-        for chapter_id in chapter_ids {
-            let Some(run) = latest_runs.get(chapter_id) else {
-                continue;
-            };
-            let summary = summaries.get_mut(chapter_id).ok_or_else(|| {
-                AppError::InvalidArgument(format!("批量状态返回未知章节: {chapter_id}"))
-            })?;
-            summary.pipeline_status = Some(run.status.clone());
-            summary.stage = run.current_step_key.clone();
-            summary.task_id = run.active_task_id.clone();
-            summary.can_cancel = run.status == WORKFLOW_STATUS_RUNNING;
-            summary.message = run.error_message.clone();
-            if let Some(progress) = run.progress.as_ref() {
-                summary.current = Some(i32::try_from(progress.current).map_err(|_| {
-                    AppError::InvalidArgument("漫画流水线 current 超出 i32 范围".to_string())
-                })?);
-                summary.total = Some(i32::try_from(progress.total).map_err(|_| {
-                    AppError::InvalidArgument("漫画流水线 total 超出 i32 范围".to_string())
-                })?);
-                if summary.message.is_none() {
-                    summary.message = Some(progress.message.clone());
-                }
-            }
-            summary.has_checkpoint = completed_checkpoint_runs.contains(&run.id);
-            if summary.has_checkpoint {
-                let source = sources_by_chapter
-                    .get(chapter_id)
-                    .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
-                let current_fingerprint =
-                    manga_pipeline_fingerprint(&source.content, &character_portraits);
-                summary.checkpoint_valid =
-                    run.input_fingerprint_json.as_ref() == Some(&current_fingerprint);
-            }
-            summary.can_resume = run.can_resume
-                && summary.checkpoint_valid
-                && matches!(
-                    run.status.as_str(),
-                    WORKFLOW_STATUS_FAILED
-                        | WORKFLOW_STATUS_CANCELLED
-                        | WORKFLOW_STATUS_INTERRUPTED
-                );
-        }
-
-        chapter_ids
-            .iter()
-            .map(|chapter_id| {
-                summaries.remove(chapter_id).ok_or_else(|| {
-                    AppError::InvalidArgument(format!("批量状态缺少章节: {chapter_id}"))
-                })
-            })
-            .collect()
-    }
-
-    pub async fn cancel_manga_pipeline_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<i64, AppError> {
-        self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Editor)
-            .await?;
-        let source = self
-            .chapter_manga_source_by_id(chapter_id, project_id, false)
-            .await?;
-        ensure_manga_source_can_write(&source, "取消漫画流水线")?;
-        let run = self
-            .workflow_run_models(ListWorkflowRunsInput {
-                project_id: Some(project_id),
-                chapter_id: Some(chapter_id),
-                chapter_ids: None,
-                workflow_kind: Some("manga_pipeline".to_string()),
-                status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
-                resumable_only: None,
-                limit: Some(1),
-            })
-            .await?
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "no_running_manga_pipeline".to_string(),
-                operation: "取消漫画流水线".to_string(),
-            })?;
-        self.cancel_workflow_run_status_validated(run.id, "用户请求取消漫画流水线")
-            .await?;
-        a4n_db::manga::cancel_manga_page_prompts(self.database.connection(), project_id, chapter_id)
-            .await
-            .map_err(manga_pipeline_db_error)
-    }
-
     pub async fn optimize_manga_prompt_record_validated(
         &self,
         user_id: i64,
@@ -620,42 +376,6 @@ impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for Orchestrat
         .into_iter()
         .map(manga_pipeline_preview_step)
         .collect()
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::manga::MangaPipelineReadApplicationPort for OrchestratorContext {
-    async fn status(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<MangaPipelineStatusSummary, AppError> {
-        self.get_manga_pipeline_status_validated(user_id, project_id, chapter_id)
-            .await
-    }
-
-    async fn statuses(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_ids: Vec<i64>,
-    ) -> Result<Vec<MangaPipelineStatusSummary>, AppError> {
-        self.list_manga_pipeline_statuses_validated(user_id, project_id, &chapter_ids)
-            .await
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::manga::MangaPipelineCancellationApplicationPort for OrchestratorContext {
-    async fn cancel(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<i64, AppError> {
-        self.cancel_manga_pipeline_validated(user_id, project_id, chapter_id)
-            .await
     }
 }
 

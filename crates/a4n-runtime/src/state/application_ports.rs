@@ -497,6 +497,8 @@ pub struct ApplicationPorts {
     /// projection stay in the media owner.
     pub image_record_read_application:
         Arc<dyn a4n_api_contract::image::ImageRecordReadApplicationPort>,
+    pub image_reference_read_application:
+        Arc<dyn a4n_api_contract::image::ImageReferenceReadApplicationPort>,
     pub image_library_read_application:
         Arc<dyn a4n_api_contract::image::ImageLibraryReadApplicationPort>,
     /// Host-facing generated-image mutation boundary.
