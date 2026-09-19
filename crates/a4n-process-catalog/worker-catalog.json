@@ -449,5 +449,24 @@
       "min_compatible": "project_mutation",
       "max_compatible": "project_mutation"
     }
+  },
+  {
+    "name": "chapter-scene-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-chapter-scene-worker",
+    "contract_version": "chapter-scene-v1",
+    "capability_version": "chapter-scene-v1",
+    "addr_env": "A4N_CHAPTER_SCENE_WORKER_ADDR",
+    "url_env": "A4N_CHAPTER_SCENE_WORKER_URL",
+    "default_addr": "127.0.0.1:47670",
+    "local_only": true,
+    "data_scope": ["chapter", "chapter_scene"],
+    "capabilities": ["chapter.scene"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "chapter_scene",
+      "min_compatible": "chapter_scene",
+      "max_compatible": "chapter_scene"
+    }
   }
 ]

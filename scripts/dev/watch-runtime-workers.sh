@@ -49,6 +49,7 @@ build_children() {
   local build_project_access_worker="${20}"
   local build_project_collaboration_worker="${21}"
   local build_project_mutation_worker="${22}"
+  local build_chapter_scene_worker="${23}"
   local -a cargo_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && cargo_command+=(--release)
   [[ "$build_control" == true ]] && cargo_command+=(-p a4n-control)
@@ -73,6 +74,7 @@ build_children() {
   [[ "$build_project_access_worker" == true ]] && cargo_command+=(-p a4n-project-access-worker)
   [[ "$build_project_collaboration_worker" == true ]] && cargo_command+=(-p a4n-project-collaboration-worker)
   [[ "$build_project_mutation_worker" == true ]] && cargo_command+=(-p a4n-project-mutation-worker)
+  [[ "$build_chapter_scene_worker" == true ]] && cargo_command+=(-p a4n-chapter-scene-worker)
   $FULL_HOST && {
     [[ "$build_control" == true || "$build_agent_worker" == true ]] \
       && cargo_command+=(--features embedded-capabilities)
@@ -301,6 +303,16 @@ mark_changed_targets() {
     "$PROJECT_ROOT/crates/a4n-project-mutation-worker/"*)
       build_project_mutation_worker=true
       ;;
+    "$PROJECT_ROOT/crates/a4n-chapter-scene-worker-contract/"*)
+      build_control=true
+      build_chapter_scene_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-chapter-scene-worker-client/"*)
+      build_control=true
+      ;;
+    "$PROJECT_ROOT/crates/a4n-chapter-scene-worker/"*)
+      build_chapter_scene_worker=true
+      ;;
     "$PROJECT_ROOT/crates/a4n-portrait-worker-contract/"*)
       build_control=true
       build_portrait_worker=true
@@ -346,6 +358,7 @@ mark_changed_targets() {
       build_project_access_worker=true
       build_project_collaboration_worker=true
       build_project_mutation_worker=true
+      build_chapter_scene_worker=true
       ;;
   esac
 }
@@ -399,6 +412,7 @@ while IFS= read -r changed_path; do
     build_project_access_worker=false
     build_project_collaboration_worker=false
     build_project_mutation_worker=false
+    build_chapter_scene_worker=false
     mark_changed_targets "$changed_path"
 
     # 合并同一轮编辑器保存产生的 close_write/create/moved_to 事件。
@@ -408,7 +422,7 @@ while IFS= read -r changed_path; do
         mark_changed_targets "$pending_path"
     done || true
 
-    if [[ "$build_control" == false && "$build_agent_worker" == false && "$build_edge" == false && "$build_novel_planning_worker" == false && "$build_artifact_media_worker" == false && "$build_outline_worker" == false && "$build_blueprint_worker" == false && "$build_asset_graph_worker" == false && "$build_foreshadowing_worker" == false && "$build_object_profile_worker" == false && "$build_scene_profile_worker" == false && "$build_portrait_worker" == false && "$build_source_snapshot_worker" == false && "$build_profile_material_worker" == false && "$build_project_status_worker" == false && "$build_theme_read_worker" == false && "$build_project_read_worker" == false && "$build_import_review_read_worker" == false && "$build_inspiration_history_worker" == false && "$build_project_access_worker" == false && "$build_project_collaboration_worker" == false && "$build_project_mutation_worker" == false ]]; then
+    if [[ "$build_control" == false && "$build_agent_worker" == false && "$build_edge" == false && "$build_novel_planning_worker" == false && "$build_artifact_media_worker" == false && "$build_outline_worker" == false && "$build_blueprint_worker" == false && "$build_asset_graph_worker" == false && "$build_foreshadowing_worker" == false && "$build_object_profile_worker" == false && "$build_scene_profile_worker" == false && "$build_portrait_worker" == false && "$build_source_snapshot_worker" == false && "$build_profile_material_worker" == false && "$build_project_status_worker" == false && "$build_theme_read_worker" == false && "$build_project_read_worker" == false && "$build_import_review_read_worker" == false && "$build_inspiration_history_worker" == false && "$build_project_access_worker" == false && "$build_project_collaboration_worker" == false && "$build_project_mutation_worker" == false && "$build_chapter_scene_worker" == false ]]; then
         continue
     fi
     log_info "检测到源码变更: ${changed_paths[*]}；构建目标:$(
@@ -434,8 +448,9 @@ while IFS= read -r changed_path; do
         [[ "$build_project_access_worker" == true ]] && printf ' a4n-project-access-worker'
         [[ "$build_project_collaboration_worker" == true ]] && printf ' a4n-project-collaboration-worker'
         [[ "$build_project_mutation_worker" == true ]] && printf ' a4n-project-mutation-worker'
+        [[ "$build_chapter_scene_worker" == true ]] && printf ' a4n-chapter-scene-worker'
     )"
-    if ! build_children "$build_control" "$build_agent_worker" "$build_edge" "$build_novel_planning_worker" "$build_artifact_media_worker" "$build_outline_worker" "$build_blueprint_worker" "$build_asset_graph_worker" "$build_foreshadowing_worker" "$build_object_profile_worker" "$build_scene_profile_worker" "$build_portrait_worker" "$build_source_snapshot_worker" "$build_profile_material_worker" "$build_project_status_worker" "$build_theme_read_worker" "$build_project_read_worker" "$build_import_review_read_worker" "$build_inspiration_history_worker" "$build_project_access_worker" "$build_project_collaboration_worker" "$build_project_mutation_worker"; then
+    if ! build_children "$build_control" "$build_agent_worker" "$build_edge" "$build_novel_planning_worker" "$build_artifact_media_worker" "$build_outline_worker" "$build_blueprint_worker" "$build_asset_graph_worker" "$build_foreshadowing_worker" "$build_object_profile_worker" "$build_scene_profile_worker" "$build_portrait_worker" "$build_source_snapshot_worker" "$build_profile_material_worker" "$build_project_status_worker" "$build_theme_read_worker" "$build_project_read_worker" "$build_import_review_read_worker" "$build_inspiration_history_worker" "$build_project_access_worker" "$build_project_collaboration_worker" "$build_project_mutation_worker" "$build_chapter_scene_worker"; then
         log_warn "Control/Agent worker 编译失败；保留当前运行产物，等待下一次源码变更"
     else
         publish_reload_marker

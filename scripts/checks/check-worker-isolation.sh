@@ -45,6 +45,7 @@ STATEFUL_WORKER_PACKAGES=(
     a4n-project-access-worker
     a4n-project-collaboration-worker
     a4n-project-mutation-worker
+    a4n-chapter-scene-worker
     a4n-portrait-worker
     a4n-source-snapshot-worker
 )
@@ -66,6 +67,7 @@ WORKER_CLIENT_PACKAGES=(
     a4n-project-access-worker-client
     a4n-project-collaboration-worker-client
     a4n-project-mutation-worker-client
+    a4n-chapter-scene-worker-client
     a4n-portrait-worker-client
     a4n-source-snapshot-worker-client
 )

@@ -449,7 +449,7 @@ build_local_server_targets() {
   local sidecar_package_lines package
   local -a sidecar_packages=()
   $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-novel-planning-worker -p a4n-artifact-media-worker -p a4n-outline-worker -p a4n-blueprint-worker -p a4n-asset-graph-worker -p a4n-foreshadowing-worker -p a4n-object-profile-worker -p a4n-scene-profile-worker -p a4n-profile-material-worker -p a4n-project-status-worker -p a4n-theme-read-worker -p a4n-project-read-worker -p a4n-import-review-worker -p a4n-inspiration-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-portrait-worker -p a4n-source-snapshot-worker -p a4n-edge -p a4n-server)
+  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-novel-planning-worker -p a4n-artifact-media-worker -p a4n-outline-worker -p a4n-blueprint-worker -p a4n-asset-graph-worker -p a4n-foreshadowing-worker -p a4n-object-profile-worker -p a4n-scene-profile-worker -p a4n-profile-material-worker -p a4n-project-status-worker -p a4n-theme-read-worker -p a4n-project-read-worker -p a4n-import-review-worker -p a4n-inspiration-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-chapter-scene-worker -p a4n-portrait-worker -p a4n-source-snapshot-worker -p a4n-edge -p a4n-server)
   $SERVER && build_command+=(-p a4n-cli)
   if $MANAGED_SIDECARS && ! $FULL_HOST; then
     sidecar_package_lines="$(sidecar_catalog_binaries)"
