@@ -39,6 +39,7 @@ use tokio::time::{Duration, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 
 mod binding;
+mod context;
 mod editor;
 mod history;
 mod task_wait;
@@ -1164,6 +1165,9 @@ async fn process_claimed_run_inner(
             tokens,
         )
         .await?;
+        let context_manifest_json = context::build_manifest(&context, &request_messages, &skills)?
+            .map(|manifest| serde_json::to_value(manifest))
+            .transpose()?;
         let mut request = ChatRequest {
             messages: request_messages,
             vision_images: Vec::new(),
@@ -1188,7 +1192,7 @@ async fn process_claimed_run_inner(
                 context_plan_json: None,
                 context_pack_refs_json: None,
             }),
-            context_manifest_json: None,
+            context_manifest_json,
             tools: None,
             tool_choice: None,
             stop_sequences: None,
