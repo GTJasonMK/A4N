@@ -1,8 +1,9 @@
 //! Typed initial character profile mutation commands.
 
 pub use a4n_api_contract::character::{
-    CharacterProfileCreateResult, CharacterProfileMutationResult, CreateProfileInput,
-    UpdateCharacterProfileInput,
+    CharacterProfileCreateResult, CharacterProfileMutationResult,
+    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary, CreateProfileInput,
+    ListProfilesInput, UpdateCharacterProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
@@ -12,7 +13,12 @@ pub const CHARACTER_MUTATION_WORKER_ID: &str = "character-mutation-worker";
 pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v1";
 pub const CHARACTER_MUTATION_CREATE_OPERATION: &str = "character.mutation.create";
 pub const CHARACTER_MUTATION_UPDATE_OPERATION: &str = "character.mutation.update";
+pub const CHARACTER_OVERVIEW_PROJECT_OPERATION: &str = "character.overview.project";
+pub const CHARACTER_OVERVIEW_LIST_OPERATION: &str = "character.overview.list";
+pub const CHARACTER_OVERVIEW_ARC_OPERATION: &str = "character.overview.arc";
+pub const CHARACTER_OVERVIEW_VOICE_OPERATION: &str = "character.overview.voice";
 pub const CHARACTER_MUTATION_CAPABILITY: &str = "character.mutation";
+pub const CHARACTER_OVERVIEW_CAPABILITY: &str = "character.overview";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +27,19 @@ pub struct CreateInput(pub CreateProfileInput);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateInput(pub UpdateCharacterProfileInput);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileIdInput {
+    pub profile_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NamedProfileInput {
+    pub project_id: i64,
+    pub name: String,
+}
 
 #[cfg(test)]
 mod tests {

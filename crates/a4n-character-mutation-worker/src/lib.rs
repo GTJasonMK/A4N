@@ -4,12 +4,15 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::character::{
     AttributeCountsSummary, CharacterProfileCreateResult, CharacterProfileMutationResult,
-    CharacterProfileSummary,
+    CharacterProfileSummary, ListProfilesInput,
 };
 use a4n_character_mutation_worker_contract::{
     CHARACTER_MUTATION_CAPABILITY, CHARACTER_MUTATION_CREATE_OPERATION,
     CHARACTER_MUTATION_UPDATE_OPERATION, CHARACTER_MUTATION_WORKER_CONTRACT_VERSION,
-    CHARACTER_MUTATION_WORKER_ID, CreateInput, UpdateInput,
+    CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_CAPABILITY,
+    CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
+    CHARACTER_OVERVIEW_VOICE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
+    UpdateInput,
 };
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
@@ -76,6 +79,16 @@ impl CharacterMutationWorker {
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/character.mutation.create", post(create))
             .route("/v1/commands/character.mutation.update", post(update))
+            .route(
+                "/v1/commands/character.overview.project",
+                post(profile_project),
+            )
+            .route("/v1/commands/character.overview.list", post(list_profiles))
+            .route("/v1/commands/character.overview.arc", post(character_arc))
+            .route(
+                "/v1/commands/character.overview.voice",
+                post(character_voice),
+            )
             .with_state(self.state.clone())
     }
 
@@ -155,11 +168,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: CHARACTER_MUTATION_CAPABILITY.into(),
-            version: CHARACTER_MUTATION_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: CHARACTER_MUTATION_CAPABILITY.into(),
+                version: CHARACTER_MUTATION_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: CHARACTER_OVERVIEW_CAPABILITY.into(),
+                version: CHARACTER_MUTATION_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -178,6 +198,50 @@ async fn update(
     Json(request): Json<WorkerEnvelope<UpdateInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.update(request)).await
+}
+
+async fn profile_project(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProfileIdInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.profile_project(request)
+    })
+    .await
+}
+
+async fn list_profiles(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ListProfilesInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.list_profiles(request)
+    })
+    .await
+}
+
+async fn character_arc(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<NamedProfileInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.character_arc(request)
+    })
+    .await
+}
+
+async fn character_voice(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<NamedProfileInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.character_voice(request)
+    })
+    .await
 }
 
 async fn command_response<T, O, F, Fut>(
@@ -246,6 +310,63 @@ impl WorkerState {
             profile: character_profile_summary(&profile)?,
             warnings: Vec::new(),
         })
+    }
+
+    async fn profile_project(
+        &self,
+        request: WorkerEnvelope<ProfileIdInput>,
+    ) -> Result<i64, WorkerFailure> {
+        validate_request(&request, CHARACTER_OVERVIEW_PROJECT_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let profile_id = positive(request.payload.profile_id, "profile_id")?;
+        let profile = a4n_db::character::profile_by_id(self.database.connection(), profile_id)
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .ok_or_else(|| WorkerFailure::not_found(format!("角色档案不存在: {profile_id}")))?;
+        verify_project_editor(&self.database, profile.project_id, user_id).await?;
+        Ok(profile.project_id)
+    }
+
+    async fn list_profiles(
+        &self,
+        request: WorkerEnvelope<ListProfilesInput>,
+    ) -> Result<Vec<CharacterProfileSummary>, WorkerFailure> {
+        validate_request(&request, CHARACTER_OVERVIEW_LIST_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let project_id = positive(request.payload.project_id, "project_id")?;
+        verify_project_editor(&self.database, project_id, user_id).await?;
+        a4n_db::character::profiles_with_timeline_state(self.database.connection(), project_id)
+            .await
+            .map_err(character_db_error)?
+            .into_iter()
+            .map(|(profile, timeline_started, editable)| {
+                character_profile_summary_with_state(&profile, timeline_started, editable)
+            })
+            .collect()
+    }
+
+    async fn character_arc(
+        &self,
+        request: WorkerEnvelope<NamedProfileInput>,
+    ) -> Result<Option<Value>, WorkerFailure> {
+        validate_request(&request, CHARACTER_OVERVIEW_ARC_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        verify_project_editor(&self.database, input.project_id, user_id).await?;
+        let profile = named_profile(&self.database, input.project_id, &input.name).await?;
+        Ok(profile.character_arc)
+    }
+
+    async fn character_voice(
+        &self,
+        request: WorkerEnvelope<NamedProfileInput>,
+    ) -> Result<Option<Value>, WorkerFailure> {
+        validate_request(&request, CHARACTER_OVERVIEW_VOICE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        verify_project_editor(&self.database, input.project_id, user_id).await?;
+        let profile = named_profile(&self.database, input.project_id, &input.name).await?;
+        Ok(profile.voice_fingerprint)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -323,6 +444,14 @@ fn attribute_counts(value: &Value) -> Result<AttributeCountsSummary, WorkerFailu
 fn character_profile_summary(
     profile: &a4n_db_models::models::character::protagonist_profile::Model,
 ) -> Result<CharacterProfileSummary, WorkerFailure> {
+    character_profile_summary_with_state(profile, false, true)
+}
+
+fn character_profile_summary_with_state(
+    profile: &a4n_db_models::models::character::protagonist_profile::Model,
+    timeline_started: bool,
+    initial_profile_editable: bool,
+) -> Result<CharacterProfileSummary, WorkerFailure> {
     Ok(CharacterProfileSummary {
         id: profile.id,
         project_id: profile.project_id,
@@ -337,12 +466,52 @@ fn character_profile_summary(
         background: profile.background.clone(),
         personality: profile.personality.clone(),
         last_synced_chapter: profile.last_synced_chapter,
-        timeline_started: false,
-        initial_profile_editable: true,
+        timeline_started,
+        initial_profile_editable,
         attribute_counts: attribute_counts(&profile.current_state)?,
         created_at: Some(profile.created_at.to_string()),
         updated_at: Some(profile.updated_at.to_string()),
     })
+}
+
+async fn named_profile(
+    database: &DbHandle,
+    project_id: i64,
+    name: &str,
+) -> Result<a4n_db_models::models::character::protagonist_profile::Model, WorkerFailure> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(WorkerFailure::invalid_request("角色名称不能为空"));
+    }
+    a4n_db::character::profile_by_project_name(database.connection(), project_id, name)
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .ok_or_else(|| {
+            WorkerFailure::not_found(format!("角色不存在: project_id={project_id}, name={name}"))
+        })
+}
+
+fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {
+    if value > 0 {
+        Ok(value)
+    } else {
+        Err(WorkerFailure::invalid_request(format!(
+            "{field} 必须大于 0"
+        )))
+    }
+}
+
+fn character_db_error(error: a4n_db::character::CharacterDbError) -> WorkerFailure {
+    match error {
+        a4n_db::character::CharacterDbError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::character::CharacterDbError::NotFound(message) => WorkerFailure::not_found(message),
+        a4n_db::character::CharacterDbError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
+        other => WorkerFailure::unavailable(other.to_string()),
+    }
 }
 
 fn create_error(error: a4n_db::character::CharacterProfileCreateError) -> WorkerFailure {

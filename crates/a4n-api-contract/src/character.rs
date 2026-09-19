@@ -27,7 +27,7 @@ pub struct UpdateCharacterProfileInput {
     pub base_attributes: Value,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListProfilesInput {
     #[schemars(range(min = 1))]
@@ -204,6 +204,38 @@ pub trait CharacterProfileReadApplicationPort: Send + Sync {
         user_id: i64,
         input: CheckProfileSyncConflictInput,
     ) -> Result<ProfileSyncConflictSummary, a4n_error::AppError>;
+}
+
+/// Narrow overview reads used by list pages and cross-domain identity checks.
+/// History, snapshots and synchronization remain on the character timeline
+/// owner so an overview change does not rebuild those consumers.
+#[async_trait::async_trait]
+pub trait CharacterProfileOverviewReadApplicationPort: Send + Sync {
+    async fn profile_project_id(
+        &self,
+        user_id: i64,
+        profile_id: i64,
+    ) -> Result<i64, a4n_error::AppError>;
+
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<CharacterProfileSummary>, a4n_error::AppError>;
+
+    async fn character_arc_by_name(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        name: String,
+    ) -> Result<Option<Value>, a4n_error::AppError>;
+
+    async fn voice_fingerprint_by_name(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        name: String,
+    ) -> Result<Option<Value>, a4n_error::AppError>;
 }
 
 /// Host-facing mutation boundary for initial character profiles.
@@ -499,7 +531,7 @@ pub struct ModifyProfileAttributeInput {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeHistoryInput {
     #[schemars(range(min = 1))]
@@ -531,7 +563,7 @@ pub struct AttributeEventSummary {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListBehaviorsInput {
     #[schemars(range(min = 1))]
@@ -652,7 +684,7 @@ pub struct ApplyImplicitUpdateDecisionResultSummary {
     pub deletion_mark: Option<DeletionMarkSummary>,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListSnapshotsInput {
     #[schemars(range(min = 1))]
@@ -674,7 +706,7 @@ pub struct SnapshotReferenceSummary {
     pub behaviors_in_chapter: usize,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GetProfileStateAtChapterInput {
     #[schemars(range(min = 1))]
@@ -697,7 +729,7 @@ pub struct ProfileChapterStateSummary {
     pub created_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GetSnapshotInput {
     #[schemars(length(min = 1))]
@@ -710,7 +742,7 @@ pub struct SnapshotSummary {
     pub created_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DiffProfileChaptersInput {
     #[schemars(range(min = 1))]
@@ -726,7 +758,7 @@ pub struct SnapshotDeltaSummary {
     pub delta: Value,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CheckProfileSyncConflictInput {
     #[schemars(range(min = 1))]
@@ -762,7 +794,7 @@ pub struct RollbackResultSummary {
     pub rewound_deletion_marks: u64,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListDeletionMarksInput {
     #[schemars(range(min = 1))]

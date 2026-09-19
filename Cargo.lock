@@ -499,6 +499,7 @@ dependencies = [
  "a4n-worker-contract",
  "async-trait",
  "serde",
+ "serde_json",
  "uuid",
 ]
 

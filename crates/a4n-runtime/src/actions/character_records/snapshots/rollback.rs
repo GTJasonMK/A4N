@@ -11,7 +11,7 @@ pub async fn rollback_to_chapter(
         return Err("回滚章节号不能小于 0".to_string());
     }
     let project_id = state
-        .character_profile_read_application()
+        .character_profile_overview_read_application()
         .profile_project_id(user_id, input.profile_id)
         .await
         .map_err(app_error_message)?;

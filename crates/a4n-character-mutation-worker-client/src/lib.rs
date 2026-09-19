@@ -2,11 +2,15 @@
 
 use a4n_api_contract::character::{
     CharacterProfileCreateResult, CharacterProfileMutationApplicationPort,
-    CharacterProfileMutationResult, CreateProfileInput, UpdateCharacterProfileInput,
+    CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
+    CharacterProfileSummary, CreateProfileInput, ListProfilesInput, UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
     CHARACTER_MUTATION_CREATE_OPERATION, CHARACTER_MUTATION_UPDATE_OPERATION,
-    CHARACTER_MUTATION_WORKER_ID, CreateInput, UpdateInput,
+    CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION,
+    CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
+    CHARACTER_OVERVIEW_VOICE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
+    UpdateInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -141,6 +145,63 @@ impl CharacterProfileMutationApplicationPort for CharacterMutationWorkerClient {
             input.project_id,
             CHARACTER_MUTATION_UPDATE_OPERATION,
             UpdateInput(input),
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CharacterProfileOverviewReadApplicationPort for CharacterMutationWorkerClient {
+    async fn profile_project_id(&self, user_id: i64, profile_id: i64) -> Result<i64, AppError> {
+        self.command(
+            user_id,
+            profile_id,
+            CHARACTER_OVERVIEW_PROJECT_OPERATION,
+            ProfileIdInput { profile_id },
+        )
+        .await
+    }
+
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<CharacterProfileSummary>, AppError> {
+        self.command(
+            user_id,
+            project_id,
+            CHARACTER_OVERVIEW_LIST_OPERATION,
+            ListProfilesInput { project_id },
+        )
+        .await
+    }
+
+    async fn character_arc_by_name(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        name: String,
+    ) -> Result<Option<serde_json::Value>, AppError> {
+        self.command(
+            user_id,
+            project_id,
+            CHARACTER_OVERVIEW_ARC_OPERATION,
+            NamedProfileInput { project_id, name },
+        )
+        .await
+    }
+
+    async fn voice_fingerprint_by_name(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        name: String,
+    ) -> Result<Option<serde_json::Value>, AppError> {
+        self.command(
+            user_id,
+            project_id,
+            CHARACTER_OVERVIEW_VOICE_OPERATION,
+            NamedProfileInput { project_id, name },
         )
         .await
     }

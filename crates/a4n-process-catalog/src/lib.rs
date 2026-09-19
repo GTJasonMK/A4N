@@ -721,7 +721,10 @@ mod tests {
         assert_eq!(character_mutation.default_addr, "127.0.0.1:47674");
         assert_eq!(
             character_mutation.capabilities,
-            vec!["character.mutation".to_string()]
+            vec![
+                "character.mutation".to_string(),
+                "character.overview".to_string()
+            ]
         );
         let portrait = entries
             .iter()
