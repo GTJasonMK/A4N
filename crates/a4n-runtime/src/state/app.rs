@@ -1,5 +1,4 @@
 use std::{
-    collections::{HashMap, HashSet},
     fs::{File, OpenOptions, TryLockError},
     future::Future,
     ops::Deref,
@@ -8,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use a4n_agent_runtime::{AgentRunCancellation, AgentRuntimeShared, AgentRuntimeSnapshot};
+use a4n_agent_runtime::AgentRuntimeShared;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_config::app_config::AppConfig;
 use a4n_db::character::Sha256SnapshotStore;
@@ -72,19 +71,12 @@ pub struct AppState {
     /// Serialize package/startup/Host-shutdown transitions so a temporarily
     /// detached process handle is never mistaken for an unowned service.
     managed_sidecar_lifecycle: Arc<tokio::sync::Mutex<()>>,
-    /// Agent worker 只由 Runtime 持有生命周期；Run 状态和执行记录仍由
-    /// `AgentApplication`/数据库负责。
+    /// Agent lifecycle is shared with the common engine; durable state remains
+    /// in `AgentApplication`/database.
     agent_worker_cancel: tokio_util::sync::CancellationToken,
     agent_worker_notify: Arc<tokio::sync::Notify>,
     agent_worker_handle: Arc<tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
-    /// Run admission and worker claiming share one gate so a freshly-persisted
-    /// Run cannot be claimed before its process-local secret snapshot is bound.
-    agent_admission: Arc<tokio::sync::Mutex<()>>,
-    /// In-flight provider calls are cancelled immediately when the durable Run
-    /// is cancelled or its lease can no longer be renewed.
-    agent_run_cancellations: Arc<tokio::sync::Mutex<HashMap<i64, AgentRunCancellation>>>,
-    /// 完整运行时配置可能含 API key，只按 Run 保存在当前进程内。
-    agent_runtime_snapshots: Arc<tokio::sync::RwLock<HashMap<i64, AgentRuntimeSnapshot>>>,
+    agent_runtime_shared: AgentRuntimeShared,
     /// Host 注册的统一命令 dispatch。Agent 只通过该入口执行动态发现的
     /// manifest 工具，避免在 Agent runtime 维护第二套命令实现。
     agent_host_dispatcher: Arc<tokio::sync::RwLock<Option<AgentHostCommandDispatcher>>>,
@@ -144,15 +136,11 @@ impl AppState {
     }
 
     pub(crate) async fn lock_agent_admission(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        self.agent_admission.lock().await
+        self.agent_runtime_shared.lock_agent_admission().await
     }
 
     pub(crate) fn agent_runtime_shared(&self) -> AgentRuntimeShared {
-        AgentRuntimeShared {
-            agent_admission: self.agent_admission.clone(),
-            agent_run_cancellations: self.agent_run_cancellations.clone(),
-            agent_runtime_snapshots: self.agent_runtime_snapshots.clone(),
-        }
+        self.agent_runtime_shared.clone()
     }
 
     /// Installs the host-owned command dispatch used by dynamically discovered
@@ -283,16 +271,9 @@ impl AppState {
     }
 
     pub(crate) async fn cancel_agent_run_tree(&self, run_id: i64) {
-        let cancellations = self.agent_run_cancellations.lock().await;
-        for (&active_run_id, cancellation) in cancellations.iter() {
-            if is_descendant(active_run_id, run_id, |candidate| {
-                cancellations
-                    .get(&candidate)
-                    .and_then(|run| run.parent_run_id)
-            }) {
-                cancellation.token.cancel();
-            }
-        }
+        self.agent_runtime_shared
+            .cancel_agent_run_tree(run_id)
+            .await;
     }
 
     pub(crate) async fn store_agent_runtime_snapshot(
@@ -301,42 +282,24 @@ impl AppState {
         parent_run_id: Option<i64>,
         snapshot: crate::runtime_config::RuntimeConfigSnapshot,
     ) {
-        self.agent_runtime_snapshots.write().await.insert(
-            run_id,
-            AgentRuntimeSnapshot {
-                parent_run_id,
-                value: snapshot,
-            },
-        );
+        self.agent_runtime_shared
+            .store_agent_runtime_snapshot(run_id, parent_run_id, snapshot)
+            .await;
     }
 
     pub(crate) async fn agent_runtime_snapshot(
         &self,
         run_id: i64,
     ) -> Option<crate::runtime_config::RuntimeConfigSnapshot> {
-        self.agent_runtime_snapshots
-            .read()
+        self.agent_runtime_shared
+            .agent_runtime_snapshot(run_id)
             .await
-            .get(&run_id)
-            .map(|entry| entry.value.clone())
     }
 
     pub(crate) async fn remove_agent_runtime_snapshot_tree(&self, run_id: i64) {
-        let mut snapshots = self.agent_runtime_snapshots.write().await;
-        let run_ids = snapshots
-            .keys()
-            .copied()
-            .filter(|candidate| {
-                is_descendant(*candidate, run_id, |candidate| {
-                    snapshots
-                        .get(&candidate)
-                        .and_then(|snapshot| snapshot.parent_run_id)
-                })
-            })
-            .collect::<Vec<_>>();
-        for run_id in run_ids {
-            snapshots.remove(&run_id);
-        }
+        self.agent_runtime_shared
+            .remove_agent_runtime_snapshot_tree(run_id)
+            .await;
     }
 
     /// 停止 Agent worker 并等待其退出；可重复调用。
@@ -2578,9 +2541,7 @@ impl RuntimeBootstrap {
             agent_worker_cancel: tokio_util::sync::CancellationToken::new(),
             agent_worker_notify: Arc::new(tokio::sync::Notify::new()),
             agent_worker_handle: Arc::new(tokio::sync::Mutex::new(None)),
-            agent_admission: Arc::new(tokio::sync::Mutex::new(())),
-            agent_run_cancellations: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
-            agent_runtime_snapshots: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            agent_runtime_shared: AgentRuntimeShared::new(),
             agent_host_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
         };
 
@@ -2617,25 +2578,6 @@ fn include_runtime_sidecar_services(profile: RuntimeProfile, services: &mut Vec<
             .any(|service| service == a4n_media_contract::MEDIA_SERVICE_NAME)
     {
         services.push(a4n_media_contract::MEDIA_SERVICE_NAME.to_string());
-    }
-}
-
-fn is_descendant<F>(mut candidate: i64, ancestor: i64, mut parent_of: F) -> bool
-where
-    F: FnMut(i64) -> Option<i64>,
-{
-    let mut seen = HashSet::new();
-    loop {
-        if candidate == ancestor {
-            return true;
-        }
-        if !seen.insert(candidate) {
-            return false;
-        }
-        let Some(parent) = parent_of(candidate) else {
-            return false;
-        };
-        candidate = parent;
     }
 }
 
