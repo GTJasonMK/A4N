@@ -293,15 +293,22 @@ pub trait CharacterProfileMutationApplicationPort: Send + Sync {
     ) -> Result<CharacterProfileMutationResult, a4n_error::AppError>;
 }
 
+/// Host callback for removing a deleted profile from the project's RAG set.
+#[async_trait::async_trait]
+pub trait CharacterProfileDeletionHostPort: Send + Sync {
+    async fn sync_profile_rag(&self, project_id: i64) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host-facing mutation boundary for deleting a character profile.
 ///
-/// The owner keeps the committed database cascade and post-commit RAG warning
-/// semantics together; Runtime only forwards the authorized command.
+/// The owner keeps the committed database cascade; the Host callback owns the
+/// post-commit RAG cleanup and warning semantics.
 #[async_trait::async_trait]
 pub trait CharacterProfileDeletionApplicationPort: Send + Sync {
     async fn delete(
         &self,
         user_id: i64,
+        host_port: &dyn CharacterProfileDeletionHostPort,
         profile_id: i64,
     ) -> Result<CharacterProfileDeleteResult, a4n_error::AppError>;
 }
@@ -388,7 +395,7 @@ pub struct CharacterProfileMutationResult {
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CharacterProfileDeleteResult {
     pub warnings: Vec<String>,
 }

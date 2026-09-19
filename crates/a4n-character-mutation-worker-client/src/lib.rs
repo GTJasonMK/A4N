@@ -4,25 +4,27 @@ use a4n_api_contract::character::{
     AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
     CharacterAttributeRagSyncHostPort, CharacterProfileAttributeDeletionApplicationPort,
     CharacterProfileAttributeMutationApplicationPort, CharacterProfileCreateResult,
-    CharacterProfileMutationApplicationPort, CharacterProfileMutationResult,
-    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
-    CharacterTimelineReadApplicationPort, CreateProfileInput, DeletionMarkSummary,
-    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, ListBehaviorsInput,
-    ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput,
-    ProfileChapterStateSummary, RequestAttributeDeletionInput, ResetDeletionMarksInput,
-    SnapshotReferenceSummary, UpdateCharacterProfileInput,
+    CharacterProfileDeleteResult, CharacterProfileDeletionApplicationPort,
+    CharacterProfileDeletionHostPort, CharacterProfileMutationApplicationPort,
+    CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
+    CharacterProfileSummary, CharacterTimelineReadApplicationPort, CreateProfileInput,
+    DeletionMarkSummary, ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput,
+    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
+    ModifyProfileAttributeInput, ProfileChapterStateSummary, RequestAttributeDeletionInput,
+    ResetDeletionMarksInput, SnapshotReferenceSummary, UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
     AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
     CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION, CHARACTER_ATTRIBUTE_MODIFY_OPERATION,
     CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION, CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION,
-    CHARACTER_MUTATION_CREATE_OPERATION, CHARACTER_MUTATION_UPDATE_OPERATION,
-    CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION,
-    CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
-    CHARACTER_OVERVIEW_VOICE_OPERATION, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
-    CHARACTER_TIMELINE_BEHAVIOR_OPERATION, CHARACTER_TIMELINE_DELETION_OPERATION,
-    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION, CreateInput,
-    NamedProfileInput, ProfileIdInput, UpdateInput,
+    CHARACTER_MUTATION_CREATE_OPERATION, CHARACTER_MUTATION_DELETE_OPERATION,
+    CHARACTER_MUTATION_UPDATE_OPERATION, CHARACTER_MUTATION_WORKER_ID,
+    CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_LIST_OPERATION,
+    CHARACTER_OVERVIEW_PROJECT_OPERATION, CHARACTER_OVERVIEW_VOICE_OPERATION,
+    CHARACTER_TIMELINE_ATTRIBUTE_OPERATION, CHARACTER_TIMELINE_BEHAVIOR_OPERATION,
+    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
+    CHARACTER_TIMELINE_STATE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
+    UpdateInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -289,6 +291,32 @@ impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
             input,
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CharacterProfileDeletionApplicationPort for CharacterMutationWorkerClient {
+    async fn delete(
+        &self,
+        user_id: i64,
+        host_port: &dyn CharacterProfileDeletionHostPort,
+        profile_id: i64,
+    ) -> Result<CharacterProfileDeleteResult, AppError> {
+        let project_id = self.profile_project_id(user_id, profile_id).await?;
+        let mut result: CharacterProfileDeleteResult = self
+            .command(
+                user_id,
+                profile_id,
+                CHARACTER_MUTATION_DELETE_OPERATION,
+                ProfileIdInput { profile_id },
+            )
+            .await?;
+        if let Err(error) = host_port.sync_profile_rag(project_id).await {
+            result.warnings.push(format!(
+                "角色资料检索索引未完全更新：{error}。正式资料未受影响，可稍后在项目操作中重新同步"
+            ));
+        }
+        Ok(result)
     }
 }
 

@@ -4,8 +4,8 @@ use a4n_api_contract::character::{
     CharacterProfileAttributeDeletionApplicationPort,
     CharacterProfileAttributeMutationApplicationPort, CharacterProfileCreateResult,
     CharacterProfileDeleteResult, CharacterProfileDeletionApplicationPort,
-    CharacterProfileMutationApplicationPort, CharacterProfileMutationResult,
-    CharacterProfileReadApplicationPort, CharacterProfileSummary,
+    CharacterProfileDeletionHostPort, CharacterProfileMutationApplicationPort,
+    CharacterProfileMutationResult, CharacterProfileReadApplicationPort, CharacterProfileSummary,
     CharacterProfileTimelineMutationApplicationPort, CheckImplicitUpdateInput,
     CheckProfileSyncConflictInput, CreateProfileInput, DeletionMarkSummary,
     DiffProfileChaptersInput, ExecuteAttributeDeletionInput, GetImplicitReviewInput,
@@ -968,6 +968,7 @@ impl CharacterProfileDeletionApplicationPort for OrchestratorContext {
     async fn delete(
         &self,
         user_id: i64,
+        _host_port: &dyn CharacterProfileDeletionHostPort,
         profile_id: i64,
     ) -> Result<CharacterProfileDeleteResult, AppError> {
         self.character_profile_for_user_validated(user_id, profile_id)

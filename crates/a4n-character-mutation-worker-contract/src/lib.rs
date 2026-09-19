@@ -2,20 +2,22 @@
 
 pub use a4n_api_contract::character::{
     AddProfileAttributeInput, AttributeHistoryInput, CharacterProfileCreateResult,
-    CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
-    CharacterProfileSummary, CharacterTimelineReadApplicationPort, CreateProfileInput,
-    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, ListBehaviorsInput,
-    ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput,
-    RequestAttributeDeletionInput, ResetDeletionMarksInput, UpdateCharacterProfileInput,
+    CharacterProfileDeleteResult, CharacterProfileMutationResult,
+    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
+    CharacterTimelineReadApplicationPort, CreateProfileInput, ExecuteAttributeDeletionInput,
+    GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
+    ListSnapshotsInput, ModifyProfileAttributeInput, RequestAttributeDeletionInput,
+    ResetDeletionMarksInput, UpdateCharacterProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const CHARACTER_MUTATION_WORKER_ID: &str = "character-mutation-worker";
-pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v2";
+pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v3";
 pub const CHARACTER_MUTATION_CREATE_OPERATION: &str = "character.mutation.create";
 pub const CHARACTER_MUTATION_UPDATE_OPERATION: &str = "character.mutation.update";
+pub const CHARACTER_MUTATION_DELETE_OPERATION: &str = "character.mutation.delete";
 pub const CHARACTER_OVERVIEW_PROJECT_OPERATION: &str = "character.overview.project";
 pub const CHARACTER_OVERVIEW_LIST_OPERATION: &str = "character.overview.list";
 pub const CHARACTER_OVERVIEW_ARC_OPERATION: &str = "character.overview.arc";

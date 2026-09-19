@@ -64,11 +64,12 @@ pub async fn delete_profile(
     let trace_id = crate::sidecar_clients::character_profile_delete_rag_operation_trace_id(
         project_id, profile_id,
     )?;
+    let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     crate::sidecar_clients::scope_rag_operation_trace(
         trace_id,
         state
             .character_profile_deletion_application()
-            .delete(user_id, profile_id),
+            .delete(user_id, &host_port, profile_id),
     )
     .await
     .map_err(app_error_message)

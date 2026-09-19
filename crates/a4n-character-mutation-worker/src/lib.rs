@@ -4,19 +4,21 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::character::{
     AddProfileAttributeInput, AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput,
-    BehaviorRecordSummary, CharacterProfileCreateResult, CharacterProfileMutationResult,
-    CharacterProfileSummary, DeletionMarkSummary, ExecuteAttributeDeletionInput,
-    GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
-    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
-    RequestAttributeDeletionInput, ResetDeletionMarksInput, SnapshotReferenceSummary,
+    BehaviorRecordSummary, CharacterProfileCreateResult, CharacterProfileDeleteResult,
+    CharacterProfileMutationResult, CharacterProfileSummary, DeletionMarkSummary,
+    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, ListBehaviorsInput,
+    ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput,
+    ProfileChapterStateSummary, RequestAttributeDeletionInput, ResetDeletionMarksInput,
+    SnapshotReferenceSummary,
 };
 use a4n_character_mutation_worker_contract::{
     AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
     CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION, CHARACTER_ATTRIBUTE_MODIFY_OPERATION,
     CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION, CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION,
     CHARACTER_MUTATION_CAPABILITY, CHARACTER_MUTATION_CREATE_OPERATION,
-    CHARACTER_MUTATION_UPDATE_OPERATION, CHARACTER_MUTATION_WORKER_CONTRACT_VERSION,
-    CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_CAPABILITY,
+    CHARACTER_MUTATION_DELETE_OPERATION, CHARACTER_MUTATION_UPDATE_OPERATION,
+    CHARACTER_MUTATION_WORKER_CONTRACT_VERSION, CHARACTER_MUTATION_WORKER_ID,
+    CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_CAPABILITY,
     CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
     CHARACTER_OVERVIEW_VOICE_OPERATION, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
     CHARACTER_TIMELINE_BEHAVIOR_OPERATION, CHARACTER_TIMELINE_CAPABILITY,
@@ -94,6 +96,10 @@ impl CharacterMutationWorker {
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/character.mutation.create", post(create))
             .route("/v1/commands/character.mutation.update", post(update))
+            .route(
+                "/v1/commands/character.mutation.delete",
+                post(delete_profile),
+            )
             .route(
                 "/v1/commands/character.overview.project",
                 post(profile_project),
@@ -252,6 +258,17 @@ async fn update(
     Json(request): Json<WorkerEnvelope<UpdateInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.update(request)).await
+}
+
+async fn delete_profile(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProfileIdInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.delete_profile(request)
+    })
+    .await
 }
 
 async fn profile_project(
@@ -469,9 +486,28 @@ impl WorkerState {
             input.base_attributes,
         )
         .await
-        .map_err(character_error)?;
+        .map_err(character_db_error)?;
         Ok(CharacterProfileMutationResult {
             profile: character_profile_summary(&profile)?,
+            warnings: Vec::new(),
+        })
+    }
+
+    async fn delete_profile(
+        &self,
+        request: WorkerEnvelope<ProfileIdInput>,
+    ) -> Result<CharacterProfileDeleteResult, WorkerFailure> {
+        validate_request(&request, CHARACTER_MUTATION_DELETE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let profile =
+            profile_for_editor(&self.database, user_id, request.payload.profile_id).await?;
+        a4n_db::character::delete_profile_cascade_transaction(
+            self.database.connection(),
+            profile.id,
+        )
+        .await
+        .map_err(character_profile_delete_error)?;
+        Ok(CharacterProfileDeleteResult {
             warnings: Vec::new(),
         })
     }
@@ -1130,6 +1166,17 @@ fn create_error(error: a4n_db::character::CharacterProfileCreateError) -> Worker
         a4n_db::character::CharacterProfileCreateError::Generation(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
+    }
+}
+
+fn character_profile_delete_error(
+    error: a4n_db::character::CharacterProfileDeleteError,
+) -> WorkerFailure {
+    match error {
+        a4n_db::character::CharacterProfileDeleteError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        other => WorkerFailure::unavailable(other.to_string()),
     }
 }
 
