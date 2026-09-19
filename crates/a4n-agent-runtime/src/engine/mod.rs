@@ -1022,7 +1022,7 @@ async fn process_claimed_run_inner(
         model_calls = model_calls.saturating_add(1);
         usage["steps_used"] = json!(steps);
         usage["model_calls_used"] = json!(model_calls);
-        let tools = available_runtime_tools(
+        let tool_window = available_runtime_tools(
             &context.profile_id,
             &context.scope,
             usage
@@ -1032,6 +1032,11 @@ async fn process_claimed_run_inner(
             &discovered_tools,
             &context.executions,
         )?;
+        usage["tool_window"] = json!({
+            "schema_limit": MAX_AGENT_TOOL_SCHEMAS,
+            "dropped_optional": tool_window.dropped_optional,
+        });
+        let tools = tool_window.schemas;
         let skills = if usage.get("failure_class").and_then(Value::as_str)
             == Some(a4n_agent_runtime_contract::AGENT_FAILURE_PROVIDER_UNAVAILABLE)
         {
@@ -2888,13 +2893,18 @@ fn chat_message_from_model(message: &AgentMessageSnapshot) -> Result<ChatMessage
     Ok(result)
 }
 
+struct RuntimeToolWindow {
+    schemas: Vec<Value>,
+    dropped_optional: Vec<String>,
+}
+
 fn available_runtime_tools(
     capability: &str,
     scope: &AgentScope,
     phase: &str,
     discovered_tools: &[String],
     executions: &[AgentExecutionSnapshot],
-) -> Result<Vec<Value>, AppError> {
+) -> Result<RuntimeToolWindow, AppError> {
     let initial_tools = a4n_api_contract::agent::initial_agent_tools(capability);
     let restricted = a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability);
     let initial_limit = if restricted {
@@ -2958,14 +2968,20 @@ fn available_runtime_tools(
                     }
                 }))
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()
+            .map(|schemas| RuntimeToolWindow {
+                schemas,
+                dropped_optional: Vec::new(),
+            });
     }
+    let mut dropped_optional = Vec::new();
     for name in discovered_tools.iter().rev() {
         if !names.iter().any(|known| known == name)
             && ensure_agent_scope_allows_tool(scope, name).is_ok()
         {
             if names.len() == MAX_AGENT_TOOL_SCHEMAS {
-                break;
+                dropped_optional.push(name.clone());
+                continue;
             }
             names.push(name.clone());
         }
@@ -2983,7 +2999,11 @@ fn available_runtime_tools(
                 }
             }))
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(|schemas| RuntimeToolWindow {
+            schemas,
+            dropped_optional,
+        })
 }
 
 async fn record_tool_failure(
@@ -3179,7 +3199,8 @@ mod tests {
             &[],
         )
         .expect("optional discovered tools should be trimmed");
-        assert!(tools.len() <= MAX_AGENT_TOOL_SCHEMAS);
+        assert!(tools.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
+        assert!(tools.dropped_optional.len() <= discovered.len());
     }
 
     #[test]
