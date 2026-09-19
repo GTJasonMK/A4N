@@ -26,6 +26,8 @@
   {"package":"a4n-workflow-read-worker","binary":"a4n-workflow-read-worker"},
   {"package":"a4n-config-read-worker","binary":"a4n-config-read-worker"},
   {"package":"a4n-character-mutation-worker","binary":"a4n-character-mutation-worker"},
+  {"package":"a4n-video-record-worker","binary":"a4n-video-record-worker"},
+  {"package":"a4n-manga-record-worker","binary":"a4n-manga-record-worker"},
   {"package":"a4n-portrait-worker","binary":"a4n-portrait-worker"},
   {"package":"a4n-source-snapshot-worker","binary":"a4n-source-snapshot-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}

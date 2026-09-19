@@ -49,7 +49,7 @@ pub async fn diff_profile_chapters(
     input: DiffProfileChaptersInput,
 ) -> Result<SnapshotDeltaSummary, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .diff_chapters(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
@@ -61,7 +61,7 @@ pub async fn check_profile_sync_conflict(
     input: CheckProfileSyncConflictInput,
 ) -> Result<ProfileSyncConflictSummary, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .sync_conflict(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)

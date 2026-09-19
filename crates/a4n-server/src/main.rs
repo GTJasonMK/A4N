@@ -66,6 +66,10 @@ const WORKFLOW_READ_WORKER_PROCESS_ENV: &str = "A4N_WORKFLOW_READ_WORKER_PROCESS
 const CONFIG_READ_WORKER_PROCESS_ENV: &str = "A4N_CONFIG_READ_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const CHARACTER_MUTATION_WORKER_PROCESS_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const VIDEO_RECORD_WORKER_PROCESS_ENV: &str = "A4N_VIDEO_RECORD_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const MANGA_RECORD_WORKER_PROCESS_ENV: &str = "A4N_MANGA_RECORD_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -166,6 +170,14 @@ const CHARACTER_MUTATION_WORKER_CATALOG_NAME: &str = "character-mutation-worker"
 const CHARACTER_MUTATION_WORKER_BINARY_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_BINARY";
 const CHARACTER_MUTATION_WORKER_TOKEN_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_TOKEN";
 const CHARACTER_MUTATION_WORKER_URL_ENV: &str = "A4N_CHARACTER_MUTATION_WORKER_URL";
+const VIDEO_RECORD_WORKER_CATALOG_NAME: &str = "video-record-worker";
+const VIDEO_RECORD_WORKER_BINARY_ENV: &str = "A4N_VIDEO_RECORD_WORKER_BINARY";
+const VIDEO_RECORD_WORKER_TOKEN_ENV: &str = "A4N_VIDEO_RECORD_WORKER_TOKEN";
+const VIDEO_RECORD_WORKER_URL_ENV: &str = "A4N_VIDEO_RECORD_WORKER_URL";
+const MANGA_RECORD_WORKER_CATALOG_NAME: &str = "manga-record-worker";
+const MANGA_RECORD_WORKER_BINARY_ENV: &str = "A4N_MANGA_RECORD_WORKER_BINARY";
+const MANGA_RECORD_WORKER_TOKEN_ENV: &str = "A4N_MANGA_RECORD_WORKER_TOKEN";
+const MANGA_RECORD_WORKER_URL_ENV: &str = "A4N_MANGA_RECORD_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -212,6 +224,8 @@ enum ChildWatchEvent {
     WorkflowReadWorkerExited(ExitStatus),
     ConfigReadWorkerExited(ExitStatus),
     CharacterMutationWorkerExited(ExitStatus),
+    VideoRecordWorkerExited(ExitStatus),
+    MangaRecordWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -239,6 +253,8 @@ enum ChildWatchEvent {
     WorkflowReadWorkerChanged,
     ConfigReadWorkerChanged,
     CharacterMutationWorkerChanged,
+    VideoRecordWorkerChanged,
+    MangaRecordWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -323,6 +339,12 @@ fn main() -> anyhow::Result<()> {
         if env::var(CHARACTER_MUTATION_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_character_mutation_worker::run();
         }
+        if env::var(VIDEO_RECORD_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_video_record_worker::run();
+        }
+        if env::var(MANGA_RECORD_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_manga_record_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -380,6 +402,10 @@ fn main() -> anyhow::Result<()> {
     let character_mutation_worker_addr = character_mutation_worker_addr()?;
     let character_mutation_worker_token =
         worker_token_for_env(CHARACTER_MUTATION_WORKER_TOKEN_ENV)?;
+    let video_record_worker_addr = video_record_worker_addr()?;
+    let video_record_worker_token = worker_token_for_env(VIDEO_RECORD_WORKER_TOKEN_ENV)?;
+    let manga_record_worker_addr = manga_record_worker_addr()?;
+    let manga_record_worker_token = worker_token_for_env(MANGA_RECORD_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -423,6 +449,8 @@ fn main() -> anyhow::Result<()> {
     let workflow_read_worker_binary = workflow_read_worker_binary()?;
     let config_read_worker_binary = config_read_worker_binary()?;
     let character_mutation_worker_binary = character_mutation_worker_binary()?;
+    let video_record_worker_binary = video_record_worker_binary()?;
+    let manga_record_worker_binary = manga_record_worker_binary()?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -742,6 +770,10 @@ fn main() -> anyhow::Result<()> {
         &config_read_worker_token,
         character_mutation_worker_addr,
         &character_mutation_worker_token,
+        video_record_worker_addr,
+        &video_record_worker_token,
+        manga_record_worker_addr,
+        &manga_record_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -1435,6 +1467,57 @@ fn main() -> anyhow::Result<()> {
     }
     let mut character_mutation_worker_fingerprint =
         binary_fingerprint(&character_mutation_worker_binary)?;
+    let mut video_record_worker = match spawn_video_record_worker(
+        &video_record_worker_binary,
+        video_record_worker_addr,
+        &video_record_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_character_mutation_worker(&mut character_mutation_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
+            let _ = stop_workflow_read_worker(&mut workflow_read_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_video_record_worker(
+        &mut video_record_worker,
+        video_record_worker_addr,
+        &video_record_worker_token,
+    ) {
+        let _ = stop_video_record_worker(&mut video_record_worker);
+        let _ = stop_character_mutation_worker(&mut character_mutation_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
+        let _ = stop_workflow_read_worker(&mut workflow_read_worker);
+        return Err(error);
+    }
+    let mut video_record_worker_fingerprint = binary_fingerprint(&video_record_worker_binary)?;
+    let mut manga_record_worker = match spawn_manga_record_worker(
+        &manga_record_worker_binary,
+        manga_record_worker_addr,
+        &manga_record_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_video_record_worker(&mut video_record_worker);
+            let _ = stop_character_mutation_worker(&mut character_mutation_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_manga_record_worker(
+        &mut manga_record_worker,
+        manga_record_worker_addr,
+        &manga_record_worker_token,
+    ) {
+        let _ = stop_manga_record_worker(&mut manga_record_worker);
+        let _ = stop_video_record_worker(&mut video_record_worker);
+        let _ = stop_character_mutation_worker(&mut character_mutation_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
+        let _ = stop_workflow_read_worker(&mut workflow_read_worker);
+        return Err(error);
+    }
+    let mut manga_record_worker_fingerprint = binary_fingerprint(&manga_record_worker_binary)?;
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
         Ok(child) => child,
         Err(error) => {
@@ -1459,6 +1542,11 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_project_mutation_worker(&mut project_mutation_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_manga_record_worker(&mut manga_record_worker);
+            let _ = stop_video_record_worker(&mut video_record_worker);
+            let _ = stop_character_mutation_worker(&mut character_mutation_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
+            let _ = stop_workflow_read_worker(&mut workflow_read_worker);
             return Err(error);
         }
     };
@@ -1593,6 +1681,16 @@ fn main() -> anyhow::Result<()> {
         &mut character_mutation_worker,
         &character_mutation_worker_binary,
         &mut character_mutation_worker_fingerprint,
+        video_record_worker_addr,
+        &video_record_worker_token,
+        &mut video_record_worker,
+        &video_record_worker_binary,
+        &mut video_record_worker_fingerprint,
+        manga_record_worker_addr,
+        &manga_record_worker_token,
+        &mut manga_record_worker,
+        &manga_record_worker_binary,
+        &mut manga_record_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -1629,6 +1727,8 @@ fn main() -> anyhow::Result<()> {
     let config_read_worker_result = stop_config_read_worker(&mut config_read_worker);
     let character_mutation_worker_result =
         stop_character_mutation_worker(&mut character_mutation_worker);
+    let video_record_worker_result = stop_video_record_worker(&mut video_record_worker);
+    let manga_record_worker_result = stop_manga_record_worker(&mut manga_record_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -1657,6 +1757,8 @@ fn main() -> anyhow::Result<()> {
         workflow_read_worker_result,
         config_read_worker_result,
         character_mutation_worker_result,
+        video_record_worker_result,
+        manga_record_worker_result,
     )
 }
 
@@ -1791,6 +1893,16 @@ fn supervise_runtime_children(
     character_mutation_worker: &mut Child,
     character_mutation_worker_binary: &Path,
     character_mutation_worker_fingerprint: &mut BinaryFingerprint,
+    video_record_worker_addr: SocketAddr,
+    video_record_worker_token: &str,
+    video_record_worker: &mut Child,
+    video_record_worker_binary: &Path,
+    video_record_worker_fingerprint: &mut BinaryFingerprint,
+    manga_record_worker_addr: SocketAddr,
+    manga_record_worker_token: &str,
+    manga_record_worker: &mut Child,
+    manga_record_worker_binary: &Path,
+    manga_record_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -1921,6 +2033,16 @@ fn supervise_runtime_children(
                 character_mutation_worker_binary,
                 *character_mutation_worker_fingerprint,
             )),
+            Some((
+                video_record_worker,
+                video_record_worker_binary,
+                *video_record_worker_fingerprint,
+            )),
+            Some((
+                manga_record_worker,
+                manga_record_worker_binary,
+                *manga_record_worker_fingerprint,
+            )),
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -1992,6 +2114,10 @@ fn supervise_runtime_children(
                     config_read_worker_token,
                     character_mutation_worker_addr,
                     character_mutation_worker_token,
+                    video_record_worker_addr,
+                    video_record_worker_token,
+                    manga_record_worker_addr,
+                    manga_record_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -2381,6 +2507,36 @@ fn supervise_runtime_children(
                 *character_mutation_worker_fingerprint =
                     binary_fingerprint(character_mutation_worker_binary)?;
             }
+            ChildWatchEvent::VideoRecordWorkerExited(status) => {
+                eprintln!("A4N Video Record worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *video_record_worker = spawn_video_record_worker(
+                    video_record_worker_binary,
+                    video_record_worker_addr,
+                    video_record_worker_token,
+                )?;
+                wait_for_video_record_worker(
+                    video_record_worker,
+                    video_record_worker_addr,
+                    video_record_worker_token,
+                )?;
+                *video_record_worker_fingerprint = binary_fingerprint(video_record_worker_binary)?;
+            }
+            ChildWatchEvent::MangaRecordWorkerExited(status) => {
+                eprintln!("A4N Manga Record worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *manga_record_worker = spawn_manga_record_worker(
+                    manga_record_worker_binary,
+                    manga_record_worker_addr,
+                    manga_record_worker_token,
+                )?;
+                wait_for_manga_record_worker(
+                    manga_record_worker,
+                    manga_record_worker_addr,
+                    manga_record_worker_token,
+                )?;
+                *manga_record_worker_fingerprint = binary_fingerprint(manga_record_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -2443,6 +2599,10 @@ fn supervise_runtime_children(
                     config_read_worker_token,
                     character_mutation_worker_addr,
                     character_mutation_worker_token,
+                    video_record_worker_addr,
+                    video_record_worker_token,
+                    manga_record_worker_addr,
+                    manga_record_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -2883,6 +3043,38 @@ fn supervise_runtime_children(
                 *character_mutation_worker_fingerprint =
                     binary_fingerprint(character_mutation_worker_binary)?;
             }
+            ChildWatchEvent::VideoRecordWorkerChanged => {
+                eprintln!("检测到 A4N Video Record worker 构建完成；只替换 Video Record worker");
+                stop_video_record_worker(video_record_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *video_record_worker = spawn_video_record_worker(
+                    video_record_worker_binary,
+                    video_record_worker_addr,
+                    video_record_worker_token,
+                )?;
+                wait_for_video_record_worker(
+                    video_record_worker,
+                    video_record_worker_addr,
+                    video_record_worker_token,
+                )?;
+                *video_record_worker_fingerprint = binary_fingerprint(video_record_worker_binary)?;
+            }
+            ChildWatchEvent::MangaRecordWorkerChanged => {
+                eprintln!("检测到 A4N Manga Record worker 构建完成；只替换 Manga Record worker");
+                stop_manga_record_worker(manga_record_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *manga_record_worker = spawn_manga_record_worker(
+                    manga_record_worker_binary,
+                    manga_record_worker_addr,
+                    manga_record_worker_token,
+                )?;
+                wait_for_manga_record_worker(
+                    manga_record_worker,
+                    manga_record_worker_addr,
+                    manga_record_worker_token,
+                )?;
+                *manga_record_worker_fingerprint = binary_fingerprint(manga_record_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -2996,6 +3188,8 @@ fn wait_for_edge_or_child_with_outline(
         None,
         None,
         None,
+        None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -3075,6 +3269,8 @@ fn wait_for_edge_or_child_with_workers(
         None,
         None,
         None,
+        None,
+        None,
         edge_binary,
         edge_fingerprint,
         reload_marker,
@@ -3118,6 +3314,8 @@ fn wait_for_edge_or_child_with_mutation(
     mut workflow_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut config_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut character_mutation_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut video_record_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut manga_record_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -3252,6 +3450,16 @@ fn wait_for_edge_or_child_with_mutation(
             && let Some(status) = character_mutation_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::CharacterMutationWorkerExited(status)));
+        }
+        if let Some((video_record_worker, _, _)) = video_record_worker.as_mut()
+            && let Some(status) = video_record_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::VideoRecordWorkerExited(status)));
+        }
+        if let Some((manga_record_worker, _, _)) = manga_record_worker.as_mut()
+            && let Some(status) = manga_record_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::MangaRecordWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -3419,6 +3627,18 @@ fn wait_for_edge_or_child_with_mutation(
                 != *character_mutation_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::CharacterMutationWorkerChanged));
+        }
+        if let Some((_, video_record_worker_binary, video_record_worker_fingerprint)) =
+            video_record_worker.as_ref()
+            && binary_fingerprint(video_record_worker_binary)? != *video_record_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::VideoRecordWorkerChanged));
+        }
+        if let Some((_, manga_record_worker_binary, manga_record_worker_fingerprint)) =
+            manga_record_worker.as_ref()
+            && binary_fingerprint(manga_record_worker_binary)? != *manga_record_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::MangaRecordWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -4010,6 +4230,44 @@ fn character_mutation_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn video_record_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(VIDEO_RECORD_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            VIDEO_RECORD_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn video_record_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = video_record_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
+fn manga_record_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(MANGA_RECORD_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            MANGA_RECORD_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn manga_record_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = manga_record_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -4069,6 +4327,10 @@ fn spawn_control(
     config_read_worker_token: &str,
     character_mutation_worker_addr: SocketAddr,
     character_mutation_worker_token: &str,
+    video_record_worker_addr: SocketAddr,
+    video_record_worker_token: &str,
+    manga_record_worker_addr: SocketAddr,
+    manga_record_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -4218,6 +4480,16 @@ fn spawn_control(
             CHARACTER_MUTATION_WORKER_TOKEN_ENV,
             character_mutation_worker_token,
         )
+        .env(
+            VIDEO_RECORD_WORKER_URL_ENV,
+            format!("http://{video_record_worker_addr}"),
+        )
+        .env(VIDEO_RECORD_WORKER_TOKEN_ENV, video_record_worker_token)
+        .env(
+            MANGA_RECORD_WORKER_URL_ENV,
+            format!("http://{manga_record_worker_addr}"),
+        )
+        .env(MANGA_RECORD_WORKER_TOKEN_ENV, manga_record_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -4750,6 +5022,54 @@ fn spawn_character_mutation_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Character Mutation worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_video_record_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = video_record_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(VIDEO_RECORD_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(VIDEO_RECORD_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Video Record worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_manga_record_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = manga_record_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(MANGA_RECORD_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(MANGA_RECORD_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Manga Record worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -5347,6 +5667,50 @@ fn wait_for_character_mutation_worker(
     )
 }
 
+fn wait_for_video_record_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = video_record_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(VIDEO_RECORD_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Video Record worker",
+    )
+}
+
+fn wait_for_manga_record_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = manga_record_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(MANGA_RECORD_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Manga Record worker",
+    )
+}
+
 fn wait_for_portrait_worker(
     child: &mut Child,
     address: SocketAddr,
@@ -5678,6 +6042,20 @@ fn character_mutation_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn video_record_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        VIDEO_RECORD_WORKER_BINARY_ENV,
+        &video_record_worker_metadata()?.binary,
+    )
+}
+
+fn manga_record_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        MANGA_RECORD_WORKER_BINARY_ENV,
+        &manga_record_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -5820,6 +6198,14 @@ fn stop_character_mutation_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_video_record_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
+fn stop_manga_record_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_portrait_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -5887,6 +6273,8 @@ fn finish_shutdown(
     workflow_read_worker_result: anyhow::Result<()>,
     config_read_worker_result: anyhow::Result<()>,
     character_mutation_worker_result: anyhow::Result<()>,
+    video_record_worker_result: anyhow::Result<()>,
+    manga_record_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -5929,6 +6317,8 @@ fn finish_shutdown(
             "Character Mutation worker",
             character_mutation_worker_result,
         ),
+        ("Video Record worker", video_record_worker_result),
+        ("Manga Record worker", manga_record_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));

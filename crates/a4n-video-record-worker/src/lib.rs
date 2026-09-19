@@ -1,0 +1,583 @@
+//! PostgreSQL-backed generated-video record read worker.
+
+use std::{collections::HashSet, env, net::SocketAddr, sync::Arc};
+
+use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_api_contract::video::GeneratedVideoSummary;
+use a4n_db::DbHandle;
+use a4n_domain::collaboration::ProjectAccessRole;
+use a4n_video_record_worker_contract::{
+    ChapterVideosInput, ReferenceImagesInput, VIDEO_RECORD_CAPABILITY, VIDEO_RECORD_LIST_OPERATION,
+    VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
+    VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput,
+};
+use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::{
+    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
+    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
+    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind,
+    WorkerResponse,
+};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
+use subtle::ConstantTimeEq;
+
+const WORKER_ADDR_ENV: &str = "A4N_VIDEO_RECORD_WORKER_ADDR";
+const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
+const WORKER_TOKEN_ENV: &str = "A4N_VIDEO_RECORD_WORKER_TOKEN";
+const DEFAULT_ADDR: &str = "127.0.0.1:47675";
+
+#[derive(Clone)]
+pub struct VideoRecordWorker {
+    state: WorkerState,
+}
+
+#[derive(Clone)]
+struct WorkerState {
+    database: DbHandle,
+    worker_id: Arc<str>,
+    auth_token: Arc<str>,
+}
+
+#[derive(Debug)]
+struct WorkerFailure {
+    code: WorkerErrorCode,
+    message: String,
+    retryable: bool,
+}
+
+impl VideoRecordWorker {
+    pub fn new(
+        database: DatabaseConnection,
+        worker_id: impl Into<String>,
+        auth_token: impl Into<String>,
+    ) -> Self {
+        Self {
+            state: WorkerState {
+                database: DbHandle::new(Arc::new(database)),
+                worker_id: Arc::<str>::from(worker_id.into()),
+                auth_token: Arc::<str>::from(auth_token.into()),
+            },
+        }
+    }
+
+    pub fn router(&self) -> Router {
+        Router::new()
+            .route(WORKER_HEALTH_PATH, get(health))
+            .route(WORKER_CAPABILITIES_PATH, get(capabilities))
+            .route("/v1/commands/video.record.playback", post(playback_source))
+            .route(
+                "/v1/commands/video.record.list_by_chapter",
+                post(list_by_chapter),
+            )
+            .route(
+                "/v1/commands/video.record.reference_images",
+                post(validated_reference_images),
+            )
+            .with_state(self.state.clone())
+    }
+
+    pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
+        let listener = tokio::net::TcpListener::bind(address).await?;
+        axum::serve(listener, self.router())
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .map_err(anyhow::Error::from)
+    }
+}
+
+pub fn run() -> anyhow::Result<()> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> anyhow::Result<()> {
+    init_tracing();
+    let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
+    a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
+    let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
+    let address = worker_addr()?;
+    let mut options = ConnectOptions::new(database_url);
+    options
+        .max_connections(8)
+        .min_connections(1)
+        .connect_timeout(std::time::Duration::from_secs(5));
+    let database = Database::connect(options).await?;
+    VideoRecordWorker::new(database, VIDEO_RECORD_WORKER_ID, auth_token)
+        .serve(address)
+        .await
+}
+
+fn worker_addr() -> anyhow::Result<SocketAddr> {
+    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
+    let address: SocketAddr = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
+    if !address.ip().is_loopback() || address.port() == 0 {
+        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
+    }
+    Ok(address)
+}
+
+async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let status = match state
+        .database
+        .connection()
+        .execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT 1",
+        ))
+        .await
+    {
+        Ok(_) => WorkerHealthStatus::Healthy,
+        Err(_) => WorkerHealthStatus::Degraded,
+    };
+    Json(WorkerHealth {
+        schema_version: WORKER_SCHEMA_VERSION,
+        worker_id: state.worker_id.to_string(),
+        status,
+        version: env!("CARGO_PKG_VERSION").into(),
+    })
+    .into_response()
+}
+
+async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    Json(WorkerCapabilities {
+        schema_version: WORKER_SCHEMA_VERSION,
+        worker_id: state.worker_id.to_string(),
+        capabilities: vec![WorkerCapability {
+            name: VIDEO_RECORD_CAPABILITY.into(),
+            version: VIDEO_RECORD_WORKER_CONTRACT_VERSION.into(),
+            enabled: true,
+        }],
+    })
+    .into_response()
+}
+
+async fn playback_source(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<VideoIdInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.playback_source(request)
+    })
+    .await
+}
+
+async fn list_by_chapter(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ChapterVideosInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.list_by_chapter(request)
+    })
+    .await
+}
+
+async fn validated_reference_images(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ReferenceImagesInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.validated_reference_images(request)
+    })
+    .await
+}
+
+async fn command_response<T, O, F, Fut>(
+    state: &WorkerState,
+    headers: &HeaderMap,
+    request: WorkerEnvelope<T>,
+    command: F,
+) -> Response
+where
+    T: serde::Serialize + Clone,
+    O: serde::Serialize,
+    F: FnOnce(WorkerEnvelope<T>) -> Fut,
+    Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
+{
+    if !state.authorized(headers) {
+        return unauthorized();
+    }
+    let response = match command(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+impl WorkerState {
+    async fn playback_source(
+        &self,
+        request: WorkerEnvelope<VideoIdInput>,
+    ) -> Result<GeneratedVideoSummary, WorkerFailure> {
+        validate_request(&request, VIDEO_RECORD_PLAYBACK_OPERATION)?;
+        let video_id = positive(request.payload.video_id, "video_id")?;
+        let video = a4n_db::video::generated_video_by_id(self.database.connection(), video_id)
+            .await
+            .map_err(database_error)?
+            .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        verify_project_permission(
+            &self.database,
+            video.project_id,
+            user_id(&request)?,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        Ok(video_summary(&video))
+    }
+
+    async fn list_by_chapter(
+        &self,
+        request: WorkerEnvelope<ChapterVideosInput>,
+    ) -> Result<Vec<GeneratedVideoSummary>, WorkerFailure> {
+        validate_request(&request, VIDEO_RECORD_LIST_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        positive(input.project_id, "project_id")?;
+        positive(input.chapter_id, "chapter_id")?;
+        verify_project_permission(
+            &self.database,
+            input.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        a4n_db::video::ensure_video_chapter_belongs_to_project_record(
+            self.database.connection(),
+            input.project_id,
+            input.chapter_id,
+        )
+        .await
+        .map_err(video_error)?;
+        a4n_db::video::generated_videos_for_chapter(
+            self.database.connection(),
+            input.project_id,
+            input.chapter_id,
+        )
+        .await
+        .map_err(database_error)
+        .map(|videos| videos.iter().map(video_summary).collect())
+    }
+
+    async fn validated_reference_images(
+        &self,
+        request: WorkerEnvelope<ReferenceImagesInput>,
+    ) -> Result<Vec<GeneratedImageSummary>, WorkerFailure> {
+        validate_request(&request, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        positive(input.project_id, "project_id")?;
+        positive(input.chapter_id, "chapter_id")?;
+        verify_project_permission(
+            &self.database,
+            input.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let images = a4n_db::video::validated_video_reference_image_records(
+            self.database.connection(),
+            input.project_id,
+            input.chapter_id,
+            input.reference_image_ids_json.as_ref(),
+        )
+        .await
+        .map_err(video_error)?;
+        let project_ids = images
+            .iter()
+            .map(|image| image.project_id)
+            .collect::<HashSet<_>>();
+        for project_id in project_ids {
+            verify_project_permission(
+                &self.database,
+                project_id,
+                user_id,
+                ProjectAccessRole::Editor,
+            )
+            .await?;
+        }
+        Ok(images.iter().map(image_summary).collect())
+    }
+
+    fn authorized(&self, headers: &HeaderMap) -> bool {
+        headers
+            .get(WORKER_AUTH_HEADER)
+            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+    }
+}
+
+fn video_summary(
+    video: &a4n_db_models::models::ai::generated_video::Model,
+) -> GeneratedVideoSummary {
+    GeneratedVideoSummary {
+        id: video.id,
+        project_id: video.project_id,
+        chapter_id: video.chapter_id,
+        video_type: video.video_type.clone(),
+        workflow_mode: video.workflow_mode.clone(),
+        file_path: video.file_path.clone(),
+        thumbnail_path: video.thumbnail_path.clone(),
+        prompt: video.prompt.clone(),
+        negative_prompt: video.negative_prompt.clone(),
+        model: video.model.clone(),
+        width: video.width,
+        height: video.height,
+        duration_secs: video.duration_secs,
+        fps: video.fps,
+        file_size: video.file_size,
+        source_video_id: video.source_video_id,
+        source_image_id: video.source_image_id,
+        status: video.status.clone(),
+        provider_job_id: video.provider_job_id.clone(),
+        error_message: video.error_message.clone(),
+        metadata_json: video.metadata_json.clone(),
+        timeline_item_id: video.timeline_item_id,
+        is_favorite: video.is_favorite,
+        created_at: video.created_at.to_string(),
+        updated_at: video.updated_at.to_string(),
+    }
+}
+
+fn image_summary(
+    image: &a4n_db_models::models::ai::generated_image::Model,
+) -> GeneratedImageSummary {
+    GeneratedImageSummary {
+        id: image.id,
+        project_id: image.project_id,
+        image_type: image.image_type.clone(),
+        file_path: image.file_path.clone(),
+        prompt: image.prompt.clone(),
+        model: image.model.clone(),
+        width: image.width,
+        height: image.height,
+        file_size: image.file_size,
+        ai_score: image.ai_score,
+        is_favorite: image.is_favorite,
+        is_system_managed: a4n_domain::image::is_system_managed_image_type(&image.image_type),
+        chapter_id: image.chapter_id,
+        panel_id: image.panel_id.clone(),
+        metadata_json: image.metadata_json.clone(),
+        created_at: image.created_at.to_string(),
+    }
+}
+
+async fn verify_project_permission(
+    database: &DbHandle,
+    project_id: i64,
+    user_id: i64,
+    role: ProjectAccessRole,
+) -> Result<(), WorkerFailure> {
+    a4n_db::collaboration::verify_project_permission(
+        database.connection(),
+        project_id,
+        user_id,
+        role,
+    )
+    .await
+    .map(|_| ())
+    .map_err(collaboration_error)
+}
+
+fn validate_request<T: serde::Serialize>(
+    request: &WorkerEnvelope<T>,
+    operation: &str,
+) -> Result<(), WorkerFailure> {
+    request
+        .validate()
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+    if request.operation_id != operation {
+        return Err(WorkerFailure::invalid_request(format!(
+            "operation_id 不匹配: expected={operation}, actual={}",
+            request.operation_id
+        )));
+    }
+    if request.lease.worker_id != VIDEO_RECORD_WORKER_ID {
+        return Err(WorkerFailure::invalid_request(
+            "lease.worker_id 不属于 video record worker",
+        ));
+    }
+    Ok(())
+}
+
+fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
+    if request.principal.kind != WorkerPrincipalKind::User {
+        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
+    }
+    request
+        .principal
+        .subject
+        .parse::<i64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+}
+
+fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {
+    if value > 0 {
+        Ok(value)
+    } else {
+        Err(WorkerFailure::invalid_request(format!(
+            "{field} 必须大于 0"
+        )))
+    }
+}
+
+fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
+    WorkerFailure::unavailable(error.to_string())
+}
+
+fn video_error(error: a4n_db::video::VideoDbError) -> WorkerFailure {
+    match error {
+        a4n_db::video::VideoDbError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::video::VideoDbError::NotFound(message) => WorkerFailure::not_found(message),
+        a4n_db::video::VideoDbError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        a4n_db::video::VideoDbError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
+        a4n_db::video::VideoDbError::Database(error) => database_error(error),
+    }
+}
+
+fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
+    match error {
+        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
+            WorkerFailure::unauthorized(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
+        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
+            WorkerFailure::conflict(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::Database(error) => database_error(error),
+    }
+}
+
+fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: request.request_id.clone(),
+        trace_id: request.trace_id.clone(),
+        operation: WorkerOperationRef {
+            operation_id: request.operation_id.clone(),
+            task_id: None,
+        },
+        status: WorkerOperationStatus::Completed,
+        payload: Some(payload),
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error: None,
+    }
+}
+
+fn failed<T>(
+    request: &WorkerEnvelope<impl serde::Serialize>,
+    failure: WorkerFailure,
+) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: request.request_id.clone(),
+        trace_id: request.trace_id.clone(),
+        operation: WorkerOperationRef {
+            operation_id: request.operation_id.clone(),
+            task_id: None,
+        },
+        status: WorkerOperationStatus::Failed,
+        payload: None,
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error: Some(WorkerError {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+        }),
+    }
+}
+
+fn unauthorized() -> Response {
+    StatusCode::UNAUTHORIZED.into_response()
+}
+
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
+
+fn init_tracing() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .try_init();
+}
+
+impl WorkerFailure {
+    fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::InvalidRequest,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Unauthorized,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::NotFound,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Conflict,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Unavailable,
+            message: message.into(),
+            retryable: true,
+        }
+    }
+}

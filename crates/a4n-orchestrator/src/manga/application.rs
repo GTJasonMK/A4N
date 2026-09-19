@@ -140,18 +140,6 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn list_manga_page_prompts_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
-        self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.manga_page_prompts_by_chapter(project_id, chapter_id)
-            .await
-    }
-
     pub async fn bind_manga_reference_image_validated(
         &self,
         user_id: i64,
@@ -668,22 +656,6 @@ impl a4n_api_contract::manga::MangaPipelineCancellationApplicationPort for Orche
     ) -> Result<i64, AppError> {
         self.cancel_manga_pipeline_validated(user_id, project_id, chapter_id)
             .await
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::manga::MangaRecordReadApplicationPort for OrchestratorContext {
-    async fn list_page_prompts(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<MangaPagePromptSummary>, AppError> {
-        self.list_manga_page_prompts_validated(user_id, project_id, chapter_id)
-            .await?
-            .iter()
-            .map(|prompt| manga_page_prompt_summary(prompt).map_err(AppError::InvalidArgument))
-            .collect()
     }
 }
 

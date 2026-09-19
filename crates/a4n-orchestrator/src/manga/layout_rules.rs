@@ -6,25 +6,7 @@ use a4n_domain::{
     manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV2},
 };
 
-pub(crate) fn manga_page_generation_layout(
-    prompt: &chapter_manga_prompt::Model,
-) -> Result<MangaPageGenerationLayoutV2, String> {
-    let layout: MangaPageGenerationLayoutV2 = serde_json::from_value(
-        prompt
-            .layout
-            .clone()
-            .ok_or_else(|| format!("漫画页面提示词 #{} 缺少 v2 layout", prompt.id))?,
-    )
-    .map_err(|error| format!("漫画页面提示词 #{} 的 v2 layout 无效: {error}", prompt.id))?;
-    let page_number = u32::try_from(prompt.page_number)
-        .ok()
-        .filter(|page_number| *page_number > 0)
-        .ok_or_else(|| format!("漫画页面提示词 #{} 的 page_number 必须大于 0", prompt.id))?;
-    layout
-        .validate(page_number)
-        .map_err(|error| format!("漫画页面提示词 #{} 的 v2 layout 无效: {error}", prompt.id))?;
-    Ok(layout)
-}
+pub(crate) use a4n_manga_core::manga_page_generation_layout;
 
 /// 将参考素材绑定进整页漫画 layout 的指定角色。
 pub(crate) fn bind_reference_asset_in_layout(
