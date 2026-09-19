@@ -937,6 +937,14 @@ impl a4n_api_contract::character::CharacterTimelineReadApplicationPort for Orche
     ) -> Result<ProfileSyncConflictSummary, AppError> {
         CharacterProfileReadApplicationPort::sync_conflict(self, user_id, input).await
     }
+
+    async fn diff_chapters(
+        &self,
+        user_id: i64,
+        input: DiffProfileChaptersInput,
+    ) -> Result<SnapshotDeltaSummary, AppError> {
+        CharacterProfileReadApplicationPort::diff_chapters(self, user_id, input).await
+    }
 }
 
 #[async_trait::async_trait]

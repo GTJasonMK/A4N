@@ -169,7 +169,6 @@ pub async fn initialize_runtime(
         workflow_cancellation_application: orchestrator.clone(),
         object_profile_read_application: object_profile_worker,
         scene_profile_read_application: scene_profile_worker,
-        character_profile_read_application: orchestrator.clone(),
         character_profile_overview_read_application: character_mutation_worker.clone(),
         character_timeline_read_application: character_mutation_worker.clone(),
         character_profile_mutation_application: character_mutation_worker.clone(),

@@ -720,7 +720,7 @@ mod tests {
             .expect("character mutation worker entry");
         assert_eq!(character_mutation.kind, ProcessKind::StatefulWorker);
         assert_eq!(character_mutation.binary, "a4n-character-mutation-worker");
-        assert_eq!(character_mutation.contract_version, "character-mutation-v6");
+        assert_eq!(character_mutation.contract_version, "character-mutation-v7");
         assert_eq!(
             character_mutation.addr_env,
             "A4N_CHARACTER_MUTATION_WORKER_ADDR"

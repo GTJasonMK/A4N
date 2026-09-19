@@ -6,11 +6,11 @@ use a4n_api_contract::character::{
     AddProfileAttributeInput, AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput,
     BehaviorRecordSummary, CharacterProfileCreateResult, CharacterProfileDeleteResult,
     CharacterProfileMutationResult, CharacterProfileSummary, CheckProfileSyncConflictInput,
-    DeletionMarkSummary, ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput,
-    GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
-    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
-    RequestAttributeDeletionInput, ResetDeletionMarksInput, SnapshotReferenceSummary,
-    SnapshotSummary,
+    DeletionMarkSummary, DiffProfileChaptersInput, ExecuteAttributeDeletionInput,
+    GetProfileStateAtChapterInput, GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput,
+    ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput, SnapshotDeltaSummary,
+    SnapshotReferenceSummary, SnapshotSummary,
 };
 use a4n_character_mutation_worker_contract::{
     AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
@@ -23,11 +23,12 @@ use a4n_character_mutation_worker_contract::{
     CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
     CHARACTER_OVERVIEW_VOICE_OPERATION, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
     CHARACTER_TIMELINE_BEHAVIOR_OPERATION, CHARACTER_TIMELINE_CAPABILITY,
-    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_ROLLBACK_OPERATION,
-    CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
-    CHARACTER_TIMELINE_STATE_OPERATION, CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION,
-    CharacterTimelineRollbackMutationResult, CreateInput, NamedProfileInput, ProfileIdInput,
-    ProfileSyncConflictSummary, RollbackToChapterInput, UpdateInput,
+    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_DIFF_OPERATION,
+    CHARACTER_TIMELINE_ROLLBACK_OPERATION, CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION,
+    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION,
+    CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION, CharacterTimelineRollbackMutationResult,
+    CreateInput, NamedProfileInput, ProfileIdInput, ProfileSyncConflictSummary,
+    RollbackToChapterInput, UpdateInput,
 };
 use a4n_db::DbHandle;
 use a4n_domain::character::{
@@ -142,6 +143,7 @@ impl CharacterMutationWorker {
                 "/v1/commands/character.timeline.sync_conflict",
                 post(sync_conflict),
             )
+            .route("/v1/commands/character.timeline.diff", post(diff_timeline))
             .route("/v1/commands/character.attribute.add", post(add_attribute))
             .route(
                 "/v1/commands/character.attribute.modify",
@@ -414,6 +416,17 @@ async fn sync_conflict(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.sync_conflict(request)
+    })
+    .await
+}
+
+async fn diff_timeline(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<DiffProfileChaptersInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.diff_timeline(request)
     })
     .await
 }
@@ -824,6 +837,75 @@ impl WorkerState {
                 .map(|snapshot| snapshot.chapter_number)
                 .collect(),
         })
+    }
+
+    async fn diff_timeline(
+        &self,
+        request: WorkerEnvelope<DiffProfileChaptersInput>,
+    ) -> Result<SnapshotDeltaSummary, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_DIFF_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        if input.from_chapter < 0 {
+            return Err(WorkerFailure::invalid_request("起始章节号不能小于 0"));
+        }
+        if input.to_chapter <= 0 {
+            return Err(WorkerFailure::invalid_request("目标章节号必须大于 0"));
+        }
+        if input.from_chapter > input.to_chapter {
+            return Err(WorkerFailure::invalid_request(
+                "起始章节号不能大于目标章节号",
+            ));
+        }
+        let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let to_ref = a4n_db::character::snapshot_reference_by_chapter(
+            self.database.connection(),
+            profile.id,
+            input.to_chapter,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .ok_or_else(|| {
+            WorkerFailure::not_found(format!("第 {} 章没有角色快照", input.to_chapter))
+        })?;
+        let from_ref = if input.from_chapter == 0 {
+            None
+        } else {
+            a4n_db::character::snapshot_reference_by_chapter(
+                self.database.connection(),
+                profile.id,
+                input.from_chapter,
+            )
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        };
+        let store = a4n_db::character::Sha256SnapshotStore::new(self.database.shared_connection());
+        let to_snapshot = store
+            .load_snapshot(&to_ref.snapshot_hash)
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .ok_or_else(|| {
+                WorkerFailure::not_found(format!("快照不存在: {}", to_ref.snapshot_hash))
+            })?;
+        let from_data = match from_ref {
+            Some(from_ref) => {
+                store
+                    .load_snapshot(&from_ref.snapshot_hash)
+                    .await
+                    .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+                    .ok_or_else(|| {
+                        WorkerFailure::not_found(format!("快照不存在: {}", from_ref.snapshot_hash))
+                    })?
+                    .data
+            }
+            None => a4n_domain::character::initial_snapshot_data(),
+        };
+        let delta = a4n_db::character::Sha256SnapshotStore::diff_snapshot_data(
+            &from_data,
+            &to_snapshot.data,
+        )
+        .map_err(|error| WorkerFailure::conflict(error.to_string()))?;
+        Ok(SnapshotDeltaSummary { delta })
     }
 
     async fn add_attribute(

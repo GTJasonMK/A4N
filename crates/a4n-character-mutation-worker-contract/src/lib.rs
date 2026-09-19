@@ -5,17 +5,18 @@ pub use a4n_api_contract::character::{
     CharacterProfileDeleteResult, CharacterProfileMutationResult,
     CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
     CharacterTimelineReadApplicationPort, CheckProfileSyncConflictInput, CreateProfileInput,
-    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, GetSnapshotInput,
-    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
-    ModifyProfileAttributeInput, ProfileSyncConflictSummary, RequestAttributeDeletionInput,
-    ResetDeletionMarksInput, RollbackToChapterInput, SnapshotSummary, UpdateCharacterProfileInput,
+    DiffProfileChaptersInput, ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput,
+    GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
+    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileSyncConflictSummary,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackToChapterInput,
+    SnapshotDeltaSummary, SnapshotSummary, UpdateCharacterProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const CHARACTER_MUTATION_WORKER_ID: &str = "character-mutation-worker";
-pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v6";
+pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v7";
 pub const CHARACTER_MUTATION_CREATE_OPERATION: &str = "character.mutation.create";
 pub const CHARACTER_MUTATION_UPDATE_OPERATION: &str = "character.mutation.update";
 pub const CHARACTER_MUTATION_DELETE_OPERATION: &str = "character.mutation.delete";
@@ -34,6 +35,7 @@ pub const CHARACTER_TIMELINE_ROLLBACK_OPERATION: &str = "character.timeline.roll
 pub const CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION: &str =
     "character.timeline.snapshot_by_hash";
 pub const CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION: &str = "character.timeline.sync_conflict";
+pub const CHARACTER_TIMELINE_DIFF_OPERATION: &str = "character.timeline.diff";
 pub const CHARACTER_TIMELINE_CAPABILITY: &str = "character.timeline.read";
 pub const CHARACTER_ATTRIBUTE_ADD_OPERATION: &str = "character.attribute.add";
 pub const CHARACTER_ATTRIBUTE_MODIFY_OPERATION: &str = "character.attribute.modify";

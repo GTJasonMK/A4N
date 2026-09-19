@@ -154,9 +154,6 @@ pub struct ApplicationPorts {
     /// Host-facing scene profile read boundary.
     pub scene_profile_read_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileReadApplicationPort>,
-    /// Host-facing character profile read boundary.
-    pub character_profile_read_application:
-        Arc<dyn a4n_api_contract::character::CharacterProfileReadApplicationPort>,
     /// Narrow character overview reads are independently replaceable from
     /// timeline/history projections.
     pub character_profile_overview_read_application:

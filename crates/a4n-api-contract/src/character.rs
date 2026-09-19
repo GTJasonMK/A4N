@@ -284,6 +284,12 @@ pub trait CharacterTimelineReadApplicationPort: Send + Sync {
         user_id: i64,
         input: CheckProfileSyncConflictInput,
     ) -> Result<ProfileSyncConflictSummary, a4n_error::AppError>;
+
+    async fn diff_chapters(
+        &self,
+        user_id: i64,
+        input: DiffProfileChaptersInput,
+    ) -> Result<SnapshotDeltaSummary, a4n_error::AppError>;
 }
 
 /// Host-facing mutation boundary for initial character profiles.
@@ -830,7 +836,7 @@ pub struct DiffProfileChaptersInput {
     pub to_chapter: i32,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SnapshotDeltaSummary {
     pub delta: Value,
 }

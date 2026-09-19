@@ -949,12 +949,6 @@ impl AppState {
         self.scene_profile_read_application.as_ref()
     }
 
-    pub(crate) fn character_profile_read_application(
-        &self,
-    ) -> &dyn a4n_api_contract::character::CharacterProfileReadApplicationPort {
-        self.character_profile_read_application.as_ref()
-    }
-
     pub(crate) fn character_profile_overview_read_application(
         &self,
     ) -> &dyn a4n_api_contract::character::CharacterProfileOverviewReadApplicationPort {

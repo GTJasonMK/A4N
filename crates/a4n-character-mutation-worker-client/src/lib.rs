@@ -10,11 +10,12 @@ use a4n_api_contract::character::{
     CharacterProfileSummary, CharacterProfileTimelineMutationApplicationPort,
     CharacterProfileTimelineMutationHostPort, CharacterTimelineReadApplicationPort,
     CheckProfileSyncConflictInput, CreateProfileInput, DeletionMarkSummary,
-    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, GetSnapshotInput,
-    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
-    ModifyProfileAttributeInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,
-    RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackResultSummary,
-    RollbackToChapterInput, SnapshotReferenceSummary, SnapshotSummary, UpdateCharacterProfileInput,
+    DiffProfileChaptersInput, ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput,
+    GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
+    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
+    ProfileSyncConflictSummary, RequestAttributeDeletionInput, ResetDeletionMarksInput,
+    RollbackResultSummary, RollbackToChapterInput, SnapshotDeltaSummary, SnapshotReferenceSummary,
+    SnapshotSummary, UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
     AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
@@ -25,11 +26,11 @@ use a4n_character_mutation_worker_contract::{
     CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_LIST_OPERATION,
     CHARACTER_OVERVIEW_PROJECT_OPERATION, CHARACTER_OVERVIEW_VOICE_OPERATION,
     CHARACTER_TIMELINE_ATTRIBUTE_OPERATION, CHARACTER_TIMELINE_BEHAVIOR_OPERATION,
-    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_ROLLBACK_OPERATION,
-    CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
-    CHARACTER_TIMELINE_STATE_OPERATION, CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION,
-    CharacterTimelineRollbackMutationResult, CreateInput, NamedProfileInput, ProfileIdInput,
-    UpdateInput,
+    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_DIFF_OPERATION,
+    CHARACTER_TIMELINE_ROLLBACK_OPERATION, CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION,
+    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION,
+    CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION, CharacterTimelineRollbackMutationResult,
+    CreateInput, NamedProfileInput, ProfileIdInput, UpdateInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -350,6 +351,20 @@ impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
             user_id,
             input.profile_id,
             CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn diff_chapters(
+        &self,
+        user_id: i64,
+        input: DiffProfileChaptersInput,
+    ) -> Result<SnapshotDeltaSummary, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_DIFF_OPERATION,
             input,
         )
         .await
