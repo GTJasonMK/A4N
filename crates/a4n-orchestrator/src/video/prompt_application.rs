@@ -18,7 +18,6 @@ use a4n_video_contract::{
     VideoShootingScriptIdentityV1, resolve_video_segment_number,
     video_segment_recipes_for_plan_from_metadata,
 };
-use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -190,7 +189,10 @@ impl OrchestratorContext {
         let rows = self
             .finalize_workflow_result(prepared.workflow_run_id, result, "视频提示词生成")
             .await?;
-        Ok(rows.iter().map(prompt_to_summary).collect())
+        Ok(rows
+            .iter()
+            .map(a4n_video::chapter_video_prompt_summary)
+            .collect())
     }
 
     async fn prepare_video_prompt_generation(
@@ -442,7 +444,7 @@ impl OrchestratorContext {
             .chapter_video_prompts_for_chapter(project_id, chapter_id)
             .await?
             .iter()
-            .map(prompt_to_summary)
+            .map(a4n_video::chapter_video_prompt_summary)
             .collect())
     }
 
@@ -644,7 +646,7 @@ impl OrchestratorContext {
                 plan.allow_downstream,
             )
             .await?;
-        Ok(prompt_to_summary(&row))
+        Ok(a4n_video::chapter_video_prompt_summary(&row))
     }
 
     pub async fn update_chapter_video_segment_plan_validated(
@@ -777,7 +779,7 @@ impl OrchestratorContext {
         let row = self
             .update_chapter_video_segment_plan_metadata(prompt_id, expected_updated_at, metadata)
             .await?;
-        Ok(prompt_to_summary(&row))
+        Ok(a4n_video::chapter_video_prompt_summary(&row))
     }
 
     fn validate_segment_plan_edit_timestamp(
@@ -1016,7 +1018,7 @@ impl OrchestratorContext {
             cleanup,
         )
         .await
-        .map(|row| prompt_to_summary(&row))
+        .map(|row| a4n_video::chapter_video_prompt_summary(&row))
     }
 
     async fn prepare_mutation_plan(
@@ -1393,56 +1395,6 @@ fn mutation_plan_from_dependencies(
             allow_downstream: false,
             delete_dependencies: Some(dependencies),
         }),
-    }
-}
-
-#[async_trait]
-impl a4n_api_contract::video::VideoPromptReadApplicationPort for OrchestratorContext {
-    async fn list_chapter(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
-        self.list_chapter_video_prompts_validated(user_id, project_id, chapter_id)
-            .await
-    }
-
-    async fn validate_project_chapter_source(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        operation: &str,
-        writable: bool,
-    ) -> Result<(), AppError> {
-        self.project_chapter_video_source(project_id, chapter_id, operation, writable)
-            .await
-            .map(|_| ())
-    }
-}
-
-fn prompt_to_summary(prompt: &chapter_video_prompt::Model) -> ChapterVideoPromptSummary {
-    ChapterVideoPromptSummary {
-        id: prompt.id,
-        project_id: prompt.project_id,
-        chapter_id: prompt.chapter_id,
-        style: prompt.style.clone(),
-        prompt_type: prompt.prompt_type.clone(),
-        workflow_mode: prompt.workflow_mode.clone(),
-        shot_number: prompt.shot_number,
-        title: prompt.title.clone(),
-        scene_summary: prompt.scene_summary.clone(),
-        visual_prompt: prompt.visual_prompt.clone(),
-        motion_prompt: prompt.motion_prompt.clone(),
-        negative_prompt: prompt.negative_prompt.clone(),
-        duration_secs: prompt.duration_secs,
-        aspect_ratio: prompt.aspect_ratio.clone(),
-        reference_image_ids_json: prompt.reference_image_ids_json.clone(),
-        status: prompt.status.clone(),
-        generated_video_id: prompt.generated_video_id,
-        metadata_json: prompt.metadata_json.clone(),
-        created_at: prompt.created_at.to_string(),
-        updated_at: prompt.updated_at.to_string(),
     }
 }
 
