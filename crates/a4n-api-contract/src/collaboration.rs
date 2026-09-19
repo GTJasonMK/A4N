@@ -19,7 +19,7 @@ pub struct UpdateProjectMemberRoleInput {
     pub role: ProjectMemberRole,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct ProjectCollaborationRootSummary {
     pub id: i64,
     pub user_id: i64,
