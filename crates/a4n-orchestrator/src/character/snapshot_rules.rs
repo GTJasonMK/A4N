@@ -1,26 +1,9 @@
 //! 角色快照查询输入门禁（无 DB）。
 
+pub use a4n_domain::character::initial_snapshot_data;
 use a4n_error::AppError;
-use serde_json::json;
 
 pub const CHARACTER_SNAPSHOT_ENTITY_TYPE: &str = "character_profile";
-
-pub fn initial_snapshot_data() -> serde_json::Value {
-    json!({
-        "synced_chapter": 0,
-        "state_summary": "初始空状态",
-        "changes_in_chapter": 0,
-        "behaviors_in_chapter": 0,
-        "attributes": {
-            "explicit_attributes": {},
-            "implicit_attributes": {},
-            "social_attributes": {},
-        },
-        "explicit_attributes": {},
-        "implicit_attributes": {},
-        "social_attributes": {},
-    })
-}
 
 /// 快照列表的可选章节范围。
 pub fn validate_snapshot_range(

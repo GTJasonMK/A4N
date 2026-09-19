@@ -6,6 +6,23 @@ use serde_json::{Map, Value, json};
 
 pub const CHARACTER_DELETION_THRESHOLD: i32 = 5;
 
+pub fn initial_snapshot_data() -> Value {
+    json!({
+        "synced_chapter": 0,
+        "state_summary": "初始空状态",
+        "changes_in_chapter": 0,
+        "behaviors_in_chapter": 0,
+        "attributes": {
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {},
+        },
+        "explicit_attributes": {},
+        "implicit_attributes": {},
+        "social_attributes": {},
+    })
+}
+
 pub fn category_storage_key(category: &str) -> &'static str {
     match category {
         "explicit" => "explicit_attributes",
