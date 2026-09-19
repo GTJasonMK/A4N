@@ -566,10 +566,14 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-config",
+ "a4n-db",
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
+ "a4n-llm-config",
  "a4n-provider-contract",
+ "a4n-video",
+ "serde",
  "serde_json",
 ]
 
@@ -592,6 +596,7 @@ dependencies = [
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",
+ "chrono",
  "sea-orm",
  "serde",
  "serde_json",

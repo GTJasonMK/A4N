@@ -3,9 +3,10 @@
 use a4n_api_contract::config::{
     ConfigMutationApplicationPort, ConfigProviderKind, ConfigReadApplicationPort,
     CreateEmbeddingInput, CreateLlmInput, EmbeddingConfigSummary, ImageConfigForConnectivityTest,
-    ImageConfigInput, ImageConfigSummary, LlmConfigSummary, UpdateEmbeddingInput,
-    UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput, VideoConfigInput,
-    VideoConfigSummary,
+    ImageConfigInput, ImageConfigSummary, ImportAllConfigsInput, LlmConfigSummary,
+    SettingsAllHostPort, SettingsExportApplicationPort, SettingsImportApplicationPort,
+    UpdateEmbeddingInput, UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput,
+    VideoConfigInput, VideoConfigSummary,
 };
 use a4n_config_read_worker_contract::{
     CONFIG_MUTATION_BASELINE_EMBEDDING_OPERATION, CONFIG_MUTATION_BASELINE_IMAGE_OPERATION,
@@ -23,9 +24,11 @@ use a4n_config_read_worker_contract::{
     CONFIG_READ_IMAGE_LIST_OPERATION, CONFIG_READ_LLM_CONNECTIVITY_OPERATION,
     CONFIG_READ_LLM_EXISTS_OPERATION, CONFIG_READ_LLM_LIST_OPERATION,
     CONFIG_READ_SAVED_API_KEY_OPERATION, CONFIG_READ_VIDEO_EXISTS_OPERATION,
-    CONFIG_READ_VIDEO_LIST_OPERATION, CONFIG_READ_WORKER_ID, ConfigIdInput, ConfigProviderKindWire,
-    CreateEmbeddingCommand, CreateImageCommand, CreateLlmCommand, CreateVideoCommand, EmptyInput,
-    SavedApiKeyInput, UpdateEmbeddingCommand, UpdateImageCommand, UpdateLlmCommand,
+    CONFIG_READ_VIDEO_LIST_OPERATION, CONFIG_READ_WORKER_ID, CONFIG_SETTINGS_EXPORT_OPERATION,
+    CONFIG_SETTINGS_IMPORT_OPERATION, CONFIG_SETTINGS_PREPARE_IMPORT_OPERATION, ConfigIdInput,
+    ConfigProviderKindWire, CreateEmbeddingCommand, CreateImageCommand, CreateLlmCommand,
+    CreateVideoCommand, EmptyInput, SavedApiKeyInput, SettingsExportInput, SettingsImportCommand,
+    SettingsPrepareImportResult, UpdateEmbeddingCommand, UpdateImageCommand, UpdateLlmCommand,
     UpdateVideoCommand,
 };
 use a4n_error::AppError;
@@ -490,6 +493,77 @@ impl ConfigMutationApplicationPort for ConfigReadWorkerClient {
             ConfigIdInput { config_id },
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl SettingsExportApplicationPort for ConfigReadWorkerClient {
+    async fn export_all_configs_to_json(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+    ) -> Result<String, AppError> {
+        self.command(
+            Self::user(caller_user_id)?,
+            CONFIG_SETTINGS_EXPORT_OPERATION,
+            SettingsExportInput {
+                prompts_modified: host.modified_prompts().await?,
+            },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl SettingsImportApplicationPort for ConfigReadWorkerClient {
+    async fn import_all_configs(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+        input: ImportAllConfigsInput,
+    ) -> Result<Vec<String>, AppError> {
+        let overwrite = input.overwrite;
+        let prepared: SettingsPrepareImportResult = self
+            .command(
+                Self::user(caller_user_id)?,
+                CONFIG_SETTINGS_PREPARE_IMPORT_OPERATION,
+                input,
+            )
+            .await?;
+        let prompt_snapshots = host
+            .prepare_prompt_import(&prepared.prompts_modified)
+            .await?;
+        let prompt_imported = host
+            .import_prompts(prepared.prompts_modified.clone())
+            .await?;
+        match self
+            .command(
+                Self::user(caller_user_id)?,
+                CONFIG_SETTINGS_IMPORT_OPERATION,
+                SettingsImportCommand {
+                    settings_json: prepared.settings_json,
+                    overwrite,
+                    prompt_imported,
+                },
+            )
+            .await
+        {
+            Ok(details) => Ok(details),
+            Err(error) => {
+                let db_error = error.to_string();
+                if prompt_snapshots.is_empty() {
+                    return Err(AppError::InvalidArgument(db_error));
+                }
+                match host.rollback_prompts(prompt_snapshots).await {
+                    Ok(()) => Err(AppError::InvalidArgument(format!(
+                        "{db_error}；已回滚本次提示词导入"
+                    ))),
+                    Err(rollback_error) => Err(AppError::InvalidArgument(format!(
+                        "{db_error}；提示词已更新但回滚失败：{rollback_error}"
+                    ))),
+                }
+            }
+        }
     }
 }
 

@@ -15,8 +15,7 @@ use a4n_db::{
     DbHandle,
     config::{
         EmbeddingConfigRecordInput, ImageConfigRecordInput, LlmConfigRecordInput,
-        ProviderConfigKind, SettingsAllConfigImportCounts, SettingsAllConfigImportInput,
-        SettingsAllConfigRows, VideoConfigRecordInput, validate_embedding_config_model,
+        ProviderConfigKind, VideoConfigRecordInput, validate_embedding_config_model,
         validate_image_config_model,
     },
 };
@@ -546,44 +545,6 @@ impl ConfigApplication {
         )
         .await
     }
-
-    async fn settings_all_config_rows(&self) -> Result<SettingsAllConfigRows, AppError> {
-        a4n_db::config::settings_all_config_rows(self.database.connection()).await
-    }
-
-    async fn validate_settings_all_config_import_defaults(
-        &self,
-        input: &SettingsAllConfigImportInput,
-    ) -> Result<(), AppError> {
-        a4n_db::config::validate_settings_all_config_import_defaults(
-            self.database.connection(),
-            input,
-        )
-        .await
-        .map_err(settings_all_config_import_error)
-    }
-
-    async fn import_settings_all_configs(
-        &self,
-        input: SettingsAllConfigImportInput,
-    ) -> Result<SettingsAllConfigImportCounts, AppError> {
-        a4n_db::config::import_settings_all_configs(self.database.connection(), input)
-            .await
-            .map_err(settings_all_config_import_error)
-    }
-}
-
-fn settings_all_config_import_error(
-    error: a4n_db::config::SettingsAllConfigImportError,
-) -> AppError {
-    match error {
-        a4n_db::config::SettingsAllConfigImportError::InvalidArgument(message) => {
-            AppError::InvalidArgument(message)
-        }
-        a4n_db::config::SettingsAllConfigImportError::Database { source, .. } => {
-            AppError::Database(source)
-        }
-    }
 }
 
 impl OrchestratorContext {
@@ -957,26 +918,6 @@ impl OrchestratorContext {
         self.settings
             .insert_baseline_video_config_if_empty(config)
             .await
-    }
-
-    pub(crate) async fn settings_all_config_rows(&self) -> Result<SettingsAllConfigRows, AppError> {
-        self.settings.settings_all_config_rows().await
-    }
-
-    pub(crate) async fn validate_settings_all_config_import_defaults(
-        &self,
-        input: &SettingsAllConfigImportInput,
-    ) -> Result<(), AppError> {
-        self.settings
-            .validate_settings_all_config_import_defaults(input)
-            .await
-    }
-
-    pub(crate) async fn import_settings_all_configs(
-        &self,
-        input: SettingsAllConfigImportInput,
-    ) -> Result<SettingsAllConfigImportCounts, AppError> {
-        self.settings.import_settings_all_configs(input).await
     }
 }
 

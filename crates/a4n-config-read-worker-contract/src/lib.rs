@@ -2,9 +2,9 @@
 
 pub use a4n_api_contract::config::{
     ConfigProviderKind, CreateEmbeddingInput, CreateLlmInput, EmbeddingConfigSummary,
-    ImageConfigForConnectivityTest, ImageConfigInput, ImageConfigSummary, LlmConfigSummary,
-    UpdateEmbeddingInput, UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput,
-    VideoConfigInput, VideoConfigSummary,
+    ImageConfigForConnectivityTest, ImageConfigInput, ImageConfigSummary, ImportAllConfigsInput,
+    LlmConfigSummary, PromptRow, UpdateEmbeddingInput, UpdateImageConfigInput, UpdateLlmInput,
+    UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary,
 };
 pub use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
@@ -12,7 +12,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const CONFIG_READ_WORKER_ID: &str = "config-read-worker";
-pub const CONFIG_READ_WORKER_CONTRACT_VERSION: &str = "config-read-v1";
+pub const CONFIG_READ_WORKER_CONTRACT_VERSION: &str = "config-read-v2";
 pub const CONFIG_READ_CAPABILITY: &str = "config.read";
 pub const CONFIG_READ_LLM_EXISTS_OPERATION: &str = "config.read.llm_exists";
 pub const CONFIG_READ_IMAGE_EXISTS_OPERATION: &str = "config.read.image_exists";
@@ -26,6 +26,7 @@ pub const CONFIG_READ_IMAGE_LIST_OPERATION: &str = "config.read.image_list";
 pub const CONFIG_READ_VIDEO_LIST_OPERATION: &str = "config.read.video_list";
 pub const CONFIG_READ_EMBEDDING_LIST_OPERATION: &str = "config.read.embedding_list";
 pub const CONFIG_MUTATION_CAPABILITY: &str = "config.mutation";
+pub const CONFIG_SETTINGS_CAPABILITY: &str = "config.settings";
 pub const CONFIG_MUTATION_BASELINE_EMBEDDING_OPERATION: &str = "config.mutation.baseline_embedding";
 pub const CONFIG_MUTATION_BASELINE_LLM_OPERATION: &str = "config.mutation.baseline_llm";
 pub const CONFIG_MUTATION_BASELINE_IMAGE_OPERATION: &str = "config.mutation.baseline_image";
@@ -47,10 +48,34 @@ pub const CONFIG_MUTATION_UPDATE_EMBEDDING_OPERATION: &str = "config.mutation.up
 pub const CONFIG_MUTATION_SET_DEFAULT_EMBEDDING_OPERATION: &str =
     "config.mutation.set_default_embedding";
 pub const CONFIG_MUTATION_DELETE_EMBEDDING_OPERATION: &str = "config.mutation.delete_embedding";
+pub const CONFIG_SETTINGS_EXPORT_OPERATION: &str = "config.settings.export";
+pub const CONFIG_SETTINGS_PREPARE_IMPORT_OPERATION: &str = "config.settings.prepare_import";
+pub const CONFIG_SETTINGS_IMPORT_OPERATION: &str = "config.settings.import";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct EmptyInput {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SettingsExportInput {
+    pub prompts_modified: Vec<PromptRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SettingsPrepareImportResult {
+    pub settings_json: String,
+    pub prompts_modified: Vec<PromptRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SettingsImportCommand {
+    pub settings_json: String,
+    pub overwrite: bool,
+    pub prompt_imported: usize,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

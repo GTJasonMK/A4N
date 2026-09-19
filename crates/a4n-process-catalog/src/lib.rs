@@ -703,12 +703,16 @@ mod tests {
             .expect("config read worker entry");
         assert_eq!(config_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(config_read.binary, "a4n-config-read-worker");
-        assert_eq!(config_read.contract_version, "config-read-v1");
+        assert_eq!(config_read.contract_version, "config-read-v2");
         assert_eq!(config_read.addr_env, "A4N_CONFIG_READ_WORKER_ADDR");
         assert_eq!(config_read.default_addr, "127.0.0.1:47673");
         assert_eq!(
             config_read.capabilities,
-            vec!["config.read".to_string(), "config.mutation".to_string()]
+            vec![
+                "config.read".to_string(),
+                "config.mutation".to_string(),
+                "config.settings".to_string()
+            ]
         );
         let character_mutation = entries
             .iter()

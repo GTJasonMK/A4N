@@ -98,19 +98,19 @@ pub fn validate_named_rows<T>(
     Ok(())
 }
 
-pub(super) fn validate_all_configs_export(incoming: &AllConfigsExport) -> Result<(), String> {
+pub fn validate_all_configs_export(incoming: &AllConfigsExport) -> Result<(), String> {
     validate_all_configs_export_version(&incoming.version)?;
     validate_provider_rows(incoming)?;
     validate_setting_rows(incoming)
 }
 
-pub(super) fn normalize_all_configs_export(incoming: &mut AllConfigsExport) -> Result<(), String> {
+pub fn normalize_all_configs_export(incoming: &mut AllConfigsExport) -> Result<(), String> {
     normalize_provider_rows(incoming)?;
     normalize_setting_rows(incoming);
     Ok(())
 }
 
-pub(super) fn import_details_from_counts(
+pub fn import_details_from_counts(
     counts: SettingsAllConfigImportCounts,
     prompt_imported: usize,
 ) -> Vec<String> {

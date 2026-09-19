@@ -11,6 +11,10 @@ use a4n_config::{
     ensure_default_config_delete_allowed, image_sizes_to_json, validate_embedding_config_params,
     validate_image_config_params,
 };
+use a4n_config_read_core::settings::{
+    AllConfigsExport, SETTINGS_ALL_FORMAT_VERSION, import_details_from_counts,
+    normalize_all_configs_export, validate_all_configs_export,
+};
 use a4n_config_read_core::{
     embedding_provider_config, embedding_summary, image_connectivity_config, image_summary,
     llm_provider_config, llm_summary, video_summary,
@@ -33,14 +37,16 @@ use a4n_config_read_worker_contract::{
     CONFIG_READ_LLM_EXISTS_OPERATION, CONFIG_READ_LLM_LIST_OPERATION,
     CONFIG_READ_SAVED_API_KEY_OPERATION, CONFIG_READ_VIDEO_EXISTS_OPERATION,
     CONFIG_READ_VIDEO_LIST_OPERATION, CONFIG_READ_WORKER_CONTRACT_VERSION, CONFIG_READ_WORKER_ID,
-    ConfigIdInput, ConfigProviderKindWire, CreateEmbeddingCommand, CreateImageCommand,
-    CreateLlmCommand, CreateVideoCommand, EmptyInput, SavedApiKeyInput, UpdateEmbeddingCommand,
-    UpdateImageCommand, UpdateLlmCommand, UpdateVideoCommand,
+    CONFIG_SETTINGS_CAPABILITY, CONFIG_SETTINGS_EXPORT_OPERATION, CONFIG_SETTINGS_IMPORT_OPERATION,
+    CONFIG_SETTINGS_PREPARE_IMPORT_OPERATION, ConfigIdInput, ConfigProviderKindWire,
+    CreateEmbeddingCommand, CreateImageCommand, CreateLlmCommand, CreateVideoCommand, EmptyInput,
+    SavedApiKeyInput, SettingsExportInput, SettingsImportCommand, SettingsPrepareImportResult,
+    UpdateEmbeddingCommand, UpdateImageCommand, UpdateLlmCommand, UpdateVideoCommand,
 };
 use a4n_db::DbHandle;
 use a4n_db::config::{
     EmbeddingConfigRecordInput, ImageConfigRecordInput, LlmConfigRecordInput, ProviderConfigKind,
-    VideoConfigRecordInput,
+    SettingsAllConfigImportInput, SettingsAllConfigRows, VideoConfigRecordInput,
 };
 use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_domain::embedding::CreateEmbeddingConfigParams;
@@ -64,6 +70,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use chrono::Utc;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use serde_json::Value;
 use subtle::ConstantTimeEq;
@@ -208,6 +215,12 @@ impl ConfigReadWorker {
                 "/v1/commands/config.mutation.delete_embedding",
                 post(delete_embedding),
             )
+            .route("/v1/commands/config.settings.export", post(settings_export))
+            .route(
+                "/v1/commands/config.settings.prepare_import",
+                post(settings_prepare_import),
+            )
+            .route("/v1/commands/config.settings.import", post(settings_import))
             .with_state(self.state.clone())
     }
 
@@ -298,6 +311,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 version: CONFIG_READ_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
             },
+            WorkerCapability {
+                name: CONFIG_SETTINGS_CAPABILITY.into(),
+                version: CONFIG_READ_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
         ],
     })
     .into_response()
@@ -350,6 +368,13 @@ command_handler!(create_embedding, create_embedding, CreateEmbeddingCommand);
 command_handler!(update_embedding, update_embedding, UpdateEmbeddingCommand);
 command_handler!(set_default_embedding, set_default_embedding, ConfigIdInput);
 command_handler!(delete_embedding, delete_embedding, ConfigIdInput);
+command_handler!(settings_export, settings_export, SettingsExportInput);
+command_handler!(
+    settings_prepare_import,
+    settings_prepare_import,
+    a4n_api_contract::config::ImportAllConfigsInput
+);
+command_handler!(settings_import, settings_import, SettingsImportCommand);
 
 async fn command_response<T, O, F, Fut>(
     state: &WorkerState,
@@ -524,6 +549,86 @@ impl WorkerState {
             .iter()
             .map(|model| embedding_summary(model).map_err(app_error))
             .collect()
+    }
+
+    async fn settings_export(
+        &self,
+        request: WorkerEnvelope<SettingsExportInput>,
+    ) -> Result<String, WorkerFailure> {
+        validate_admin_request(&request, CONFIG_SETTINGS_EXPORT_OPERATION, &self.database).await?;
+        let rows = a4n_db::config::settings_all_config_rows(self.database.connection())
+            .await
+            .map_err(app_error)?;
+        serde_json::to_string_pretty(&AllConfigsExport {
+            version: SETTINGS_ALL_FORMAT_VERSION.to_string(),
+            export_time: Utc::now().to_rfc3339(),
+            llm_configs: rows.llm_configs,
+            embedding_configs: rows.embedding_configs,
+            image_configs: rows.image_configs,
+            video_configs: rows.video_configs,
+            prompts_modified: request.payload.prompts_modified,
+            themes: rows.themes,
+            system_settings: rows.system_settings,
+        })
+        .map_err(|error| WorkerFailure::unavailable(format!("配置导出序列化失败: {error}")))
+    }
+
+    async fn settings_prepare_import(
+        &self,
+        request: WorkerEnvelope<a4n_api_contract::config::ImportAllConfigsInput>,
+    ) -> Result<SettingsPrepareImportResult, WorkerFailure> {
+        validate_admin_request(
+            &request,
+            CONFIG_SETTINGS_PREPARE_IMPORT_OPERATION,
+            &self.database,
+        )
+        .await?;
+        let mut incoming = parse_settings_export(&request.payload.settings_json)?;
+        normalize_all_configs_export(&mut incoming).map_err(WorkerFailure::invalid_request)?;
+        validate_all_configs_export(&incoming).map_err(WorkerFailure::invalid_request)?;
+        let config_import = settings_import_input(&incoming, request.payload.overwrite);
+        a4n_db::config::validate_settings_all_config_import_defaults(
+            self.database.connection(),
+            &config_import,
+        )
+        .await
+        .map_err(settings_import_error)?;
+        let settings_json = serde_json::to_string(&incoming)
+            .map_err(|error| WorkerFailure::unavailable(format!("配置导入序列化失败: {error}")))?;
+        Ok(SettingsPrepareImportResult {
+            settings_json,
+            prompts_modified: incoming.prompts_modified,
+        })
+    }
+
+    async fn settings_import(
+        &self,
+        request: WorkerEnvelope<SettingsImportCommand>,
+    ) -> Result<Vec<String>, WorkerFailure> {
+        validate_admin_request(&request, CONFIG_SETTINGS_IMPORT_OPERATION, &self.database).await?;
+        let mut incoming = parse_settings_export(&request.payload.settings_json)?;
+        normalize_all_configs_export(&mut incoming).map_err(WorkerFailure::invalid_request)?;
+        validate_all_configs_export(&incoming).map_err(WorkerFailure::invalid_request)?;
+        if request.payload.prompt_imported > incoming.prompts_modified.len() {
+            return Err(WorkerFailure::invalid_request(
+                "导入提示词数量不能超过导出内容中的提示词数量",
+            ));
+        }
+        let config_import = settings_import_input(&incoming, request.payload.overwrite);
+        a4n_db::config::validate_settings_all_config_import_defaults(
+            self.database.connection(),
+            &config_import,
+        )
+        .await
+        .map_err(settings_import_error)?;
+        let counts =
+            a4n_db::config::import_settings_all_configs(self.database.connection(), config_import)
+                .await
+                .map_err(settings_import_error)?;
+        Ok(import_details_from_counts(
+            counts,
+            request.payload.prompt_imported,
+        ))
     }
 
     async fn baseline_embedding(
@@ -1245,6 +1350,39 @@ fn merge_api_key_update(
     existing: Option<String>,
 ) -> Option<String> {
     update.unwrap_or(existing)
+}
+
+fn parse_settings_export(settings_json: &str) -> Result<AllConfigsExport, WorkerFailure> {
+    serde_json::from_str(settings_json)
+        .map_err(|error| WorkerFailure::invalid_request(format!("JSON 解析失败：{error}")))
+}
+
+fn settings_import_input(
+    incoming: &AllConfigsExport,
+    overwrite: bool,
+) -> SettingsAllConfigImportInput {
+    SettingsAllConfigImportInput {
+        overwrite,
+        rows: SettingsAllConfigRows {
+            llm_configs: incoming.llm_configs.clone(),
+            embedding_configs: incoming.embedding_configs.clone(),
+            image_configs: incoming.image_configs.clone(),
+            video_configs: incoming.video_configs.clone(),
+            themes: incoming.themes.clone(),
+            system_settings: incoming.system_settings.clone(),
+        },
+    }
+}
+
+fn settings_import_error(error: a4n_db::config::SettingsAllConfigImportError) -> WorkerFailure {
+    match error {
+        a4n_db::config::SettingsAllConfigImportError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::config::SettingsAllConfigImportError::Database { source, .. } => {
+            WorkerFailure::unavailable(source.to_string())
+        }
+    }
 }
 
 async fn validate_admin_request<T: serde::Serialize>(

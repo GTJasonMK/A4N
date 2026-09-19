@@ -1,5 +1,7 @@
 //! Pure projections for persisted provider configuration records.
 
+pub mod settings;
+
 use std::str::FromStr;
 
 use a4n_api_contract::config::{
