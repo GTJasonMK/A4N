@@ -921,6 +921,14 @@ impl a4n_api_contract::character::CharacterTimelineReadApplicationPort for Orche
     ) -> Result<ProfileChapterStateSummary, AppError> {
         CharacterProfileReadApplicationPort::state_at_chapter(self, user_id, input).await
     }
+
+    async fn snapshot_by_hash(
+        &self,
+        user_id: i64,
+        input: GetSnapshotInput,
+    ) -> Result<SnapshotSummary, AppError> {
+        CharacterProfileReadApplicationPort::snapshot_by_hash(self, user_id, input).await
+    }
 }
 
 #[async_trait::async_trait]

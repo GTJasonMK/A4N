@@ -10,10 +10,10 @@ use a4n_api_contract::character::{
     CharacterProfileSummary, CharacterProfileTimelineMutationApplicationPort,
     CharacterProfileTimelineMutationHostPort, CharacterTimelineReadApplicationPort,
     CreateProfileInput, DeletionMarkSummary, ExecuteAttributeDeletionInput,
-    GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
-    ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
+    GetProfileStateAtChapterInput, GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput,
+    ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
     RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackResultSummary,
-    RollbackToChapterInput, SnapshotReferenceSummary, UpdateCharacterProfileInput,
+    RollbackToChapterInput, SnapshotReferenceSummary, SnapshotSummary, UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
     AttributeEventMutationResult, CHARACTER_ATTRIBUTE_ADD_OPERATION,
@@ -25,9 +25,9 @@ use a4n_character_mutation_worker_contract::{
     CHARACTER_OVERVIEW_PROJECT_OPERATION, CHARACTER_OVERVIEW_VOICE_OPERATION,
     CHARACTER_TIMELINE_ATTRIBUTE_OPERATION, CHARACTER_TIMELINE_BEHAVIOR_OPERATION,
     CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_ROLLBACK_OPERATION,
-    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION,
-    CharacterTimelineRollbackMutationResult, CreateInput, NamedProfileInput, ProfileIdInput,
-    UpdateInput,
+    CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
+    CHARACTER_TIMELINE_STATE_OPERATION, CharacterTimelineRollbackMutationResult, CreateInput,
+    NamedProfileInput, ProfileIdInput, UpdateInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -86,10 +86,40 @@ impl CharacterMutationWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if user_id <= 0 || project_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "user_id 和 project_id 必须大于 0".into(),
-            ));
+        if project_id <= 0 {
+            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
+        }
+        self.command_with_project(user_id, Some(project_id), operation, payload)
+            .await
+    }
+
+    async fn command_global<I, O>(
+        &self,
+        user_id: i64,
+        operation: &str,
+        payload: I,
+    ) -> Result<O, AppError>
+    where
+        I: serde::Serialize,
+        O: serde::de::DeserializeOwned,
+    {
+        self.command_with_project(user_id, None, operation, payload)
+            .await
+    }
+
+    async fn command_with_project<I, O>(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        operation: &str,
+        payload: I,
+    ) -> Result<O, AppError>
+    where
+        I: serde::Serialize,
+        O: serde::de::DeserializeOwned,
+    {
+        if user_id <= 0 {
+            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
         }
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
@@ -102,7 +132,7 @@ impl CharacterMutationWorkerClient {
             },
             operation_id: operation.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
-            project_id: Some(project_id),
+            project_id,
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
@@ -291,6 +321,19 @@ impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
             user_id,
             input.profile_id,
             CHARACTER_TIMELINE_STATE_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn snapshot_by_hash(
+        &self,
+        user_id: i64,
+        input: GetSnapshotInput,
+    ) -> Result<SnapshotSummary, AppError> {
+        self.command_global(
+            user_id,
+            CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION,
             input,
         )
         .await

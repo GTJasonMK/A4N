@@ -5,16 +5,17 @@ pub use a4n_api_contract::character::{
     CharacterProfileDeleteResult, CharacterProfileMutationResult,
     CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
     CharacterTimelineReadApplicationPort, CreateProfileInput, ExecuteAttributeDeletionInput,
-    GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput,
-    ListSnapshotsInput, ModifyProfileAttributeInput, RequestAttributeDeletionInput,
-    ResetDeletionMarksInput, RollbackToChapterInput, UpdateCharacterProfileInput,
+    GetProfileStateAtChapterInput, GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput,
+    ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput,
+    RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackToChapterInput,
+    SnapshotSummary, UpdateCharacterProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const CHARACTER_MUTATION_WORKER_ID: &str = "character-mutation-worker";
-pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v4";
+pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v5";
 pub const CHARACTER_MUTATION_CREATE_OPERATION: &str = "character.mutation.create";
 pub const CHARACTER_MUTATION_UPDATE_OPERATION: &str = "character.mutation.update";
 pub const CHARACTER_MUTATION_DELETE_OPERATION: &str = "character.mutation.delete";
@@ -30,6 +31,8 @@ pub const CHARACTER_TIMELINE_DELETION_OPERATION: &str = "character.timeline.dele
 pub const CHARACTER_TIMELINE_SNAPSHOTS_OPERATION: &str = "character.timeline.snapshots";
 pub const CHARACTER_TIMELINE_STATE_OPERATION: &str = "character.timeline.state_at_chapter";
 pub const CHARACTER_TIMELINE_ROLLBACK_OPERATION: &str = "character.timeline.rollback";
+pub const CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION: &str =
+    "character.timeline.snapshot_by_hash";
 pub const CHARACTER_TIMELINE_CAPABILITY: &str = "character.timeline.read";
 pub const CHARACTER_ATTRIBUTE_ADD_OPERATION: &str = "character.attribute.add";
 pub const CHARACTER_ATTRIBUTE_MODIFY_OPERATION: &str = "character.attribute.modify";

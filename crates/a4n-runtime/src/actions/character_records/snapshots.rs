@@ -37,7 +37,7 @@ pub async fn get_snapshot(
     input: GetSnapshotInput,
 ) -> Result<SnapshotSummary, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .snapshot_by_hash(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)

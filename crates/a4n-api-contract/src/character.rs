@@ -272,6 +272,12 @@ pub trait CharacterTimelineReadApplicationPort: Send + Sync {
         user_id: i64,
         input: GetProfileStateAtChapterInput,
     ) -> Result<ProfileChapterStateSummary, a4n_error::AppError>;
+
+    async fn snapshot_by_hash(
+        &self,
+        user_id: i64,
+        input: GetSnapshotInput,
+    ) -> Result<SnapshotSummary, a4n_error::AppError>;
 }
 
 /// Host-facing mutation boundary for initial character profiles.
@@ -801,7 +807,7 @@ pub struct GetSnapshotInput {
     pub content_hash: String,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SnapshotSummary {
     pub data: Value,
     pub created_at: Option<String>,
