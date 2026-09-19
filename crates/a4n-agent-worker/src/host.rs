@@ -788,7 +788,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn agent_chat_wire_request_omits_internal_context() {
+    fn agent_chat_wire_request_preserves_internal_context() {
         let mut request = ChatRequest::system_user("system", "user", Some(0.2), Some(128));
         request.trace_context = Some(LlmTraceContext {
             project_id: Some(7),
@@ -806,7 +806,7 @@ mod tests {
 
         let wire = model_request_wire_value(&request).expect("wire request serializes");
         assert_eq!(wire["trace_context"]["project_id"], 7);
-        assert!(wire.get("context_manifest_json").is_none());
+        assert_eq!(wire["context_manifest_json"], json!({"packs": []}));
         assert!(
             request
                 .snapshot_value()

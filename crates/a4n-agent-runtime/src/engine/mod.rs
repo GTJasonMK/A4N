@@ -1179,9 +1179,11 @@ async fn process_claimed_run_inner(
             tokens,
         )
         .await?;
-        let context_manifest_json = context::build_manifest(&context, &request_messages, &skills)?
-            .map(|manifest| serde_json::to_value(manifest))
-            .transpose()?;
+        let context_manifest_json = Some(serde_json::to_value(context::build_manifest(
+            &context,
+            &request_messages,
+            &skills,
+        )?)?);
         let mut request = ChatRequest {
             messages: request_messages,
             vision_images: Vec::new(),

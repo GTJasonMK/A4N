@@ -14,7 +14,7 @@ pub(super) fn build_manifest(
     context: &AgentRunContext,
     messages: &[ChatMessage],
     skills: &AgentSkillSearchResult,
-) -> Result<Option<LlmContextManifest>, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     let mut ledger = LlmContextLedger::new();
     add_pack(
         &mut ledger,
@@ -96,7 +96,7 @@ pub(super) fn build_manifest(
         .or_else(|| context.goal.clone())
         .unwrap_or_else(|| "继续执行当前 Agent 任务".into());
 
-    Ok(Some(ledger.into_manifest(dynamic_user_content, None)))
+    Ok(ledger.into_manifest(dynamic_user_content, None))
 }
 
 fn add_pack(
@@ -238,7 +238,6 @@ mod tests {
             },
         )
         .unwrap();
-        let manifest = manifest.unwrap();
         assert!(
             manifest
                 .packs
@@ -257,7 +256,6 @@ mod tests {
                 total: 0,
             },
         )
-        .unwrap()
         .unwrap();
         assert_eq!(manifest.schema_version, 1);
         assert_eq!(manifest.dynamic_user_content, "继续");
