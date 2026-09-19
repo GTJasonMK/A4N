@@ -1053,6 +1053,12 @@ impl AgentRuntimeState {
     }
 }
 
+impl Default for AgentRuntimeShared {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn worker_delegation_result_from_wire(
     snapshot: AgentWorkerDelegationStartSnapshotWire,
 ) -> a4n_agent_runtime_contract::WorkerDelegationResult {

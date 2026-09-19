@@ -43,11 +43,6 @@ use std::pin::Pin;
 
 pub type AgentChatStream = Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>;
 
-pub struct AgentChatCall {
-    pub request: ChatRequest,
-    pub stream: AgentChatStream,
-}
-
 /// Boundary owned by the Host around the narrow Agent execution runtime.
 ///
 /// The worker owns durable Agent state and the model loop. Project, Canvas,
@@ -293,7 +288,7 @@ pub trait AgentRuntimeHost: Send + Sync {
         snapshot: Option<&RuntimeConfigSnapshot>,
         config_id: Option<i64>,
         request: ChatRequest,
-    ) -> Result<AgentChatCall, AppError>;
+    ) -> Result<AgentChatStream, AppError>;
 
     async fn prepare_chat_request(
         &self,
