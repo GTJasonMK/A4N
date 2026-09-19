@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 26);
+        assert_eq!(entries.len(), 27);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -697,6 +697,19 @@ mod tests {
             workflow_read.capabilities,
             vec!["workflow.read".to_string()]
         );
+        let manga_record = entries
+            .iter()
+            .find(|entry| entry.name == "manga-record-worker")
+            .expect("manga record worker entry");
+        assert_eq!(manga_record.kind, ProcessKind::StatefulWorker);
+        assert_eq!(manga_record.binary, "a4n-manga-record-worker");
+        assert_eq!(manga_record.contract_version, "manga-record-v1");
+        assert_eq!(manga_record.addr_env, "A4N_MANGA_RECORD_WORKER_ADDR");
+        assert_eq!(manga_record.default_addr, "127.0.0.1:47676");
+        assert_eq!(
+            manga_record.capabilities,
+            vec!["manga.record.read".to_string()]
+        );
         let config_read = entries
             .iter()
             .find(|entry| entry.name == "config-read-worker")
@@ -768,7 +781,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 35);
+        assert_eq!(entries.len(), 36);
         assert_eq!(
             entries
                 .iter()

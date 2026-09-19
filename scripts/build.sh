@@ -132,6 +132,8 @@ cargo_target_args() {
             printf '%s\n' "-p" "a4n-workflow-read-worker"
             printf '%s\n' "-p" "a4n-config-read-worker"
             printf '%s\n' "-p" "a4n-character-mutation-worker"
+            printf '%s\n' "-p" "a4n-video-record-worker"
+            printf '%s\n' "-p" "a4n-manga-record-worker"
             printf '%s\n' "-p" "a4n-portrait-worker"
             printf '%s\n' "-p" "a4n-source-snapshot-worker"
         fi

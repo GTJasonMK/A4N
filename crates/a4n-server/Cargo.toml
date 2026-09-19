@@ -31,6 +31,8 @@ test-embedded-processes = [
     "dep:a4n-workflow-read-worker",
     "dep:a4n-config-read-worker",
     "dep:a4n-character-mutation-worker",
+    "dep:a4n-video-record-worker",
+    "dep:a4n-manga-record-worker",
     "dep:a4n-control",
     "dep:a4n-edge",
 ]
@@ -75,6 +77,8 @@ a4n-chapter-content-worker = { path = "../a4n-chapter-content-worker", optional 
 a4n-workflow-read-worker = { path = "../a4n-workflow-read-worker", optional = true }
 a4n-config-read-worker = { path = "../a4n-config-read-worker", optional = true }
 a4n-character-mutation-worker = { path = "../a4n-character-mutation-worker", optional = true }
+a4n-video-record-worker = { path = "../a4n-video-record-worker", optional = true }
+a4n-manga-record-worker = { path = "../a4n-manga-record-worker", optional = true }
 a4n-control = { path = "../a4n-control", optional = true }
 a4n-edge = { path = "../a4n-edge", optional = true }
 a4n-process-catalog = { path = "../a4n-process-catalog" }

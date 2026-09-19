@@ -91,6 +91,8 @@ pub async fn initialize_runtime(
         Arc::new(a4n_character_mutation_worker_client::CharacterMutationWorkerClient::from_env());
     let video_record_worker =
         Arc::new(a4n_video_record_worker_client::VideoRecordWorkerClient::from_env());
+    let manga_record_worker =
+        Arc::new(a4n_manga_record_worker_client::MangaRecordWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -334,7 +336,7 @@ pub async fn initialize_runtime(
         manga_pipeline_preview_application: orchestrator.clone(),
         manga_pipeline_read_application: orchestrator.clone(),
         manga_pipeline_cancellation_application: orchestrator.clone(),
-        manga_record_read_application: orchestrator.clone(),
+        manga_record_read_application: manga_record_worker,
         manga_record_mutation_application: orchestrator.clone(),
         galgame_read_application: orchestrator.clone(),
         inspiration_history_read_application: inspiration_worker,
