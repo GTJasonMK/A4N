@@ -23,30 +23,48 @@ pub(in crate::dynamic_llm) struct PreparedLlmCall {
 }
 
 impl DynamicLlmProvider {
-    pub(in crate::dynamic_llm) async fn prepare_call(
+    pub(in crate::dynamic_llm) async fn prepare_request(
         &self,
         model: ResolvedLlmModel,
         mut request: ChatRequest,
-    ) -> Result<PreparedLlmCall, AppError> {
+    ) -> Result<(ResolvedLlmModel, ChatRequest, Option<LlmTraceContext>), AppError> {
         request.max_tokens = Some(requested_max_tokens(
             request.max_tokens,
             model.capabilities.max_output_tokens,
             model.model_name(),
         )?);
-        let trace =
-            prepare_dynamic_llm_trace_context(&self.facade, &model.planner(), &mut request).await?;
-        request.configure_prompt_cache(
-            &model.model.provider,
-            model.model_name(),
-            model.model.extra_body_json.as_ref(),
-            trace
-                .as_ref()
-                .and_then(|trace| trace.root_project_id.or(trace.project_id)),
-        )?;
+        let already_prepared = request.context_manifest_json.is_some()
+            && request.trace_context.as_ref().is_some_and(|trace| {
+                trace.context_plan_json.is_some() && trace.context_pack_refs_json.is_some()
+            });
+        let trace = if already_prepared {
+            request.trace_context.clone()
+        } else {
+            prepare_dynamic_llm_trace_context(&self.facade, &model.planner(), &mut request).await?
+        };
+        if !already_prepared {
+            request.configure_prompt_cache(
+                &model.model.provider,
+                model.model_name(),
+                model.model.extra_body_json.as_ref(),
+                trace
+                    .as_ref()
+                    .and_then(|trace| trace.root_project_id.or(trace.project_id)),
+            )?;
+        }
         if self.sidecar_client.is_some() {
             require_sidecar_business_trace(trace.as_ref(), "LLM sidecar stream 请求")?;
         }
         request.stream_include_usage = true;
+        Ok((model, request, trace))
+    }
+
+    pub(in crate::dynamic_llm) async fn prepare_call(
+        &self,
+        model: ResolvedLlmModel,
+        request: ChatRequest,
+    ) -> Result<PreparedLlmCall, AppError> {
+        let (model, request, trace) = self.prepare_request(model, request).await?;
         tracing::info!(
             target: "a4n::llm",
             model = model.model_name(),

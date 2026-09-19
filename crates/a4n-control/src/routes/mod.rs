@@ -373,6 +373,10 @@ pub fn internal_router(state: ServerState) -> Router {
         )
         .route("/agent/llm/chat", post(agent_runtime::agent_chat))
         .route(
+            "/agent/llm/prepare",
+            post(agent_runtime::prepare_agent_chat),
+        )
+        .route(
             "/agent/editor/project",
             post(agent_runtime::project_agent_editor),
         )

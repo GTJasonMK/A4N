@@ -28,7 +28,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
         .transpose()?
         .unwrap_or(0);
     let Some(mut trace_context) = request.trace_context.clone() else {
-        ContextBudgetPlanner::default().plan_requirements(
+        ContextBudgetPlanner::default().plan_requirements_adaptive(
             caps.max_context_tokens,
             output_reserve,
             Vec::new(),
@@ -81,7 +81,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 } else {
                     system_tokens
                 });
-            let mut plan = ContextBudgetPlanner::default().plan_requirements(
+            let mut plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
                 caps.max_context_tokens,
                 output_reserve,
                 all_requirements,
@@ -101,7 +101,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 } else {
                     system_tokens
                 });
-            ContextBudgetPlanner::default().plan_requirements(
+            ContextBudgetPlanner::default().plan_requirements_adaptive(
                 caps.max_context_tokens,
                 output_reserve,
                 system_requirements,

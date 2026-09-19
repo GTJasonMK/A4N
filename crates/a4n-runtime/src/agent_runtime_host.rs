@@ -1,5 +1,5 @@
 use crate::AppState;
-use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
+use a4n_agent_runtime::{AgentChatCall, AgentRuntimeHost};
 use a4n_agent_runtime_contract::{AgentExternalTaskWaitSnapshot, AgentLlmCapabilities};
 use a4n_api_contract::agent::{
     AgentExecutionResultPage, AgentSkillContent, AgentSkillSearchResult, AgentToolDescriptor,
@@ -426,8 +426,30 @@ impl AgentRuntimeHost for NativeAgentRuntimeHost {
         snapshot: Option<&RuntimeConfigSnapshot>,
         config_id: Option<i64>,
         request: ChatRequest,
-    ) -> Result<AgentChatStream, AppError> {
-        crate::actions::agent_runtime::agent_chat_stream(
+    ) -> Result<AgentChatCall, AppError> {
+        let prepared_request = request.clone();
+        let stream = crate::actions::agent_runtime::agent_chat_stream(
+            &self.state,
+            user_id,
+            snapshot.cloned(),
+            config_id,
+            request,
+        )
+        .await?;
+        Ok(AgentChatCall {
+            request: prepared_request,
+            stream,
+        })
+    }
+
+    async fn prepare_chat_request(
+        &self,
+        user_id: i64,
+        snapshot: Option<&RuntimeConfigSnapshot>,
+        config_id: Option<i64>,
+        request: ChatRequest,
+    ) -> Result<ChatRequest, AppError> {
+        crate::actions::agent_runtime::prepare_agent_chat_request(
             &self.state,
             user_id,
             snapshot.cloned(),

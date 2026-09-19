@@ -820,8 +820,7 @@ impl ChapterVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
     }
 
     fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError> {
-        let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
-        provider_image_input_transport_with_override(override_value.as_deref()).map_err(host_error)
+        <Self as ChapterVideoGenerationHostPort>::resolve_image_transport(self)
     }
 
     async fn resolve_chapter_video_image_inputs_for_preview(

@@ -14,6 +14,16 @@ use futures::stream::Stream;
 use super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 
 impl DynamicLlmProvider {
+    pub(crate) async fn prepare_chat_request_with_config_id(
+        &self,
+        config_id: Option<i64>,
+        request: ChatRequest,
+    ) -> Result<ChatRequest, AppError> {
+        let model = self.resolve_runtime_model_by_id(config_id).await?;
+        let (_, request, _) = self.prepare_request(model, request).await?;
+        Ok(request)
+    }
+
     pub(crate) async fn chat_stream_with_config_id(
         &self,
         config_id: Option<i64>,

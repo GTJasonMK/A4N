@@ -1,6 +1,6 @@
 use a4n_agent_runtime_contract::AgentExecutionSnapshot;
 use a4n_api_contract::agent::AgentResourceRef;
-use a4n_domain::source_text_hash;
+use a4n_domain::{generation::canonical_json_text, source_text_hash};
 use a4n_error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -173,10 +173,11 @@ pub(super) fn retry_fingerprint(
 }
 
 pub(super) fn retry_prefix(tool_name: &str, arguments: &Value) -> Result<String, AppError> {
-    Ok(source_text_hash(&serde_json::to_string(&json!({
+    let identity = json!({
         "tool": tool_name,
         "arguments": arguments,
-    }))?))
+    });
+    Ok(source_text_hash(&canonical_json_text(&identity)?))
 }
 
 pub(super) fn restored_retry_counts(
@@ -238,7 +239,7 @@ fn value_text(value: &Value) -> String {
 mod tests {
     use super::{
         AgentToolObservation, error_code, from_result, parse, record_failure, retry_limit_reached,
-        retry_policy,
+        retry_policy, retry_prefix,
     };
     use serde_json::json;
     use std::{collections::HashMap, sync::Arc};
@@ -319,6 +320,13 @@ mod tests {
                 .await
                 .expect("different arguments should remain retryable")
         );
+    }
+
+    #[test]
+    fn retry_fingerprint_uses_canonical_argument_order() {
+        let first = retry_prefix("read_project", &json!({"a": 1, "b": 2})).unwrap();
+        let second = retry_prefix("read_project", &json!({"b": 2, "a": 1})).unwrap();
+        assert_eq!(first, second);
     }
 
     #[test]

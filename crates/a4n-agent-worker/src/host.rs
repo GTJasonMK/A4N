@@ -1,4 +1,4 @@
-use a4n_agent_runtime::{AgentChatStream, AgentRuntimeHost};
+use a4n_agent_runtime::{AgentChatCall, AgentChatStream, AgentRuntimeHost};
 use a4n_agent_runtime_contract::AgentLlmCapabilities;
 use a4n_agent_runtime_contract::AgentWorkerApplicationPort;
 use a4n_agent_runtime_contract::model_request_wire_value;
@@ -663,16 +663,45 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         snapshot: Option<&RuntimeConfigSnapshot>,
         config_id: Option<i64>,
         request: ChatRequest,
-    ) -> Result<AgentChatStream, AppError> {
+    ) -> Result<AgentChatCall, AppError> {
+        let prepared_request = request.clone();
         let request = model_request_wire_value(&request)?;
-        self.request_stream(&AgentWorkerChatRequest {
-            schema_version: WORKER_SCHEMA_VERSION,
-            user_id,
-            snapshot: snapshot.cloned(),
-            config_id,
-            request,
+        let stream = self
+            .request_stream(&AgentWorkerChatRequest {
+                schema_version: WORKER_SCHEMA_VERSION,
+                user_id,
+                snapshot: snapshot.cloned(),
+                config_id,
+                request,
+            })
+            .await?;
+        Ok(AgentChatCall {
+            request: prepared_request,
+            stream,
         })
-        .await
+    }
+
+    async fn prepare_chat_request(
+        &self,
+        user_id: i64,
+        snapshot: Option<&RuntimeConfigSnapshot>,
+        config_id: Option<i64>,
+        request: ChatRequest,
+    ) -> Result<ChatRequest, AppError> {
+        let value = self
+            .request_json(
+                Method::POST,
+                "/internal/agent/llm/prepare",
+                &AgentWorkerChatRequest {
+                    schema_version: WORKER_SCHEMA_VERSION,
+                    user_id,
+                    snapshot: snapshot.cloned(),
+                    config_id,
+                    request: model_request_wire_value(&request)?,
+                },
+            )
+            .await?;
+        a4n_agent_runtime_contract::restore_model_request_wire(value)
     }
 
     async fn project_editor_draft(

@@ -255,4 +255,16 @@ mod tests {
             .is_err()
         );
     }
+
+    #[test]
+    fn replay_protocol_is_derived_from_the_persisted_request_snapshot() {
+        let mut request = ChatRequest::system_user("system", "task", None, None);
+        configure_agent_request(&mut request, AGENT_PROTOCOL_JSON_COMPAT, Vec::new());
+        let snapshot = request.snapshot_value().expect("request snapshot");
+
+        assert_eq!(
+            agent_protocol_from_request_snapshot(&snapshot),
+            AGENT_PROTOCOL_JSON_COMPAT
+        );
+    }
 }

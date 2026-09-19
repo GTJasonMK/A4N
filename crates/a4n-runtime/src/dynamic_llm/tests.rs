@@ -7,6 +7,7 @@ use a4n_llm_provider_contract::provider::{
 };
 use a4n_provider_contract::LlmProviderConfig;
 use a4n_test_support::capability::RecordingLlmClient;
+use serde_json::json;
 
 use crate::dynamic_llm::trace::validated_authoritative_trace_root_project_id;
 
@@ -95,6 +96,58 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
         Some("test-key")
     );
     assert_eq!(request.payload.request.messages[0].content, "ping");
+}
+
+#[tokio::test]
+async fn prepared_agent_request_is_stable_when_chat_preparation_runs_again() {
+    let facade =
+        crate::provider_runtime::DynamicProviderFacade::new(Arc::new(TestProviderPort::default()));
+    let provider = DynamicLlmProvider::new(facade);
+    let mut request = test_chat_request();
+    request.trace_context = Some(LlmTraceContext {
+        project_id: None,
+        root_project_id: None,
+        workflow: "agent".into(),
+        step_key: "model-call:1".into(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: Some("model-call:1".into()),
+        input_fingerprint_sha256: None,
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    });
+    request.context_manifest_json = Some(json!({
+        "schema_version": 1,
+        "packs": [{
+            "scope_kind": "agent_run",
+            "pack_kind": "agent_history_units",
+            "source_refs_json": {"history_watermark": 1},
+            "config_hash": "agent-runtime-context:v1",
+            "required": true,
+            "stable_prefix": false,
+            "variants": [
+                {"compression_level": "full_raw", "canonical_content_json": {"message_count": 1}},
+                {"compression_level": "focused_raw", "canonical_content_json": {"message_count": 1}},
+                {"compression_level": "minimal", "canonical_content_json": {"pack_kind": "agent_history_units", "available": true}}
+            ]
+        }],
+        "dynamic_user_content": "继续",
+        "output_contract": null
+    }));
+
+    let prepared = provider
+        .prepare_chat_request_with_config_id(None, request)
+        .await
+        .expect("first preparation");
+    let snapshot = prepared.snapshot_value().expect("prepared snapshot");
+    let prepared_again = provider
+        .prepare_chat_request_with_config_id(None, prepared)
+        .await
+        .expect("second preparation");
+
+    assert_eq!(prepared_again.snapshot_value().unwrap(), snapshot);
+    assert!(snapshot["trace_context"]["context_plan_json"].is_object());
+    assert!(snapshot["trace_context"]["context_pack_refs_json"].is_object());
 }
 
 #[tokio::test]
