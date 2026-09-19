@@ -3,18 +3,26 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::character::{
-    AttributeCountsSummary, CharacterProfileCreateResult, CharacterProfileMutationResult,
-    CharacterProfileSummary, ListProfilesInput,
+    AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
+    CharacterProfileCreateResult, CharacterProfileMutationResult, CharacterProfileSummary,
+    DeletionMarkSummary, GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput,
+    ListProfilesInput, ListSnapshotsInput, ProfileChapterStateSummary, SnapshotReferenceSummary,
 };
 use a4n_character_mutation_worker_contract::{
     CHARACTER_MUTATION_CAPABILITY, CHARACTER_MUTATION_CREATE_OPERATION,
     CHARACTER_MUTATION_UPDATE_OPERATION, CHARACTER_MUTATION_WORKER_CONTRACT_VERSION,
     CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION, CHARACTER_OVERVIEW_CAPABILITY,
     CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
-    CHARACTER_OVERVIEW_VOICE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
+    CHARACTER_OVERVIEW_VOICE_OPERATION, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
+    CHARACTER_TIMELINE_BEHAVIOR_OPERATION, CHARACTER_TIMELINE_CAPABILITY,
+    CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
+    CHARACTER_TIMELINE_STATE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
     UpdateInput,
 };
 use a4n_db::DbHandle;
+use a4n_domain::character::{
+    CharacterAttributeCategory, CharacterAttributeOperation, CharacterTimelineSourceKind,
+};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -88,6 +96,23 @@ impl CharacterMutationWorker {
             .route(
                 "/v1/commands/character.overview.voice",
                 post(character_voice),
+            )
+            .route(
+                "/v1/commands/character.timeline.attribute_history",
+                post(attribute_history),
+            )
+            .route(
+                "/v1/commands/character.timeline.behavior_history",
+                post(behavior_history),
+            )
+            .route(
+                "/v1/commands/character.timeline.deletion_marks",
+                post(deletion_marks),
+            )
+            .route("/v1/commands/character.timeline.snapshots", post(snapshots))
+            .route(
+                "/v1/commands/character.timeline.state_at_chapter",
+                post(state_at_chapter),
             )
             .with_state(self.state.clone())
     }
@@ -179,6 +204,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 version: CHARACTER_MUTATION_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
             },
+            WorkerCapability {
+                name: CHARACTER_TIMELINE_CAPABILITY.into(),
+                version: CHARACTER_MUTATION_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
         ],
     })
     .into_response()
@@ -240,6 +270,61 @@ async fn character_voice(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.character_voice(request)
+    })
+    .await
+}
+
+async fn attribute_history(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<AttributeHistoryInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.attribute_history(request)
+    })
+    .await
+}
+
+async fn behavior_history(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ListBehaviorsInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.behavior_history(request)
+    })
+    .await
+}
+
+async fn deletion_marks(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ListDeletionMarksInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.deletion_marks(request)
+    })
+    .await
+}
+
+async fn snapshots(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ListSnapshotsInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.snapshots(request)
+    })
+    .await
+}
+
+async fn state_at_chapter(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<GetProfileStateAtChapterInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.state_at_chapter(request)
     })
     .await
 }
@@ -369,6 +454,119 @@ impl WorkerState {
         Ok(profile.voice_fingerprint)
     }
 
+    async fn attribute_history(
+        &self,
+        request: WorkerEnvelope<AttributeHistoryInput>,
+    ) -> Result<Vec<AttributeEventSummary>, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let events = a4n_db::character::attribute_history(
+            self.database.connection(),
+            input.profile_id,
+            a4n_db::character::CharacterAttributeEventHistoryFilter {
+                chapter_from: input.chapter_from,
+                chapter_to: input.chapter_to,
+                category: input.category.map(|value| value.as_str().to_string()),
+                key: input.key,
+                operation: input.operation.map(|value| value.as_str().to_string()),
+                limit: input.limit,
+            },
+        )
+        .await
+        .map_err(character_db_error)?;
+        events.iter().map(attribute_event_summary).collect()
+    }
+
+    async fn behavior_history(
+        &self,
+        request: WorkerEnvelope<ListBehaviorsInput>,
+    ) -> Result<Vec<BehaviorRecordSummary>, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_BEHAVIOR_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        if input.limit.is_some_and(|limit| !(1..=100).contains(&limit)) {
+            return Err(WorkerFailure::invalid_request(
+                "行为记录 limit 必须在 1..=100 之间",
+            ));
+        }
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let records = a4n_db::character::behavior_records_by_profile(
+            self.database.connection(),
+            input.profile_id,
+            input.chapter_from,
+            input.chapter_to,
+            input.limit,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        records.iter().map(behavior_record_summary).collect()
+    }
+
+    async fn deletion_marks(
+        &self,
+        request: WorkerEnvelope<ListDeletionMarksInput>,
+    ) -> Result<Vec<DeletionMarkSummary>, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_DELETION_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let marks = a4n_db::character::deletion_marks_by_profile(
+            self.database.connection(),
+            input.profile_id,
+            input.category.as_ref().map(|value| value.as_str()),
+            input.status,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        marks.iter().map(deletion_mark_summary).collect()
+    }
+
+    async fn snapshots(
+        &self,
+        request: WorkerEnvelope<ListSnapshotsInput>,
+    ) -> Result<Vec<SnapshotReferenceSummary>, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        validate_snapshot_range(input.start_chapter, input.end_chapter)?;
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let snapshots = a4n_db::character::snapshot_references_by_profile(
+            self.database.connection(),
+            input.profile_id,
+            input.start_chapter,
+            input.end_chapter,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        snapshots.iter().map(snapshot_reference_summary).collect()
+    }
+
+    async fn state_at_chapter(
+        &self,
+        request: WorkerEnvelope<GetProfileStateAtChapterInput>,
+    ) -> Result<ProfileChapterStateSummary, WorkerFailure> {
+        validate_request(&request, CHARACTER_TIMELINE_STATE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        if input.chapter_number <= 0 {
+            return Err(WorkerFailure::invalid_request("章节号必须大于 0"));
+        }
+        profile_for_editor(&self.database, user_id, input.profile_id).await?;
+        let snapshot = a4n_db::character::snapshot_reference_by_chapter(
+            self.database.connection(),
+            input.profile_id,
+            input.chapter_number,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .ok_or_else(|| {
+            WorkerFailure::not_found(format!("第 {} 章没有角色快照", input.chapter_number))
+        })?;
+        profile_state_summary(&snapshot)
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -489,6 +687,204 @@ async fn named_profile(
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("角色不存在: project_id={project_id}, name={name}"))
         })
+}
+
+async fn profile_for_editor(
+    database: &DbHandle,
+    user_id: i64,
+    profile_id: i64,
+) -> Result<a4n_db_models::models::character::protagonist_profile::Model, WorkerFailure> {
+    let profile_id = positive(profile_id, "profile_id")?;
+    let profile = a4n_db::character::profile_by_id(database.connection(), profile_id)
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .ok_or_else(|| WorkerFailure::not_found(format!("角色档案不存在: {profile_id}")))?;
+    verify_project_editor(database, profile.project_id, user_id).await?;
+    Ok(profile)
+}
+
+fn validate_snapshot_range(
+    start_chapter: Option<i32>,
+    end_chapter: Option<i32>,
+) -> Result<(), WorkerFailure> {
+    if start_chapter.is_some_and(|chapter| chapter <= 0) {
+        return Err(WorkerFailure::invalid_request("快照起始章节必须大于 0"));
+    }
+    if end_chapter.is_some_and(|chapter| chapter <= 0) {
+        return Err(WorkerFailure::invalid_request("快照结束章节必须大于 0"));
+    }
+    if let (Some(start), Some(end)) = (start_chapter, end_chapter)
+        && start > end
+    {
+        return Err(WorkerFailure::invalid_request(
+            "快照起始章节不能大于结束章节",
+        ));
+    }
+    Ok(())
+}
+
+fn attribute_event_summary(
+    event: &a4n_db_models::models::character::attribute_event::Model,
+) -> Result<AttributeEventSummary, WorkerFailure> {
+    let source_kind = CharacterTimelineSourceKind::parse(&event.source_kind).ok_or_else(|| {
+        WorkerFailure::conflict(format!(
+            "角色时间线 source_kind 无效: {}",
+            event.source_kind
+        ))
+    })?;
+    let category = CharacterAttributeCategory::parse(&event.category)
+        .ok_or_else(|| WorkerFailure::conflict(format!("角色属性分类无效: {}", event.category)))?;
+    let operation = CharacterAttributeOperation::parse(&event.operation)
+        .ok_or_else(|| WorkerFailure::conflict(format!("角色属性操作无效: {}", event.operation)))?;
+    Ok(AttributeEventSummary {
+        id: event.id,
+        chapter_number: event.chapter_number,
+        source_kind,
+        timestamp: Some(event.timestamp.to_string()),
+        category,
+        key: event.key.clone(),
+        operation,
+        change_description: event.change_description.clone(),
+        old_value: event.old_value.clone(),
+        new_value: event.new_value.clone(),
+        cause: event.cause.clone(),
+        evidence: event.evidence.clone(),
+    })
+}
+
+fn behavior_record_summary(
+    record: &a4n_db_models::models::character::protagonist_behavior_record::Model,
+) -> Result<BehaviorRecordSummary, WorkerFailure> {
+    let source_kind = CharacterTimelineSourceKind::parse(&record.source_kind).ok_or_else(|| {
+        WorkerFailure::conflict(format!(
+            "角色时间线 source_kind 无效: {}",
+            record.source_kind
+        ))
+    })?;
+    Ok(BehaviorRecordSummary {
+        id: record.id,
+        chapter_number: record.chapter_number,
+        source_kind,
+        behavior_description: record.behavior_description.clone(),
+        behavior_type: record.behavior_type.clone(),
+        original_text: record.original_text.clone(),
+        behavior_tags: record.behavior_tags.clone(),
+        classification_results: record.classification_results.clone(),
+        related_characters: record.related_characters.clone(),
+        impact_analysis: record.impact_analysis.clone(),
+    })
+}
+
+fn deletion_mark_summary(
+    mark: &a4n_db_models::models::character::protagonist_deletion_mark::Model,
+) -> Result<DeletionMarkSummary, WorkerFailure> {
+    let source_kind = CharacterTimelineSourceKind::parse(&mark.source_kind).ok_or_else(|| {
+        WorkerFailure::conflict(format!("角色时间线 source_kind 无效: {}", mark.source_kind))
+    })?;
+    let category = CharacterAttributeCategory::parse(&mark.category)
+        .ok_or_else(|| WorkerFailure::conflict(format!("角色属性分类无效: {}", mark.category)))?;
+    Ok(DeletionMarkSummary {
+        id: mark.id,
+        source_kind,
+        category,
+        key: mark.key.clone(),
+        reason: mark.reason.clone(),
+        evidence: mark.evidence.clone(),
+        consecutive_count: mark.consecutive_count,
+        last_marked_chapter: mark.last_marked_chapter,
+        is_executed: mark.is_executed,
+        created_at: mark.created_at.to_string(),
+    })
+}
+
+fn snapshot_data(
+    snapshot: &a4n_db_models::models::character::snapshot_reference::Model,
+) -> Result<
+    (
+        Value,
+        AttributeCountsSummary,
+        Option<String>,
+        Option<String>,
+        usize,
+        usize,
+    ),
+    WorkerFailure,
+> {
+    let attributes =
+        a4n_db::character::snapshot_attributes_from_data(&snapshot.data, snapshot.chapter_number)
+            .map_err(character_db_error)?;
+    let counts = attribute_counts(&attributes)?;
+    let label = format!("第 {} 章角色快照", snapshot.chapter_number);
+    let count = |name: &str| {
+        let value = snapshot
+            .data
+            .get(name)
+            .and_then(Value::as_u64)
+            .ok_or_else(|| WorkerFailure::conflict(format!("{label}字段 {name} 必须是非负整数")))?;
+        usize::try_from(value)
+            .map_err(|_| WorkerFailure::conflict(format!("{label}字段 {name} 超出 usize 范围")))
+    };
+    Ok((
+        attributes,
+        counts,
+        snapshot
+            .data
+            .get("state_summary")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+        snapshot
+            .data
+            .get("current_location")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+        count("changes_in_chapter")?,
+        count("behaviors_in_chapter")?,
+    ))
+}
+
+fn snapshot_reference_summary(
+    snapshot: &a4n_db_models::models::character::snapshot_reference::Model,
+) -> Result<SnapshotReferenceSummary, WorkerFailure> {
+    let (_, counts, state_summary, _, changes, behaviors) = snapshot_data(snapshot)?;
+    Ok(SnapshotReferenceSummary {
+        id: snapshot.id,
+        chapter_number: snapshot.chapter_number,
+        snapshot_hash: snapshot.snapshot_hash.clone(),
+        attribute_counts: counts,
+        state_summary,
+        changes_in_chapter: changes,
+        behaviors_in_chapter: behaviors,
+    })
+}
+
+fn profile_state_summary(
+    snapshot: &a4n_db_models::models::character::snapshot_reference::Model,
+) -> Result<ProfileChapterStateSummary, WorkerFailure> {
+    let (attributes, counts, state_summary, current_location, changes, behaviors) =
+        snapshot_data(snapshot)?;
+    let category = |name: &str| {
+        attributes
+            .get(name)
+            .and_then(Value::as_object)
+            .map(|object| Value::Object(object.clone()))
+            .ok_or_else(|| WorkerFailure::conflict(format!("角色快照属性缺少分类 {name}")))
+    };
+    Ok(ProfileChapterStateSummary {
+        chapter_number: snapshot.chapter_number,
+        attribute_counts: counts,
+        explicit_attributes: category("explicit_attributes")?,
+        implicit_attributes: category("implicit_attributes")?,
+        social_attributes: category("social_attributes")?,
+        state_summary,
+        current_location,
+        changes_in_chapter: changes,
+        behaviors_in_chapter: behaviors,
+        created_at: Some(snapshot.created_at.to_string()),
+    })
 }
 
 fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {

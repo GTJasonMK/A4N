@@ -35,7 +35,7 @@ pub async fn attribute_history(
     input: AttributeHistoryInput,
 ) -> Result<Vec<AttributeEventSummary>, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .attribute_history(user_id, input)
         .await
         .map_err(app_error_message)

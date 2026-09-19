@@ -161,6 +161,8 @@ pub struct ApplicationPorts {
     /// timeline/history projections.
     pub character_profile_overview_read_application:
         Arc<dyn a4n_api_contract::character::CharacterProfileOverviewReadApplicationPort>,
+    pub character_timeline_read_application:
+        Arc<dyn a4n_api_contract::character::CharacterTimelineReadApplicationPort>,
     /// Host-facing character profile mutation boundary. Runtime keeps only
     /// post-commit RAG warning handling outside the character owner.
     pub character_profile_mutation_application:

@@ -1,16 +1,22 @@
 //! Typed Host adapter for initial character profile mutations.
 
 use a4n_api_contract::character::{
+    AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
     CharacterProfileCreateResult, CharacterProfileMutationApplicationPort,
     CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
-    CharacterProfileSummary, CreateProfileInput, ListProfilesInput, UpdateCharacterProfileInput,
+    CharacterProfileSummary, CharacterTimelineReadApplicationPort, CreateProfileInput,
+    DeletionMarkSummary, GetProfileStateAtChapterInput, ListBehaviorsInput, ListDeletionMarksInput,
+    ListProfilesInput, ListSnapshotsInput, ProfileChapterStateSummary, SnapshotReferenceSummary,
+    UpdateCharacterProfileInput,
 };
 use a4n_character_mutation_worker_contract::{
     CHARACTER_MUTATION_CREATE_OPERATION, CHARACTER_MUTATION_UPDATE_OPERATION,
     CHARACTER_MUTATION_WORKER_ID, CHARACTER_OVERVIEW_ARC_OPERATION,
     CHARACTER_OVERVIEW_LIST_OPERATION, CHARACTER_OVERVIEW_PROJECT_OPERATION,
-    CHARACTER_OVERVIEW_VOICE_OPERATION, CreateInput, NamedProfileInput, ProfileIdInput,
-    UpdateInput,
+    CHARACTER_OVERVIEW_VOICE_OPERATION, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
+    CHARACTER_TIMELINE_BEHAVIOR_OPERATION, CHARACTER_TIMELINE_DELETION_OPERATION,
+    CHARACTER_TIMELINE_SNAPSHOTS_OPERATION, CHARACTER_TIMELINE_STATE_OPERATION, CreateInput,
+    NamedProfileInput, ProfileIdInput, UpdateInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -202,6 +208,79 @@ impl CharacterProfileOverviewReadApplicationPort for CharacterMutationWorkerClie
             project_id,
             CHARACTER_OVERVIEW_VOICE_OPERATION,
             NamedProfileInput { project_id, name },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
+    async fn attribute_history(
+        &self,
+        user_id: i64,
+        input: AttributeHistoryInput,
+    ) -> Result<Vec<AttributeEventSummary>, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_ATTRIBUTE_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn behavior_history(
+        &self,
+        user_id: i64,
+        input: ListBehaviorsInput,
+    ) -> Result<Vec<BehaviorRecordSummary>, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_BEHAVIOR_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn deletion_marks(
+        &self,
+        user_id: i64,
+        input: ListDeletionMarksInput,
+    ) -> Result<Vec<DeletionMarkSummary>, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_DELETION_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn snapshots(
+        &self,
+        user_id: i64,
+        input: ListSnapshotsInput,
+    ) -> Result<Vec<SnapshotReferenceSummary>, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn state_at_chapter(
+        &self,
+        user_id: i64,
+        input: GetProfileStateAtChapterInput,
+    ) -> Result<ProfileChapterStateSummary, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_STATE_OPERATION,
+            input,
         )
         .await
     }

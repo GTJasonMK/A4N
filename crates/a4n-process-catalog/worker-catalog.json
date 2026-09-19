@@ -537,7 +537,11 @@
     "default_addr": "127.0.0.1:47674",
     "local_only": true,
     "data_scope": ["protagonist_profile"],
-    "capabilities": ["character.mutation", "character.overview"],
+    "capabilities": [
+      "character.mutation",
+      "character.overview",
+      "character.timeline.read"
+    ],
     "dependencies": ["a4n-migration"],
     "migration": {
       "current": "character_profile",

@@ -11,7 +11,7 @@ pub async fn list_deletion_marks(
     input: ListDeletionMarksInput,
 ) -> Result<Vec<DeletionMarkSummary>, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .deletion_marks(user_id, input)
         .await
         .map_err(app_error_message)

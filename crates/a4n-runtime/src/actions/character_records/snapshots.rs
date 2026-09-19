@@ -13,7 +13,7 @@ pub async fn list_snapshots(
     input: ListSnapshotsInput,
 ) -> Result<Vec<SnapshotReferenceSummary>, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .snapshots(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
@@ -25,7 +25,7 @@ pub async fn get_profile_state_at_chapter(
     input: GetProfileStateAtChapterInput,
 ) -> Result<ProfileChapterStateSummary, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .state_at_chapter(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)

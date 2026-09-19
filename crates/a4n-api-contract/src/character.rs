@@ -238,6 +238,42 @@ pub trait CharacterProfileOverviewReadApplicationPort: Send + Sync {
     ) -> Result<Option<Value>, a4n_error::AppError>;
 }
 
+/// Character timeline reads that only need the character owner and database
+/// projections. Snapshot diff and sync-conflict checks remain separate because
+/// they combine multiple source owners.
+#[async_trait::async_trait]
+pub trait CharacterTimelineReadApplicationPort: Send + Sync {
+    async fn attribute_history(
+        &self,
+        user_id: i64,
+        input: AttributeHistoryInput,
+    ) -> Result<Vec<AttributeEventSummary>, a4n_error::AppError>;
+
+    async fn behavior_history(
+        &self,
+        user_id: i64,
+        input: ListBehaviorsInput,
+    ) -> Result<Vec<BehaviorRecordSummary>, a4n_error::AppError>;
+
+    async fn deletion_marks(
+        &self,
+        user_id: i64,
+        input: ListDeletionMarksInput,
+    ) -> Result<Vec<DeletionMarkSummary>, a4n_error::AppError>;
+
+    async fn snapshots(
+        &self,
+        user_id: i64,
+        input: ListSnapshotsInput,
+    ) -> Result<Vec<SnapshotReferenceSummary>, a4n_error::AppError>;
+
+    async fn state_at_chapter(
+        &self,
+        user_id: i64,
+        input: GetProfileStateAtChapterInput,
+    ) -> Result<ProfileChapterStateSummary, a4n_error::AppError>;
+}
+
 /// Host-facing mutation boundary for initial character profiles.
 ///
 /// Authorization, persistence and the profile projection stay with the
@@ -695,7 +731,7 @@ pub struct ListSnapshotsInput {
     pub end_chapter: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SnapshotReferenceSummary {
     pub id: i64,
     pub chapter_number: i32,
@@ -715,7 +751,7 @@ pub struct GetProfileStateAtChapterInput {
     pub chapter_number: i32,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ProfileChapterStateSummary {
     pub chapter_number: i32,
     pub attribute_counts: AttributeCountsSummary,

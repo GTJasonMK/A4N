@@ -961,6 +961,12 @@ impl AppState {
         self.character_profile_overview_read_application.as_ref()
     }
 
+    pub(crate) fn character_timeline_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::character::CharacterTimelineReadApplicationPort {
+        self.character_timeline_read_application.as_ref()
+    }
+
     pub(crate) fn character_profile_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::character::CharacterProfileMutationApplicationPort {

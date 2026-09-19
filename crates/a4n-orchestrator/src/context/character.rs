@@ -880,6 +880,49 @@ impl CharacterProfileReadApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
+impl a4n_api_contract::character::CharacterTimelineReadApplicationPort for OrchestratorContext {
+    async fn attribute_history(
+        &self,
+        user_id: i64,
+        input: AttributeHistoryInput,
+    ) -> Result<Vec<AttributeEventSummary>, AppError> {
+        CharacterProfileReadApplicationPort::attribute_history(self, user_id, input).await
+    }
+
+    async fn behavior_history(
+        &self,
+        user_id: i64,
+        input: ListBehaviorsInput,
+    ) -> Result<Vec<BehaviorRecordSummary>, AppError> {
+        CharacterProfileReadApplicationPort::behavior_history(self, user_id, input).await
+    }
+
+    async fn deletion_marks(
+        &self,
+        user_id: i64,
+        input: ListDeletionMarksInput,
+    ) -> Result<Vec<DeletionMarkSummary>, AppError> {
+        CharacterProfileReadApplicationPort::deletion_marks(self, user_id, input).await
+    }
+
+    async fn snapshots(
+        &self,
+        user_id: i64,
+        input: ListSnapshotsInput,
+    ) -> Result<Vec<SnapshotReferenceSummary>, AppError> {
+        CharacterProfileReadApplicationPort::snapshots(self, user_id, input).await
+    }
+
+    async fn state_at_chapter(
+        &self,
+        user_id: i64,
+        input: GetProfileStateAtChapterInput,
+    ) -> Result<ProfileChapterStateSummary, AppError> {
+        CharacterProfileReadApplicationPort::state_at_chapter(self, user_id, input).await
+    }
+}
+
+#[async_trait::async_trait]
 impl CharacterProfileMutationApplicationPort for OrchestratorContext {
     async fn create(
         &self,

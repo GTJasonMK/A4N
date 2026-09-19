@@ -8,7 +8,7 @@ pub async fn list_behaviors(
     input: ListBehaviorsInput,
 ) -> Result<Vec<BehaviorRecordSummary>, String> {
     state
-        .character_profile_read_application()
+        .character_timeline_read_application()
         .behavior_history(user_id, input)
         .await
         .map_err(app_error_message)

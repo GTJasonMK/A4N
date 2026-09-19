@@ -1,9 +1,11 @@
 //! Typed initial character profile mutation commands.
 
 pub use a4n_api_contract::character::{
-    CharacterProfileCreateResult, CharacterProfileMutationResult,
-    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary, CreateProfileInput,
-    ListProfilesInput, UpdateCharacterProfileInput,
+    AttributeHistoryInput, CharacterProfileCreateResult, CharacterProfileMutationResult,
+    CharacterProfileOverviewReadApplicationPort, CharacterProfileSummary,
+    CharacterTimelineReadApplicationPort, CreateProfileInput, GetProfileStateAtChapterInput,
+    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
+    UpdateCharacterProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
@@ -19,6 +21,12 @@ pub const CHARACTER_OVERVIEW_ARC_OPERATION: &str = "character.overview.arc";
 pub const CHARACTER_OVERVIEW_VOICE_OPERATION: &str = "character.overview.voice";
 pub const CHARACTER_MUTATION_CAPABILITY: &str = "character.mutation";
 pub const CHARACTER_OVERVIEW_CAPABILITY: &str = "character.overview";
+pub const CHARACTER_TIMELINE_ATTRIBUTE_OPERATION: &str = "character.timeline.attribute_history";
+pub const CHARACTER_TIMELINE_BEHAVIOR_OPERATION: &str = "character.timeline.behavior_history";
+pub const CHARACTER_TIMELINE_DELETION_OPERATION: &str = "character.timeline.deletion_marks";
+pub const CHARACTER_TIMELINE_SNAPSHOTS_OPERATION: &str = "character.timeline.snapshots";
+pub const CHARACTER_TIMELINE_STATE_OPERATION: &str = "character.timeline.state_at_chapter";
+pub const CHARACTER_TIMELINE_CAPABILITY: &str = "character.timeline.read";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

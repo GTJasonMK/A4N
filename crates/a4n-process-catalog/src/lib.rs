@@ -726,7 +726,8 @@ mod tests {
             character_mutation.capabilities,
             vec![
                 "character.mutation".to_string(),
-                "character.overview".to_string()
+                "character.overview".to_string(),
+                "character.timeline.read".to_string()
             ]
         );
         let portrait = entries
