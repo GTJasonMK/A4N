@@ -20,6 +20,7 @@
   {"package":"a4n-inspiration-worker","binary":"a4n-inspiration-worker"},
   {"package":"a4n-project-access-worker","binary":"a4n-project-access-worker"},
   {"package":"a4n-project-collaboration-worker","binary":"a4n-project-collaboration-worker"},
+  {"package":"a4n-project-mutation-worker","binary":"a4n-project-mutation-worker"},
   {"package":"a4n-portrait-worker","binary":"a4n-portrait-worker"},
   {"package":"a4n-source-snapshot-worker","binary":"a4n-source-snapshot-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}

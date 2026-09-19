@@ -430,5 +430,24 @@
       "min_compatible": "project_collaboration",
       "max_compatible": "project_collaboration"
     }
+  },
+  {
+    "name": "project-mutation-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-project-mutation-worker",
+    "contract_version": "project-mutation-v1",
+    "capability_version": "project-mutation-v1",
+    "addr_env": "A4N_PROJECT_MUTATION_WORKER_ADDR",
+    "url_env": "A4N_PROJECT_MUTATION_WORKER_URL",
+    "default_addr": "127.0.0.1:47669",
+    "local_only": true,
+    "data_scope": ["project", "project_family", "project_progress"],
+    "capabilities": ["project.mutation"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "project_mutation",
+      "min_compatible": "project_mutation",
+      "max_compatible": "project_mutation"
+    }
   }
 ]
