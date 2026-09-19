@@ -5,9 +5,7 @@ import { promptDialog } from "../../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../../api";
 import {
   getBlueprint,
-  loadBlueprintTaskResult,
   refineBlueprint,
-  syncBlueprintMaterials,
   updateWorldSetting,
   type Blueprint,
 } from "../../api/blueprint";
@@ -24,8 +22,8 @@ import {
 } from "./world/worldTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { nonEmptyText } from "../../utils/text";
-import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../hooks/useProgressTask";
+import { runBlueprintRefinementWithProgress } from "./blueprintRefinement";
 import { useI18n } from "../../i18n";
 
 interface WorldTabProps {
@@ -225,37 +223,18 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         variables: null,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const syncWarnings = await runGenerationProgressTaskThen(
+      const syncWarnings = await runBlueprintRefinementWithProgress({
         runProgressTask,
         handle,
-        {
-          title: t("novel.world.refine"),
-          startMessage: t("novel.world.refining"),
-          successMessage: t("novel.world.refined"),
-          errorMessage: t("novel.world.refineFailed"),
-          total: 4,
-          cancelLabel: t("feedback.progressCancel"),
-          runningHint: t("feedback.progressRunningHint"),
-        },
-        async (task) => {
-          if (!isCurrentRefine(requestProjectId, requestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-          if (!isCurrentRefine(requestProjectId, requestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          const warnings = await syncBlueprintMaterials(requestProjectId);
-          if (!isCurrentRefine(requestProjectId, requestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          await load();
-          if (!isCurrentRefine(requestProjectId, requestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          return warnings;
-        },
-      );
+        projectId: requestProjectId,
+        title: t("novel.world.refine"),
+        startMessage: t("novel.world.refining"),
+        successMessage: t("novel.world.refined"),
+        errorMessage: t("novel.world.refineFailed"),
+        isCurrent: () => isCurrentRefine(requestProjectId, requestSeq),
+        refresh: load,
+        t,
+      });
       addToast(
         syncWarnings.length > 0
           ? t("novel.world.refinedWithWarnings", {
@@ -267,9 +246,10 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     } catch (err) {
       if (isCurrentRefine(requestProjectId, requestSeq)) {
         const message = extractErrorMessage(err, t("novel.world.refineFailed"));
+        const cancelled = isCancelledOperation(message);
         addToast(
-          isCancelledOperation(message) ? t("feedback.progressCancelled") : message,
-          isCancelledOperation(message) ? "info" : "error",
+          cancelled ? t("feedback.progressCancelled") : message,
+          cancelled ? "info" : "error",
         );
       }
     } finally {

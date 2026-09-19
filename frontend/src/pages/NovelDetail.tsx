@@ -24,9 +24,7 @@ import {
   type NovelProject,
 } from "../api/project";
 import {
-  loadBlueprintTaskResult,
   refineBlueprint,
-  syncBlueprintMaterials,
 } from "../api/blueprint";
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { OverviewTab } from "./novel-detail/OverviewTab";
@@ -41,12 +39,12 @@ import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
 import { cancelWorkflowTask } from "../api/streaming";
-import { runGenerationProgressTaskThen } from "../hooks/runGenerationProgressTask";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import { getScrollRailCue, scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
+import { runBlueprintRefinementWithProgress } from "./novel-detail/blueprintRefinement";
 
 const AssetDependencyGraphDialog = lazy(() =>
   import("./novel-detail/asset-graph/AssetDependencyGraphDialog").then(
@@ -499,37 +497,18 @@ export const NovelDetail: React.FC = () => {
         variables: null,
       });
       if (!isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) return;
-      const syncWarnings = await runGenerationProgressTaskThen(
+      const syncWarnings = await runBlueprintRefinementWithProgress({
         runProgressTask,
         handle,
-        {
-          title: t("novel.refineBlueprint"),
-          startMessage: t("novel.refiningBlueprint"),
-          successMessage: t("novel.blueprintRefined"),
-          errorMessage: t("novel.refineBlueprintFailed"),
-          total: 4,
-          cancelLabel: t("feedback.progressCancel"),
-          runningHint: t("feedback.progressRunningHint"),
-        },
-        async (task) => {
-          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          await loadBlueprintTaskResult(requestProjectId, task.resultRef);
-          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          const warnings = await syncBlueprintMaterials(requestProjectId);
-          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          await refresh(requestProjectId);
-          if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
-            throw new Error(t("workflow.cancelled"));
-          }
-          return warnings;
-        },
-      );
+        projectId: requestProjectId,
+        title: t("novel.refineBlueprint"),
+        startMessage: t("novel.refiningBlueprint"),
+        successMessage: t("novel.blueprintRefined"),
+        errorMessage: t("novel.refineBlueprintFailed"),
+        isCurrent: () => isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq),
+        refresh: () => refresh(requestProjectId),
+        t,
+      });
       addToast(
         syncWarnings.length > 0
           ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
