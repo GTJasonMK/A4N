@@ -687,6 +687,10 @@ impl AppState {
         self.event_bus.subscribe()
     }
 
+    pub(crate) fn event_bus(&self) -> Arc<BroadcastEventBus> {
+        self.event_bus.clone()
+    }
+
     pub(crate) fn auth_read_application(
         &self,
     ) -> &dyn a4n_api_contract::auth::AuthReadApplicationPort {
