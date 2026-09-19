@@ -1510,7 +1510,6 @@ name = "a4n-profile-material-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-db",
  "a4n-db-models",
  "a4n-domain",
  "chrono",

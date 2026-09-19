@@ -6,7 +6,6 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
     ProfileMaterialProfileSummary,
 };
-use a4n_db::profile_material::generated_image_profile_material_identity;
 use a4n_db_models::models::{
     ai::generated_image,
     asset::{object_profile, profile_primary_material},
@@ -17,6 +16,7 @@ use a4n_domain::{
     profile_material::{
         ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
         ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
+        profile_material_identity,
     },
     source_text_hash as source_content_sha256,
 };
@@ -145,7 +145,9 @@ pub fn profile_material_group_projections(
 ) -> Vec<ProfileMaterialGroupProjection> {
     let mut images_by_profile: HashMap<(String, i64), Vec<generated_image::Model>> = HashMap::new();
     for image in images {
-        if let Some((kind, profile_id)) = generated_image_profile_material_identity(&image) {
+        if let Some((kind, profile_id)) =
+            profile_material_identity(&image.image_type, image.metadata_json.as_ref())
+        {
             images_by_profile
                 .entry((kind.to_string(), profile_id))
                 .or_default()

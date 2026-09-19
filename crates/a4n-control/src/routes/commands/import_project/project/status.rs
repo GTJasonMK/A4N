@@ -4,11 +4,11 @@ use crate::state::ServerState;
 
 project_web_status_command!(
     forward_project_status,
-    project_status_actions::forward_project_status_summary
+    project_status_actions::forward_project_status
 );
 project_web_status_command!(
     rollback_project_status,
-    project_status_actions::rollback_project_status_summary
+    project_status_actions::rollback_project_status
 );
 project_web_project_value_command!(
     get_project_status_machine,

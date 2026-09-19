@@ -53,23 +53,3 @@ pub async fn rollback_project_status(
         .await
         .map_err(|error| error.to_string())
 }
-
-/// Existing command modules still use these names; both now delegate to the
-/// same project status port and contain no separate projection logic.
-pub async fn forward_project_status_summary(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    target: ProjectStatus,
-) -> Result<ProjectSummary, String> {
-    forward_project_status(state, user_id, project_id, target).await
-}
-
-pub async fn rollback_project_status_summary(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    target: ProjectStatus,
-) -> Result<ProjectSummary, String> {
-    rollback_project_status(state, user_id, project_id, target).await
-}

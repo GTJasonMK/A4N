@@ -11,6 +11,7 @@ use a4n_api_contract::theme::{
 use a4n_db_models::models::user::{theme_config, theme_preference, theme_resource};
 use a4n_domain::ThemeAppearance;
 use a4n_error::AppError;
+use a4n_theme_core::theme_resource_record;
 
 use crate::{OrchestratorContext, auth::ensure_same_user};
 use rules::{ensure_theme_can_be_deleted, normalize_theme_name};
@@ -281,18 +282,5 @@ impl OrchestratorContext {
     async fn theme_summary(&self, theme: theme_config::Model) -> Result<ThemeSummary, AppError> {
         let resources = self.list_theme_resources(theme.id).await?;
         a4n_theme_core::theme_summary_with_resources(theme, resources)
-    }
-}
-
-fn theme_resource_record(resource: theme_resource::Model) -> ThemeResourceRecord {
-    ThemeResourceRecord {
-        id: resource.id,
-        theme_id: resource.theme_id,
-        resource_key: resource.resource_key,
-        file_name: resource.file_name,
-        mime_type: resource.mime_type,
-        file_path: resource.file_path,
-        sha256: resource.sha256,
-        byte_size: resource.byte_size,
     }
 }
