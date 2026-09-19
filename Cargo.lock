@@ -914,6 +914,7 @@ dependencies = [
  "a4n-scene-profile-worker-client",
  "a4n-source-snapshot-worker-client",
  "a4n-theme-read-worker-client",
+ "a4n-workflow-read-worker-client",
 ]
 
 [[package]]
@@ -1582,6 +1583,7 @@ dependencies = [
  "a4n-video",
  "a4n-video-contract",
  "a4n-video-host-contract",
+ "a4n-workflow-core",
  "anyhow",
  "async-trait",
  "base64 0.22.1",
@@ -2420,6 +2422,7 @@ dependencies = [
  "a4n-theme-read-worker",
  "a4n-worker-client",
  "a4n-worker-contract",
+ "a4n-workflow-read-worker",
  "anyhow",
  "axum 0.8.9",
  "base64 0.22.1",
@@ -2830,6 +2833,60 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "a4n-workflow-core"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-db",
+]
+
+[[package]]
+name = "a4n-workflow-read-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "a4n-workflow-core",
+ "a4n-workflow-read-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-workflow-read-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "a4n-workflow-read-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-workflow-read-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
 ]
 
 [[package]]

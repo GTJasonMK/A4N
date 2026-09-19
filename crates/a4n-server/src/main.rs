@@ -60,6 +60,8 @@ const PROJECT_MUTATION_WORKER_PROCESS_ENV: &str = "A4N_PROJECT_MUTATION_WORKER_P
 const CHAPTER_SCENE_WORKER_PROCESS_ENV: &str = "A4N_CHAPTER_SCENE_WORKER_PROCESS";
 #[cfg(feature = "test-embedded-processes")]
 const CHAPTER_CONTENT_WORKER_PROCESS_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_PROCESS";
+#[cfg(feature = "test-embedded-processes")]
+const WORKFLOW_READ_WORKER_PROCESS_ENV: &str = "A4N_WORKFLOW_READ_WORKER_PROCESS";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
@@ -148,6 +150,10 @@ const CHAPTER_CONTENT_WORKER_CATALOG_NAME: &str = "chapter-content-worker";
 const CHAPTER_CONTENT_WORKER_BINARY_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_BINARY";
 const CHAPTER_CONTENT_WORKER_TOKEN_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_TOKEN";
 const CHAPTER_CONTENT_WORKER_URL_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_URL";
+const WORKFLOW_READ_WORKER_CATALOG_NAME: &str = "workflow-read-worker";
+const WORKFLOW_READ_WORKER_BINARY_ENV: &str = "A4N_WORKFLOW_READ_WORKER_BINARY";
+const WORKFLOW_READ_WORKER_TOKEN_ENV: &str = "A4N_WORKFLOW_READ_WORKER_TOKEN";
+const WORKFLOW_READ_WORKER_URL_ENV: &str = "A4N_WORKFLOW_READ_WORKER_URL";
 const RUNTIME_WORKER_RELOAD_MARKER_ENV: &str = "A4N_RUNTIME_WORKER_RELOAD_MARKER";
 const AGENT_WORKER_TOKEN_ENV: &str = "A4N_AGENT_WORKER_TOKEN";
 const CONTROL_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -191,6 +197,7 @@ enum ChildWatchEvent {
     ProjectMutationWorkerExited(ExitStatus),
     ChapterSceneWorkerExited(ExitStatus),
     ChapterContentWorkerExited(ExitStatus),
+    WorkflowReadWorkerExited(ExitStatus),
     EdgeChanged,
     ControlChanged,
     WorkerChanged,
@@ -215,6 +222,7 @@ enum ChildWatchEvent {
     ProjectMutationWorkerChanged,
     ChapterSceneWorkerChanged,
     ChapterContentWorkerChanged,
+    WorkflowReadWorkerChanged,
     ReloadMarkerChanged,
 }
 
@@ -290,6 +298,9 @@ fn main() -> anyhow::Result<()> {
         if env::var(CHAPTER_CONTENT_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
             return a4n_chapter_content_worker::run();
         }
+        if env::var(WORKFLOW_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+            return a4n_workflow_read_worker::run();
+        }
     }
 
     let control_addr = control_addr()?;
@@ -340,6 +351,8 @@ fn main() -> anyhow::Result<()> {
     let chapter_scene_worker_token = worker_token_for_env(CHAPTER_SCENE_WORKER_TOKEN_ENV)?;
     let chapter_content_worker_addr = chapter_content_worker_addr()?;
     let chapter_content_worker_token = worker_token_for_env(CHAPTER_CONTENT_WORKER_TOKEN_ENV)?;
+    let workflow_read_worker_addr = workflow_read_worker_addr()?;
+    let workflow_read_worker_token = worker_token_for_env(WORKFLOW_READ_WORKER_TOKEN_ENV)?;
     let control_binary = control_binary()?;
     let mut control_fingerprint = binary_fingerprint(&control_binary)?;
     let worker_binary = agent_worker_binary()?;
@@ -380,6 +393,7 @@ fn main() -> anyhow::Result<()> {
     let project_mutation_worker_binary = project_mutation_worker_binary()?;
     let chapter_scene_worker_binary = chapter_scene_worker_binary()?;
     let chapter_content_worker_binary = chapter_content_worker_binary()?;
+    let workflow_read_worker_binary = workflow_read_worker_binary()?;
     let reload_marker = reload_marker_path();
     let mut reload_marker_fingerprint = optional_binary_fingerprint(reload_marker.as_deref())?;
     let mut artifact_media_worker = spawn_artifact_media_worker(
@@ -693,6 +707,8 @@ fn main() -> anyhow::Result<()> {
         &chapter_scene_worker_token,
         chapter_content_worker_addr,
         &chapter_content_worker_token,
+        workflow_read_worker_addr,
+        &workflow_read_worker_token,
     ) {
         Ok(child) => child,
         Err(error) => {
@@ -1316,6 +1332,29 @@ fn main() -> anyhow::Result<()> {
     }
     let mut chapter_content_worker_fingerprint =
         binary_fingerprint(&chapter_content_worker_binary)?;
+    let mut workflow_read_worker = match spawn_workflow_read_worker(
+        &workflow_read_worker_binary,
+        workflow_read_worker_addr,
+        &workflow_read_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_chapter_content_worker(&mut chapter_content_worker);
+            let _ = stop_chapter_scene_worker(&mut chapter_scene_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_workflow_read_worker(
+        &mut workflow_read_worker,
+        workflow_read_worker_addr,
+        &workflow_read_worker_token,
+    ) {
+        let _ = stop_workflow_read_worker(&mut workflow_read_worker);
+        let _ = stop_chapter_content_worker(&mut chapter_content_worker);
+        let _ = stop_chapter_scene_worker(&mut chapter_scene_worker);
+        return Err(error);
+    }
+    let mut workflow_read_worker_fingerprint = binary_fingerprint(&workflow_read_worker_binary)?;
     let mut edge = match spawn_edge(&edge_binary, control_addr) {
         Ok(child) => child,
         Err(error) => {
@@ -1459,6 +1498,11 @@ fn main() -> anyhow::Result<()> {
         &mut chapter_content_worker,
         &chapter_content_worker_binary,
         &mut chapter_content_worker_fingerprint,
+        workflow_read_worker_addr,
+        &workflow_read_worker_token,
+        &mut workflow_read_worker,
+        &workflow_read_worker_binary,
+        &mut workflow_read_worker_fingerprint,
         &edge_binary,
         &mut edge_fingerprint,
         reload_marker.as_deref(),
@@ -1491,6 +1535,7 @@ fn main() -> anyhow::Result<()> {
     let project_mutation_worker_result = stop_project_mutation_worker(&mut project_mutation_worker);
     let chapter_scene_worker_result = stop_chapter_scene_worker(&mut chapter_scene_worker);
     let chapter_content_worker_result = stop_chapter_content_worker(&mut chapter_content_worker);
+    let workflow_read_worker_result = stop_workflow_read_worker(&mut workflow_read_worker);
     finish_shutdown(
         edge_result,
         worker_result,
@@ -1516,6 +1561,7 @@ fn main() -> anyhow::Result<()> {
         project_mutation_worker_result,
         chapter_scene_worker_result,
         chapter_content_worker_result,
+        workflow_read_worker_result,
     )
 }
 
@@ -1635,6 +1681,11 @@ fn supervise_runtime_children(
     chapter_content_worker: &mut Child,
     chapter_content_worker_binary: &Path,
     chapter_content_worker_fingerprint: &mut BinaryFingerprint,
+    workflow_read_worker_addr: SocketAddr,
+    workflow_read_worker_token: &str,
+    workflow_read_worker: &mut Child,
+    workflow_read_worker_binary: &Path,
+    workflow_read_worker_fingerprint: &mut BinaryFingerprint,
     edge_binary: &Path,
     edge_fingerprint: &mut BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -1750,6 +1801,11 @@ fn supervise_runtime_children(
                 chapter_content_worker_binary,
                 *chapter_content_worker_fingerprint,
             )),
+            Some((
+                workflow_read_worker,
+                workflow_read_worker_binary,
+                *workflow_read_worker_fingerprint,
+            )),
             edge_binary,
             *edge_fingerprint,
             reload_marker,
@@ -1815,6 +1871,8 @@ fn supervise_runtime_children(
                     chapter_scene_worker_token,
                     chapter_content_worker_addr,
                     chapter_content_worker_token,
+                    workflow_read_worker_addr,
+                    workflow_read_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -2157,6 +2215,22 @@ fn supervise_runtime_children(
                 *chapter_content_worker_fingerprint =
                     binary_fingerprint(chapter_content_worker_binary)?;
             }
+            ChildWatchEvent::WorkflowReadWorkerExited(status) => {
+                eprintln!("A4N Workflow Read worker 意外退出: {status}；准备重启");
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *workflow_read_worker = spawn_workflow_read_worker(
+                    workflow_read_worker_binary,
+                    workflow_read_worker_addr,
+                    workflow_read_worker_token,
+                )?;
+                wait_for_workflow_read_worker(
+                    workflow_read_worker,
+                    workflow_read_worker_addr,
+                    workflow_read_worker_token,
+                )?;
+                *workflow_read_worker_fingerprint =
+                    binary_fingerprint(workflow_read_worker_binary)?;
+            }
             ChildWatchEvent::EdgeChanged => {
                 eprintln!("检测到 A4N Edge 构建完成；只替换 Edge");
                 stop_edge(edge)?;
@@ -2213,6 +2287,8 @@ fn supervise_runtime_children(
                     chapter_scene_worker_token,
                     chapter_content_worker_addr,
                     chapter_content_worker_token,
+                    workflow_read_worker_addr,
+                    workflow_read_worker_token,
                 )?;
                 wait_for_control(control, control_addr)?;
                 *control_fingerprint = binary_fingerprint(control_binary)?;
@@ -2601,6 +2677,23 @@ fn supervise_runtime_children(
                 *chapter_content_worker_fingerprint =
                     binary_fingerprint(chapter_content_worker_binary)?;
             }
+            ChildWatchEvent::WorkflowReadWorkerChanged => {
+                eprintln!("检测到 A4N Workflow Read worker 构建完成；只替换 Workflow Read worker");
+                stop_workflow_read_worker(workflow_read_worker)?;
+                std::thread::sleep(WORKER_RESTART_DELAY);
+                *workflow_read_worker = spawn_workflow_read_worker(
+                    workflow_read_worker_binary,
+                    workflow_read_worker_addr,
+                    workflow_read_worker_token,
+                )?;
+                wait_for_workflow_read_worker(
+                    workflow_read_worker,
+                    workflow_read_worker_addr,
+                    workflow_read_worker_token,
+                )?;
+                *workflow_read_worker_fingerprint =
+                    binary_fingerprint(workflow_read_worker_binary)?;
+            }
             ChildWatchEvent::ReloadMarkerChanged => {
                 // The marker is a publication hint from the development watcher.
                 // The binary fingerprints above decide which process actually
@@ -2827,6 +2920,7 @@ fn wait_for_edge_or_child_with_mutation(
     mut project_mutation_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut chapter_scene_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     mut chapter_content_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
+    mut workflow_read_worker: Option<(&mut Child, &Path, BinaryFingerprint)>,
     edge_binary: &Path,
     edge_fingerprint: BinaryFingerprint,
     reload_marker: Option<&Path>,
@@ -2946,6 +3040,11 @@ fn wait_for_edge_or_child_with_mutation(
             && let Some(status) = chapter_content_worker.try_wait()?
         {
             return Ok(Some(ChildWatchEvent::ChapterContentWorkerExited(status)));
+        }
+        if let Some((workflow_read_worker, _, _)) = workflow_read_worker.as_mut()
+            && let Some(status) = workflow_read_worker.try_wait()?
+        {
+            return Ok(Some(ChildWatchEvent::WorkflowReadWorkerExited(status)));
         }
         if binary_fingerprint(edge_binary)? != edge_fingerprint {
             return Ok(Some(ChildWatchEvent::EdgeChanged));
@@ -3094,6 +3193,12 @@ fn wait_for_edge_or_child_with_mutation(
                 != *chapter_content_worker_fingerprint
         {
             return Ok(Some(ChildWatchEvent::ChapterContentWorkerChanged));
+        }
+        if let Some((_, workflow_read_worker_binary, workflow_read_worker_fingerprint)) =
+            workflow_read_worker.as_ref()
+            && binary_fingerprint(workflow_read_worker_binary)? != *workflow_read_worker_fingerprint
+        {
+            return Ok(Some(ChildWatchEvent::WorkflowReadWorkerChanged));
         }
         if reload_marker.is_some()
             && optional_binary_fingerprint(reload_marker)? != reload_marker_fingerprint
@@ -3628,6 +3733,25 @@ fn chapter_content_worker_addr() -> anyhow::Result<SocketAddr> {
     ensure_nonzero_port(&metadata.addr_env, address)
 }
 
+fn workflow_read_worker_metadata()
+-> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
+    stateful_worker_catalog_entry_ref(WORKFLOW_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
+        anyhow::anyhow!(
+            "进程目录缺少 {} 的 stateful worker 元数据",
+            WORKFLOW_READ_WORKER_CATALOG_NAME
+        )
+    })
+}
+
+fn workflow_read_worker_addr() -> anyhow::Result<SocketAddr> {
+    let metadata = workflow_read_worker_metadata()?;
+    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+    let address = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+    ensure_nonzero_port(&metadata.addr_env, address)
+}
+
 fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -3681,6 +3805,8 @@ fn spawn_control(
     chapter_scene_worker_token: &str,
     chapter_content_worker_addr: SocketAddr,
     chapter_content_worker_token: &str,
+    workflow_read_worker_addr: SocketAddr,
+    workflow_read_worker_token: &str,
 ) -> anyhow::Result<Child> {
     let mut command = Command::new(binary);
     command
@@ -3812,6 +3938,11 @@ fn spawn_control(
             CHAPTER_CONTENT_WORKER_TOKEN_ENV,
             chapter_content_worker_token,
         )
+        .env(
+            WORKFLOW_READ_WORKER_URL_ENV,
+            format!("http://{workflow_read_worker_addr}"),
+        )
+        .env(WORKFLOW_READ_WORKER_TOKEN_ENV, workflow_read_worker_token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -4272,6 +4403,30 @@ fn spawn_chapter_content_worker(
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 A4N Chapter Content worker 失败: {}: {error}",
+            binary.display()
+        )
+    })
+}
+
+fn spawn_workflow_read_worker(
+    binary: &Path,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<Child> {
+    let mut command = Command::new(binary);
+    let metadata = workflow_read_worker_metadata()?;
+    command
+        .env(metadata.addr_env.as_str(), address.to_string())
+        .env(WORKFLOW_READ_WORKER_TOKEN_ENV, worker_token)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(feature = "test-embedded-processes")]
+    command.env(WORKFLOW_READ_WORKER_PROCESS_ENV, "1");
+    configure_parent_death_signal(&mut command);
+    command.spawn().map_err(|error| {
+        anyhow::anyhow!(
+            "启动 A4N Workflow Read worker 失败: {}: {error}",
             binary.display()
         )
     })
@@ -4803,6 +4958,28 @@ fn wait_for_chapter_content_worker(
     )
 }
 
+fn wait_for_workflow_read_worker(
+    child: &mut Child,
+    address: SocketAddr,
+    worker_token: &str,
+) -> anyhow::Result<()> {
+    let metadata = workflow_read_worker_metadata()?;
+    let required = metadata
+        .capabilities
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    wait_for_worker_contract(
+        child,
+        address,
+        worker_token,
+        WORKER_AUTH_HEADER,
+        Some(WORKFLOW_READ_WORKER_CATALOG_NAME),
+        &required,
+        "A4N Workflow Read worker",
+    )
+}
+
 fn wait_for_portrait_worker(
     child: &mut Child,
     address: SocketAddr,
@@ -5113,6 +5290,13 @@ fn chapter_content_worker_binary() -> anyhow::Result<PathBuf> {
     )
 }
 
+fn workflow_read_worker_binary() -> anyhow::Result<PathBuf> {
+    child_binary(
+        WORKFLOW_READ_WORKER_BINARY_ENV,
+        &workflow_read_worker_metadata()?.binary,
+    )
+}
+
 fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(env_name).map(PathBuf::from) {
         if path.is_file() {
@@ -5243,6 +5427,10 @@ fn stop_chapter_content_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
 
+fn stop_workflow_read_worker(child: &mut Child) -> anyhow::Result<()> {
+    stop_child(child)
+}
+
 fn stop_portrait_worker(child: &mut Child) -> anyhow::Result<()> {
     stop_child(child)
 }
@@ -5307,6 +5495,7 @@ fn finish_shutdown(
     project_mutation_worker_result: anyhow::Result<()>,
     chapter_scene_worker_result: anyhow::Result<()>,
     chapter_content_worker_result: anyhow::Result<()>,
+    workflow_read_worker_result: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     let mut failures = Vec::new();
     for (name, result) in [
@@ -5343,6 +5532,7 @@ fn finish_shutdown(
         ("Project Mutation worker", project_mutation_worker_result),
         ("Chapter Scene worker", chapter_scene_worker_result),
         ("Chapter Content worker", chapter_content_worker_result),
+        ("Workflow Read worker", workflow_read_worker_result),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));

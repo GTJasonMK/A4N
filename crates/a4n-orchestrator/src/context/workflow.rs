@@ -1017,58 +1017,7 @@ fn task_info_summary(
 fn workflow_run_detail_to_api(
     detail: crate::workflow::WorkflowRunDetailSummary,
 ) -> a4n_api_contract::workflow::WorkflowRunDetailSummary {
-    a4n_api_contract::workflow::WorkflowRunDetailSummary {
-        run: workflow_run_summary_to_api(detail.run),
-        checkpoints: detail
-            .checkpoints
-            .into_iter()
-            .map(
-                |checkpoint| a4n_api_contract::workflow::WorkflowCheckpointSummary {
-                    id: checkpoint.id,
-                    workflow_run_id: checkpoint.workflow_run_id,
-                    step_key: checkpoint.step_key,
-                    step_order: checkpoint.step_order,
-                    status: checkpoint.status,
-                    input_fingerprint_sha256: checkpoint.input_fingerprint_sha256,
-                    input_fingerprint_json: checkpoint.input_fingerprint_json,
-                    checkpoint_json: checkpoint.checkpoint_json,
-                    artifacts_json: checkpoint.artifacts_json,
-                    generation_run_ids_json: checkpoint.generation_run_ids_json,
-                    error_message: checkpoint.error_message,
-                    created_at: checkpoint.created_at,
-                    updated_at: checkpoint.updated_at,
-                    completed_at: checkpoint.completed_at,
-                },
-            )
-            .collect(),
-        generation_runs: detail
-            .generation_runs
-            .into_iter()
-            .map(|run| a4n_api_contract::workflow::GenerationRunSummary {
-                id: run.id,
-                workflow_run_id: run.workflow_run_id,
-                workflow: run.workflow,
-                step_key: run.step_key,
-                call_key: run.call_key,
-                title: run.title,
-                model_kind: run.model_kind,
-                provider: run.provider,
-                model: run.model,
-                status: run.status,
-                input_fingerprint_sha256: run.input_fingerprint_sha256,
-                input_fingerprint_json: run.input_fingerprint_json,
-                raw_response_json: run.raw_response_json,
-                parsed_output_json: run.parsed_output_json,
-                validation_json: run.validation_json,
-                artifact_refs_json: run.artifact_refs_json,
-                attempt: run.attempt,
-                response_summary_json: run.response_summary_json,
-                error_message: run.error_message,
-                created_at: run.created_at,
-                completed_at: run.completed_at,
-            })
-            .collect(),
-    }
+    a4n_workflow_core::workflow_run_detail_to_api(detail)
 }
 
 fn active_task_lookup_record(

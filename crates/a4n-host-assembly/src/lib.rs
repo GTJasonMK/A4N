@@ -84,6 +84,8 @@ pub async fn initialize_runtime(
         Arc::new(a4n_chapter_scene_worker_client::ChapterSceneWorkerClient::from_env());
     let chapter_content_worker =
         Arc::new(a4n_chapter_content_worker_client::ChapterContentWorkerClient::from_env());
+    let workflow_read_worker =
+        Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
     let theme_read_worker =
         Arc::new(a4n_theme_read_worker_client::ThemeReadWorkerClient::from_env());
     let artifact_media_publication_application = artifact_media_worker
@@ -137,7 +139,7 @@ pub async fn initialize_runtime(
         cleanup_outbox_application: orchestrator.clone(),
         character_discovery_application: orchestrator.clone(),
         character_profile_sync_application: orchestrator.clone(),
-        workflow_read_application: orchestrator.clone(),
+        workflow_read_application: workflow_read_worker,
         workflow_task_lookup_application: orchestrator.clone(),
         task_read_application: orchestrator.clone(),
         workflow_cancellation_application: orchestrator.clone(),

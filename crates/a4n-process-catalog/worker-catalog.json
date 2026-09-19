@@ -487,5 +487,24 @@
       "min_compatible": "chapter_content",
       "max_compatible": "chapter_content"
     }
+  },
+  {
+    "name": "workflow-read-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-workflow-read-worker",
+    "contract_version": "workflow-read-v1",
+    "capability_version": "workflow-read-v1",
+    "addr_env": "A4N_WORKFLOW_READ_WORKER_ADDR",
+    "url_env": "A4N_WORKFLOW_READ_WORKER_URL",
+    "default_addr": "127.0.0.1:47672",
+    "local_only": true,
+    "data_scope": ["workflow_run", "workflow_checkpoint", "generation_run"],
+    "capabilities": ["workflow.read"],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "workflow",
+      "min_compatible": "workflow",
+      "max_compatible": "workflow"
+    }
   }
 ]

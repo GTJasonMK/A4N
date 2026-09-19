@@ -132,7 +132,7 @@ pub struct WorkflowProgressEventsInput {
     pub limit: usize,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListWorkflowRunsInput {
     pub project_id: Option<i64>,
@@ -144,7 +144,7 @@ pub struct ListWorkflowRunsInput {
     pub limit: u64,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GetWorkflowRunInput {
     pub workflow_run_id: i64,
