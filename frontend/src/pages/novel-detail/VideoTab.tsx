@@ -2088,7 +2088,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               startMessage: t("video.actions.segmentPlanResumeStart"),
               successMessage: t("video.actions.segmentPlanCompleted"),
               errorMessage: t("video.actions.segmentPlanFailed"),
-              total: 100,
             },
             refreshPrompts,
             t,
@@ -2720,7 +2719,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           startMessage: t("video.chapter.insertedDescriptionPreparing"),
           successMessage: t("video.chapter.insertedDescriptionGenerated"),
           errorMessage: t("video.chapter.insertedDescriptionFailed"),
-          total: 100,
           cancelLabel: t("video.chapter.stopGeneration"),
         },
         async (task) => {
@@ -2910,7 +2908,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           startMessage: t("video.chapter.insertedVideoPreparing"),
           successMessage: t("video.chapter.insertedVideoGenerated"),
           errorMessage: t("video.chapter.insertedVideoFailed"),
-          total: 100,
           cancelLabel: t("video.chapter.stopGeneration"),
         },
         async (task) => {
@@ -3273,7 +3270,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           startMessage: t("video.chapter.referenceMediaVideoPreparing"),
           successMessage: t("video.chapter.referenceMediaVideoGenerated"),
           errorMessage: t("video.chapter.referenceMediaVideoFailed"),
-          total: 7,
           cancelLabel: t("video.chapter.stopGeneration"),
         },
         async (task) => {

@@ -194,7 +194,6 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           startMessage: t("characterDetail.portrait.missingStart"),
           successMessage: t("characterDetail.portrait.missingSuccess"),
           errorMessage: t("characterDetail.portrait.missingFailed"),
-          total: 1,
           cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
@@ -275,7 +274,6 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           startMessage: t("characterDetail.portrait.redrawStart"),
           successMessage: t("characterDetail.portrait.redrawSuccess"),
           errorMessage: t("characterDetail.portrait.redrawFailed"),
-          total: 4,
           cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {

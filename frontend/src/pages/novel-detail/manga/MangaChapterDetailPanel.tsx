@@ -386,7 +386,6 @@ export function MangaChapterDetailPanel({
           startMessage: t("comic.image.start", { page: pageNumber }),
           successMessage: t("comic.image.success"),
           errorMessage: t("comic.image.failed"),
-          total: 4,
           cancelLabel: t("comic.stopGeneration"),
           runningHint: t("comic.image.runningHint"),
         },

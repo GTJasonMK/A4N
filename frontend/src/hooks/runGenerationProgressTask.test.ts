@@ -127,7 +127,6 @@ describe("runGenerationProgressTaskThen", () => {
         startMessage: "已加载 95/100 个镜头",
         successMessage: "已完成",
         errorMessage: "失败",
-        total: 100,
       },
       () => undefined,
     );
