@@ -15,7 +15,6 @@ use a4n_api_contract::character::{
     RollbackToChapterInput, SnapshotDeltaSummary, SnapshotReferenceSummary, SnapshotSummary,
     UpdateCharacterProfileInput,
 };
-use a4n_api_contract::portrait::PortraitRecordMutationApplicationPort;
 use a4n_db::DbHandle;
 use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::character::{
@@ -1159,20 +1158,6 @@ fn character_attribute_lifecycle_error(error: CharacterAttributeLifecycleError) 
 
 fn character_profile_rag_warning(error: impl std::fmt::Display) -> String {
     format!("角色资料检索索引未完全更新：{error}。正式资料未受影响，可稍后在项目操作中重新同步")
-}
-
-#[async_trait::async_trait]
-impl PortraitRecordMutationApplicationPort for OrchestratorContext {
-    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
-        let portrait = self
-            .character_portrait_by_id(portrait_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("立绘不存在".to_string()))?;
-        self.verify_project_permission(portrait.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.set_primary_character_portrait_record(portrait_id)
-            .await
-    }
 }
 
 impl OrchestratorContext {

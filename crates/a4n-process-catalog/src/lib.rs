@@ -536,12 +536,15 @@ mod tests {
             .expect("portrait worker entry");
         assert_eq!(portrait.kind, ProcessKind::StatefulWorker);
         assert_eq!(portrait.binary, "a4n-portrait-worker");
-        assert_eq!(portrait.contract_version, "portrait-read-v2");
+        assert_eq!(portrait.contract_version, "portrait-records-v3");
         assert_eq!(portrait.addr_env, "A4N_PORTRAIT_WORKER_ADDR");
         assert_eq!(portrait.default_addr, "127.0.0.1:47659");
         assert_eq!(
             portrait.capabilities,
-            vec!["portrait.records.read".to_string()]
+            vec![
+                "portrait.records.read".to_string(),
+                "portrait.records.mutation".to_string()
+            ]
         );
         let source_snapshot = entries
             .iter()

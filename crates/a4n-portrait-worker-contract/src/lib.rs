@@ -6,12 +6,14 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const PORTRAIT_WORKER_ID: &str = "portrait-worker";
-pub const PORTRAIT_WORKER_CONTRACT_VERSION: &str = "portrait-read-v2";
+pub const PORTRAIT_WORKER_CONTRACT_VERSION: &str = "portrait-records-v3";
 pub const PORTRAIT_LIST_OPERATION: &str = "portrait.records.list";
 pub const PORTRAIT_PRIMARY_OPERATION: &str = "portrait.records.primary";
 pub const PORTRAIT_BY_ID_OPERATION: &str = "portrait.records.by_id";
 pub const PORTRAIT_MISSING_SEEDS_OPERATION: &str = "portrait.records.missing_seeds";
+pub const PORTRAIT_SET_PRIMARY_OPERATION: &str = "portrait.records.set_primary";
 pub const PORTRAIT_READ_CAPABILITY: &str = "portrait.records.read";
+pub const PORTRAIT_MUTATION_CAPABILITY: &str = "portrait.records.mutation";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

@@ -1,13 +1,15 @@
 //! Typed Host adapter for the portrait record read worker.
 
 use a4n_api_contract::portrait::{
-    PortraitGenerationSeed, PortraitRecordReadApplicationPort, PortraitSummary,
+    PortraitGenerationSeed, PortraitRecordMutationApplicationPort,
+    PortraitRecordReadApplicationPort, PortraitSummary,
 };
 use a4n_error::AppError;
 use a4n_portrait_worker_contract::{
     PORTRAIT_BY_ID_OPERATION, PORTRAIT_LIST_OPERATION, PORTRAIT_MISSING_SEEDS_OPERATION,
-    PORTRAIT_PRIMARY_OPERATION, PORTRAIT_WORKER_ID, PortraitGenerationSeedWire,
-    PortraitLookupResponse, PortraitProfileInput, PortraitProjectInput, PortraitRecordInput,
+    PORTRAIT_PRIMARY_OPERATION, PORTRAIT_SET_PRIMARY_OPERATION, PORTRAIT_WORKER_ID,
+    PortraitGenerationSeedWire, PortraitLookupResponse, PortraitProfileInput, PortraitProjectInput,
+    PortraitRecordInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -181,6 +183,19 @@ impl PortraitRecordReadApplicationPort for PortraitWorkerClient {
                 prompt: seed.prompt,
             })
             .collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl PortraitRecordMutationApplicationPort for PortraitWorkerClient {
+    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), AppError> {
+        self.command(
+            user_id,
+            None,
+            PORTRAIT_SET_PRIMARY_OPERATION,
+            PortraitRecordInput { portrait_id },
+        )
+        .await
     }
 }
 
