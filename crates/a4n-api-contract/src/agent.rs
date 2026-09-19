@@ -163,6 +163,25 @@ pub fn capability_has_restricted_tool_catalog(capability: &str) -> bool {
     )
 }
 
+/// Keep model-supplied tool-search filters inside a restricted capability.
+/// A model may put the capability label in `domain`; dropping only that
+/// redundant filter avoids a false empty result without widening the catalog.
+pub fn scope_agent_tool_search(capability: &str, input: &mut SearchAgentToolsInput) {
+    let capability = capability.trim();
+    if !capability_has_restricted_tool_catalog(capability) {
+        return;
+    }
+
+    input.capability = Some(capability.to_string());
+    if input
+        .domain
+        .as_deref()
+        .is_some_and(|domain| domain.trim() == capability)
+    {
+        input.domain = None;
+    }
+}
+
 /// These tool names only exist so persisted pre-unification Runs can finish.
 /// They must never enter a new Agent's discoverable catalog.
 pub fn is_legacy_agent_tool(name: &str) -> bool {
@@ -433,10 +452,23 @@ pub fn synthetic_agent_tool_descriptor(
         "search_agent_tools" => json!({
             "type": "object",
             "properties": {
-                "query": { "type": ["string", "null"] },
-                "domain": { "type": ["string", "null"] },
-                "effect": { "type": ["string", "null"] },
-                "capability": { "type": ["string", "null"] },
+                "query": {
+                    "type": ["string", "null"],
+                    "description": "Space-separated search terms. A tool matches when any term appears in its name, summary, domain, or tags."
+                },
+                "domain": {
+                    "type": ["string", "null"],
+                    "description": "Manifest domain such as optimize, canvas, project, or task; do not put an Agent capability name here."
+                },
+                "effect": {
+                    "type": ["string", "null"],
+                    "enum": ["read", "write", "destructive", null],
+                    "description": "Exact manifest effect filter. Use only read, write, or destructive."
+                },
+                "capability": {
+                    "type": ["string", "null"],
+                    "description": "Optional Agent capability filter. Restricted Agents should omit this field; the runtime pins it to the current capability."
+                },
                 "limit": { "type": ["integer", "null"], "minimum": 1, "maximum": AGENT_TOOLS_MAX_LIMIT }
             },
             "additionalProperties": false
@@ -1815,10 +1847,11 @@ pub trait AgentResourceAccessApplicationPort: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::{
-        AGENT_CAPABILITIES, AgentToolExposure, LocateWritingTargetInput,
+        AGENT_CAPABILITIES, AgentToolExposure, CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+        LocateWritingTargetInput, MAIN_AGENT_CAPABILITY, SearchAgentToolsInput,
         agent_execution_tool_descriptor, agent_tool_allowed_in_advice_only, agent_tool_descriptor,
         agent_tool_requires_user_approval, agent_tools_for_capability, is_legacy_agent_tool,
-        synthetic_agent_tool_descriptor, synthetic_agent_tool_descriptors,
+        scope_agent_tool_search, synthetic_agent_tool_descriptor, synthetic_agent_tool_descriptors,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1877,6 +1910,25 @@ mod tests {
         }
         assert!(agent_tool_descriptor("list_agent_skills").is_none());
         assert!(agent_tool_descriptor("update_agent_skill_configuration").is_none());
+    }
+
+    #[test]
+    fn restricted_tool_search_is_pinned_without_misreading_capability_as_domain() {
+        let mut input = SearchAgentToolsInput {
+            query: Some("edit article".into()),
+            domain: Some(CONTENT_OPTIMIZATION_AGENT_CAPABILITY.into()),
+            effect: Some("read".into()),
+            capability: Some(MAIN_AGENT_CAPABILITY.into()),
+            limit: Some(20),
+        };
+
+        scope_agent_tool_search(CONTENT_OPTIMIZATION_AGENT_CAPABILITY, &mut input);
+
+        assert_eq!(
+            input.capability.as_deref(),
+            Some(CONTENT_OPTIMIZATION_AGENT_CAPABILITY)
+        );
+        assert_eq!(input.domain, None);
     }
 
     #[test]
