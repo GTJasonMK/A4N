@@ -2,20 +2,9 @@
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
 use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::MangaPageGenerationLayoutV2;
+use a4n_domain::manga::{MangaPageGenerationLayoutV2, MangaPortraitReference};
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
-
-pub trait MangaPortraitReference {
-    fn profile_id(&self) -> i64;
-    fn portrait_id(&self) -> i64;
-    fn character_name(&self) -> &str;
-    fn image_path(&self) -> &str;
-    fn prompt(&self) -> &str;
-    fn portrait_type(&self) -> &str;
-    fn expression(&self) -> Option<&str>;
-    fn pose(&self) -> Option<&str>;
-}
 
 pub fn manga_reference_assets_json<P: MangaPortraitReference>(refs: &[P]) -> Value {
     json!({

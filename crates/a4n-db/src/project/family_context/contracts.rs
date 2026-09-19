@@ -44,7 +44,7 @@ pub struct MangaCharacterPortraitRefSummary {
     pub pose: Option<String>,
 }
 
-impl a4n_manga_core::MangaPortraitReference for MangaCharacterPortraitRefSummary {
+impl a4n_domain::manga::MangaPortraitReference for MangaCharacterPortraitRefSummary {
     fn profile_id(&self) -> i64 {
         self.profile_id
     }
