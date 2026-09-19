@@ -9,9 +9,10 @@ use a4n_api_contract::character::{
     CharacterProfileMutationResult, CharacterProfileOverviewReadApplicationPort,
     CharacterProfileSummary, CharacterProfileTimelineMutationApplicationPort,
     CharacterProfileTimelineMutationHostPort, CharacterTimelineReadApplicationPort,
-    CreateProfileInput, DeletionMarkSummary, ExecuteAttributeDeletionInput,
-    GetProfileStateAtChapterInput, GetSnapshotInput, ListBehaviorsInput, ListDeletionMarksInput,
-    ListProfilesInput, ListSnapshotsInput, ModifyProfileAttributeInput, ProfileChapterStateSummary,
+    CheckProfileSyncConflictInput, CreateProfileInput, DeletionMarkSummary,
+    ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, GetSnapshotInput,
+    ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
+    ModifyProfileAttributeInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,
     RequestAttributeDeletionInput, ResetDeletionMarksInput, RollbackResultSummary,
     RollbackToChapterInput, SnapshotReferenceSummary, SnapshotSummary, UpdateCharacterProfileInput,
 };
@@ -26,8 +27,9 @@ use a4n_character_mutation_worker_contract::{
     CHARACTER_TIMELINE_ATTRIBUTE_OPERATION, CHARACTER_TIMELINE_BEHAVIOR_OPERATION,
     CHARACTER_TIMELINE_DELETION_OPERATION, CHARACTER_TIMELINE_ROLLBACK_OPERATION,
     CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION,
-    CHARACTER_TIMELINE_STATE_OPERATION, CharacterTimelineRollbackMutationResult, CreateInput,
-    NamedProfileInput, ProfileIdInput, UpdateInput,
+    CHARACTER_TIMELINE_STATE_OPERATION, CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION,
+    CharacterTimelineRollbackMutationResult, CreateInput, NamedProfileInput, ProfileIdInput,
+    UpdateInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -334,6 +336,20 @@ impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient {
         self.command_global(
             user_id,
             CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn sync_conflict(
+        &self,
+        user_id: i64,
+        input: CheckProfileSyncConflictInput,
+    ) -> Result<ProfileSyncConflictSummary, AppError> {
+        self.command(
+            user_id,
+            input.profile_id,
+            CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION,
             input,
         )
         .await

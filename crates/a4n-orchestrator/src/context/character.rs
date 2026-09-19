@@ -929,6 +929,14 @@ impl a4n_api_contract::character::CharacterTimelineReadApplicationPort for Orche
     ) -> Result<SnapshotSummary, AppError> {
         CharacterProfileReadApplicationPort::snapshot_by_hash(self, user_id, input).await
     }
+
+    async fn sync_conflict(
+        &self,
+        user_id: i64,
+        input: CheckProfileSyncConflictInput,
+    ) -> Result<ProfileSyncConflictSummary, AppError> {
+        CharacterProfileReadApplicationPort::sync_conflict(self, user_id, input).await
+    }
 }
 
 #[async_trait::async_trait]
