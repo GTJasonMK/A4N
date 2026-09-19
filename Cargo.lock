@@ -1001,6 +1001,7 @@ name = "a4n-host-assembly"
 version = "0.1.0"
 dependencies = [
  "a4n-agent-worker-client",
+ "a4n-api-contract",
  "a4n-artifact-media-client",
  "a4n-artifact-media-contract",
  "a4n-asset-graph-worker-client",
@@ -1030,6 +1031,7 @@ dependencies = [
  "a4n-source-snapshot-worker-client",
  "a4n-theme-read-worker-client",
  "a4n-workflow-read-worker-client",
+ "async-trait",
 ]
 
 [[package]]

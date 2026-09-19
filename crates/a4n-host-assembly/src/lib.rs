@@ -3,6 +3,7 @@
 //! This crate owns construction only. HTTP routing, Tauri commands, and domain
 //! behavior remain in their respective owners.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use a4n_error::AppError;
@@ -93,6 +94,13 @@ pub async fn initialize_runtime(
     let artifact_media_publication_application = artifact_media_worker
         .clone()
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaPublicationPort>);
+    let image_media_reference_application: Arc<
+        dyn a4n_api_contract::image::ImageMediaReferencePort,
+    > = if let Some(client) = artifact_media_worker.clone() {
+        Arc::new(ArtifactMediaImageReferenceAdapter { client })
+    } else {
+        orchestrator.clone()
+    };
     let artifact_media_reference_application = artifact_media_worker
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>);
     let application_ports = ApplicationPorts {
@@ -271,7 +279,7 @@ pub async fn initialize_runtime(
         artifact_media_reference_application,
         image_publication_recovery_application: orchestrator.clone(),
         image_publication_recovery_read_application: orchestrator.clone(),
-        image_media_reference_application: orchestrator.clone(),
+        image_media_reference_application,
         image_provider_config: orchestrator.clone(),
         galgame_image_generation_application: orchestrator.clone(),
         image_canvas_request_preview_application: orchestrator.clone(),
@@ -323,6 +331,65 @@ pub async fn initialize_runtime(
     bootstrap
         .finish(application_ports, provider_runtime, rag_search, rag_ingest)
         .await
+}
+
+struct ArtifactMediaImageReferenceAdapter {
+    client: Arc<a4n_artifact_media_client::ArtifactMediaWorkerClient>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::image::ImageMediaReferencePort for ArtifactMediaImageReferenceAdapter {
+    async fn unreferenced_media_paths(
+        &self,
+        paths: &[String],
+    ) -> Result<Vec<String>, a4n_error::AppError> {
+        self.client
+            .unreferenced_paths(a4n_artifact_media_contract::MediaPathsRequest {
+                paths: paths.to_vec(),
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))
+    }
+
+    async fn media_path_prefix_has_persisted_reference(
+        &self,
+        prefix: &str,
+    ) -> Result<bool, a4n_error::AppError> {
+        self.client
+            .path_prefix_has_reference(a4n_artifact_media_contract::MediaPathPrefixRequest {
+                prefix: prefix.to_string(),
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))
+    }
+
+    async fn project_has_active_image_publication(
+        &self,
+        project_id: i64,
+    ) -> Result<bool, a4n_error::AppError> {
+        self.client
+            .project_has_publication(a4n_artifact_media_contract::ProjectPublicationRequest {
+                project_id,
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))
+    }
+
+    async fn protected_image_publication_cleanup_paths(
+        &self,
+        project_id: i64,
+        paths: &[String],
+    ) -> Result<HashSet<String>, a4n_error::AppError> {
+        let paths = self
+            .client
+            .protected_paths(a4n_artifact_media_contract::ProjectPathsRequest {
+                project_id,
+                paths: paths.to_vec(),
+            })
+            .await
+            .map_err(|error| a4n_error::AppError::ConfigError(error.to_string()))?;
+        Ok(paths.into_iter().collect())
+    }
 }
 
 fn artifact_media_worker_for_profile(
