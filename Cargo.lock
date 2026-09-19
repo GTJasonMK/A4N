@@ -1039,6 +1039,7 @@ dependencies = [
  "a4n-scene-profile-worker-client",
  "a4n-source-snapshot-worker-client",
  "a4n-theme-read-worker-client",
+ "a4n-video-record-worker-client",
  "a4n-workflow-read-worker-client",
  "async-trait",
 ]
@@ -2912,6 +2913,54 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "a4n-video-record-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-video-record-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-video-record-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-video-record-worker-contract",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-video-record-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

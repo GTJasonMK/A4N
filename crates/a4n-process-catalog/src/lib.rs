@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 25);
+        assert_eq!(entries.len(), 26);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -768,7 +768,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 34);
+        assert_eq!(entries.len(), 35);
         assert_eq!(
             entries
                 .iter()

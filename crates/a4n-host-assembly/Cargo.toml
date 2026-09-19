@@ -32,6 +32,7 @@ a4n-chapter-content-worker-client = { path = "../a4n-chapter-content-worker-clie
 a4n-workflow-read-worker-client = { path = "../a4n-workflow-read-worker-client" }
 a4n-config-read-worker-client = { path = "../a4n-config-read-worker-client" }
 a4n-character-mutation-worker-client = { path = "../a4n-character-mutation-worker-client" }
+a4n-video-record-worker-client = { path = "../a4n-video-record-worker-client" }
 a4n-scene-profile-worker-client = { path = "../a4n-scene-profile-worker-client" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-source-snapshot-worker-client = { path = "../a4n-source-snapshot-worker-client" }
