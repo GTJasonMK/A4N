@@ -4,7 +4,6 @@ use a4n_llm_provider_contract::{ChatMessage, MessageRole, ToolCall};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-pub(super) const MAX_OBSERVATION_BYTES: usize = 16 * 1024;
 pub(super) const CONTEXT_SUMMARY_SOURCE_TOKENS: usize = 12_000;
 
 #[derive(Debug)]
@@ -14,22 +13,6 @@ pub(super) struct ContextFit {
     pub input_tokens: usize,
     pub capacity: usize,
     pub output_tokens: usize,
-}
-
-pub(super) fn bounded_observation(execution_id: i64, value: Value) -> Result<Value, AppError> {
-    let size = serde_json::to_vec(&value)?.len();
-    if size <= MAX_OBSERVATION_BYTES {
-        return Ok(value);
-    }
-    // Keep the full result in Execution. Never emit a sliced/invalid JSON object.
-    Ok(json!({
-        "execution_id": execution_id.to_string(),
-        "result_bytes": size,
-        "complete": false,
-        "name": value.get("name").and_then(Value::as_str).filter(|name| name.len() < 200),
-        "read_tool": "read_agent_execution_result",
-        "message": "结果较大，已保存完整结果。按需使用 execution_id、JSON pointer、offset 和 limit 继续读取。"
-    }))
 }
 
 #[cfg(test)]
@@ -278,6 +261,8 @@ pub(super) fn pair_tool_messages(messages: &[ChatMessage]) -> Result<Vec<ChatMes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::MAX_OBSERVATION_BYTES;
+    use crate::engine::bounded_observation;
 
     fn batch() -> ChatMessage {
         let mut message = ChatMessage::assistant("读取并修改");

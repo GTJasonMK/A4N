@@ -61,6 +61,22 @@ const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
 const MAX_AGENT_TOOL_SCHEMAS: usize = 15;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
+pub(super) const MAX_OBSERVATION_BYTES: usize = 16 * 1024;
+
+pub fn bounded_observation(execution_id: i64, value: Value) -> Result<Value, AppError> {
+    let size = serde_json::to_vec(&value)?.len();
+    if size <= MAX_OBSERVATION_BYTES {
+        return Ok(value);
+    }
+    Ok(json!({
+        "execution_id": execution_id.to_string(),
+        "result_bytes": size,
+        "complete": false,
+        "name": value.get("name").and_then(Value::as_str).filter(|name| name.len() < 200),
+        "read_tool": "read_agent_execution_result",
+        "message": "结果较大，已保存完整结果。按需使用 execution_id、JSON pointer、offset 和 limit 继续读取。"
+    }))
+}
 
 pub fn agent_worker_run_from_wire(wire: AgentWorkerRunWire) -> Result<AgentWorkerRun, AppError> {
     AgentWorkerRun::from_wire(wire)
@@ -348,7 +364,7 @@ struct HostInput<T> {
     input: T,
 }
 
-fn tool_descriptor(
+pub fn tool_descriptor(
     name: &str,
 ) -> Result<a4n_api_contract::command_manifest::CommandDescriptor, AppError> {
     a4n_api_contract::agent::agent_execution_tool_descriptor(name).ok_or_else(|| {
@@ -364,7 +380,7 @@ fn tool_descriptor(
 /// Host commands.  Domain adapters perform their own checks; this generic
 /// pass catches project/chapter identifiers nested in manifest arguments before
 /// the command dispatcher can act on another resource.
-fn ensure_argument_scope(
+pub fn ensure_argument_scope(
     scope: &AgentScope,
     descriptor: &a4n_api_contract::command_manifest::CommandDescriptor,
     arguments: &Value,
@@ -434,7 +450,7 @@ async fn ensure_agent_package_enabled(state: &AgentRuntimeState) -> Result<(), A
     }
 }
 
-fn collect_scope_ids(value: &Value, project_ids: &mut Vec<i64>, chapter_ids: &mut Vec<i64>) {
+pub fn collect_scope_ids(value: &Value, project_ids: &mut Vec<i64>, chapter_ids: &mut Vec<i64>) {
     match value {
         Value::Object(object) => {
             for (key, value) in object {
@@ -506,7 +522,7 @@ fn is_runtime_snapshot_key(key: &str) -> bool {
     key == "runtime_config_snapshot"
 }
 
-pub(crate) fn ensure_project_scope(scope: &AgentScope, project_id: i64) -> Result<(), AppError> {
+pub fn ensure_project_scope(scope: &AgentScope, project_id: i64) -> Result<(), AppError> {
     if project_id <= 0 {
         return Err(AppError::InvalidArgument("projectId 无效".into()));
     }
@@ -519,7 +535,7 @@ pub(crate) fn ensure_project_scope(scope: &AgentScope, project_id: i64) -> Resul
     Ok(())
 }
 
-pub(crate) fn ensure_chapter_scope(scope: &AgentScope, chapter_id: i64) -> Result<(), AppError> {
+pub fn ensure_chapter_scope(scope: &AgentScope, chapter_id: i64) -> Result<(), AppError> {
     if chapter_id <= 0 {
         return Err(AppError::InvalidArgument("chapterId 无效".into()));
     }
@@ -532,9 +548,76 @@ pub(crate) fn ensure_chapter_scope(scope: &AgentScope, chapter_id: i64) -> Resul
     Ok(())
 }
 
-fn parse_arguments<T: DeserializeOwned>(arguments: Value, name: &str) -> Result<T, AppError> {
+pub fn parse_arguments<T: DeserializeOwned>(arguments: Value, name: &str) -> Result<T, AppError> {
     serde_json::from_value(arguments)
         .map_err(|error| AppError::InvalidArgument(format!("Agent 工具 {name} 参数无效: {error}")))
+}
+
+pub fn editor_request_for_call(
+    context: &AgentRunContext,
+    execution: &AgentExecutionSnapshot,
+    call: &ToolCall,
+) -> Result<a4n_api_contract::agent::AgentEditorRequest, AppError> {
+    ensure_agent_scope_allows_tool(&context.scope, &call.name)?;
+    ensure_argument_scope(
+        &context.scope,
+        &tool_descriptor(&call.name)?,
+        &call.arguments,
+    )?;
+    let source = context
+        .editor_source
+        .clone()
+        .ok_or_else(|| AppError::InvalidArgument("Turn 缺少编辑器来源".into()))?;
+    let operation = match call.name.as_str() {
+        "inspect_editor_target" => {
+            if call.arguments != json!({}) {
+                return Err(AppError::InvalidArgument(
+                    "inspect_editor_target 不接受参数".into(),
+                ));
+            }
+            a4n_api_contract::agent::AgentEditorOperation::Inspect
+        }
+        "read_editor_draft" => a4n_api_contract::agent::AgentEditorOperation::Read {
+            input: parse_arguments(call.arguments.clone(), &call.name)?,
+        },
+        "save_editor_draft" => a4n_api_contract::agent::AgentEditorOperation::Save {
+            input: parse_arguments(call.arguments.clone(), &call.name)?,
+        },
+        "edit_chapter_visual_plan_draft" => {
+            let input: HostInput<
+                a4n_api_contract::chapter_visual_plan::EditChapterVisualPlanDraftInput,
+            > = parse_arguments(call.arguments.clone(), &call.name)?;
+            a4n_api_contract::agent::AgentEditorOperation::PrepareWrite {
+                expected_editor_revision: input.input.editor_revision.ok_or_else(|| {
+                    AppError::InvalidArgument(
+                        "编辑器内修改必须提供 inspect_editor_target 返回的 editor_revision".into(),
+                    )
+                })?,
+                record_id: Some(input.input.record_id),
+                record_revision: Some(input.input.expected_revision),
+            }
+        }
+        "save_chapter_visual_plan_draft" => {
+            let input: HostInput<
+                a4n_api_contract::chapter_visual_plan::SaveChapterVisualPlanDraftInput,
+            > = parse_arguments(call.arguments.clone(), &call.name)?;
+            a4n_api_contract::agent::AgentEditorOperation::PrepareWrite {
+                expected_editor_revision: input.input.editor_revision.ok_or_else(|| {
+                    AppError::InvalidArgument(
+                        "编辑器内保存必须提供 inspect_editor_target 返回的 editor_revision".into(),
+                    )
+                })?,
+                record_id: input.input.record_id,
+                record_revision: input.input.expected_revision,
+            }
+        }
+        _ => return Err(AppError::InvalidArgument("不是编辑器工具".into())),
+    };
+    Ok(a4n_api_contract::agent::AgentEditorRequest {
+        execution_id: execution.id.to_string(),
+        source,
+        operation,
+    })
 }
 
 /// 运行 Agent worker 生命周期。
@@ -1026,223 +1109,202 @@ async fn process_claimed_run_inner(
         let existing_model_execution = state
             .worker_execution_by_key(claimed, &model_execution_key)
             .await?;
-        let tool_window = available_runtime_tools(
-            &context.profile_id,
-            &context.scope,
-            usage
-                .get("phase")
-                .and_then(Value::as_str)
-                .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
-            &discovered_tools,
-            &context.executions,
-        )?;
-        usage["tool_window"] = json!({
-            "schema_limit": MAX_AGENT_TOOL_SCHEMAS,
-            "dropped_optional": tool_window.dropped_optional,
-        });
-        let tools = tool_window.schemas;
-        let skills = if usage.get("failure_class").and_then(Value::as_str)
-            == Some(a4n_agent_runtime_contract::AGENT_FAILURE_PROVIDER_UNAVAILABLE)
-        {
-            AgentSkillSearchResult {
-                skills: Vec::new(),
-                total: 0,
-            }
+        let request = if let Some(existing) = existing_model_execution.as_ref() {
+            model_execution_request(existing)?
         } else {
-            state
-                .search_agent_skills(claimed, SearchAgentSkillsInput::default())
-                .await?
-        };
-        let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
-        let llm_capabilities = match state
-            .host()
-            .llm_capabilities(context.owner_user_id, snapshot.as_ref(), config_id)
-            .await
-        {
-            Ok(capabilities) => capabilities,
-            Err(error) => {
-                record_provider_failure(
+            let tool_window = available_runtime_tools(
+                &context.profile_id,
+                &context.scope,
+                usage
+                    .get("phase")
+                    .and_then(Value::as_str)
+                    .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
+                &discovered_tools,
+                &context.executions,
+            )?;
+            usage["tool_window"] = json!({
+                "schema_limit": MAX_AGENT_TOOL_SCHEMAS,
+                "dropped_optional": tool_window.dropped_optional,
+            });
+            let tools = tool_window.schemas;
+            let skills = if usage.get("failure_class").and_then(Value::as_str)
+                == Some(a4n_agent_runtime_contract::AGENT_FAILURE_PROVIDER_UNAVAILABLE)
+            {
+                AgentSkillSearchResult {
+                    skills: Vec::new(),
+                    total: 0,
+                }
+            } else {
+                state
+                    .search_agent_skills(claimed, SearchAgentSkillsInput::default())
+                    .await?
+            };
+            let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
+            let llm_capabilities = match state
+                .host()
+                .llm_capabilities(context.owner_user_id, snapshot.as_ref(), config_id)
+                .await
+            {
+                Ok(capabilities) => capabilities,
+                Err(error) => {
+                    record_provider_failure(
+                        state,
+                        claimed,
+                        &mut usage,
+                        steps,
+                        model_calls,
+                        tool_calls,
+                        tokens,
+                        &error,
+                    )
+                    .await?;
+                    return Err(error);
+                }
+            };
+            let capabilities = llm_capabilities.model;
+            let requested_output_tokens = validated_model_output_tokens(&capabilities)?;
+            let protocol = match snapshot.as_ref() {
+                Some(snapshot) => agent_protocol_for_snapshot(Some(snapshot), config_id)?,
+                None => llm_capabilities.agent_protocol,
+            };
+            let base_messages = with_agent_system_prompt(
+                history::pair_tool_messages(&messages)?,
+                &context,
+                &skills,
+                &tools,
+                &protocol,
+                usage
+                    .get("phase")
+                    .and_then(Value::as_str)
+                    .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
+            );
+            let projection = history::fit_context_projection(
+                base_messages,
+                &tools,
+                capabilities.max_context_tokens,
+                requested_output_tokens,
+                &pinned_user_contents
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+            )?;
+            let mut context_input_tokens = projection.input_tokens;
+            let mut context_capacity_tokens = projection.capacity;
+            let latest_message_sequence = loaded_message_ids.iter().copied().max().unwrap_or(0);
+            let summary_covered_sequence = context
+                .thread
+                .context_summary
+                .as_ref()
+                .and_then(|summary| summary.get("covered_through_sequence"))
+                .and_then(Value::as_i64)
+                .unwrap_or(-1);
+            let can_spend_summary_call = budget.max_steps.is_none_or(|limit| model_calls < limit)
+                && budget
+                    .max_model_calls
+                    .is_none_or(|limit| model_calls < limit);
+            let mut output_tokens = projection.output_tokens;
+            let mut request_messages = projection.messages;
+            if projection.input_tokens.saturating_mul(100) >= projection.capacity.saturating_mul(80)
+                && !projection.omitted.is_empty()
+                && latest_message_sequence > summary_covered_sequence
+                && can_spend_summary_call
+            {
+                let source = history::summary_source(
+                    &projection.omitted,
+                    context.thread.context_summary.as_ref(),
+                    history::CONTEXT_SUMMARY_SOURCE_TOKENS,
+                )?;
+                let outcome = compact_context(
                     state,
                     claimed,
-                    &mut usage,
-                    steps,
-                    model_calls,
-                    tool_calls,
-                    tokens,
-                    &error,
+                    &mut context,
+                    latest_message_sequence,
+                    source,
                 )
                 .await?;
-                return Err(error);
+                if outcome.applied {
+                    if let Some(summary_tokens) = outcome.new_tokens {
+                        steps = steps.saturating_add(1);
+                        model_calls = model_calls.saturating_add(1);
+                        tokens = tokens.saturating_add(summary_tokens);
+                        usage["steps_used"] = json!(steps);
+                        usage["model_calls_used"] = json!(model_calls);
+                        usage["tokens_used"] = json!(tokens);
+                    }
+                    let post_compaction = history::fit_context_projection(
+                        with_agent_system_prompt(
+                            history::pair_tool_messages(&messages)?,
+                            &context,
+                            &skills,
+                            &tools,
+                            &protocol,
+                            usage
+                                .get("phase")
+                                .and_then(Value::as_str)
+                                .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
+                        ),
+                        &tools,
+                        capabilities.max_context_tokens,
+                        requested_output_tokens,
+                        &pinned_user_contents
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<Vec<_>>(),
+                    )?;
+                    context_input_tokens = post_compaction.input_tokens;
+                    context_capacity_tokens = post_compaction.capacity;
+                    output_tokens = post_compaction.output_tokens;
+                    request_messages = post_compaction.messages;
+                }
             }
-        };
-        let capabilities = llm_capabilities.model;
-        let requested_output_tokens = validated_model_output_tokens(&capabilities)?;
-        let protocol = match snapshot.as_ref() {
-            Some(snapshot) => agent_protocol_for_snapshot(Some(snapshot), config_id)?,
-            None => llm_capabilities.agent_protocol,
-        };
-        let base_messages = with_agent_system_prompt(
-            history::pair_tool_messages(&messages)?,
-            &context,
-            &skills,
-            &tools,
-            &protocol,
-            usage
-                .get("phase")
-                .and_then(Value::as_str)
-                .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
-        );
-        let projection = history::fit_context_projection(
-            base_messages.clone(),
-            &tools,
-            capabilities.max_context_tokens,
-            requested_output_tokens,
-            &pinned_user_contents
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>(),
-        )?;
-        let mut context_input_tokens = projection.input_tokens;
-        let mut context_capacity_tokens = projection.capacity;
-        let mut legacy_omitted_message_count = projection.omitted.len();
-        let latest_message_sequence = loaded_message_ids.iter().copied().max().unwrap_or(0);
-        let summary_covered_sequence = context
-            .thread
-            .context_summary
-            .as_ref()
-            .and_then(|summary| summary.get("covered_through_sequence"))
-            .and_then(Value::as_i64)
-            .unwrap_or(-1);
-        let can_spend_summary_call = budget.max_steps.is_none_or(|limit| model_calls < limit)
-            && budget
-                .max_model_calls
-                .is_none_or(|limit| model_calls < limit);
-        let mut output_tokens = projection.output_tokens;
-        let mut request_messages = projection.messages;
-        if projection.input_tokens.saturating_mul(100) >= projection.capacity.saturating_mul(80)
-            && !projection.omitted.is_empty()
-            && latest_message_sequence > summary_covered_sequence
-            && can_spend_summary_call
-            && !existing_model_execution
-                .as_ref()
-                .is_some_and(|execution| execution.status == "succeeded")
-        {
-            let source = history::summary_source(
-                &projection.omitted,
-                context.thread.context_summary.as_ref(),
-                history::CONTEXT_SUMMARY_SOURCE_TOKENS,
-            )?;
-            let outcome = compact_context(
+            usage["context_input_tokens"] = json!(context_input_tokens);
+            usage["context_capacity_tokens"] = json!(context_capacity_tokens);
+            persist_usage(
                 state,
                 claimed,
-                &mut context,
-                latest_message_sequence,
-                source,
+                &usage,
+                steps,
+                model_calls,
+                tool_calls,
+                tokens,
             )
             .await?;
-            if outcome.applied {
-                if let Some(summary_tokens) = outcome.new_tokens {
-                    steps = steps.saturating_add(1);
-                    model_calls = model_calls.saturating_add(1);
-                    tokens = tokens.saturating_add(summary_tokens);
-                    usage["steps_used"] = json!(steps);
-                    usage["model_calls_used"] = json!(model_calls);
-                    usage["tokens_used"] = json!(tokens);
-                }
-                let post_compaction = history::fit_context_projection(
-                    with_agent_system_prompt(
-                        history::pair_tool_messages(&messages)?,
-                        &context,
-                        &skills,
-                        &tools,
-                        &protocol,
-                        usage
-                            .get("phase")
-                            .and_then(Value::as_str)
-                            .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
-                    ),
-                    &tools,
-                    capabilities.max_context_tokens,
-                    requested_output_tokens,
-                    &pinned_user_contents
-                        .iter()
-                        .map(String::as_str)
-                        .collect::<Vec<_>>(),
-                )?;
-                context_input_tokens = post_compaction.input_tokens;
-                context_capacity_tokens = post_compaction.capacity;
-                legacy_omitted_message_count = post_compaction.omitted.len();
-                output_tokens = post_compaction.output_tokens;
-                request_messages = post_compaction.messages;
-            }
-        }
-        usage["context_input_tokens"] = json!(context_input_tokens);
-        usage["context_capacity_tokens"] = json!(context_capacity_tokens);
-        usage["context_shadow"] = json!({
-            "history_watermark": latest_message_sequence,
-            "legacy_input_tokens": context_input_tokens,
-            "legacy_capacity_tokens": context_capacity_tokens,
-            "legacy_output_token_reserve": output_tokens,
-            "legacy_omitted_message_count": legacy_omitted_message_count,
-        });
-        persist_usage(
-            state,
-            claimed,
-            &usage,
-            steps,
-            model_calls,
-            tool_calls,
-            tokens,
-        )
-        .await?;
-        let context_manifest_json = Some(serde_json::to_value(context::build_manifest(
-            &context,
-            &request_messages,
-            &skills,
-            latest_message_sequence,
-        )?)?);
-        let mut request = ChatRequest {
-            messages: request_messages,
-            vision_images: Vec::new(),
-            temperature: Some(0.2),
-            max_tokens: Some(output_tokens),
-            response_format: None,
-            stream_include_usage: true,
-            cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
-            cache_breakpoints: Vec::new(),
-            cache_mode: None,
-            cache_system_prefix: true,
-            cache_user_prefix_len: None,
-            trace_context: Some(LlmTraceContext {
-                project_id: context.scope.project_id,
-                root_project_id: None,
-                workflow: "agent".into(),
-                step_key: format!("run:{}:model:{model_calls}", claimed.run.id),
-                generation_run_id: None,
-                workflow_run_id: None,
-                call_key: Some(format!("model-call:{model_calls}")),
-                input_fingerprint_sha256: None,
-                context_plan_json: None,
-                context_pack_refs_json: None,
-            }),
-            context_manifest_json,
-            tools: None,
-            tool_choice: None,
-            stop_sequences: None,
-        };
-        configure_agent_request(&mut request, &protocol, tools.clone());
-        if let Some(existing) = existing_model_execution.as_ref() {
-            request =
-                restore_model_request_wire(existing.arguments_json.clone().ok_or_else(|| {
-                    AppError::InvalidState {
-                        current: format!(
-                            "Agent model execution {} 缺少原始 request snapshot",
-                            existing.id
-                        ),
-                        operation: "恢复 Agent model execution request".into(),
-                    }
-                })?)?;
-        } else {
+            let context_manifest_json = Some(serde_json::to_value(context::build_manifest(
+                &context,
+                &request_messages,
+                &skills,
+                latest_message_sequence,
+            )?)?);
+            let mut request = ChatRequest {
+                messages: request_messages,
+                vision_images: Vec::new(),
+                temperature: Some(0.2),
+                max_tokens: Some(output_tokens),
+                response_format: None,
+                stream_include_usage: true,
+                cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
+                cache_breakpoints: Vec::new(),
+                cache_mode: None,
+                cache_system_prefix: true,
+                cache_user_prefix_len: None,
+                trace_context: Some(LlmTraceContext {
+                    project_id: context.scope.project_id,
+                    root_project_id: None,
+                    workflow: "agent".into(),
+                    step_key: format!("run:{}:model:{model_calls}", claimed.run.id),
+                    generation_run_id: None,
+                    workflow_run_id: None,
+                    call_key: Some(format!("model-call:{model_calls}")),
+                    input_fingerprint_sha256: None,
+                    context_plan_json: None,
+                    context_pack_refs_json: None,
+                }),
+                context_manifest_json,
+                tools: None,
+                tool_choice: None,
+                stop_sequences: None,
+            };
+            configure_agent_request(&mut request, &protocol, tools);
             if let Some(remaining) = state
                 .worker_budget_application(claimed)
                 .worker_budget_snapshot(claimed.run.id)
@@ -1264,39 +1326,36 @@ async fn process_claimed_run_inner(
                 .host()
                 .prepare_chat_request(context.owner_user_id, snapshot.as_ref(), config_id, request)
                 .await?;
-        }
-        let Some(model_execution) = execution_application
-            .create_prepared_execution(WorkerExecutionInput {
-                run_id: claimed.run.id,
-                lease_token: claimed.lease_token.clone(),
-                execution_key: model_execution_key,
-                execution_kind: "model_call".into(),
-                tool_name: None,
-                effect: Some("read".into()),
-                // Model requests have no user-visible side effect; use the
-                // canonical replay policy wire value so the durable execution
-                // can be projected and resumed after a worker restart.
-                replay_policy: Some("safe".into()),
-                arguments_json: Some(request.snapshot_value()?),
-                resource_preconditions_json: Some(
-                    json!({"input_message_id": loaded_message_ids.iter().max()}),
-                ),
-            })
-            .await?
-        else {
-            state.wait_agent_worker_run(claimed, "budget").await?;
-            return Ok(());
+            request
         };
-        let request =
-            restore_model_request_wire(model_execution.arguments_json.clone().ok_or_else(
-                || AppError::InvalidState {
-                    current: format!(
-                        "Agent model execution {} 缺少原始 request snapshot",
-                        model_execution.id
+        let model_execution = if let Some(existing) = existing_model_execution {
+            existing
+        } else {
+            let Some(model_execution) = execution_application
+                .create_prepared_execution(WorkerExecutionInput {
+                    run_id: claimed.run.id,
+                    lease_token: claimed.lease_token.clone(),
+                    execution_key: model_execution_key,
+                    execution_kind: "model_call".into(),
+                    tool_name: None,
+                    effect: Some("read".into()),
+                    // Model requests have no user-visible side effect; use the
+                    // canonical replay policy wire value so the durable execution
+                    // can be projected and resumed after a worker restart.
+                    replay_policy: Some("safe".into()),
+                    arguments_json: Some(request.snapshot_value()?),
+                    resource_preconditions_json: Some(
+                        json!({"input_message_id": loaded_message_ids.iter().max()}),
                     ),
-                    operation: "恢复 Agent model execution request".into(),
-                },
-            )?)?;
+                })
+                .await?
+            else {
+                state.wait_agent_worker_run(claimed, "budget").await?;
+                return Ok(());
+            };
+            model_execution
+        };
+        let request = model_execution_request(&model_execution)?;
         let replayed_model_execution = model_execution.status == "succeeded";
         let request_protocol =
             agent_protocol_from_request_snapshot(&request.snapshot_value()?).to_string();
@@ -1332,10 +1391,10 @@ async fn process_claimed_run_inner(
                 config_id,
                 request,
             );
-            let call = tokio::select! {
+            let stream = tokio::select! {
                 _ = cancel.cancelled() => return Ok(()),
                 stream = call => match stream {
-                    Ok(call) => call,
+                    Ok(stream) => stream,
                     Err(error) => {
                         record_provider_failure(
                             state,
@@ -1352,7 +1411,6 @@ async fn process_claimed_run_inner(
                     }
                 },
             };
-            let stream = call.stream;
             let response = match consume_model_stream(
                 stream,
                 &state.worker_message_application(claimed),
@@ -1519,6 +1577,18 @@ fn model_response(execution: &AgentExecutionSnapshot) -> Result<ChatResponse, Ap
             })?,
     )
     .map_err(AppError::from)
+}
+
+fn model_execution_request(execution: &AgentExecutionSnapshot) -> Result<ChatRequest, AppError> {
+    restore_model_request_wire(execution.arguments_json.clone().ok_or_else(|| {
+        AppError::InvalidState {
+            current: format!(
+                "Agent model execution {} 缺少原始 request snapshot",
+                execution.id
+            ),
+            operation: "恢复 Agent model execution request".into(),
+        }
+    })?)
 }
 
 fn stream_client_message_id(run_id: i64, execution: &AgentExecutionSnapshot) -> Option<String> {
@@ -2381,7 +2451,7 @@ async fn execute_tool_call(
     }
 
     if context.editor_source.is_some() && editor::needs_editor(&call.name) {
-        match editor::request_for_call(context, &execution, &call) {
+        match editor_request_for_call(context, &execution, &call) {
             Ok(request) => {
                 state.wait_for_editor(claimed, &request).await?;
                 return Ok((RunProgress::Released, Vec::new()));
@@ -2586,7 +2656,7 @@ async fn append_tool_observation(
 ) -> Result<(), AppError> {
     let result_bytes = serde_json::to_vec(&value)?.len();
     let result_refs = tool_result_refs(&call.name, &value)?;
-    let value = history::bounded_observation(execution.id, value)?;
+    let value = bounded_observation(execution.id, value)?;
     let value =
         observation::from_result(execution.id, &call.name, value, result_refs, result_bytes)?;
     message_application
@@ -2604,7 +2674,7 @@ async fn append_tool_observation(
     Ok(())
 }
 
-fn tool_result_refs(
+pub fn tool_result_refs(
     name: &str,
     value: &Value,
 ) -> Result<Vec<a4n_api_contract::agent::AgentResourceRef>, AppError> {
@@ -2739,7 +2809,7 @@ fn tool_result_refs(
     Ok(refs)
 }
 
-fn should_request_approval(
+pub fn should_request_approval(
     context: &AgentRunContext,
     tool_name: &str,
     effect: &str,
@@ -2874,7 +2944,7 @@ fn with_agent_system_prompt(
     messages
 }
 
-fn action_budget_exhausted(
+pub fn action_budget_exhausted(
     budget: &AgentBudget,
     tokens: u64,
     started_at: chrono::NaiveDateTime,
@@ -2937,8 +3007,7 @@ fn chat_message_from_model(message: &AgentMessageSnapshot) -> Result<ChatMessage
             if value.get("observation_version").is_some() {
                 observation::parse(value)?;
             }
-            result.content =
-                serde_json::to_string(&history::bounded_observation(id, value.clone())?)?;
+            result.content = serde_json::to_string(&bounded_observation(id, value.clone())?)?;
         }
     }
     Ok(result)
@@ -3198,7 +3267,7 @@ fn json_u32(value: &Value, key: &str) -> Result<u32, AppError> {
     })
 }
 
-fn json_u64(value: &Value, key: &str) -> Result<u64, AppError> {
+pub fn json_u64(value: &Value, key: &str) -> Result<u64, AppError> {
     match value.get(key) {
         None => Ok(0),
         Some(value) => value.as_u64().ok_or_else(|| AppError::InvalidState {
@@ -3208,7 +3277,7 @@ fn json_u64(value: &Value, key: &str) -> Result<u64, AppError> {
     }
 }
 
-fn enum_string<T: serde::Serialize>(value: T) -> String {
+pub fn enum_string<T: serde::Serialize>(value: T) -> String {
     serde_json::to_value(value)
         .expect("Agent policy enum must serialize")
         .as_str()

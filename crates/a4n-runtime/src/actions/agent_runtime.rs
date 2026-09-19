@@ -1,4 +1,9 @@
 use crate::AppState;
+use a4n_agent_runtime::engine::{
+    action_budget_exhausted, collect_scope_ids, ensure_argument_scope, enum_string, json_u64,
+    parse_arguments, should_request_approval, tool_descriptor, tool_result_refs,
+};
+pub(crate) use a4n_agent_runtime::engine::{ensure_chapter_scope, ensure_project_scope};
 use a4n_agent_runtime_contract::{
     AgentExecutionSnapshot, AgentExternalTaskWaitSnapshot, AgentRunContext, AgentWorkerRun,
     WorkerExecutionUpdate, ensure_agent_scope_allows_tool, validate_agent_budget,
@@ -60,7 +65,6 @@ use a4n_worker_contract::{
 };
 use futures::Stream;
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -68,7 +72,6 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 mod editor;
-mod history;
 mod task_wait;
 pub use editor::respond_agent_editor;
 
@@ -841,55 +844,6 @@ struct HostInput<T> {
     input: T,
 }
 
-fn tool_descriptor(
-    name: &str,
-) -> Result<a4n_api_contract::command_manifest::CommandDescriptor, AppError> {
-    a4n_api_contract::agent::agent_execution_tool_descriptor(name).ok_or_else(|| {
-        if a4n_api_contract::command_manifest::command_descriptor(name).is_some() {
-            AppError::Forbidden(format!("Host command manifest 禁止 Agent 使用工具: {name}"))
-        } else {
-            AppError::NotFound(format!("Host command manifest 中不存在工具: {name}"))
-        }
-    })
-}
-
-/// A bound Agent scope is also a resource fence for dynamically discovered
-/// Host commands.  Domain adapters perform their own checks; this generic
-/// pass catches project/chapter identifiers nested in manifest arguments before
-/// the command dispatcher can act on another resource.
-fn ensure_argument_scope(
-    scope: &AgentScope,
-    descriptor: &a4n_api_contract::command_manifest::CommandDescriptor,
-    arguments: &Value,
-) -> Result<(), AppError> {
-    let mut project_ids = Vec::new();
-    let mut chapter_ids = Vec::new();
-    collect_scope_ids(arguments, &mut project_ids, &mut chapter_ids);
-    for project_id in &project_ids {
-        ensure_project_scope(scope, *project_id)?;
-    }
-    for chapter_id in &chapter_ids {
-        ensure_chapter_scope(scope, *chapter_id)?;
-    }
-    // Domain adapters (Canvas/optimization) resolve resource-only identifiers
-    // through their own project-aware repository checks. Generic manifest
-    // commands do not have that adapter, so a project/chapter-bound Agent must
-    // provide an explicit project/chapter fence and must not invoke a global
-    // command such as create_project from a bound scope.
-    if (scope.project_id.is_some() || scope.chapter_id.is_some() || scope.resource_kind.is_some())
-        && a4n_api_contract::agent::synthetic_agent_tool_descriptor(&descriptor.name).is_none()
-        && !matches!(descriptor.name.as_str(), "web_search" | "web_fetch")
-        && project_ids.is_empty()
-        && chapter_ids.is_empty()
-    {
-        return Err(AppError::Forbidden(format!(
-            "Agent scope 受限时，Host command {} 必须同时提供 projectId 或 chapterId",
-            descriptor.name
-        )));
-    }
-    Ok(())
-}
-
 async fn ensure_argument_resource_scope(
     state: &AppState,
     user_id: i64,
@@ -915,109 +869,6 @@ async fn ensure_argument_resource_scope(
         .agent_resource_access_application()
         .verify_chapters_in_project(user_id, project_id, &chapter_ids)
         .await
-}
-
-fn collect_scope_ids(value: &Value, project_ids: &mut Vec<i64>, chapter_ids: &mut Vec<i64>) {
-    match value {
-        Value::Object(object) => {
-            for (key, value) in object {
-                let normalized = key.to_ascii_lowercase();
-                if is_runtime_snapshot_key(&normalized) {
-                    continue;
-                }
-                if is_project_scope_key(&normalized) {
-                    collect_numeric_ids(value, project_ids);
-                } else if is_chapter_scope_key(&normalized) {
-                    collect_numeric_ids(value, chapter_ids);
-                }
-                collect_scope_ids(value, project_ids, chapter_ids);
-            }
-        }
-        Value::Array(values) => {
-            for value in values {
-                collect_scope_ids(value, project_ids, chapter_ids);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn is_project_scope_key(key: &str) -> bool {
-    key == "projectid"
-        || key == "project_id"
-        || key == "projectids"
-        || key == "project_ids"
-        || key.ends_with("_project_id")
-        || key.ends_with("_project_ids")
-        || key.ends_with("projectid")
-        || key.ends_with("projectids")
-}
-
-fn is_chapter_scope_key(key: &str) -> bool {
-    key == "chapterid"
-        || key == "chapter_id"
-        || key == "chapterids"
-        || key == "chapter_ids"
-        || key.ends_with("_chapter_id")
-        || key.ends_with("_chapter_ids")
-        || key.ends_with("chapterid")
-        || key.ends_with("chapterids")
-}
-
-fn collect_numeric_ids(value: &Value, ids: &mut Vec<i64>) {
-    match value {
-        Value::Number(number) => {
-            if let Some(id) = number.as_i64() {
-                ids.push(id);
-            }
-        }
-        Value::String(raw) => {
-            if let Ok(id) = raw.trim().parse::<i64>() {
-                ids.push(id);
-            }
-        }
-        Value::Array(values) => {
-            for value in values {
-                collect_numeric_ids(value, ids);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn is_runtime_snapshot_key(key: &str) -> bool {
-    key == "runtime_config_snapshot"
-}
-
-pub(crate) fn ensure_project_scope(scope: &AgentScope, project_id: i64) -> Result<(), AppError> {
-    if project_id <= 0 {
-        return Err(AppError::InvalidArgument("projectId 无效".into()));
-    }
-    if scope.project_id.is_some_and(|scoped| scoped != project_id) {
-        return Err(AppError::Forbidden(format!(
-            "Agent scope 仅允许项目 {}，不能访问项目 {project_id}",
-            scope.project_id.expect("checked Some")
-        )));
-    }
-    Ok(())
-}
-
-pub(crate) fn ensure_chapter_scope(scope: &AgentScope, chapter_id: i64) -> Result<(), AppError> {
-    if chapter_id <= 0 {
-        return Err(AppError::InvalidArgument("chapterId 无效".into()));
-    }
-    if scope.chapter_id.is_some_and(|scoped| scoped != chapter_id) {
-        return Err(AppError::Forbidden(format!(
-            "Agent scope 仅允许章节 {}，不能访问章节 {chapter_id}",
-            scope.chapter_id.expect("checked Some")
-        )));
-    }
-    Ok(())
-}
-
-fn parse_arguments<T: DeserializeOwned>(arguments: Value, name: &str) -> Result<T, AppError> {
-    serde_json::from_value(arguments)
-        .map_err(|error| AppError::InvalidArgument(format!("Agent 工具 {name} 参数无效: {error}")))
 }
 
 async fn locate_writing_target(
@@ -1916,54 +1767,6 @@ fn workflow_origin(
     })
 }
 
-fn action_budget_exhausted(
-    budget: &AgentBudget,
-    tokens: u64,
-    started_at: chrono::NaiveDateTime,
-) -> bool {
-    budget.max_tokens.is_some_and(|limit| tokens >= limit)
-        || budget.max_duration_seconds.is_some_and(|limit| {
-            chrono::Utc::now()
-                .naive_utc()
-                .signed_duration_since(started_at)
-                .num_seconds()
-                >= i64::try_from(limit).expect("Agent budget duration was validated")
-        })
-}
-
-fn json_u64(value: &Value, key: &str) -> Result<u64, AppError> {
-    match value.get(key) {
-        None => Ok(0),
-        Some(value) => value.as_u64().ok_or_else(|| AppError::InvalidState {
-            current: format!("Agent usage.{key} 不是非负整数"),
-            operation: "读取 Agent run".into(),
-        }),
-    }
-}
-
-fn should_request_approval(
-    context: &AgentRunContext,
-    tool_name: &str,
-    effect: &str,
-) -> Result<bool, AppError> {
-    if effect == "read" {
-        return Ok(false);
-    }
-    match context.execution_mode.as_str() {
-        "advice_only" => Err(AppError::Forbidden(format!(
-            "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
-        ))),
-        "review_writes" => Ok(true),
-        "autonomous" => Ok(a4n_api_contract::agent::agent_tool_requires_user_approval(
-            tool_name, effect,
-        )),
-        mode => Err(AppError::InvalidState {
-            current: format!("未知 Agent execution_mode: {mode}"),
-            operation: "执行 Agent 写工具".into(),
-        }),
-    }
-}
-
 async fn append_tool_observation(
     message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
@@ -1972,7 +1775,7 @@ async fn append_tool_observation(
     value: Value,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(), AppError> {
-    let value = history::bounded_observation(execution.id, value)?;
+    let value = a4n_agent_runtime::engine::bounded_observation(execution.id, value)?;
     message_application
         .append_tool_message(
             claimed,
@@ -1989,42 +1792,6 @@ async fn append_tool_observation(
     message.tool_call_id = Some(call.id.clone());
     messages.push(message);
     Ok(())
-}
-
-fn tool_result_refs(
-    name: &str,
-    value: &Value,
-) -> Result<Vec<a4n_api_contract::agent::AgentResourceRef>, AppError> {
-    use a4n_api_contract::agent::AgentResourceRef;
-    let mut refs = value
-        .get("result_refs")
-        .filter(|value| !value.is_null())
-        .map(|value| serde_json::from_value::<Vec<AgentResourceRef>>(value.clone()))
-        .transpose()?
-        .unwrap_or_default();
-    if let Some(resource) = value.get("resource").filter(|value| !value.is_null()) {
-        refs.push(serde_json::from_value(resource.clone())?);
-    }
-    if name == "save_chapter_visual_plan_draft" {
-        let saved: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView =
-            serde_json::from_value(value.clone())?;
-        refs.push(AgentResourceRef {
-            kind: "chapter_visual_plan".into(),
-            id: saved.record.id.to_string(),
-            revision: Some(saved.record.revision.to_string()),
-            hash: Some(saved.record.plan_sha256),
-            label: Some("视觉方案草稿".into()),
-        });
-    }
-    Ok(refs)
-}
-
-fn enum_string<T: serde::Serialize>(value: T) -> String {
-    serde_json::to_value(value)
-        .expect("Agent policy enum must serialize")
-        .as_str()
-        .expect("Agent policy enum must serialize to a string")
-        .to_string()
 }
 
 pub async fn ensure_main_thread(
