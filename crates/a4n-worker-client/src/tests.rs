@@ -41,6 +41,23 @@ async fn health_and_capabilities_roundtrip() {
 }
 
 #[tokio::test]
+async fn custom_auth_header_is_used() {
+    let (url, server) = mock_server(json_body(&health_response()), 200, Duration::ZERO).await;
+    let client = HttpWorkerClient::new(url, "worker-test")
+        .with_auth_header("x-a4n-agent-worker-token")
+        .with_auth_token("worker-token");
+
+    client.health().await.unwrap();
+
+    let request = server.await.unwrap();
+    assert_eq!(
+        request.header("x-a4n-agent-worker-token"),
+        Some("worker-token")
+    );
+    assert_eq!(request.header(WORKER_AUTH_HEADER), None);
+}
+
+#[tokio::test]
 async fn command_roundtrip_sends_token_and_worker_envelope() {
     let response = completed_response("request-1", "trace-1", serde_json::json!({"ok": true}));
     let (url, server) = mock_server(json_body(&response), 200, Duration::ZERO).await;

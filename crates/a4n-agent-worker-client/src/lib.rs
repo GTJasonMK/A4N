@@ -33,8 +33,8 @@ use a4n_api_contract::agent::{
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
-    WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    AGENT_WORKER_AUTH_HEADER, WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode,
+    WorkerLease, WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47650";
@@ -57,7 +57,8 @@ impl std::fmt::Debug for AgentWorkerClient {
 
 impl AgentWorkerClient {
     pub fn new(base_url: impl Into<String>, auth_token: Option<String>) -> Self {
-        let transport = HttpWorkerClient::new(base_url, AGENT_WORKER_ID);
+        let transport = HttpWorkerClient::new(base_url, AGENT_WORKER_ID)
+            .with_auth_header(AGENT_WORKER_AUTH_HEADER);
         let transport = match auth_token {
             Some(token) => transport.with_auth_token(token),
             None => transport,
