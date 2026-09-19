@@ -12,6 +12,7 @@
   {"package":"a4n-foreshadowing-worker","binary":"a4n-foreshadowing-worker"},
   {"package":"a4n-object-profile-worker","binary":"a4n-object-profile-worker"},
   {"package":"a4n-scene-profile-worker","binary":"a4n-scene-profile-worker"},
+  {"package":"a4n-profile-material-worker","binary":"a4n-profile-material-worker"},
   {"package":"a4n-portrait-worker","binary":"a4n-portrait-worker"},
   {"package":"a4n-source-snapshot-worker","binary":"a4n-source-snapshot-worker"},
   {"package":"a4n-migration","binary":"a4n-migration"}

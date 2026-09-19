@@ -36,6 +36,7 @@ STATEFUL_WORKER_PACKAGES=(
     a4n-foreshadowing-worker
     a4n-object-profile-worker
     a4n-scene-profile-worker
+    a4n-profile-material-worker
     a4n-portrait-worker
     a4n-source-snapshot-worker
 )
@@ -48,6 +49,7 @@ WORKER_CLIENT_PACKAGES=(
     a4n-foreshadowing-worker-client
     a4n-object-profile-worker-client
     a4n-scene-profile-worker-client
+    a4n-profile-material-worker-client
     a4n-portrait-worker-client
     a4n-source-snapshot-worker-client
 )

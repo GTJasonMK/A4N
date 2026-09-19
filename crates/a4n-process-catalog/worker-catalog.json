@@ -239,6 +239,28 @@
     }
   },
   {
+    "name": "profile-material-worker",
+    "kind": "stateful_worker",
+    "binary": "a4n-profile-material-worker",
+    "contract_version": "profile-material-v1",
+    "capability_version": "profile-material-v1",
+    "addr_env": "A4N_PROFILE_MATERIAL_WORKER_ADDR",
+    "url_env": "A4N_PROFILE_MATERIAL_WORKER_URL",
+    "default_addr": "127.0.0.1:47661",
+    "local_only": true,
+    "data_scope": ["profile_material", "profile_primary_material"],
+    "capabilities": [
+      "profile.material.read",
+      "profile.material.mutation"
+    ],
+    "dependencies": ["a4n-migration"],
+    "migration": {
+      "current": "profile_material",
+      "min_compatible": "profile_material",
+      "max_compatible": "profile_material"
+    }
+  },
+  {
     "name": "portrait-worker",
     "kind": "stateful_worker",
     "binary": "a4n-portrait-worker",

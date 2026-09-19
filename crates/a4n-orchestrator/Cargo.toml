@@ -15,6 +15,7 @@ a4n-chapter-analysis-host-contract = { path = "../a4n-chapter-analysis-host-cont
 a4n-character-host-contract = { path = "../a4n-character-host-contract" }
 a4n-optimize-host-contract = { path = "../a4n-optimize-host-contract" }
 a4n-portrait-host-contract = { path = "../a4n-portrait-host-contract" }
+a4n-profile-material-core = { path = "../a4n-profile-material-core" }
 a4n-scene-host-contract = { path = "../a4n-scene-host-contract" }
 a4n-config = { path = "../a4n-config" }
 a4n-chapter-analysis = { path = "../a4n-chapter-analysis" }

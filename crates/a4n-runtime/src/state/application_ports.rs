@@ -544,7 +544,7 @@ pub struct ApplicationPorts {
     pub image_profile_prompt_application:
         Arc<dyn a4n_api_contract::image_generation::ImageProfilePromptApplicationPort>,
     /// Host-facing profile-material read boundary. Authorization and group
-    /// projection stay in the media owner.
+    /// projection stay in the profile-material worker.
     pub profile_material_read_application:
         Arc<dyn a4n_api_contract::profile::ProfileMaterialReadApplicationPort>,
     pub profile_material_mutation_application:
