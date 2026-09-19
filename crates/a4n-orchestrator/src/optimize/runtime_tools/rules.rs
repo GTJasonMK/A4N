@@ -1,7 +1,6 @@
+use a4n_api_contract::optimize::canonical_optimization_context_source;
 use a4n_error::AppError;
 use serde_json::Value;
-
-use super::specs::INFORMATION_SOURCES;
 
 pub(super) fn required_string<'a>(input: &'a Value, field: &str) -> Result<&'a str, AppError> {
     input
@@ -15,28 +14,23 @@ pub(super) fn required_string<'a>(input: &'a Value, field: &str) -> Result<&'a s
 pub(super) fn required_information_source<'a>(
     input: &'a Value,
     field: &str,
-) -> Result<&'a str, AppError> {
+) -> Result<&'static str, AppError> {
     let source = required_string(input, field)?;
-    if INFORMATION_SOURCES.contains(&source) {
-        Ok(source)
-    } else {
-        Err(AppError::InvalidArgument(format!("未知信息源: {source}")))
-    }
+    canonical_optimization_context_source(source)
+        .ok_or_else(|| AppError::InvalidArgument(format!("未知信息源: {source}")))
 }
 
-pub(super) fn optional_information_source<'a>(
-    input: &'a Value,
+pub(super) fn optional_information_source(
+    input: &Value,
     field: &str,
-) -> Result<Option<&'a str>, AppError> {
+) -> Result<Option<&'static str>, AppError> {
     match input.get(field) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(value)) => {
             let source = value.trim();
-            if INFORMATION_SOURCES.contains(&source) {
-                Ok(Some(source))
-            } else {
-                Err(AppError::InvalidArgument(format!("未知信息源: {source}")))
-            }
+            canonical_optimization_context_source(source)
+                .map(Some)
+                .ok_or_else(|| AppError::InvalidArgument(format!("未知信息源: {source}")))
         }
         Some(_) => Err(AppError::InvalidArgument(format!("{field} 必须是字符串"))),
     }

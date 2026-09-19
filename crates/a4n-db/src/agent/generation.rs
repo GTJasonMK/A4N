@@ -2,26 +2,29 @@ use super::*;
 use a4n_db_models::models::generation::generation_task_checkpoint;
 use sea_orm::{DatabaseBackend, Statement};
 
-// The stable Generation start request is the association. Waiting on a task
-// never creates ownership, and a lost tool receipt does not lose ownership.
-// Only the mapping created in the task reservation transaction is its owner;
-// later start-request aliases merely observe that same task.
-const OWNER_JOIN: &str = "FROM agent_run r JOIN agent_thread t ON t.id = r.thread_id
-    JOIN agent_execution e ON e.run_id = r.id AND e.tool_name = 'send_content_optimization_message'
-    JOIN generation_start_request s ON s.requested_by_user_id = t.owner_user_id
-        AND s.start_request_id::text = e.resource_preconditions_json->>'generation_start_request_id'
-    JOIN generation_task_checkpoint g ON g.task_id = s.task_id AND g.created_at = s.created_at";
-
 pub async fn generation_owner<C: ConnectionTrait>(
     db: &C,
     task_id: &str,
     attempt: u32,
 ) -> Result<Option<run::Model>, AgentDbError> {
+    let owner_attempt = attempt.to_string();
     let rows = run::Entity::find()
         .from_raw_sql(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
-            format!("SELECT r.* {OWNER_JOIN} WHERE g.task_id = $1"),
-            [task_id.into()],
+            r#"
+            SELECT r.*
+            FROM agent_run r
+            JOIN agent_thread t ON t.id = r.thread_id
+            WHERE EXISTS (
+                SELECT 1
+                FROM agent_execution e
+                WHERE e.run_id = r.id
+                  AND e.resource_preconditions_json->>'generation_task_id' = $1
+                  AND e.resource_preconditions_json->>'generation_attempt' = $2
+            )
+            "#
+            .to_string(),
+            [task_id.into(), owner_attempt.into()],
         ))
         .all(db)
         .await?;
@@ -63,14 +66,9 @@ pub async fn active_owned_generation_tasks(
                   SELECT 1
                   FROM agent_run r
                   JOIN agent_thread t ON t.id = r.thread_id
-                  JOIN agent_execution e
-                    ON e.run_id = r.id
-                   AND e.tool_name = 'send_content_optimization_message'
-                  JOIN generation_start_request s
-                    ON s.requested_by_user_id = t.owner_user_id
-                   AND s.start_request_id::text = e.resource_preconditions_json->>'generation_start_request_id'
-                  WHERE g.task_id = s.task_id
-                    AND g.created_at = s.created_at
+                  JOIN agent_execution e ON e.run_id = r.id
+                  WHERE e.resource_preconditions_json->>'generation_task_id' = g.task_id
+                    AND e.resource_preconditions_json->>'generation_attempt' = g.attempt::text
               )
             ORDER BY g.task_id
             LIMIT 32

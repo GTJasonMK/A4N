@@ -39,8 +39,10 @@ use tokio::time::{Duration, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 
 mod binding;
+mod context;
 mod editor;
 mod history;
+mod observation;
 mod task_wait;
 
 /// Agent 宿主 worker 的轮询间隔。
@@ -927,6 +929,9 @@ async fn process_claimed_run_inner(
         .map(str::to_string)
         .collect::<HashSet<_>>();
     let discovery_cache = Arc::new(Mutex::new(successful_discovery_cache(&context.executions)));
+    let retry_counts = Arc::new(Mutex::new(observation::restored_retry_counts(
+        &context.executions,
+    )?));
     tool_calls = tool_calls.max(u32::try_from(prepared_calls.len()).map_err(|_| {
         AppError::InvalidState {
             current: "Agent 工具执行计数超出 u32".into(),
@@ -968,6 +973,7 @@ async fn process_claimed_run_inner(
             &budget,
             &mut prepared_calls,
             &discovery_cache,
+            &retry_counts,
             &mut discovered_tools,
             &mut messages,
             &mut usage,
@@ -1016,12 +1022,21 @@ async fn process_claimed_run_inner(
         model_calls = model_calls.saturating_add(1);
         usage["steps_used"] = json!(steps);
         usage["model_calls_used"] = json!(model_calls);
-        let tools = available_runtime_tools(
+        let tool_window = available_runtime_tools(
             &context.profile_id,
             &context.scope,
+            usage
+                .get("phase")
+                .and_then(Value::as_str)
+                .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
             &discovered_tools,
             &context.executions,
         )?;
+        usage["tool_window"] = json!({
+            "schema_limit": MAX_AGENT_TOOL_SCHEMAS,
+            "dropped_optional": tool_window.dropped_optional,
+        });
+        let tools = tool_window.schemas;
         let skills = if usage.get("failure_class").and_then(Value::as_str)
             == Some(a4n_agent_runtime_contract::AGENT_FAILURE_PROVIDER_UNAVAILABLE)
         {
@@ -1164,6 +1179,9 @@ async fn process_claimed_run_inner(
             tokens,
         )
         .await?;
+        let context_manifest_json = context::build_manifest(&context, &request_messages, &skills)?
+            .map(|manifest| serde_json::to_value(manifest))
+            .transpose()?;
         let mut request = ChatRequest {
             messages: request_messages,
             vision_images: Vec::new(),
@@ -1188,7 +1206,7 @@ async fn process_claimed_run_inner(
                 context_plan_json: None,
                 context_pack_refs_json: None,
             }),
-            context_manifest_json: None,
+            context_manifest_json,
             tools: None,
             tool_choice: None,
             stop_sequences: None,
@@ -1414,6 +1432,7 @@ async fn process_claimed_run_inner(
             &budget,
             &mut prepared_calls,
             &discovery_cache,
+            &retry_counts,
             &mut discovered_tools,
             &mut messages,
             &mut usage,
@@ -1761,6 +1780,7 @@ async fn execute_tool_calls(
     budget: &AgentBudget,
     prepared_calls: &mut HashSet<String>,
     discovery_cache: &Arc<Mutex<HashMap<String, Value>>>,
+    retry_counts: &Arc<Mutex<HashMap<String, u8>>>,
     discovered_tools: &mut Vec<String>,
     messages: &mut Vec<ChatMessage>,
     usage: &mut Value,
@@ -1831,6 +1851,7 @@ async fn execute_tool_calls(
         }
         let futures = batch.into_iter().map(|(call, execution)| {
             let discovery_cache = Arc::clone(discovery_cache);
+            let retry_counts = Arc::clone(retry_counts);
             let phase = a4n_api_contract::agent::agent_phase_for_tool(&call.name);
             Box::pin(async move {
                 let mut local_messages = Vec::new();
@@ -1843,6 +1864,7 @@ async fn execute_tool_calls(
                     call,
                     execution,
                     discovery_cache,
+                    retry_counts,
                     phase,
                     &mut local_messages,
                 )
@@ -1981,23 +2003,79 @@ async fn execute_tool_call(
     call: ToolCall,
     execution: AgentExecutionSnapshot,
     discovery_cache: Arc<Mutex<HashMap<String, Value>>>,
+    retry_counts: Arc<Mutex<HashMap<String, u8>>>,
     phase: &'static str,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
-    let descriptor = tool_descriptor(&call.name)?;
+    let message_application = state.worker_message_application(claimed);
+    let descriptor = match tool_descriptor(&call.name) {
+        Ok(descriptor) => descriptor,
+        Err(error) => {
+            return record_tool_failure(
+                execution_application,
+                &message_application,
+                claimed,
+                &execution,
+                &call,
+                error.to_string(),
+                messages,
+            )
+            .await;
+        }
+    };
     if !a4n_api_contract::agent::capability_allows_tool(&context.profile_id, &call.name) {
-        return Err(AppError::Forbidden(format!(
-            "Agent capability {} 当前阶段不允许工具 {}",
-            context.profile_id, call.name
-        )));
+        return record_tool_failure(
+            execution_application,
+            &message_application,
+            claimed,
+            &execution,
+            &call,
+            format!(
+                "Agent capability {} 当前阶段不允许工具 {}",
+                context.profile_id, call.name
+            ),
+            messages,
+        )
+        .await;
     }
     if !a4n_api_contract::agent::agent_phase_allows_tool(phase, &call.name) {
-        return Err(AppError::Forbidden(format!(
-            "Agent 当前阶段 {phase} 不允许工具 {}",
-            call.name
-        )));
+        return record_tool_failure(
+            execution_application,
+            &message_application,
+            claimed,
+            &execution,
+            &call,
+            format!("Agent 当前阶段 {phase} 不允许工具 {}", call.name),
+            messages,
+        )
+        .await;
     }
-    let message_application = state.worker_message_application(claimed);
+    if observation::retry_limit_reached(&retry_counts, &call.name, &call.arguments).await? {
+        let error_text = "同一工具参数已连续失败 3 次，停止自动重试";
+        let value = json!({"error": error_text, "code": "TOOL_RETRY_LIMIT"});
+        execution_application
+            .update_worker_execution(WorkerExecutionUpdate {
+                run_id: claimed.run.id,
+                lease_token: claimed.lease_token.clone(),
+                execution_id: execution.id,
+                status: "failed".into(),
+                result_json: None,
+                result_summary: Some(error_text.into()),
+                result_refs_json: None,
+                error_message: Some(error_text.into()),
+            })
+            .await?;
+        append_tool_observation(
+            &message_application,
+            claimed,
+            &execution,
+            &call,
+            value,
+            messages,
+        )
+        .await?;
+        return Ok((RunProgress::Continue, Vec::new()));
+    }
     let approval_application = state.worker_approval_application(claimed);
 
     // A completed idempotent execution is a durable replay, not a reason to
@@ -2369,6 +2447,21 @@ async fn execute_tool_call(
         }
         Err(error) => {
             let error_text = error.to_string();
+            let (error_code, failure_count) = observation::record_failure(
+                &retry_counts,
+                &call.name,
+                &call.arguments,
+                &error_text,
+            )
+            .await?;
+            let (error_text, error_code) = if failure_count >= 3 {
+                (
+                    "同一工具参数已连续失败 3 次，停止自动重试".to_string(),
+                    "TOOL_RETRY_LIMIT".to_string(),
+                )
+            } else {
+                (error_text, error_code)
+            };
             execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
@@ -2381,7 +2474,7 @@ async fn execute_tool_call(
                     error_message: Some(error_text.clone()),
                 })
                 .await?;
-            json!({"error": error_text})
+            json!({"error": error_text, "code": error_code})
         }
     };
     let discovered = discovered_tool_names(&call.name, &Some(value.clone()))?;
@@ -2440,7 +2533,11 @@ async fn append_tool_observation(
     value: Value,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(), AppError> {
+    let result_bytes = serde_json::to_vec(&value)?.len();
+    let result_refs = tool_result_refs(&call.name, &value)?;
     let value = history::bounded_observation(execution.id, value)?;
+    let value =
+        observation::from_result(execution.id, &call.name, value, result_refs, result_bytes)?;
     message_application
         .append_tool_message(
             claimed,
@@ -2786,6 +2883,9 @@ fn chat_message_from_model(message: &AgentMessageSnapshot) -> Result<ChatMessage
                     current: "Agent tool message execution_id 无效".into(),
                     operation: "构建模型上下文".into(),
                 })?;
+            if value.get("observation_version").is_some() {
+                observation::parse(value)?;
+            }
             result.content =
                 serde_json::to_string(&history::bounded_observation(id, value.clone())?)?;
         }
@@ -2793,19 +2893,25 @@ fn chat_message_from_model(message: &AgentMessageSnapshot) -> Result<ChatMessage
     Ok(result)
 }
 
+struct RuntimeToolWindow {
+    schemas: Vec<Value>,
+    dropped_optional: Vec<String>,
+}
+
 fn available_runtime_tools(
     capability: &str,
     scope: &AgentScope,
+    phase: &str,
     discovered_tools: &[String],
     executions: &[AgentExecutionSnapshot],
-) -> Result<Vec<Value>, AppError> {
+) -> Result<RuntimeToolWindow, AppError> {
     let initial_tools = a4n_api_contract::agent::initial_agent_tools(capability);
-    let initial_limit =
-        if a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability) {
-            MAX_AGENT_TOOL_SCHEMAS
-        } else {
-            MAX_BASE_AGENT_TOOLS
-        };
+    let restricted = a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability);
+    let initial_limit = if restricted {
+        usize::MAX
+    } else {
+        MAX_BASE_AGENT_TOOLS
+    };
     let mut names = initial_tools
         .iter()
         .map(|name| (*name).to_string())
@@ -2816,7 +2922,11 @@ fn available_runtime_tools(
             names.push(tool.into());
         }
     }
-    names.retain(|name| ensure_agent_scope_allows_tool(scope, name).is_ok());
+    names.retain(|name| {
+        ensure_agent_scope_allows_tool(scope, name).is_ok()
+            && a4n_api_contract::agent::capability_allows_tool(capability, name)
+            && a4n_api_contract::agent::agent_phase_allows_tool(phase, name)
+    });
     let pending = executions
         .iter()
         .filter(|execution| {
@@ -2836,14 +2946,15 @@ fn available_runtime_tools(
     if names.len() > MAX_AGENT_TOOL_SCHEMAS {
         return Err(AppError::InvalidState {
             current: format!(
-                "Agent 当前有 {} 个待处理工具，但单次请求最多保留 {} 个工具 schema",
+                "Agent capability {capability} 在 phase {phase} 需要 {} 个 mandatory 工具，但单次请求最多保留 {} 个工具 schema: {}",
                 names.len(),
-                MAX_AGENT_TOOL_SCHEMAS
+                MAX_AGENT_TOOL_SCHEMAS,
+                names.join(", ")
             ),
             operation: "构建 Agent 工具窗口".into(),
         });
     }
-    if a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability) {
+    if restricted {
         return names
             .iter()
             .map(|name| {
@@ -2857,14 +2968,20 @@ fn available_runtime_tools(
                     }
                 }))
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()
+            .map(|schemas| RuntimeToolWindow {
+                schemas,
+                dropped_optional: Vec::new(),
+            });
     }
+    let mut dropped_optional = Vec::new();
     for name in discovered_tools.iter().rev() {
         if !names.iter().any(|known| known == name)
             && ensure_agent_scope_allows_tool(scope, name).is_ok()
         {
             if names.len() == MAX_AGENT_TOOL_SCHEMAS {
-                break;
+                dropped_optional.push(name.clone());
+                continue;
             }
             names.push(name.clone());
         }
@@ -2882,7 +2999,44 @@ fn available_runtime_tools(
                 }
             }))
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(|schemas| RuntimeToolWindow {
+            schemas,
+            dropped_optional,
+        })
+}
+
+async fn record_tool_failure(
+    execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
+    message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
+    claimed: &AgentWorkerRun,
+    execution: &AgentExecutionSnapshot,
+    call: &ToolCall,
+    message: String,
+    messages: &mut Vec<ChatMessage>,
+) -> Result<(RunProgress, Vec<String>), AppError> {
+    execution_application
+        .update_worker_execution(WorkerExecutionUpdate {
+            run_id: claimed.run.id,
+            lease_token: claimed.lease_token.clone(),
+            execution_id: execution.id,
+            status: "failed".into(),
+            result_json: None,
+            result_summary: Some(message.clone()),
+            result_refs_json: None,
+            error_message: Some(message.clone()),
+        })
+        .await?;
+    append_tool_observation(
+        message_application,
+        claimed,
+        execution,
+        call,
+        json!({"error": message}),
+        messages,
+    )
+    .await?;
+    Ok((RunProgress::Continue, Vec::new()))
 }
 
 fn discovered_tool_names(tool_name: &str, result: &Option<Value>) -> Result<Vec<String>, AppError> {
@@ -3014,6 +3168,40 @@ fn enum_string<T: serde::Serialize>(value: T) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optional_discovered_tools_are_soft_limited_to_the_schema_window() {
+        let scope = AgentScope {
+            resource_kind: None,
+            resource_id: None,
+            project_id: None,
+            chapter_id: None,
+            allowed_capabilities: Vec::new(),
+            allowed_tools: Vec::new(),
+        };
+        let mut discovered = Vec::new();
+        for capability in [
+            a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY,
+            a4n_api_contract::agent::CANVAS_AGENT_CAPABILITY,
+            a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+        ] {
+            discovered.extend(
+                a4n_api_contract::agent::agent_tools_for_capability(capability)
+                    .iter()
+                    .map(|name| (*name).to_string()),
+            );
+        }
+        let tools = available_runtime_tools(
+            a4n_api_contract::agent::MAIN_AGENT_CAPABILITY,
+            &scope,
+            a4n_api_contract::agent::AGENT_PHASE_ANALYZE,
+            &discovered,
+            &[],
+        )
+        .expect("optional discovered tools should be trimmed");
+        assert!(tools.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
+        assert!(tools.dropped_optional.len() <= discovered.len());
+    }
 
     #[test]
     fn stream_projection_starts_on_first_delta_and_throttles_followup_writes() {

@@ -678,17 +678,10 @@ pub(super) async fn command(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     let user_id = agent_actions::authorize_agent_host_command(state.runtime(), &request).await?;
-    super::commands::dispatch_agent_host_command_value(state.runtime(), user_id, request)
-        .await
-        .map(Json)
-        .map_err(|error| {
-            let message = error
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("Agent Host command 执行失败")
-                .to_string();
-            ApiError::internal("agent_host_command_failed", message, true)
-        })
+    let value =
+        super::commands::dispatch_agent_host_command_value(state.runtime(), user_id, request)
+            .await?;
+    Ok(Json(value))
 }
 
 pub(super) async fn agent_package_execution_enabled(
