@@ -518,7 +518,7 @@
     "default_addr": "127.0.0.1:47673",
     "local_only": true,
     "data_scope": ["llm_config", "image_config", "video_config", "embedding_config"],
-    "capabilities": ["config.read"],
+    "capabilities": ["config.read", "config.mutation"],
     "dependencies": ["a4n-migration"],
     "migration": {
       "current": "config",

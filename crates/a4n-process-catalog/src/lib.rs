@@ -703,7 +703,10 @@ mod tests {
         assert_eq!(config_read.contract_version, "config-read-v1");
         assert_eq!(config_read.addr_env, "A4N_CONFIG_READ_WORKER_ADDR");
         assert_eq!(config_read.default_addr, "127.0.0.1:47673");
-        assert_eq!(config_read.capabilities, vec!["config.read".to_string()]);
+        assert_eq!(
+            config_read.capabilities,
+            vec!["config.read".to_string(), "config.mutation".to_string()]
+        );
         let character_mutation = entries
             .iter()
             .find(|entry| entry.name == "character-mutation-worker")

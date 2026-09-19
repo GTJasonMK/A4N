@@ -42,7 +42,6 @@ pub async fn initialize_runtime(
 
     let prompt_read_application = orchestrator.clone();
     let prompt_mutation_application = orchestrator.clone();
-    let config_mutation_application = orchestrator.clone();
     let package_read_application = orchestrator.clone();
     let package_mutation_application = orchestrator.clone();
     let rag_search = orchestrator.clone();
@@ -185,8 +184,8 @@ pub async fn initialize_runtime(
         outline_beat_mapping_preview_application: orchestrator.clone(),
         theme_read_application: theme_read_worker.clone(),
         theme_mutation_application: theme_read_worker,
-        config_read_application: config_read_worker,
-        config_mutation_application,
+        config_read_application: config_read_worker.clone(),
+        config_mutation_application: config_read_worker.clone(),
         settings_export_application: orchestrator.clone(),
         settings_import_application: orchestrator.clone(),
         prompt_read_application,
