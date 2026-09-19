@@ -13,6 +13,27 @@ fn parse_blueprint_optimization_json_accepts_applicable_fields() {
 }
 
 #[test]
+fn parse_blueprint_optimization_json_accepts_a_partial_character_patch() {
+    let blueprint: serde_json::Value = serde_json::from_str(&valid_blueprint()).unwrap();
+    let value = serde_json::json!({
+        "characters": [blueprint["characters"][0].clone()]
+    });
+
+    let parsed = parse_blueprint_optimization_json(&value.to_string())
+        .expect("optimization should accept one changed character");
+
+    assert_eq!(parsed.characters.as_ref().map(Vec::len), Some(1));
+}
+
+#[test]
+fn parse_blueprint_optimization_json_rejects_an_empty_character_patch() {
+    let err = parse_blueprint_optimization_json(r#"{"characters":[]}"#)
+        .expect_err("empty character patches must fail");
+
+    assert!(err.to_string().contains("至少需要 1 个角色"));
+}
+
+#[test]
 fn parse_blueprint_optimization_json_rejects_plain_text() {
     let err = parse_blueprint_optimization_json("整体结构不错，但建议加强冲突。")
         .expect_err("plain text should be rejected");

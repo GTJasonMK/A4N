@@ -5,7 +5,7 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::{
-    entities::{parse_characters, parse_relationships},
+    entities::{parse_relationships, parse_sparse_characters},
     world::validate_world_setting,
 };
 
@@ -30,11 +30,17 @@ pub(super) fn parse_optimization_sections(value: &Value) -> Result<OptimizationS
     };
     let characters = match value.get("characters") {
         Some(value) if !value.is_null() => {
-            Some(parse_characters(value.as_array().ok_or_else(|| {
+            let items = value.as_array().ok_or_else(|| {
                 AppError::InvalidArgument(format!(
                     "{BLUEPRINT_REFINEMENT_PROMPT}.characters 必须是数组"
                 ))
-            })?)?)
+            })?;
+            if items.is_empty() {
+                return Err(AppError::InvalidArgument(format!(
+                    "{BLUEPRINT_REFINEMENT_PROMPT}.characters 至少需要 1 个角色"
+                )));
+            }
+            Some(parse_sparse_characters(items)?)
         }
         _ => None,
     };
