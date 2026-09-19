@@ -3,14 +3,16 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::project::{
-    ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary,
+    ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary, ProjectStatusMutationResult,
 };
 use a4n_db::DbHandle;
-use a4n_domain::project::rollback_actions;
+use a4n_domain::{collaboration::ProjectAccessRole, project::rollback_actions};
 use a4n_project_status_worker_contract::{
-    PROJECT_STATUS_MACHINE_OPERATION, PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION,
-    PROJECT_STATUS_READ_CAPABILITY, PROJECT_STATUS_WORKER_CONTRACT_VERSION,
-    PROJECT_STATUS_WORKER_ID, ProjectStatusProjectInput, ProjectStatusRollbackInput,
+    PROJECT_STATUS_FORWARD_OPERATION, PROJECT_STATUS_MACHINE_OPERATION,
+    PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION, PROJECT_STATUS_READ_CAPABILITY,
+    PROJECT_STATUS_ROLLBACK_OPERATION, PROJECT_STATUS_WORKER_CONTRACT_VERSION,
+    PROJECT_STATUS_WORKER_ID, PROJECT_STATUS_WRITE_CAPABILITY, ProjectStatusProjectInput,
+    ProjectStatusRollbackInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -76,6 +78,8 @@ impl ProjectStatusWorker {
                 "/v1/commands/project.status.preview_rollback",
                 post(preview_rollback),
             )
+            .route("/v1/commands/project.status.forward", post(forward))
+            .route("/v1/commands/project.status.rollback", post(rollback))
             .with_state(self.state.clone())
     }
 
@@ -155,11 +159,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: PROJECT_STATUS_READ_CAPABILITY.into(),
-            version: PROJECT_STATUS_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: PROJECT_STATUS_READ_CAPABILITY.into(),
+                version: PROJECT_STATUS_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: PROJECT_STATUS_WRITE_CAPABILITY.into(),
+                version: PROJECT_STATUS_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -184,6 +195,22 @@ async fn preview_rollback(
         state.preview_rollback(request)
     })
     .await
+}
+
+async fn forward(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectStatusRollbackInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.forward(request)).await
+}
+
+async fn rollback(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectStatusRollbackInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.rollback(request)).await
 }
 
 async fn command_response<T, O, F, Fut>(
@@ -285,6 +312,116 @@ impl WorkerState {
         })
     }
 
+    async fn forward(
+        &self,
+        request: WorkerEnvelope<ProjectStatusRollbackInput>,
+    ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
+        validate_request(&request, PROJECT_STATUS_FORWARD_OPERATION)?;
+        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let user_id = user_id(&request)?;
+        verify_permission(
+            &self.database,
+            project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let (project, from) = self.project_with_status(project_id, "推进项目状态").await?;
+        let artifacts =
+            a4n_db::project::project_status_artifacts(self.database.connection(), project_id)
+                .await
+                .map_err(status_read_error)?;
+        let target = request.payload.target;
+        if from >= target {
+            return Err(WorkerFailure::conflict(format!(
+                "当前状态 {} 不允许前进到 {}",
+                from.as_str(),
+                target.as_str()
+            )));
+        }
+        if !artifacts.supports(target) {
+            return Err(WorkerFailure::conflict(format!(
+                "当前状态 {} 缺少前进到 {} 所需产物",
+                from.as_str(),
+                target.as_str()
+            )));
+        }
+        let changed_at = chrono::Utc::now().naive_utc();
+        let project = a4n_db::project::update_project_status_record(
+            self.database.connection(),
+            project,
+            target,
+            changed_at,
+        )
+        .await
+        .map_err(status_write_error)?;
+        let summary = self.summary_for_user(user_id, &project).await?;
+        Ok(ProjectStatusMutationResult {
+            project: summary,
+            from,
+            to: target,
+            changed_at,
+            needs_rag_clear: false,
+        })
+    }
+
+    async fn rollback(
+        &self,
+        request: WorkerEnvelope<ProjectStatusRollbackInput>,
+    ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
+        validate_request(&request, PROJECT_STATUS_ROLLBACK_OPERATION)?;
+        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let user_id = user_id(&request)?;
+        verify_permission(
+            &self.database,
+            project_id,
+            user_id,
+            ProjectAccessRole::Owner,
+        )
+        .await?;
+        let (_, from) = self.project_with_status(project_id, "回退项目状态").await?;
+        let target = request.payload.target;
+        if from <= target {
+            return Err(WorkerFailure::conflict(format!(
+                "当前状态 {} 不允许回退到 {}",
+                from.as_str(),
+                target.as_str()
+            )));
+        }
+        let changed_at = chrono::Utc::now().naive_utc();
+        let outcome = a4n_db::project_reset::rollback_project_status_record(
+            self.database.connection(),
+            project_id,
+            from,
+            target,
+            changed_at,
+        )
+        .await
+        .map_err(project_reset_error)?;
+        let summary = self.summary_for_user(user_id, &outcome.project).await?;
+        Ok(ProjectStatusMutationResult {
+            project: summary,
+            from,
+            to: target,
+            changed_at,
+            needs_rag_clear: outcome.needs_rag_clear,
+        })
+    }
+
+    async fn summary_for_user(
+        &self,
+        user_id: i64,
+        project: &a4n_db_models::models::project::novel_project::Model,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, WorkerFailure> {
+        a4n_project_read_core::project_summary_for_user(
+            self.database.connection(),
+            user_id,
+            project,
+        )
+        .await
+        .map_err(summary_error)
+    }
+
     async fn project_with_status(
         &self,
         project_id: i64,
@@ -331,6 +468,23 @@ async fn verify_viewer(
         project_id,
         user_id,
         a4n_domain::collaboration::ProjectAccessRole::Viewer,
+    )
+    .await
+    .map(|_| ())
+    .map_err(collaboration_error)
+}
+
+async fn verify_permission(
+    database: &DbHandle,
+    project_id: i64,
+    user_id: i64,
+    required: ProjectAccessRole,
+) -> Result<(), WorkerFailure> {
+    a4n_db::collaboration::verify_project_permission(
+        database.connection(),
+        project_id,
+        user_id,
+        required,
     )
     .await
     .map(|_| ())
@@ -420,6 +574,74 @@ fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> Worke
         }
         a4n_db::project::ProjectMutationError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn status_write_error(error: a4n_db::project::ProjectStatusWriteError) -> WorkerFailure {
+    match error {
+        a4n_db::project::ProjectStatusWriteError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::project::ProjectStatusWriteError::ProjectNotFound { project_id } => {
+            WorkerFailure::not_found(format!("项目不存在: {project_id}"))
+        }
+        a4n_db::project::ProjectStatusWriteError::StatusChanged { expected, actual } => {
+            WorkerFailure::conflict(format!(
+                "项目状态已变化，请刷新后重试: expected={expected}, actual={actual}"
+            ))
+        }
+        a4n_db::project::ProjectStatusWriteError::Database { source } => {
+            WorkerFailure::unavailable(source.to_string())
+        }
+    }
+}
+
+fn project_reset_error(error: a4n_db::project_reset::ProjectResetDbError) -> WorkerFailure {
+    match error {
+        a4n_db::project_reset::ProjectResetDbError::ProjectNotFound { project_id } => {
+            WorkerFailure::not_found(format!("项目不存在: {project_id}"))
+        }
+        a4n_db::project_reset::ProjectResetDbError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::project_reset::ProjectResetDbError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("状态 {current} 不允许{operation}"))
+        }
+        a4n_db::project_reset::ProjectResetDbError::StatusChanged { expected, actual } => {
+            WorkerFailure::conflict(format!(
+                "项目状态已变化，请刷新后重试: expected={expected}, actual={actual}"
+            ))
+        }
+        a4n_db::project_reset::ProjectResetDbError::Database { source } => {
+            WorkerFailure::unavailable(source.to_string())
+        }
+        other => WorkerFailure::conflict(other.to_string()),
+    }
+}
+
+fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
+    match error {
+        a4n_project_read_core::ProjectSummaryError::Progress(error) => match error {
+            a4n_db::project::ProjectProgressReadError::InvalidArgument(message) => {
+                WorkerFailure::invalid_request(message)
+            }
+            a4n_db::project::ProjectProgressReadError::Database { source, .. } => {
+                WorkerFailure::unavailable(source.to_string())
+            }
+            error => WorkerFailure::conflict(error.to_string()),
+        },
+        a4n_project_read_core::ProjectSummaryError::Family(error) => match error {
+            a4n_db::project::ProjectFamilyMetadataReadError::InvalidArgument(message) => {
+                WorkerFailure::invalid_request(message)
+            }
+            a4n_db::project::ProjectFamilyMetadataReadError::Database { source, .. } => {
+                WorkerFailure::unavailable(source.to_string())
+            }
+            error => WorkerFailure::conflict(error.to_string()),
+        },
+        a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
+            collaboration_error(error)
         }
     }
 }
