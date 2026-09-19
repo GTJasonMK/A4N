@@ -6,6 +6,7 @@ use a4n_llm_context::{
     validate_context_manifest,
 };
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmProvider, LlmTraceContext};
+use serde_json::json;
 
 use super::super::context::{
     build_manifest_requirements, build_system_prefix_pack_ref,
@@ -105,8 +106,11 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     };
     trace_context.context_plan_json =
         Some(serde_json::to_value(&plan).map_err(AppError::Serialization)?);
-    trace_context.context_pack_refs_json =
-        Some(serde_json::to_value(&plan.selected_pack_refs).map_err(AppError::Serialization)?);
+    trace_context.context_pack_refs_json = Some(json!({
+        "schema_version": 1,
+        "selected": plan.selected_pack_refs,
+        "dropped_optional": plan.dropped_optional_pack_refs,
+    }));
     request.trace_context = Some(trace_context.clone());
     Ok(Some(trace_context))
 }

@@ -50,8 +50,11 @@ pub fn preview_context_aware_chat_request(
     Ok(Some(LlmContextRequestPreview {
         manifest_json,
         plan_json: serde_json::to_value(&plan).map_err(AppError::Serialization)?,
-        pack_refs_json: serde_json::to_value(&plan.selected_pack_refs)
-            .map_err(AppError::Serialization)?,
+        pack_refs_json: serde_json::json!({
+            "schema_version": 1,
+            "selected": plan.selected_pack_refs,
+            "dropped_optional": plan.dropped_optional_pack_refs,
+        }),
         stable_prefix_tokens: plan.stable_prefix_tokens,
         dynamic_delta_tokens: plan.dynamic_delta_tokens,
         available_input_tokens: plan.available_input_tokens,
