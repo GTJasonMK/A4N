@@ -1,18 +1,19 @@
 use a4n_api_contract::image::{
     DeleteImageInput, GeneratedImageSummary, ImageLibraryReadApplicationPort,
-    ImageRecordMutationApplicationPort, ListImagesByChapterInput, ListImagesByProjectInput,
-    ListImagesByProjectsInput, UpdateGeneratedImageInput,
+    ImageRecordMutationApplicationPort, ImageReferenceReadApplicationPort,
+    ListImagesByChapterInput, ListImagesByProjectInput, ListImagesByProjectsInput,
+    UpdateGeneratedImageInput,
 };
 use a4n_artifact_media_contract::{
     ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND, ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND,
     ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND, ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND,
-    ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND, ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND,
-    ARTIFACT_MEDIA_MAINTENANCE_COMMAND, ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND,
-    ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND, ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND,
-    ARTIFACT_MEDIA_UNREFERENCED_PATHS_COMMAND, ARTIFACT_MEDIA_WORKER_ID,
-    ArtifactMediaMaintenanceReport, ArtifactMediaMaintenanceRequest, MediaPathPrefixRequest,
-    MediaPathsRequest, ProjectPathsRequest, ProjectPublicationRequest, PublishImageRequest,
-    PublishedImageResponse,
+    ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND, ARTIFACT_MEDIA_IMAGE_REFERENCE_IDS_COMMAND,
+    ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND, ARTIFACT_MEDIA_MAINTENANCE_COMMAND,
+    ARTIFACT_MEDIA_PATH_PREFIX_REFERENCED_COMMAND, ARTIFACT_MEDIA_PROJECT_PUBLICATION_COMMAND,
+    ARTIFACT_MEDIA_PROTECTED_PATHS_COMMAND, ARTIFACT_MEDIA_UNREFERENCED_PATHS_COMMAND,
+    ARTIFACT_MEDIA_WORKER_ID, ArtifactMediaMaintenanceReport, ArtifactMediaMaintenanceRequest,
+    ImageReferenceIdsRequest, MediaPathPrefixRequest, MediaPathsRequest, ProjectPathsRequest,
+    ProjectPublicationRequest, PublishImageRequest, PublishedImageResponse,
 };
 use a4n_worker_client::{
     HttpWorkerClient, WorkerCapabilities, WorkerClientConfig, WorkerClientError, WorkerEnvelope,
@@ -242,6 +243,27 @@ impl ArtifactMediaWorkerClient {
         .await
     }
 
+    pub async fn image_reference_by_ids(
+        &self,
+        actor_user_id: i64,
+        project_id: i64,
+        image_ids: &[i64],
+    ) -> Result<Vec<GeneratedImageSummary>, ArtifactMediaClientError> {
+        self.completed_payload(
+            ARTIFACT_MEDIA_IMAGE_REFERENCE_IDS_COMMAND,
+            self.user_envelope(
+                "artifact-media.image-reference-ids",
+                actor_user_id,
+                serde_json::to_value(ImageReferenceIdsRequest {
+                    project_id,
+                    image_ids: image_ids.to_vec(),
+                })
+                .expect("image reference input serializes"),
+            ),
+        )
+        .await
+    }
+
     pub async fn update_image(
         &self,
         actor_user_id: i64,
@@ -466,6 +488,20 @@ impl ImageLibraryReadApplicationPort for ArtifactMediaWorkerClient {
             ));
         }
         self.image_list_by_chapter(user_id, input)
+            .await
+            .map_err(app_error)
+    }
+}
+
+#[async_trait::async_trait]
+impl ImageReferenceReadApplicationPort for ArtifactMediaWorkerClient {
+    async fn reference_by_ids(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        image_ids: &[i64],
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError> {
+        self.image_reference_by_ids(user_id, project_id, image_ids)
             .await
             .map_err(app_error)
     }

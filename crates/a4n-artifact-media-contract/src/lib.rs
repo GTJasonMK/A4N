@@ -13,6 +13,7 @@ pub const ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND: &str = "image-by-id";
 pub const ARTIFACT_MEDIA_IMAGE_LIST_PROJECT_COMMAND: &str = "image-list-project";
 pub const ARTIFACT_MEDIA_IMAGE_LIST_PROJECTS_COMMAND: &str = "image-list-projects";
 pub const ARTIFACT_MEDIA_IMAGE_LIST_CHAPTER_COMMAND: &str = "image-list-chapter";
+pub const ARTIFACT_MEDIA_IMAGE_REFERENCE_IDS_COMMAND: &str = "image-reference-ids";
 pub const ARTIFACT_MEDIA_IMAGE_UPDATE_COMMAND: &str = "image-update";
 pub const ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND: &str = "image-delete";
 pub const ARTIFACT_MEDIA_CAPABILITY_VERSION: &str = "artifact-media-v1";
@@ -108,6 +109,13 @@ impl ProjectPublicationRequest {
 pub struct ProjectPathsRequest {
     pub project_id: i64,
     pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ImageReferenceIdsRequest {
+    pub project_id: i64,
+    pub image_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

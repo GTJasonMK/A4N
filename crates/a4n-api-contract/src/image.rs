@@ -61,6 +61,17 @@ pub trait ImageRecordReadApplicationPort: Send + Sync {
     ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
 }
 
+/// Narrow read boundary for image references selected by portrait/video flows.
+#[async_trait::async_trait]
+pub trait ImageReferenceReadApplicationPort: Send + Sync {
+    async fn reference_by_ids(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        image_ids: &[i64],
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+}
+
 /// Narrow generated-image library reads. Video-reference selection keeps its
 /// own cross-project rules and stays on `ImageRecordReadApplicationPort`.
 #[async_trait::async_trait]

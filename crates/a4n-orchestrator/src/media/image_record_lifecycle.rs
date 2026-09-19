@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use a4n_api_contract::image::{
     DeleteImageInput, GeneratedImageIdentity, GeneratedImageSummary, ImageMediaReferencePort,
     ImagePublicationRecoveryReadPort, ImageRecordMutationApplicationPort,
-    ImageRecordReadApplicationPort, ListImagesByChapterInput, ListImagesByProjectInput,
-    ListImagesByProjectsInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
-    UploadImageInput,
+    ImageRecordReadApplicationPort, ImageReferenceReadApplicationPort, ListImagesByChapterInput,
+    ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
+    UpdateGeneratedImageInput, UploadImageInput,
 };
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
 use a4n_domain::media::{
@@ -524,6 +524,18 @@ impl ImageRecordReadApplicationPort for OrchestratorContext {
             .iter()
             .map(super::image_generation::generated_image_summary)
             .collect())
+    }
+}
+
+#[async_trait]
+impl ImageReferenceReadApplicationPort for OrchestratorContext {
+    async fn reference_by_ids(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        image_ids: &[i64],
+    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
+        ImageRecordReadApplicationPort::reference_by_ids(self, user_id, project_id, image_ids).await
     }
 }
 
