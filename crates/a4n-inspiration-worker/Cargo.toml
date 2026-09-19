@@ -1,0 +1,23 @@
+[package]
+name = "a4n-inspiration-worker"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-config = { path = "../a4n-config" }
+a4n-db = { path = "../a4n-db" }
+a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-inspiration-core = { path = "../a4n-inspiration-core" }
+a4n-inspiration-worker-contract = { path = "../a4n-inspiration-worker-contract" }
+a4n-worker-client = { path = "../a4n-worker-client" }
+a4n-worker-contract = { path = "../a4n-worker-contract" }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+subtle = { workspace = true }
+tokio = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
