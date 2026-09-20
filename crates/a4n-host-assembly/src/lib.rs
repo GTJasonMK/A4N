@@ -101,7 +101,6 @@ pub async fn initialize_runtime(
         dyn a4n_api_contract::video::VideoPromptDraftApplicationPort,
     > = Arc::new(VideoPromptDraftAdapter {
         worker: video_record_worker.clone(),
-        fallback: orchestrator.clone(),
     });
     let manga_record_worker =
         Arc::new(a4n_manga_record_worker_client::MangaRecordWorkerClient::from_env());
@@ -412,7 +411,6 @@ impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecord
 
 struct VideoPromptDraftAdapter {
     worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
-    fallback: Arc<dyn a4n_api_contract::video::VideoPromptDraftApplicationPort>,
 }
 
 #[async_trait::async_trait]
@@ -432,7 +430,7 @@ impl a4n_api_contract::video::VideoPromptDraftApplicationPort for VideoPromptDra
         user_id: i64,
         input: a4n_api_contract::video::UpdateVideoSegmentPlanDraftRecipeInput,
     ) -> Result<(), a4n_error::AppError> {
-        self.fallback
+        self.worker
             .update_video_segment_plan_draft_recipe(user_id, input)
             .await
     }

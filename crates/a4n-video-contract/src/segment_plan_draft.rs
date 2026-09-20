@@ -128,6 +128,50 @@ pub fn load_video_segment_plan_draft_recipe_state(
     Ok((segments, recipes, checkpoints.len(), total_shot_count))
 }
 
+pub fn update_video_segment_plan_draft_recipe_artifacts(
+    parsed_output_json: Option<&Value>,
+    artifacts_json: Option<&Value>,
+    source_shot_id: &str,
+    segment_index_in_shot: i32,
+    style: &str,
+    mut recipe: VideoSegmentExecutionRecipeV1,
+) -> Result<Value, AppError> {
+    let source_shot_id = source_shot_id.trim();
+    if source_shot_id.is_empty() || source_shot_id.contains(':') {
+        return Err(AppError::InvalidArgument(
+            "片段规划草稿 source_shot_id 无效".to_string(),
+        ));
+    }
+    let segment_index = usize::try_from(segment_index_in_shot)
+        .ok()
+        .and_then(|value| value.checked_sub(1))
+        .ok_or_else(|| {
+            AppError::InvalidArgument("segment_index_in_shot 必须为正整数".to_string())
+        })?;
+    let context = format!("片段规划 checkpoint {source_shot_id}");
+    let segments = checkpoint_segment_plans(parsed_output_json, &context)?;
+    let segment = segments.get(segment_index).ok_or_else(|| {
+        AppError::InvalidArgument(format!(
+            "镜头 {source_shot_id} 不存在第 {segment_index_in_shot} 个片段"
+        ))
+    })?;
+    if segment.source_shot_id != source_shot_id {
+        return Err(AppError::InvalidState {
+            current: segment.source_shot_id.clone(),
+            operation: format!("更新片段规划镜头 {source_shot_id} 的执行方案"),
+        });
+    }
+    let mut recipes = checkpoint_recipes(artifacts_json, &segments, style, &context)?;
+    recipe.segment_number = segment.segment_number;
+    recipe
+        .validate_for_plan(segment, style)
+        .map_err(AppError::InvalidArgument)?;
+    recipes[segment_index] = recipe;
+    validate_video_segment_recipes_for_plan(&recipes, &segments, style)
+        .map_err(AppError::InvalidArgument)?;
+    artifacts_with_recipes(artifacts_json, recipes, &context)
+}
+
 fn checkpoint_segment_plans(
     parsed_output_json: Option<&Value>,
     context: &str,
@@ -172,4 +216,20 @@ fn checkpoint_recipes(
     validate_video_segment_recipes_for_plan(&recipes, segments, style)
         .map_err(AppError::InvalidArgument)?;
     Ok(recipes)
+}
+
+fn artifacts_with_recipes(
+    current: Option<&Value>,
+    recipes: Vec<VideoSegmentExecutionRecipeV1>,
+    context: &str,
+) -> Result<Value, AppError> {
+    let mut artifacts = current
+        .and_then(Value::as_object)
+        .cloned()
+        .ok_or_else(|| AppError::InvalidArgument(format!("{context} artifacts_json 必须是对象")))?;
+    artifacts.insert(
+        VIDEO_SEGMENT_RECIPES_METADATA_KEY.to_string(),
+        serde_json::to_value(recipes)?,
+    );
+    Ok(Value::Object(artifacts))
 }

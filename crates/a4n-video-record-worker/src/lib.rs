@@ -9,8 +9,9 @@ use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_video_record_worker_contract::{
     ChapterVideosInput, LoadVideoSegmentPlanDraftInput, ReferenceImagesInput,
     VIDEO_PROMPT_CAPABILITY, VIDEO_PROMPT_DRAFT_CAPABILITY, VIDEO_PROMPT_DRAFT_LOAD_OPERATION,
-    VIDEO_PROMPT_LIST_OPERATION, VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_CAPABILITY,
-    VIDEO_RECORD_LIST_OPERATION, VIDEO_RECORD_MUTATION_CAPABILITY, VIDEO_RECORD_PLAYBACK_OPERATION,
+    VIDEO_PROMPT_DRAFT_UPDATE_OPERATION, VIDEO_PROMPT_LIST_OPERATION,
+    VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_CAPABILITY, VIDEO_RECORD_LIST_OPERATION,
+    VIDEO_RECORD_MUTATION_CAPABILITY, VIDEO_RECORD_PLAYBACK_OPERATION,
     VIDEO_RECORD_REFERENCE_IMAGES_OPERATION, VIDEO_RECORD_UPDATE_OPERATION,
     VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput,
     VideoSegmentPlanDraftSummary, VideoSourceInput, VideoUpdateInput,
@@ -89,6 +90,10 @@ impl VideoRecordWorker {
             .route(
                 "/v1/commands/video.prompt.draft.load",
                 post(load_video_segment_plan_draft),
+            )
+            .route(
+                "/v1/commands/video.prompt.draft.update",
+                post(update_video_segment_plan_draft_recipe),
             )
             .route(
                 "/v1/commands/video.prompt.list_by_chapter",
@@ -258,6 +263,19 @@ async fn load_video_segment_plan_draft(
     .await
 }
 
+async fn update_video_segment_plan_draft_recipe(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<
+        WorkerEnvelope<a4n_video_record_worker_contract::UpdateVideoSegmentPlanDraftRecipeInput>,
+    >,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.update_video_segment_plan_draft_recipe(request)
+    })
+    .await
+}
+
 async fn list_prompts(
     State(state): State<WorkerState>,
     headers: HeaderMap,
@@ -399,6 +417,56 @@ impl WorkerState {
             completed_shot_count,
             total_shot_count,
         })
+    }
+
+    async fn update_video_segment_plan_draft_recipe(
+        &self,
+        request: WorkerEnvelope<
+            a4n_video_record_worker_contract::UpdateVideoSegmentPlanDraftRecipeInput,
+        >,
+    ) -> Result<(), WorkerFailure> {
+        validate_request(&request, VIDEO_PROMPT_DRAFT_UPDATE_OPERATION)?;
+        let input = request.payload.clone();
+        let load_request = WorkerEnvelope {
+            schema_version: request.schema_version,
+            request_id: request.request_id.clone(),
+            trace_id: request.trace_id.clone(),
+            principal: request.principal.clone(),
+            operation_id: VIDEO_PROMPT_DRAFT_LOAD_OPERATION.to_string(),
+            idempotency_key: request.idempotency_key.clone(),
+            project_id: request.project_id,
+            root_project_id: request.root_project_id,
+            target_revision: request.target_revision,
+            runtime_config_snapshot_ref: request.runtime_config_snapshot_ref.clone(),
+            lease: request.lease.clone(),
+            payload: LoadVideoSegmentPlanDraftInput {
+                project_id: input.project_id,
+                chapter_id: input.chapter_id,
+                workflow_run_id: input.workflow_run_id,
+            },
+        };
+        let summary = self.load_video_segment_plan_draft(load_request).await?;
+        let style = summary
+            .run
+            .input_fingerprint_json
+            .as_ref()
+            .and_then(Value::as_object)
+            .and_then(|fingerprint| fingerprint.get("options"))
+            .and_then(Value::as_object)
+            .and_then(|options| options.get("style"))
+            .and_then(Value::as_str)
+            .filter(|style| !style.trim().is_empty())
+            .ok_or_else(|| WorkerFailure::conflict("片段规划 workflow 缺少 style"))?;
+        a4n_workflow_core::update_video_segment_plan_draft_recipe_checkpoint(
+            self.database.connection(),
+            input.workflow_run_id,
+            &input.source_shot_id,
+            input.segment_index_in_shot,
+            style,
+            input.recipe,
+        )
+        .await
+        .map_err(worker_app_error)
     }
 
     async fn update_record(

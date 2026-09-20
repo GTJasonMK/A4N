@@ -1,5 +1,8 @@
 //! Pure projection from workflow persistence summaries to API DTOs.
 
+use a4n_error::AppError;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
+
 pub fn workflow_run_summary_to_api(
     run: a4n_db::workflow::WorkflowRunSummary,
 ) -> a4n_api_contract::workflow::WorkflowRunSummary {
@@ -34,6 +37,76 @@ pub fn workflow_run_summary_to_api(
         created_at: run.created_at,
         updated_at: run.updated_at,
         completed_at: run.completed_at,
+    }
+}
+
+pub async fn update_video_segment_plan_draft_recipe_checkpoint(
+    db: &sea_orm::DatabaseConnection,
+    workflow_run_id: i64,
+    source_shot_id: &str,
+    segment_index_in_shot: i32,
+    style: &str,
+    recipe: VideoSegmentExecutionRecipeV1,
+) -> Result<(), AppError> {
+    let source_shot_id = source_shot_id.trim().to_string();
+    if source_shot_id.is_empty() || source_shot_id.contains(':') {
+        return Err(AppError::InvalidArgument(
+            "片段规划草稿 source_shot_id 无效".to_string(),
+        ));
+    }
+    if segment_index_in_shot <= 0 {
+        return Err(AppError::InvalidArgument(
+            "segment_index_in_shot 必须为正整数".to_string(),
+        ));
+    }
+    let step_key = format!("video_segment_plan.shot.{source_shot_id}");
+    a4n_db::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        db,
+        workflow_run_id,
+        &step_key,
+        "video_segment_plan.final",
+        move |parsed_output_json, artifacts_json| {
+            a4n_video_contract::update_video_segment_plan_draft_recipe_artifacts(
+                parsed_output_json,
+                artifacts_json,
+                &source_shot_id,
+                segment_index_in_shot,
+                style,
+                recipe,
+            )
+            .map_err(workflow_write_error)
+        },
+    )
+    .await
+    .map_err(workflow_write_app_error)
+}
+
+fn workflow_write_error(error: AppError) -> a4n_db::workflow::WorkflowWriteError {
+    match error {
+        AppError::InvalidArgument(message) => {
+            a4n_db::workflow::WorkflowWriteError::InvalidArgument(message)
+        }
+        AppError::InvalidState { current, operation } => {
+            a4n_db::workflow::WorkflowWriteError::StatusConflict { current, operation }
+        }
+        AppError::NotFound(message) => a4n_db::workflow::WorkflowWriteError::NotFound(message),
+        other => a4n_db::workflow::WorkflowWriteError::InvalidData(other.to_string()),
+    }
+}
+
+fn workflow_write_app_error(error: a4n_db::workflow::WorkflowWriteError) -> AppError {
+    match error {
+        a4n_db::workflow::WorkflowWriteError::InvalidArgument(message) => {
+            AppError::InvalidArgument(message)
+        }
+        a4n_db::workflow::WorkflowWriteError::NotFound(message) => AppError::NotFound(message),
+        a4n_db::workflow::WorkflowWriteError::StatusConflict { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
+        other => AppError::InvalidState {
+            current: other.to_string(),
+            operation: "更新视频片段规划草稿".to_string(),
+        },
     }
 }
 

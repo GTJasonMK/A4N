@@ -3,8 +3,8 @@
 pub use a4n_api_contract::image::GeneratedImageSummary;
 pub use a4n_api_contract::video::{
     ChapterVideoPromptSummary, GeneratedVideoSummary, LoadVideoSegmentPlanDraftInput,
-    UpdateGeneratedVideoInput, VideoPromptReadApplicationPort, VideoRecordReadApplicationPort,
-    VideoSegmentPlanDraftSummary,
+    UpdateGeneratedVideoInput, UpdateVideoSegmentPlanDraftRecipeInput,
+    VideoPromptReadApplicationPort, VideoRecordReadApplicationPort, VideoSegmentPlanDraftSummary,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
@@ -24,6 +24,7 @@ pub const VIDEO_PROMPT_LIST_OPERATION: &str = "video.prompt.list_by_chapter";
 pub const VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION: &str = "video.prompt.validate_source";
 pub const VIDEO_PROMPT_DRAFT_CAPABILITY: &str = "video.prompt.draft";
 pub const VIDEO_PROMPT_DRAFT_LOAD_OPERATION: &str = "video.prompt.draft.load";
+pub const VIDEO_PROMPT_DRAFT_UPDATE_OPERATION: &str = "video.prompt.draft.update";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

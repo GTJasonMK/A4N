@@ -3082,6 +3082,9 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-db",
+ "a4n-error",
+ "a4n-video-contract",
+ "sea-orm",
 ]
 
 [[package]]
