@@ -310,6 +310,7 @@ mod tests {
             observation("write"),
         ];
         let paired = pair_tool_messages(&messages).unwrap();
+        assert!(paired[0].tool_calls.is_some());
         assert_eq!(paired[1].tool_call_id.as_deref(), Some("read"));
         assert_eq!(paired[2].tool_call_id.as_deref(), Some("write"));
         assert_eq!(paired[3].content, "保留原镜头");

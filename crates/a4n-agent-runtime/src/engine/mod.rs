@@ -1507,7 +1507,8 @@ async fn process_claimed_run_inner(
             .await?;
             return Ok(());
         }
-        let assistant = ChatMessage::assistant(assistant_content.clone());
+        let mut assistant = ChatMessage::assistant(assistant_content.clone());
+        assistant.tool_calls = (!calls.is_empty()).then_some(calls.clone());
         // Persist the assistant decision before dispatching side effects so a
         // resumed run can reconstruct the exact tool-call context.
         let tool_calls_payload = serde_json::to_value(&calls)?;
