@@ -349,6 +349,7 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "chrono",
+ "sea-orm",
  "serde_json",
  "uuid",
 ]

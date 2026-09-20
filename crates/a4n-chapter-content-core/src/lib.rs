@@ -19,6 +19,10 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+mod cleanup;
+
+pub use cleanup::cleanup_chapter_derived_data_in;
+
 pub const CHAPTER_CONTENT_SYNC_WORKFLOW_KIND: &str = "chapter_content_sync";
 pub const CHAPTER_CONTENT_SYNC_RAG_STEP: &str = "chapter_content_sync.current_rag";
 pub const CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP: &str = "chapter_analysis.replacement_commit";
