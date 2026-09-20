@@ -1,0 +1,318 @@
+/* ============================================================================
+   设计令牌（CSS 变量）
+   ============================================================================ */
+
+:root {
+  /* ==================== 主色 — 赭石（亮色）==================== */
+  --color-primary: 151 72 29; /* #97481D — seal red / copper */
+  --color-primary-light: 177 93 48; /* #B15D30 */
+  --color-primary-dark: 116 52 20; /* #743414 */
+  --color-primary-pale: 249 234 222; /* #F9EADE */
+
+  /* ==================== 强调色 — 陶土（亮色，与主色同系）==================== */
+  --color-accent: 183 116 61; /* #B7743D — parchment highlight */
+  --color-accent-light: 205 143 83; /* #CD8F53 */
+  --color-accent-dark: 148 83 38; /* #945326 */
+  --color-accent-pale: 251 242 231; /* #FBF2E7 */
+
+  /* ==================== 文字 ==================== */
+  --color-text-primary: 44 24 16; /* #2C1810 */
+  --color-text-secondary: 93 64 55; /* #5D4037 */
+  --color-text-tertiary: 109 101 96; /* #6D6560 */
+  --color-text-placeholder: 141 133 128; /* #8D8580 */
+  --color-text-disabled: 176 168 160; /* #B0A8A0 */
+
+  /* ==================== 背景 ==================== */
+  --color-bg-primary: 241 238 232; /* #F1EEE8 — warm paper desk */
+  --color-bg-secondary: 255 252 245; /* #FFFCF5 — raised paper */
+  --color-bg-tertiary: 234 228 219; /* #EAE4DB — linen */
+  --color-bg-card-hover: 248 242 233; /* #F8F2E9 */
+  --color-bg-muted: 234 228 219; /* #EAE4DB */
+  --color-bg-accent: 229 214 193; /* #E5D6C1 */
+
+  /* ==================== 边框 ==================== */
+  --color-border: 205 194 181; /* #CDC2B5 */
+  --color-border-light: 229 221 211; /* #E5DDD3 */
+  --color-border-dark: 182 166 150; /* #B6A696 */
+
+  /* ==================== 状态色（带背景 tint）====================
+     原始通道值用 --status-* 命名，避免与 @theme 暴露的 --color-* 同名自指；
+     语义 Tailwind 类（text-success/bg-error-bg/border-warning…）在 @theme 中映射。
+     前景状态色亮暗共用（暖土色系两模式皆适配），仅 -bg tint 在 .dark 反转。 */
+  --status-success: 38 120 73; /* #267849 深翠绿，小字号满足亮色对比度 */
+  --status-success-bg: 240 249 244; /* #F0F9F4 */
+  --status-error: 168 84 72; /* #A85448 烧焦赭 */
+  --status-error-bg: 253 243 242; /* #FDF3F2 */
+  --status-warning: 132 84 18; /* #845412 深琥珀，小字号满足亮色对比度 */
+  --status-warning-bg: 253 248 240; /* #FDF8F0 */
+  --status-info: 38 103 139; /* #26678B 深青石蓝，小字号满足亮色对比度 */
+  --status-info-bg: 240 246 250; /* #F0F6FA */
+
+  /* ==================== 按钮文字 ==================== */
+  --color-button-text: 255 251 240; /* #FFFBF0 — 在赭石按钮上 */
+  --color-button-text-secondary: 44 24 16; /* #2C1810 — 在浅色按钮上 */
+
+  /* ==================== 圆角（iOS 连续圆角）==================== */
+  --pyqt-radius-xs: 6px;
+  --pyqt-radius-sm: 10px;
+  --pyqt-radius-md: 12px;
+  --pyqt-radius-lg: 16px;
+  --pyqt-radius-xl: 22px;
+
+  /* ==================== 主题可调表面效果 ==================== */
+  --a4n-workspace-opacity: 0.78;
+  --a4n-panel-opacity: 0.82;
+  --a4n-toolbar-opacity: 0.8;
+  --a4n-card-opacity: 0.9;
+  --a4n-control-opacity: 0.48;
+  --a4n-dialog-opacity: 0.94;
+  --a4n-surface-blur: 0px;
+  --a4n-shadow-strength: 1;
+  --a4n-theme-bg-image: none;
+  --a4n-theme-bg-opacity: 0;
+  --a4n-theme-bg-overlay: #000000;
+  --a4n-theme-bg-overlay-opacity: 0;
+  --a4n-theme-bg-blur: 0px;
+  --a4n-theme-bg-position: center;
+  --a4n-theme-bg-size: cover;
+
+  /* ==================== 控件与布局密度（对齐预览 HTML）==================== */
+  --a4n-control-height-sm: 34px;
+  --a4n-control-height-md: 36px;
+  --a4n-page-header-height: 46px;
+  --a4n-content-gutter: clamp(0.85rem, 2vw, 1.5rem);
+  /* Settings 导航列宽（写作桌列宽由 WritingDesk 内联 grid + 拖拽决定） */
+  --a4n-settings-nav-w: 192px;
+  --a4n-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --a4n-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --a4n-motion-fast: 160ms;
+  --a4n-motion: 220ms;
+  --a4n-motion-panel: 260ms;
+  --a4n-motion-page: 340ms;
+  --a4n-motion-exit: 180ms;
+  --a4n-motion-stagger: 44ms;
+
+  /* ==================== 8px 网格间距 ==================== */
+  --pyqt-spacing-sm: 16px;
+
+  /* ==================== 阴影（浮层感，少硬边）==================== */
+  --shadow-card:
+    0 1px 2px rgb(61 43 28 / calc(0.04 * var(--a4n-shadow-strength))),
+    0 12px 26px -16px rgb(61 43 28 / calc(0.18 * var(--a4n-shadow-strength)));
+  --shadow-card-hover:
+    0 5px 10px rgb(61 43 28 / calc(0.06 * var(--a4n-shadow-strength))),
+    0 18px 38px -16px rgb(61 43 28 / calc(0.22 * var(--a4n-shadow-strength)));
+  --shadow-overlay:
+    0 26px 64px -20px rgb(61 43 28 / calc(0.3 * var(--a4n-shadow-strength))),
+    0 10px 22px -8px rgb(61 43 28 / calc(0.14 * var(--a4n-shadow-strength)));
+}
+
+.dark {
+  /* ==================== 主色 — 琥珀（暗色）==================== */
+  --color-primary: 232 155 108; /* #E89B6C */
+  --color-primary-light: 240 176 136; /* #F0B088 */
+  --color-primary-dark: 212 132 90; /* #D4845A */
+  --color-primary-pale: 42 37 32; /* #2A2520 — dark tint */
+
+  /* ==================== 强调色 — 暖陶土（暗色）==================== */
+  --color-accent: 212 132 90; /* #D4845A */
+  --color-accent-light: 232 155 108; /* #E89B6C */
+  --color-accent-dark: 184 110 72; /* #B86E48 */
+  --color-accent-pale: 45 33 24; /* #2D2118 */
+
+  /* ==================== 文字（暗色：古董羊皮纸）==================== */
+  --color-text-primary: 232 223 212; /* #E8DFD4 */
+  --color-text-secondary: 196 179 162; /* #C4B3A2 褪色墨水，高对比 */
+  --color-text-tertiary: 172 154 136; /* #AC9A88 小字号辅助文本 */
+  --color-text-placeholder: 137 121 105; /* #897969 */
+  --color-text-disabled: 104 91 78; /* #685B4E */
+
+  /* ==================== 背景（暗色：木质）==================== */
+  --color-bg-primary: 28 23 20; /* #1C1714 深桃花心木 */
+  --color-bg-secondary: 37 30 25; /* #251E19 古老橡木 */
+  --color-bg-tertiary: 61 51 43; /* #3D332B 磨损皮革 */
+  --color-bg-card-hover: 45 37 32; /* #2D2520 */
+  --color-bg-muted: 61 51 43; /* #3D332B */
+  --color-bg-accent: 50 43 36; /* 暗色沙色强调 */
+
+  /* ==================== 边框（暗色：木纹）==================== */
+  --color-border: 74 63 53; /* #4A3F35 */
+  --color-border-light: 61 51 43; /* #3D332B */
+  --color-border-dark: 90 77 64; /* #5A4D40 */
+
+  /* ==================== 状态色 BG 反转为深色 ==================== */
+  --status-success-bg: 26 47 34; /* #1A2F22 */
+  --status-error-bg: 45 31 28; /* #2D1F1C */
+  --status-warning-bg: 45 37 24; /* #2D2518 */
+  --status-info-bg: 26 37 48; /* #1A2530 */
+
+  /* 暗色前景单独提亮，避免复用亮色深绿后失去对比度 */
+  --status-success: 103 192 137;
+  --status-warning: 240 181 94;
+  --status-info: 120 188 227;
+
+  /* ==================== 按钮文字反转 ==================== */
+  --color-button-text: 28 23 20; /* #1C1714 — 暗色背景上的琥珀按钮 */
+  --color-button-text-secondary: 232 223 212; /* #E8DFD4 */
+
+  /* ==================== 阴影（暗色浮层）==================== */
+  --shadow-card:
+    0 1px 2px rgb(0 0 0 / calc(0.28 * var(--a4n-shadow-strength))),
+    0 10px 28px -14px rgb(0 0 0 / calc(0.55 * var(--a4n-shadow-strength)));
+  --shadow-card-hover:
+    0 4px 10px rgb(0 0 0 / calc(0.3 * var(--a4n-shadow-strength))),
+    0 18px 40px -16px rgb(0 0 0 / calc(0.62 * var(--a4n-shadow-strength)));
+  --shadow-overlay:
+    0 28px 70px -18px rgb(0 0 0 / calc(0.72 * var(--a4n-shadow-strength))),
+    0 10px 24px -10px rgb(0 0 0 / calc(0.45 * var(--a4n-shadow-strength)));
+}
+
+/* ============================================================================
+   TailwindCSS 4 @theme — 将设计令牌映射为 Tailwind 类
+   注意：@theme 中的值在构建时静态解析，必须硬编码亮色模式值
+   暗色模式通过 .dark 类 + CSS 变量覆写
+   ============================================================================ */
+
+@theme {
+  /* Tailwind v4 静态 token：直接映射到 CSS 变量（亮暗自动响应 .dark）
+     使用 rgb(from var --color-x) 让 alpha 修饰符（如 bg-book-primary/30）也工作 */
+  --color-book-primary: rgb(var(--color-primary));
+  --color-book-primary-light: rgb(var(--color-primary-light));
+  --color-book-primary-dark: rgb(var(--color-primary-dark));
+  --color-book-accent: rgb(var(--color-accent));
+  --color-book-accent-light: rgb(var(--color-accent-light));
+  --color-book-bg: rgb(var(--color-bg-primary));
+  --color-book-bg-paper: rgb(var(--color-bg-secondary));
+  --color-book-bg-tertiary: rgb(var(--color-bg-tertiary));
+  --color-book-text-main: rgb(var(--color-text-primary));
+  --color-book-text-sub: rgb(var(--color-text-secondary));
+  --color-book-text-muted: rgb(var(--color-text-tertiary));
+  --color-book-border: rgb(var(--color-border));
+  /* 语义状态色 → Tailwind 类：text-success / bg-error-bg / border-warning/40 等。
+     rgb(var()) 形式同时支持 alpha 修饰符与 .dark 自动响应。 */
+  --color-success: rgb(var(--status-success));
+  --color-success-bg: rgb(var(--status-success-bg));
+  --color-error: rgb(var(--status-error));
+  --color-error-bg: rgb(var(--status-error-bg));
+  --color-warning: rgb(var(--status-warning));
+  --color-warning-bg: rgb(var(--status-warning-bg));
+  --color-info: rgb(var(--status-info));
+  --color-info-bg: rgb(var(--status-info-bg));
+  /* 本地创作界面使用已安装字体，保持书房排版且不等待外部字体服务。 */
+  --font-sans: "DM Sans", system-ui, "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Noto Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", "SimSun", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-4xl: 24px;
+
+  /* ==================== 字号层级（语义化）==================== */
+  --text-caption: 0.625rem; /* 10px — 标签、徽章、辅助说明 */
+  --text-small: 0.6875rem; /* 11px — 列表辅助信息、表格次要列 */
+  --text-body-sm: 0.75rem; /* 12px — 紧凑正文、表单辅助 */
+  --text-body: 0.8125rem; /* 13px — 标准正文（移动端） */
+  --text-body-md: 0.875rem; /* 14px — 标准正文（桌面端） */
+  --text-body-lg: 0.9375rem; /* 15px — 强调正文、卡片标题 */
+  --text-title-sm: 1rem; /* 16px — 小节标题 */
+  --text-title: 1.125rem; /* 18px — 页面标题 */
+  --text-title-lg: 1.25rem; /* 20px — 主标题 */
+}
+
+/* Tailwind background utilities are shared by many pages. Keep them tied to
+   the same layer controls as the semantic surfaces below. */
+:root {
+  --color-book-bg: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
+  --color-book-bg-paper: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
+  --color-book-bg-tertiary: rgb(var(--color-bg-tertiary) / var(--a4n-card-opacity));
+}
+
+/* ============================================================================
+   基础样式
+   ============================================================================ */
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 0;
+  overflow: clip;
+}
+
+/* 给 WebKit/Tauri 提供不透明的画布底色；主题背景仍由 .a4n-theme-background
+   在应用壳内绘制，避免窗口合成时把桌面透出来。 */
+#root {
+  background-color: rgb(var(--color-bg-primary));
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+body {
+  @apply font-sans transition-colors duration-150 antialiased;
+  margin: 0;
+  color: rgb(var(--color-text-primary));
+  background-color: rgb(var(--color-bg-primary));
+  background-attachment: fixed;
+  font-size: 15px;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  background-image:
+    radial-gradient(circle at 8% 8%, rgb(var(--color-accent) / 0.055), transparent 28rem),
+    radial-gradient(circle at 92% 10%, rgb(var(--color-primary) / 0.035), transparent 32rem);
+}
+
+.a4n-app-shell {
+  isolation: isolate;
+  background-color: transparent;
+}
+
+/* 路由根容器提供可调的工作区表面；内部面板继续负责自己的层级。 */
+.a4n-route-stage > * {
+  background-color: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
+}
+
+.a4n-theme-background {
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  inset: 0;
+  overflow: hidden;
+  background: rgb(var(--color-bg-primary));
+}
+
+.a4n-theme-background::before,
+.a4n-theme-background::after {
+  position: absolute;
+  content: "";
+  inset: -8%;
+}
+
+.a4n-theme-background::before {
+  background-image: var(--a4n-theme-bg-image);
+  background-position: var(--a4n-theme-bg-position);
+  background-repeat: no-repeat;
+  background-size: var(--a4n-theme-bg-size);
+  filter: blur(var(--a4n-theme-bg-blur));
+  opacity: var(--a4n-theme-bg-opacity);
+  transform: scale(1.04);
+  transition: opacity var(--a4n-motion) var(--a4n-ease-out), filter var(--a4n-motion) var(--a4n-ease-out);
+}
+
+.a4n-theme-background::after {
+  background: var(--a4n-theme-bg-overlay);
+  opacity: var(--a4n-theme-bg-overlay-opacity);
+}
+
+/* 桌面端使用纯色窗口背景，不绘制网格纹理 */
+
+::selection {
+  background: rgb(var(--color-primary) / 0.22);
+  color: rgb(var(--color-text-primary));
+}

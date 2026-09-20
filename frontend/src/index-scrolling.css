@@ -1,0 +1,313 @@
+/* ============================================================================
+   自定义滚动条
+   ============================================================================ */
+
+/* 滚动条：细圆角、书房色，默认低调 · hover 显主色 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 4px;
+  border: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border) / 0.85);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 32px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-primary) / 0.48);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgb(var(--color-primary) / 0.62);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border) / 0.9) transparent;
+}
+
+.custom-scrollbar:hover {
+  scrollbar-color: rgb(var(--color-primary) / 0.42) transparent;
+}
+
+/* 范围滑块：方形轨道，较小的方角 thumb */
+.book-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    rgb(var(--color-primary)) 0%,
+    rgb(var(--color-primary)) var(--range-percent, 50%),
+    rgb(var(--color-border)) var(--range-percent, 50%),
+    rgb(var(--color-border)) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.book-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
+  border: 1px solid rgb(var(--color-primary));
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+
+.book-range::-webkit-slider-thumb:hover {
+  background: rgb(var(--color-primary) / 0.18);
+}
+
+.book-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
+  border: 1px solid rgb(var(--color-primary));
+  cursor: pointer;
+}
+
+/* ============================================================================
+   性能优化
+   ============================================================================ */
+
+.page-shell {
+  isolation: isolate;
+}
+
+.perf-scroll-region {
+  contain: layout paint style;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.perf-scroll-stack > * {
+  content-visibility: auto;
+  contain: layout paint style;
+  contain-intrinsic-size: 220px;
+}
+
+.perf-card {
+  contain: layout paint style;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* ============================================================================
+   工具类
+   ============================================================================ */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.mask-gradient-right {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+.mask-gradient-bottom {
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+}
+
+/* ---- 语义内容宽度：统一各页内容最大宽度并居中，取代散落的 max-w-* ----
+   prose 阅读型（概览/正文）/ main 列表表单型 / wide 画廊多栏型 */
+.content-prose,
+.content-main,
+.content-wide {
+  width: 100%;
+  margin-inline: auto;
+}
+.content-prose {
+  max-width: 48rem;
+}
+.content-main {
+  max-width: 64rem;
+}
+.content-wide {
+  max-width: 80rem;
+}
+
+@media (max-width: 767px) {
+  body {
+    background-attachment: scroll;
+  }
+
+  .a4n-page-header {
+    padding-inline: 0.5rem;
+  }
+
+  .a4n-app-page-header--detail {
+    flex-wrap: nowrap;
+  }
+
+  .a4n-app-page-header--detail .a4n-app-page-header__identity {
+    flex-basis: 0;
+  }
+
+  .a4n-app-page-header--detail .a4n-app-page-header__actions {
+    width: auto;
+    flex: 0 0 auto;
+    margin-left: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .a4n-sidebar-item[data-active="1"] {
+    box-shadow: inset 0 -2px 0 rgb(var(--color-primary));
+  }
+
+  .pyqt-btn-primary,
+  .pyqt-btn-secondary {
+    min-height: 40px !important;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .pyqt-btn-icon {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  input.pyqt-input,
+  select.pyqt-input,
+  .a4n-themed-select__trigger.pyqt-input {
+    min-height: 40px;
+  }
+
+  .pyqt-tab {
+    min-height: 38px;
+    padding-inline: 0.75rem;
+  }
+
+  /* 触屏使用原生 overlay 滚动体验，不显示桌面式轨道。 */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+/* ---- 可横向滚动的 tab 栏：tab 过多时不再溢出/被挤压，改为横滑 ----
+   子项不收缩、整体隐藏滚动条；配合 .pyqt-tab 使用 */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar {
+  display: none;
+}
+.tab-bar > * {
+  flex: 0 0 auto;
+}
+
+/* 移动端横滑选择轨道：保留原生滚动能力，隐藏桌面式滚动条。 */
+.a4n-mobile-scroll-rail {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+}
+
+.a4n-tab-rail-wrap {
+  position: relative;
+  min-width: 0;
+  --a4n-tab-rail-surface: var(--color-bg-secondary);
+  --a4n-tab-rail-edge-space: 2rem;
+}
+
+.a4n-tab-rail-wrap--canvas {
+  --a4n-tab-rail-surface: var(--color-bg-primary);
+}
+
+@media (max-width: 767px) {
+  .a4n-mobile-scroll-rail {
+    scrollbar-width: none;
+    scroll-padding-inline: 0.75rem;
+    scroll-snap-type: inline proximity;
+  }
+
+  .a4n-mobile-scroll-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .a4n-mobile-scroll-rail > *,
+  .a4n-mobile-scroll-rail > ul > * {
+    scroll-snap-align: start;
+  }
+
+  .a4n-tab-rail-wrap[data-has-before="true"]::before,
+  .a4n-tab-rail-wrap[data-has-more="true"]::after {
+    position: absolute;
+    top: 0;
+    bottom: 1px;
+    display: grid;
+    color: rgb(var(--color-primary) / 0.88);
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .a4n-tab-rail-wrap[data-has-before="true"]::before {
+    left: 0;
+    width: var(--a4n-tab-rail-edge-space);
+    place-items: center;
+    background: linear-gradient(90deg, rgb(var(--a4n-tab-rail-surface)) 38%, rgb(var(--a4n-tab-rail-surface) / 0.78) 68%, transparent);
+    box-shadow: inset -1px 0 0 rgb(var(--color-primary) / 0.16);
+    content: "‹";
+    font-size: 1.25rem;
+  }
+
+  .a4n-tab-rail-wrap[data-has-more="true"]::after {
+    right: 0;
+    width: var(--a4n-tab-rail-edge-space);
+    place-items: center;
+    background: linear-gradient(90deg, transparent, rgb(var(--a4n-tab-rail-surface) / 0.78) 32%, rgb(var(--a4n-tab-rail-surface)) 72%);
+    box-shadow: inset 1px 0 0 rgb(var(--color-primary) / 0.16);
+    content: "›";
+    font-size: 1.25rem;
+  }
+
+  .a4n-tab-rail-wrap .tab-bar {
+    scroll-padding-inline: var(--a4n-tab-rail-edge-space);
+    scroll-snap-type: none;
+    padding-right: var(--a4n-tab-rail-edge-space);
+  }
+}

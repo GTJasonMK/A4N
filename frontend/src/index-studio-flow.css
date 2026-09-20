@@ -1,0 +1,655 @@
+/* ============================================================================
+   视频画布工作台
+   ============================================================================ */
+
+.a4n-studio-flow {
+  padding-bottom: 2.25rem;
+}
+
+.a4n-studio-sidebar-resize-handle {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  touch-action: none;
+  user-select: none;
+  cursor: col-resize;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--color-border) / 0.36);
+  outline: none;
+  transition: background-color 120ms ease;
+}
+
+.a4n-studio-sidebar-resize-handle:hover,
+.a4n-studio-sidebar-resize-handle:focus-visible,
+.a4n-studio-sidebar-resize-handle[data-resizing="1"] {
+  background: rgb(var(--color-primary) / 0.18);
+}
+
+.a4n-studio-sidebar-resize-line {
+  pointer-events: none;
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgb(var(--color-border));
+}
+
+.a4n-studio-sidebar-resize-handle:hover .a4n-studio-sidebar-resize-line,
+.a4n-studio-sidebar-resize-handle:focus-visible .a4n-studio-sidebar-resize-line,
+.a4n-studio-sidebar-resize-handle[data-resizing="1"]
+  .a4n-studio-sidebar-resize-line {
+  background: rgb(var(--color-primary) / 0.62);
+}
+
+.a4n-studio-sidebar-resize-grip {
+  pointer-events: none;
+  position: relative;
+  display: flex;
+  width: 24px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
+  color: rgb(var(--color-text-tertiary));
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.14);
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.a4n-studio-sidebar-resize-handle:hover .a4n-studio-sidebar-resize-grip,
+.a4n-studio-sidebar-resize-handle:focus-visible .a4n-studio-sidebar-resize-grip,
+.a4n-studio-sidebar-resize-handle[data-resizing="1"]
+  .a4n-studio-sidebar-resize-grip {
+  border-color: rgb(var(--color-primary) / 0.52);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-studio-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.a4n-studio-flow .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.a4n-studio-flow .react-flow__node {
+  font-family: inherit;
+}
+
+.a4n-studio-edge .react-flow__edge-path {
+  stroke: rgb(var(--color-primary) / 0.7);
+  stroke-width: 1.6;
+}
+
+.a4n-studio-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke: rgb(var(--color-primary));
+  stroke-width: 2.4;
+}
+
+.a4n-studio-run-scope-edge .react-flow__edge-path {
+  stroke: rgb(var(--color-accent));
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgb(var(--color-accent) / 0.35));
+}
+
+.a4n-studio-workflow-active-edge .react-flow__edge-path {
+  stroke: rgb(var(--status-info));
+  stroke-width: 3;
+  filter: drop-shadow(0 0 7px rgb(var(--status-info) / 0.45));
+}
+
+.a4n-studio-workflow-active-edge .react-flow__edge-textbg {
+  fill: rgb(var(--status-info) / 0.18);
+  stroke: rgb(var(--status-info) / 0.5);
+}
+
+.a4n-studio-run-scope-edge.a4n-studio-workflow-active-edge
+  .react-flow__edge-path {
+  stroke: rgb(var(--status-info));
+  stroke-width: 3.4;
+  filter: drop-shadow(0 0 7px rgb(var(--status-info) / 0.5))
+    drop-shadow(0 0 3px rgb(var(--color-accent) / 0.35));
+}
+
+.react-flow__node.a4n-studio-run-scope-node .a4n-studio-node {
+  box-shadow:
+    0 0 0 2px rgb(var(--color-accent) / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.2);
+}
+
+.react-flow__node.a4n-studio-run-scope-target .a4n-studio-node {
+  border-color: rgb(var(--color-accent));
+  box-shadow:
+    0 0 0 3px rgb(var(--color-accent) / 0.34),
+    0 14px 32px rgb(0 0 0 / 0.24);
+}
+
+.react-flow__node.a4n-studio-workflow-node-running .a4n-studio-node,
+.a4n-studio-node.a4n-studio-node-run-running {
+  border-color: rgb(var(--status-info));
+  box-shadow:
+    0 0 0 3px rgb(var(--status-info) / 0.34),
+    0 0 18px rgb(var(--status-info) / 0.32),
+    0 14px 32px rgb(0 0 0 / 0.24);
+  animation: a4n-studio-workflow-running-pulse 1.4s ease-in-out infinite;
+}
+
+.react-flow__node.a4n-studio-workflow-node-completed .a4n-studio-node,
+.a4n-studio-node.a4n-studio-node-run-completed {
+  border-color: rgb(var(--status-success));
+  box-shadow:
+    0 0 0 2px rgb(var(--status-success) / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.2);
+}
+
+.react-flow__node.a4n-studio-workflow-node-failed .a4n-studio-node,
+.a4n-studio-node.a4n-studio-node-run-failed {
+  border-color: rgb(var(--status-error));
+  box-shadow:
+    0 0 0 3px rgb(var(--status-error) / 0.32),
+    0 12px 28px rgb(0 0 0 / 0.22);
+}
+
+.a4n-studio-node.a4n-studio-node-run-running::before,
+.a4n-studio-node.a4n-studio-node-run-completed::before,
+.a4n-studio-node.a4n-studio-node-run-failed::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  left: -1px;
+  height: 3px;
+  border-radius: var(--pyqt-radius-md) var(--pyqt-radius-md) 0 0;
+  content: "";
+}
+
+.a4n-studio-node.a4n-studio-node-run-running::before {
+  background: rgb(var(--status-info));
+  box-shadow: 0 0 10px rgb(var(--status-info) / 0.5);
+}
+
+.a4n-studio-node.a4n-studio-node-run-completed::before {
+  background: rgb(var(--status-success));
+}
+
+.a4n-studio-node.a4n-studio-node-run-failed::before {
+  background: rgb(var(--status-error));
+}
+
+.a4n-studio-run-pill {
+  display: inline-flex;
+  max-width: 96px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--color-border));
+  padding: 1px 5px;
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+}
+
+.a4n-studio-run-pill-running {
+  border-color: rgb(var(--status-info) / 0.45);
+  background: rgb(var(--status-info) / 0.12);
+  color: rgb(var(--status-info));
+}
+
+.a4n-studio-run-pill-completed {
+  border-color: rgb(var(--status-success) / 0.42);
+  background: rgb(var(--status-success) / 0.1);
+  color: rgb(var(--status-success));
+}
+
+.a4n-studio-run-pill-failed {
+  border-color: rgb(var(--status-error) / 0.42);
+  background: rgb(var(--status-error) / 0.1);
+  color: rgb(var(--status-error));
+}
+
+@keyframes a4n-studio-workflow-running-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgb(var(--status-info) / 0.26),
+      0 0 14px rgb(var(--status-info) / 0.24),
+      0 14px 32px rgb(0 0 0 / 0.22);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgb(var(--status-info) / 0.46),
+      0 0 24px rgb(var(--status-info) / 0.42),
+      0 16px 36px rgb(0 0 0 / 0.26);
+  }
+}
+
+.a4n-studio-flow .react-flow__edge-textbg {
+  fill: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
+  stroke: rgb(var(--color-border));
+  stroke-width: 1;
+}
+
+.a4n-studio-flow .react-flow__edge-text {
+  fill: rgb(var(--color-text-secondary));
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.a4n-flow-controls {
+  bottom: 2.75rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+}
+
+.a4n-flow-controls button {
+  width: 30px;
+  height: 30px;
+  border-bottom: 1px solid rgb(var(--color-border));
+  background: transparent;
+  color: rgb(var(--color-text-secondary));
+  fill: rgb(var(--color-text-secondary));
+}
+
+.a4n-flow-controls button:hover {
+  background: rgb(var(--color-primary) / 0.12);
+  color: rgb(var(--color-primary));
+  fill: rgb(var(--color-primary));
+}
+
+.a4n-studio-minimap {
+  bottom: 2.75rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+}
+
+.a4n-studio-node {
+  position: relative;
+  width: 218px;
+  min-height: 132px;
+  box-sizing: border-box;
+  border: 1px solid rgb(var(--color-border));
+  border-left-width: 4px;
+  border-radius: var(--pyqt-radius-md);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
+  padding: 0;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+  color: rgb(var(--color-text-primary));
+}
+
+.a4n-studio-node-selected {
+  border-color: rgb(var(--color-primary));
+  box-shadow:
+    0 0 0 2px rgb(var(--color-primary) / 0.28),
+    0 14px 30px rgb(0 0 0 / 0.22);
+}
+
+.a4n-studio-node-problem {
+  box-shadow:
+    0 0 0 1px rgb(var(--status-warning) / 0.45),
+    0 12px 26px rgb(0 0 0 / 0.18);
+}
+
+.a4n-studio-node-icon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--pyqt-radius-sm);
+  background: rgb(var(--color-primary) / 0.12);
+  color: rgb(var(--color-primary));
+}
+
+/* 节点色条：仅保留实际 kind 映射用到的 tone */
+.a4n-studio-node-text {
+  border-left-color: rgb(96 165 250);
+}
+.a4n-studio-node-action {
+  border-left-color: rgb(var(--status-info));
+}
+.a4n-studio-node-media {
+  border-left-color: rgb(var(--status-success));
+}
+.a4n-studio-node-video {
+  border-left-color: rgb(168 85 247);
+}
+.a4n-studio-node-audio {
+  border-left-color: rgb(236 72 153);
+}
+.a4n-studio-node-generate {
+  border-left-color: rgb(var(--color-accent));
+}
+.a4n-studio-node-assemble {
+  border-left-color: rgb(245 158 11);
+}
+.a4n-studio-node-review {
+  border-left-color: rgb(var(--status-success));
+}
+.a4n-studio-node-generic {
+  border-left-color: rgb(var(--color-border-dark));
+}
+
+.a4n-studio-handle,
+.a4n-studio-flow .a4n-studio-port {
+  z-index: 12;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
+  border-radius: 999px;
+  background: rgb(var(--color-primary)) !important;
+  box-shadow:
+    0 0 0 1px rgb(var(--color-primary) / 0.45),
+    0 2px 6px rgb(0 0 0 / 0.24);
+  opacity: 1;
+  transition:
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+.a4n-studio-handle.react-flow__handle-left,
+.a4n-studio-flow .a4n-studio-port.react-flow__handle-left {
+  left: -8px;
+}
+
+.a4n-studio-handle.react-flow__handle-right,
+.a4n-studio-flow .a4n-studio-port.react-flow__handle-right {
+  right: -8px;
+}
+
+.a4n-studio-flow .a4n-studio-port-input {
+  background: rgb(var(--color-text-tertiary)) !important;
+}
+
+.a4n-studio-flow .a4n-studio-port-output {
+  background: rgb(var(--color-primary)) !important;
+}
+
+.a4n-studio-flow .a4n-studio-port:hover {
+  box-shadow:
+    0 0 0 3px rgb(var(--color-primary) / 0.18),
+    0 4px 10px rgb(0 0 0 / 0.28);
+}
+
+.a4n-studio-state,
+.a4n-studio-state-pill {
+  display: inline-flex;
+  min-width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--pyqt-radius-xs);
+  border: 1px solid currentColor;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.a4n-studio-state-muted {
+  color: rgb(var(--color-text-tertiary));
+  background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
+}
+
+.a4n-studio-state-success {
+  color: rgb(var(--status-success));
+  background: rgb(var(--status-success-bg));
+}
+
+.a4n-studio-state-info {
+  color: rgb(var(--status-info));
+  background: rgb(var(--status-info-bg));
+}
+
+.a4n-studio-state-error {
+  color: rgb(var(--status-error));
+  background: rgb(var(--status-error-bg));
+}
+
+.a4n-status-bar-shell {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: calc(100vw - 1.5rem);
+  pointer-events: none;
+}
+
+.a4n-status-bar-shell[data-expanded="true"] {
+  max-width: calc(100vw - 1.5rem);
+}
+
+.a4n-status-bar-shell > * {
+  pointer-events: auto;
+}
+
+.a4n-status-bar-popover {
+  width: max-content;
+  max-width: min(42rem, calc(100vw - 4.5rem));
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border) / 0.7);
+  border-radius: 999px;
+  background: rgb(var(--color-bg-tertiary));
+  box-shadow: var(--shadow-overlay);
+  backdrop-filter: blur(var(--a4n-surface-blur));
+  -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
+  transform-origin: right center;
+  animation: a4n-status-bar-popover-in var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+@keyframes a4n-status-bar-popover-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.4rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.a4n-status-bar-orb {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--color-primary) / 0.55);
+  border-radius: 999px;
+  background: rgb(var(--color-primary));
+  color: rgb(var(--color-button-text));
+  opacity: 0.62;
+  cursor: pointer;
+  transition:
+    color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    background var(--a4n-motion-fast) var(--a4n-ease-out),
+    box-shadow var(--a4n-motion-fast) var(--a4n-ease-out),
+    transform var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-status-bar-orb:hover {
+  border-color: rgb(var(--color-primary-light));
+  background: rgb(var(--color-primary-light));
+  opacity: 0.86;
+  box-shadow: var(--shadow-overlay);
+  transform: translateY(-1px);
+}
+
+.a4n-status-bar-orb:active {
+  background: rgb(var(--color-primary-dark));
+  opacity: 0.9;
+  transform: translateY(0) scale(0.96);
+}
+
+.a4n-status-bar-orb:focus-visible {
+  opacity: 0.9;
+  outline: 2px solid rgb(var(--color-primary) / 0.38);
+  outline-offset: 2px;
+}
+
+.a4n-status-bar-orb[data-over-control="true"] {
+  pointer-events: none;
+  opacity: 0.12;
+  transform: translateX(calc(100% - 0.5rem));
+}
+
+.a4n-status-bar-orb[data-over-control="true"]:focus-visible {
+  pointer-events: auto;
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+.a4n-status-bar {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.65rem;
+  background: transparent;
+}
+
+.a4n-status-bar__message {
+  min-width: 0;
+  max-width: 20rem;
+  flex: 0 1 auto;
+}
+
+.a4n-status-bar__actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.a4n-status-bar__action-group {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.25rem;
+  border-left: 1px solid rgb(var(--color-border) / 0.7);
+  padding-left: 0.5rem;
+}
+
+.a4n-status-bar__permanent {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.a4n-status-bar-action {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--color-text-tertiary));
+  cursor: pointer;
+  transition:
+    color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    background var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-status-bar-action:hover {
+  border-color: rgb(var(--color-primary) / 0.24);
+  background: rgb(var(--color-primary) / 0.1);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-status-bar-action:focus-visible {
+  outline: 2px solid rgb(var(--color-primary) / 0.32);
+  outline-offset: 1px;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .a4n-status-bar-shell[data-expanded="true"] {
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .a4n-status-bar-popover {
+    max-width: calc(100vw - 4.5rem);
+  }
+
+  .a4n-status-bar {
+    min-height: 52px;
+    gap: 0.25rem;
+    padding: 0.25rem;
+  }
+
+  .a4n-status-bar__message,
+  .a4n-status-bar__permanent {
+    display: none;
+  }
+
+  .a4n-status-bar__actions {
+    max-width: 100%;
+    gap: 0.125rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .a4n-status-bar__actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .a4n-status-bar__action-group {
+    border-left: 0;
+    padding-left: 0;
+    gap: 0.125rem;
+  }
+
+  .a4n-status-bar-action {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .a4n-status-bar-orb {
+    width: 52px;
+    height: 52px;
+    opacity: 0.38;
+  }
+
+  .a4n-status-bar-orb:hover {
+    opacity: 0.58;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a4n-status-bar-popover,
+  .a4n-status-bar-orb {
+    animation: none;
+    transition: none;
+  }
+}
