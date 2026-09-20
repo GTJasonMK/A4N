@@ -29,7 +29,6 @@ pub async fn initialize_runtime(
         bootstrap.rag_store(),
         bootstrap.task_queue(),
         bootstrap.prompt_engine(),
-        bootstrap.snapshot_store(),
         bootstrap.document_export_renderer()?,
         novel_planning_worker.clone(),
         |provider_port| {
@@ -104,7 +103,7 @@ pub async fn initialize_runtime(
         dyn a4n_api_contract::video::VideoRecordMutationApplicationPort,
     > = Arc::new(VideoRecordMutationAdapter {
         worker: video_record_worker.clone(),
-        fallback: orchestrator.clone(),
+        orchestrator: orchestrator.clone(),
     });
     let video_prompt_draft_application: Arc<
         dyn a4n_api_contract::video::VideoPromptDraftApplicationPort,
@@ -386,7 +385,7 @@ struct ArtifactMediaImageReferenceAdapter {
 
 struct VideoRecordMutationAdapter {
     worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
-    fallback: Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
+    orchestrator: Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
 }
 
 #[async_trait::async_trait]
@@ -408,13 +407,13 @@ impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecord
         video_id: i64,
         input: a4n_api_contract::video::SelectSegmentVideoInput,
     ) -> Result<a4n_api_contract::video::GeneratedVideoSummary, a4n_error::AppError> {
-        self.fallback
+        self.orchestrator
             .select_segment(user_id, project_id, chapter_id, video_id, input)
             .await
     }
 
     async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError> {
-        self.fallback.delete(user_id, video_id).await
+        self.orchestrator.delete(user_id, video_id).await
     }
 }
 

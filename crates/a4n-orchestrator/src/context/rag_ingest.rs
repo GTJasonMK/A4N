@@ -329,19 +329,15 @@ impl RagIngestPort for OrchestratorContext {
         state_index_ids: Vec<i64>,
         attribute_event_ids: Vec<i64>,
     ) -> Result<(usize, usize), AppError> {
-        let deletion = crate::character::CharacterTimelineDeletionSummary {
-            state_index_ids,
-            attribute_event_ids,
-            ..Default::default()
-        };
-        let summary = self
-            .delete_character_timeline_rag_records(project_id, &deletion)
+        let deleted_state_rag = self
+            .delete_character_state_rag_by_ids(project_id, &state_index_ids)
             .await
             .map_err(map_sync_error)?;
-        Ok((
-            summary.deleted_state_rag,
-            summary.deleted_attribute_event_rag,
-        ))
+        let deleted_attribute_event_rag = self
+            .delete_character_attribute_event_rag_by_ids(project_id, &attribute_event_ids)
+            .await
+            .map_err(map_sync_error)?;
+        Ok((deleted_state_rag, deleted_attribute_event_rag))
     }
 
     async fn sync_character_attribute_event(

@@ -17,8 +17,7 @@ pub use blueprint_records::{
 pub(crate) use chapter_records::chapter_rag_records_with_provider;
 pub use character_profile_records::{blueprint_character_rag_records, protagonist_rag_records};
 pub(crate) use continuity_records::{
-    CharacterProfileRagDeletionSummary, CharacterSyncRagInput, CharacterSyncRagSummary,
-    CharacterTimelineRagDeletionSummary, foreshadowing_rag_record_from_row,
+    CharacterSyncRagInput, CharacterSyncRagSummary, foreshadowing_rag_record_from_row,
 };
 pub use continuity_records::{
     character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,

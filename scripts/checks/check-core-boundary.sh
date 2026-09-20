@@ -2084,13 +2084,13 @@ fi
 
 if rg -n 'profiles_with_timeline_state' \
     crates/a4n-runtime/src/actions/character_records/profiles.rs; then
-    printf 'Runtime character profile list must consume CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character profile list must consume CharacterProfileOverviewReadApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_profile_overview_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/profiles.rs; then
-    printf 'Runtime character profile list must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character profile list must route through CharacterProfileOverviewReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2112,9 +2112,9 @@ if ! rg -n 'pub trait CharacterProfileDeletionApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'pub trait CharacterProfileReadApplicationPort' \
+if ! rg -n 'pub trait CharacterProfileOverviewReadApplicationPort' \
     crates/a4n-api-contract/src/character.rs; then
-    printf 'CharacterProfileReadApplicationPort contract is missing\n' >&2
+    printf 'CharacterProfileOverviewReadApplicationPort contract is missing\n' >&2
     exit 1
 fi
 
@@ -2124,11 +2124,11 @@ if rg -n 'require_profile_for_user|state\.orchestrator\(\)|deletion_marks_by_pro
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/deletion_marks.rs || \
    ! rg -n '\.deletion_marks\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/deletion_marks.rs; then
-    printf 'Runtime character deletion-mark reads must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character deletion-mark reads must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2180,27 +2180,33 @@ if ! rg -n 'pub trait CharacterProfileAttributeMutationApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'impl CharacterProfileReadApplicationPort for OrchestratorContext' \
-    crates/a4n-orchestrator/src/context/character.rs; then
-    printf 'CharacterProfileReadApplicationPort owner implementation is missing\n' >&2
+if ! rg -n 'impl CharacterProfileOverviewReadApplicationPort for CharacterMutationWorkerClient' \
+    crates/a4n-character-mutation-worker-client/src/lib.rs; then
+    printf 'CharacterProfileOverviewReadApplicationPort worker implementation is missing\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient' \
+    crates/a4n-character-mutation-worker-client/src/lib.rs; then
+    printf 'CharacterTimelineReadApplicationPort worker implementation is missing\n' >&2
     exit 1
 fi
 
 if rg -n 'verify_project_editor_string' \
     crates/a4n-runtime/src/actions/character_records/profiles.rs; then
-    printf 'Runtime character profile reads must leave Editor authorization in CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character profile reads must leave Editor authorization in CharacterProfileOverviewReadApplicationPort\n' >&2
     exit 1
 fi
 
 if ! rg -n '\.list\(user_id, input\.project_id\)' \
     crates/a4n-runtime/src/actions/character_records/profiles.rs; then
-    printf 'Runtime character profile list must pass identity through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character profile list must pass identity through CharacterProfileOverviewReadApplicationPort\n' >&2
     exit 1
 fi
 
 if rg -n 'find_profile_by_name_for_user|profile_by_project_name' \
     crates/a4n-runtime/src/actions/character_records/profiles.rs; then
-    printf 'Runtime character profile field reads must consume CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character profile field reads must consume CharacterProfileOverviewReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2228,9 +2234,9 @@ if ! rg -n 'pub trait CharacterProfileMutationApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'impl CharacterProfileMutationApplicationPort for OrchestratorContext' \
-    crates/a4n-orchestrator/src/context/character.rs; then
-    printf 'CharacterProfileMutationApplicationPort owner implementation is missing\n' >&2
+if ! rg -n 'impl CharacterProfileMutationApplicationPort for CharacterMutationWorkerClient' \
+    crates/a4n-character-mutation-worker-client/src/lib.rs; then
+    printf 'CharacterProfileMutationApplicationPort worker implementation is missing\n' >&2
     exit 1
 fi
 
@@ -2240,9 +2246,9 @@ if rg -n 'CharacterAttributeEventHistoryFilter|attribute_event_summary' \
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/attributes.rs; then
-    printf 'Runtime character attribute history must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character attribute history must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2258,11 +2264,11 @@ if rg -n 'behavior_record_summary|behavior_records_by_profile' \
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/behaviors.rs || \
    ! rg -n '\.behavior_history\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/behaviors.rs; then
-    printf 'Runtime character behavior history must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character behavior history must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2272,11 +2278,11 @@ if rg -n 'snapshot_references_for_user_validated|snapshot_reference_summary' \
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs || \
    ! rg -n '\.snapshots\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
-    printf 'Runtime character snapshot lists must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character snapshot lists must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2286,11 +2292,11 @@ if rg -n 'profile_snapshot_for_user_at_chapter_validated|profile_state_summary_f
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs || \
    ! rg -n '\.state_at_chapter\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
-    printf 'Runtime character snapshot state reads must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character snapshot state reads must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2300,11 +2306,11 @@ if rg -n 'character_snapshot_for_user_by_hash_validated|character_snapshot_by_ha
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs || \
    ! rg -n '\.snapshot_by_hash\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
-    printf 'Runtime character snapshot hash reads must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character snapshot hash reads must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2314,11 +2320,11 @@ if rg -n 'diff_profile_snapshots_for_user_validated|diff_profile_snapshots_for_u
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs || \
    ! rg -n '\.diff_chapters\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
-    printf 'Runtime character snapshot diffs must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character snapshot diffs must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 
@@ -2328,11 +2334,11 @@ if rg -n 'character_sync_conflict_for_user_validated|CharacterSyncConflictReadMo
     exit 1
 fi
 
-if ! rg -n 'character_profile_read_application\(\)' \
+if ! rg -n 'character_timeline_read_application\(\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs || \
    ! rg -n '\.sync_conflict\(user_id, input\)' \
     crates/a4n-runtime/src/actions/character_records/snapshots.rs; then
-    printf 'Runtime character sync conflict reads must route through CharacterProfileReadApplicationPort\n' >&2
+    printf 'Runtime character sync conflict reads must route through CharacterTimelineReadApplicationPort\n' >&2
     exit 1
 fi
 

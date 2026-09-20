@@ -14,8 +14,6 @@ mod json_field_rules;
 mod profile_sync;
 mod profile_sync_batch;
 mod profile_sync_stages;
-mod record_lifecycle;
-mod snapshot_rules;
 mod sync_projection;
 mod sync_rules;
 use a4n_error::AppError;
@@ -31,22 +29,14 @@ pub(crate) use a4n_character_host_contract::{
 
 pub(crate) use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
-    AppliedCharacterSyncPersistenceRecord, CharacterAttributeDeletionExecutionResult,
-    CharacterAttributeEventHistoryFilter, CharacterAttributeMutationResult,
-    CharacterConflictContextRows, CharacterPortraitRecordError, CharacterProfileCreateError,
-    CharacterProfileDeleteError, CharacterProfileDeletionSummary, CharacterProfileRollbackResult,
+    AppliedCharacterSyncPersistenceRecord, CharacterConflictContextRows,
+    CharacterPortraitRecordError, CharacterProfileCreateError, CharacterProfileDeleteError,
     CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
-    CharacterSyncWriteStepRecordInput, CharacterTimelineDeletionSummary,
-    PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
+    CharacterSyncWriteStepRecordInput, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
 pub(crate) use a4n_db::generation::RecordCompletedGenerationRunInput;
 pub(crate) use a4n_domain::character::category_storage_key;
 pub(crate) use attribute_lifecycle::CharacterAttributeLifecycleError;
-pub(crate) use record_lifecycle::{
-    CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError,
-    CharacterTimelineRollbackLifecycleResult,
-};
-
 pub(crate) fn character_db_error(error: a4n_db::character::CharacterDbError) -> AppError {
     match error {
         a4n_db::character::CharacterDbError::InvalidArgument(message) => {
@@ -265,13 +255,8 @@ pub(crate) use sync_rules::{
     character_sync_range_with_first_seen,
 };
 
-pub(crate) use snapshot_rules::{
-    CHARACTER_SNAPSHOT_ENTITY_TYPE, ensure_positive_snapshot_chapter, initial_snapshot_data,
-    validate_snapshot_diff_chapters, validate_snapshot_range,
-};
-
 pub(crate) use json_field_rules::{
-    attribute_counts, category_attributes, optional_string, optional_string_or_null,
-    required_array, required_attribute_change_operation, required_category, required_i32,
-    required_i32_at, required_string, required_string_array, required_usize, required_value,
+    category_attributes, optional_string, optional_string_or_null, required_array,
+    required_attribute_change_operation, required_category, required_i32, required_i32_at,
+    required_string, required_string_array, required_usize, required_value,
 };
