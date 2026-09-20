@@ -1,0 +1,12 @@
+export const nav = {
+  home: "项目",
+  settings: "设置",
+  agents: "Agent 监控",
+  projectContext: "项目上下文",
+  workflowStage: "工作流阶段",
+  openSettings: "打开设置",
+  backToPrevious: "返回上一页",
+  viewAgentStatus: "查看 Agent 工作状态",
+  viewProjectDependencies: "查看项目依赖状态",
+  opening: "正在打开页面",
+} as const;

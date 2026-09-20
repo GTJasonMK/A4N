@@ -1,0 +1,226 @@
+/* ============================================================================
+   动画关键帧
+   ============================================================================ */
+
+@keyframes a4n-dialog-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes a4n-dialog-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes a4n-route-enter-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes a4n-route-enter-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes a4n-route-enter-neutral {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes a4n-motion-panel-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes a4n-dialog-backdrop-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes a4n-dialog-panel-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+@keyframes inspirationOptionEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes inspirationOptionPulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.toast-enter {
+  animation: toastEnter 0.16s ease-out both;
+}
+
+.a4n-toast {
+  position: relative;
+  overflow: hidden;
+  --a4n-toast-tone: rgb(var(--color-text-primary));
+}
+
+.a4n-toast::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--a4n-toast-tone);
+  content: "";
+  opacity: 0.36;
+  transform: scaleX(1);
+  transform-origin: left center;
+  animation: a4n-toast-progress 3s linear forwards;
+}
+
+.a4n-toast--success {
+  --a4n-toast-tone: rgb(var(--status-success));
+  border-inline-start: 3px solid rgb(var(--status-success) / 0.7);
+}
+
+.a4n-toast--error {
+  --a4n-toast-tone: rgb(var(--status-error));
+  border-inline-start: 3px solid rgb(var(--status-error) / 0.7);
+}
+
+.a4n-toast--info {
+  --a4n-toast-tone: rgb(var(--status-info));
+  border-inline-start: 3px solid rgb(var(--status-info) / 0.7);
+}
+
+@keyframes a4n-toast-progress {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.a4n-route-stage {
+  isolation: isolate;
+  min-width: 0;
+  min-height: 0;
+}
+
+.a4n-route-stage[data-route-direction="forward"] {
+  animation: a4n-route-enter-forward var(--a4n-motion-page) var(--a4n-ease-out) both;
+}
+
+.a4n-route-stage[data-route-direction="back"] {
+  animation: a4n-route-enter-back var(--a4n-motion-page) var(--a4n-ease-out) both;
+}
+
+.a4n-route-stage[data-route-direction="neutral"] {
+  animation: a4n-route-enter-neutral var(--a4n-motion-page) var(--a4n-ease-out) both;
+}
+
+.a4n-motion-panel-enter {
+  animation: a4n-motion-panel-enter var(--a4n-motion-panel) var(--a4n-ease-out) both;
+}
+
+.a4n-motion-stagger > * {
+  --a4n-motion-index: 0;
+  animation: inspirationOptionEnter var(--a4n-motion-panel) var(--a4n-ease-out) both;
+  animation-delay: calc(var(--a4n-motion-index) * var(--a4n-motion-stagger));
+}
+
+.a4n-motion-stagger > :nth-child(1) { --a4n-motion-index: 0; }
+.a4n-motion-stagger > :nth-child(2) { --a4n-motion-index: 1; }
+.a4n-motion-stagger > :nth-child(3) { --a4n-motion-index: 2; }
+.a4n-motion-stagger > :nth-child(4) { --a4n-motion-index: 3; }
+.a4n-motion-stagger > :nth-child(5) { --a4n-motion-index: 4; }
+.a4n-motion-stagger > :nth-child(n + 6) { --a4n-motion-index: 5; }
+
+.a4n-motion-focus {
+  animation: a4n-motion-focus 360ms var(--a4n-ease-out) both;
+}
+
+@keyframes a4n-motion-focus {
+  0% { box-shadow: 0 0 0 0 rgb(var(--color-primary) / 0); }
+  42% { box-shadow: 0 0 0 4px rgb(var(--color-primary) / 0.12); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--color-primary) / 0); }
+}
+
+.inspiration-option-card {
+  animation: inspirationOptionEnter 0.18s ease-out both;
+}
+
+.inspiration-option-card-skeleton {
+  animation:
+    inspirationOptionEnter 0.18s ease-out both,
+    inspirationOptionPulse 1.2s ease-in-out 0.18s infinite;
+}

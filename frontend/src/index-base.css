@@ -1,0 +1,95 @@
+/* ============================================================================
+   基础层
+   ============================================================================ */
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color-scheme: inherit;
+  }
+
+  button,
+  [role="button"],
+  a,
+  input,
+  textarea,
+  select,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  a:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid rgb(var(--color-primary) / 0.38);
+    outline-offset: 2px;
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: rgb(var(--color-primary));
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--color-text-tertiary));
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: rgb(var(--color-primary));
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(var(--color-text-primary));
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-bg-secondary) / var(--a4n-control-opacity)) inset;
+    caret-color: rgb(var(--color-primary));
+    transition: background-color 9999s ease-in-out 0s;
+  }
+
+  input[type="file"]::file-selector-button {
+    margin-right: 0.5rem;
+    border-radius: var(--pyqt-radius-sm);
+    border: 1px solid rgb(var(--color-border));
+    background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
+    color: rgb(var(--color-text-primary));
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    transition:
+      border-color 150ms ease-out,
+      color 150ms ease-out,
+      background 150ms ease-out;
+  }
+
+  input[type="file"]:hover::file-selector-button {
+    border-color: rgb(var(--color-primary) / 0.6);
+    color: rgb(var(--color-primary));
+    background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
+  }
+}
+
+/* ============================================================================
+   组件层
+   ============================================================================ */
