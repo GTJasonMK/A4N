@@ -1,10 +1,124 @@
+use a4n_api_contract::agent::{
+    AgentMemoryScopeKind, AgentScope, AgentSkillDescriptor, ReviewAgentDelegationInput,
+};
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_domain::agent::{
     AGENT_PROTOCOL_JSON_COMPAT, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, valid_agent_protocol,
 };
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse, ResponseFormat, ToolCall};
+use a4n_llm_provider_contract::provider::{
+    ChatRequest, ChatResponse, ModelCapabilities, ResponseFormat, ToolCall,
+};
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentLlmCapabilities {
+    pub model: ModelCapabilities,
+    pub agent_protocol: String,
+}
+
+pub const AGENT_WORKER_ID: &str = "agent-worker";
+pub const AGENT_FAILURE_PROVIDER_UNAVAILABLE: &str = "provider_unavailable";
+pub const AGENT_THREAD_ENSURE_MAIN_OPERATION: &str = "agent.thread.ensure_main";
+pub const AGENT_THREAD_CREATE_OPERATION: &str = "agent.thread.create";
+pub const AGENT_THREAD_FORK_OPERATION: &str = "agent.thread.fork";
+pub const AGENT_THREAD_UPDATE_OPERATION: &str = "agent.thread.update";
+pub const AGENT_THREAD_ARCHIVE_OPERATION: &str = "agent.thread.archive";
+pub const AGENT_THREAD_LIST_OPERATION: &str = "agent.thread.list";
+pub const AGENT_THREAD_SHOW_OPERATION: &str = "agent.thread.show";
+pub const AGENT_THREAD_MESSAGES_OPERATION: &str = "agent.thread.messages";
+pub const AGENT_RUN_SHOW_OPERATION: &str = "agent.run.show";
+pub const AGENT_EVENT_LIST_OPERATION: &str = "agent.event.list";
+pub const AGENT_MEMORY_LIST_OPERATION: &str = "agent.memory.list";
+pub const AGENT_MEMORY_CREATE_OPERATION: &str = "agent.memory.create";
+pub const AGENT_MEMORY_RETRACT_OPERATION: &str = "agent.memory.retract";
+pub const AGENT_APPROVAL_RESOLVE_OPERATION: &str = "agent.approval.resolve";
+pub const AGENT_DELEGATION_SPAWN_OPERATION: &str = "agent.delegation.spawn";
+pub const AGENT_DELEGATION_REVIEW_OPERATION: &str = "agent.delegation.review";
+pub const AGENT_SKILL_SETTINGS_LIST_OPERATION: &str = "agent.skill.settings.list";
+pub const AGENT_SKILL_SETTINGS_UPDATE_OPERATION: &str = "agent.skill.settings.update";
+pub const AGENT_SKILL_SEARCH_OPERATION: &str = "agent.skill.search";
+pub const AGENT_SKILL_LOAD_OPERATION: &str = "agent.skill.load";
+pub const AGENT_TOOL_SEARCH_OPERATION: &str = "agent.tool.search";
+pub const AGENT_TOOL_DESCRIBE_OPERATION: &str = "agent.tool.describe";
+pub const AGENT_RUN_SEND_OPERATION: &str = "agent.run.send";
+pub const AGENT_RUN_CONTROL_OPERATION: &str = "agent.run.control";
+pub const AGENT_RUN_SEND_CHILD_OPERATION: &str = "agent.run.send_child";
+pub const AGENT_RUN_CONTROL_CHILD_OPERATION: &str = "agent.run.control_child";
+
+pub fn provider_failure_class(error: &AppError) -> Option<&'static str> {
+    let detail = error.to_string().to_ascii_lowercase();
+    (detail.contains("503")
+        || detail.contains("no healthy upstream")
+        || detail.contains("service unavailable")
+        || detail.contains("provider unavailable"))
+    .then_some(AGENT_FAILURE_PROVIDER_UNAVAILABLE)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentMemoryListInput {
+    pub scope_kind: Option<AgentMemoryScopeKind>,
+    pub scope_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentDelegationReviewCommand {
+    pub input: ReviewAgentDelegationInput,
+    pub parent_run_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentSkillCapabilityCommand<T> {
+    pub capability: String,
+    pub input: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentRunRuntimeCommand<T> {
+    pub input: T,
+    pub runtime_snapshot_required: bool,
+    pub require_runtime_snapshot_for_new_run: bool,
+}
+
+pub fn agent_skill_directory_prompt(skills: &[AgentSkillDescriptor]) -> String {
+    if skills.is_empty() {
+        return "当前 capability 没有启用 Skill。".into();
+    }
+    skills
+        .iter()
+        .map(|skill| format!("- {} ({})：{}", skill.id, skill.version, skill.description))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn ensure_agent_scope_allows_tool(scope: &AgentScope, name: &str) -> Result<(), AppError> {
+    if a4n_api_contract::agent::is_agent_skill_tool(name)
+        || scope.allowed_tools.is_empty()
+        || scope.allowed_tools.iter().any(|allowed| allowed == name)
+    {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(format!(
+            "Agent scope 不允许使用工具: {name}"
+        )))
+    }
+}
+
+/// Serialize the trusted Agent worker-to-Control request with the internal
+/// context needed by the Control LLM runtime. `ChatRequest` still omits this
+/// context from provider wire serialization.
+pub fn model_request_wire_value(request: &ChatRequest) -> Result<Value, AppError> {
+    request.snapshot_value()
+}
+
+pub fn restore_model_request_wire(value: Value) -> Result<ChatRequest, AppError> {
+    ChatRequest::from_snapshot_value(value)
+}
 
 #[derive(Debug, Clone)]
 pub enum AgentModelDecision {
