@@ -1,8 +1,10 @@
+mod admin;
 mod builders;
-mod inputs;
-mod mutations;
-mod results;
+mod common;
+mod media;
+mod novel;
+pub(crate) use admin::*;
 pub(crate) use builders::*;
-pub(crate) use inputs::*;
-pub(crate) use mutations::*;
-pub(crate) use results::*;
+pub(crate) use common::*;
+pub(crate) use media::*;
+pub(crate) use novel::*;
