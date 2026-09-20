@@ -19,6 +19,11 @@ use crate::collaboration::ProjectAccessRole;
 use crate::optimize::optimize_db_error;
 use crate::optimize::runtime_tools::optimization_runtime_tool_specs;
 
+const PATCH_STATUS_PENDING: &str = "pending";
+const PATCH_STATUS_REJECTED: &str = "rejected";
+const PATCH_DECISION_REJECTED: &str = "rejected";
+const PATCH_APPLY_STATUS_PENDING: &str = "pending";
+
 /// 内容优化领域 application owner。
 #[derive(Clone)]
 pub(super) struct OptimizeApplication {
@@ -254,17 +259,12 @@ impl OrchestratorContext {
     pub(crate) async fn discard_pending_optimization_patch_sets(
         &self,
         session_id: i64,
-        pending_status: &str,
-        rejected_status: &str,
-        rejected_decision: &str,
-        pending_apply_status: &str,
-        event_content: &str,
     ) -> Result<(), AppError> {
         let transaction = self.database.connection().begin().await?;
         let patch_sets = a4n_db::optimize::pending_optimization_patch_sets(
             &transaction,
             session_id,
-            pending_status,
+            PATCH_STATUS_PENDING,
         )
         .await
         .map_err(optimize_db_error)?;
@@ -275,9 +275,9 @@ impl OrchestratorContext {
         a4n_db::optimize::update_optimization_patch_sets_status(
             &transaction,
             &patch_set_ids,
-            rejected_status,
-            rejected_decision,
-            pending_apply_status,
+            PATCH_STATUS_REJECTED,
+            PATCH_DECISION_REJECTED,
+            PATCH_APPLY_STATUS_PENDING,
         )
         .await
         .map_err(optimize_db_error)?;
@@ -286,7 +286,7 @@ impl OrchestratorContext {
             OptimizationSessionMessageInsertInput {
                 session_id,
                 role: "agent_event".to_string(),
-                content: event_content.to_string(),
+                content: "用户已丢弃当前待应用局部补丁。".to_string(),
                 tool_calls: None,
             },
         )
@@ -300,11 +300,6 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
         patch_set_id: i64,
-        pending_status: &str,
-        rejected_status: &str,
-        rejected_decision: &str,
-        pending_apply_status: &str,
-        event_content: &str,
     ) -> Result<(), AppError> {
         let transaction = self.database.connection().begin().await?;
         let patch_set = a4n_db::optimize::optimization_patch_set_by_id(&transaction, patch_set_id)
@@ -314,7 +309,7 @@ impl OrchestratorContext {
         if patch_set.session_id != session_id {
             return Err(AppError::Forbidden("优化补丁集不属于当前优化会话".into()));
         }
-        if patch_set.status != pending_status {
+        if patch_set.status != PATCH_STATUS_PENDING {
             return Err(AppError::InvalidState {
                 current: patch_set.status,
                 operation: "拒绝优化补丁集".into(),
@@ -323,9 +318,9 @@ impl OrchestratorContext {
         a4n_db::optimize::update_optimization_patch_sets_status(
             &transaction,
             &[patch_set_id],
-            rejected_status,
-            rejected_decision,
-            pending_apply_status,
+            PATCH_STATUS_REJECTED,
+            PATCH_DECISION_REJECTED,
+            PATCH_APPLY_STATUS_PENDING,
         )
         .await
         .map_err(optimize_db_error)?;
@@ -334,7 +329,7 @@ impl OrchestratorContext {
             OptimizationSessionMessageInsertInput {
                 session_id,
                 role: "agent_event".to_string(),
-                content: event_content.to_string(),
+                content: "用户已拒绝当前正文补丁。".to_string(),
                 tool_calls: None,
             },
         )

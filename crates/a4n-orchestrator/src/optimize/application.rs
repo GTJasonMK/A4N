@@ -39,10 +39,7 @@ use super::{
 
 const PATCH_SET_STATUS_PENDING: &str = "pending";
 const PATCH_SET_STATUS_APPLIED: &str = "applied";
-const PATCH_SET_STATUS_REJECTED: &str = "rejected";
 const PATCH_DECISION_ACCEPTED: &str = "accepted";
-const PATCH_DECISION_REJECTED: &str = "rejected";
-const PATCH_APPLY_STATUS_PENDING: &str = "pending";
 const PATCH_APPLY_STATUS_APPLIED: &str = "applied";
 
 pub struct PrepareOptimizeAnalysisApplicationInput<'a> {
@@ -332,15 +329,8 @@ impl OrchestratorContext {
         session_id: i64,
     ) -> Result<(), AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
-        self.discard_pending_optimization_patch_sets(
-            session_id,
-            PATCH_SET_STATUS_PENDING,
-            PATCH_SET_STATUS_REJECTED,
-            PATCH_DECISION_REJECTED,
-            PATCH_APPLY_STATUS_PENDING,
-            "用户已丢弃当前待应用局部补丁。",
-        )
-        .await
+        self.discard_pending_optimization_patch_sets(session_id)
+            .await
     }
 
     pub async fn discard_optimize_patch_set_for_user_validated(
@@ -357,16 +347,8 @@ impl OrchestratorContext {
         .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
         self.optimize_session_for_user(user_id, patch_set.session_id)
             .await?;
-        self.discard_optimization_patch_set(
-            patch_set.session_id,
-            patch_set.id,
-            PATCH_SET_STATUS_PENDING,
-            PATCH_SET_STATUS_REJECTED,
-            PATCH_DECISION_REJECTED,
-            PATCH_APPLY_STATUS_PENDING,
-            "用户已拒绝当前正文补丁。",
-        )
-        .await
+        self.discard_optimization_patch_set(patch_set.session_id, patch_set.id)
+            .await
     }
 
     async fn mark_matching_patch_sets_applied(

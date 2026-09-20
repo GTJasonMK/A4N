@@ -176,6 +176,7 @@
     "detach_derived_project": "Detaching changes project lineage and requires an isolated disposable family plus explicit --allow-destructive.",
     "disable_user": "Account disabling is intentionally outside this reusable smoke ledger.",
     "discard_chapter_visual_plan_draft": "Discarding state requires an isolated disposable chapter plus explicit --allow-destructive.",
+    "discard_optimization_patch_set": "Discarding one optimization patch set requires an isolated disposable session plus explicit --allow-destructive.",
     "discard_pending_optimize_patch_sets": "Discarding state requires an isolated disposable session plus explicit --allow-destructive.",
     "download_embedding_model": "Local model installation depends on the local-embedding runtime feature and machine-specific storage.",
     "execute_attribute_deletion": "Deletion requires an isolated disposable profile plus explicit --allow-destructive.",
