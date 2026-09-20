@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 macro_rules! command_specs {
     ($($name:literal => $args:ident, $result:ident, $domain:literal $(, $method:ident($value:expr))*;)+) => {
         pub const API_COMMANDS: &[&str] = &[$($name,)+];
-        pub(crate) const COMMAND_SPECS: &[CommandSpec] = &[
+        pub(super) const COMMAND_SPECS: &[CommandSpec] = &[
             $(CommandSpec::new($name, $args, $result, $domain)$(.$method($value))*,)+
         ];
     };
