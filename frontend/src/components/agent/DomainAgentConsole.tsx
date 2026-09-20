@@ -33,6 +33,10 @@ import {
 } from "./AgentMessageList";
 import { AgentContextMeter } from "./AgentContextMeter";
 import {
+  pendingContentDiffForSnapshot,
+  type PendingContentDiff,
+} from "./contentOptimizationDiff";
+import {
   ACTIVE_AGENT_RUN_STATUSES,
   activeAgentRun,
   clearAgentThreadContext,
@@ -90,6 +94,7 @@ export interface DomainAgentConsoleProps {
   className?: string;
   onClose?: () => void;
   onResourceChanged?: () => void | Promise<void>;
+  onPendingContentDiffChange?: (diff: PendingContentDiff | null) => void;
   getEditorSource?: () => import("../../api/agent").AgentEditorSource | null;
   onEditorRequest?: (request: import("../../api/agent").AgentEditorRequest, runId: string) => Promise<void>;
 }
@@ -255,6 +260,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   className = "",
   onClose,
   onResourceChanged,
+  onPendingContentDiffChange,
   getEditorSource,
   onEditorRequest,
 }) => {
@@ -562,6 +568,19 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         )?.id ?? null
     );
   }, [capability, snapshot]);
+  const pendingContentDiff = useMemo(
+    () =>
+      isOptimization && snapshot && positiveId(chapterId)
+        ? pendingContentDiffForSnapshot(snapshot, chapterId)
+        : null,
+    [chapterId, isOptimization, snapshot],
+  );
+
+  useEffect(() => {
+    if (!onPendingContentDiffChange) return undefined;
+    onPendingContentDiffChange(pendingContentDiff);
+    return () => onPendingContentDiffChange(null);
+  }, [onPendingContentDiffChange, pendingContentDiff]);
 
   useEffect(() => {
     if (!onEditorRequest || !snapshot || pendingEditorRequests.current.size > 0) return;

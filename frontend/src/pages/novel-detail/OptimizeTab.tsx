@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { ChapterSummary } from "../../api/chapter";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
+import type { PendingContentDiff } from "../../components/agent/contentOptimizationDiff";
 import { OptimizeHeader } from "./optimize/OptimizeHeader";
 
 interface OptimizeTabProps {
@@ -9,6 +10,7 @@ interface OptimizeTabProps {
   fixedChapterId?: number | null;
   embedded?: boolean;
   onChapterContentChanged?: (chapterId: number) => void | Promise<void>;
+  onPendingContentDiffChange?: (diff: PendingContentDiff | null) => void;
 }
 
 export const OptimizeTab: React.FC<OptimizeTabProps> = ({
@@ -17,6 +19,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   fixedChapterId,
   embedded = false,
   onChapterContentChanged,
+  onPendingContentDiffChange,
 }) => {
   const [selectedChapter, setSelectedChapter] = useState<number | "">(
     fixedChapterId ?? chapters[0]?.id ?? "",
@@ -68,6 +71,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
             ? () => onChapterContentChanged(boundChapterId)
             : undefined
         }
+        onPendingContentDiffChange={onPendingContentDiffChange}
         fill
         className="min-h-0 flex-1 rounded-none border-0 shadow-none"
       />

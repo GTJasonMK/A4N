@@ -5,6 +5,7 @@ import { type ChapterOutline } from "../../api/outline";
 import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import type { PendingContentDiff } from "../../components/agent/contentOptimizationDiff";
 import { OptimizeTab } from "../novel-detail/OptimizeTab";
 import { AssistantContextPanel } from "./AssistantContextPanel";
 import { StreamControlBar } from "./StreamControlBar";
@@ -41,6 +42,7 @@ interface WritingAssistantPanelProps {
   onPreviewPrompt: () => void | Promise<void>;
   onOpenScenes: () => void | Promise<void>;
   onChapterContentChanged: (chapterId: number) => void | Promise<void>;
+  onPendingContentDiffChange: (diff: PendingContentDiff | null) => void;
 }
 
 type AssistantMode = "generate" | "optimize";
@@ -76,6 +78,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
   onPreviewPrompt,
   onOpenScenes,
   onChapterContentChanged,
+  onPendingContentDiffChange,
 }) => {
   const { t } = useI18n();
   const [assistantMode, setAssistantMode] = useState<AssistantMode>(initialMode ?? "generate");
@@ -236,6 +239,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
             fixedChapterId={activeChapter.id}
             embedded
             onChapterContentChanged={onChapterContentChanged}
+            onPendingContentDiffChange={onPendingContentDiffChange}
           />
         </div>
       ) : (

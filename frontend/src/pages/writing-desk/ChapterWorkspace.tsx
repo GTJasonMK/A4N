@@ -3,6 +3,8 @@ import { AlertTriangle, CheckCircle2, CircleDot, Settings } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
+import { ContentDiffPreview } from "../../components/agent/ContentDiffPreview";
+import type { PendingContentDiff } from "../../components/agent/contentOptimizationDiff";
 import {
   getChapterSyncFailurePresentation,
   getOperationStatusLabel,
@@ -63,6 +65,7 @@ interface ChapterWorkspaceProps {
   onPreviewResumeAnalysisSync: () => void | Promise<void>;
   onResumeDerivedSync: () => void | Promise<void>;
   onOpenEmbeddingSettings: () => void | Promise<void>;
+  pendingContentDiff: PendingContentDiff | null;
   canEdit: boolean;
 }
 
@@ -111,6 +114,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   onPreviewResumeAnalysisSync,
   onResumeDerivedSync,
   onOpenEmbeddingSettings,
+  pendingContentDiff,
   canEdit,
 }) => {
   const { locale, t } = useI18n();
@@ -174,7 +178,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
     }
 
     editor.scrollTop = lastScrollTopRef.current;
-  }, [autoScrollEditorContent, bottomTab, editorContent]);
+  }, [autoScrollEditorContent, bottomTab, editorContent, pendingContentDiff]);
 
   useLayoutEffect(() => {
     scrollRailItemIntoView(tabListRef.current, activeTabRef.current, "smooth");
@@ -345,21 +349,25 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
             className="a4n-writing-tab-panel mt-2 min-h-0 min-w-0 flex-1"
           >
             {bottomTab === "content" && (
-              <textarea
-                ref={editorRef}
-                value={editorContent}
-                onScroll={updateEditorScrollIntent}
-                onChange={(event) => onEditorContentChange(event.target.value)}
-                readOnly={activeChapterBusy}
-                title={activeChapterBusy ? activeChapterGeneratingMessage : undefined}
-                placeholder={
-                  activeChapter
-                    ? t("writing.startWriting")
-                    : t("writing.chapterNotGenerated")
-                }
-                aria-label={t("writing.chapterBody")}
-                className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
-              />
+              pendingContentDiff ? (
+                <ContentDiffPreview content={editorContent} diff={pendingContentDiff} />
+              ) : (
+                <textarea
+                  ref={editorRef}
+                  value={editorContent}
+                  onScroll={updateEditorScrollIntent}
+                  onChange={(event) => onEditorContentChange(event.target.value)}
+                  readOnly={activeChapterBusy}
+                  title={activeChapterBusy ? activeChapterGeneratingMessage : undefined}
+                  placeholder={
+                    activeChapter
+                      ? t("writing.startWriting")
+                      : t("writing.chapterNotGenerated")
+                  }
+                  aria-label={t("writing.chapterBody")}
+                  className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
+                />
+              )
             )}
             {bottomTab === "analysis" && activeChapter && (
               <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingAnalysis")} />}>

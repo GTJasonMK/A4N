@@ -2825,6 +2825,9 @@ pub fn should_request_approval(
         "advice_only" => Err(AppError::Forbidden(format!(
             "Agent 处于 advice_only 模式，不能执行写工具 {tool_name}"
         ))),
+        // edit_article only persists a reviewable patch proposal. The chapter
+        // write boundary remains apply_optimization_patches.
+        _ if tool_name == "edit_article" => Ok(false),
         "review_writes" => Ok(true),
         "autonomous" => Ok(a4n_api_contract::agent::agent_tool_requires_user_approval(
             tool_name, effect,
@@ -3366,5 +3369,80 @@ mod tests {
                 .expect("failed tool results should not require success parsing");
             assert!(refs.is_empty(), "{tool_name}");
         }
+    }
+
+    fn approval_context(execution_mode: &str) -> AgentRunContext {
+        let now = chrono::Utc::now().naive_utc();
+        AgentRunContext {
+            run: a4n_agent_runtime_contract::AgentRunSnapshot {
+                id: 1,
+                thread_id: 2,
+                turn_id: 3,
+                parent_run_id: None,
+                attempt: 1,
+                status: "running".into(),
+                budget_json: json!({}),
+                usage_json: json!({}),
+                worker_id: Some("test".into()),
+                lease_token: Some("lease".into()),
+                lease_expires_at: None,
+                created_at: now,
+                started_at: Some(now),
+            },
+            thread: a4n_agent_runtime_contract::AgentThreadSnapshot {
+                id: 2,
+                owner_user_id: 7,
+                thread_kind: "subagent".into(),
+                profile_id: "content_optimization".into(),
+                title: None,
+                project_id: Some(11),
+                resource_type: Some("chapter".into()),
+                resource_id: Some("13".into()),
+                scope_json: json!({}),
+                default_model_config_id: None,
+                status: "active".into(),
+                revision: 1,
+                context_summary: None,
+            },
+            turn: a4n_agent_runtime_contract::AgentTurnSnapshot {
+                id: 3,
+                thread_id: 2,
+                input_message_id: 4,
+                execution_mode: execution_mode.into(),
+                goal: None,
+                model_override_json: None,
+            },
+            messages: Vec::new(),
+            delegations: Vec::new(),
+            executions: Vec::new(),
+            editor_source: None,
+            owner_user_id: 7,
+            scope: AgentScope {
+                resource_kind: Some("chapter".into()),
+                resource_id: Some("13".into()),
+                project_id: Some(11),
+                chapter_id: Some(13),
+                allowed_capabilities: vec!["content_optimization".into()],
+                allowed_tools: Vec::new(),
+            },
+            profile_id: "content_optimization".into(),
+            default_model_config_id: None,
+            execution_mode: execution_mode.into(),
+            goal: None,
+            budget: json!({}),
+            usage: json!({}),
+            runtime_snapshot_required: false,
+            delegation_depth: 0,
+        }
+    }
+
+    #[test]
+    fn article_proposals_do_not_block_before_the_apply_boundary() {
+        let review = approval_context("review_writes");
+        assert!(!should_request_approval(&review, "edit_article", "write").unwrap());
+        assert!(should_request_approval(&review, "apply_optimization_patches", "write").unwrap());
+
+        let advice_only = approval_context("advice_only");
+        assert!(should_request_approval(&advice_only, "edit_article", "write").is_err());
     }
 }

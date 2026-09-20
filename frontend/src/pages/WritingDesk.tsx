@@ -70,6 +70,7 @@ import { useChapterStreamGeneration } from "./writing-desk/useChapterStreamGener
 import { useWritingDeskDrafts } from "./writing-desk/useWritingDeskDrafts";
 import { useWritingDeskChapterDerivedState } from "./writing-desk/useWritingDeskChapterDerivedState";
 import { formatNumber, useI18n } from "../i18n";
+import type { PendingContentDiff } from "../components/agent/contentOptimizationDiff";
 
 const RagQueryPanel = lazy(() =>
   import("./writing-desk/RagQueryPanel").then((module) => ({
@@ -169,6 +170,7 @@ export const WritingDesk: React.FC = () => {
     String(DEFAULT_GENERATION_WORD_COUNT_RANGE.max),
   );
   const [savingContent, setSavingContent] = useState(false);
+  const [pendingContentDiff, setPendingContentDiff] = useState<PendingContentDiff | null>(null);
   const [resetGeneratedDataBusy, setResetGeneratedDataBusy] = useState(false);
   const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
@@ -256,6 +258,11 @@ export const WritingDesk: React.FC = () => {
     activeNumber,
     chapterQuery,
   });
+  useEffect(() => {
+    if (pendingContentDiff && pendingContentDiff.chapterId !== activeChapter?.id) {
+      setPendingContentDiff(null);
+    }
+  }, [activeChapter?.id, pendingContentDiff]);
   const activeChapterIndex = useMemo(
     () => (activeNumber == null ? -1 : chapterNumbers.indexOf(activeNumber)),
     [activeNumber, chapterNumbers],
@@ -1030,6 +1037,7 @@ export const WritingDesk: React.FC = () => {
     onPreviewPrompt: handlePreviewPrompt,
     onOpenScenes: handleOpenScenes,
     onChapterContentChanged: handleOptimizedChapterContentChanged,
+    onPendingContentDiffChange: setPendingContentDiff,
   };
 
   return (
@@ -1124,6 +1132,11 @@ export const WritingDesk: React.FC = () => {
           bottomTab={bottomTab}
           onBottomTabChange={handleBottomTabChange}
           onEditorContentChange={(content) => setEditorState(content, true)}
+          pendingContentDiff={
+            pendingContentDiff?.chapterId === activeChapter?.id
+              ? pendingContentDiff
+              : null
+          }
           onGenerateAnalysis={handleGenerateAnalysis}
           onPreviewGenerateAnalysis={handlePreviewAnalysisRequest}
           onResumeAnalysisSync={handleResumeAnalysisSync}

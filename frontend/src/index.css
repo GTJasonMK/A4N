@@ -3614,6 +3614,22 @@ body {
   animation: pageEnter var(--a4n-motion-page) var(--a4n-ease-out) 32ms both;
 }
 
+.content-diff-preview__body {
+  overflow-wrap: anywhere;
+}
+
+.content-diff-preview__removed {
+  background: rgb(var(--status-error-bg) / 0.72);
+  color: rgb(var(--status-error));
+  text-decoration-color: rgb(var(--status-error) / 0.8);
+}
+
+.content-diff-preview__added {
+  background: rgb(var(--status-success-bg) / 0.82);
+  color: rgb(var(--status-success));
+  box-shadow: inset 0 -1px 0 rgb(var(--status-success) / 0.35);
+}
+
 .a4n-writing-tabs {
   background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
   backdrop-filter: blur(var(--a4n-surface-blur));
