@@ -1,3 +1,0 @@
-参考的项目:
-https://github.com/tigerowo/infinite-canvas.git
-https://github.com/t59688/arboris-novel.git

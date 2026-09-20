@@ -70,6 +70,11 @@ CLAUDE.md
 .codex/
 .cache
 
+# Local scratch and personal working notes
+/.tmp-session3/
+/参考项目.txt
+/问题分析.txt
+
 # Local parallel worktrees and coordination state
 /work/
 
