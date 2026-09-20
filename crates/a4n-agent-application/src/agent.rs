@@ -776,12 +776,7 @@ impl AgentApplication {
                     .map_err(agent_db_error_to_app)?
                     .and_then(|message| message.payload_json)
                     .and_then(|payload| payload.get("editor_source").cloned())
-                    .map(|value| {
-                        from_json::<a4n_api_contract::agent::AgentEditorSource>(
-                            value,
-                            "editor_source",
-                        )
-                    })
+                    .map(|value| parse_persisted_editor_source(value, &thread))
                     .transpose()?;
                 if original
                     .as_ref()
@@ -2416,7 +2411,7 @@ impl AgentApplication {
             .and_then(|message| message.payload_json.as_ref())
             .and_then(|payload| payload.get("editor_source"))
             .cloned()
-            .map(|value| from_json(value, "agent_message.editor_source"))
+            .map(|value| parse_persisted_editor_source(value, &thread_row))
             .transpose()?;
         let delegations = agent::delegations_by_thread(self.connection(), run_row.thread_id)
             .await
@@ -4401,6 +4396,41 @@ fn validate_editor_source(
     Ok(())
 }
 
+fn parse_persisted_editor_source(
+    value: Value,
+    thread: &thread::Model,
+) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
+    let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+    let value = normalize_legacy_editor_source(value, scope.chapter_id)?;
+    let source = from_json(value, "agent_message.editor_source")?;
+    validate_editor_source(&source, thread)?;
+    Ok(source)
+}
+
+fn normalize_legacy_editor_source(
+    mut value: Value,
+    fallback_chapter_id: Option<i64>,
+) -> Result<Value, AppError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "agent_message.editor_source 必须是 object".into(),
+            operation: "恢复历史 Agent 编辑器来源".into(),
+        })?;
+    if !object.contains_key("chapter_id") {
+        let chapter_id = fallback_chapter_id
+            .filter(|chapter_id| *chapter_id > 0)
+            .ok_or_else(|| AppError::InvalidState {
+                current:
+                    "历史 agent_message.editor_source 缺少 chapter_id，且线程 scope 未绑定章节"
+                        .into(),
+                operation: "恢复历史 Agent 编辑器来源".into(),
+            })?;
+        object.insert("chapter_id".into(), json!(chapter_id));
+    }
+    Ok(value)
+}
+
 fn parse_id(value: &str, field: &str) -> Result<i64, AppError> {
     value
         .trim()
@@ -5541,6 +5571,32 @@ mod tests {
             .expect("explicit parent allowlists should be inherited");
         assert_eq!(generic.allowed_capabilities, ["research"]);
         assert_eq!(generic.allowed_tools, ["list_projects"]);
+    }
+
+    #[test]
+    fn legacy_editor_source_uses_only_the_bound_chapter_as_fallback() {
+        let value = json!({
+            "view_instance_id": "view-1",
+            "project_id": 7,
+            "editor_revision": "revision-1",
+            "scene_id": null,
+            "shot_id": null,
+            "keyframe_id": null,
+            "entity_id": null
+        });
+
+        let normalized = normalize_legacy_editor_source(value, Some(11))
+            .expect("legacy editor source should use the bound chapter");
+
+        assert_eq!(normalized["chapter_id"], 11);
+    }
+
+    #[test]
+    fn legacy_editor_source_without_a_bound_chapter_is_rejected() {
+        let error = normalize_legacy_editor_source(json!({}), None)
+            .expect_err("chapter-less legacy editor source must be rejected");
+
+        assert!(error.to_string().contains("线程 scope 未绑定章节"));
     }
 
     #[tokio::test]
