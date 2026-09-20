@@ -17,7 +17,7 @@ timeout 60s ./scripts/cargo.sh test --locked -p a4n-cli --test cli_e2e -- --test
 
 ## Server 与 Provider 集成
 
-这些测试会访问真实服务或数据库，先按[测试数据库说明](../../docs/TEST_DATABASE.md)分配独立环境：
+这些测试会访问真实服务或数据库，先通过独立的 `A4N_TEST_DATABASE_URL` 分配隔离环境：
 
 ```bash
 python3 scripts/tests/run_cli_contract_e2e.py --help
@@ -29,7 +29,7 @@ python3 scripts/tests/run_specialized_agent_cli_e2e.py --help
 - contract runner 使用 ledger 验证指定场景；全量 workflow runner 是 manifest 入口探针，两者用途不同。
 - 将成功业务调用、权限/前置状态拒绝、缺失 fixture 和真实失败分开记录。
 - 写入及破坏性 fixture 只有在明确授权的隔离环境中运行，不能因为示例带有相关选项就直接复用。
-- 完整准备步骤和结果口径见[虚拟 Provider CLI E2E](../../docs/virtual-provider-cli-e2e.md)；浏览器联动见[全项目浏览器验收](../../docs/browser-full-project-e2e.md)。
+- 完整准备步骤由对应的 `scripts/tests/run_*e2e.py` 入口负责；浏览器联动使用 `scripts/tests/run_browser_full_project_e2e.py`。
 
 runner 自身的检查入口：
 
@@ -45,6 +45,6 @@ npm --prefix frontend run check:web-api-parity
 git diff --check
 ```
 
-参数与语义命令以当前 `main.rs` 的 Clap 定义及同版本 `a4n --help` 为准；服务端命令和 payload 以能力 manifest/descriptor 为准，参见 [CLI 手册](../../docs/CLI.md)。
+参数与语义命令以当前 `main.rs` 的 Clap 定义及同版本 `a4n --help` 为准；服务端命令和 payload 以能力 manifest/descriptor 为准。
 
 额外检查 CLI 在仓库之外的运行、发布包内的路径解析和对应平台的本地进程生命周期。Linux 检查不能替代 Windows/macOS 实机结果；OAuth 与商业 Provider 也需要真实外部环境。未配置的行/分支覆盖率不能用测试数量代替。

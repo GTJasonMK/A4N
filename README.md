@@ -39,11 +39,11 @@ frontend/
   src/           React 前端源码
   resources/     前端资源
 prompts/         提示词模板与注册表
-docs/            功能文档与架构设计
+work/docs/       本机文档、草稿和历史资料（不提交）
 scripts/         开发、构建、测试脚本
 ```
 
-前端 API 封装集中在 `frontend/src/api/`；Server 维护共享命令分派，Native Tauri 复用该入口。业务编排属于 `a4n-orchestrator`，SQL/Repository 属于 `a4n-db`，运行适配属于 `a4n-runtime`。Host API、通用 sidecar 协议和能力专用合同分别维护，详见[当前代码架构](docs/ARCHITECTURE.md)。完整资料从[文档导航](docs/README.md)进入。
+前端 API 封装集中在 `frontend/src/api/`；Server 维护共享命令分派，Native Tauri 复用该入口。业务编排属于 `a4n-orchestrator`，SQL/Repository 属于 `a4n-db`，运行适配属于 `a4n-runtime`。Host API、通用 sidecar 协议和能力专用合同分别维护，详见各 crate 的 manifest、`command_manifest.rs` 和 `frontend/src/api/`。
 
 ## 本地开发
 
@@ -60,7 +60,7 @@ scripts/         开发、构建、测试脚本
 ./scripts/dev/dev-db.sh up
 ```
 
-数据库测试使用独立的 `a4n_test` 库。具体连接方式和并行测试注意事项见[测试数据库说明](docs/TEST_DATABASE.md)。
+数据库测试使用独立的 `a4n_test` 库，并通过 `A4N_TEST_DATABASE_URL` 指定隔离连接；具体边界以测试脚本和测试代码为准。
 
 安装前端依赖：
 
@@ -147,7 +147,7 @@ timeout 60s ./scripts/test.sh --crate a4n-domain --nocapture
 
 `a4n` 通过 Server 调用共享 Host API manifest 中与桌面/Web 相同的全部业务命令，并提供稳定的
 JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察和本地
-Server 生命周期管理。完整说明见 [A4N CLI 手册](docs/CLI.md)。
+Server 生命周期管理。命令参数和语义以 `a4n --help`、`crates/a4n-cli/src/main.rs` 及 Host manifest 为准。
 
 本地启动：
 
@@ -241,7 +241,7 @@ npm --prefix frontend run build
 ./scripts/build.sh --backend --check
 ```
 
-源码检查、现有打包入口与正式发布的边界见 [发布说明](GITHUB_RELEASE.md)；当前没有自动签名 GitHub Release 流水线。参与开发前请阅读 [贡献指南](CONTRIBUTING.md)，构建空间管理见 [Rust 缓存说明](docs/rust-artifacts.md)；安全问题按 [安全策略](SECURITY.md) 私下报告。
+源码检查、现有打包入口与正式发布的边界见 [发布说明](GITHUB_RELEASE.md)；当前没有自动签名 GitHub Release 流水线。参与开发前请阅读 [贡献指南](CONTRIBUTING.md)，构建空间管理以 `rust-artifacts.json` 和 `cargo artifacts inspect` 为准；安全问题按 [安全策略](SECURITY.md) 私下报告。
 
 ## 许可证
 
