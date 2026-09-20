@@ -295,6 +295,54 @@ impl OrchestratorContext {
         transaction.commit().await?;
         Ok(())
     }
+
+    pub(crate) async fn discard_optimization_patch_set(
+        &self,
+        session_id: i64,
+        patch_set_id: i64,
+        pending_status: &str,
+        rejected_status: &str,
+        rejected_decision: &str,
+        pending_apply_status: &str,
+        event_content: &str,
+    ) -> Result<(), AppError> {
+        let transaction = self.database.connection().begin().await?;
+        let patch_set = a4n_db::optimize::optimization_patch_set_by_id(&transaction, patch_set_id)
+            .await
+            .map_err(optimize_db_error)?
+            .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
+        if patch_set.session_id != session_id {
+            return Err(AppError::Forbidden("优化补丁集不属于当前优化会话".into()));
+        }
+        if patch_set.status != pending_status {
+            return Err(AppError::InvalidState {
+                current: patch_set.status,
+                operation: "拒绝优化补丁集".into(),
+            });
+        }
+        a4n_db::optimize::update_optimization_patch_sets_status(
+            &transaction,
+            &[patch_set_id],
+            rejected_status,
+            rejected_decision,
+            pending_apply_status,
+        )
+        .await
+        .map_err(optimize_db_error)?;
+        a4n_db::optimize::insert_optimization_session_message(
+            &transaction,
+            OptimizationSessionMessageInsertInput {
+                session_id,
+                role: "agent_event".to_string(),
+                content: event_content.to_string(),
+                tool_calls: None,
+            },
+        )
+        .await
+        .map_err(optimize_db_error)?;
+        transaction.commit().await?;
+        Ok(())
+    }
 }
 
 impl OrchestratorContext {

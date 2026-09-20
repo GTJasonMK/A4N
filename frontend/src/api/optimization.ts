@@ -2,8 +2,8 @@ import { apiInvoke } from "./index";
 import type {
   ApplyOptimizationPatchesInput,
   ApplyOptimizationPatchesResponse,
+  DiscardOptimizationPatchSetInput,
   OptimizationPatchSetSummary,
-  OptimizeSessionInput,
 } from "./generated/host";
 
 export function applyOptimizationPatches(
@@ -12,14 +12,14 @@ export function applyOptimizationPatches(
   return apiInvoke("apply_optimization_patches", { input });
 }
 
-export function discardPendingOptimizationPatchSets(
-  input: OptimizeSessionInput,
+export function discardOptimizationPatchSet(
+  input: DiscardOptimizationPatchSetInput,
 ): Promise<void> {
-  return apiInvoke("discard_pending_optimize_patch_sets", { input });
+  return apiInvoke("discard_optimization_patch_set", { input });
 }
 
 export function listOptimizationPatchSets(
-  input: OptimizeSessionInput,
+  input: { session_id: number },
 ): Promise<OptimizationPatchSetSummary[]> {
   return apiInvoke("list_optimize_patch_sets", { input });
 }

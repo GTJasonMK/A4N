@@ -4856,7 +4856,7 @@ const messages = {
       diffApplied: "正文修改已应用",
       diffApplyFailed: "应用正文修改失败",
       diffRejectTitle: "拒绝正文修改",
-      diffRejectMessage: "将拒绝当前优化会话中所有尚未应用的正文修改，正文不会写回。",
+      diffRejectMessage: "将拒绝当前预览中的正文修改，正文不会写回。",
       diffRejected: "正文修改已拒绝",
       diffRejectFailed: "拒绝正文修改失败",
       diffDetails: "查看 {count} 条修改详情",

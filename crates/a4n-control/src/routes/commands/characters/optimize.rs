@@ -16,7 +16,7 @@ pub(in crate::routes::commands) use patches::{
     apply_optimization_patches, preview_propose_optimization_patches_request,
 };
 pub(in crate::routes::commands) use records::{
-    delete_optimize_session, discard_pending_optimize_patch_sets, get_optimize_session,
-    list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
+    delete_optimize_session, discard_optimization_patch_set, discard_pending_optimize_patch_sets,
+    get_optimize_session, list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
     record_optimize_agent_event,
 };

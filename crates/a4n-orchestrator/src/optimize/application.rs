@@ -343,6 +343,32 @@ impl OrchestratorContext {
         .await
     }
 
+    pub async fn discard_optimize_patch_set_for_user_validated(
+        &self,
+        user_id: i64,
+        patch_set_id: i64,
+    ) -> Result<(), AppError> {
+        let patch_set = a4n_db::optimize::optimization_patch_set_by_id(
+            self.database.connection(),
+            patch_set_id,
+        )
+        .await
+        .map_err(crate::optimize::optimize_db_error)?
+        .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
+        self.optimize_session_for_user(user_id, patch_set.session_id)
+            .await?;
+        self.discard_optimization_patch_set(
+            patch_set.session_id,
+            patch_set.id,
+            PATCH_SET_STATUS_PENDING,
+            PATCH_SET_STATUS_REJECTED,
+            PATCH_DECISION_REJECTED,
+            PATCH_APPLY_STATUS_PENDING,
+            "用户已拒绝当前正文补丁。",
+        )
+        .await
+    }
+
     async fn mark_matching_patch_sets_applied(
         &self,
         session_id: i64,
@@ -773,6 +799,19 @@ impl OptimizeSessionMutationApplicationPort for OrchestratorContext {
             self,
             user_id,
             input.session_id,
+        )
+        .await
+    }
+
+    async fn discard_patch_set(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::optimize::DiscardOptimizationPatchSetInput,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::discard_optimize_patch_set_for_user_validated(
+            self,
+            user_id,
+            input.patch_set_id,
         )
         .await
     }

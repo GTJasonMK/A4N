@@ -84,6 +84,7 @@ export const HOST_API_COMMANDS = [
   "diff_profile_chapters",
   "disable_user",
   "discard_chapter_visual_plan_draft",
+  "discard_optimization_patch_set",
   "discard_pending_optimize_patch_sets",
   "discover_character_profiles",
   "download_embedding_model",
@@ -3158,6 +3159,10 @@ export interface ApplyOptimizationPatchesResponse {
   applied_count: number;
   chapter_id: number;
   word_count: number;
+}
+
+export interface DiscardOptimizationPatchSetInput {
+  patch_set_id: number;
 }
 
 export interface SendOptimizationMessageInput {

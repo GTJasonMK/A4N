@@ -8,12 +8,13 @@ use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskStart, GenerationTaskStartError},
     optimize::{
         AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
-        CreateOptimizationChatSessionInput, InspectOptimizationContextInput,
-        OptimizationArticlePatchToolInput, OptimizationSessionSummary,
-        PrepareOptimizationAnalysisSessionInput, ReadOptimizationContextInput,
-        RecordOptimizeAgentEventInput, SearchOptimizationContextInput,
-        SendOptimizationMessageInput, StartOptimizeAnalysisGenerationInput,
-        StartOptimizeChatGenerationInput, StartOptimizePatchGenerationInput,
+        CreateOptimizationChatSessionInput, DiscardOptimizationPatchSetInput,
+        InspectOptimizationContextInput, OptimizationArticlePatchToolInput,
+        OptimizationSessionSummary, PrepareOptimizationAnalysisSessionInput,
+        ReadOptimizationContextInput, RecordOptimizeAgentEventInput,
+        SearchOptimizationContextInput, SendOptimizationMessageInput,
+        StartOptimizeAnalysisGenerationInput, StartOptimizeChatGenerationInput,
+        StartOptimizePatchGenerationInput,
     },
 };
 use a4n_error::AppError;
@@ -106,6 +107,12 @@ pub trait OptimizeSessionMutationApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         input: a4n_api_contract::optimize::OptimizeSessionInput,
+    ) -> Result<(), AppError>;
+
+    async fn discard_patch_set(
+        &self,
+        user_id: i64,
+        input: DiscardOptimizationPatchSetInput,
     ) -> Result<(), AppError>;
 }
 

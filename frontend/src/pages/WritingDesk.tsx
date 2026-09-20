@@ -30,7 +30,7 @@ import {
 } from "../api/chapter";
 import {
   applyOptimizationPatches,
-  discardPendingOptimizationPatchSets,
+  discardOptimizationPatchSet,
   listOptimizationPatchSets,
 } from "../api/optimization";
 import {
@@ -921,7 +921,7 @@ export const WritingDesk: React.FC = () => {
     contentDiffActionRef.current = true;
     setContentDiffAction("reject");
     try {
-      await discardPendingOptimizationPatchSets({ session_id: diff.sessionId });
+      await discardOptimizationPatchSet({ patch_set_id: diff.patchSetId });
       resolvedContentDiffPatchSetsRef.current.add(diff.patchSetId);
       setPendingContentDiff(null);
       addToast(t("agent.domain.diffRejected"), "success");

@@ -4907,7 +4907,7 @@ const messages = {
       diffApplied: "Body changes applied",
       diffApplyFailed: "Failed to apply body changes",
       diffRejectTitle: "Reject body changes",
-      diffRejectMessage: "All unapplied body changes in the current optimization session will be rejected.",
+      diffRejectMessage: "The body changes shown in this preview will be rejected without changing the body.",
       diffRejected: "Body changes rejected",
       diffRejectFailed: "Failed to reject body changes",
       diffDetails: "View {count} change detail(s)",

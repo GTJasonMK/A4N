@@ -186,12 +186,12 @@ use a4n_api_contract::{
     },
     optimize::{
         AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
-        CreateOptimizationChatSessionInput, ListOptimizeSessionsInput,
-        OptimizationAgentPermissions, OptimizationPatch, OptimizationPatchOperation,
-        OptimizationPatchSetSummary, OptimizationSessionSummary, OptimizationTurnEventSummary,
-        OptimizationTurnSummary, OptimizeSessionInput, PrepareOptimizationAnalysisSessionInput,
-        ProposeOptimizationPatchesInput, RecordOptimizeAgentEventInput,
-        SendOptimizationMessageInput,
+        CreateOptimizationChatSessionInput, DiscardOptimizationPatchSetInput,
+        ListOptimizeSessionsInput, OptimizationAgentPermissions, OptimizationPatch,
+        OptimizationPatchOperation, OptimizationPatchSetSummary, OptimizationSessionSummary,
+        OptimizationTurnEventSummary, OptimizationTurnSummary, OptimizeSessionInput,
+        PrepareOptimizationAnalysisSessionInput, ProposeOptimizationPatchesInput,
+        RecordOptimizeAgentEventInput, SendOptimizationMessageInput,
     },
     outline::{
         ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlinePacing,
@@ -901,6 +901,9 @@ fn main() {
         &typescript_interface::<ApplyOptimizationPatchesInput>("ApplyOptimizationPatchesInput"),
         &typescript_interface::<ApplyOptimizationPatchesResponse>(
             "ApplyOptimizationPatchesResponse",
+        ),
+        &typescript_interface::<DiscardOptimizationPatchSetInput>(
+            "DiscardOptimizationPatchSetInput",
         ),
         &typescript_interface::<SendOptimizationMessageInput>("SendOptimizationMessageInput"),
         &typescript_interface::<ListOptimizeSessionsInput>("ListOptimizeSessionsInput"),

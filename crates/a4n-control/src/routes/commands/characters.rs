@@ -18,9 +18,10 @@ pub(super) use implicit_review::{
 pub(super) use inspiration::{get_inspiration_history, preview_inspiration_request};
 pub(super) use optimize::{
     apply_optimization_patches, create_optimization_analysis_session,
-    create_optimization_chat_session, delete_optimize_session, discard_pending_optimize_patch_sets,
-    get_optimize_session, list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
-    prepare_optimization_analysis_session, preview_create_optimization_analysis_session_request,
+    create_optimization_chat_session, delete_optimize_session, discard_optimization_patch_set,
+    discard_pending_optimize_patch_sets, get_optimize_session, list_optimize_patch_sets,
+    list_optimize_sessions, list_optimize_turns, prepare_optimization_analysis_session,
+    preview_create_optimization_analysis_session_request,
     preview_prepare_optimization_analysis_session_request,
     preview_propose_optimization_patches_request, preview_send_optimization_message_request,
     record_optimize_agent_event,

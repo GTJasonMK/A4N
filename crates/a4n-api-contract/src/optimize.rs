@@ -207,6 +207,13 @@ pub struct OptimizeSessionInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct DiscardOptimizationPatchSetInput {
+    #[schemars(range(min = 1))]
+    pub patch_set_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct RecordOptimizeAgentEventInput {
     #[schemars(range(min = 1))]
     pub session_id: i64,

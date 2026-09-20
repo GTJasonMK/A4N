@@ -409,6 +409,7 @@ command_specs! {
     "diff_profile_chapters" => args_diff_profile_chapters, result_diff_profile_chapters, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "disable_user" => args_user_id, result_unit, "auth", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "discard_chapter_visual_plan_draft" => args_chapter_visual_plan_record, result_unit, "chapter", effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "discard_optimization_patch_set" => args_discard_optimization_patch_set, result_unit, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "discard_pending_optimize_patch_sets" => args_optimize_session, result_unit, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "discover_character_profiles" => args_discover_character_profiles, result_discover_character_profiles, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "download_embedding_model" => args_download_embedding_model, result_download_embedding_model, "rag", execution("task"), capabilities(CAPABILITIES_EMBEDDING);
@@ -1141,6 +1142,10 @@ fn args_apply_assembly_postprocess_edit() -> Value {
 
 fn args_apply_optimization_patches() -> Value {
     strict_runtime_typed_input_schema::<crate::optimize::ApplyOptimizationPatchesInput>()
+}
+
+fn args_discard_optimization_patch_set() -> Value {
+    strict_runtime_typed_input_schema::<crate::optimize::DiscardOptimizationPatchSetInput>()
 }
 
 fn args_assemble_chapter_videos() -> Value {
@@ -3906,6 +3911,7 @@ mod tests {
             "create_optimization_analysis_session",
             "create_optimization_chat_session",
             "delete_optimize_session",
+            "discard_optimization_patch_set",
             "discard_pending_optimize_patch_sets",
             "get_optimize_session",
             "list_optimize_patch_sets",

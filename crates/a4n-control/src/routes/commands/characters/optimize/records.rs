@@ -31,6 +31,11 @@ optimize_web_input_command!(
     optimize_actions::discard_pending_optimize_patch_sets,
 );
 optimize_web_input_command!(
+    discard_optimization_patch_set,
+    optimize_actions::DiscardOptimizationPatchSetInput,
+    optimize_actions::discard_optimization_patch_set,
+);
+optimize_web_input_command!(
     delete_optimize_session,
     optimize_actions::OptimizeSessionInput,
     optimize_actions::delete_optimize_session,

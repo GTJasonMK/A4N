@@ -24,9 +24,9 @@ pub use context::{
 };
 pub use patches::{
     create_optimization_patch_set, matching_pending_optimization_patch_sets,
-    optimization_patch_set_by_turn_id, optimization_patch_set_patches,
-    optimization_patch_set_patches_for_sets, optimization_patch_sets,
-    pending_optimization_patch_sets, update_optimization_patch_set_status,
+    optimization_patch_set_by_id, optimization_patch_set_by_turn_id,
+    optimization_patch_set_patches, optimization_patch_set_patches_for_sets,
+    optimization_patch_sets, pending_optimization_patch_sets, update_optimization_patch_set_status,
     update_optimization_patch_sets_status,
 };
 pub use sessions::{
