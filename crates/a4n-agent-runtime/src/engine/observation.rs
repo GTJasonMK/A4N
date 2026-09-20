@@ -1,3 +1,4 @@
+use super::MAX_OBSERVATION_BYTES;
 use a4n_agent_runtime_contract::AgentExecutionSnapshot;
 use a4n_api_contract::agent::AgentResourceRef;
 use a4n_domain::{generation::canonical_json_text, source_text_hash};
@@ -10,6 +11,20 @@ use tokio::sync::Mutex;
 
 pub(super) const OBSERVATION_VERSION: u32 = 1;
 const RETRY_LIMIT: u8 = 3;
+pub fn bounded_observation(execution_id: i64, value: Value) -> Result<Value, AppError> {
+    let size = serde_json::to_vec(&value)?.len();
+    if size <= MAX_OBSERVATION_BYTES {
+        return Ok(value);
+    }
+    Ok(json!({
+        "execution_id": execution_id.to_string(),
+        "result_bytes": size,
+        "complete": false,
+        "name": value.get("name").and_then(Value::as_str).filter(|name| name.len() < 200),
+        "read_tool": "read_agent_execution_result",
+        "message": "结果较大，已保存完整结果。按需使用 execution_id、JSON pointer、offset 和 limit 继续读取。"
+    }))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
