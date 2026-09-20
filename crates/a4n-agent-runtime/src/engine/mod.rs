@@ -2680,6 +2680,9 @@ pub fn tool_result_refs(
     value: &Value,
 ) -> Result<Vec<a4n_api_contract::agent::AgentResourceRef>, AppError> {
     use a4n_api_contract::agent::AgentResourceRef;
+    if value.get("error").is_some() {
+        return Ok(Vec::new());
+    }
     let mut refs = Vec::new();
     let mut push_ref = |resource: AgentResourceRef| {
         refs.retain(|previous: &AgentResourceRef| {
@@ -3354,5 +3357,14 @@ mod tests {
             0,
             Duration::from_secs(1),
         ));
+    }
+
+    #[test]
+    fn failed_list_results_do_not_get_parsed_as_success_arrays() {
+        for tool_name in ["list_optimize_turns", "list_optimize_patch_sets"] {
+            let refs = tool_result_refs(tool_name, &json!({"error": "读取失败"}))
+                .expect("failed tool results should not require success parsing");
+            assert!(refs.is_empty(), "{tool_name}");
+        }
     }
 }
