@@ -7,6 +7,7 @@ mod page;
 mod routing;
 mod shell;
 mod sse;
+mod transport;
 
 use std::collections::HashSet;
 use std::io::{Read, Write};
