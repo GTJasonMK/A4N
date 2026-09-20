@@ -1,16 +1,21 @@
-//! PostgreSQL-backed chapter-content read worker.
+//! PostgreSQL-backed chapter-content worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{collections::BTreeSet, env, net::SocketAddr, sync::Arc};
 
 use a4n_chapter_content_core::{
-    CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, attach_chapter_sync_state, chapter_summary,
+    CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, attach_chapter_sync_state,
+    begin_chapter_content_sync_in_transaction, chapter_cleanup_requires_snapshot, chapter_summary,
+    validate_chapter_content_snapshot_preflight,
 };
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION,
-    CHAPTER_CONTENT_WORKER_CONTRACT_VERSION, CHAPTER_CONTENT_WORKER_ID, ChapterInput,
-    ChapterSummary, ProjectInput,
+    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_LIST_OPERATION,
+    CHAPTER_CONTENT_SUMMARY_OPERATION, CHAPTER_CONTENT_UPDATE_OPERATION,
+    CHAPTER_CONTENT_WORKER_CONTRACT_VERSION, CHAPTER_CONTENT_WORKER_ID,
+    ChapterContentMutationResult, ChapterInput, ChapterSummary, ImportChapterInput, ProjectInput,
+    UpdateChapterContentInput,
 };
 use a4n_db::DbHandle;
+use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
@@ -25,7 +30,10 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DatabaseTransaction, Statement,
+    TransactionTrait,
+};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_ADDR";
@@ -73,6 +81,8 @@ impl ChapterContentWorker {
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/chapter.content.list", post(list))
             .route("/v1/commands/chapter.content.summary", post(summary))
+            .route("/v1/commands/chapter.content.update", post(update))
+            .route("/v1/commands/chapter.content.import", post(import_chapter))
             .with_state(self.state.clone())
     }
 
@@ -177,6 +187,25 @@ async fn summary(
     command_response(&state, &headers, request, |request| state.summary(request)).await
 }
 
+async fn update(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<UpdateChapterContentInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.update(request)).await
+}
+
+async fn import_chapter(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ImportChapterInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.import_chapter(request)
+    })
+    .await
+}
+
 async fn command_response<T, O, F, Fut>(
     state: &WorkerState,
     headers: &HeaderMap,
@@ -200,6 +229,101 @@ where
 }
 
 impl WorkerState {
+    async fn update(
+        &self,
+        request: WorkerEnvelope<UpdateChapterContentInput>,
+    ) -> Result<ChapterContentMutationResult, WorkerFailure> {
+        validate_request(&request, CHAPTER_CONTENT_UPDATE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let chapter_id = positive("chapter_id", request.payload.chapter_id)?;
+        let existing = a4n_db::chapter_content::chapter_by_id_for_analysis(
+            self.database.connection(),
+            chapter_id,
+        )
+        .await
+        .map_err(chapter_error)?;
+        self.verify_text_project_editor(existing.project_id, user_id, "更新章节正文")
+            .await?;
+        self.validate_snapshot_preflight(existing.project_id, existing.chapter_number)
+            .await?;
+
+        let input = request.payload;
+        let tx = self
+            .database
+            .connection()
+            .begin()
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        let result = async {
+            let chapter = a4n_db::chapter_content::save_chapter_content_edit_record(
+                &tx,
+                EditChapterContentInput {
+                    chapter_id: input.chapter_id,
+                    content: input.content,
+                    title: input.title,
+                },
+            )
+            .await
+            .map_err(chapter_error)?;
+            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter, |_| Ok(()))
+                .await
+                .map_err(app_error)?;
+            Ok(ChapterContentMutationResult {
+                chapter_id: chapter.id,
+                workflow_run_id: run.id,
+            })
+        }
+        .await;
+        finish_transaction(tx, result, "保存章节正文并登记资料同步").await
+    }
+
+    async fn import_chapter(
+        &self,
+        request: WorkerEnvelope<ImportChapterInput>,
+    ) -> Result<ChapterContentMutationResult, WorkerFailure> {
+        validate_request(&request, CHAPTER_CONTENT_IMPORT_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let project_id = positive("project_id", input.project_id)?;
+        if input.chapter_number <= 0 {
+            return Err(WorkerFailure::invalid_request("章节序号必须大于 0"));
+        }
+        self.verify_text_project_editor(project_id, user_id, "导入章节正文")
+            .await?;
+        self.validate_snapshot_preflight(project_id, input.chapter_number)
+            .await?;
+
+        let tx = self
+            .database
+            .connection()
+            .begin()
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        let result = async {
+            let chapter = a4n_db::chapter_content::import_chapter_content_record(
+                &tx,
+                ImportChapterContentInput {
+                    project_id: input.project_id,
+                    chapter_number: input.chapter_number,
+                    content: input.content,
+                    title: input.title,
+                },
+                "导入覆盖正文",
+            )
+            .await
+            .map_err(import_error)?;
+            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter, |_| Ok(()))
+                .await
+                .map_err(app_error)?;
+            Ok(ChapterContentMutationResult {
+                chapter_id: chapter.id,
+                workflow_run_id: run.id,
+            })
+        }
+        .await;
+        finish_transaction(tx, result, "导入章节正文并登记资料同步").await
+    }
+
     async fn list(
         &self,
         request: WorkerEnvelope<ProjectInput>,
@@ -233,6 +357,58 @@ impl WorkerState {
         summaries
             .pop()
             .ok_or_else(|| WorkerFailure::unavailable("章节摘要投影为空"))
+    }
+
+    async fn verify_text_project_editor(
+        &self,
+        project_id: i64,
+        user_id: i64,
+        operation: &str,
+    ) -> Result<(), WorkerFailure> {
+        verify_project_editor(&self.database, project_id, user_id).await?;
+        let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
+            .await
+            .map_err(project_error)?
+            .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
+        if project.project_kind != a4n_db::project::PROJECT_KIND_TEXT {
+            return Err(WorkerFailure::invalid_request(format!(
+                "{operation}只能作用于文本项目"
+            )));
+        }
+        Ok(())
+    }
+
+    async fn validate_snapshot_preflight(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<(), WorkerFailure> {
+        let profiles = a4n_db::project::protagonist_profiles_for_project(
+            self.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(project_chapter_context_error)?;
+        let profile_ids = profiles
+            .iter()
+            .filter(|profile| chapter_cleanup_requires_snapshot(profile, chapter_number))
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>();
+        let existing_snapshot_profile_ids = a4n_db::project::snapshot_profile_ids_for_chapter(
+            self.database.connection(),
+            &profile_ids,
+            chapter_number - 1,
+        )
+        .await
+        .map_err(project_chapter_context_error)?
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+        validate_chapter_content_snapshot_preflight(
+            &profiles,
+            &existing_snapshot_profile_ids,
+            chapter_number,
+        )
+        .map_err(app_error)
     }
 
     async fn project_summaries(
@@ -281,6 +457,22 @@ impl WorkerState {
             .get(WORKER_AUTH_HEADER)
             .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
     }
+}
+
+async fn verify_project_editor(
+    database: &DbHandle,
+    project_id: i64,
+    user_id: i64,
+) -> Result<(), WorkerFailure> {
+    a4n_db::collaboration::verify_project_permission(
+        database.connection(),
+        project_id,
+        user_id,
+        a4n_domain::collaboration::ProjectAccessRole::Editor,
+    )
+    .await
+    .map(|_| ())
+    .map_err(collaboration_error)
 }
 
 fn validate_request<T: serde::Serialize>(
@@ -359,6 +551,24 @@ fn chapter_error(error: a4n_db::chapter_content::ChapterContentEditError) -> Wor
     }
 }
 
+fn import_error(error: a4n_db::chapter_content::ChapterContentImportError) -> WorkerFailure {
+    match error {
+        a4n_db::chapter_content::ChapterContentImportError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::chapter_content::ChapterContentImportError::TargetChapterGenerating {
+            chapter_number,
+            status,
+            operation,
+        } => WorkerFailure::conflict(format!(
+            "第 {chapter_number} 章正在生成中，请等待当前生成完成后再{operation}（当前状态：{status}）"
+        )),
+        a4n_db::chapter_content::ChapterContentImportError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     match error {
         a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
@@ -375,6 +585,42 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
             WorkerFailure::conflict(message)
         }
         a4n_db::collaboration::CollaborationDbError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
+    match error {
+        a4n_db::project::ProjectMutationError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::project::ProjectMutationError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::project::ProjectMutationError::Forbidden(message) => {
+            WorkerFailure::unauthorized(message)
+        }
+        a4n_db::project::ProjectMutationError::Internal(message) => {
+            WorkerFailure::conflict(message)
+        }
+        a4n_db::project::ProjectMutationError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn project_chapter_context_error(
+    error: a4n_db::project::ProjectChapterContextError,
+) -> WorkerFailure {
+    match error {
+        a4n_db::project::ProjectChapterContextError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::project::ProjectChapterContextError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::project::ProjectChapterContextError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }
@@ -404,6 +650,30 @@ fn app_error(error: a4n_error::AppError) -> WorkerFailure {
             WorkerFailure::conflict(format!("{current}: {operation}"))
         }
         other => WorkerFailure::unavailable(other.to_string()),
+    }
+}
+
+async fn finish_transaction<T>(
+    tx: DatabaseTransaction,
+    result: Result<T, WorkerFailure>,
+    operation: &str,
+) -> Result<T, WorkerFailure> {
+    match result {
+        Ok(value) => {
+            tx.commit()
+                .await
+                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+            Ok(value)
+        }
+        Err(error) => {
+            tx.rollback().await.map_err(|rollback_error| {
+                WorkerFailure::unavailable(format!(
+                    "{operation}失败：{}；事务回滚失败：{rollback_error}",
+                    error.message
+                ))
+            })?;
+            Err(error)
+        }
     }
 }
 

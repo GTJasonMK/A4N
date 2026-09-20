@@ -83,6 +83,15 @@ pub async fn initialize_runtime(
         Arc::new(a4n_chapter_scene_worker_client::ChapterSceneWorkerClient::from_env());
     let chapter_content_worker =
         Arc::new(a4n_chapter_content_worker_client::ChapterContentWorkerClient::from_env());
+    let chapter_content_sync_application: Arc<
+        dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort,
+    > = orchestrator.clone();
+    let chapter_content_mutation_application: Arc<
+        dyn a4n_api_contract::chapter::ChapterContentMutationApplicationPort,
+    > = Arc::new(ChapterContentMutationAdapter {
+        worker: chapter_content_worker.clone(),
+        sync: chapter_content_sync_application.clone(),
+    });
     let workflow_read_worker =
         Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
     let config_read_worker =
@@ -212,8 +221,8 @@ pub async fn initialize_runtime(
         blueprint_refinement_application: orchestrator.clone(),
         blueprint_mutation_application: orchestrator.clone(),
         chapter_content_read_application: chapter_content_worker,
-        chapter_content_mutation_application: orchestrator.clone(),
-        chapter_content_sync_application: orchestrator.clone(),
+        chapter_content_mutation_application,
+        chapter_content_sync_application,
         chapter_generation_request_preview_application: orchestrator.clone(),
         chapter_generation_rag_preparation_application: orchestrator.clone(),
         chapter_generation_application: orchestrator.clone(),
@@ -411,6 +420,52 @@ impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecord
 
 struct VideoPromptDraftAdapter {
     worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
+}
+
+struct ChapterContentMutationAdapter {
+    worker: Arc<a4n_chapter_content_worker_client::ChapterContentWorkerClient>,
+    sync: Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::chapter::ChapterContentMutationApplicationPort
+    for ChapterContentMutationAdapter
+{
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn a4n_api_contract::chapter::ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::UpdateChapterContentInput,
+    ) -> Result<i64, a4n_error::AppError> {
+        let result = self.worker.update_content(user_id, input).await?;
+        if let Err(error) = self.sync.settle(host_port, result.workflow_run_id).await {
+            tracing::warn!(
+                chapter_id = result.chapter_id,
+                workflow_run_id = result.workflow_run_id,
+                error = %error,
+                "章节正文已保存，派生资料同步待恢复"
+            );
+        }
+        Ok(result.chapter_id)
+    }
+
+    async fn import(
+        &self,
+        user_id: i64,
+        host_port: &dyn a4n_api_contract::chapter::ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::ImportChapterInput,
+    ) -> Result<i64, a4n_error::AppError> {
+        let result = self.worker.import_content(user_id, input).await?;
+        if let Err(error) = self.sync.settle(host_port, result.workflow_run_id).await {
+            tracing::warn!(
+                chapter_id = result.chapter_id,
+                workflow_run_id = result.workflow_run_id,
+                error = %error,
+                "导入正文已保存，派生资料同步待恢复"
+            );
+        }
+        Ok(result.chapter_id)
+    }
 }
 
 #[async_trait::async_trait]

@@ -1,20 +1,11 @@
 use std::collections::BTreeSet;
 
-use a4n_api_contract::chapter::{
-    ChapterContentMutationApplicationPort, ChapterContentSyncApplicationPort,
-    ChapterDerivedCleanupHostPort,
-};
-use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
+use a4n_api_contract::chapter::{ChapterContentSyncApplicationPort, ChapterDerivedCleanupHostPort};
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
 use async_trait::async_trait;
 
-use crate::{
-    OrchestratorContext,
-    project::{chapter_cleanup_requires_snapshot, validate_chapter_generation_number},
-};
-
-use super::rules::ensure_text_project_kind;
+use crate::{OrchestratorContext, project::validate_chapter_generation_number};
 
 impl OrchestratorContext {
     pub async fn preflight_chapter_content_change_validated(
@@ -27,7 +18,9 @@ impl OrchestratorContext {
         let snapshot_chapter = chapter_number - 1;
         let snapshot_profile_ids = profiles
             .iter()
-            .filter(|profile| chapter_cleanup_requires_snapshot(profile, chapter_number))
+            .filter(|profile| {
+                a4n_chapter_content_core::chapter_cleanup_requires_snapshot(profile, chapter_number)
+            })
             .map(|profile| profile.id)
             .collect::<Vec<_>>();
         if snapshot_profile_ids.is_empty() {
@@ -39,22 +32,11 @@ impl OrchestratorContext {
             .await?
             .into_iter()
             .collect::<BTreeSet<_>>();
-        let missing_names = profiles_missing_cleanup_snapshots(
+        a4n_chapter_content_core::validate_chapter_content_snapshot_preflight(
             &profiles,
             &existing_snapshot_profile_ids,
             chapter_number,
-        );
-        if missing_names.is_empty() {
-            return Ok(());
-        }
-
-        Err(AppError::InvalidState {
-            current: "章节派生数据无法清理".to_string(),
-            operation: format!(
-                "保存章节正文前预检：以下角色缺少第 {snapshot_chapter} 章快照，无法在重写第 {chapter_number} 章前回滚档案状态：{}",
-                missing_names.join("、")
-            ),
-        })
+        )
     }
 
     pub async fn postprocess_chapter_derived_data_validated(
@@ -74,158 +56,21 @@ impl OrchestratorContext {
             .await?;
         Ok(())
     }
-
-    pub async fn update_chapter_content_validated(
-        &self,
-        user_id: i64,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        chapter_id: i64,
-        content: String,
-        title: Option<String>,
-    ) -> Result<chapter::Model, AppError> {
-        let chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
-        self.verify_project_permission(
-            chapter.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.ensure_text_project_validated(chapter.project_id, "更新章节正文")
-            .await?;
-        let lock = self.chapter_content_sync_lock(chapter.project_id, chapter.chapter_number);
-        let _guard = lock.lock_owned().await;
-        let chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
-        self.verify_project_permission(
-            chapter.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.ensure_text_project_validated(chapter.project_id, "更新章节正文")
-            .await?;
-        self.preflight_chapter_content_change_validated(chapter.project_id, chapter.chapter_number)
-            .await?;
-        let (updated, run) = self
-            .save_chapter_content_edit_with_sync_plan(chapter_id, content, title, |artifacts| {
-                host_port.validate_chapter_cleanup_artifacts(artifacts)
-            })
-            .await?;
-        if let Err(error) = self.settle_chapter_content_sync_run(host_port, &run).await {
-            tracing::warn!(
-                chapter_id = updated.id,
-                workflow_run_id = run.id,
-                error = %error,
-                "章节正文已保存，派生资料同步待恢复"
-            );
-        }
-        self.chapter_by_id_for_analysis(updated.id).await
-    }
-
-    pub async fn import_chapter_validated(
-        &self,
-        user_id: i64,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        project_id: i64,
-        chapter_number: i32,
-        content: String,
-        title: Option<String>,
-    ) -> Result<chapter::Model, AppError> {
-        self.verify_project_permission(
-            project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.ensure_text_project_validated(project_id, "导入章节正文")
-            .await?;
-        let lock = self.chapter_content_sync_lock(project_id, chapter_number);
-        let _guard = lock.lock_owned().await;
-        self.verify_project_permission(
-            project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.ensure_text_project_validated(project_id, "导入章节正文")
-            .await?;
-        self.preflight_chapter_content_change_validated(project_id, chapter_number)
-            .await?;
-        let (chapter, run) = self
-            .import_chapter_content_with_sync_plan(
-                project_id,
-                chapter_number,
-                content,
-                title,
-                "导入覆盖正文",
-                |artifacts| host_port.validate_chapter_cleanup_artifacts(artifacts),
-            )
-            .await?;
-        if let Err(error) = self.settle_chapter_content_sync_run(host_port, &run).await {
-            tracing::warn!(
-                chapter_id = chapter.id,
-                workflow_run_id = run.id,
-                error = %error,
-                "导入正文已保存，派生资料同步待恢复"
-            );
-        }
-        self.chapter_by_id_for_analysis(chapter.id).await
-    }
-
-    async fn ensure_text_project_validated(
-        &self,
-        project_id: i64,
-        operation: &str,
-    ) -> Result<(), AppError> {
-        let project = self
-            .project_by_id(project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        ensure_text_project_kind(&project.project_kind, operation)
-    }
-}
-
-#[async_trait]
-impl ChapterContentMutationApplicationPort for OrchestratorContext {
-    async fn update(
-        &self,
-        user_id: i64,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        input: a4n_api_contract::chapter::UpdateChapterContentInput,
-    ) -> Result<i64, AppError> {
-        Ok(self
-            .update_chapter_content_validated(
-                user_id,
-                host_port,
-                input.chapter_id,
-                input.content,
-                input.title,
-            )
-            .await?
-            .id)
-    }
-
-    async fn import(
-        &self,
-        user_id: i64,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        input: a4n_api_contract::chapter::ImportChapterInput,
-    ) -> Result<i64, AppError> {
-        Ok(self
-            .import_chapter_validated(
-                user_id,
-                host_port,
-                input.project_id,
-                input.chapter_number,
-                input.content,
-                input.title,
-            )
-            .await?
-            .id)
-    }
 }
 
 #[async_trait]
 impl ChapterContentSyncApplicationPort for OrchestratorContext {
+    async fn settle(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        workflow_run_id: i64,
+    ) -> Result<(), AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        self.settle_chapter_content_sync_run(host_port, &run)
+            .await
+            .map(|_| ())
+    }
+
     async fn resume(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
@@ -260,17 +105,4 @@ impl ChapterContentSyncApplicationPort for OrchestratorContext {
                 operation: error,
             })
     }
-}
-
-fn profiles_missing_cleanup_snapshots(
-    profiles: &[protagonist_profile::Model],
-    existing_snapshot_profile_ids: &BTreeSet<i64>,
-    chapter_number: i32,
-) -> Vec<String> {
-    profiles
-        .iter()
-        .filter(|profile| chapter_cleanup_requires_snapshot(profile, chapter_number))
-        .filter(|profile| !existing_snapshot_profile_ids.contains(&profile.id))
-        .map(|profile| profile.name.clone())
-        .collect()
 }

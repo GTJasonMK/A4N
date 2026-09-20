@@ -1042,6 +1042,7 @@ dependencies = [
  "a4n-video-record-worker-client",
  "a4n-workflow-read-worker-client",
  "async-trait",
+ "tracing",
 ]
 
 [[package]]

@@ -40,3 +40,4 @@ a4n-source-snapshot-worker-client = { path = "../a4n-source-snapshot-worker-clie
 a4n-theme-read-worker-client = { path = "../a4n-theme-read-worker-client" }
 
 async-trait = { workspace = true }
+tracing = { workspace = true }

@@ -10,16 +10,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
 use super::OrchestratorContext;
-use crate::chapter_content::{
-    CHAPTER_CONTENT_SYNC_CLEANUP_STEP, CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-    chapter_content_import_error_to_app_error, chapter_content_sync_checkpoint_artifacts,
-    chapter_content_sync_checkpoint_input, chapter_content_sync_workflow_business_key,
-    chapter_content_sync_workflow_run_input,
-};
 use crate::chapter_content_edit_error_to_app_error;
-use crate::project::cleanup_chapter_derived_data_in;
-use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
-use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
 
 /// 章节内容领域私有 owner；生成服务可持有克隆以执行生命周期写路径。
 #[derive(Clone)]
@@ -64,82 +55,6 @@ impl ChapterContentApplication {
             .map_err(AppError::Database)
     }
 
-    async fn import_chapter_content_with_sync_plan<F>(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-        content: String,
-        title: Option<String>,
-        target_generating_operation: &str,
-        validate_artifacts: F,
-    ) -> Result<(chapter::Model, workflow_run::Model), AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
-        let committed = async {
-            let chapter = a4n_db::chapter_content::import_chapter_content_record(
-                &tx,
-                ImportChapterContentInput {
-                    project_id,
-                    chapter_number,
-                    content,
-                    title,
-                },
-                target_generating_operation,
-            )
-            .await
-            .map_err(chapter_content_import_error_to_app_error)?;
-            let run = self
-                .begin_chapter_content_sync_in_transaction(&tx, &chapter, &validate_artifacts)
-                .await?;
-            Ok((chapter, run))
-        }
-        .await;
-        finish_chapter_content_transaction(tx, committed, "导入章节正文并登记资料同步").await
-    }
-
-    async fn save_chapter_content_edit_with_sync_plan<F>(
-        &self,
-        chapter_id: i64,
-        content: String,
-        title: Option<String>,
-        validate_artifacts: F,
-    ) -> Result<(chapter::Model, workflow_run::Model), AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
-        let committed = async {
-            let chapter = a4n_db::chapter_content::save_chapter_content_edit_record(
-                &tx,
-                EditChapterContentInput {
-                    chapter_id,
-                    content,
-                    title,
-                },
-            )
-            .await
-            .map_err(chapter_content_edit_error_to_app_error)?;
-            let run = self
-                .begin_chapter_content_sync_in_transaction(&tx, &chapter, &validate_artifacts)
-                .await?;
-            Ok((chapter, run))
-        }
-        .await;
-        finish_chapter_content_transaction(tx, committed, "保存章节正文并登记资料同步").await
-    }
-
     async fn begin_existing_chapter_content_sync<F>(
         &self,
         chapter_id: i64,
@@ -176,68 +91,12 @@ impl ChapterContentApplication {
     where
         F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
     {
-        let business_key =
-            chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id);
-        let previous =
-            a4n_db::workflow::latest_workflow_run_by_business_key_for_update(tx, &business_key)
-                .await
-                .map_err(workflow_read_app_error)?;
-        let mut artifacts = cleanup_chapter_derived_data_in(
+        a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(
             tx,
-            chapter.project_id,
-            chapter.id,
-            chapter.chapter_number,
-            true,
-            false,
-        )
-        .await?;
-        if let Some(previous) = previous.filter(|run| {
-            run.workflow_kind == CHAPTER_CONTENT_SYNC_WORKFLOW_KIND
-                && a4n_db::workflow::workflow_run_is_running_or_resumable(
-                    &run.status,
-                    run.can_resume,
-                )
-        }) {
-            let checkpoint = a4n_db::workflow::workflow_checkpoint_model_by_step_in(
-                tx,
-                previous.id,
-                CHAPTER_CONTENT_SYNC_CLEANUP_STEP,
-            )
-            .await
-            .map_err(workflow_read_app_error)?
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!("chapter_content_sync_run_id={}", previous.id),
-                operation: "沿用尚未完成的章节资料清理计划".to_string(),
-            })?;
-            artifacts.merge(
-                chapter_content_sync_checkpoint_artifacts(&previous, &checkpoint).map_err(
-                    |operation| AppError::InvalidState {
-                        current: format!("chapter_content_sync_run_id={}", previous.id),
-                        operation,
-                    },
-                )?,
-            );
-        }
-        validate_artifacts(&artifacts)?;
-
-        let input = chapter_content_sync_workflow_run_input(chapter);
-        let run_fingerprint_json = input
-            .input_fingerprint_json
-            .clone()
-            .expect("chapter content sync input always has a fingerprint");
-        let run = a4n_db::workflow::upsert_workflow_run_in_transaction(tx, input)
-            .await
-            .map_err(workflow_write_app_error)?;
-        let checkpoint = chapter_content_sync_checkpoint_input(
-            run.id,
-            run_fingerprint_json,
             chapter,
-            &artifacts,
-        )?;
-        a4n_db::workflow::upsert_workflow_checkpoint_in_transaction(tx, checkpoint)
-            .await
-            .map_err(workflow_write_app_error)?;
-        Ok(run)
+            validate_artifacts,
+        )
+        .await
     }
 
     async fn chapter_by_id_for_analysis(
@@ -353,50 +212,6 @@ impl OrchestratorContext {
         chapter_number: i32,
     ) -> Arc<AsyncMutex<()>> {
         self.chapter_content.sync_lock(project_id, chapter_number)
-    }
-
-    pub(crate) async fn import_chapter_content_with_sync_plan<F>(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-        content: String,
-        title: Option<String>,
-        target_generating_operation: &str,
-        validate_artifacts: F,
-    ) -> Result<(chapter::Model, workflow_run::Model), AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
-        self.chapter_content
-            .import_chapter_content_with_sync_plan(
-                project_id,
-                chapter_number,
-                content,
-                title,
-                target_generating_operation,
-                validate_artifacts,
-            )
-            .await
-    }
-
-    pub(crate) async fn save_chapter_content_edit_with_sync_plan<F>(
-        &self,
-        chapter_id: i64,
-        content: String,
-        title: Option<String>,
-        validate_artifacts: F,
-    ) -> Result<(chapter::Model, workflow_run::Model), AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
-        self.chapter_content
-            .save_chapter_content_edit_with_sync_plan(
-                chapter_id,
-                content,
-                title,
-                validate_artifacts,
-            )
-            .await
     }
 
     pub(crate) async fn begin_existing_chapter_content_sync<F>(
