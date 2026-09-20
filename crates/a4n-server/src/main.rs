@@ -718,6 +718,45 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_artifact_media_worker(&mut artifact_media_worker);
         return Err(error);
     }
+    let mut config_read_worker = match spawn_config_read_worker(
+        &config_read_worker_binary,
+        config_read_worker_addr,
+        &config_read_worker_token,
+    ) {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_portrait_worker(&mut portrait_worker);
+            let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+            let _ = stop_object_profile_worker(&mut object_profile_worker);
+            let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+            let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+            let _ = stop_blueprint_worker(&mut blueprint_worker);
+            let _ = stop_outline_worker(&mut outline_worker);
+            let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+            let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+            return Err(error);
+        }
+    };
+    if let Err(error) = wait_for_config_read_worker(
+        &mut config_read_worker,
+        config_read_worker_addr,
+        &config_read_worker_token,
+    ) {
+        let _ = stop_config_read_worker(&mut config_read_worker);
+        let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_portrait_worker(&mut portrait_worker);
+        let _ = stop_scene_profile_worker(&mut scene_profile_worker);
+        let _ = stop_object_profile_worker(&mut object_profile_worker);
+        let _ = stop_foreshadowing_worker(&mut foreshadowing_worker);
+        let _ = stop_asset_graph_worker(&mut asset_graph_worker);
+        let _ = stop_blueprint_worker(&mut blueprint_worker);
+        let _ = stop_outline_worker(&mut outline_worker);
+        let _ = stop_novel_planning_worker(&mut novel_planning_worker);
+        let _ = stop_artifact_media_worker(&mut artifact_media_worker);
+        return Err(error);
+    }
+    let mut config_read_worker_fingerprint = binary_fingerprint(&config_read_worker_binary)?;
     let mut control = match spawn_control(
         &control_binary,
         control_addr,
@@ -787,6 +826,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -802,6 +842,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return match cleanup_result {
             Ok(()) => Err(error),
             Err(cleanup_error) => Err(anyhow::anyhow!(
@@ -828,6 +869,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -844,6 +886,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut profile_material_worker = match spawn_profile_material_worker(
@@ -865,6 +908,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -886,6 +930,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut project_status_worker = match spawn_project_status_worker(
@@ -908,6 +953,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -930,6 +976,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut theme_read_worker = match spawn_theme_read_worker(
@@ -953,6 +1000,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -976,6 +1024,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut theme_read_worker_fingerprint = binary_fingerprint(&theme_read_worker_binary)?;
@@ -1002,6 +1051,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1026,6 +1076,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut project_read_worker_fingerprint = binary_fingerprint(&project_read_worker_binary)?;
@@ -1052,6 +1103,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1077,6 +1129,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut import_review_read_worker_fingerprint =
@@ -1105,6 +1158,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1131,6 +1185,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut inspiration_history_worker_fingerprint =
@@ -1160,6 +1215,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1187,6 +1243,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut project_access_worker_fingerprint = binary_fingerprint(&project_access_worker_binary)?;
@@ -1216,6 +1273,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1244,6 +1302,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut project_collaboration_worker_fingerprint =
@@ -1275,6 +1334,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1304,6 +1364,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut project_mutation_worker_fingerprint =
@@ -1336,6 +1397,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_scene_profile_worker(&mut scene_profile_worker);
             let _ = stop_portrait_worker(&mut portrait_worker);
             let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1366,6 +1428,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_scene_profile_worker(&mut scene_profile_worker);
         let _ = stop_portrait_worker(&mut portrait_worker);
         let _ = stop_source_snapshot_worker(&mut source_snapshot_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut chapter_scene_worker_fingerprint = binary_fingerprint(&chapter_scene_worker_binary)?;
@@ -1380,6 +1443,7 @@ fn main() -> anyhow::Result<()> {
             let _ = stop_project_mutation_worker(&mut project_mutation_worker);
             let _ = stop_project_collaboration_worker(&mut project_collaboration_worker);
             let _ = stop_project_access_worker(&mut project_access_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1393,6 +1457,7 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_project_mutation_worker(&mut project_mutation_worker);
         let _ = stop_project_collaboration_worker(&mut project_collaboration_worker);
         let _ = stop_project_access_worker(&mut project_access_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut chapter_content_worker_fingerprint =
@@ -1406,6 +1471,7 @@ fn main() -> anyhow::Result<()> {
         Err(error) => {
             let _ = stop_chapter_content_worker(&mut chapter_content_worker);
             let _ = stop_chapter_scene_worker(&mut chapter_scene_worker);
+            let _ = stop_config_read_worker(&mut config_read_worker);
             return Err(error);
         }
     };
@@ -1417,32 +1483,10 @@ fn main() -> anyhow::Result<()> {
         let _ = stop_workflow_read_worker(&mut workflow_read_worker);
         let _ = stop_chapter_content_worker(&mut chapter_content_worker);
         let _ = stop_chapter_scene_worker(&mut chapter_scene_worker);
+        let _ = stop_config_read_worker(&mut config_read_worker);
         return Err(error);
     }
     let mut workflow_read_worker_fingerprint = binary_fingerprint(&workflow_read_worker_binary)?;
-    let mut config_read_worker = match spawn_config_read_worker(
-        &config_read_worker_binary,
-        config_read_worker_addr,
-        &config_read_worker_token,
-    ) {
-        Ok(child) => child,
-        Err(error) => {
-            let _ = stop_workflow_read_worker(&mut workflow_read_worker);
-            let _ = stop_chapter_content_worker(&mut chapter_content_worker);
-            return Err(error);
-        }
-    };
-    if let Err(error) = wait_for_config_read_worker(
-        &mut config_read_worker,
-        config_read_worker_addr,
-        &config_read_worker_token,
-    ) {
-        let _ = stop_config_read_worker(&mut config_read_worker);
-        let _ = stop_workflow_read_worker(&mut workflow_read_worker);
-        let _ = stop_chapter_content_worker(&mut chapter_content_worker);
-        return Err(error);
-    }
-    let mut config_read_worker_fingerprint = binary_fingerprint(&config_read_worker_binary)?;
     let mut character_mutation_worker = match spawn_character_mutation_worker(
         &character_mutation_worker_binary,
         character_mutation_worker_addr,
