@@ -703,13 +703,14 @@ mod tests {
             .expect("video record worker entry");
         assert_eq!(video_record.kind, ProcessKind::StatefulWorker);
         assert_eq!(video_record.binary, "a4n-video-record-worker");
-        assert_eq!(video_record.contract_version, "video-record-v2");
+        assert_eq!(video_record.contract_version, "video-record-v3");
         assert_eq!(video_record.addr_env, "A4N_VIDEO_RECORD_WORKER_ADDR");
         assert_eq!(video_record.default_addr, "127.0.0.1:47675");
         assert_eq!(
             video_record.capabilities,
             vec![
                 "video.record.read".to_string(),
+                "video.record.mutation".to_string(),
                 "video.prompt.read".to_string()
             ]
         );

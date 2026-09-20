@@ -2,15 +2,16 @@
 
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::video::{
-    ChapterVideoPromptSummary, GeneratedVideoSummary, VideoPromptReadApplicationPort,
-    VideoRecordReadApplicationPort,
+    ChapterVideoPromptSummary, GeneratedVideoSummary, UpdateGeneratedVideoInput,
+    VideoPromptReadApplicationPort, VideoRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_video_record_worker_contract::{
     ChapterVideosInput, ReferenceImagesInput, VIDEO_PROMPT_LIST_OPERATION,
     VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
-    VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
+    VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
+    VideoUpdateInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -143,6 +144,21 @@ impl VideoRecordWorkerClient {
             kind: WorkerPrincipalKind::Service,
             subject: "runtime".into(),
         }
+    }
+
+    pub async fn update_record(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: UpdateGeneratedVideoInput,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        self.command(
+            user_id,
+            None,
+            VIDEO_RECORD_UPDATE_OPERATION,
+            VideoUpdateInput { video_id, input },
+        )
+        .await
     }
 }
 

@@ -91,6 +91,12 @@ pub async fn initialize_runtime(
         Arc::new(a4n_character_mutation_worker_client::CharacterMutationWorkerClient::from_env());
     let video_record_worker =
         Arc::new(a4n_video_record_worker_client::VideoRecordWorkerClient::from_env());
+    let video_record_mutation_application: Arc<
+        dyn a4n_api_contract::video::VideoRecordMutationApplicationPort,
+    > = Arc::new(VideoRecordMutationAdapter {
+        worker: video_record_worker.clone(),
+        fallback: orchestrator.clone(),
+    });
     let manga_record_worker =
         Arc::new(a4n_manga_record_worker_client::MangaRecordWorkerClient::from_env());
     let theme_read_worker =
@@ -274,7 +280,7 @@ pub async fn initialize_runtime(
         project_export_application: orchestrator.clone(),
         galgame_export_application: orchestrator.clone(),
         video_record_read_application: video_record_worker.clone(),
-        video_record_mutation_application: orchestrator.clone(),
+        video_record_mutation_application,
         video_chapter_import_application: orchestrator.clone(),
         video_reference_media_import_application: orchestrator.clone(),
         video_assembly_import_application: orchestrator.clone(),
@@ -362,6 +368,40 @@ pub async fn initialize_runtime(
 
 struct ArtifactMediaImageReferenceAdapter {
     client: Arc<a4n_artifact_media_client::ArtifactMediaWorkerClient>,
+}
+
+struct VideoRecordMutationAdapter {
+    worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
+    fallback: Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecordMutationAdapter {
+    async fn update(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: a4n_api_contract::video::UpdateGeneratedVideoInput,
+    ) -> Result<a4n_api_contract::video::GeneratedVideoSummary, a4n_error::AppError> {
+        self.worker.update_record(user_id, video_id, input).await
+    }
+
+    async fn select_segment(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        video_id: i64,
+        input: a4n_api_contract::video::SelectSegmentVideoInput,
+    ) -> Result<a4n_api_contract::video::GeneratedVideoSummary, a4n_error::AppError> {
+        self.fallback
+            .select_segment(user_id, project_id, chapter_id, video_id, input)
+            .await
+    }
+
+    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError> {
+        self.fallback.delete(user_id, video_id).await
+    }
 }
 
 #[async_trait::async_trait]
