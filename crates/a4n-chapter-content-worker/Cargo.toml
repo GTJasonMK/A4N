@@ -5,7 +5,6 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-chapter-analysis = { path = "../a4n-chapter-analysis" }
 a4n-chapter-content-core = { path = "../a4n-chapter-content-core" }
 a4n-chapter-content-worker-contract = { path = "../a4n-chapter-content-worker-contract" }
 a4n-config = { path = "../a4n-config" }

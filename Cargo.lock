@@ -357,7 +357,6 @@ dependencies = [
 name = "a4n-chapter-content-worker"
 version = "0.1.0"
 dependencies = [
- "a4n-chapter-analysis",
  "a4n-chapter-content-core",
  "a4n-chapter-content-worker-contract",
  "a4n-config",
@@ -479,7 +478,6 @@ dependencies = [
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
- "a4n-error",
  "a4n-worker-client",
  "a4n-worker-contract",
  "anyhow",
@@ -1450,7 +1448,6 @@ dependencies = [
  "a4n-config",
  "a4n-db",
  "a4n-domain",
- "a4n-error",
  "a4n-manga-core",
  "a4n-manga-record-worker-contract",
  "a4n-worker-client",
@@ -1484,7 +1481,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-worker-contract",
- "serde",
 ]
 
 [[package]]
@@ -2986,7 +2982,6 @@ dependencies = [
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
- "a4n-error",
  "a4n-video",
  "a4n-video-record-worker-contract",
  "a4n-worker-client",
@@ -2995,7 +2990,6 @@ dependencies = [
  "axum 0.8.9",
  "sea-orm",
  "serde",
- "serde_json",
  "subtle",
  "tokio",
  "tracing-subscriber",
@@ -3131,7 +3125,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-worker-contract",
- "serde",
 ]
 
 [[package]]
