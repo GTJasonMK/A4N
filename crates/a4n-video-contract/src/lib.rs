@@ -4,9 +4,11 @@
 //! state. Implementations can evolve behind these serialized contracts.
 
 mod contracts;
+mod segment_plan_draft;
 mod segment_recipe;
 
 pub use contracts::*;
+pub use segment_plan_draft::*;
 pub use segment_recipe::*;
 
 use a4n_domain::{

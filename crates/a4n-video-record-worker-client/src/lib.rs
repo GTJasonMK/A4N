@@ -7,7 +7,8 @@ use a4n_api_contract::video::{
 };
 use a4n_error::AppError;
 use a4n_video_record_worker_contract::{
-    ChapterVideosInput, ReferenceImagesInput, VIDEO_PROMPT_LIST_OPERATION,
+    ChapterVideosInput, LoadVideoSegmentPlanDraftInput, ReferenceImagesInput,
+    VIDEO_PROMPT_DRAFT_LOAD_OPERATION, VIDEO_PROMPT_LIST_OPERATION,
     VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
     VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
@@ -157,6 +158,20 @@ impl VideoRecordWorkerClient {
             None,
             VIDEO_RECORD_UPDATE_OPERATION,
             VideoUpdateInput { video_id, input },
+        )
+        .await
+    }
+
+    pub async fn load_video_segment_plan_draft(
+        &self,
+        user_id: i64,
+        input: LoadVideoSegmentPlanDraftInput,
+    ) -> Result<a4n_api_contract::video::VideoSegmentPlanDraftSummary, AppError> {
+        self.command(
+            user_id,
+            Some(input.project_id),
+            VIDEO_PROMPT_DRAFT_LOAD_OPERATION,
+            input,
         )
         .await
     }

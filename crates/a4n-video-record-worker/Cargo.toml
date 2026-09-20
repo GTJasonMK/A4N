@@ -12,6 +12,8 @@ a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-video-record-worker-contract = { path = "../a4n-video-record-worker-contract" }
 a4n-video = { path = "../a4n-video" }
+a4n-video-contract = { path = "../a4n-video-contract" }
+a4n-workflow-core = { path = "../a4n-workflow-core" }
 a4n-worker-client = { path = "../a4n-worker-client" }
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 

@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use a4n_db::{video::VideoSegmentPlanDraftCheckpoint, workflow::WorkflowWriteError};
 use a4n_db_models::models::chapter::chapter_video_prompt;
@@ -169,102 +169,18 @@ pub(in crate::video) fn load_video_segment_plan_draft_recipe_state(
     ),
     AppError,
 > {
-    let mut groups = checkpoints
+    let checkpoints = checkpoints
         .iter()
-        .map(|checkpoint| {
-            let context = format!("片段规划 checkpoint {}", checkpoint.step_key);
-            let shot_index = checkpoint
-                .extra_json
-                .as_ref()
-                .and_then(|value| value.get("shot_index"))
-                .and_then(Value::as_u64)
-                .and_then(|value| usize::try_from(value).ok())
-                .filter(|value| *value > 0)
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "missing_shot_index".to_string(),
-                    operation: format!("读取{context}"),
-                })?;
-            let total_shots = checkpoint
-                .extra_json
-                .as_ref()
-                .and_then(|value| value.get("total_shots"))
-                .and_then(Value::as_u64)
-                .and_then(|value| usize::try_from(value).ok())
-                .filter(|value| *value > 0)
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "missing_total_shots".to_string(),
-                    operation: format!("读取{context}"),
-                })?;
-            let segments =
-                checkpoint_segment_plans(checkpoint.parsed_output_json.as_ref(), &context)?;
-            let recipes = checkpoint_recipes(
-                checkpoint.artifacts_json.as_ref(),
-                &segments,
-                style,
-                &context,
-            )?;
-            Ok((shot_index, total_shots, segments, recipes))
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
-    if groups.is_empty() {
-        return Err(AppError::InvalidState {
-            current: "missing_segment_plan_shot_checkpoint".to_string(),
-            operation: "读取片段规划草稿执行方案".to_string(),
-        });
-    }
-    let total_shot_count = groups[0].1;
-    if groups
-        .iter()
-        .any(|(_, total_shots, ..)| *total_shots != total_shot_count)
-    {
-        return Err(AppError::InvalidState {
-            current: "inconsistent_total_shots".to_string(),
-            operation: "读取片段规划草稿执行方案".to_string(),
-        });
-    }
-    if groups.len() > total_shot_count {
-        return Err(AppError::InvalidState {
-            current: format!(
-                "completed_shots_exceed_total:{}>{total_shot_count}",
-                groups.len()
-            ),
-            operation: "读取片段规划草稿执行方案".to_string(),
-        });
-    }
-    let mut seen_shot_indexes = BTreeSet::new();
-    for (shot_index, ..) in &groups {
-        if *shot_index > total_shot_count {
-            return Err(AppError::InvalidState {
-                current: format!("shot_index_exceeds_total:{shot_index}>{total_shot_count}"),
-                operation: "读取片段规划草稿执行方案".to_string(),
-            });
-        }
-        if !seen_shot_indexes.insert(*shot_index) {
-            return Err(AppError::InvalidState {
-                current: format!("duplicate_shot_index:{shot_index}"),
-                operation: "读取片段规划草稿执行方案".to_string(),
-            });
-        }
-    }
-    groups.sort_by_key(|(shot_index, ..)| *shot_index);
-
-    let mut next_segment_number = 1i32;
-    let mut segments = Vec::new();
-    let mut recipes = Vec::new();
-    for (_, _, group_segments, group_recipes) in groups {
-        for (mut segment, mut recipe) in group_segments.into_iter().zip(group_recipes) {
-            segment.segment_number = next_segment_number;
-            recipe.segment_number = next_segment_number;
-            next_segment_number = next_segment_number.checked_add(1).ok_or_else(|| {
-                AppError::InvalidArgument("片段规划 segment_number 超出 i32 范围".to_string())
-            })?;
-            segments.push(segment);
-            recipes.push(recipe);
-        }
-    }
-    validate_video_segment_recipes_for_plan(&recipes, &segments, style)
-        .map_err(AppError::InvalidArgument)?;
-    Ok((segments, recipes, checkpoints.len(), total_shot_count))
+        .map(
+            |checkpoint| a4n_video_contract::VideoSegmentPlanDraftCheckpoint {
+                step_key: checkpoint.step_key.clone(),
+                extra_json: checkpoint.extra_json.clone(),
+                parsed_output_json: checkpoint.parsed_output_json.clone(),
+                artifacts_json: checkpoint.artifacts_json.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
+    a4n_video_contract::load_video_segment_plan_draft_recipe_state(&checkpoints, style)
 }
 
 pub(in crate::video) fn video_segment_recipes_from_draft_for_final_plan(

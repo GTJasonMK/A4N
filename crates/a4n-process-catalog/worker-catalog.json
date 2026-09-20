@@ -544,7 +544,7 @@
     "default_addr": "127.0.0.1:47675",
     "local_only": true,
     "data_scope": ["generated_video", "generated_image", "chapter", "novel_project"],
-    "capabilities": ["video.record.read", "video.record.mutation", "video.prompt.read"],
+    "capabilities": ["video.record.read", "video.record.mutation", "video.prompt.read", "video.prompt.draft"],
     "dependencies": ["a4n-migration"],
     "migration": {
       "current": "video",

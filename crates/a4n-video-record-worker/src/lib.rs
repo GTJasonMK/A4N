@@ -7,12 +7,13 @@ use a4n_api_contract::video::{ChapterVideoPromptSummary, GeneratedVideoSummary};
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_video_record_worker_contract::{
-    ChapterVideosInput, ReferenceImagesInput, VIDEO_PROMPT_CAPABILITY, VIDEO_PROMPT_LIST_OPERATION,
-    VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_CAPABILITY, VIDEO_RECORD_LIST_OPERATION,
-    VIDEO_RECORD_MUTATION_CAPABILITY, VIDEO_RECORD_PLAYBACK_OPERATION,
+    ChapterVideosInput, LoadVideoSegmentPlanDraftInput, ReferenceImagesInput,
+    VIDEO_PROMPT_CAPABILITY, VIDEO_PROMPT_DRAFT_CAPABILITY, VIDEO_PROMPT_DRAFT_LOAD_OPERATION,
+    VIDEO_PROMPT_LIST_OPERATION, VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_CAPABILITY,
+    VIDEO_RECORD_LIST_OPERATION, VIDEO_RECORD_MUTATION_CAPABILITY, VIDEO_RECORD_PLAYBACK_OPERATION,
     VIDEO_RECORD_REFERENCE_IMAGES_OPERATION, VIDEO_RECORD_UPDATE_OPERATION,
-    VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
-    VideoUpdateInput,
+    VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput,
+    VideoSegmentPlanDraftSummary, VideoSourceInput, VideoUpdateInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -29,6 +30,7 @@ use axum::{
     routing::{get, post},
 };
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
+use serde_json::Value;
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_VIDEO_RECORD_WORKER_ADDR";
@@ -84,6 +86,10 @@ impl VideoRecordWorker {
                 post(validated_reference_images),
             )
             .route("/v1/commands/video.record.update", post(update_record))
+            .route(
+                "/v1/commands/video.prompt.draft.load",
+                post(load_video_segment_plan_draft),
+            )
             .route(
                 "/v1/commands/video.prompt.list_by_chapter",
                 post(list_prompts),
@@ -187,6 +193,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 version: VIDEO_RECORD_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
             },
+            WorkerCapability {
+                name: VIDEO_PROMPT_DRAFT_CAPABILITY.into(),
+                version: VIDEO_RECORD_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
         ],
     })
     .into_response()
@@ -236,6 +247,17 @@ async fn update_record(
     .await
 }
 
+async fn load_video_segment_plan_draft(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<LoadVideoSegmentPlanDraftInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.load_video_segment_plan_draft(request)
+    })
+    .await
+}
+
 async fn list_prompts(
     State(state): State<WorkerState>,
     headers: HeaderMap,
@@ -281,6 +303,104 @@ where
 }
 
 impl WorkerState {
+    async fn load_video_segment_plan_draft(
+        &self,
+        request: WorkerEnvelope<LoadVideoSegmentPlanDraftInput>,
+    ) -> Result<VideoSegmentPlanDraftSummary, WorkerFailure> {
+        validate_request(&request, VIDEO_PROMPT_DRAFT_LOAD_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        positive(input.project_id, "project_id")?;
+        positive(input.chapter_id, "chapter_id")?;
+        positive(input.workflow_run_id, "workflow_run_id")?;
+        verify_project_permission(
+            &self.database,
+            input.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let run = a4n_db::workflow::workflow_run_summary_by_id(
+            self.database.connection(),
+            input.workflow_run_id,
+        )
+        .await
+        .map_err(workflow_error)?;
+        if run.workflow_kind != "video_segment_plan"
+            || run.project_id != Some(input.project_id)
+            || run.chapter_id != Some(input.chapter_id)
+            || run.mode.as_deref()
+                != Some(a4n_db_models::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+        {
+            return Err(WorkerFailure::invalid_request(format!(
+                "片段规划 workflow {} 与当前项目或章节不一致",
+                input.workflow_run_id
+            )));
+        }
+        if !a4n_db::workflow::workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
+            return Err(WorkerFailure::conflict(format!(
+                "{}:加载片段规划草稿执行方案",
+                run.status
+            )));
+        }
+        let fingerprint = run
+            .input_fingerprint_json
+            .as_ref()
+            .and_then(Value::as_object)
+            .ok_or_else(|| WorkerFailure::conflict("缺少片段规划 workflow 输入指纹"))?;
+        if fingerprint.get("schema_version").and_then(Value::as_i64) != Some(1)
+            || fingerprint.get("workflow_kind").and_then(Value::as_str)
+                != Some("video_segment_plan")
+            || fingerprint.get("project_id").and_then(Value::as_i64) != Some(input.project_id)
+            || fingerprint.get("chapter_id").and_then(Value::as_i64) != Some(input.chapter_id)
+            || fingerprint.get("workflow_mode").and_then(Value::as_str)
+                != Some(
+                    a4n_db_models::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+                )
+        {
+            return Err(WorkerFailure::conflict("片段规划 workflow 输入指纹无效"));
+        }
+        let style = fingerprint
+            .get("options")
+            .and_then(Value::as_object)
+            .and_then(|options| options.get("style"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|style| !style.is_empty())
+            .ok_or_else(|| WorkerFailure::conflict("片段规划 workflow 缺少 style"))?;
+        let checkpoints = a4n_db::video::video_segment_plan_draft_checkpoints(
+            self.database.connection(),
+            run.id,
+            "video_segment_plan.shot.",
+        )
+        .await
+        .map_err(video_error)?
+        .into_iter()
+        .map(
+            |checkpoint| a4n_video_contract::VideoSegmentPlanDraftCheckpoint {
+                step_key: checkpoint.step_key,
+                extra_json: checkpoint.extra_json,
+                parsed_output_json: checkpoint.parsed_output_json,
+                artifacts_json: checkpoint.artifacts_json,
+            },
+        )
+        .collect::<Vec<_>>();
+        let (segments, recipes, completed_shot_count, total_shot_count) = if checkpoints.is_empty()
+        {
+            (Vec::new(), Vec::new(), 0, 0)
+        } else {
+            a4n_video_contract::load_video_segment_plan_draft_recipe_state(&checkpoints, style)
+                .map_err(worker_app_error)?
+        };
+        Ok(VideoSegmentPlanDraftSummary {
+            run: a4n_workflow_core::workflow_run_summary_to_api(run),
+            segments,
+            recipes,
+            completed_shot_count,
+            total_shot_count,
+        })
+    }
+
     async fn update_record(
         &self,
         request: WorkerEnvelope<VideoUpdateInput>,
@@ -745,6 +865,29 @@ async fn validate_video_source(
 
 fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
+}
+
+fn worker_app_error(error: a4n_error::AppError) -> WorkerFailure {
+    match error {
+        a4n_error::AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        a4n_error::AppError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
+        a4n_error::AppError::NotFound(message) => WorkerFailure::not_found(message),
+        a4n_error::AppError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        other => WorkerFailure::unavailable(other.to_string()),
+    }
+}
+
+fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
+    match error {
+        a4n_db::workflow::WorkflowReadError::InvalidArgument(message)
+        | a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
+        a4n_db::workflow::WorkflowReadError::Database(error) => database_error(error),
+    }
 }
 
 fn video_error(error: a4n_db::video::VideoDbError) -> WorkerFailure {

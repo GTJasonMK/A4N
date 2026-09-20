@@ -97,6 +97,12 @@ pub async fn initialize_runtime(
         worker: video_record_worker.clone(),
         fallback: orchestrator.clone(),
     });
+    let video_prompt_draft_application: Arc<
+        dyn a4n_api_contract::video::VideoPromptDraftApplicationPort,
+    > = Arc::new(VideoPromptDraftAdapter {
+        worker: video_record_worker.clone(),
+        fallback: orchestrator.clone(),
+    });
     let manga_record_worker =
         Arc::new(a4n_manga_record_worker_client::MangaRecordWorkerClient::from_env());
     let theme_read_worker =
@@ -301,7 +307,7 @@ pub async fn initialize_runtime(
         video_prompt_read_application: video_record_worker.clone(),
         video_prompt_mutation_application: orchestrator.clone(),
         video_prompt_timeline_application: orchestrator.clone(),
-        video_prompt_draft_application: orchestrator.clone(),
+        video_prompt_draft_application,
         image_record_read_application: orchestrator.clone(),
         image_reference_read_application,
         image_library_read_application,
@@ -401,6 +407,34 @@ impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecord
 
     async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError> {
         self.fallback.delete(user_id, video_id).await
+    }
+}
+
+struct VideoPromptDraftAdapter {
+    worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
+    fallback: Arc<dyn a4n_api_contract::video::VideoPromptDraftApplicationPort>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::video::VideoPromptDraftApplicationPort for VideoPromptDraftAdapter {
+    async fn load_video_segment_plan_draft(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::video::LoadVideoSegmentPlanDraftInput,
+    ) -> Result<a4n_api_contract::video::VideoSegmentPlanDraftSummary, a4n_error::AppError> {
+        self.worker
+            .load_video_segment_plan_draft(user_id, input)
+            .await
+    }
+
+    async fn update_video_segment_plan_draft_recipe(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::video::UpdateVideoSegmentPlanDraftRecipeInput,
+    ) -> Result<(), a4n_error::AppError> {
+        self.fallback
+            .update_video_segment_plan_draft_recipe(user_id, input)
+            .await
     }
 }
 

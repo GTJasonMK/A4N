@@ -711,7 +711,8 @@ mod tests {
             vec![
                 "video.record.read".to_string(),
                 "video.record.mutation".to_string(),
-                "video.prompt.read".to_string()
+                "video.prompt.read".to_string(),
+                "video.prompt.draft".to_string()
             ]
         );
         let manga_record = entries
