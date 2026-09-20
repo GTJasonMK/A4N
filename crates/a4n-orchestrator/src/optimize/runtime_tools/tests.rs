@@ -146,4 +146,5 @@ fn edit_tool_returns_validated_proposal() {
     assert_eq!(result["tool"], EDIT_ARTICLE_TOOL);
     assert_eq!(result["mode"], "pending_confirmation");
     assert_eq!(result["patch_count"], 1);
+    assert_eq!(result["session_id"], 1);
 }

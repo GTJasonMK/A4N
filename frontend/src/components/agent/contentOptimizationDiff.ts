@@ -3,6 +3,9 @@ import type { OptimizationPatch } from "../../api/generated/host";
 
 export interface PendingContentDiff {
   chapterId: number;
+  sessionId: number | null;
+  patchSetId: number | null;
+  baseContentHash: string | null;
   summary: string;
   patches: OptimizationPatch[];
   proposalExecutionId: string;
@@ -76,6 +79,9 @@ function pendingDiffFromMessage(
   const proposalExecutionId =
     stringValue(execution?.id) ?? stringValue(metadata?.execution_id);
   const chapterId = positiveNumber(data.chapter_id);
+  const sessionId = positiveNumber(data.session_id);
+  const patchSetId = positiveNumber(data.patch_set_id);
+  const baseContentHash = stringValue(data.base_content_hash);
   const summary = stringValue(data.summary);
   const patches = patchesValue(data.patches);
   if (!proposalExecutionId || !chapterId || !summary || !patches) {
@@ -83,6 +89,9 @@ function pendingDiffFromMessage(
   }
   return {
     chapterId,
+    sessionId,
+    patchSetId,
+    baseContentHash,
     summary,
     patches,
     proposalExecutionId,

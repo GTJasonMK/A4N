@@ -130,6 +130,7 @@ pub(in crate::optimize) fn execute_edit_article(
         "mode": "pending_confirmation",
         "requires_user_confirmation": true,
         "chapter_id": chapter_id,
+        "session_id": session_id,
         "base_content_hash": proposal.base_content_hash,
         "patch_count": proposal.patches.len(),
         "summary": proposal.summary,

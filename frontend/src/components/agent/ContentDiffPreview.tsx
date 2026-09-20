@@ -1,19 +1,41 @@
-import { Clock3, ShieldCheck } from "lucide-react";
+import { Check, Clock3, ShieldCheck, X } from "lucide-react";
 import { useI18n } from "../../i18n";
+import { BookButton } from "../ui/BookButton";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
 import {
   buildContentDiffSegments,
   type ContentDiffSegment,
   type PendingContentDiff,
 } from "./contentOptimizationDiff";
 
+export type ContentDiffAction = "apply" | "reject";
+
 interface ContentDiffPreviewProps {
   content: string;
   diff: PendingContentDiff;
+  canEdit: boolean;
+  action: ContentDiffAction | null;
+  onApply: () => void | Promise<void>;
+  onReject: () => void | Promise<void>;
 }
 
-export function ContentDiffPreview({ content, diff }: ContentDiffPreviewProps) {
+export function ContentDiffPreview({
+  content,
+  diff,
+  canEdit,
+  action,
+  onApply,
+  onReject,
+}: ContentDiffPreviewProps) {
   const { locale, t } = useI18n();
   const segments = buildContentDiffSegments(content, diff.patches);
+  const actionBusy = action !== null;
+  const canResolve =
+    canEdit &&
+    segments !== null &&
+    diff.sessionId !== null &&
+    diff.patchSetId !== null &&
+    diff.baseContentHash !== null;
   const operationLabel = (operation: PendingContentDiff["patches"][number]["operation"]) => {
     if (locale === "zh-CN") {
       return {
@@ -99,6 +121,48 @@ export function ContentDiffPreview({ content, diff }: ContentDiffPreviewProps) {
           </ol>
         </details>
       </div>
+
+      <footer className="content-diff-preview__actions shrink-0 border-t border-warning/25 bg-book-bg-paper/80 px-3 py-2.5 sm:px-4">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 flex-1 text-caption leading-relaxed text-book-text-muted">
+            {canResolve
+              ? t("agent.domain.diffReviewHint")
+              : t("agent.domain.diffActionUnavailable")}
+          </p>
+          <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5 sm:flex-none">
+            <BookButton
+              size="sm"
+              variant="secondary"
+              className="min-w-0 flex-1 sm:flex-none"
+              onClick={() => void onApply()}
+              disabled={!canResolve || actionBusy}
+              aria-busy={action === "apply"}
+            >
+              {action === "apply" ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <Check size={13} aria-hidden="true" />
+              )}
+              {t("agent.domain.diffApply")}
+            </BookButton>
+            <BookButton
+              size="sm"
+              variant="danger"
+              className="min-w-0 flex-1 sm:flex-none"
+              onClick={() => void onReject()}
+              disabled={!canResolve || actionBusy}
+              aria-busy={action === "reject"}
+            >
+              {action === "reject" ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <X size={13} aria-hidden="true" />
+              )}
+              {t("agent.domain.diffReject")}
+            </BookButton>
+          </div>
+        </div>
+      </footer>
     </section>
   );
 }

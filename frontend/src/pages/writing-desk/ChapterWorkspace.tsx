@@ -3,7 +3,10 @@ import { AlertTriangle, CheckCircle2, CircleDot, Settings } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
-import { ContentDiffPreview } from "../../components/agent/ContentDiffPreview";
+import {
+  ContentDiffPreview,
+  type ContentDiffAction,
+} from "../../components/agent/ContentDiffPreview";
 import type { PendingContentDiff } from "../../components/agent/contentOptimizationDiff";
 import {
   getChapterSyncFailurePresentation,
@@ -66,6 +69,9 @@ interface ChapterWorkspaceProps {
   onResumeDerivedSync: () => void | Promise<void>;
   onOpenEmbeddingSettings: () => void | Promise<void>;
   pendingContentDiff: PendingContentDiff | null;
+  contentDiffAction: ContentDiffAction | null;
+  onApplyContentDiff: () => void | Promise<void>;
+  onRejectContentDiff: () => void | Promise<void>;
   canEdit: boolean;
 }
 
@@ -115,6 +121,9 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   onResumeDerivedSync,
   onOpenEmbeddingSettings,
   pendingContentDiff,
+  contentDiffAction,
+  onApplyContentDiff,
+  onRejectContentDiff,
   canEdit,
 }) => {
   const { locale, t } = useI18n();
@@ -350,7 +359,14 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
           >
             {bottomTab === "content" && (
               pendingContentDiff ? (
-                <ContentDiffPreview content={editorContent} diff={pendingContentDiff} />
+                <ContentDiffPreview
+                  content={editorContent}
+                  diff={pendingContentDiff}
+                  canEdit={canEdit}
+                  action={contentDiffAction}
+                  onApply={onApplyContentDiff}
+                  onReject={onRejectContentDiff}
+                />
               ) : (
                 <textarea
                   ref={editorRef}

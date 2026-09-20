@@ -29,6 +29,11 @@ import {
   type ChapterSummary,
 } from "../api/chapter";
 import {
+  applyOptimizationPatches,
+  discardPendingOptimizationPatchSets,
+  listOptimizationPatchSets,
+} from "../api/optimization";
+import {
   isDerivedChapterOutline,
   listChapterOutlines,
   type ChapterOutline,
@@ -70,6 +75,7 @@ import { useChapterStreamGeneration } from "./writing-desk/useChapterStreamGener
 import { useWritingDeskDrafts } from "./writing-desk/useWritingDeskDrafts";
 import { useWritingDeskChapterDerivedState } from "./writing-desk/useWritingDeskChapterDerivedState";
 import { formatNumber, useI18n } from "../i18n";
+import type { ContentDiffAction } from "../components/agent/ContentDiffPreview";
 import type { PendingContentDiff } from "../components/agent/contentOptimizationDiff";
 
 const RagQueryPanel = lazy(() =>
@@ -171,6 +177,7 @@ export const WritingDesk: React.FC = () => {
   );
   const [savingContent, setSavingContent] = useState(false);
   const [pendingContentDiff, setPendingContentDiff] = useState<PendingContentDiff | null>(null);
+  const [contentDiffAction, setContentDiffAction] = useState<ContentDiffAction | null>(null);
   const [resetGeneratedDataBusy, setResetGeneratedDataBusy] = useState(false);
   const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
@@ -214,6 +221,8 @@ export const WritingDesk: React.FC = () => {
     promise: Promise<ChapterSummary[] | null>;
   } | null>(null);
   const saveContentBusyRef = useRef(false);
+  const contentDiffActionRef = useRef(false);
+  const resolvedContentDiffPatchSetsRef = useRef(new Set<number>());
   const resetGeneratedDataBusyRef = useRef(false);
   const derivedSyncBusyRef = useRef(false);
   const smartBack = useSmartBack("/");
@@ -263,6 +272,58 @@ export const WritingDesk: React.FC = () => {
       setPendingContentDiff(null);
     }
   }, [activeChapter?.id, pendingContentDiff]);
+
+  const pendingContentDiffKey = pendingContentDiff
+    ? `${pendingContentDiff.sessionId ?? "missing"}:${pendingContentDiff.patchSetId ?? "missing"}`
+    : null;
+
+  const handlePendingContentDiffChange = useCallback(
+    (diff: PendingContentDiff | null) => {
+      if (
+        diff?.patchSetId != null &&
+        resolvedContentDiffPatchSetsRef.current.has(diff.patchSetId)
+      ) {
+        setPendingContentDiff(null);
+        return;
+      }
+      setPendingContentDiff(diff);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const diff = pendingContentDiff;
+    if (
+      !diff ||
+      diff.sessionId == null ||
+      diff.patchSetId == null ||
+      resolvedContentDiffPatchSetsRef.current.has(diff.patchSetId)
+    ) {
+      return;
+    }
+    const sessionId = diff.sessionId;
+    const patchSetId = diff.patchSetId;
+    let cancelled = false;
+    void listOptimizationPatchSets({ session_id: sessionId })
+      .then((patchSets) => {
+        if (cancelled) return;
+        const patchSet = patchSets.find((item) => item.id === patchSetId);
+        if (patchSet && patchSet.status !== "pending") {
+          resolvedContentDiffPatchSetsRef.current.add(patchSetId);
+          setPendingContentDiff(null);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        addToast(
+          extractErrorMessage(error, t("agent.domain.diffStatusCheckFailed")),
+          "error",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [addToast, pendingContentDiffKey, t]);
   const activeChapterIndex = useMemo(
     () => (activeNumber == null ? -1 : chapterNumbers.indexOf(activeNumber)),
     [activeNumber, chapterNumbers],
@@ -788,6 +849,93 @@ export const WritingDesk: React.FC = () => {
     ],
   );
 
+  const handleApplyContentDiff = useCallback(async () => {
+    const diff = pendingContentDiff;
+    if (
+      !diff ||
+      diff.sessionId == null ||
+      diff.patchSetId == null ||
+      diff.baseContentHash == null ||
+      contentDiffActionRef.current
+    ) {
+      return;
+    }
+    const confirmed = await confirmDialog({
+      title: t("agent.domain.diffApplyTitle"),
+      message: t("agent.domain.diffApplyMessage"),
+      confirmText: t("agent.domain.diffApply"),
+      cancelText: t("common.cancel"),
+      dialogType: "warning",
+    });
+    if (!confirmed || contentDiffActionRef.current) return;
+
+    contentDiffActionRef.current = true;
+    setContentDiffAction("apply");
+    try {
+      await applyOptimizationPatches({
+        session_id: diff.sessionId,
+        base_content_hash: diff.baseContentHash,
+        patches: diff.patches,
+      });
+      resolvedContentDiffPatchSetsRef.current.add(diff.patchSetId);
+      setPendingContentDiff(null);
+      try {
+        await handleOptimizedChapterContentChanged(diff.chapterId);
+        addToast(t("agent.domain.diffApplied"), "success");
+      } catch (error) {
+        addToast(
+          extractErrorMessage(error, t("agent.domain.resourceRefreshFailed")),
+          "error",
+        );
+      }
+    } catch (error) {
+      addToast(
+        extractErrorMessage(error, t("agent.domain.diffApplyFailed")),
+        "error",
+      );
+    } finally {
+      contentDiffActionRef.current = false;
+      setContentDiffAction(null);
+    }
+  }, [addToast, handleOptimizedChapterContentChanged, pendingContentDiff, t]);
+
+  const handleRejectContentDiff = useCallback(async () => {
+    const diff = pendingContentDiff;
+    if (
+      !diff ||
+      diff.sessionId == null ||
+      diff.patchSetId == null ||
+      contentDiffActionRef.current
+    ) {
+      return;
+    }
+    const confirmed = await confirmDialog({
+      title: t("agent.domain.diffRejectTitle"),
+      message: t("agent.domain.diffRejectMessage"),
+      confirmText: t("agent.domain.diffReject"),
+      cancelText: t("common.cancel"),
+      dialogType: "danger",
+    });
+    if (!confirmed || contentDiffActionRef.current) return;
+
+    contentDiffActionRef.current = true;
+    setContentDiffAction("reject");
+    try {
+      await discardPendingOptimizationPatchSets({ session_id: diff.sessionId });
+      resolvedContentDiffPatchSetsRef.current.add(diff.patchSetId);
+      setPendingContentDiff(null);
+      addToast(t("agent.domain.diffRejected"), "success");
+    } catch (error) {
+      addToast(
+        extractErrorMessage(error, t("agent.domain.diffRejectFailed")),
+        "error",
+      );
+    } finally {
+      contentDiffActionRef.current = false;
+      setContentDiffAction(null);
+    }
+  }, [addToast, pendingContentDiff, t]);
+
   const handleResetGeneratedData = async () => {
     if (resetGeneratedDataBusyRef.current) {
       addToast(t("writing.resettingProjectData"), "error");
@@ -1037,7 +1185,7 @@ export const WritingDesk: React.FC = () => {
     onPreviewPrompt: handlePreviewPrompt,
     onOpenScenes: handleOpenScenes,
     onChapterContentChanged: handleOptimizedChapterContentChanged,
-    onPendingContentDiffChange: setPendingContentDiff,
+    onPendingContentDiffChange: handlePendingContentDiffChange,
   };
 
   return (
@@ -1137,6 +1285,9 @@ export const WritingDesk: React.FC = () => {
               ? pendingContentDiff
               : null
           }
+          contentDiffAction={contentDiffAction}
+          onApplyContentDiff={handleApplyContentDiff}
+          onRejectContentDiff={handleRejectContentDiff}
           onGenerateAnalysis={handleGenerateAnalysis}
           onPreviewGenerateAnalysis={handlePreviewAnalysisRequest}
           onResumeAnalysisSync={handleResumeAnalysisSync}
