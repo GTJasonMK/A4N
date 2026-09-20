@@ -3,7 +3,6 @@ import type { OptimizationPatch } from "../../api/generated/host";
 
 export interface PendingContentDiff {
   chapterId: number;
-  baseContentHash: string;
   summary: string;
   patches: OptimizationPatch[];
   proposalExecutionId: string;
@@ -77,15 +76,13 @@ function pendingDiffFromMessage(
   const proposalExecutionId =
     stringValue(execution?.id) ?? stringValue(metadata?.execution_id);
   const chapterId = positiveNumber(data.chapter_id);
-  const baseContentHash = stringValue(data.base_content_hash);
   const summary = stringValue(data.summary);
   const patches = patchesValue(data.patches);
-  if (!proposalExecutionId || !chapterId || !baseContentHash || !summary || !patches) {
+  if (!proposalExecutionId || !chapterId || !summary || !patches) {
     return null;
   }
   return {
     chapterId,
-    baseContentHash,
     summary,
     patches,
     proposalExecutionId,

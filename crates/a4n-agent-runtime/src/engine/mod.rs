@@ -1048,22 +1048,24 @@ async fn process_claimed_run_inner(
         .collect::<Result<Vec<_>, _>>()?;
     for calls in history::pending_tool_batches(&current_messages)? {
         if execute_tool_calls(
-            state,
-            claimed,
-            &context,
-            &executor,
+            ToolBatchContext {
+                state,
+                claimed,
+                context: &context,
+                executor: &executor,
+                budget: &budget,
+                prepared_calls: &mut prepared_calls,
+                discovery_cache: &discovery_cache,
+                retry_counts: &retry_counts,
+                discovered_tools: &mut discovered_tools,
+                messages: &mut messages,
+                usage: &mut usage,
+                tool_calls: &mut tool_calls,
+                steps,
+                model_calls,
+                tokens,
+            },
             calls,
-            &budget,
-            &mut prepared_calls,
-            &discovery_cache,
-            &retry_counts,
-            &mut discovered_tools,
-            &mut messages,
-            &mut usage,
-            &mut tool_calls,
-            steps,
-            model_calls,
-            tokens,
         )
         .await?
             == RunProgress::Released
@@ -1151,10 +1153,12 @@ async fn process_claimed_run_inner(
                         state,
                         claimed,
                         &mut usage,
-                        steps,
-                        model_calls,
-                        tool_calls,
-                        tokens,
+                        UsageCounters {
+                            steps,
+                            model_calls,
+                            tool_calls,
+                            tokens,
+                        },
                         &error,
                     )
                     .await?;
@@ -1400,10 +1404,12 @@ async fn process_claimed_run_inner(
                             state,
                             claimed,
                             &mut usage,
-                            steps,
-                            model_calls,
-                            tool_calls,
-                            tokens,
+                            UsageCounters {
+                                steps,
+                                model_calls,
+                                tool_calls,
+                                tokens,
+                            },
                             &error,
                         )
                         .await?;
@@ -1426,10 +1432,12 @@ async fn process_claimed_run_inner(
                         state,
                         claimed,
                         &mut usage,
-                        steps,
-                        model_calls,
-                        tool_calls,
-                        tokens,
+                        UsageCounters {
+                            steps,
+                            model_calls,
+                            tool_calls,
+                            tokens,
+                        },
                         &error,
                     )
                     .await?;
@@ -1534,22 +1542,24 @@ async fn process_claimed_run_inner(
         }
         messages.push(assistant);
         if execute_tool_calls(
-            state,
-            claimed,
-            &context,
-            &executor,
+            ToolBatchContext {
+                state,
+                claimed,
+                context: &context,
+                executor: &executor,
+                budget: &budget,
+                prepared_calls: &mut prepared_calls,
+                discovery_cache: &discovery_cache,
+                retry_counts: &retry_counts,
+                discovered_tools: &mut discovered_tools,
+                messages: &mut messages,
+                usage: &mut usage,
+                tool_calls: &mut tool_calls,
+                steps,
+                model_calls,
+                tokens,
+            },
             calls,
-            &budget,
-            &mut prepared_calls,
-            &discovery_cache,
-            &retry_counts,
-            &mut discovered_tools,
-            &mut messages,
-            &mut usage,
-            &mut tool_calls,
-            steps,
-            model_calls,
-            tokens,
         )
         .await?
             == RunProgress::Released
@@ -1893,26 +1903,43 @@ fn should_flush_stream_projection(
 /// Executes independent read-only calls with bounded concurrency while keeping
 /// write/delegation calls ordered. Every call still goes through the durable
 /// execution record and the same lease/approval checks.
-async fn execute_tool_calls(
-    state: &AgentRuntimeState,
-    claimed: &AgentWorkerRun,
-    context: &AgentRunContext,
-    executor: &RuntimeAgentToolExecutor,
-    calls: Vec<ToolCall>,
-    budget: &AgentBudget,
-    prepared_calls: &mut HashSet<String>,
-    discovery_cache: &Arc<Mutex<HashMap<String, Value>>>,
-    retry_counts: &Arc<Mutex<HashMap<String, u8>>>,
-    discovered_tools: &mut Vec<String>,
-    messages: &mut Vec<ChatMessage>,
-    usage: &mut Value,
-    tool_calls: &mut u32,
+struct ToolBatchContext<'a> {
+    state: &'a AgentRuntimeState,
+    claimed: &'a AgentWorkerRun,
+    context: &'a AgentRunContext,
+    executor: &'a RuntimeAgentToolExecutor,
+    budget: &'a AgentBudget,
+    prepared_calls: &'a mut HashSet<String>,
+    discovery_cache: &'a Arc<Mutex<HashMap<String, Value>>>,
+    retry_counts: &'a Arc<Mutex<HashMap<String, u8>>>,
+    discovered_tools: &'a mut Vec<String>,
+    messages: &'a mut Vec<ChatMessage>,
+    usage: &'a mut Value,
+    tool_calls: &'a mut u32,
     steps: u32,
     model_calls: u32,
     tokens: u64,
+}
+
+struct ToolCallContext<'a> {
+    state: &'a AgentRuntimeState,
+    execution_application: &'a dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
+    claimed: &'a AgentWorkerRun,
+    context: &'a AgentRunContext,
+    executor: &'a RuntimeAgentToolExecutor,
+    discovery_cache: Arc<Mutex<HashMap<String, Value>>>,
+    retry_counts: Arc<Mutex<HashMap<String, u8>>>,
+    phase: &'static str,
+}
+
+async fn execute_tool_calls(
+    batch_context: ToolBatchContext<'_>,
+    calls: Vec<ToolCall>,
 ) -> Result<RunProgress, AppError> {
-    let execution_application = state.worker_execution_application(claimed);
-    let parallelism = usize::from(budget.max_parallel_tools.unwrap_or(1).max(1));
+    let execution_application = batch_context
+        .state
+        .worker_execution_application(batch_context.claimed);
+    let parallelism = usize::from(batch_context.budget.max_parallel_tools.unwrap_or(1).max(1));
     let mut index = 0;
     while index < calls.len() {
         let is_read = tool_descriptor(&calls[index].name)?.effect == "read"
@@ -1942,62 +1969,68 @@ async fn execute_tool_calls(
         let mut batch = Vec::new();
         while index < end {
             let call = &calls[index];
-            usage["phase"] = json!(a4n_api_contract::agent::agent_phase_for_tool(&call.name));
-            usage["phase_revision"] = json!(json_u64(usage, "phase_revision")?.saturating_add(1));
+            batch_context.usage["phase"] =
+                json!(a4n_api_contract::agent::agent_phase_for_tool(&call.name));
+            batch_context.usage["phase_revision"] =
+                json!(json_u64(batch_context.usage, "phase_revision")?.saturating_add(1));
             // Preparing is the durable reservation. A restart reconstructs the
             // count from these records, including calls awaiting approval.
             // The shared DB admission also allows waits while tokens are reserved.
-            let Some(execution) = prepare_tool_call(&execution_application, claimed, call).await?
+            let Some(execution) =
+                prepare_tool_call(&execution_application, batch_context.claimed, call).await?
             else {
                 break;
             };
-            if prepared_calls.insert(call.id.clone()) {
-                *tool_calls = tool_calls.saturating_add(1);
+            if batch_context.prepared_calls.insert(call.id.clone()) {
+                *batch_context.tool_calls = (*batch_context.tool_calls).saturating_add(1);
             }
             batch.push((call.clone(), execution));
             index += 1;
         }
         persist_usage(
-            state,
-            claimed,
-            usage,
-            steps,
-            model_calls,
-            *tool_calls,
-            tokens,
+            batch_context.state,
+            batch_context.claimed,
+            batch_context.usage,
+            batch_context.steps,
+            batch_context.model_calls,
+            *batch_context.tool_calls,
+            batch_context.tokens,
         )
         .await?;
         if batch.is_empty() {
-            state.wait_agent_worker_run(claimed, "budget").await?;
+            batch_context
+                .state
+                .wait_agent_worker_run(batch_context.claimed, "budget")
+                .await?;
             return Ok(RunProgress::Released);
         }
         let futures = batch.into_iter().map(|(call, execution)| {
-            let discovery_cache = Arc::clone(discovery_cache);
-            let retry_counts = Arc::clone(retry_counts);
-            let phase = a4n_api_contract::agent::agent_phase_for_tool(&call.name);
+            let execution_context = ToolCallContext {
+                state: batch_context.state,
+                execution_application: &execution_application,
+                claimed: batch_context.claimed,
+                context: batch_context.context,
+                executor: batch_context.executor,
+                discovery_cache: Arc::clone(batch_context.discovery_cache),
+                retry_counts: Arc::clone(batch_context.retry_counts),
+                phase: a4n_api_contract::agent::agent_phase_for_tool(&call.name),
+            };
             Box::pin(async move {
                 let mut local_messages = Vec::new();
-                let (progress, names) = execute_tool_call(
-                    state,
-                    &execution_application,
-                    claimed,
-                    context,
-                    executor,
-                    call,
-                    execution,
-                    discovery_cache,
-                    retry_counts,
-                    phase,
-                    &mut local_messages,
-                )
-                .await?;
+                let (progress, names) =
+                    execute_tool_call(execution_context, call, execution, &mut local_messages)
+                        .await?;
                 Ok::<_, AppError>((progress, names, local_messages))
             })
         });
         for result in futures::future::join_all(futures).await {
             let (progress, names, local_messages) = result?;
-            extend_discovered_tools(discovered_tools, names, &context.scope)?;
-            messages.extend(local_messages);
+            extend_discovered_tools(
+                batch_context.discovered_tools,
+                names,
+                &batch_context.context.scope,
+            )?;
+            batch_context.messages.extend(local_messages);
             if progress == RunProgress::Released {
                 return Ok(RunProgress::Released);
             }
@@ -2117,18 +2150,21 @@ fn inbox_message_id(row: &AgentInboxSnapshot) -> Result<Option<i64>, AppError> {
 }
 
 async fn execute_tool_call(
-    state: &AgentRuntimeState,
-    execution_application: &dyn a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort,
-    claimed: &AgentWorkerRun,
-    context: &AgentRunContext,
-    executor: &RuntimeAgentToolExecutor,
+    execution_context: ToolCallContext<'_>,
     call: ToolCall,
     execution: AgentExecutionSnapshot,
-    discovery_cache: Arc<Mutex<HashMap<String, Value>>>,
-    retry_counts: Arc<Mutex<HashMap<String, u8>>>,
-    phase: &'static str,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
+    let ToolCallContext {
+        state,
+        execution_application,
+        claimed,
+        context,
+        executor,
+        discovery_cache,
+        retry_counts,
+        phase,
+    } = execution_context;
     let message_application = state.worker_message_application(claimed);
     let descriptor = match tool_descriptor(&call.name) {
         Ok(descriptor) => descriptor,
@@ -2857,14 +2893,19 @@ async fn persist_usage(
     Ok(())
 }
 
-async fn record_provider_failure(
-    state: &AgentRuntimeState,
-    claimed: &AgentWorkerRun,
-    usage: &mut Value,
+#[derive(Clone, Copy)]
+struct UsageCounters {
     steps: u32,
     model_calls: u32,
     tool_calls: u32,
     tokens: u64,
+}
+
+async fn record_provider_failure(
+    state: &AgentRuntimeState,
+    claimed: &AgentWorkerRun,
+    usage: &mut Value,
+    counters: UsageCounters,
     error: &AppError,
 ) -> Result<(), AppError> {
     if let Some(class) = a4n_agent_runtime_contract::provider_failure_class(error) {
@@ -2873,10 +2914,10 @@ async fn record_provider_failure(
             state,
             claimed,
             usage,
-            steps,
-            model_calls,
-            tool_calls,
-            tokens,
+            counters.steps,
+            counters.model_calls,
+            counters.tool_calls,
+            counters.tokens,
         )
         .await?;
     }

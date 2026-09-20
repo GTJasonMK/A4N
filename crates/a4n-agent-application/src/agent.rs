@@ -85,6 +85,27 @@ use std::collections::HashSet;
 use a4n_db::collaboration::ProjectAccessRole;
 
 const SNAPSHOT_LIMIT: u64 = 1_000;
+
+struct RunLeaseFields<'a> {
+    run_id: i64,
+    thread_id: i64,
+    turn_id: i64,
+    lease_token: &'a str,
+}
+
+struct ApprovalRunFields<'a> {
+    run_id: i64,
+    thread_id: i64,
+    lease_token: &'a str,
+}
+
+struct UserEventFields {
+    thread_id: i64,
+    turn_id: Option<i64>,
+    run_id: Option<i64>,
+    message_id: Option<i64>,
+}
+
 mod approval_expiry;
 mod budget;
 mod editor_claim;
@@ -854,10 +875,12 @@ impl AgentApplication {
             };
             self.append_user_event(
                 user_id,
-                thread_id,
-                Some(active.turn_id),
-                Some(active.id),
-                Some(message.id),
+                UserEventFields {
+                    thread_id,
+                    turn_id: Some(active.turn_id),
+                    run_id: Some(active.id),
+                    message_id: Some(message.id),
+                },
                 "message_queued",
                 "queued",
                 "用户消息已加入 Agent inbox",
@@ -921,10 +944,12 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)?;
         self.append_user_event(
             user_id,
-            thread_id,
-            Some(turn.id),
-            Some(run.id),
-            Some(message.id),
+            UserEventFields {
+                thread_id,
+                turn_id: Some(turn.id),
+                run_id: Some(run.id),
+                message_id: Some(message.id),
+            },
             "run_queued",
             "queued",
             "Agent run 已排队",
@@ -1246,10 +1271,12 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)?;
         self.append_user_event(
             user_id,
-            parent_thread.id,
-            Some(parent_run.turn_id),
-            Some(parent_run.id),
-            None,
+            UserEventFields {
+                thread_id: parent_thread.id,
+                turn_id: Some(parent_run.turn_id),
+                run_id: Some(parent_run.id),
+                message_id: None,
+            },
             "delegation_started",
             "running",
             "用户已创建 Agent child delegation",
@@ -1433,10 +1460,12 @@ impl AgentApplication {
         };
         self.append_user_event(
             user_id,
-            thread_id,
-            Some(updated.turn_id),
-            Some(updated.id),
-            None,
+            UserEventFields {
+                thread_id,
+                turn_id: Some(updated.turn_id),
+                run_id: Some(updated.id),
+                message_id: None,
+            },
             "run_controlled",
             status,
             match input.action {
@@ -1772,10 +1801,7 @@ impl AgentApplication {
     async fn append_user_event(
         &self,
         user_id: i64,
-        thread_id: i64,
-        turn_id: Option<i64>,
-        run_id: Option<i64>,
-        message_id: Option<i64>,
+        fields: UserEventFields,
         kind: &str,
         status: &str,
         public_text: &str,
@@ -1783,12 +1809,12 @@ impl AgentApplication {
         agent::append_event(
             self.connection(),
             AgentEventInput {
-                thread_id,
-                turn_id,
-                run_id,
+                thread_id: fields.thread_id,
+                turn_id: fields.turn_id,
+                run_id: fields.run_id,
                 execution_id: None,
                 delegation_id: None,
-                message_id,
+                message_id: fields.message_id,
                 actor_kind: "user".into(),
                 actor_id: Some(user_id.to_string()),
                 kind: kind.into(),
@@ -3111,10 +3137,12 @@ impl AgentApplication {
             ));
         }
         self.complete_child_run_fields(
-            claimed.run.id,
-            claimed.run.thread_id,
-            claimed.run.turn_id,
-            &claimed.lease_token,
+            RunLeaseFields {
+                run_id: claimed.run.id,
+                thread_id: claimed.run.thread_id,
+                turn_id: claimed.run.turn_id,
+                lease_token: &claimed.lease_token,
+            },
             content.into(),
             result_summary.into(),
             result_refs_json,
@@ -3125,10 +3153,7 @@ impl AgentApplication {
 
     async fn complete_child_run_fields(
         &self,
-        child_run_id: i64,
-        child_thread_id: i64,
-        child_turn_id: i64,
-        child_lease_token: &str,
+        fields: RunLeaseFields<'_>,
         content: String,
         result_summary: String,
         result_refs_json: Option<Value>,
@@ -3137,16 +3162,16 @@ impl AgentApplication {
         agent::complete_child_delegation(
             self.connection(),
             a4n_db::agent::AgentChildCompletionInput {
-                child_run_id,
-                child_lease_token: child_lease_token.to_string(),
+                child_run_id: fields.run_id,
+                child_lease_token: fields.lease_token.to_string(),
                 final_message: AgentMessageInput {
-                    thread_id: child_thread_id,
-                    turn_id: Some(child_turn_id),
-                    run_id: Some(child_run_id),
+                    thread_id: fields.thread_id,
+                    turn_id: Some(fields.turn_id),
+                    run_id: Some(fields.run_id),
                     role: "assistant".into(),
                     sender_kind: "agent".into(),
                     sender_thread_id: None,
-                    client_message_id: Some(format!("agent-final:{child_run_id}")),
+                    client_message_id: Some(format!("agent-final:{}", fields.run_id)),
                     content,
                     status: "complete".into(),
                     payload_json: None,
@@ -3386,10 +3411,12 @@ impl AgentApplication {
         payload_json: Option<Value>,
     ) -> Result<event::Model, AppError> {
         self.append_worker_update_fields(
-            claimed.run.id,
-            claimed.run.thread_id,
-            claimed.run.turn_id,
-            &claimed.lease_token,
+            RunLeaseFields {
+                run_id: claimed.run.id,
+                thread_id: claimed.run.thread_id,
+                turn_id: claimed.run.turn_id,
+                lease_token: &claimed.lease_token,
+            },
             kind.to_string(),
             status.to_string(),
             public_text.into(),
@@ -3400,10 +3427,7 @@ impl AgentApplication {
 
     async fn append_worker_update_fields(
         &self,
-        run_id: i64,
-        thread_id: i64,
-        turn_id: i64,
-        lease_token: &str,
+        fields: RunLeaseFields<'_>,
         kind: String,
         status: String,
         public_text: String,
@@ -3411,17 +3435,17 @@ impl AgentApplication {
     ) -> Result<event::Model, AppError> {
         agent::append_event_for_run_lease(
             self.connection(),
-            run_id,
-            lease_token,
+            fields.run_id,
+            fields.lease_token,
             AgentEventInput {
-                thread_id,
-                turn_id: Some(turn_id),
-                run_id: Some(run_id),
+                thread_id: fields.thread_id,
+                turn_id: Some(fields.turn_id),
+                run_id: Some(fields.run_id),
                 execution_id: None,
                 delegation_id: None,
                 message_id: None,
                 actor_kind: "agent".into(),
-                actor_id: Some(run_id.to_string()),
+                actor_id: Some(fields.run_id.to_string()),
                 kind,
                 status,
                 public_text,
@@ -3449,10 +3473,12 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
         self.append_worker_update_fields(
-            run.id,
-            run.thread_id,
-            run.turn_id,
-            &request.lease.fence_token,
+            RunLeaseFields {
+                run_id: run.id,
+                thread_id: run.thread_id,
+                turn_id: run.turn_id,
+                lease_token: &request.lease.fence_token,
+            },
             request.kind.clone(),
             request.status.clone(),
             request.public_text.clone(),
@@ -3754,10 +3780,12 @@ impl AgentApplication {
         observed_input_message_id: i64,
     ) -> Result<bool, AppError> {
         self.complete_claimed_run_fields(
-            claimed.run.id,
-            claimed.run.thread_id,
-            claimed.run.turn_id,
-            &claimed.lease_token,
+            RunLeaseFields {
+                run_id: claimed.run.id,
+                thread_id: claimed.run.thread_id,
+                turn_id: claimed.run.turn_id,
+                lease_token: &claimed.lease_token,
+            },
             content.into(),
             result_refs_json,
             observed_input_message_id,
@@ -3767,26 +3795,23 @@ impl AgentApplication {
 
     async fn complete_claimed_run_fields(
         &self,
-        run_id: i64,
-        thread_id: i64,
-        turn_id: i64,
-        lease_token: &str,
+        fields: RunLeaseFields<'_>,
         content: String,
         result_refs_json: Option<Value>,
         observed_input_message_id: i64,
     ) -> Result<bool, AppError> {
         let completed = agent::finish_run_with_message(
             self.connection(),
-            run_id,
-            lease_token,
+            fields.run_id,
+            fields.lease_token,
             AgentMessageInput {
-                thread_id,
-                turn_id: Some(turn_id),
-                run_id: Some(run_id),
+                thread_id: fields.thread_id,
+                turn_id: Some(fields.turn_id),
+                run_id: Some(fields.run_id),
                 role: "assistant".into(),
                 sender_kind: "agent".into(),
                 sender_thread_id: None,
-                client_message_id: Some(format!("agent-final:{run_id}")),
+                client_message_id: Some(format!("agent-final:{}", fields.run_id)),
                 content,
                 status: "complete".into(),
                 payload_json: None,
@@ -3817,10 +3842,12 @@ impl AgentApplication {
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
         let completed = if run.parent_run_id.is_some() {
             self.complete_child_run_fields(
-                run.id,
-                run.thread_id,
-                run.turn_id,
-                &request.lease.fence_token,
+                RunLeaseFields {
+                    run_id: run.id,
+                    thread_id: run.thread_id,
+                    turn_id: run.turn_id,
+                    lease_token: &request.lease.fence_token,
+                },
                 request.content.clone(),
                 request.result_summary.clone(),
                 request.result_refs_json.clone(),
@@ -3829,10 +3856,12 @@ impl AgentApplication {
             .await?
         } else {
             self.complete_claimed_run_fields(
-                run.id,
-                run.thread_id,
-                run.turn_id,
-                &request.lease.fence_token,
+                RunLeaseFields {
+                    run_id: run.id,
+                    thread_id: run.thread_id,
+                    turn_id: run.turn_id,
+                    lease_token: &request.lease.fence_token,
+                },
                 request.content.clone(),
                 request.result_refs_json.clone(),
                 request.observed_input_message_id,
@@ -4193,9 +4222,11 @@ impl AgentApplication {
         expires_at: Option<chrono::NaiveDateTime>,
     ) -> Result<approval::Model, AppError> {
         self.request_worker_approval_fields(
-            claimed.run.id,
-            claimed.run.thread_id,
-            &claimed.lease_token,
+            ApprovalRunFields {
+                run_id: claimed.run.id,
+                thread_id: claimed.run.thread_id,
+                lease_token: &claimed.lease_token,
+            },
             execution_id,
             operation_json,
             resource_preconditions_json,
@@ -4206,9 +4237,7 @@ impl AgentApplication {
 
     async fn request_worker_approval_fields(
         &self,
-        run_id: i64,
-        thread_id: i64,
-        lease_token: &str,
+        fields: ApprovalRunFields<'_>,
         execution_id: i64,
         operation_json: Value,
         resource_preconditions_json: Option<Value>,
@@ -4219,10 +4248,10 @@ impl AgentApplication {
         );
         let (approval, _, _) = agent::request_approval_for_run_lease(
             self.connection(),
-            lease_token,
+            fields.lease_token,
             a4n_domain::agent::AgentApprovalInput {
-                thread_id,
-                run_id,
+                thread_id: fields.thread_id,
+                run_id: fields.run_id,
                 execution_id,
                 operation_digest,
                 operation_json,
@@ -4252,9 +4281,11 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
         self.request_worker_approval_fields(
-            run.id,
-            run.thread_id,
-            &request.lease.fence_token,
+            ApprovalRunFields {
+                run_id: run.id,
+                thread_id: run.thread_id,
+                lease_token: &request.lease.fence_token,
+            },
             request.execution_id,
             request.operation_json.clone(),
             request.resource_preconditions_json.clone(),

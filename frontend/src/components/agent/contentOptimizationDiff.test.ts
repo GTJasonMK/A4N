@@ -82,7 +82,6 @@ describe("content optimization diff", () => {
             tool: "edit_article",
             mode: "pending_confirmation",
             chapter_id: 13,
-            base_content_hash: "hash-1",
             summary: "补足动机",
             patches: [patch("replace", "旧句", "新句")],
           },
@@ -102,7 +101,7 @@ describe("content optimization diff", () => {
       executions: [editExecution],
     } as unknown as AgentThreadSnapshot;
 
-    expect(pendingContentDiffForSnapshot(snapshot, 13)?.baseContentHash).toBe("hash-1");
+    expect(pendingContentDiffForSnapshot(snapshot, 13)?.summary).toBe("补足动机");
 
     const applied = {
       id: "12",
