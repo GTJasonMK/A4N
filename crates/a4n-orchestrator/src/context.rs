@@ -155,6 +155,5 @@ pub struct OrchestratorContext {
     llm: Arc<dyn a4n_llm_provider_contract::provider::LlmProvider>,
     engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     embedding: Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
-    snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
     document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
 }

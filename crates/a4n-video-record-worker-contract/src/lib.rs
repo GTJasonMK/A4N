@@ -2,8 +2,9 @@
 
 pub use a4n_api_contract::image::GeneratedImageSummary;
 pub use a4n_api_contract::video::{
-    ChapterVideoPromptSummary, GeneratedVideoSummary, VideoPromptReadApplicationPort,
-    VideoRecordReadApplicationPort,
+    ChapterVideoPromptSummary, GeneratedVideoSummary, LoadVideoSegmentPlanDraftInput,
+    UpdateGeneratedVideoInput, UpdateVideoSegmentPlanDraftRecipeInput,
+    VideoPromptReadApplicationPort, VideoRecordReadApplicationPort, VideoSegmentPlanDraftSummary,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
@@ -11,19 +12,31 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const VIDEO_RECORD_WORKER_ID: &str = "video-record-worker";
-pub const VIDEO_RECORD_WORKER_CONTRACT_VERSION: &str = "video-record-v2";
+pub const VIDEO_RECORD_WORKER_CONTRACT_VERSION: &str = "video-record-v3";
 pub const VIDEO_RECORD_CAPABILITY: &str = "video.record.read";
+pub const VIDEO_RECORD_MUTATION_CAPABILITY: &str = "video.record.mutation";
 pub const VIDEO_PROMPT_CAPABILITY: &str = "video.prompt.read";
 pub const VIDEO_RECORD_PLAYBACK_OPERATION: &str = "video.record.playback";
 pub const VIDEO_RECORD_LIST_OPERATION: &str = "video.record.list_by_chapter";
 pub const VIDEO_RECORD_REFERENCE_IMAGES_OPERATION: &str = "video.record.reference_images";
+pub const VIDEO_RECORD_UPDATE_OPERATION: &str = "video.record.update";
 pub const VIDEO_PROMPT_LIST_OPERATION: &str = "video.prompt.list_by_chapter";
 pub const VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION: &str = "video.prompt.validate_source";
+pub const VIDEO_PROMPT_DRAFT_CAPABILITY: &str = "video.prompt.draft";
+pub const VIDEO_PROMPT_DRAFT_LOAD_OPERATION: &str = "video.prompt.draft.load";
+pub const VIDEO_PROMPT_DRAFT_UPDATE_OPERATION: &str = "video.prompt.draft.update";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct VideoIdInput {
     pub video_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct VideoUpdateInput {
+    pub video_id: i64,
+    pub input: UpdateGeneratedVideoInput,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -52,7 +52,6 @@ impl OrchestratorContext {
         rag_store: Arc<dyn VectorStore>,
         task_queue: Arc<PersistentTaskQueue>,
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
-        snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
         document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
         shooting_script_publication: Arc<
             dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort,
@@ -163,7 +162,6 @@ impl OrchestratorContext {
             llm,
             engine,
             embedding,
-            snapshot_store,
             document_export_renderer,
         })
     }
@@ -214,13 +212,5 @@ impl OrchestratorContext {
     /// 取消已注册任务句柄。
     pub(crate) fn cancel_task_handle(&self, task_id: &str) -> bool {
         self.task_manager.cancel(task_id)
-    }
-
-    /// 按内容哈希加载角色快照（不暴露 snapshot_store 句柄）。
-    pub(crate) async fn character_snapshot_by_hash(
-        &self,
-        content_hash: &str,
-    ) -> Result<Option<a4n_domain::snapshot::Snapshot>, AppError> {
-        self.snapshot_store.load_snapshot(content_hash).await
     }
 }

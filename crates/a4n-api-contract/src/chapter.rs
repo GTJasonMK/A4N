@@ -131,6 +131,12 @@ pub trait ChapterContentMutationApplicationPort: Send + Sync {
 /// Host-facing chapter content synchronization and recovery boundary.
 #[async_trait::async_trait]
 pub trait ChapterContentSyncApplicationPort: Send + Sync {
+    async fn settle(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        workflow_run_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
     async fn resume(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,

@@ -349,6 +349,7 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "chrono",
+ "sea-orm",
  "serde_json",
  "uuid",
 ]
@@ -1041,6 +1042,7 @@ dependencies = [
  "a4n-video-record-worker-client",
  "a4n-workflow-read-worker-client",
  "async-trait",
+ "tracing",
 ]
 
 [[package]]
@@ -2928,6 +2930,7 @@ name = "a4n-video-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-error",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -2982,14 +2985,18 @@ dependencies = [
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
+ "a4n-error",
  "a4n-video",
+ "a4n-video-contract",
  "a4n-video-record-worker-contract",
  "a4n-worker-client",
  "a4n-worker-contract",
+ "a4n-workflow-core",
  "anyhow",
  "axum 0.8.9",
  "sea-orm",
  "serde",
+ "serde_json",
  "subtle",
  "tokio",
  "tracing-subscriber",
@@ -3079,6 +3086,9 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-db",
+ "a4n-error",
+ "a4n-video-contract",
+ "sea-orm",
 ]
 
 [[package]]

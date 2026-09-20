@@ -16,26 +16,6 @@ use a4n_domain::project_reset::{
     FreeformVideoGeneratedDataResetResult, ProjectGeneratedDataResetOutcome,
 };
 
-use a4n_db_models::models::character::protagonist_profile;
-
-fn chapter_cleanup_profile_state_should_restore_base(
-    profile: &protagonist_profile::Model,
-    chapter_number: i32,
-) -> bool {
-    chapter_number <= 0
-        || profile
-            .first_seen_chapter()
-            .is_some_and(|first_seen| chapter_number < first_seen)
-}
-
-pub(crate) fn chapter_cleanup_requires_snapshot(
-    profile: &protagonist_profile::Model,
-    chapter_number: i32,
-) -> bool {
-    profile.last_synced_chapter >= chapter_number
-        && !chapter_cleanup_profile_state_should_restore_base(profile, chapter_number - 1)
-}
-
 /// application 层项目生成数据重置结果：按项目类型分支，供 Host 做文件/RAG 副作用。
 pub enum ProjectGeneratedDataResetApplicationResult {
     /// 文本/派生等标准重置。

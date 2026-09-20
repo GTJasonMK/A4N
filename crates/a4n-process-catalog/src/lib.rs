@@ -677,7 +677,7 @@ mod tests {
             .expect("chapter content worker entry");
         assert_eq!(chapter_content.kind, ProcessKind::StatefulWorker);
         assert_eq!(chapter_content.binary, "a4n-chapter-content-worker");
-        assert_eq!(chapter_content.contract_version, "chapter-content-v1");
+        assert_eq!(chapter_content.contract_version, "chapter-content-v2");
         assert_eq!(chapter_content.addr_env, "A4N_CHAPTER_CONTENT_WORKER_ADDR");
         assert_eq!(chapter_content.default_addr, "127.0.0.1:47671");
         assert_eq!(
@@ -703,14 +703,16 @@ mod tests {
             .expect("video record worker entry");
         assert_eq!(video_record.kind, ProcessKind::StatefulWorker);
         assert_eq!(video_record.binary, "a4n-video-record-worker");
-        assert_eq!(video_record.contract_version, "video-record-v2");
+        assert_eq!(video_record.contract_version, "video-record-v3");
         assert_eq!(video_record.addr_env, "A4N_VIDEO_RECORD_WORKER_ADDR");
         assert_eq!(video_record.default_addr, "127.0.0.1:47675");
         assert_eq!(
             video_record.capabilities,
             vec![
                 "video.record.read".to_string(),
-                "video.prompt.read".to_string()
+                "video.record.mutation".to_string(),
+                "video.prompt.read".to_string(),
+                "video.prompt.draft".to_string()
             ]
         );
         let manga_record = entries

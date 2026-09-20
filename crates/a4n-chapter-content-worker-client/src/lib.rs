@@ -1,9 +1,13 @@
 //! Typed Host adapter for the chapter-content worker.
 
-use a4n_api_contract::chapter::{ChapterContentReadApplicationPort, ChapterSummary};
+use a4n_api_contract::chapter::{
+    ChapterContentReadApplicationPort, ChapterSummary, ImportChapterInput,
+    UpdateChapterContentInput,
+};
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION, CHAPTER_CONTENT_WORKER_ID,
-    ChapterInput, ProjectInput,
+    CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_LIST_OPERATION,
+    CHAPTER_CONTENT_SUMMARY_OPERATION, CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_ID,
+    ChapterContentMutationResult, ChapterInput, ProjectInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -62,10 +66,39 @@ impl ChapterContentWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
+        self.command_with_project(user_id, Some(project_id), operation, payload)
+            .await
+    }
+
+    async fn command_global<I, O>(
+        &self,
+        user_id: i64,
+        operation: &str,
+        payload: I,
+    ) -> Result<O, AppError>
+    where
+        I: serde::Serialize,
+        O: serde::de::DeserializeOwned,
+    {
+        self.command_with_project(user_id, None, operation, payload)
+            .await
+    }
+
+    async fn command_with_project<I, O>(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        operation: &str,
+        payload: I,
+    ) -> Result<O, AppError>
+    where
+        I: serde::Serialize,
+        O: serde::de::DeserializeOwned,
+    {
         if user_id <= 0 {
             return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
         }
-        if project_id <= 0 {
+        if project_id.is_some_and(|project_id| project_id <= 0) {
             return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
         }
         let request_id = uuid::Uuid::new_v4().to_string();
@@ -79,7 +112,7 @@ impl ChapterContentWorkerClient {
             },
             operation_id: operation.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
-            project_id: Some(project_id),
+            project_id,
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
@@ -118,6 +151,31 @@ impl ChapterContentWorkerClient {
         }
         Ok(value)
     }
+
+    pub async fn update_content(
+        &self,
+        user_id: i64,
+        input: UpdateChapterContentInput,
+    ) -> Result<ChapterContentMutationResult, AppError> {
+        Self::positive("chapter_id", input.chapter_id)?;
+        self.command_global(user_id, CHAPTER_CONTENT_UPDATE_OPERATION, input)
+            .await
+    }
+
+    pub async fn import_content(
+        &self,
+        user_id: i64,
+        input: ImportChapterInput,
+    ) -> Result<ChapterContentMutationResult, AppError> {
+        Self::positive("project_id", input.project_id)?;
+        self.command(
+            user_id,
+            input.project_id,
+            CHAPTER_CONTENT_IMPORT_OPERATION,
+            input,
+        )
+        .await
+    }
 }
 
 #[async_trait::async_trait]
@@ -135,9 +193,8 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
 
     async fn summary(&self, user_id: i64, chapter_id: i64) -> Result<ChapterSummary, AppError> {
         let chapter_id = Self::positive("chapter_id", chapter_id)?;
-        self.command(
+        self.command_global(
             user_id,
-            chapter_id,
             CHAPTER_CONTENT_SUMMARY_OPERATION,
             ChapterInput { chapter_id },
         )

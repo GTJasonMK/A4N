@@ -4,7 +4,7 @@
 //! here prevents the chapter read worker and the in-process workflow owner
 //! from inventing different summary semantics.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_api_contract::chapter::{
     ChapterMaterialSyncState, ChapterMaterialSyncStatus, ChapterMaterialUpdate,
@@ -12,12 +12,23 @@ use a4n_api_contract::chapter::{
 };
 use a4n_db_models::models::{
     chapter::chapter,
+    character::protagonist_profile,
     generation::{workflow_checkpoint, workflow_run},
 };
 use a4n_domain::source_text_hash;
 use a4n_error::AppError;
 use serde_json::{Value, json};
-use uuid::Uuid;
+
+mod cleanup;
+mod sync;
+
+pub use cleanup::cleanup_chapter_derived_data_in;
+pub use sync::{
+    CHAPTER_CONTENT_SYNC_CLEANUP_STEP, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP,
+    begin_chapter_content_sync_in_transaction, chapter_content_sync_checkpoint_artifacts,
+    chapter_content_sync_checkpoint_input, chapter_content_sync_workflow_business_key,
+    chapter_content_sync_workflow_run_input,
+};
 
 pub const CHAPTER_CONTENT_SYNC_WORKFLOW_KIND: &str = "chapter_content_sync";
 pub const CHAPTER_CONTENT_SYNC_RAG_STEP: &str = "chapter_content_sync.current_rag";
@@ -155,13 +166,47 @@ pub fn chapter_content_sync_run_input_matches(
     })
 }
 
-pub fn chapter_content_sync_workflow_run_input(chapter: &chapter::Model) -> Value {
-    json!({
-        "schema_version": 3,
-        "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-        "sync_revision": Uuid::new_v4(),
-        "source_fingerprint": chapter_content_sync_workflow_fingerprint(chapter),
+pub fn chapter_cleanup_requires_snapshot(
+    profile: &protagonist_profile::Model,
+    chapter_number: i32,
+) -> bool {
+    profile.last_synced_chapter >= chapter_number
+        && !profile_state_should_restore_base(profile, chapter_number - 1)
+}
+
+pub fn validate_chapter_content_snapshot_preflight(
+    profiles: &[protagonist_profile::Model],
+    existing_snapshot_profile_ids: &BTreeSet<i64>,
+    chapter_number: i32,
+) -> Result<(), AppError> {
+    let snapshot_chapter = chapter_number - 1;
+    let missing_names = profiles
+        .iter()
+        .filter(|profile| chapter_cleanup_requires_snapshot(profile, chapter_number))
+        .filter(|profile| !existing_snapshot_profile_ids.contains(&profile.id))
+        .map(|profile| profile.name.clone())
+        .collect::<Vec<_>>();
+    if missing_names.is_empty() {
+        return Ok(());
+    }
+
+    Err(AppError::InvalidState {
+        current: "章节派生数据无法清理".to_string(),
+        operation: format!(
+            "保存章节正文前预检：以下角色缺少第 {snapshot_chapter} 章快照，无法在重写第 {chapter_number} 章前回滚档案状态：{}",
+            missing_names.join("、")
+        ),
     })
+}
+
+fn profile_state_should_restore_base(
+    profile: &protagonist_profile::Model,
+    chapter_number: i32,
+) -> bool {
+    chapter_number <= 0
+        || profile
+            .first_seen_chapter()
+            .is_some_and(|first_seen| chapter_number < first_seen)
 }
 
 pub fn chapter_analysis_run_has_saved_analysis_from_checkpoints(
@@ -583,6 +628,7 @@ fn append_named_updates(
 mod tests {
     use super::*;
     use chrono::Utc;
+    use std::collections::BTreeSet;
 
     #[test]
     fn chapter_projection_defaults_to_not_analyzed() {
@@ -606,5 +652,53 @@ mod tests {
             chapter_summary(&chapter).material_sync.content_index,
             ChapterMaterialSyncStatus::NotAnalyzed
         );
+    }
+
+    fn profile(
+        name: &str,
+        last_synced_chapter: i32,
+        first_seen_chapter: i32,
+    ) -> protagonist_profile::Model {
+        protagonist_profile::Model {
+            id: 7,
+            project_id: 2,
+            name: name.to_string(),
+            gender: None,
+            age: None,
+            base_attributes: json!({
+                "explicit_attributes": {"first_seen_chapter": first_seen_chapter}
+            }),
+            current_state: json!({}),
+            character_arc: None,
+            voice_fingerprint: None,
+            appearance: None,
+            background: None,
+            personality: None,
+            last_synced_chapter,
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+        }
+    }
+
+    #[test]
+    fn chapter_content_preflight_requires_existing_snapshot_for_rewind() {
+        let profiles = vec![profile("林夏", 3, 1)];
+        let error = validate_chapter_content_snapshot_preflight(&profiles, &BTreeSet::new(), 3)
+            .expect_err("rewriting a synced chapter requires its previous snapshot");
+        assert!(error.to_string().contains("林夏"));
+        assert!(error.to_string().contains("第 2 章快照"));
+
+        validate_chapter_content_snapshot_preflight(&profiles, &BTreeSet::from([7]), 3)
+            .expect("an existing snapshot clears the preflight");
+    }
+
+    #[test]
+    fn chapter_content_preflight_skips_profiles_first_seen_at_target_chapter() {
+        validate_chapter_content_snapshot_preflight(
+            &[profile("新角色", 3, 3)],
+            &BTreeSet::new(),
+            3,
+        )
+        .expect("a profile first discovered at the target chapter is deleted, not rewound");
     }
 }

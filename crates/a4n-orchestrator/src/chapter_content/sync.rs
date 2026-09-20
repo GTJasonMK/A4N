@@ -1,116 +1,23 @@
-use a4n_db::workflow::{UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput};
+use a4n_db::workflow::UpsertWorkflowCheckpointInput;
 use a4n_db_models::models::{
     chapter::chapter,
     generation::{workflow_checkpoint, workflow_run},
 };
 use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
-use a4n_domain::{project::ChapterDerivedCleanupArtifacts, source_text_hash};
 use a4n_error::AppError;
 use serde_json::{Value, json};
-use uuid::Uuid;
 
 use crate::OrchestratorContext;
 
+use a4n_chapter_content_core::{
+    CHAPTER_CONTENT_SYNC_CLEANUP_STEP, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP,
+    CHAPTER_CONTENT_SYNC_RAG_STEP, CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
+    chapter_content_sync_checkpoint_artifacts, chapter_content_sync_run_input_matches,
+    chapter_content_sync_workflow_business_key,
+};
+
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
-
-pub const CHAPTER_CONTENT_SYNC_WORKFLOW_KIND: &str = "chapter_content_sync";
-pub(crate) const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanup_plan";
-const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
-pub const CHAPTER_CONTENT_SYNC_RAG_STEP: &str = "chapter_content_sync.current_rag";
 const CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP: &str = "chapter_content_sync.postprocess";
-
-pub(crate) fn chapter_content_sync_workflow_business_key(
-    project_id: i64,
-    chapter_id: i64,
-) -> String {
-    format!("chapter_content_sync:{project_id}:{chapter_id}")
-}
-
-fn chapter_content_sync_workflow_fingerprint(chapter: &chapter::Model) -> Value {
-    json!({
-        "schema_version": 1,
-        "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-        "project_id": chapter.project_id,
-        "chapter_id": chapter.id,
-        "chapter_number": chapter.chapter_number,
-        "title": chapter.title,
-        "content_sha256": source_text_hash(&chapter.content),
-    })
-}
-
-pub fn chapter_content_sync_run_input_matches(
-    run_fingerprint_json: &Option<Value>,
-    chapter: &chapter::Model,
-) -> bool {
-    run_fingerprint_json.as_ref().is_some_and(|fingerprint| {
-        fingerprint.get("schema_version").and_then(Value::as_i64) == Some(3)
-            && fingerprint.get("workflow_kind").and_then(Value::as_str)
-                == Some(CHAPTER_CONTENT_SYNC_WORKFLOW_KIND)
-            && fingerprint
-                .get("sync_revision")
-                .and_then(Value::as_str)
-                .is_some_and(|revision| !revision.is_empty())
-            && fingerprint.get("source_fingerprint")
-                == Some(&chapter_content_sync_workflow_fingerprint(chapter))
-    })
-}
-
-fn chapter_content_sync_run_fingerprint(chapter: &chapter::Model) -> Value {
-    json!({
-        "schema_version": 3,
-        "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-        "sync_revision": Uuid::new_v4(),
-        "source_fingerprint": chapter_content_sync_workflow_fingerprint(chapter),
-    })
-}
-
-pub(crate) fn chapter_content_sync_workflow_run_input(
-    chapter: &chapter::Model,
-) -> UpsertWorkflowRunInput {
-    UpsertWorkflowRunInput {
-        business_key: chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id),
-        workflow_kind: CHAPTER_CONTENT_SYNC_WORKFLOW_KIND.to_string(),
-        project_id: Some(chapter.project_id),
-        root_project_id: None,
-        source_snapshot_id: None,
-        scope_table: Some("chapter".to_string()),
-        scope_id: Some(chapter.id),
-        chapter_id: Some(chapter.id),
-        mode: Some("content_change".to_string()),
-        input_fingerprint_json: Some(chapter_content_sync_run_fingerprint(chapter)),
-        status: WORKFLOW_STATUS_RUNNING.to_string(),
-        current_step_key: Some(CHAPTER_CONTENT_SYNC_EXTERNAL_STEP.to_string()),
-        active_task_id: None,
-        can_resume: true,
-        resume_block_reason: None,
-        error_message: None,
-    }
-}
-
-pub(crate) fn chapter_content_sync_checkpoint_input(
-    workflow_run_id: i64,
-    run_fingerprint_json: Value,
-    chapter: &chapter::Model,
-    artifacts: &ChapterDerivedCleanupArtifacts,
-) -> Result<UpsertWorkflowCheckpointInput, serde_json::Error> {
-    Ok(UpsertWorkflowCheckpointInput {
-        workflow_run_id,
-        step_key: CHAPTER_CONTENT_SYNC_CLEANUP_STEP.to_string(),
-        step_order: 10,
-        status: WORKFLOW_STATUS_COMPLETED.to_string(),
-        input_fingerprint_sha256: None,
-        input_fingerprint_json: Some(run_fingerprint_json),
-        checkpoint_json: Some(json!({
-            "schema_version": 1,
-            "chapter_id": chapter.id,
-            "chapter_number": chapter.chapter_number,
-        })),
-        artifacts_json: Some(serde_json::to_value(artifacts)?),
-        generation_run_ids_json: None,
-        error_message: None,
-        completed: true,
-    })
-}
 
 fn chapter_content_sync_completed_checkpoint_input(
     run: &workflow_run::Model,
@@ -158,42 +65,6 @@ fn chapter_content_sync_checkpoint_completed(
         return Err(format!("章节资料同步 checkpoint {step_key} 合同无效"));
     }
     Ok(true)
-}
-
-pub(crate) fn chapter_content_sync_checkpoint_artifacts(
-    run: &workflow_run::Model,
-    checkpoint: &workflow_checkpoint::Model,
-) -> Result<ChapterDerivedCleanupArtifacts, String> {
-    if checkpoint.status != WORKFLOW_STATUS_COMPLETED {
-        return Err(format!(
-            "章节资料同步 cleanup checkpoint 未完成: {}",
-            checkpoint.status
-        ));
-    }
-    if checkpoint.input_fingerprint_json != run.input_fingerprint_json {
-        return Err("章节资料同步 cleanup checkpoint 与 workflow 输入不一致".to_string());
-    }
-    let contract = checkpoint
-        .checkpoint_json
-        .as_ref()
-        .and_then(Value::as_object)
-        .ok_or_else(|| "章节资料同步 checkpoint_json 合同缺失".to_string())?;
-    if contract.get("schema_version").and_then(Value::as_i64) != Some(1)
-        || contract.get("chapter_id").and_then(Value::as_i64) != run.chapter_id
-    {
-        return Err("章节资料同步 checkpoint_json 身份无效".to_string());
-    }
-    parse_cleanup_artifacts(checkpoint.artifacts_json.as_ref())
-}
-
-fn parse_cleanup_artifacts(
-    artifacts_json: Option<&Value>,
-) -> Result<ChapterDerivedCleanupArtifacts, String> {
-    let value = artifacts_json
-        .cloned()
-        .ok_or_else(|| "章节资料同步 checkpoint 缺少 cleanup artifacts".to_string())?;
-    serde_json::from_value(value)
-        .map_err(|error| format!("章节资料同步 cleanup artifacts 合同无效: {error}"))
 }
 
 impl OrchestratorContext {
@@ -255,14 +126,15 @@ impl OrchestratorContext {
                 operation: "读取章节资料清理计划".to_string(),
             })?;
         let artifacts = chapter_content_sync_checkpoint_artifacts(run, cleanup_checkpoint)
-            .map_err(|operation| AppError::InvalidState {
+            .map_err(|error| AppError::InvalidState {
                 current: format!("chapter_content_sync_run_id={}", run.id),
-                operation,
+                operation: error.to_string(),
             })?;
 
         if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP)? {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP)
                 .await?;
+            host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
             host_port
                 .finish_chapter_derived_cleanup(
                     chapter.project_id,
@@ -417,6 +289,11 @@ fn content_sync_phase_completed(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_chapter_content_core::{
+        chapter_content_sync_checkpoint_input, chapter_content_sync_workflow_fingerprint,
+        chapter_content_sync_workflow_run_input,
+    };
+    use a4n_domain::project::ChapterDerivedCleanupArtifacts;
     use chrono::Utc;
 
     fn chapter() -> chapter::Model {
@@ -477,8 +354,12 @@ mod tests {
         let checkpoint =
             chapter_content_sync_checkpoint_input(9, fingerprint, &chapter, &artifacts)
                 .expect("checkpoint should serialize");
-        let restored = parse_cleanup_artifacts(checkpoint.artifacts_json.as_ref())
-            .expect("checkpoint should parse");
+        let restored: ChapterDerivedCleanupArtifacts = serde_json::from_value(
+            checkpoint
+                .artifacts_json
+                .expect("checkpoint artifacts should exist"),
+        )
+        .expect("checkpoint should parse");
         assert_eq!(restored.stale_profile_ids, artifacts.stale_profile_ids);
         assert_eq!(restored.media_file_paths, artifacts.media_file_paths);
         assert_eq!(

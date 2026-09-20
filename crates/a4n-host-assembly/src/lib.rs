@@ -29,7 +29,6 @@ pub async fn initialize_runtime(
         bootstrap.rag_store(),
         bootstrap.task_queue(),
         bootstrap.prompt_engine(),
-        bootstrap.snapshot_store(),
         bootstrap.document_export_renderer()?,
         novel_planning_worker.clone(),
         |provider_port| {
@@ -83,6 +82,15 @@ pub async fn initialize_runtime(
         Arc::new(a4n_chapter_scene_worker_client::ChapterSceneWorkerClient::from_env());
     let chapter_content_worker =
         Arc::new(a4n_chapter_content_worker_client::ChapterContentWorkerClient::from_env());
+    let chapter_content_sync_application: Arc<
+        dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort,
+    > = orchestrator.clone();
+    let chapter_content_mutation_application: Arc<
+        dyn a4n_api_contract::chapter::ChapterContentMutationApplicationPort,
+    > = Arc::new(ChapterContentMutationAdapter {
+        worker: chapter_content_worker.clone(),
+        sync: chapter_content_sync_application.clone(),
+    });
     let workflow_read_worker =
         Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
     let config_read_worker =
@@ -91,6 +99,17 @@ pub async fn initialize_runtime(
         Arc::new(a4n_character_mutation_worker_client::CharacterMutationWorkerClient::from_env());
     let video_record_worker =
         Arc::new(a4n_video_record_worker_client::VideoRecordWorkerClient::from_env());
+    let video_record_mutation_application: Arc<
+        dyn a4n_api_contract::video::VideoRecordMutationApplicationPort,
+    > = Arc::new(VideoRecordMutationAdapter {
+        worker: video_record_worker.clone(),
+        orchestrator: orchestrator.clone(),
+    });
+    let video_prompt_draft_application: Arc<
+        dyn a4n_api_contract::video::VideoPromptDraftApplicationPort,
+    > = Arc::new(VideoPromptDraftAdapter {
+        worker: video_record_worker.clone(),
+    });
     let manga_record_worker =
         Arc::new(a4n_manga_record_worker_client::MangaRecordWorkerClient::from_env());
     let theme_read_worker =
@@ -201,8 +220,8 @@ pub async fn initialize_runtime(
         blueprint_refinement_application: orchestrator.clone(),
         blueprint_mutation_application: orchestrator.clone(),
         chapter_content_read_application: chapter_content_worker,
-        chapter_content_mutation_application: orchestrator.clone(),
-        chapter_content_sync_application: orchestrator.clone(),
+        chapter_content_mutation_application,
+        chapter_content_sync_application,
         chapter_generation_request_preview_application: orchestrator.clone(),
         chapter_generation_rag_preparation_application: orchestrator.clone(),
         chapter_generation_application: orchestrator.clone(),
@@ -274,7 +293,7 @@ pub async fn initialize_runtime(
         project_export_application: orchestrator.clone(),
         galgame_export_application: orchestrator.clone(),
         video_record_read_application: video_record_worker.clone(),
-        video_record_mutation_application: orchestrator.clone(),
+        video_record_mutation_application,
         video_chapter_import_application: orchestrator.clone(),
         video_reference_media_import_application: orchestrator.clone(),
         video_assembly_import_application: orchestrator.clone(),
@@ -295,7 +314,7 @@ pub async fn initialize_runtime(
         video_prompt_read_application: video_record_worker.clone(),
         video_prompt_mutation_application: orchestrator.clone(),
         video_prompt_timeline_application: orchestrator.clone(),
-        video_prompt_draft_application: orchestrator.clone(),
+        video_prompt_draft_application,
         image_record_read_application: orchestrator.clone(),
         image_reference_read_application,
         image_library_read_application,
@@ -362,6 +381,113 @@ pub async fn initialize_runtime(
 
 struct ArtifactMediaImageReferenceAdapter {
     client: Arc<a4n_artifact_media_client::ArtifactMediaWorkerClient>,
+}
+
+struct VideoRecordMutationAdapter {
+    worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
+    orchestrator: Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecordMutationAdapter {
+    async fn update(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: a4n_api_contract::video::UpdateGeneratedVideoInput,
+    ) -> Result<a4n_api_contract::video::GeneratedVideoSummary, a4n_error::AppError> {
+        self.worker.update_record(user_id, video_id, input).await
+    }
+
+    async fn select_segment(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        video_id: i64,
+        input: a4n_api_contract::video::SelectSegmentVideoInput,
+    ) -> Result<a4n_api_contract::video::GeneratedVideoSummary, a4n_error::AppError> {
+        self.orchestrator
+            .select_segment(user_id, project_id, chapter_id, video_id, input)
+            .await
+    }
+
+    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError> {
+        self.orchestrator.delete(user_id, video_id).await
+    }
+}
+
+struct VideoPromptDraftAdapter {
+    worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
+}
+
+struct ChapterContentMutationAdapter {
+    worker: Arc<a4n_chapter_content_worker_client::ChapterContentWorkerClient>,
+    sync: Arc<dyn a4n_api_contract::chapter::ChapterContentSyncApplicationPort>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::chapter::ChapterContentMutationApplicationPort
+    for ChapterContentMutationAdapter
+{
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn a4n_api_contract::chapter::ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::UpdateChapterContentInput,
+    ) -> Result<i64, a4n_error::AppError> {
+        let result = self.worker.update_content(user_id, input).await?;
+        if let Err(error) = self.sync.settle(host_port, result.workflow_run_id).await {
+            tracing::warn!(
+                chapter_id = result.chapter_id,
+                workflow_run_id = result.workflow_run_id,
+                error = %error,
+                "章节正文已保存，派生资料同步待恢复"
+            );
+        }
+        Ok(result.chapter_id)
+    }
+
+    async fn import(
+        &self,
+        user_id: i64,
+        host_port: &dyn a4n_api_contract::chapter::ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::ImportChapterInput,
+    ) -> Result<i64, a4n_error::AppError> {
+        let result = self.worker.import_content(user_id, input).await?;
+        if let Err(error) = self.sync.settle(host_port, result.workflow_run_id).await {
+            tracing::warn!(
+                chapter_id = result.chapter_id,
+                workflow_run_id = result.workflow_run_id,
+                error = %error,
+                "导入正文已保存，派生资料同步待恢复"
+            );
+        }
+        Ok(result.chapter_id)
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::video::VideoPromptDraftApplicationPort for VideoPromptDraftAdapter {
+    async fn load_video_segment_plan_draft(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::video::LoadVideoSegmentPlanDraftInput,
+    ) -> Result<a4n_api_contract::video::VideoSegmentPlanDraftSummary, a4n_error::AppError> {
+        self.worker
+            .load_video_segment_plan_draft(user_id, input)
+            .await
+    }
+
+    async fn update_video_segment_plan_draft_recipe(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::video::UpdateVideoSegmentPlanDraftRecipeInput,
+    ) -> Result<(), a4n_error::AppError> {
+        self.worker
+            .update_video_segment_plan_draft_recipe(user_id, input)
+            .await
+    }
 }
 
 #[async_trait::async_trait]

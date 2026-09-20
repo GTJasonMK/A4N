@@ -2,9 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use a4n_config::app_config::AppConfig;
-use a4n_db::{
-    DatabaseConnection, DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore,
-};
+use a4n_db::{DatabaseConnection, DbHandle, SharedDatabaseConnection};
 use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_event::BroadcastEventBus;
 use a4n_llm_provider_contract::provider::LlmProvider;
@@ -89,7 +87,6 @@ impl TestOrchestratorBuilder {
             a4n_prompt::tera_engine::TeraPromptEngine::from_directory(&self.prompt_dir)
                 .expect("test prompts should load"),
         );
-        let snapshot_store = Arc::new(Sha256SnapshotStore::new(self.db));
         let shooting_script_publication =
             crate::context::test_shooting_script_publication(db_handle.clone());
 
@@ -107,7 +104,6 @@ impl TestOrchestratorBuilder {
             rag_store,
             task_queue,
             engine,
-            snapshot_store,
             None,
             shooting_script_publication,
             move |_| Ok((llm, embedding)),
