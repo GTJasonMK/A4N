@@ -28,7 +28,7 @@ const RUN_STATUS_LABELS: Record<string, { zh: string; en: string }> = {
   consumed: { zh: "已处理", en: "Consumed" },
 };
 
-const labelFor = (value: string | null | undefined, locale: Locale): string => {
+export const labelFor = (value: string | null | undefined, locale: Locale): string => {
   if (!value) return locale === "zh-CN" ? "未知" : "Unknown";
   const known = RUN_STATUS_LABELS[value];
   return known

@@ -994,6 +994,7 @@ export function useVideoTabState({
     setSegmentPlanDraftError,
     loadedDataKey,
     setLoadedDataKey,
+    videoDataKey,
     activeVideoConfig,
     setActiveVideoConfig,
     promptRequestPreviewOpen,
@@ -1019,4 +1020,3 @@ export function useVideoTabState({
 }
 
 export type VideoTabState = ReturnType<typeof useVideoTabState>;
-

@@ -74,7 +74,9 @@ import {
 } from "./DomainAgentConsoleRows";
 import {
   domainAgentBinding,
+  findDomainAgentThread,
   matchesEditorSourceScope,
+  positiveId,
   scopeForBinding,
   type DomainAgentCapability,
 } from "./DomainAgentBinding";

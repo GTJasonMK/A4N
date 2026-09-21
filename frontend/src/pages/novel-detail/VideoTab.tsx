@@ -235,6 +235,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     segmentPlanDraftVisible,
     segmentCardState,
     selectedSegmentNumber,
+    segmentConfigOpen,
     savingRecipeSegments,
     effectiveRecipeBySegment,
     effectiveRecipeBySegmentRef,

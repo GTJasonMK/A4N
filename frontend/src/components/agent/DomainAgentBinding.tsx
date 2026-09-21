@@ -16,7 +16,7 @@ export interface DomainAgentBinding {
   resourceId: string;
 }
 
-function positiveId(value: number | null | undefined): value is number {
+export function positiveId(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
