@@ -13,13 +13,8 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
-  addEdge,
   useEdgesState,
   useNodesState,
-  type Connection,
-  type EdgeChange,
-  type IsValidConnection,
-  type NodeChange,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -31,7 +26,6 @@ import {
   Play,
   Save,
   SlidersHorizontal,
-  Trash2,
   Upload,
 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -41,28 +35,16 @@ import type { ModelRequestPreview } from "../api/requestPreview";
 import {
   getCanvasGraph,
   getCanvasNodeContracts,
-  importCanvasMedia,
-  previewCanvasNodeRequest,
-  runCanvasGraph,
-  runCanvasGraphToNode,
-  runCanvasNode,
-  saveCanvasGraph,
   type CanvasGraphDocument,
 } from "../api/canvas";
 import { listImageConfigs } from "../api/image";
 import { getProject, type NovelProject } from "../api/project";
-import {
-  cancelWorkflow,
-  getWorkflowRunDetail,
-  getWorkflowRunProgressEvents,
-  listWorkflowRuns,
-  resumeWorkflowRun,
-  type WorkflowRunDetailSummary,
-  type WorkflowRunSummary,
+import type {
+  WorkflowRunDetailSummary,
+  WorkflowRunSummary,
 } from "../api/streaming";
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
-import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
@@ -70,11 +52,7 @@ import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { Modal } from "../components/ui/Modal";
 import { PageHeader } from "../components/shell/PageHeader";
 import { DomainAgentConsole } from "../components/agent/DomainAgentConsole";
-import {
-  useContextMenu,
-  type ContextMenuEntry,
-} from "../components/ui/ContextMenu";
-import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
+import { useContextMenu } from "../components/ui/ContextMenu";
 import { CanvasEmptyState } from "./video-studio/CanvasEmptyState";
 import { CanvasWorkflowPanel } from "./video-studio/CanvasWorkflowPanel";
 import {
@@ -82,69 +60,37 @@ import {
   buildNodeTemplateGroups,
   edgeRoleLabel,
   nodeDisplayTitle,
-  nodeKindMeta,
   stateLabel,
 } from "./video-studio/StudioCanvasNode";
-import { defaultRefTypeForNode } from "./video-studio/canvasNodeRefs";
-import {
-  nextAssembleClipOrder,
-  reorderAssembleClipEdges,
-} from "./video-studio/canvasAssemblyEdges";
 import {
   EMPTY_CONFIG_OPTIONS,
   buildStudioConfigOptions,
   type StudioConfigOptionsByKind,
 } from "./video-studio/canvasConfig";
+import { canvasGraphSaveValidationError } from "./video-studio/canvasEdgeContract";
 import {
-  NODE_DRAG_KIND,
-  NODE_DRAG_LABEL,
-  setNodeTemplateDragImage,
-} from "./video-studio/canvasDragPreview";
-import {
-  canvasGraphSaveValidationError,
-  validateCanvasConnection,
-} from "./video-studio/canvasEdgeContract";
-import {
-  CANVAS_RUNTIME_CONFIG_KEYS,
-  canvasNodePosition,
-  clearCanvasNodeRuntimeResult,
-  defaultConfigForNode,
-  mergeCanvasDocumentRuntimeResults,
-  mergeStudioNodeRuntimeResults,
-  numericId,
-  persistCanvasTextAssets,
   preserveSelectedItems,
-  toCanvasGraphInput,
   toFlowEdge,
   toFlowNode,
 } from "./video-studio/canvasGraphMapping";
-import {
-  importedAudioInputNode,
-  importedImageInputNode,
-  importedVideoInputNode,
-} from "./video-studio/canvasImportNodes";
 import {
   CanvasSidebarResizeHandle,
   useVideoCanvasSidebarLayout,
 } from "./video-studio/canvasLayout";
 import { nodeHasProviderRequest } from "./video-studio/canvasNodeKinds";
 import {
-  canvasWorkflowRuntimeRefreshSignature,
   canvasWorkflowNodeRunStates,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
   edgeWithRuntimeClasses,
   nodeWithRunScopeClass,
   nodeWithWorkflowRunClass,
-  parseWorkflowTimestampMs,
-  runToNodeConfirmationMessage,
 } from "./video-studio/canvasWorkflowState";
 import {
   StudioNodeContractsProvider,
   normalizeStudioNodeContracts,
   studioNodeContract,
   studioNodeContractMap,
-  studioNodeInputPortsForData,
   type StudioNodeContract,
 } from "./video-studio/nodeContracts";
 import type { StudioEdge, StudioNode } from "./video-studio/types";
@@ -494,15 +440,14 @@ export const VideoStudioCanvas: React.FC = () => {
     nodes,
     edges,
     nodeContractsByKind,
-    selectedNode,
-    selectedNodeRunToTarget,
-    selectedNodeRunnable,
+    canResumeCurrentCanvasRun,
     canEdit,
     canvasWriteBusy,
     canvasMutationDisabled,
     dirty,
     workflowSubmitting,
     resumingWorkflow,
+    cancellingWorkflow,
     latestWorkflowRunId,
     workflowDetail,
     contextMenu,
@@ -550,9 +495,7 @@ export const VideoStudioCanvas: React.FC = () => {
     previewNode,
     runNode,
     runToNode,
-    nodeContextMenuItems,
-    edgeContextMenuItems,
-    paneContextMenuItems,
+    runGraph,
     onNodeContextMenu,
     onEdgeContextMenu,
     onPaneContextMenu,

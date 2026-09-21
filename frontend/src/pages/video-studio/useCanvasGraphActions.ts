@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 import { addEdge, type Connection, type EdgeChange, type IsValidConnection, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
 import { extractErrorMessage } from "../../api";
+import type { ToastType } from "../../components/feedback/Toast";
 import {
   getCanvasGraph,
   importCanvasMedia,
@@ -33,7 +34,15 @@ import {
   NODE_DRAG_LABEL,
   setNodeTemplateDragImage,
 } from "./canvasDragPreview";
-import { validateCanvasConnection } from "./canvasEdgeContract";
+import {
+  canvasGraphSaveValidationError,
+  validateCanvasConnection,
+} from "./canvasEdgeContract";
+import {
+  importedAudioInputNode,
+  importedImageInputNode,
+  importedVideoInputNode,
+} from "./canvasImportNodes";
 import { defaultRefTypeForNode } from "./canvasNodeRefs";
 import { edgeRoleLabel, nodeDisplayTitle, nodeKindMeta } from "./StudioCanvasNode";
 import {
@@ -58,7 +67,7 @@ export interface CanvasGraphActionsOptions {
   flowInstance: ReactFlowInstance<StudioNode, StudioEdge> | null;
   canvasSectionRef: React.RefObject<HTMLElement | null>;
   t: MessageTranslator;
-  addToast: (message: string, tone: "success" | "error" | "info" | "warning") => void;
+  addToast: (message: string, tone: ToastType) => void;
   setDocument: React.Dispatch<React.SetStateAction<CanvasGraphDocument | null>>;
   setNodes: React.Dispatch<React.SetStateAction<StudioNode[]>>;
   setEdges: React.Dispatch<React.SetStateAction<StudioEdge[]>>;

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 import { Eye, Play, Trash2, Upload } from "lucide-react";
 import { extractErrorMessage } from "../../api";
+import type { ToastType } from "../../components/feedback/Toast";
 import {
   previewCanvasNodeRequest,
   runCanvasGraph,
@@ -48,15 +49,14 @@ export interface CanvasWorkflowActionsOptions {
   nodes: StudioNode[];
   edges: StudioEdge[];
   nodeContractsByKind: StudioNodeContractMap;
-  selectedNode: StudioNode | null;
-  selectedNodeRunToTarget: boolean;
-  selectedNodeRunnable: boolean;
+  canResumeCurrentCanvasRun: boolean;
   canEdit: boolean;
   canvasWriteBusy: boolean;
   canvasMutationDisabled: boolean;
   dirty: boolean;
   workflowSubmitting: boolean;
   resumingWorkflow: boolean;
+  cancellingWorkflow: boolean;
   latestWorkflowRunId: number | null;
   workflowDetail: WorkflowRunDetailSummary | null;
   contextMenu: { open: (x: number, y: number, items: ContextMenuEntry[]) => void };
@@ -64,7 +64,7 @@ export interface CanvasWorkflowActionsOptions {
   workflowDiscoveryInFlightRef: React.MutableRefObject<boolean>;
   workflowRuntimeRefreshSignatureRef: React.MutableRefObject<string | null>;
   t: MessageTranslator;
-  addToast: (message: string, tone: "success" | "error" | "info" | "warning") => void;
+  addToast: (message: string, tone: ToastType) => void;
   setLatestWorkflowRunId: React.Dispatch<React.SetStateAction<number | null>>;
   setWorkflowDetail: React.Dispatch<React.SetStateAction<WorkflowRunDetailSummary | null>>;
   setWorkflowEvents: React.Dispatch<React.SetStateAction<ProgressEventRecord[]>>;
@@ -92,15 +92,14 @@ export function useCanvasWorkflowActions({
   nodes,
   edges,
   nodeContractsByKind,
-  selectedNode,
-  selectedNodeRunToTarget,
-  selectedNodeRunnable,
+  canResumeCurrentCanvasRun,
   canEdit,
   canvasWriteBusy,
   canvasMutationDisabled,
   dirty,
   workflowSubmitting,
   resumingWorkflow,
+  cancellingWorkflow,
   latestWorkflowRunId,
   workflowDetail,
   contextMenu,
@@ -691,10 +690,7 @@ export function useCanvasWorkflowActions({
     previewNode,
     runNode,
     runToNode,
-    nodeContextMenuItems,
-    edgeContextMenuItems,
-    mediaImportMenuItems,
-    paneContextMenuItems,
+    runGraph,
     onNodeContextMenu,
     onEdgeContextMenu,
     onPaneContextMenu,
