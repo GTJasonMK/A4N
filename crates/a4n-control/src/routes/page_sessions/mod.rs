@@ -1,6 +1,7 @@
 use super::agents::AgentRegistry;
 use super::auth::authenticated_user;
 use super::error::ApiError;
+use super::validate_positive_id;
 use crate::state::ServerState;
 use a4n_api_contract::command_manifest::command_manifest;
 use a4n_api_contract::page::{
@@ -77,6 +78,10 @@ pub(crate) struct PageHeartbeatInput {
     #[serde(default)]
     context: Option<PageContext>,
 }
+
+include!("registry.rs");
+include!("routes.rs");
+include!("helpers.rs");
 
 #[cfg(test)]
 mod tests {
@@ -478,7 +483,3 @@ mod tests {
         );
     }
 }
-
-include!("registry.rs");
-include!("routes.rs");
-include!("helpers.rs");

@@ -1,6 +1,5 @@
 #[derive(Debug, Parser)]
 #[command(name = "a4n", version, about = "A4N headless Server CLI")]
-
 struct Cli {
     /// A4N Server 地址；可省略 /api
     #[arg(long, global = true, value_name = "URL")]

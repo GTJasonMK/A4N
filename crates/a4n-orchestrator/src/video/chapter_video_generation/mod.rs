@@ -97,6 +97,9 @@ struct VideoPromptExecutionContract {
     recipe: VideoSegmentExecutionRecipeV1,
 }
 
+include!("generation.rs");
+include!("helpers.rs");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,6 +155,3 @@ mod tests {
         );
     }
 }
-
-include!("generation.rs");
-include!("helpers.rs");

@@ -144,6 +144,11 @@ impl NovelPlanningWorker {
     }
 }
 
+include!("worker/runtime.rs");
+include!("worker/routes.rs");
+include!("worker/state.rs");
+include!("worker/helpers.rs");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,8 +259,3 @@ mod tests {
         );
     }
 }
-
-include!("worker/runtime.rs");
-include!("worker/routes.rs");
-include!("worker/state.rs");
-include!("worker/helpers.rs");

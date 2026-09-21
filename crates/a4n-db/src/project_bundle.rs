@@ -633,8 +633,10 @@ mod tests {
 
     #[test]
     fn workflow_scope_is_remapped_or_blocked_explicitly() {
-        let mut maps = ProjectBundleEntityIdMaps::default();
-        maps.chapter_ids = HashMap::from([(7, 70)]);
+        let maps = ProjectBundleEntityIdMaps {
+            chapter_ids: HashMap::from([(7, 70)]),
+            ..Default::default()
+        };
         assert_eq!(
             remap_workflow_scope(Some("chapter"), Some(7), &maps),
             (Some("chapter".to_string()), Some(70), true)

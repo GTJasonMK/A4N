@@ -269,13 +269,6 @@ fn required_text(value: String, field: &str) -> Result<String, ApiError> {
     Ok(value)
 }
 
-fn validate_positive_id(value: Option<i64>, field: &str) -> Result<(), ApiError> {
-    if value.is_some_and(|value| value <= 0) {
-        return Err(ApiError::bad_request(format!("{field} 必须是正整数")));
-    }
-    Ok(())
-}
-
 fn random_code_part() -> String {
     Uuid::new_v4()
         .simple()

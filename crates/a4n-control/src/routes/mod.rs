@@ -19,10 +19,18 @@ use crate::state::ServerState;
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, patch, post};
+use error::ApiError;
 
 const COMMAND_BODY_LIMIT_BYTES: usize = 32 * 1024 * 1024;
 const TEMP_MEDIA_BODY_LIMIT_BYTES: usize = 32 * 1024 * 1024;
 const VIDEO_GENERATION_BODY_LIMIT_BYTES: usize = 128 * 1024 * 1024;
+
+fn validate_positive_id(value: Option<i64>, field: &str) -> Result<(), ApiError> {
+    if value.is_some_and(|value| value <= 0) {
+        return Err(ApiError::bad_request(format!("{field} 必须是正整数")));
+    }
+    Ok(())
+}
 
 pub fn api_router(state: ServerState) -> Router {
     Router::new()

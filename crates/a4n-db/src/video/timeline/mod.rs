@@ -44,10 +44,9 @@ pub struct CommitInsertedTimelineItemInput {
     pub workflow_run_id: i64,
 }
 
-/// 在同一事务中提交插入片段提示词和时间线项。
-///
-/// 草稿阶段不会触碰 canonical 表；只有这里成功后，提示词、时间线顺序和
-/// `timeline_item_id` 才会一起可见。
+include!("operations.rs");
+include!("helpers.rs");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -407,6 +406,3 @@ mod tests {
         assert_eq!(completed.timeline_item_id, prompt.timeline_item_id);
     }
 }
-
-include!("operations.rs");
-include!("helpers.rs");

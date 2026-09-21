@@ -1,5 +1,6 @@
 use super::auth::authenticated_user;
 use super::error::ApiError;
+use super::validate_positive_id;
 use crate::state::ServerState;
 use axum::Json;
 use axum::extract::{Path, State};
@@ -436,13 +437,6 @@ fn required_text(value: String, field: &str) -> Result<String, ApiError> {
         return Err(ApiError::bad_request(format!("{field} 过长")));
     }
     Ok(value)
-}
-
-fn validate_positive_id(value: Option<i64>, field: &str) -> Result<(), ApiError> {
-    if value.is_some_and(|value| value <= 0) {
-        return Err(ApiError::bad_request(format!("{field} 必须是正整数")));
-    }
-    Ok(())
 }
 
 fn validate_metadata(value: &Value) -> Result<(), ApiError> {

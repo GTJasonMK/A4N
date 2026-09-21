@@ -55,6 +55,9 @@ pub const CHAPTER_ANALYSIS_STEP_SCENE_SYNC: &str = "chapter_analysis.scene_sync"
 pub const CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC: &str = "chapter_analysis.character_sync";
 const STEP_REFRESH_STATUS: &str = "chapter_analysis.refresh_status";
 
+include!("analysis.rs");
+include!("contracts.rs");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,6 +89,3 @@ mod tests {
         assert!(error.to_string().contains("cleanup_artifacts"));
     }
 }
-
-include!("analysis.rs");
-include!("contracts.rs");

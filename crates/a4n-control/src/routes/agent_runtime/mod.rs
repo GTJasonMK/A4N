@@ -105,6 +105,11 @@ pub(super) struct AgentMemoriesQuery {
     scope_id: Option<String>,
 }
 
+include!("worker_routes.rs");
+include!("user_routes.rs");
+include!("stream.rs");
+include!("helpers.rs");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,8 +224,3 @@ mod tests {
         );
     }
 }
-
-include!("worker_routes.rs");
-include!("user_routes.rs");
-include!("stream.rs");
-include!("helpers.rs");

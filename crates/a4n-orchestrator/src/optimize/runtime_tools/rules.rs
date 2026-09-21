@@ -11,8 +11,8 @@ pub(super) fn required_string<'a>(input: &'a Value, field: &str) -> Result<&'a s
         .ok_or_else(|| AppError::InvalidArgument(format!("缺少必填字符串参数: {field}")))
 }
 
-pub(super) fn required_information_source<'a>(
-    input: &'a Value,
+pub(super) fn required_information_source(
+    input: &Value,
     field: &str,
 ) -> Result<&'static str, AppError> {
     let source = required_string(input, field)?;

@@ -39,6 +39,9 @@ pub(crate) struct InsertedSegmentNeighborContext {
     pub(crate) sha256: String,
 }
 
+include!("assembly.rs");
+include!("inserted.rs");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -308,6 +311,3 @@ mod tests {
         assert!(timeline_item_context(Some(8), &[item], &[], &[], &[], &[], &[]).is_err());
     }
 }
-
-include!("assembly.rs");
-include!("inserted.rs");
