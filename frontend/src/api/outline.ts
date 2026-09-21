@@ -33,7 +33,7 @@ import type {
 export type { ChapterOutlinePacing, OutlineGenerationProgressSummary };
 
 /**
- * Outline API wrapper —— 对齐 crates/a4n-tauri/src/commands/outline.rs
+ * Outline API wrapper —— 对齐 crates/host/a4n-tauri/src/commands/outline.rs
  *
  * 注意：A4N 后端的章节大纲（chapter_outline）按 **project_id** 索引，不是 part_id。
  * 前端之前用 partId 是错的。

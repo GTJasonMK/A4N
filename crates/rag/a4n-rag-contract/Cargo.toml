@@ -1,0 +1,14 @@
+[package]
+name = "a4n-rag-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-embedding-value-contract = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-rag-value-contract = { workspace = true }
+
+async-trait = { workspace = true }
+serde_json = { workspace = true }

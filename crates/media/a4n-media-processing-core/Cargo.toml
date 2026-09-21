@@ -1,0 +1,12 @@
+[package]
+name = "a4n-media-processing-core"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-media-contract = { workspace = true }
+a4n-media-render-core = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

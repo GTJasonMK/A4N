@@ -52,9 +52,9 @@ destructive 命令的 `route` 是 `cli_destructive_gate`，只验证 CLI 授权�
 
 Page CLI 不能用“mock provider 能响应”代替“GUI Page Session 已绑定”：前者只验证 Server 到 Provider 的 Host API 路径，后者还需要真实的用户、账户开关、当前 Web tab、一次性授权码和 Agent lease。按边界分层验证：
 
-- `crates/a4n-cli/src/page.rs` 单测覆盖授权码校验、Session path 编码、子命令 label 和 LF/CRLF SSE framing。
-- `crates/a4n-cli/tests/cli_e2e.rs` 用当前构建的 CLI 和本地 mock HTTP Server 覆盖 `sessions`、`attach --code`/`--code-stdin`、`status`、`context`、`commands`、`call`、`navigate`、`pause`、`resume`、`cancel`、`takeover`、`detach`、`events`；同时检查请求顺序、UI/Agent headers、凭证不出现在普通输出、敏感 target 脱敏，以及 destructive gate 在 Operation/Host API 请求前生效。
-- `crates/a4n-server/src/routes/page_sessions.rs` 单测覆盖用户隔离、按 tab 幂等、授权码一次性使用、Agent 绑定、Page CLI 开关、上下文 revision 冲突、页面命令可用性、管理员门禁、危险命令门禁、操作状态转换和 takeover/cancel。
+- `crates/host/a4n-cli/src/page.rs` 单测覆盖授权码校验、Session path 编码、子命令 label 和 LF/CRLF SSE framing。
+- `crates/host/a4n-cli/tests/cli_e2e.rs` 用当前构建的 CLI 和本地 mock HTTP Server 覆盖 `sessions`、`attach --code`/`--code-stdin`、`status`、`context`、`commands`、`call`、`navigate`、`pause`、`resume`、`cancel`、`takeover`、`detach`、`events`；同时检查请求顺序、UI/Agent headers、凭证不出现在普通输出、敏感 target 脱敏，以及 destructive gate 在 Operation/Host API 请求前生效。
+- `crates/host/a4n-server/src/routes/page_sessions.rs` 单测覆盖用户隔离、按 tab 幂等、授权码一次性使用、Agent 绑定、Page CLI 开关、上下文 revision 冲突、页面命令可用性、管理员门禁、危险命令门禁、操作状态转换和 takeover/cancel。
 - `frontend/src/api/pageSessions.test.ts` 覆盖请求路径、JSON body、UI/Agent headers、SSE 过滤和错误；`frontend/src/hooks/usePageSession.test.ts` 覆盖路由到页面上下文的推导；控制条测试覆盖等待绑定、运行锁定和 takeover 可见性；认证 store 测试覆盖账户开关更新。
 
 真实 Page CLI smoke test 需要：当前源码构建的 `a4n`、已启用 Page CLI 的隔离管理员账号、正在运行的 Web Server，以及页面上显示的绑定码。测试时必须使用同一个 `--config` 完成 Agent register、attach 和后续 Page CLI 命令；不要把 UI token 或 Agent token 写入 fixture、ledger、报告或日志。完成标准不是 manifest descriptor 数量，而是所有 Page CLI 子命令都有成功或明确的预期失败路径，并且 real Server / Provider 请求链路另有证据。

@@ -24,7 +24,7 @@ import type {
 import { getActiveLocale, translateMessage } from "../i18n";
 
 /**
- * Blueprint API wrapper —— 对齐 crates/a4n-tauri/src/commands/blueprint.rs
+ * Blueprint API wrapper —— 对齐 crates/host/a4n-tauri/src/commands/blueprint.rs
  *
  * 命令组：
  *  - get/sync: 用 projectId 平铺参数

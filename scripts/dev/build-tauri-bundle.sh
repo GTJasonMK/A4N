@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-TAURI_SIDECAR_CONFIG="$PROJECT_ROOT/crates/a4n-tauri/tauri.sidecars.conf.json"
+TAURI_SIDECAR_CONFIG="$PROJECT_ROOT/crates/host/a4n-tauri/tauri.sidecars.conf.json"
 PREPARE_ARGS=()
 TAURI_ARGS=()
 CARGO_BUILD_ARGS=()
@@ -105,7 +105,7 @@ tauri_config="$(ruby -rjson -e '
   config = JSON.parse(File.read(ARGV.fetch(0)))
   binaries = ARGV.drop(1)
   abort "release externalBin entries are duplicated" unless binaries.uniq.length == binaries.length
-  config.fetch("bundle")["externalBin"] = binaries.map { |binary| "../../target/tauri-sidecars/#{binary}" }
+  config.fetch("bundle")["externalBin"] = binaries.map { |binary| "../../../target/tauri-sidecars/#{binary}" }
   print JSON.generate(config)
 ' "$TAURI_SIDECAR_CONFIG" "${BUNDLE_BINARIES[@]}")"
 tauri_command=(cargo tauri build --config "$tauri_config" "${TAURI_ARGS[@]}")
@@ -128,6 +128,6 @@ require_onnxruntime
 
 log_section "构建 Tauri 原生包"
 (
-    cd "$PROJECT_ROOT/crates/a4n-tauri"
+    cd "$PROJECT_ROOT"
     "${tauri_command[@]}"
 )

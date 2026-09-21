@@ -1,0 +1,15 @@
+[package]
+name = "a4n-domain"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-progress = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_json_canonicalizer = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }

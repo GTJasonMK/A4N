@@ -1,0 +1,19 @@
+[package]
+name = "a4n-canvas-host-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-canvas-contract = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-image-host-contract = { workspace = true }
+a4n-llm-provider-contract = { workspace = true }
+a4n-provider-contract = { workspace = true }
+a4n-video-host-contract = { workspace = true }
+a4n-video-provider-contract = { workspace = true }
+a4n-video-sidecar-contract = { workspace = true }
+
+async-trait = { workspace = true }
+serde_json = { workspace = true }

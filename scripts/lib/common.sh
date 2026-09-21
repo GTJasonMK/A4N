@@ -203,17 +203,15 @@ cargo_graph_uses_onnxruntime() {
     grep -Fq 'a4n-embedding-fastembed v' <<<"$dependency_tree"
 }
 
-cargo_package_exists() {
+cargo_package_dir() {
     local package="$1"
-    local pattern="^[[:space:]]*name[[:space:]]*=[[:space:]]*\"${package}\""
-    local manifests=("$PROJECT_ROOT"/crates/*/Cargo.toml)
-
-    [[ -e "${manifests[0]}" ]] || return 1
-    if command -v rg >/dev/null 2>&1; then
-        rg -q -- "$pattern" "${manifests[@]}"
-    else
-        grep -Eq -- "$pattern" "${manifests[@]}"
-    fi
+    [[ "$package" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+    local manifests=("$PROJECT_ROOT"/crates/*/"$package"/Cargo.toml)
+    [[ ${#manifests[@]} == 1 && -f "${manifests[0]}" ]] || {
+        printf '无法唯一定位 Cargo package: %s\n' "$package" >&2
+        return 1
+    }
+    printf '%s\n' "${manifests[0]%/Cargo.toml}"
 }
 
 sidecar_catalog_rows() {

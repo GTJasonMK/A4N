@@ -1,0 +1,15 @@
+[package]
+name = "a4n-manga-core"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-db-models = { workspace = true }
+a4n-domain = { workspace = true }
+
+serde_json = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }

@@ -1,0 +1,20 @@
+[package]
+name = "a4n-llm-client"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+test-support = ["a4n-service-client/test-support"]
+
+[dependencies]
+a4n-model-discovery-contract = { workspace = true }
+a4n-llm-sidecar-contract = { workspace = true }
+a4n-service-client = { workspace = true }
+a4n-service-protocol = { workspace = true }
+
+async-trait = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+a4n-service-client = { workspace = true, features = ["test-support"] }

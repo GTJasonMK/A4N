@@ -24,7 +24,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 # —— 配置 ——
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 PACKAGE_NAME="a4n-tauri"
-VERSION=$(grep '^version' "$PROJECT_ROOT/crates/a4n-tauri/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+VERSION=$(grep '^version' "$PROJECT_ROOT/crates/host/a4n-tauri/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
 SIDECAR_PACKAGES=()
 TOOL_SPECS=()
 SKIP_BUILD=false

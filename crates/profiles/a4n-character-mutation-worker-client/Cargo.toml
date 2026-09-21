@@ -1,0 +1,17 @@
+[package]
+name = "a4n-character-mutation-worker-client"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-character-mutation-worker-contract = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-worker-client = { workspace = true }
+a4n-worker-contract = { workspace = true }
+
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }

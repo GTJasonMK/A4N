@@ -1,0 +1,29 @@
+[package]
+name = "a4n-embedding-service"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = ["fastembed"]
+fastembed = ["dep:a4n-embedding-fastembed"]
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-embedding-providers = { workspace = true }
+a4n-embedding-contract = { workspace = true }
+a4n-embedding-provider-contract = { workspace = true }
+a4n-embedding-fastembed = { workspace = true, optional = true }
+a4n-sidecar-bootstrap = { workspace = true }
+a4n-service-protocol = { workspace = true }
+
+anyhow = { workspace = true }
+axum = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+a4n-test-support = { workspace = true }

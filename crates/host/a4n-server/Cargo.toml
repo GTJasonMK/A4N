@@ -1,0 +1,109 @@
+[package]
+name = "a4n-server"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+test-embedded-processes = [
+    "dep:a4n-agent-worker",
+    "dep:a4n-artifact-media-worker",
+    "dep:a4n-blueprint-worker",
+    "dep:a4n-asset-graph-worker",
+    "dep:a4n-foreshadowing-worker",
+    "dep:a4n-object-profile-worker",
+    "dep:a4n-profile-material-worker",
+    "dep:a4n-project-status-worker",
+    "dep:a4n-outline-worker",
+    "dep:a4n-portrait-worker",
+    "dep:a4n-source-snapshot-worker",
+    "dep:a4n-scene-profile-worker",
+    "dep:a4n-theme-read-worker",
+    "dep:a4n-project-read-worker",
+    "dep:a4n-import-review-worker",
+    "dep:a4n-inspiration-worker",
+    "dep:a4n-project-access-worker",
+    "dep:a4n-project-collaboration-worker",
+    "dep:a4n-project-mutation-worker",
+    "dep:a4n-chapter-scene-worker",
+    "dep:a4n-chapter-content-worker",
+    "dep:a4n-workflow-read-worker",
+    "dep:a4n-config-read-worker",
+    "dep:a4n-character-mutation-worker",
+    "dep:a4n-video-record-worker",
+    "dep:a4n-manga-record-worker",
+    "dep:a4n-control",
+    "dep:a4n-edge",
+]
+embedded-capabilities = [
+    "test-embedded-processes",
+    "a4n-control/embedded-capabilities",
+    "a4n-agent-worker/embedded-capabilities",
+]
+embedded-llm-provider = [
+    "test-embedded-processes",
+    "a4n-control/embedded-llm-provider",
+    "a4n-agent-worker/embedded-llm-provider",
+]
+embedded-media-providers = [
+    "test-embedded-processes",
+    "a4n-control/embedded-media-providers",
+    "a4n-agent-worker/embedded-media-providers",
+]
+
+[dependencies]
+a4n-agent-worker = { workspace = true, optional = true }
+a4n-artifact-media-worker = { workspace = true, optional = true }
+a4n-blueprint-worker = { workspace = true, optional = true }
+a4n-asset-graph-worker = { workspace = true, optional = true }
+a4n-foreshadowing-worker = { workspace = true, optional = true }
+a4n-object-profile-worker = { workspace = true, optional = true }
+a4n-profile-material-worker = { workspace = true, optional = true }
+a4n-project-status-worker = { workspace = true, optional = true }
+a4n-outline-worker = { workspace = true, optional = true }
+a4n-portrait-worker = { workspace = true, optional = true }
+a4n-source-snapshot-worker = { workspace = true, optional = true }
+a4n-scene-profile-worker = { workspace = true, optional = true }
+a4n-theme-read-worker = { workspace = true, optional = true }
+a4n-project-read-worker = { workspace = true, optional = true }
+a4n-import-review-worker = { workspace = true, optional = true }
+a4n-inspiration-worker = { workspace = true, optional = true }
+a4n-project-access-worker = { workspace = true, optional = true }
+a4n-project-collaboration-worker = { workspace = true, optional = true }
+a4n-project-mutation-worker = { workspace = true, optional = true }
+a4n-chapter-scene-worker = { workspace = true, optional = true }
+a4n-chapter-content-worker = { workspace = true, optional = true }
+a4n-workflow-read-worker = { workspace = true, optional = true }
+a4n-config-read-worker = { workspace = true, optional = true }
+a4n-character-mutation-worker = { workspace = true, optional = true }
+a4n-video-record-worker = { workspace = true, optional = true }
+a4n-manga-record-worker = { workspace = true, optional = true }
+a4n-control = { workspace = true, optional = true }
+a4n-edge = { workspace = true, optional = true }
+a4n-process-catalog = { workspace = true }
+a4n-worker-client = { workspace = true }
+a4n-worker-contract = { workspace = true }
+
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+a4n-api-contract = { workspace = true }
+a4n-db = { workspace = true }
+a4n-db-models = { workspace = true }
+a4n-domain = { workspace = true }
+a4n-migration = { workspace = true }
+a4n-queue = { workspace = true }
+a4n-service-protocol = { workspace = true }
+axum = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+sea-orm = { workspace = true }
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }

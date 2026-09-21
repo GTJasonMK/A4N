@@ -210,9 +210,9 @@ def affected_packages(changed_package_names, reverse)
 end
 
 def catalog(root)
-  workers = read_json(root.join("crates/a4n-process-catalog/worker-catalog.json"), [])
-  services = read_json(root.join("crates/a4n-process-catalog/service-catalog.json"), [])
-  tools = read_json(root.join("crates/a4n-process-catalog/release-tools.json"), [])
+  workers = read_json(root.join("crates/process/a4n-process-catalog/worker-catalog.json"), [])
+  services = read_json(root.join("crates/process/a4n-process-catalog/service-catalog.json"), [])
+  tools = read_json(root.join("crates/process/a4n-process-catalog/release-tools.json"), [])
   [workers, services, tools]
 end
 

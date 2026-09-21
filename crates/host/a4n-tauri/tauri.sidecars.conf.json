@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "resources": {
+      "../../../target/tauri-sidecars/*onnxruntime*": "",
+      "../../../prompts": "prompts"
+    },
+    "macOS": {
+      "hardenedRuntime": true
+    }
+  }
+}

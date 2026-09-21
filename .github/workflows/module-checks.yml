@@ -70,7 +70,9 @@ jobs:
           fi
 
       - name: Check a4n-core boundary inventory
-        run: ./scripts/checks/check-core-boundary.sh
+        run: |
+          python3 scripts/tests/test_crate_layout.py
+          ./scripts/checks/check-core-boundary.sh
 
       - name: Check export Worker isolation boundary
         run: timeout 900 ./scripts/checks/check-worker-isolation.sh
@@ -324,7 +326,7 @@ jobs:
             scripts/checks/check-generation-safety-boundary.sh \
             scripts/checks/smoke-macos-tauri-bundle.sh \
             scripts/checks/generate-release-sbom.sh
-          ruby -e 'require "json"; JSON.parse(File.read("crates/a4n-tauri/tauri.sidecars.conf.json"))'
+          ruby -e 'require "json"; JSON.parse(File.read("crates/host/a4n-tauri/tauri.sidecars.conf.json"))'
           ./scripts/checks/check-release-manifest.sh
           ./scripts/checks/check-sidecar-security-boundary.sh
           ./scripts/checks/check-core-boundary.sh
@@ -582,7 +584,7 @@ jobs:
         run: |
           app="target/aarch64-apple-darwin/release/bundle/macos/A4N.app"
           output="artifacts/macos-package"
-          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/host/a4n-tauri/tauri.conf.json")).fetch("version")')"
           archive="$output/A4N-${version}-macos-arm64-unsigned.zip"
           manifest="$output/A4N-${version}-macos-arm64-unsigned.manifest.json"
           check="$GITHUB_WORKSPACE/target/tmp/a4n-macos-package-check"
@@ -657,6 +659,8 @@ jobs:
           python3 scripts/tests/test_cli_contract_runner.py
           python3 scripts/tests/test_mock_openai_provider.py
           python3 scripts/tests/test_run_preflight.py
+          python3 scripts/tests/test_deploy_plan.py
+          python3 scripts/tests/test_runtime_worker_watcher.py
 
   media-ffmpeg-smoke:
     name: FFmpeg media smoke tests

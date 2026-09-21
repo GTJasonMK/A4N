@@ -1,9 +1,0 @@
-[package]
-name = "a4n-inspiration-core"
-version = "0.1.0"
-edition = "2024"
-license.workspace = true
-
-[dependencies]
-a4n-api-contract = { path = "../a4n-api-contract" }
-a4n-db-models = { path = "../a4n-db-models" }

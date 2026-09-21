@@ -1,213 +1,246 @@
 [workspace]
 resolver = "2"
-members = [
-    "crates/a4n-cli",
-    "crates/a4n-api-contract",
-    "crates/a4n-canvas-host-contract",
-    "crates/a4n-test-support",
-    "crates/a4n-queue",
-    "crates/a4n-generation-artifact-contract",
-    "crates/a4n-service-protocol",
-    "crates/a4n-process-catalog",
-    "crates/a4n-worker-contract",
-    "crates/a4n-worker-client",
-    "crates/a4n-artifact-media-contract",
-    "crates/a4n-artifact-media-client",
-    "crates/a4n-artifact-media-worker",
-    "crates/a4n-agent-runtime-contract",
-    "crates/a4n-agent-application",
-    "crates/a4n-agent-runtime",
-    "crates/a4n-agent-worker",
-    "crates/a4n-agent-worker-client",
-    "crates/a4n-novel-planning-worker-contract",
-    "crates/a4n-novel-planning-worker-client",
-    "crates/a4n-novel-planning-worker",
-    "crates/a4n-outline-worker-contract",
-    "crates/a4n-outline-worker-client",
-    "crates/a4n-outline-worker",
-    "crates/a4n-blueprint-worker-contract",
-    "crates/a4n-blueprint-worker-client",
-    "crates/a4n-blueprint-worker",
-    "crates/a4n-asset-graph-worker-contract",
-    "crates/a4n-asset-graph-worker-client",
-    "crates/a4n-asset-graph-worker",
-    "crates/a4n-foreshadowing-worker-contract",
-    "crates/a4n-foreshadowing-worker-client",
-    "crates/a4n-foreshadowing-worker",
-    "crates/a4n-object-profile-worker-contract",
-    "crates/a4n-object-profile-worker-client",
-    "crates/a4n-object-profile-worker",
-    "crates/a4n-profile-material-worker-contract",
-    "crates/a4n-profile-material-worker-client",
-    "crates/a4n-profile-material-worker",
-    "crates/a4n-project-status-worker-contract",
-    "crates/a4n-project-status-worker-client",
-    "crates/a4n-project-status-worker",
-    "crates/a4n-project-read-core",
-    "crates/a4n-project-read-worker-contract",
-    "crates/a4n-project-read-worker-client",
-    "crates/a4n-project-read-worker",
-    "crates/a4n-import-review-core",
-    "crates/a4n-import-review-worker-contract",
-    "crates/a4n-import-review-worker-client",
-    "crates/a4n-import-review-worker",
-    "crates/a4n-inspiration-core",
-    "crates/a4n-inspiration-worker-contract",
-    "crates/a4n-inspiration-worker-client",
-    "crates/a4n-inspiration-worker",
-    "crates/a4n-project-access-worker-contract",
-    "crates/a4n-project-access-worker-client",
-    "crates/a4n-project-access-worker",
-    "crates/a4n-project-collaboration-worker-contract",
-    "crates/a4n-project-collaboration-worker-client",
-    "crates/a4n-project-collaboration-worker",
-    "crates/a4n-project-mutation-worker-contract",
-    "crates/a4n-project-mutation-worker-client",
-    "crates/a4n-project-mutation-worker",
-    "crates/a4n-chapter-scene-worker-contract",
-    "crates/a4n-chapter-scene-worker-client",
-    "crates/a4n-chapter-scene-worker",
-    "crates/a4n-theme-core",
-    "crates/a4n-theme-read-worker-contract",
-    "crates/a4n-theme-read-worker-client",
-    "crates/a4n-theme-read-worker",
-    "crates/a4n-scene-profile-worker-contract",
-    "crates/a4n-scene-profile-worker-client",
-    "crates/a4n-scene-profile-worker",
-    "crates/a4n-portrait-worker-contract",
-    "crates/a4n-portrait-worker-client",
-    "crates/a4n-portrait-worker",
-    "crates/a4n-source-snapshot-worker-contract",
-    "crates/a4n-source-snapshot-worker-client",
-    "crates/a4n-source-snapshot-worker",
-    "crates/a4n-service-client",
-    "crates/a4n-prompt-client",
-    "crates/a4n-import-client",
-    "crates/a4n-export-client",
-    "crates/a4n-llm-client",
-    "crates/a4n-llm-sidecar-contract",
-    "crates/a4n-llm-provider-contract",
-    "crates/a4n-novel-host-contract",
-    "crates/a4n-embedding-client",
-    "crates/a4n-rag-client",
-    "crates/a4n-rag-sidecar-contract",
-    "crates/a4n-image-client",
-    "crates/a4n-video-client",
-    "crates/a4n-sidecar-bootstrap",
-    "crates/a4n-service-manager",
-    "crates/a4n-demo-sidecar",
-    "crates/a4n-model-discovery",
-    "crates/a4n-model-discovery-contract",
-    "crates/a4n-prompt",
-    "crates/a4n-prompt-contract",
-    "crates/a4n-prompt-git",
-    "crates/a4n-prompt-service",
-    "crates/a4n-provider-contract",
-    "crates/a4n-provider-runtime-contract",
-    "crates/a4n-cleanup-contract",
-    "crates/a4n-blueprint-contract",
-    "crates/a4n-canvas-contract",
-    "crates/a4n-outline-contract",
-    "crates/a4n-llm-context",
-    "crates/a4n-llm-structured-stream",
-    "crates/a4n-llm-trace",
-    "crates/a4n-llm-config",
-    "crates/a4n-llm-http",
-    "crates/a4n-llm-gateway",
-    "crates/a4n-embedding-contract",
-    "crates/a4n-embedding-value-contract",
-    "crates/a4n-embedding-provider-contract",
-    "crates/a4n-embedding-providers",
-    "crates/a4n-embedding-fastembed",
-    "crates/a4n-embedding-service",
-    "crates/a4n-rag-core",
-    "crates/a4n-rag-contract",
-    "crates/a4n-rag-value-contract",
-    "crates/a4n-rag-index",
-    "crates/a4n-rag-service",
-    "crates/a4n-image-contract",
-    "crates/a4n-image-host-contract",
-    "crates/a4n-inspiration-host-contract",
-    "crates/a4n-import-analysis-host-contract",
-    "crates/a4n-image-provider-contract",
-    "crates/a4n-image-providers",
-    "crates/a4n-image-service",
-    "crates/a4n-media",
-    "crates/a4n-media-render-core",
-    "crates/a4n-media-processing-core",
-    "crates/a4n-profile-material-core",
-    "crates/a4n-media-contract",
-    "crates/a4n-media-client",
-    "crates/a4n-media-service",
-    "crates/a4n-video",
-    "crates/a4n-video-contract",
-    "crates/a4n-video-host-contract",
-    "crates/a4n-video-provider-contract",
-    "crates/a4n-video-sidecar-contract",
-    "crates/a4n-video-providers",
-    "crates/a4n-video-service",
-    "crates/a4n-archive-core",
-    "crates/a4n-import-core",
-    "crates/a4n-import-contract",
-    "crates/a4n-import-service",
-    "crates/a4n-export-core",
-    "crates/a4n-document-export-core",
-    "crates/a4n-export-contract",
-    "crates/a4n-export-service",
-    "crates/a4n-domain",
-    "crates/a4n-galgame-host-contract",
-    "crates/a4n-generation-host-contract",
-    "crates/a4n-chapter-analysis-host-contract",
-    "crates/a4n-chapter-generation-contract",
-    "crates/a4n-chapter-content-core",
-    "crates/a4n-chapter-content-worker-contract",
-    "crates/a4n-chapter-content-worker-client",
-    "crates/a4n-chapter-content-worker",
-    "crates/a4n-workflow-core",
-    "crates/a4n-workflow-read-worker-contract",
-    "crates/a4n-workflow-read-worker-client",
-    "crates/a4n-workflow-read-worker",
-    "crates/a4n-config-read-core",
-    "crates/a4n-config-read-worker-contract",
-    "crates/a4n-config-read-worker-client",
-    "crates/a4n-config-read-worker",
-    "crates/a4n-character-mutation-worker-contract",
-    "crates/a4n-character-mutation-worker-client",
-    "crates/a4n-character-mutation-worker",
-    "crates/a4n-video-record-worker-contract",
-    "crates/a4n-video-record-worker-client",
-    "crates/a4n-video-record-worker",
-    "crates/a4n-manga-core",
-    "crates/a4n-manga-record-worker-contract",
-    "crates/a4n-manga-record-worker-client",
-    "crates/a4n-manga-record-worker",
-    "crates/a4n-character-host-contract",
-    "crates/a4n-optimize-host-contract",
-    "crates/a4n-portrait-host-contract",
-    "crates/a4n-scene-host-contract",
-    "crates/a4n-config",
-    "crates/a4n-event",
-    "crates/a4n-storage",
-    "crates/a4n-chapter-analysis",
-    "crates/a4n-db-models",
-    "crates/a4n-error",
-    "crates/a4n-progress",
-    "crates/a4n-task-runtime",
-    "crates/a4n-db",
-    "crates/a4n-orchestrator",
-    "crates/a4n-host-assembly",
-    "crates/a4n-runtime",
-    "crates/a4n-tauri",
-    "crates/a4n-migration",
-    "crates/a4n-edge",
-    "crates/a4n-control",
-    "crates/a4n-server",
-]
+members = ["crates/*/a4n-*"]
 
 [workspace.package]
 license = "Apache-2.0"
 
 [workspace.dependencies]
+# host
+a4n-api-contract = { path = "crates/host/a4n-api-contract" }
+a4n-control = { path = "crates/host/a4n-control" }
+a4n-edge = { path = "crates/host/a4n-edge" }
+a4n-host-assembly = { path = "crates/host/a4n-host-assembly" }
+a4n-orchestrator = { path = "crates/host/a4n-orchestrator" }
+a4n-runtime = { path = "crates/host/a4n-runtime", default-features = false }
+
+# platform
+a4n-cleanup-contract = { path = "crates/platform/a4n-cleanup-contract" }
+a4n-db = { path = "crates/platform/a4n-db" }
+a4n-db-models = { path = "crates/platform/a4n-db-models" }
+a4n-domain = { path = "crates/platform/a4n-domain" }
+a4n-error = { path = "crates/platform/a4n-error", default-features = false }
+a4n-event = { path = "crates/platform/a4n-event" }
+a4n-migration = { path = "crates/platform/a4n-migration" }
+a4n-progress = { path = "crates/platform/a4n-progress" }
+a4n-queue = { path = "crates/platform/a4n-queue" }
+a4n-storage = { path = "crates/platform/a4n-storage" }
+a4n-task-runtime = { path = "crates/platform/a4n-task-runtime" }
+a4n-test-support = { path = "crates/platform/a4n-test-support" }
+
+# process
+a4n-process-catalog = { path = "crates/process/a4n-process-catalog" }
+a4n-service-client = { path = "crates/process/a4n-service-client" }
+a4n-service-manager = { path = "crates/process/a4n-service-manager" }
+a4n-service-protocol = { path = "crates/process/a4n-service-protocol" }
+a4n-sidecar-bootstrap = { path = "crates/process/a4n-sidecar-bootstrap" }
+a4n-worker-client = { path = "crates/process/a4n-worker-client" }
+a4n-worker-contract = { path = "crates/process/a4n-worker-contract" }
+
+# config
+a4n-config = { path = "crates/config/a4n-config" }
+a4n-config-read-core = { path = "crates/config/a4n-config-read-core" }
+a4n-config-read-worker = { path = "crates/config/a4n-config-read-worker" }
+a4n-config-read-worker-client = { path = "crates/config/a4n-config-read-worker-client" }
+a4n-config-read-worker-contract = { path = "crates/config/a4n-config-read-worker-contract" }
+
+# provider
+a4n-model-discovery = { path = "crates/provider/a4n-model-discovery" }
+a4n-model-discovery-contract = { path = "crates/provider/a4n-model-discovery-contract" }
+a4n-provider-contract = { path = "crates/provider/a4n-provider-contract" }
+a4n-provider-runtime-contract = { path = "crates/provider/a4n-provider-runtime-contract" }
+
+# llm
+a4n-llm-client = { path = "crates/llm/a4n-llm-client" }
+a4n-llm-config = { path = "crates/llm/a4n-llm-config" }
+a4n-llm-context = { path = "crates/llm/a4n-llm-context" }
+a4n-llm-http = { path = "crates/llm/a4n-llm-http" }
+a4n-llm-provider-contract = { path = "crates/llm/a4n-llm-provider-contract" }
+a4n-llm-sidecar-contract = { path = "crates/llm/a4n-llm-sidecar-contract" }
+a4n-llm-structured-stream = { path = "crates/llm/a4n-llm-structured-stream" }
+a4n-llm-trace = { path = "crates/llm/a4n-llm-trace" }
+
+# prompt
+a4n-prompt = { path = "crates/prompt/a4n-prompt" }
+a4n-prompt-client = { path = "crates/prompt/a4n-prompt-client" }
+a4n-prompt-contract = { path = "crates/prompt/a4n-prompt-contract" }
+a4n-prompt-git = { path = "crates/prompt/a4n-prompt-git" }
+
+# embedding
+a4n-embedding-client = { path = "crates/embedding/a4n-embedding-client" }
+a4n-embedding-contract = { path = "crates/embedding/a4n-embedding-contract" }
+a4n-embedding-fastembed = { path = "crates/embedding/a4n-embedding-fastembed" }
+a4n-embedding-provider-contract = { path = "crates/embedding/a4n-embedding-provider-contract" }
+a4n-embedding-providers = { path = "crates/embedding/a4n-embedding-providers" }
+a4n-embedding-value-contract = { path = "crates/embedding/a4n-embedding-value-contract" }
+
+# rag
+a4n-rag-client = { path = "crates/rag/a4n-rag-client" }
+a4n-rag-contract = { path = "crates/rag/a4n-rag-contract" }
+a4n-rag-core = { path = "crates/rag/a4n-rag-core" }
+a4n-rag-index = { path = "crates/rag/a4n-rag-index" }
+a4n-rag-sidecar-contract = { path = "crates/rag/a4n-rag-sidecar-contract" }
+a4n-rag-value-contract = { path = "crates/rag/a4n-rag-value-contract" }
+
+# agent
+a4n-agent-application = { path = "crates/agent/a4n-agent-application" }
+a4n-agent-runtime = { path = "crates/agent/a4n-agent-runtime" }
+a4n-agent-runtime-contract = { path = "crates/agent/a4n-agent-runtime-contract" }
+a4n-agent-worker = { path = "crates/agent/a4n-agent-worker" }
+a4n-agent-worker-client = { path = "crates/agent/a4n-agent-worker-client" }
+
+# project
+a4n-novel-host-contract = { path = "crates/project/a4n-novel-host-contract" }
+a4n-project-access-worker = { path = "crates/project/a4n-project-access-worker" }
+a4n-project-access-worker-client = { path = "crates/project/a4n-project-access-worker-client" }
+a4n-project-access-worker-contract = { path = "crates/project/a4n-project-access-worker-contract" }
+a4n-project-collaboration-worker = { path = "crates/project/a4n-project-collaboration-worker" }
+a4n-project-collaboration-worker-client = { path = "crates/project/a4n-project-collaboration-worker-client" }
+a4n-project-collaboration-worker-contract = { path = "crates/project/a4n-project-collaboration-worker-contract" }
+a4n-project-mutation-worker = { path = "crates/project/a4n-project-mutation-worker" }
+a4n-project-mutation-worker-client = { path = "crates/project/a4n-project-mutation-worker-client" }
+a4n-project-mutation-worker-contract = { path = "crates/project/a4n-project-mutation-worker-contract" }
+a4n-project-read-core = { path = "crates/project/a4n-project-read-core" }
+a4n-project-read-worker = { path = "crates/project/a4n-project-read-worker" }
+a4n-project-read-worker-client = { path = "crates/project/a4n-project-read-worker-client" }
+a4n-project-read-worker-contract = { path = "crates/project/a4n-project-read-worker-contract" }
+a4n-project-status-worker = { path = "crates/project/a4n-project-status-worker" }
+a4n-project-status-worker-client = { path = "crates/project/a4n-project-status-worker-client" }
+a4n-project-status-worker-contract = { path = "crates/project/a4n-project-status-worker-contract" }
+a4n-source-snapshot-worker = { path = "crates/project/a4n-source-snapshot-worker" }
+a4n-source-snapshot-worker-client = { path = "crates/project/a4n-source-snapshot-worker-client" }
+a4n-source-snapshot-worker-contract = { path = "crates/project/a4n-source-snapshot-worker-contract" }
+
+# planning
+a4n-blueprint-contract = { path = "crates/planning/a4n-blueprint-contract" }
+a4n-blueprint-worker = { path = "crates/planning/a4n-blueprint-worker" }
+a4n-blueprint-worker-client = { path = "crates/planning/a4n-blueprint-worker-client" }
+a4n-blueprint-worker-contract = { path = "crates/planning/a4n-blueprint-worker-contract" }
+a4n-foreshadowing-worker = { path = "crates/planning/a4n-foreshadowing-worker" }
+a4n-foreshadowing-worker-client = { path = "crates/planning/a4n-foreshadowing-worker-client" }
+a4n-foreshadowing-worker-contract = { path = "crates/planning/a4n-foreshadowing-worker-contract" }
+a4n-novel-planning-worker-client = { path = "crates/planning/a4n-novel-planning-worker-client" }
+a4n-novel-planning-worker-contract = { path = "crates/planning/a4n-novel-planning-worker-contract" }
+a4n-outline-contract = { path = "crates/planning/a4n-outline-contract" }
+a4n-outline-worker = { path = "crates/planning/a4n-outline-worker" }
+a4n-outline-worker-client = { path = "crates/planning/a4n-outline-worker-client" }
+a4n-outline-worker-contract = { path = "crates/planning/a4n-outline-worker-contract" }
+
+# chapter
+a4n-chapter-analysis = { path = "crates/chapter/a4n-chapter-analysis" }
+a4n-chapter-analysis-host-contract = { path = "crates/chapter/a4n-chapter-analysis-host-contract" }
+a4n-chapter-content-core = { path = "crates/chapter/a4n-chapter-content-core" }
+a4n-chapter-content-worker = { path = "crates/chapter/a4n-chapter-content-worker" }
+a4n-chapter-content-worker-client = { path = "crates/chapter/a4n-chapter-content-worker-client" }
+a4n-chapter-content-worker-contract = { path = "crates/chapter/a4n-chapter-content-worker-contract" }
+a4n-chapter-generation-contract = { path = "crates/chapter/a4n-chapter-generation-contract" }
+a4n-chapter-scene-worker = { path = "crates/chapter/a4n-chapter-scene-worker" }
+a4n-chapter-scene-worker-client = { path = "crates/chapter/a4n-chapter-scene-worker-client" }
+a4n-chapter-scene-worker-contract = { path = "crates/chapter/a4n-chapter-scene-worker-contract" }
+
+# profiles
+a4n-character-host-contract = { path = "crates/profiles/a4n-character-host-contract" }
+a4n-character-mutation-worker = { path = "crates/profiles/a4n-character-mutation-worker" }
+a4n-character-mutation-worker-client = { path = "crates/profiles/a4n-character-mutation-worker-client" }
+a4n-character-mutation-worker-contract = { path = "crates/profiles/a4n-character-mutation-worker-contract" }
+a4n-object-profile-worker = { path = "crates/profiles/a4n-object-profile-worker" }
+a4n-object-profile-worker-client = { path = "crates/profiles/a4n-object-profile-worker-client" }
+a4n-object-profile-worker-contract = { path = "crates/profiles/a4n-object-profile-worker-contract" }
+a4n-portrait-host-contract = { path = "crates/profiles/a4n-portrait-host-contract" }
+a4n-portrait-worker = { path = "crates/profiles/a4n-portrait-worker" }
+a4n-portrait-worker-client = { path = "crates/profiles/a4n-portrait-worker-client" }
+a4n-portrait-worker-contract = { path = "crates/profiles/a4n-portrait-worker-contract" }
+a4n-profile-material-core = { path = "crates/profiles/a4n-profile-material-core" }
+a4n-profile-material-worker = { path = "crates/profiles/a4n-profile-material-worker" }
+a4n-profile-material-worker-client = { path = "crates/profiles/a4n-profile-material-worker-client" }
+a4n-profile-material-worker-contract = { path = "crates/profiles/a4n-profile-material-worker-contract" }
+a4n-scene-host-contract = { path = "crates/profiles/a4n-scene-host-contract" }
+a4n-scene-profile-worker = { path = "crates/profiles/a4n-scene-profile-worker" }
+a4n-scene-profile-worker-client = { path = "crates/profiles/a4n-scene-profile-worker-client" }
+a4n-scene-profile-worker-contract = { path = "crates/profiles/a4n-scene-profile-worker-contract" }
+
+# inspiration
+a4n-inspiration-core = { path = "crates/inspiration/a4n-inspiration-core" }
+a4n-inspiration-host-contract = { path = "crates/inspiration/a4n-inspiration-host-contract" }
+a4n-inspiration-worker = { path = "crates/inspiration/a4n-inspiration-worker" }
+a4n-inspiration-worker-client = { path = "crates/inspiration/a4n-inspiration-worker-client" }
+a4n-inspiration-worker-contract = { path = "crates/inspiration/a4n-inspiration-worker-contract" }
+
+# image
+a4n-image-client = { path = "crates/image/a4n-image-client" }
+a4n-image-contract = { path = "crates/image/a4n-image-contract" }
+a4n-image-host-contract = { path = "crates/image/a4n-image-host-contract" }
+a4n-image-provider-contract = { path = "crates/image/a4n-image-provider-contract" }
+a4n-image-providers = { path = "crates/image/a4n-image-providers" }
+
+# video
+a4n-video = { path = "crates/video/a4n-video" }
+a4n-video-client = { path = "crates/video/a4n-video-client" }
+a4n-video-contract = { path = "crates/video/a4n-video-contract" }
+a4n-video-host-contract = { path = "crates/video/a4n-video-host-contract" }
+a4n-video-provider-contract = { path = "crates/video/a4n-video-provider-contract" }
+a4n-video-providers = { path = "crates/video/a4n-video-providers" }
+a4n-video-record-worker = { path = "crates/video/a4n-video-record-worker" }
+a4n-video-record-worker-client = { path = "crates/video/a4n-video-record-worker-client" }
+a4n-video-record-worker-contract = { path = "crates/video/a4n-video-record-worker-contract" }
+a4n-video-sidecar-contract = { path = "crates/video/a4n-video-sidecar-contract" }
+
+# media
+a4n-artifact-media-client = { path = "crates/media/a4n-artifact-media-client" }
+a4n-artifact-media-contract = { path = "crates/media/a4n-artifact-media-contract" }
+a4n-artifact-media-worker = { path = "crates/media/a4n-artifact-media-worker" }
+a4n-generation-artifact-contract = { path = "crates/media/a4n-generation-artifact-contract" }
+a4n-media = { path = "crates/media/a4n-media" }
+a4n-media-client = { path = "crates/media/a4n-media-client" }
+a4n-media-contract = { path = "crates/media/a4n-media-contract" }
+a4n-media-processing-core = { path = "crates/media/a4n-media-processing-core" }
+a4n-media-render-core = { path = "crates/media/a4n-media-render-core" }
+
+# manga
+a4n-manga-core = { path = "crates/manga/a4n-manga-core" }
+a4n-manga-record-worker = { path = "crates/manga/a4n-manga-record-worker" }
+a4n-manga-record-worker-client = { path = "crates/manga/a4n-manga-record-worker-client" }
+a4n-manga-record-worker-contract = { path = "crates/manga/a4n-manga-record-worker-contract" }
+
+# canvas
+a4n-asset-graph-worker = { path = "crates/canvas/a4n-asset-graph-worker" }
+a4n-asset-graph-worker-client = { path = "crates/canvas/a4n-asset-graph-worker-client" }
+a4n-asset-graph-worker-contract = { path = "crates/canvas/a4n-asset-graph-worker-contract" }
+a4n-canvas-contract = { path = "crates/canvas/a4n-canvas-contract" }
+a4n-canvas-host-contract = { path = "crates/canvas/a4n-canvas-host-contract" }
+
+# galgame
+a4n-galgame-host-contract = { path = "crates/galgame/a4n-galgame-host-contract" }
+
+# transfer
+a4n-archive-core = { path = "crates/transfer/a4n-archive-core" }
+a4n-document-export-core = { path = "crates/transfer/a4n-document-export-core" }
+a4n-export-client = { path = "crates/transfer/a4n-export-client" }
+a4n-export-contract = { path = "crates/transfer/a4n-export-contract" }
+a4n-export-core = { path = "crates/transfer/a4n-export-core" }
+a4n-import-analysis-host-contract = { path = "crates/transfer/a4n-import-analysis-host-contract" }
+a4n-import-client = { path = "crates/transfer/a4n-import-client" }
+a4n-import-contract = { path = "crates/transfer/a4n-import-contract" }
+a4n-import-core = { path = "crates/transfer/a4n-import-core" }
+a4n-import-review-core = { path = "crates/transfer/a4n-import-review-core" }
+a4n-import-review-worker = { path = "crates/transfer/a4n-import-review-worker" }
+a4n-import-review-worker-client = { path = "crates/transfer/a4n-import-review-worker-client" }
+a4n-import-review-worker-contract = { path = "crates/transfer/a4n-import-review-worker-contract" }
+
+# workflow
+a4n-generation-host-contract = { path = "crates/workflow/a4n-generation-host-contract" }
+a4n-optimize-host-contract = { path = "crates/workflow/a4n-optimize-host-contract" }
+a4n-workflow-core = { path = "crates/workflow/a4n-workflow-core" }
+a4n-workflow-read-worker = { path = "crates/workflow/a4n-workflow-read-worker" }
+a4n-workflow-read-worker-client = { path = "crates/workflow/a4n-workflow-read-worker-client" }
+a4n-workflow-read-worker-contract = { path = "crates/workflow/a4n-workflow-read-worker-contract" }
+
+# theme
+a4n-theme-core = { path = "crates/theme/a4n-theme-core" }
+a4n-theme-read-worker = { path = "crates/theme/a4n-theme-read-worker" }
+a4n-theme-read-worker-client = { path = "crates/theme/a4n-theme-read-worker-client" }
+a4n-theme-read-worker-contract = { path = "crates/theme/a4n-theme-read-worker-contract" }
+
 # CLI
 clap = { version = "4", features = ["derive"] }
 

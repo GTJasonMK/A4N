@@ -80,7 +80,8 @@ LEAF_PACKAGES=(
 )
 
 for package in "${LEAF_PACKAGES[@]}"; do
-    if rg -n 'a4n-core|a4n_core' "crates/$package/Cargo.toml" "crates/$package/src"; then
+    package_dir="$(cargo_package_dir "$package")"
+    if rg -n 'a4n-core|a4n_core' "$package_dir/Cargo.toml" "$package_dir/src"; then
         echo "$package leaf must not depend on the removed Host core" >&2
         exit 1
     fi
@@ -136,7 +137,7 @@ for client in "${WORKER_CLIENT_PACKAGES[@]}"; do
     done
 done
 
-if rg -n 'a4n[-_]export[-_]core' crates/a4n-test-support/Cargo.toml crates/a4n-test-support/src; then
+if rg -n 'a4n[-_]export[-_]core' crates/platform/a4n-test-support/Cargo.toml crates/platform/a4n-test-support/src; then
     echo "shared test support must not pull the export Worker implementation" >&2
     exit 1
 fi
@@ -145,7 +146,7 @@ cargo check --locked -p "$WORKER_PACKAGE" >/dev/null
 cargo check --locked -p a4n-worker-client >/dev/null
 cargo test --locked -p a4n-service-protocol --lib >/dev/null
 
-worker_main="crates/$WORKER_PACKAGE/src/main.rs"
+worker_main="$(cargo_package_dir "$WORKER_PACKAGE")/src/main.rs"
 [[ -r "$worker_main" ]] || {
     echo "Worker entrypoint is missing: $worker_main" >&2
     exit 1
@@ -168,7 +169,7 @@ if rg -n 'DatabaseConnection|sqlx|DATABASE_URL|JWT_SECRET|task_queue|generation_
 fi
 
 ruby -rjson -e '
-  catalog = JSON.parse(File.read("crates/a4n-process-catalog/service-catalog.json"))
+  catalog = JSON.parse(File.read("crates/process/a4n-process-catalog/service-catalog.json"))
   entry = catalog.find { |candidate| candidate.fetch("name") == ARGV.fetch(0) }
   abort "service catalog candidate is missing" unless entry
   abort "candidate binary must match catalog" unless entry.fetch("binary") == ARGV.fetch(1)

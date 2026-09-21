@@ -1,0 +1,14 @@
+[package]
+name = "a4n-import-analysis-host-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-chapter-analysis-host-contract = { workspace = true }
+a4n-character-host-contract = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-prompt-contract = { workspace = true }
+
+async-trait = { workspace = true }

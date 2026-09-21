@@ -13,7 +13,7 @@
 
 | 位置 | 放什么、如何维护 |
 | --- | --- |
-| `crates/` | 按稳定职责划分 Rust crate；实现在各自 `src/`，单测靠近模块，集成测试放 crate 的 `tests/`。新代码先归入已有职责，不新建万能 `core` 或 `utils` 容器。 |
+| `crates/<领域>/<a4n-包名>/` | 同一领域的 core、contract、client、worker 放在一起，保留独立编译与进程边界；实现在 `src/`，集成测试放 `tests/`。本地依赖路径只在根 workspace 声明，成员通过 `workspace = true` 引用。 |
 | `frontend/src/` | `pages/` 组合页面，`components/` 放共享组件，`api/` 集中有类型的后端访问，`assets/` 放静态资源；测试使用 `*.test.ts` / `*.test.tsx`。生成文件修改源合同或生成器后再生成。 |
 | `prompts/` | 运行时提示词资产；模板与注册表同步，不按普通说明文档去重。 |
 | `scripts/` | 按 `dev/`、`checks/`、`tests/`、`contracts/`、`deploy/` 归类；复用根入口和 `lib/` helper，避免复制启动、环境解析和清理逻辑。 |
@@ -31,6 +31,8 @@
 - Host API descriptor/schema 属于 `a4n-api-contract`，通用 sidecar 协议属于 `a4n-service-protocol`，能力专用合同属于相应 `a4n-*-contract`；新增能力合同不能全部塞回通用协议。
 
 文件拆分用于组织阅读，crate 拆分改变依赖与编译边界，进程拆分提供运行隔离。拆分依据是职责、真实消费者及测得的编译或运行收益；共享事务和状态不变量保持内聚。完整模块化仍在推进，不能承诺所有功能已可独立替换，或修改一个文件只重编该文件。
+
+迁移类型或函数时，同步修改调用方并删除旧导入路径文件。公共 crate 接口和 Host API 白名单可以显式转导出；内部实现直接引用定义所在的包，不新增只有 `pub use` 的中转模块。
 
 ## 开发环境
 

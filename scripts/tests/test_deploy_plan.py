@@ -18,31 +18,38 @@ class DeployPlanTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory(prefix="a4n-deploy-plan-")
         self.root = Path(self.temp_dir.name)
+        package_dirs = {
+            "a4n-agent-worker": self.root / "crates/agent/a4n-agent-worker",
+            "a4n-control": self.root / "crates/host/a4n-control",
+            "a4n-worker-contract": self.root / "crates/process/a4n-worker-contract",
+        }
         for path in [
-            self.root / "crates/a4n-agent-worker/src",
-            self.root / "crates/a4n-control/src",
-            self.root / "crates/a4n-worker-contract/src",
-            self.root / "crates/a4n-process-catalog",
+            *(directory / "src" for directory in package_dirs.values()),
+            self.root / "crates/process/a4n-process-catalog",
         ]:
             path.mkdir(parents=True)
 
-        (self.root / "Cargo.toml").write_text("[workspace]\nmembers = []\n", encoding="utf-8")
+        (self.root / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["crates/*/a4n-*"]\n'
+            '[workspace.dependencies]\n'
+            'a4n-worker-contract = { path = "crates/process/a4n-worker-contract" }\n',
+            encoding="utf-8",
+        )
         (self.root / "Cargo.lock").write_text("# fixture\n", encoding="utf-8")
         (self.root / ".gitignore").write_text("metadata.json\nstate.json\nplan.json\n", encoding="utf-8")
-        for package in ["a4n-agent-worker", "a4n-control", "a4n-worker-contract"]:
+        for package, package_dir in package_dirs.items():
             dependencies = (
-                "\n[dependencies]\na4n-worker-contract = { path = \"../a4n-worker-contract\" }\n"
+                "\n[dependencies]\na4n-worker-contract = { workspace = true }\n"
                 if package in {"a4n-agent-worker", "a4n-control"}
                 else ""
             )
-            package_dir = self.root / "crates" / package
             package_dir.joinpath("Cargo.toml").write_text(
                 f'[package]\nname = "{package}"\nversion = "0.1.0"\nedition = "2024"\n{dependencies}',
                 encoding="utf-8",
             )
             package_dir.joinpath("src/lib.rs").write_text("pub fn fixture() {}\n", encoding="utf-8")
 
-        (self.root / "crates/a4n-process-catalog/worker-catalog.json").write_text(
+        (self.root / "crates/process/a4n-process-catalog/worker-catalog.json").write_text(
             json.dumps(
                 [
                     {
@@ -58,8 +65,8 @@ class DeployPlanTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        (self.root / "crates/a4n-process-catalog/service-catalog.json").write_text("[]\n", encoding="utf-8")
-        (self.root / "crates/a4n-process-catalog/release-tools.json").write_text(
+        (self.root / "crates/process/a4n-process-catalog/service-catalog.json").write_text("[]\n", encoding="utf-8")
+        (self.root / "crates/process/a4n-process-catalog/release-tools.json").write_text(
             json.dumps(
                 [
                     {"package": "a4n-agent-worker", "binary": "a4n-agent-worker"},
@@ -84,7 +91,7 @@ class DeployPlanTest(unittest.TestCase):
             packages.append(
                 {
                     "name": package,
-                    "manifest_path": str(self.root / "crates" / package / "Cargo.toml"),
+                    "manifest_path": str(package_dirs[package] / "Cargo.toml"),
                     "dependencies": dependencies,
                 }
             )
@@ -130,7 +137,7 @@ class DeployPlanTest(unittest.TestCase):
         return json.loads(output.read_text(encoding="utf-8"))
 
     def test_worker_change_is_delta_and_does_not_build_control(self) -> None:
-        worker_source = self.root / "crates/a4n-agent-worker/src/lib.rs"
+        worker_source = self.root / "crates/agent/a4n-agent-worker/src/lib.rs"
         worker_source.write_text("pub fn fixture() { println!(\"changed\"); }\n", encoding="utf-8")
 
         plan = self.plan()
@@ -141,7 +148,7 @@ class DeployPlanTest(unittest.TestCase):
         self.assertNotIn("a4n-control", plan["build_packages"])
 
     def test_shared_worker_contract_change_is_full(self) -> None:
-        contract = self.root / "crates/a4n-worker-contract/src/lib.rs"
+        contract = self.root / "crates/process/a4n-worker-contract/src/lib.rs"
         contract.write_text("pub fn fixture() { println!(\"contract\"); }\n", encoding="utf-8")
 
         plan = self.plan()

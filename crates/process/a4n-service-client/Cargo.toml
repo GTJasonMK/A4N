@@ -1,0 +1,19 @@
+[package]
+name = "a4n-service-client"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+a4n-process-catalog = { workspace = true }
+a4n-service-protocol = { workspace = true }
+
+async-trait = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }

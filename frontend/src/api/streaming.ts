@@ -22,7 +22,7 @@ export type {
 };
 
 /**
- * Streaming workflow API wrapper —— 对齐 crates/a4n-tauri/src/commands/streaming.rs
+ * Streaming workflow API wrapper —— 对齐 crates/host/a4n-tauri/src/commands/streaming.rs
  *
  * 后端工作流状态来自 task_queue 的 running/completed/failed 任务子集。
  */

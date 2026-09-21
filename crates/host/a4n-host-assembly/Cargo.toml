@@ -1,0 +1,43 @@
+[package]
+name = "a4n-host-assembly"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-config = { workspace = true }
+a4n-error = { workspace = true, features = ["database"], default-features = true }
+a4n-artifact-media-client = { workspace = true }
+a4n-artifact-media-contract = { workspace = true }
+a4n-agent-worker-client = { workspace = true }
+a4n-asset-graph-worker-client = { workspace = true }
+a4n-blueprint-worker-client = { workspace = true }
+a4n-foreshadowing-worker-client = { workspace = true }
+a4n-object-profile-worker-client = { workspace = true }
+a4n-outline-worker-client = { workspace = true }
+a4n-novel-planning-worker-client = { workspace = true }
+a4n-orchestrator = { workspace = true }
+a4n-portrait-worker-client = { workspace = true }
+a4n-profile-material-worker-client = { workspace = true }
+a4n-project-status-worker-client = { workspace = true }
+a4n-project-read-worker-client = { workspace = true }
+a4n-import-review-worker-client = { workspace = true }
+a4n-inspiration-worker-client = { workspace = true }
+a4n-project-access-worker-client = { workspace = true }
+a4n-project-collaboration-worker-client = { workspace = true }
+a4n-project-mutation-worker-client = { workspace = true }
+a4n-chapter-scene-worker-client = { workspace = true }
+a4n-chapter-content-worker-client = { workspace = true }
+a4n-workflow-read-worker-client = { workspace = true }
+a4n-config-read-worker-client = { workspace = true }
+a4n-character-mutation-worker-client = { workspace = true }
+a4n-video-record-worker-client = { workspace = true }
+a4n-manga-record-worker-client = { workspace = true }
+a4n-scene-profile-worker-client = { workspace = true }
+a4n-runtime = { workspace = true, default-features = false }
+a4n-source-snapshot-worker-client = { workspace = true }
+a4n-theme-read-worker-client = { workspace = true }
+
+async-trait = { workspace = true }
+tracing = { workspace = true }

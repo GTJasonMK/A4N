@@ -17,24 +17,30 @@ A4N 是一个面向小说创作与多模态派生内容生产的本地应用。�
 
 ```text
 crates/
-  a4n-db-models               SeaORM 实体；纯领域值位于 a4n-domain
-  a4n-config / a4n-storage     配置解析与文件生命周期边界
-  a4n-domain                  纯领域值、蓝图合同与业务算法
-  a4n-db                      SQL、Repository 与数据库一致性边界
-  a4n-task-runtime            活跃任务句柄与进度运行态
-  a4n-error / a4n-progress     共享错误与纯结构化进度算法
-  a4n-queue                   内存队列实现；纯任务合同位于 a4n-domain
-  a4n-prompt* / a4n-llm*      Prompt 与 LLM 核心、provider 和 sidecar
-  a4n-embedding* / a4n-rag*   Embedding 与 RAG 核心、索引和 sidecar
-  a4n-image* / a4n-video*     图片/视频合同、provider 和 sidecar
-  a4n-api-contract            Server/Tauri 共享 Host API 合同与 TS 生成
-  a4n-service-protocol        生产 sidecar 的协议、catalog 和发布合同
-  a4n-*-contract              能力专用 wire / 执行合同
-  a4n-orchestrator            业务用例、工作流和能力编排
-  a4n-runtime                 provider、文件、进程和 Host API 适配
-  a4n-tauri / a4n-server      桌面与 Web host 入口
-  a4n-cli                     无前端 CLI、Agent 合同、Shell 和 local 生命周期
-  a4n-migration               数据库迁移
+  host/          Server、Tauri、CLI、Runtime、Orchestrator、Host 装配与 API 合同
+  platform/      领域公共值、数据库、迁移、存储、错误、事件、队列与测试支持
+  process/       通用 service/worker 协议、客户端、进程管理与发布 catalog
+  config/        配置解析与配置读取 worker
+  provider/      跨能力 Provider 合同与模型发现
+  llm/           LLM 客户端、上下文、网关与 Provider 合同
+  prompt/        Prompt 渲染、Git、客户端与服务
+  embedding/     Embedding 合同、Provider、客户端与服务
+  rag/           RAG 合同、索引、客户端与服务
+  agent/         Agent 应用、运行时、worker 与客户端
+  project/       项目读取、修改、权限、协作、状态与源快照
+  planning/      小说规划、蓝图、大纲与伏笔
+  chapter/       章节正文、分析、生成与场景
+  profiles/      人物、物体、场景、立绘与档案素材
+  inspiration/   灵感记录与应用合同
+  image/         图片合同、Provider、客户端与服务
+  video/         视频合同、Provider、客户端、服务与记录 worker
+  media/         媒体处理、渲染与生成产物
+  manga/         漫画核心与记录 worker
+  canvas/        画布合同与资产图 worker
+  galgame/       Galgame 应用合同
+  transfer/      导入、导出、归档与导入审查
+  workflow/      工作流读取、生成任务与优化应用合同
+  theme/         主题核心与读取 worker
 frontend/
   src/           React 前端源码
   resources/     前端资源
@@ -42,6 +48,10 @@ prompts/         提示词模板与注册表
 work/docs/       本机文档、草稿和历史资料（不提交）
 scripts/         开发、构建、测试脚本
 ```
+
+每个领域目录下保留现有 `a4n-*` crate 名称，例如 `crates/llm/a4n-llm-client`。
+同一领域的 `core`、`contract`、`client` 和 `worker` 放在一起；目录分组不改变包和进程边界。
+根 `Cargo.toml` 是唯一 workspace，本地依赖路径统一声明在 `[workspace.dependencies]`，成员通过 `workspace = true` 引用。
 
 前端 API 封装集中在 `frontend/src/api/`；Server 维护共享命令分派，Native Tauri 复用该入口。业务编排属于 `a4n-orchestrator`，SQL/Repository 属于 `a4n-db`，运行适配属于 `a4n-runtime`。Host API、通用 sidecar 协议和能力专用合同分别维护，详见各 crate 的 manifest、`command_manifest.rs` 和 `frontend/src/api/`。
 
@@ -147,7 +157,7 @@ timeout 60s ./scripts/test.sh --crate a4n-domain --nocapture
 
 `a4n` 通过 Server 调用共享 Host API manifest 中与桌面/Web 相同的全部业务命令，并提供稳定的
 JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察和本地
-Server 生命周期管理。命令参数和语义以 `a4n --help`、`crates/a4n-cli/src/main.rs` 及 Host manifest 为准。
+Server 生命周期管理。命令参数和语义以 `a4n --help`、`crates/host/a4n-cli/src/main.rs` 及 Host manifest 为准。
 
 本地启动：
 

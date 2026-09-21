@@ -1,0 +1,20 @@
+[package]
+name = "a4n-chapter-content-core"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-chapter-analysis = { workspace = true }
+a4n-db = { workspace = true }
+a4n-db-models = { workspace = true }
+a4n-domain = { workspace = true }
+a4n-error = { workspace = true, features = ["database"], default-features = true }
+
+serde_json = { workspace = true }
+sea-orm = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }

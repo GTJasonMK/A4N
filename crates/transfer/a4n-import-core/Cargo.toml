@@ -1,0 +1,15 @@
+[package]
+name = "a4n-import-core"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-archive-core = { workspace = true }
+a4n-import-contract = { workspace = true }
+base64 = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zip = { workspace = true }

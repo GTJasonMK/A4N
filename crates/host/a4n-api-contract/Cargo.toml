@@ -1,0 +1,24 @@
+[package]
+name = "a4n-api-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-model-discovery-contract = { workspace = true }
+a4n-domain = { workspace = true }
+a4n-progress = { workspace = true }
+a4n-embedding-contract = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-provider-contract = { workspace = true }
+a4n-prompt-contract = { workspace = true }
+a4n-video-contract = { workspace = true }
+a4n-video-host-contract = { workspace = true }
+a4n-service-protocol = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }

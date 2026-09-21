@@ -1,0 +1,910 @@
+use super::config::{
+    ManagedServiceConfig, RemoteSecurityConfig, RestartPolicy, ServiceMode, is_loopback_http_url,
+    normalize_remote_service_url,
+};
+use super::errors::ServiceManagerError;
+use super::health::validate_service_health;
+use super::manager::{HttpClientFactory, ServiceManager};
+use super::process::ManagedSidecarState;
+use a4n_process_catalog::ProcessKind;
+use a4n_process_catalog::service_catalog;
+use a4n_service_protocol::{
+    HealthStatus, LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME,
+    PROTOCOL_VERSION, RAG_SERVICE_NAME, SIDECAR_AUTH_TOKEN_ENV, ServiceErrorCode, ServiceHealth,
+    ServiceVersion, expected_capability_version_for_service,
+};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
+use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+mod supervisor;
+
+fn unused_local_addr() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.local_addr().unwrap().to_string()
+}
+
+fn assert_port_released(addr: &str) {
+    let listener = std::net::TcpListener::bind(addr).expect("stopped sidecar should release port");
+    drop(listener);
+}
+
+struct MtlstestDir(PathBuf);
+
+impl MtlstestDir {
+    fn new() -> Self {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "a4n-service-manager-mtls-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&path).expect("mTLS test directory should be created");
+        Self(path)
+    }
+
+    fn file(&self, name: &str) -> String {
+        self.0.join(name).display().to_string()
+    }
+}
+
+impl Drop for MtlstestDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+struct OpenSslServer(Child);
+
+impl Drop for OpenSslServer {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn run_openssl(args: Vec<String>) {
+    let output = Command::new("openssl")
+        .args(&args)
+        .output()
+        .expect("openssl must be available for the mTLS process test");
+    assert!(
+        output.status.success(),
+        "openssl command failed: {}\nstderr: {}",
+        args.join(" "),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn generate_test_ca(dir: &MtlstestDir) {
+    run_openssl(vec![
+        "req".into(),
+        "-x509".into(),
+        "-newkey".into(),
+        "rsa:2048".into(),
+        "-nodes".into(),
+        "-keyout".into(),
+        dir.file("ca.key"),
+        "-out".into(),
+        dir.file("ca.crt"),
+        "-subj".into(),
+        "/CN=A4N Test CA".into(),
+        "-days".into(),
+        "1".into(),
+    ]);
+}
+
+fn generate_test_identity(dir: &MtlstestDir, stem: &str, common_name: &str, usage: &str) {
+    let key = dir.file(&format!("{stem}.key"));
+    let csr = dir.file(&format!("{stem}.csr"));
+    let cert = dir.file(&format!("{stem}.crt"));
+    let ext = dir.file(&format!("{stem}.ext"));
+    let serial = dir.file(&format!("{stem}.srl"));
+    run_openssl(vec![
+        "req".into(),
+        "-newkey".into(),
+        "rsa:2048".into(),
+        "-nodes".into(),
+        "-keyout".into(),
+        key,
+        "-out".into(),
+        csr.clone(),
+        "-subj".into(),
+        format!("/CN={common_name}"),
+    ]);
+    let extension = if usage == "serverAuth" {
+        "subjectAltName=IP:127.0.0.1\nextendedKeyUsage=serverAuth\n"
+    } else {
+        "extendedKeyUsage=clientAuth\n"
+    };
+    std::fs::write(&ext, extension).expect("mTLS extension file should be written");
+    run_openssl(vec![
+        "x509".into(),
+        "-req".into(),
+        "-in".into(),
+        csr,
+        "-CA".into(),
+        dir.file("ca.crt"),
+        "-CAkey".into(),
+        dir.file("ca.key"),
+        "-CAcreateserial".into(),
+        "-CAserial".into(),
+        serial,
+        "-out".into(),
+        cert,
+        "-days".into(),
+        "1".into(),
+        "-extfile".into(),
+        ext,
+    ]);
+}
+
+fn start_mtls_server(dir: &MtlstestDir, addr: &str) -> OpenSslServer {
+    let port = addr
+        .rsplit_once(':')
+        .map(|(_, port)| port)
+        .expect("loopback test address should contain a port");
+    let child = Command::new("openssl")
+        .args([
+            "s_server",
+            "-accept",
+            port,
+            "-cert",
+            &dir.file("server.crt"),
+            "-key",
+            &dir.file("server.key"),
+            "-CAfile",
+            &dir.file("ca.crt"),
+            "-Verify",
+            "1",
+            "-verify_return_error",
+            "-www",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("openssl s_server should start");
+    OpenSslServer(child)
+}
+
+fn request_mtls_status_with_factory(
+    runtime: &tokio::runtime::Runtime,
+    factory: &HttpClientFactory,
+    url: &str,
+) -> Result<u16, String> {
+    let mut last_error = String::new();
+    for _ in 0..40 {
+        let result = runtime.block_on(async {
+            let client = factory()?;
+            client
+                .get(url)
+                .send()
+                .await
+                .map(|response| response.status().as_u16())
+                .map_err(|error| error.to_string())
+        });
+        match result {
+            Ok(status) => return Ok(status),
+            Err(error) => last_error = error,
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    Err(last_error)
+}
+
+fn demo_sidecar_binary_from_env() -> PathBuf {
+    let binary = std::env::var("A4N_DEMO_SIDECAR_BIN")
+        .expect("A4N_DEMO_SIDECAR_BIN is required for sidecar process tests");
+    let path = PathBuf::from(binary);
+    if path.is_absolute() {
+        return path.canonicalize().unwrap_or(path);
+    }
+
+    let current_dir = std::env::current_dir().ok();
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = manifest_dir.ancestors().nth(3).map(PathBuf::from);
+
+    for base in [current_dir, Some(manifest_dir), workspace_root]
+        .into_iter()
+        .flatten()
+    {
+        let candidate = base.join(&path);
+        if candidate.exists() {
+            return candidate.canonicalize().unwrap_or(candidate);
+        }
+    }
+
+    path
+}
+
+#[test]
+fn disabled_health_maps_to_capability_disabled_code() {
+    let manager =
+        ServiceManager::new(vec![ManagedServiceConfig::disabled(RAG_SERVICE_NAME)]).unwrap();
+    let err = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(manager.health(RAG_SERVICE_NAME))
+        .expect_err("disabled service should fail");
+
+    assert!(matches!(err, ServiceManagerError::CapabilityDisabled(_)));
+    assert_eq!(
+        err.protocol_error_code(),
+        ServiceErrorCode::CapabilityDisabled
+    );
+}
+
+#[test]
+fn remote_service_requires_url() {
+    let config = ManagedServiceConfig {
+        name: LLM_SERVICE_NAME.to_string(),
+        mode: ServiceMode::Remote,
+        binary: None,
+        url: None,
+        env: HashMap::new(),
+        startup_timeout_ms: 1000,
+        restart_policy: RestartPolicy::default(),
+        remote_security: RemoteSecurityConfig::default(),
+    };
+
+    let err = ServiceManager::new(vec![config]).expect_err("remote url is required");
+
+    assert!(err.to_string().contains("requires url"));
+}
+
+#[test]
+fn remote_service_url_contract_is_strict_and_normalized() {
+    assert_eq!(
+        normalize_remote_service_url(" http://127.0.0.1:47641/ ").unwrap(),
+        "http://127.0.0.1:47641"
+    );
+    assert_eq!(
+        normalize_remote_service_url("https://prompt.example.test/api/").unwrap(),
+        "https://prompt.example.test/api"
+    );
+    for value in [
+        "http://localhost:47642",
+        "http://api.localhost:47642",
+        "http://127.0.0.8:47642",
+        "http://[::1]:47642",
+        "https://localhost:47642",
+    ] {
+        assert!(is_loopback_http_url(value), "{value}");
+    }
+    for value in [
+        "",
+        "not-a-url",
+        "ftp://localhost:47642",
+        "http://localhost:bad",
+        "http://[::1]:99999",
+        "http://[::1]evil:47642",
+        "https://sidecar.example.com",
+        "http://10.0.0.8:47642",
+        "http://user:secret@127.0.0.1:47641",
+        "http://127.0.0.1:47641/api?scope=ignored",
+        "http://127.0.0.1:47641/api#ignored",
+    ] {
+        assert!(!is_loopback_http_url(value), "{value}");
+    }
+    for value in [
+        "",
+        "not-a-url",
+        "ftp://127.0.0.1:21",
+        "http://10.0.0.8:47642",
+        "http://user:secret@127.0.0.1:47641",
+        "http://127.0.0.1:47641/api?scope=ignored",
+        "http://127.0.0.1:47641/api#ignored",
+    ] {
+        assert!(normalize_remote_service_url(value).is_err(), "{value}");
+    }
+}
+
+#[test]
+fn non_loopback_remote_http_is_rejected() {
+    let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://192.0.2.10:47641");
+    let error =
+        ServiceManager::new(vec![config]).expect_err("non-loopback remote HTTP must be rejected");
+
+    assert!(
+        error
+            .to_string()
+            .contains("must use HTTPS outside loopback")
+    );
+}
+
+#[test]
+fn loopback_remote_http_is_allowed() {
+    let mut config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://127.0.0.1:47641");
+    config.remote_security.auth_token_env = Some(SIDECAR_AUTH_TOKEN_ENV.to_string());
+    config.env.insert(
+        SIDECAR_AUTH_TOKEN_ENV.to_string(),
+        "local-script-token".to_string(),
+    );
+    ServiceManager::new(vec![config]).expect("loopback remote HTTP should remain available");
+}
+
+#[test]
+fn non_loopback_remote_https_is_allowed() {
+    let mut config =
+        ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "https://prompt.example.test");
+    config.remote_security.auth_token_env = Some("A4N_REMOTE_PROMPT_TOKEN".to_string());
+    ServiceManager::new(vec![config]).expect("remote HTTPS should be accepted");
+}
+
+#[test]
+fn non_loopback_remote_rejects_host_credentials() {
+    for name in [
+        "A4N_DATABASE_URL",
+        "A4N_JWT_SECRET",
+        "A4N_BOOTSTRAP_ADMIN_PASSWORD",
+        "OPENAI_API_KEY",
+        "A4N_TEMP_MEDIA_UPLOAD_TOKEN",
+        "A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN",
+        SIDECAR_AUTH_TOKEN_ENV,
+    ] {
+        let mut config =
+            ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "https://prompt.example.test");
+        config.remote_security.auth_token_env = Some(name.to_string());
+        config
+            .env
+            .insert(name.to_string(), "host-secret-value".to_string());
+
+        let error = ServiceManager::new(vec![config])
+            .expect_err("remote deployment credentials must not reuse Host secrets");
+        let message = error.to_string();
+        assert!(message.contains("independent remote deployment credential"));
+        assert!(!message.contains("host-secret-value"));
+        assert!(!message.contains("prompt.example.test"));
+    }
+}
+
+#[test]
+fn non_loopback_remote_without_independent_credential_is_rejected() {
+    let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "https://prompt.example.test");
+    let error = ServiceManager::new(vec![config]).expect_err("remote auth must be explicit");
+    assert!(error.to_string().contains("independent auth_token_env"));
+}
+
+#[test]
+fn remote_mtls_requires_a_complete_client_identity() {
+    let mut config =
+        ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "https://prompt.example.test");
+    config.remote_security.client_cert_path = Some("client.pem".into());
+    let error = ServiceManager::new(vec![config]).expect_err("mTLS pair must be complete");
+    assert!(error.to_string().contains("both client_cert_path"));
+}
+
+#[test]
+fn remote_http_client_uses_the_declared_credential_without_serializing_it() {
+    let mut config =
+        ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "https://prompt.example.test");
+    config.remote_security.auth_token_env = Some("A4N_TEST_REMOTE_TOKEN".to_string());
+    config.env.insert(
+        "A4N_TEST_REMOTE_TOKEN".to_string(),
+        "remote-deployment-secret".to_string(),
+    );
+    let manager = ServiceManager::new(vec![config]).expect("remote config should be valid");
+    let factory = manager
+        .capability_http_client_factory(PROMPT_SERVICE_NAME)
+        .expect("remote HTTP client factory should be available");
+    factory().expect("remote HTTP client should use system TLS plus the declared credential");
+    assert_eq!(
+        manager.auth_token(PROMPT_SERVICE_NAME).unwrap().as_deref(),
+        Some("remote-deployment-secret")
+    );
+    assert!(!format!("{manager:?}").contains("remote-deployment-secret"));
+}
+
+#[test]
+fn missing_mtls_files_fail_closed_without_exposing_paths() {
+    let mut config =
+        ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "https://prompt.example.test");
+    config.remote_security.client_cert_path = Some("client-secret-name.pem".into());
+    config.remote_security.client_key_path = Some("key-secret-name.pem".into());
+    let manager =
+        ServiceManager::new(vec![config]).expect("complete mTLS paths pass shape validation");
+    let factory = manager
+        .capability_http_client_factory(PROMPT_SERVICE_NAME)
+        .expect("remote HTTP client factory should be available");
+    let error = factory().expect_err("unreadable mTLS files must fail closed");
+    let message = error.to_string();
+    assert!(!message.contains("client-secret-name"));
+    assert!(!message.contains("key-secret-name"));
+}
+
+#[test]
+#[ignore = "requires the openssl process runner"]
+fn remote_mtls_process_handshake_and_certificate_reload() {
+    let dir = MtlstestDir::new();
+    generate_test_ca(&dir);
+    generate_test_identity(&dir, "server", "localhost", "serverAuth");
+    generate_test_identity(&dir, "client", "a4n-client", "clientAuth");
+    generate_test_identity(&dir, "client-rotated", "a4n-client-rotated", "clientAuth");
+
+    let addr = unused_local_addr();
+    let _server = start_mtls_server(&dir, &addr);
+    let mut config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, format!("https://{addr}"));
+    config.remote_security.ca_cert_path = Some(dir.0.join("ca.crt"));
+    config.remote_security.client_cert_path = Some(dir.0.join("client.crt"));
+    config.remote_security.client_key_path = Some(dir.0.join("client.key"));
+    let manager = ServiceManager::new(vec![config]).expect("mTLS remote config should validate");
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let factory = manager
+        .capability_http_client_factory(PROMPT_SERVICE_NAME)
+        .expect("mTLS capability client factory should be available");
+
+    let url = format!("https://{addr}/");
+    assert_eq!(
+        request_mtls_status_with_factory(&runtime, &factory, &url)
+            .expect("client certificate should handshake"),
+        200
+    );
+
+    std::fs::copy(dir.0.join("client-rotated.crt"), dir.0.join("client.crt"))
+        .expect("rotated client certificate should replace the active file");
+    std::fs::copy(dir.0.join("client-rotated.key"), dir.0.join("client.key"))
+        .expect("rotated client key should replace the active file");
+    assert_eq!(
+        request_mtls_status_with_factory(&runtime, &factory, &url)
+            .expect("manager should reload rotated mTLS identity"),
+        200
+    );
+}
+
+#[test]
+fn remote_url_validation_does_not_echo_credentials_or_url() {
+    let config = ManagedServiceConfig::remote(
+        PROMPT_SERVICE_NAME,
+        "https://user:secret@prompt.example.test/path#fragment",
+    );
+    let error = ServiceManager::new(vec![config]).expect_err("embedded URL credentials are unsafe");
+    let message = error.to_string();
+    assert!(!message.contains("secret"));
+    assert!(!message.contains("prompt.example.test"));
+    let debug = format!("{error:?}");
+    assert!(!debug.contains("secret"));
+    assert!(!debug.contains("prompt.example.test"));
+}
+
+#[test]
+fn manager_returns_configured_sidecar_auth_token() {
+    let mut config = ManagedServiceConfig::sidecar(
+        PROMPT_SERVICE_NAME,
+        PathBuf::from("target/debug/a4n-prompt-service"),
+        "http://127.0.0.1:47641",
+    );
+    config.env.insert(
+        a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV.to_string(),
+        "service-specific-token".to_string(),
+    );
+    let manager = ServiceManager::new(vec![config]).unwrap();
+
+    assert_eq!(
+        manager.auth_token(PROMPT_SERVICE_NAME).unwrap().as_deref(),
+        Some("service-specific-token")
+    );
+    assert!(manager.auth_token(LLM_SERVICE_NAME).is_err());
+}
+
+#[test]
+fn managed_service_debug_exposes_only_environment_keys() {
+    let mut config = ManagedServiceConfig::sidecar(
+        PROMPT_SERVICE_NAME,
+        PathBuf::from("target/debug/a4n-prompt-service"),
+        "https://user:secret@sidecar.example.test",
+    );
+    config.env.insert(
+        SIDECAR_AUTH_TOKEN_ENV.to_string(),
+        "service-specific-token".to_string(),
+    );
+    config.env.insert(
+        "HTTPS_PROXY".to_string(),
+        "https://proxy-user:proxy-secret@proxy.example.test".to_string(),
+    );
+
+    let debug = format!("{config:?}");
+    for secret in [
+        "service-specific-token",
+        "sidecar.example.test",
+        "proxy-secret",
+        "proxy.example.test",
+    ] {
+        assert!(!debug.contains(secret));
+    }
+    assert!(debug.contains(SIDECAR_AUTH_TOKEN_ENV));
+    assert!(debug.contains("HTTPS_PROXY"));
+}
+
+#[test]
+fn known_embedded_health_uses_protocol_and_capability_version() {
+    let manager =
+        ServiceManager::new(vec![ManagedServiceConfig::embedded(PROMPT_SERVICE_NAME)]).unwrap();
+    let health = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(manager.health(PROMPT_SERVICE_NAME))
+        .unwrap();
+
+    assert_eq!(health.status, HealthStatus::Healthy);
+    assert_eq!(health.version.protocol_version, PROTOCOL_VERSION);
+
+    assert_eq!(
+        health.version.capability_version,
+        PROMPT_RENDER_CAPABILITY_VERSION
+    );
+}
+
+#[test]
+fn unknown_embedded_config_requires_registered_capability_version() {
+    let error = ServiceManager::new(vec![ManagedServiceConfig::embedded("demo")])
+        .expect_err("unknown embedded service must fail during configuration");
+
+    assert!(matches!(
+        error,
+        ServiceManagerError::InvalidConfig(message)
+            if message.contains("demo") && message.contains("registered capability version")
+    ));
+}
+
+#[test]
+fn known_services_have_expected_capability_versions() {
+    for entry in service_catalog().expect("embedded service catalog") {
+        assert_eq!(
+            expected_capability_version_for_service(&entry.name),
+            Some(entry.capability_version.as_str()),
+            "catalog capability version drifted for {}",
+            entry.name
+        );
+    }
+    assert_eq!(expected_capability_version_for_service("demo"), None);
+}
+
+#[test]
+fn manager_exposes_sidecar_and_stateful_worker_metadata() {
+    let manager = ServiceManager::new(vec![ManagedServiceConfig::embedded(PROMPT_SERVICE_NAME)])
+        .expect("known sidecar should be accepted");
+
+    let sidecar = manager
+        .process_metadata(PROMPT_SERVICE_NAME)
+        .expect("sidecar metadata should be available");
+    assert_eq!(sidecar.kind, ProcessKind::CapabilitySidecar);
+    assert_eq!(
+        sidecar.capability_version.as_deref(),
+        Some(PROMPT_RENDER_CAPABILITY_VERSION)
+    );
+    assert_eq!(
+        sidecar.contract_version.as_deref(),
+        Some("service-protocol-v2")
+    );
+    assert_eq!(sidecar.binary, "a4n-prompt-service");
+    assert_eq!(sidecar.default_addr, "127.0.0.1:47641");
+
+    let worker = manager
+        .process_metadata("agent-worker")
+        .expect("stateful worker metadata should be available");
+    assert_eq!(worker.kind, ProcessKind::StatefulWorker);
+    assert_eq!(
+        worker.capability_version.as_deref(),
+        Some("agent-worker-v1")
+    );
+    assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
+    assert_eq!(worker.binary, "a4n-agent-worker");
+    assert_eq!(worker.addr_env, "A4N_AGENT_WORKER_ADDR");
+    assert_eq!(worker.url_env.as_deref(), Some("A4N_AGENT_WORKER_URL"));
+    assert_eq!(worker.default_addr, "127.0.0.1:47650");
+    assert_eq!(worker.migration.current.as_deref(), Some("agent_runtime"));
+}
+
+#[test]
+fn manager_rejects_unknown_process_metadata() {
+    let manager = ServiceManager::new(vec![ManagedServiceConfig::embedded(PROMPT_SERVICE_NAME)])
+        .expect("known sidecar should be accepted");
+
+    assert!(matches!(
+        manager.process_metadata("missing"),
+        Err(ServiceManagerError::UnknownService(name)) if name == "missing"
+    ));
+}
+
+#[test]
+fn capability_mismatch_maps_to_version_mismatch_code() {
+    let err = ServiceManagerError::CapabilityMismatch {
+        service: PROMPT_SERVICE_NAME.to_string(),
+        expected: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
+        actual: "prompt-render-v0".to_string(),
+    };
+
+    assert_eq!(err.protocol_error_code(), ServiceErrorCode::VersionMismatch);
+    assert!(err.to_string().contains("capability mismatch"));
+}
+
+#[test]
+fn health_validation_rejects_known_service_capability_mismatch() {
+    let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://127.0.0.1:47641");
+    let health = ServiceHealth {
+        service: PROMPT_SERVICE_NAME.to_string(),
+        status: HealthStatus::Healthy,
+        version: ServiceVersion {
+            service_version: "0.1.0".to_string(),
+            protocol_version: PROTOCOL_VERSION,
+            capability_version: "prompt-render-v0".to_string(),
+        },
+    };
+
+    let err = validate_service_health(&config, &health).expect_err("capability mismatch");
+
+    assert!(matches!(
+        err,
+        ServiceManagerError::CapabilityMismatch { .. }
+    ));
+    assert_eq!(err.protocol_error_code(), ServiceErrorCode::VersionMismatch);
+}
+
+#[test]
+fn health_validation_rejects_service_identity_mismatch() {
+    let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://127.0.0.1:47641");
+    let health = ServiceHealth {
+        service: LLM_SERVICE_NAME.to_string(),
+        status: HealthStatus::Healthy,
+        version: ServiceVersion {
+            service_version: "0.1.0".to_string(),
+            protocol_version: PROTOCOL_VERSION,
+            capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
+        },
+    };
+
+    let err = validate_service_health(&config, &health).expect_err("identity mismatch");
+
+    assert!(matches!(
+        err,
+        ServiceManagerError::ServiceIdentityMismatch { .. }
+    ));
+    assert_eq!(err.protocol_error_code(), ServiceErrorCode::VersionMismatch);
+    assert!(err.to_string().contains("identity mismatch"));
+}
+
+#[test]
+fn health_validation_rejects_unhealthy_status() {
+    let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://127.0.0.1:47641");
+    let health = ServiceHealth {
+        service: PROMPT_SERVICE_NAME.to_string(),
+        status: HealthStatus::Degraded,
+        version: ServiceVersion {
+            service_version: "0.1.0".to_string(),
+            protocol_version: PROTOCOL_VERSION,
+            capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
+        },
+    };
+
+    let err = validate_service_health(&config, &health).expect_err("unhealthy status");
+
+    assert!(matches!(err, ServiceManagerError::Unhealthy { .. }));
+    assert_eq!(
+        err.protocol_error_code(),
+        ServiceErrorCode::ServiceUnavailable
+    );
+}
+
+#[test]
+fn local_sidecar_health_rejects_a_mixed_bundle_build() {
+    let config = ManagedServiceConfig::sidecar(
+        PROMPT_SERVICE_NAME,
+        PathBuf::from("target/debug/a4n-prompt-service"),
+        "http://127.0.0.1:47641",
+    );
+    let health = ServiceHealth {
+        service: PROMPT_SERVICE_NAME.to_string(),
+        status: HealthStatus::Healthy,
+        version: ServiceVersion {
+            service_version: "older-sidecar-build".to_string(),
+            protocol_version: PROTOCOL_VERSION,
+            capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
+        },
+    };
+
+    let error = validate_service_health(&config, &health)
+        .expect_err("local bundle must reject mixed service builds");
+    assert!(matches!(
+        error,
+        ServiceManagerError::ServiceBuildMismatch { .. }
+    ));
+    assert_eq!(
+        error.protocol_error_code(),
+        ServiceErrorCode::VersionMismatch
+    );
+}
+
+#[test]
+fn remote_health_allows_different_build_with_exact_capability_version() {
+    let config = ManagedServiceConfig::remote(PROMPT_SERVICE_NAME, "http://127.0.0.1:47641");
+    let health = ServiceHealth {
+        service: PROMPT_SERVICE_NAME.to_string(),
+        status: HealthStatus::Healthy,
+        version: ServiceVersion {
+            service_version: "older-remote-build".to_string(),
+            protocol_version: PROTOCOL_VERSION,
+            capability_version: PROMPT_RENDER_CAPABILITY_VERSION.to_string(),
+        },
+    };
+
+    validate_service_health(&config, &health)
+        .expect("remote deployment may use a different build with the exact wire contract");
+}
+
+#[test]
+fn sidecar_constructor_sets_required_fields() {
+    let config = ManagedServiceConfig::sidecar(
+        "demo",
+        PathBuf::from("target/debug/a4n-demo-sidecar"),
+        "http://127.0.0.1:47631",
+    );
+
+    assert_eq!(config.mode, ServiceMode::Sidecar);
+    assert!(config.binary.is_some());
+    assert!(config.url.as_deref().is_some_and(|url| !url.is_empty()));
+    config.validate().unwrap();
+}
+
+#[test]
+fn sidecar_environment_rejects_host_secrets_but_keeps_bootstrap_contract() {
+    for key in [
+        "A4N_DATABASE_URL",
+        "A4N_JWT_SECRET",
+        "OPENAI_API_KEY",
+        "A4N_TEMP_MEDIA_UPLOAD_TOKEN",
+    ] {
+        let mut config = ManagedServiceConfig::sidecar(
+            PROMPT_SERVICE_NAME,
+            PathBuf::from("target/debug/a4n-prompt-service"),
+            "http://127.0.0.1:47641",
+        );
+        config
+            .env
+            .insert(key.to_string(), "not-forwarded".to_string());
+        let error = config
+            .validate()
+            .expect_err("host secret environment keys must be rejected");
+        assert!(error.to_string().contains(key));
+    }
+
+    let mut config = ManagedServiceConfig::sidecar(
+        PROMPT_SERVICE_NAME,
+        PathBuf::from("target/debug/a4n-prompt-service"),
+        "http://127.0.0.1:47641",
+    );
+    config.env.insert(
+        SIDECAR_AUTH_TOKEN_ENV.to_string(),
+        "manager-token".to_string(),
+    );
+    config
+        .env
+        .insert("A4N_DATA_DIR".to_string(), "/tmp/a4n-data".to_string());
+    config
+        .env
+        .insert("HTTPS_PROXY".to_string(), "http://127.0.0.1:1".to_string());
+    config
+        .validate()
+        .expect("bootstrap, path, and proxy variables are allowed");
+}
+
+#[tokio::test]
+#[ignore = "requires A4N_DEMO_SIDECAR_BIN"]
+async fn start_sidecar_launches_demo_and_health_reports_exit() {
+    let binary = demo_sidecar_binary_from_env();
+    let addr = unused_local_addr();
+    let mut config = ManagedServiceConfig::sidecar("demo", binary, format!("http://{addr}"));
+    config
+        .env
+        .insert("A4N_DEMO_SIDECAR_ADDR".to_string(), addr.clone());
+    config.env.insert(
+        SIDECAR_AUTH_TOKEN_ENV.to_string(),
+        "demo-manager-token".to_string(),
+    );
+    let log_dir = std::env::temp_dir().join(format!(
+        "a4n-sidecar-trace-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    config
+        .env
+        .insert("A4N_LOG_DIR".to_string(), log_dir.display().to_string());
+    config.env.insert(
+        "A4N_DEMO_SIDECAR_LOG".to_string(),
+        "a4n_sidecar_bootstrap=info".to_string(),
+    );
+    config.startup_timeout_ms = 5_000;
+    let manager = ServiceManager::new(vec![config]).unwrap();
+
+    let process = manager.start_sidecar("demo").await.unwrap();
+    assert_eq!(process.service_name(), "demo");
+    assert!(
+        manager
+            .process_status("demo")
+            .await
+            .unwrap()
+            .and_then(|status| status.pid)
+            .is_some()
+    );
+
+    let health = manager.health("demo").await.unwrap();
+    assert_eq!(health.service, "demo");
+    assert_eq!(health.status, HealthStatus::Healthy);
+    assert_eq!(health.version.protocol_version, PROTOCOL_VERSION);
+
+    let trace: serde_json::Value = reqwest::Client::new()
+        .get(format!("http://{addr}/trace"))
+        .header(
+            a4n_service_protocol::SIDECAR_AUTH_HEADER,
+            "demo-manager-token",
+        )
+        .header(
+            a4n_service_protocol::SIDECAR_REQUEST_ID_HEADER,
+            "host-request-1",
+        )
+        .header(
+            a4n_service_protocol::SIDECAR_TRACE_ID_HEADER,
+            "host-trace-1",
+        )
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(trace["request_id"], "host-request-1");
+    assert_eq!(trace["trace_id"], "host-trace-1");
+
+    let metrics: a4n_service_protocol::ServiceRuntimeMetrics = reqwest::Client::new()
+        .get(format!(
+            "http://{addr}{}",
+            a4n_service_protocol::SIDECAR_METRICS_PATH
+        ))
+        .header(
+            a4n_service_protocol::SIDECAR_AUTH_HEADER,
+            "demo-manager-token",
+        )
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(metrics.service, "demo");
+    assert_eq!(metrics.restart_count, 0);
+    assert!(metrics.requests_total >= 2);
+    assert_eq!(metrics.operations["/trace"].requests_total, 1);
+
+    let persisted_log = tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            let log = std::fs::read_dir(log_dir.join("services"))
+                .unwrap()
+                .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+                .collect::<String>();
+            if log.contains("host-request-1") && log.contains("host-trace-1") {
+                break log;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("sidecar log should be readable while the process is alive");
+    assert!(persisted_log.contains("host-request-1"));
+    assert!(persisted_log.contains("host-trace-1"));
+
+    process.stop().await.unwrap();
+
+    let err = manager
+        .health("demo")
+        .await
+        .expect_err("stopped demo sidecar should not stay healthy");
+    assert_eq!(
+        err.protocol_error_code(),
+        ServiceErrorCode::ServiceUnavailable
+    );
+    let _ = std::fs::remove_dir_all(log_dir);
+}

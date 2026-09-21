@@ -1,9 +1,0 @@
-[package]
-name = "a4n-novel-planning-worker-contract"
-version = "0.1.0"
-edition = "2024"
-license.workspace = true
-
-[dependencies]
-a4n-api-contract = { path = "../a4n-api-contract" }
-a4n-worker-contract = { path = "../a4n-worker-contract" }

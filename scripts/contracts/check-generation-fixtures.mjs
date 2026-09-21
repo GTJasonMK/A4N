@@ -12,7 +12,7 @@ const schemaPath = path.join(
 );
 const fixtureDir = path.join(
   root,
-  "crates/a4n-service-protocol/fixtures/generation-events-v1",
+  "crates/process/a4n-service-protocol/fixtures/generation-events-v1",
 );
 const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 const ajv = new Ajv2020({

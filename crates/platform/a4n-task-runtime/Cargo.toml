@@ -1,0 +1,35 @@
+[package]
+name = "a4n-task-runtime"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+persistent = ["dep:a4n-db", "a4n-error/database"]
+
+[dependencies]
+a4n-db = { workspace = true, optional = true }
+a4n-domain = { workspace = true }
+a4n-progress = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-queue = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+a4n-db = { workspace = true }
+a4n-api-contract = { workspace = true }
+a4n-error = { workspace = true, features = ["database"], default-features = true }
+a4n-db-models = { workspace = true }
+a4n-migration = { workspace = true }
+serde_json = { workspace = true }
+sea-orm = { workspace = true }
+tokio = { workspace = true }

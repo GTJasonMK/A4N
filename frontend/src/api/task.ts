@@ -14,7 +14,7 @@ import {
 export type { QueueStatsSummary, TaskInfoSummary };
 
 /**
- * Task API wrapper —— 对齐 crates/a4n-tauri/src/commands/task.rs.
+ * Task API wrapper —— 对齐 crates/host/a4n-tauri/src/commands/task.rs.
  *
  * 关键约定：
  *  - task_type: "llm_call" / "image_generation" / "video_generation" / "video_poll" / "source_sync" / "assembly" / "embedding_call" / "rag_ingestion" / "import_analysis" / "export_generation" / "embedding_download"

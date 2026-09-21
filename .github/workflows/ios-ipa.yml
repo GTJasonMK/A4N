@@ -50,19 +50,17 @@ jobs:
           npm ci --prefix frontend
 
       - name: Generate iOS project
-        working-directory: crates/a4n-tauri
         run: cargo tauri ios init --ci
 
       - name: Build unsigned IPA
-        working-directory: crates/a4n-tauri
         run: cargo tauri ios build --ci --no-sign
 
       - name: Collect IPA
         run: |
           mkdir -p artifacts/ios
-          ipa="$(find crates/a4n-tauri/gen/apple -type f -name '*.ipa' -print -quit)"
+          ipa="$(find crates/host/a4n-tauri/gen/apple -type f -name '*.ipa' -print -quit)"
           test -n "$ipa"
-          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/host/a4n-tauri/tauri.conf.json")).fetch("version")')"
           output="artifacts/ios/A4N-${version}-ios-arm64-unsigned.ipa"
           cp "$ipa" "$output"
           shasum -a 256 "$output" > artifacts/ios/SHA256SUMS

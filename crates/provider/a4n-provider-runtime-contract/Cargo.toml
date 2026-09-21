@@ -1,0 +1,13 @@
+[package]
+name = "a4n-provider-runtime-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-provider-contract = { workspace = true }
+
+async-trait = { workspace = true }
+tokio-util = { workspace = true }

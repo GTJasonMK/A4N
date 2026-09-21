@@ -110,317 +110,317 @@ mark_changed_targets() {
   local changed_path="$1"
   path_is_relevant "$changed_path" || return 0
   case "$changed_path" in
-    "$PROJECT_ROOT/crates/a4n-control/"*)
+    "$PROJECT_ROOT/crates/host/a4n-control/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-runtime/"*|"$PROJECT_ROOT/crates/a4n-orchestrator/"*)
+    "$PROJECT_ROOT/crates/host/a4n-runtime/"*|"$PROJECT_ROOT/crates/host/a4n-orchestrator/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-agent-worker/"*)
+    "$PROJECT_ROOT/crates/agent/a4n-agent-worker/"*)
       build_agent_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-agent-runtime/"*)
+    "$PROJECT_ROOT/crates/agent/a4n-agent-runtime/"*)
       build_agent_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-edge/"*)
+    "$PROJECT_ROOT/crates/host/a4n-edge/"*)
       build_edge=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-novel-planning-worker-contract/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-novel-planning-worker-contract/"*)
       build_control=true
       build_novel_planning_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-novel-planning-worker-client/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-novel-planning-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-novel-planning-worker/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-novel-planning-worker/"*)
       build_novel_planning_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-artifact-media-contract/"*)
+    "$PROJECT_ROOT/crates/media/a4n-artifact-media-contract/"*)
       build_control=true
       build_artifact_media_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-artifact-media-client/"*)
+    "$PROJECT_ROOT/crates/media/a4n-artifact-media-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-artifact-media-worker/"*)
+    "$PROJECT_ROOT/crates/media/a4n-artifact-media-worker/"*)
       build_artifact_media_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-outline-worker-contract/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-outline-worker-contract/"*)
       build_control=true
       build_outline_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-outline-worker-client/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-outline-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-outline-worker/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-outline-worker/"*)
       build_outline_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-blueprint-worker-contract/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-blueprint-worker-contract/"*)
       build_control=true
       build_blueprint_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-blueprint-worker-client/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-blueprint-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-blueprint-worker/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-blueprint-worker/"*)
       build_blueprint_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-asset-graph-worker-contract/"*)
+    "$PROJECT_ROOT/crates/canvas/a4n-asset-graph-worker-contract/"*)
       build_control=true
       build_asset_graph_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-asset-graph-worker-client/"*)
+    "$PROJECT_ROOT/crates/canvas/a4n-asset-graph-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-asset-graph-worker/"*)
+    "$PROJECT_ROOT/crates/canvas/a4n-asset-graph-worker/"*)
       build_asset_graph_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-foreshadowing-worker-contract/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-foreshadowing-worker-contract/"*)
       build_control=true
       build_foreshadowing_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-foreshadowing-worker-client/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-foreshadowing-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-foreshadowing-worker/"*)
+    "$PROJECT_ROOT/crates/planning/a4n-foreshadowing-worker/"*)
       build_foreshadowing_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-object-profile-worker-contract/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-object-profile-worker-contract/"*)
       build_control=true
       build_object_profile_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-object-profile-worker-client/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-object-profile-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-object-profile-worker/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-object-profile-worker/"*)
       build_object_profile_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-scene-profile-worker-contract/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-scene-profile-worker-contract/"*)
       build_control=true
       build_scene_profile_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-scene-profile-worker-client/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-scene-profile-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-scene-profile-worker/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-scene-profile-worker/"*)
       build_scene_profile_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-profile-material-core/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-profile-material-core/"*)
       build_control=true
       build_profile_material_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-profile-material-worker-contract/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-profile-material-worker-contract/"*)
       build_control=true
       build_profile_material_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-profile-material-worker-client/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-profile-material-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-profile-material-worker/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-profile-material-worker/"*)
       build_profile_material_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-status-worker-contract/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-status-worker-contract/"*)
       build_control=true
       build_project_status_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-status-worker-client/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-status-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-status-worker/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-status-worker/"*)
       build_project_status_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-theme-core/"*)
+    "$PROJECT_ROOT/crates/theme/a4n-theme-core/"*)
       build_control=true
       build_theme_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-theme-read-worker-contract/"*)
+    "$PROJECT_ROOT/crates/theme/a4n-theme-read-worker-contract/"*)
       build_control=true
       build_theme_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-theme-read-worker-client/"*)
+    "$PROJECT_ROOT/crates/theme/a4n-theme-read-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-theme-read-worker/"*)
+    "$PROJECT_ROOT/crates/theme/a4n-theme-read-worker/"*)
       build_theme_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-read-core/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-read-core/"*)
       build_control=true
       build_project_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-read-worker-contract/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-read-worker-contract/"*)
       build_control=true
       build_project_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-read-worker-client/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-read-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-read-worker/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-read-worker/"*)
       build_project_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-import-review-core/"*)
+    "$PROJECT_ROOT/crates/transfer/a4n-import-review-core/"*)
       build_control=true
       build_import_review_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-import-review-worker-contract/"*)
+    "$PROJECT_ROOT/crates/transfer/a4n-import-review-worker-contract/"*)
       build_control=true
       build_import_review_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-import-review-worker-client/"*)
+    "$PROJECT_ROOT/crates/transfer/a4n-import-review-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-import-review-worker/"*)
+    "$PROJECT_ROOT/crates/transfer/a4n-import-review-worker/"*)
       build_import_review_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-inspiration-core/"*)
+    "$PROJECT_ROOT/crates/inspiration/a4n-inspiration-core/"*)
       build_control=true
       build_inspiration_history_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-inspiration-worker-contract/"*)
+    "$PROJECT_ROOT/crates/inspiration/a4n-inspiration-worker-contract/"*)
       build_control=true
       build_inspiration_history_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-inspiration-worker-client/"*)
+    "$PROJECT_ROOT/crates/inspiration/a4n-inspiration-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-inspiration-worker/"*)
+    "$PROJECT_ROOT/crates/inspiration/a4n-inspiration-worker/"*)
       build_inspiration_history_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-access-worker-contract/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-access-worker-contract/"*)
       build_control=true
       build_project_access_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-access-worker-client/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-access-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-access-worker/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-access-worker/"*)
       build_project_access_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-collaboration-worker-contract/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-collaboration-worker-contract/"*)
       build_control=true
       build_project_collaboration_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-collaboration-worker-client/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-collaboration-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-collaboration-worker/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-collaboration-worker/"*)
       build_project_collaboration_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-mutation-worker-contract/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-mutation-worker-contract/"*)
       build_control=true
       build_project_mutation_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-mutation-worker-client/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-mutation-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-project-mutation-worker/"*)
+    "$PROJECT_ROOT/crates/project/a4n-project-mutation-worker/"*)
       build_project_mutation_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-scene-worker-contract/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-scene-worker-contract/"*)
       build_control=true
       build_chapter_scene_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-scene-worker-client/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-scene-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-scene-worker/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-scene-worker/"*)
       build_chapter_scene_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-content-worker-contract/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-content-worker-contract/"*)
       build_control=true
       build_chapter_content_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-content-worker-client/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-content-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-content-worker/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-content-worker/"*)
       build_chapter_content_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-chapter-content-core/"*)
+    "$PROJECT_ROOT/crates/chapter/a4n-chapter-content-core/"*)
       build_control=true
       build_chapter_content_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-workflow-read-worker-contract/"*)
+    "$PROJECT_ROOT/crates/workflow/a4n-workflow-read-worker-contract/"*)
       build_control=true
       build_workflow_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-workflow-read-worker-client/"*)
+    "$PROJECT_ROOT/crates/workflow/a4n-workflow-read-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-workflow-read-worker/"*)
+    "$PROJECT_ROOT/crates/workflow/a4n-workflow-read-worker/"*)
       build_workflow_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-workflow-core/"*)
+    "$PROJECT_ROOT/crates/workflow/a4n-workflow-core/"*)
       build_control=true
       build_workflow_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-config-read-worker-contract/"*)
+    "$PROJECT_ROOT/crates/config/a4n-config-read-worker-contract/"*)
       build_control=true
       build_config_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-config-read-worker-client/"*)
+    "$PROJECT_ROOT/crates/config/a4n-config-read-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-config-read-worker/"*)
+    "$PROJECT_ROOT/crates/config/a4n-config-read-worker/"*)
       build_config_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-config-read-core/"*)
+    "$PROJECT_ROOT/crates/config/a4n-config-read-core/"*)
       build_config_read_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-character-mutation-worker-contract/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-character-mutation-worker-contract/"*)
       build_control=true
       build_character_mutation_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-character-mutation-worker-client/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-character-mutation-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-character-mutation-worker/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-character-mutation-worker/"*)
       build_character_mutation_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-video-record-worker-contract/"*)
+    "$PROJECT_ROOT/crates/video/a4n-video-record-worker-contract/"*)
       build_control=true
       build_video_record_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-video-record-worker-client/"*)
+    "$PROJECT_ROOT/crates/video/a4n-video-record-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-video-record-worker/"*)
+    "$PROJECT_ROOT/crates/video/a4n-video-record-worker/"*)
       build_video_record_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-manga-record-worker-contract/"*)
+    "$PROJECT_ROOT/crates/manga/a4n-manga-record-worker-contract/"*)
       build_control=true
       build_manga_record_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-manga-record-worker-client/"*)
+    "$PROJECT_ROOT/crates/manga/a4n-manga-record-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-manga-record-worker/"*)
+    "$PROJECT_ROOT/crates/manga/a4n-manga-record-worker/"*)
       build_manga_record_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-manga-core/"*)
+    "$PROJECT_ROOT/crates/manga/a4n-manga-core/"*)
       build_control=true
       build_manga_record_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-portrait-worker-contract/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-portrait-worker-contract/"*)
       build_control=true
       build_portrait_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-portrait-worker-client/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-portrait-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-portrait-worker/"*)
+    "$PROJECT_ROOT/crates/profiles/a4n-portrait-worker/"*)
       build_portrait_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-source-snapshot-worker-contract/"*)
+    "$PROJECT_ROOT/crates/project/a4n-source-snapshot-worker-contract/"*)
       build_control=true
       build_source_snapshot_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-source-snapshot-worker-client/"*)
+    "$PROJECT_ROOT/crates/project/a4n-source-snapshot-worker-client/"*)
       build_control=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-source-snapshot-worker/"*)
+    "$PROJECT_ROOT/crates/project/a4n-source-snapshot-worker/"*)
       build_source_snapshot_worker=true
       ;;
-    "$PROJECT_ROOT/crates/a4n-server/"*|"$PROJECT_ROOT/crates/a4n-tauri/"*)
+    "$PROJECT_ROOT/crates/host/a4n-server/"*|"$PROJECT_ROOT/crates/host/a4n-tauri/"*)
       ;;
     *.rs|*/Cargo.toml|*/build.rs|*/Cargo.lock)
       build_control=true

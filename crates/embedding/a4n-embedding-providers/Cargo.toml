@@ -1,0 +1,17 @@
+[package]
+name = "a4n-embedding-providers"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-embedding-provider-contract = { workspace = true }
+
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

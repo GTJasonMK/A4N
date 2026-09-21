@@ -112,6 +112,7 @@ dependencies = [
  "a4n-domain",
  "a4n-embedding-contract",
  "a4n-error",
+ "a4n-model-discovery-contract",
  "a4n-progress",
  "a4n-prompt-contract",
  "a4n-provider-contract",
@@ -739,7 +740,6 @@ dependencies = [
 name = "a4n-domain"
 version = "0.1.0"
 dependencies = [
- "a4n-model-discovery-contract",
  "a4n-progress",
  "chrono",
  "schemars 1.2.1",

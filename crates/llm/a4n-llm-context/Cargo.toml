@@ -1,0 +1,13 @@
+[package]
+name = "a4n-llm-context"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { workspace = true }
+a4n-error = { workspace = true, default-features = false }
+a4n-llm-provider-contract = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }

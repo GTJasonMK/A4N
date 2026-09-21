@@ -517,7 +517,7 @@ $RELEASE && command+=(--release)
 $FULL_HOST && command+=(-f embedded-capabilities)
 if ! $HOT_RELOAD; then
   npm --prefix frontend run build
-  command+=(--no-watch --config crates/a4n-tauri/tauri.no-hot.conf.json)
+  command+=(--no-watch --config crates/host/a4n-tauri/tauri.no-hot.conf.json)
 fi
 start_runtime_worker_watcher
 trap stop_runtime_worker_watcher EXIT
