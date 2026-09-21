@@ -38,6 +38,7 @@ import {
   latestNonRejectedAssemblyPush,
 } from "./videoTabUtils";
 
+import { VideoPostProcessTimeline } from "./VideoPostProcessTimeline";
 interface VideoPostProcessWorkspaceProps {
   projectId: number;
   chapter: ChapterRow;
@@ -1077,188 +1078,33 @@ export const VideoPostProcessWorkspace: React.FC<
               {t("video.postprocess.currentBatchNotEditable")}
             </div>
           ) : (
-            <div>
-              <div className="grid grid-cols-3 text-caption tabular-nums text-book-text-muted">
-                <span>{formatPreciseSeconds(0, locale, t)}</span>
-                <span className="justify-self-center">
-                  {formatPreciseSeconds(timelineReadout, locale, t)}
-                </span>
-                <span className="justify-self-end">{formatPreciseSeconds(duration, locale, t)}</span>
-              </div>
-              <div
-                ref={timelineRef}
-                role="button"
-                aria-label={t("video.postprocess.timelineAria")}
-                tabIndex={0}
-                aria-disabled={markers.length >= 2 || undefined}
-                title={
-                  markers.length >= 2
-                    ? t("video.postprocess.twoMarkersClearFirst")
-                    : t("video.postprocess.clickToAddMarker")
-                }
-                onClick={handleTimelineClick}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    addMarker();
-                  }
-                }}
-                className={`relative mt-1 h-8 rounded-lg bg-book-bg-tertiary ${
-                  markers.length < 2 ? "cursor-crosshair" : "cursor-default"
-                }`}
-              >
-                {videoPlaying ? (
-                  <span
-                    aria-hidden="true"
-                    data-playback-head="true"
-                    className="pointer-events-none absolute -top-1 z-[1] h-10 w-px bg-white/80"
-                    style={{
-                      left: `${Math.min(
-                        100,
-                        Math.max(0, (playbackTimeSecs / duration) * 100),
-                      )}%`,
-                    }}
-                  />
-                ) : null}
-                {markers.map((marker, index) => (
-                  <span
-                    key={`marker-${index}`}
-                    role="slider"
-                    tabIndex={0}
-                    aria-label={t("video.postprocess.markerAria", { number: index + 1 })}
-                    aria-keyshortcuts="Delete Backspace"
-                    aria-valuemin={0}
-                    aria-valuemax={duration}
-                    aria-valuenow={Number(marker.toFixed(2))}
-                    onFocus={() => setSelectedMarkerIndex(index)}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      if (event.isTrusted) {
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                      }
-                      setSelectedMarkerIndex(index);
-                      beginScrub();
-                      draggingScrubRef.current = true;
-                      setDraggingMarkerIndex(index);
-                      seekVideo(marker);
-                    }}
-                    onPointerMove={(event) => {
-                      if (
-                        draggingMarkerIndex !== index &&
-                        !event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        return;
-                      }
-                      const value = markerValueFromClientX(event.clientX);
-                      if (value == null) return;
-                      const constrainedValue = constrainMarkerValue(
-                        index,
-                        value,
-                      );
-                      seekVideo(constrainedValue);
-                      setMarkers((prev) =>
-                        prev.map((item, itemIndex) =>
-                          itemIndex === index ? constrainedValue : item,
-                        ),
-                      );
-                    }}
-                    onPointerUp={(event) => {
-                      if (
-                        draggingMarkerIndex !== index &&
-                        !event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        return;
-                      }
-                      const value = markerValueFromClientX(event.clientX);
-                      if (value != null) {
-                        const constrainedValue = constrainMarkerValue(
-                          index,
-                          value,
-                        );
-                        seekVideo(constrainedValue);
-                        setMarkers((prev) =>
-                          prev.map((item, itemIndex) =>
-                            itemIndex === index ? constrainedValue : item,
-                          ),
-                        );
-                      }
-                      if (
-                        event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        event.currentTarget.releasePointerCapture(
-                          event.pointerId,
-                        );
-                      }
-                      setDraggingMarkerIndex(null);
-                      pendingDragReleaseRef.current = true;
-                      finishScrub();
-                      if (desiredSeekTimeRef.current == null) {
-                        draggingScrubRef.current = false;
-                        pendingDragReleaseRef.current = false;
-                      }
-                    }}
-                    onPointerCancel={(event) => {
-                      if (
-                        event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        event.currentTarget.releasePointerCapture(
-                          event.pointerId,
-                        );
-                      }
-                      setDraggingMarkerIndex(null);
-                      draggingScrubRef.current = false;
-                      finishScrub();
-                    }}
-                    onKeyDown={(event) => {
-                      const step = event.shiftKey ? 1 : 0.05;
-                      if (
-                        event.key !== "ArrowLeft" &&
-                        event.key !== "ArrowRight"
-                      )
-                        return;
-                      event.preventDefault();
-                      const direction = event.key === "ArrowLeft" ? -1 : 1;
-                      const value = constrainMarkerValue(
-                        index,
-                        marker + direction * step,
-                      );
-                      beginScrub();
-                      seekVideo(value);
-                      finishScrub();
-                      setMarkers((prev) =>
-                        prev.map((item, itemIndex) =>
-                          itemIndex === index ? value : item,
-                        ),
-                      );
-                    }}
-                    className="absolute -top-1 h-10 w-5 -translate-x-1/2 cursor-ew-resize touch-none"
-                    style={{
-                      left: `${Math.min(100, Math.max(0, (marker / duration) * 100))}%`,
-                    }}
-                    title={formatPreciseSeconds(marker, locale, t)}
-                  >
-                    <span className="absolute left-1/2 top-1 h-8 w-0.5 -translate-x-1/2 bg-book-primary" />
-                    <span
-                      className={`absolute left-1/2 top-1.5 h-3 w-3 -translate-x-1/2 rounded-full border border-book-primary ${
-                        selectedMarkerIndex === index
-                          ? "bg-book-primary"
-                          : "bg-book-bg-paper"
-                      }`}
-                    />
-                  </span>
-                ))}
-                {selectedRange && (
-                  <span
-                    className="pointer-events-none absolute top-2 h-4 rounded-md bg-book-primary/25"
-                    style={{
-                      left: `${(selectedRange.start / duration) * 100}%`,
-                      width: `${((selectedRange.end - selectedRange.start) / duration) * 100}%`,
-                    }}
-                  />
-                )}
-              </div>
-            </div>
+            <VideoPostProcessTimeline
+              locale={locale}
+              t={t}
+              duration={duration}
+              timelineReadout={timelineReadout}
+              formatPreciseSeconds={formatPreciseSeconds}
+              timelineRef={timelineRef}
+              markers={markers}
+              videoPlaying={videoPlaying}
+              playbackTimeSecs={playbackTimeSecs}
+              selectedMarkerIndex={selectedMarkerIndex}
+              draggingMarkerIndex={draggingMarkerIndex}
+              selectedRange={selectedRange}
+              markerValueFromClientX={markerValueFromClientX}
+              addMarker={addMarker}
+              constrainMarkerValue={constrainMarkerValue}
+              beginScrub={beginScrub}
+              seekVideo={seekVideo}
+              finishScrub={finishScrub}
+              handleTimelineClick={handleTimelineClick}
+              setMarkers={setMarkers}
+              setSelectedMarkerIndex={setSelectedMarkerIndex}
+              setDraggingMarkerIndex={setDraggingMarkerIndex}
+              draggingScrubRef={draggingScrubRef}
+              pendingDragReleaseRef={pendingDragReleaseRef}
+              desiredSeekTimeRef={desiredSeekTimeRef}
+            />
           )}
         </section>
       </div>
