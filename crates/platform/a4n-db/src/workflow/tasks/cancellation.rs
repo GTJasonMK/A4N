@@ -95,7 +95,7 @@ pub async fn cancel_workflow_run_persistence(
         .await
         .map_err(WorkflowWriteError::Database)?;
 
-    let progress_json = json!({
+    let mut progress_json = json!({
         "current": 1,
         "total": 1,
         "message": reason,
@@ -103,6 +103,13 @@ pub async fn cancel_workflow_run_persistence(
         "meta": null,
         "updated_at": now.to_string(),
     });
+    if let Some(snapshot) = run
+        .progress_json
+        .as_ref()
+        .and_then(|value| value.get("snapshot"))
+    {
+        progress_json["snapshot"] = snapshot.clone();
+    }
     let mut active: workflow_run::ActiveModel = run.into();
     active.status = Set(WORKFLOW_STATUS_CANCELLED.to_string());
     active.can_resume = Set(false);

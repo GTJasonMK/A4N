@@ -18,7 +18,8 @@ pub(in crate::workflow) fn workflow_run_summary(
         .progress_json
         .as_ref()
         .map(workflow_run_progress_summary)
-        .transpose()?;
+        .transpose()?
+        .flatten();
     Ok(WorkflowRunSummary {
         id: run.id,
         business_key: run.business_key,
@@ -67,8 +68,22 @@ pub(super) fn workflow_checkpoint_summary(
 
 pub(in crate::workflow) fn workflow_run_progress_summary(
     value: &Value,
-) -> Result<WorkflowRunProgressSummary, WorkflowReadError> {
-    let persisted = serde_json::from_value::<PersistedWorkflowProgress>(value.clone())
+) -> Result<Option<WorkflowRunProgressSummary>, WorkflowReadError> {
+    let mut progress = value.clone();
+    if let Some(fields) = progress.as_object_mut()
+        && let Some(snapshot) = fields.remove("snapshot")
+    {
+        if !snapshot.is_object() {
+            return Err(WorkflowReadError::InvalidData(
+                "progress_json.snapshot 必须是 JSON object".to_string(),
+            ));
+        }
+        // 恢复快照可以先于首条进度事件保存，此时没有公开进度。
+        if fields.is_empty() {
+            return Ok(None);
+        }
+    }
+    let persisted = serde_json::from_value::<PersistedWorkflowProgress>(progress)
         .map_err(|error| WorkflowReadError::InvalidData(format!("progress_json 无效: {error}")))?;
     if persisted.total == 0 {
         return Err(WorkflowReadError::InvalidData(
@@ -89,14 +104,14 @@ pub(in crate::workflow) fn workflow_run_progress_summary(
             "progress_json.percent 必须在 0..=100 范围内，实际为 {percent}"
         )));
     }
-    Ok(WorkflowRunProgressSummary {
+    Ok(Some(WorkflowRunProgressSummary {
         current: persisted.current,
         total: persisted.total,
         message: persisted.message,
         percent,
         meta: persisted.meta,
         updated_at: persisted.updated_at,
-    })
+    }))
 }
 
 pub(super) fn workflow_progress_event_summary(

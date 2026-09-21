@@ -1,12 +1,14 @@
 use a4n_db::workflow::{
     CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, GetWorkflowRunInput,
-    UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowWriteError,
-    cancel_workflow_run_persistence, latest_workflow_run_recovery_records_by_business_keys,
-    latest_workflow_runs_by_business_keys, load_completed_llm_call_checkpoint,
-    mark_workflow_status, resume_or_upsert_workflow_run, save_completed_llm_call_checkpoint,
-    upsert_workflow_checkpoint, upsert_workflow_run, workflow_checkpoint_statuses_for_runs,
-    workflow_checkpoint_step_statuses, workflow_run_detail, workflow_run_model_by_id,
-    workflow_run_models_by_ids, workflow_run_statuses_by_ids,
+    UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowProgressEventInput,
+    WorkflowWriteError, cancel_workflow_run_persistence,
+    latest_workflow_run_recovery_records_by_business_keys, latest_workflow_runs_by_business_keys,
+    load_completed_llm_call_checkpoint, mark_workflow_status, persist_workflow_progress_snapshot,
+    record_workflow_progress_event, resume_or_upsert_workflow_run,
+    save_completed_llm_call_checkpoint, upsert_workflow_checkpoint, upsert_workflow_run,
+    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses, workflow_run_detail,
+    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
+    workflow_run_summary_by_id,
 };
 use a4n_db_models::models::generation::generation_run;
 use a4n_domain::workflow::{
@@ -149,6 +151,111 @@ fn completed_call(run_id: i64, call_key: &str) -> CompletedLlmCallCheckpointInpu
             finish_reason: Some("stop".to_string()),
             artifacts_json: None,
         },
+    }
+}
+
+#[tokio::test]
+async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    for with_progress in [false, true] {
+        let key = format!("workflow-snapshot:{}", uuid::Uuid::new_v4());
+        let run = upsert_workflow_run(
+            &db,
+            workflow_input(&key, "snapshot", WORKFLOW_STATUS_RUNNING),
+        )
+        .await
+        .unwrap();
+        let event = WorkflowProgressEventInput {
+            workflow_run_id: run.id,
+            task_id: None,
+            current: 1,
+            total: 4,
+            message: "处理中",
+            meta: None,
+        };
+        if with_progress {
+            record_workflow_progress_event(&db, event.clone())
+                .await
+                .unwrap();
+        }
+        let snapshot = json!({"version": 1, "completed_units": [7]});
+        persist_workflow_progress_snapshot(&db, run.id, snapshot.clone())
+            .await
+            .unwrap();
+        let summary = workflow_run_summary_by_id(&db, run.id).await.unwrap();
+        assert_eq!(summary.progress.is_some(), with_progress);
+        if let Some(progress) = summary.progress {
+            assert_eq!(progress.current, 1);
+            assert_eq!(progress.percent, 25.0);
+        }
+
+        if with_progress {
+            record_workflow_progress_event(
+                &db,
+                WorkflowProgressEventInput {
+                    current: 2,
+                    ..event.clone()
+                },
+            )
+            .await
+            .unwrap();
+            let stored = workflow_run_model_by_id(&db, run.id).await.unwrap();
+            assert_eq!(stored.progress_json.unwrap()["snapshot"], snapshot);
+        }
+        mark_workflow_status(
+            &db,
+            run.id,
+            WORKFLOW_STATUS_INTERRUPTED,
+            true,
+            Some("场景边界暂停"),
+        )
+        .await
+        .unwrap();
+        let snapshot = json!({"version": 1, "completed_units": [7, 8]});
+        persist_workflow_progress_snapshot(&db, run.id, snapshot.clone())
+            .await
+            .unwrap();
+        let detail = workflow_run_detail(
+            &db,
+            GetWorkflowRunInput {
+                workflow_run_id: run.id,
+                include_generation_runs: false,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(detail.run.status, WORKFLOW_STATUS_INTERRUPTED);
+        assert_eq!(detail.run.progress.is_some(), with_progress);
+        if let Some(progress) = detail.run.progress {
+            assert_eq!(progress.current, 2);
+            assert_eq!(progress.percent, 50.0);
+        }
+
+        let result = cancel_workflow_run_persistence(&db, run.id, "用户取消工作流")
+            .await
+            .unwrap();
+        assert!(!result.already_terminal);
+        let cancelled = workflow_run_summary_by_id(&db, run.id).await.unwrap();
+        assert_eq!(cancelled.status, WORKFLOW_STATUS_CANCELLED);
+        assert!(!cancelled.can_resume);
+        assert!(cancelled.active_task_id.is_none());
+        assert_eq!(cancelled.progress.unwrap().message, "用户取消工作流");
+        let stored = workflow_run_model_by_id(&db, run.id).await.unwrap();
+        assert_eq!(stored.progress_json.unwrap()["snapshot"], snapshot);
+        assert!(matches!(
+            persist_workflow_progress_snapshot(&db, run.id, snapshot).await,
+            Err(WorkflowWriteError::StatusConflict { .. })
+        ));
+        assert!(matches!(
+            record_workflow_progress_event(&db, event).await,
+            Err(WorkflowWriteError::StatusConflict { .. })
+        ));
+        assert!(
+            cancel_workflow_run_persistence(&db, run.id, "用户取消工作流")
+                .await
+                .unwrap()
+                .already_terminal
+        );
     }
 }
 

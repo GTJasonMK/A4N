@@ -205,7 +205,8 @@ fn workflow_run_progress_summary_uses_calculated_percent_when_missing() {
         "message": "处理中",
         "updated_at": "2026-01-02 03:04:05"
     }))
-    .expect("valid progress JSON should parse");
+    .expect("valid progress JSON should parse")
+    .expect("progress fields are present");
 
     assert_eq!(summary.current, 2);
     assert_eq!(summary.total, 4);
@@ -222,7 +223,8 @@ fn workflow_run_progress_summary_prefers_explicit_percent() {
         "message": "处理中",
         "percent": 42.5
     }))
-    .expect("valid progress JSON should parse");
+    .expect("valid progress JSON should parse")
+    .expect("progress fields are present");
 
     assert_eq!(summary.percent, 42.5);
 }
@@ -251,6 +253,60 @@ fn workflow_run_progress_summary_rejects_missing_or_out_of_range_fields() {
     }))
     .expect_err("current greater than total must fail");
     assert!(invalid_range.to_string().contains("不能大于"));
+}
+
+#[test]
+fn workflow_run_summary_accepts_snapshot_with_or_without_progress() {
+    for with_progress in [false, true] {
+        let mut value = json!({"snapshot": {"version": 1, "completed_units": [7]}});
+        if with_progress {
+            value["current"] = json!(1);
+            value["total"] = json!(4);
+            value["message"] = json!("处理中");
+        }
+        let run = WorkflowRunModelBuilder::new(
+            51,
+            "snapshot-workflow",
+            "chapter_shooting_script",
+            WORKFLOW_STATUS_INTERRUPTED,
+            test_timestamp(),
+        )
+        .with_progress(value)
+        .build();
+        let summary = workflow_run_summary(run).expect("durable snapshot must not block reads");
+        assert_eq!(summary.id, 51);
+        assert_eq!(summary.progress.is_some(), with_progress);
+        if let Some(progress) = summary.progress {
+            assert_eq!(progress.current, 1);
+            assert_eq!(progress.total, 4);
+            assert_eq!(progress.percent, 25.0);
+            assert_eq!(progress.message, "处理中");
+        }
+    }
+}
+
+#[test]
+fn workflow_run_progress_summary_rejects_malformed_snapshot_and_progress() {
+    for value in [
+        json!({"snapshot": null}),
+        json!({"snapshot": []}),
+        json!({"snapshot": "invalid"}),
+        json!({"snapshot": {}, "current": 0, "total": 1}),
+        json!({"snapshot": {}, "legacy": true}),
+        json!({"current": 0, "total": 1, "message": "", "legacy": true}),
+        json!({"snapshot": {}, "current": 0, "total": 1, "message": "", "legacy": true}),
+        json!({"snapshot": {}, "current": 0, "total": 0, "message": ""}),
+        json!({"snapshot": {}, "current": 0, "total": 1, "message": "", "percent": 101}),
+        json!({}),
+        json!(null),
+    ] {
+        let error = workflow_run_progress_summary(&value)
+            .expect_err("invalid persisted fields must remain visible");
+        assert!(
+            matches!(&error, WorkflowReadError::InvalidData(_)),
+            "{value}: {error}"
+        );
+    }
 }
 
 #[test]

@@ -54,7 +54,7 @@ pub async fn record_workflow_progress_event(
         .transpose()?
         .unwrap_or(1);
 
-    let progress_json = json!({
+    let mut progress_json = json!({
         "current": current,
         "total": total,
         "message": input.message,
@@ -62,6 +62,13 @@ pub async fn record_workflow_progress_event(
         "meta": meta_json,
         "updated_at": now.to_string(),
     });
+    if let Some(snapshot) = run
+        .progress_json
+        .as_ref()
+        .and_then(|value| value.get("snapshot"))
+    {
+        progress_json["snapshot"] = snapshot.clone();
+    }
     let mut active: workflow_run::ActiveModel = run.into();
     active.progress_json = Set(Some(progress_json));
     active.updated_at = Set(now);
