@@ -92,7 +92,7 @@ export const LineMediaBindings: React.FC<{
   );
 };
 
-const ImageBindingStrip: React.FC<{
+export const ImageBindingStrip: React.FC<{
   title: string;
   emptyLabel: string;
   bindings: GalgameMediaBindingSummary[];

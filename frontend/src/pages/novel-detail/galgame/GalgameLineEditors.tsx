@@ -7,7 +7,10 @@ import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { MediaAssetIdBinder } from "./MediaAssetIdBinder";
 import { presentationCgNote, updatePresentationJson, type PresentationPatch } from "./presentation";
 import { ChoiceEditor } from "./GalgameChoiceEditor";
-import { LineMediaBindings } from "./GalgameMediaBindings";
+import {
+  ImageBindingStrip,
+  LineMediaBindings,
+} from "./GalgameMediaBindings";
 import { useI18n } from "../../../i18n";
 import type { SourceSnapshotChapterSummary } from "../../../api/project";
 import type {
@@ -64,7 +67,7 @@ interface LineEditorProps {
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }
 
-const SceneMetaEditor: React.FC<{
+export const SceneMetaEditor: React.FC<{
   scene: GalgameScene;
   scenes: GalgameSceneDetail[];
   mediaBindings: GalgameMediaBindingSummary[];
@@ -243,7 +246,7 @@ const SceneMetaEditor: React.FC<{
   );
 };
 
-const LineEditor: React.FC<LineEditorProps> = ({
+export const LineEditor: React.FC<LineEditorProps> = ({
   line,
   speakerProfiles,
   speakerProfileById,

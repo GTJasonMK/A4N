@@ -1,24 +1,17 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Download,
-  FileText,
+import {
+  Download,
   FileSearch,
-  Images,
-  Music,
+  FileText,
   PenLine,
   Plus,
   RefreshCw,
-  Trash2,
-  X, } from "lucide-react";
+  X,
+} from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
-import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
-import { MediaAssetIdBinder } from "./galgame/MediaAssetIdBinder";
+import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { PipelineStatusPanel } from "./galgame/PipelineStatusPanel";
-import {
-  presentationCgNote,
-  updatePresentationJson,
-  type PresentationPatch,
-} from "./galgame/presentation";
 import {
   bindGalgameMedia,
   cancelGalgamePipeline,
@@ -39,14 +32,7 @@ import {
   updateGalgameScene,
   type GalgameChoice,
   type GalgameLine,
-  type GalgameLinePresentationDocumentV2,
-  type GalgameLineType,
-  type GalgameCgImportance,
-  type GalgameTransition,
-  type GalgameStagePositionV2,
-  type GalgameVisibleCastMemberV2,
   type GalgameAssetPlan,
-  type GalgameAssetPlanItem,
   type GalgameMediaBindingSummary,
   type GalgamePipelineStatusSummary,
   type GalgameScene,
@@ -60,27 +46,30 @@ import {
   type UpdateGalgameSceneInput,
 } from "../../api/galgame";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import type { ImageSize } from "../../api/image";
 import { extractErrorMessage } from "../../api";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import { ThemedCombobox } from "../../components/ui/ThemedCombobox";
 import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
-import { toMediaSrc } from "../../utils/mediaSrc";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 import { useI18n } from "../../i18n";
 import {
+  PIPELINE_START_STAGES,
+  audioBusyTarget,
+  bindMediaBusyTarget,
   emptyGalgamePresentation,
+  insertBusyTarget,
+  lineBusyTarget,
   pipelineStartStageLabel,
   sceneEntryKindLabel,
-  sceneSelectLabel,
+  sceneBusyTarget,
+  presentationForLinePatch,
 } from "./galgame/galgameTabShared";
-import { AssetPlanPanel, PortraitExpressionMatrix } from "./galgame/AssetPlanPanels";
+import { AssetPlanPanel } from "./galgame/AssetPlanPanels";
 import { LineEditor, SceneMetaEditor } from "./galgame/GalgameLineEditors";
 
 

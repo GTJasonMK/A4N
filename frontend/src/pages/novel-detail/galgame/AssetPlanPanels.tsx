@@ -20,7 +20,7 @@ import {
   poseDisplayValue,
 } from "./galgameTabShared";
 
-const AssetPlanPanel: React.FC<{
+export const AssetPlanPanel: React.FC<{
   plan: GalgameAssetPlan | null;
   speakerProfiles: GalgameSpeakerProfile[];
   loading: boolean;
@@ -210,7 +210,7 @@ const AssetPlanList: React.FC<{
   );
 };
 
-const PortraitExpressionMatrix: React.FC<{
+export const PortraitExpressionMatrix: React.FC<{
   items: GalgameAssetPlanItem[];
   speakerProfiles: GalgameSpeakerProfile[];
   disabled: boolean;

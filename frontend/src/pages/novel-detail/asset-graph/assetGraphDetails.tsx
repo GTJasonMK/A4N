@@ -6,7 +6,6 @@ import {
   type AssetGraphNodeDetail,
   type AssetLineageRecord,
   type AssetLineageRef,
-  type GenerationInputSource,
 } from "../../../api/project";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { formatNumber, useI18n } from "../../../i18n";
@@ -14,10 +13,15 @@ import {
   assetTypeLabel,
   isVideoChainNode,
   kindLabel,
-  nodeCenter,
   primaryAssetIndexNodes,
   type PositionedNode,
 } from "./graphCanvas";
+import {
+  generationInputEmptyText,
+  inputStatusLabel,
+  JsonBlock,
+  originLabel,
+} from "./assetGraphInputViewer";
 
 export const ZoomControls: React.FC<{
   zoom: number;

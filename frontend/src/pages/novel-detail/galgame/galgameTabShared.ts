@@ -1,6 +1,8 @@
 import type {
   GalgameAssetPlanItem,
+  GalgameCgImportance,
   GalgameLine,
+  GalgameLineType,
   GalgameLinePresentationDocumentV2,
   GalgamePipelineStartStage,
   GalgameScene,

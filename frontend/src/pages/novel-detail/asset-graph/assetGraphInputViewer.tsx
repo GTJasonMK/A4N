@@ -351,7 +351,7 @@ const TextBlock: React.FC<{ text: string }> = ({ text }) => (
   </pre>
 );
 
-const JsonBlock: React.FC<{ title: string; value: unknown }> = ({
+export const JsonBlock: React.FC<{ title: string; value: unknown }> = ({
   title,
   value,
 }) => (
@@ -369,7 +369,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function originLabel(
+export function originLabel(
   origin: string,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
@@ -387,7 +387,7 @@ function originLabel(
   return t(labels[origin] ?? "novel.assetGraph.origin.other");
 }
 
-function inputStatusLabel(
+export function inputStatusLabel(
   status: string,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
@@ -401,7 +401,7 @@ function inputStatusLabel(
   return t(labels[status] ?? "novel.assetGraph.inputStatus.unknown");
 }
 
-function generationInputEmptyText(
+export function generationInputEmptyText(
   status: string,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
