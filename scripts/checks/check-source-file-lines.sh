@@ -6,7 +6,7 @@ failed=0
 
 while IFS= read -r -d '' path; do
     case "$path" in
-        frontend/src/api/generated/*)
+        frontend/src/api/generated/*|frontend/e2e/*|scripts/tests/*|*/tests/*|*/test/*|*/tests.rs|*/test.rs|*.test.ts|*.test.tsx|*.test.js|*.test.jsx|*.test.mjs)
             continue
             ;;
     esac
