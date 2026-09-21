@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from typing import Any
 
 from mock_openai_fixture_adaptations import (
@@ -215,6 +216,9 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(character_sync_attribute_changes_response(combined), ensure_ascii=False)
 
     if '"name": "character_sync_chapter_states"' in combined:
+        if body.get("model") == "a4n-character-sync-cancel":
+            # Leave a valid call in flight while the CLI cancels its owner.
+            time.sleep(10)
         return json.dumps(character_sync_chapter_states_response(combined), ensure_ascii=False)
 
     if '"name": "character_sync_behavior_records"' in combined:

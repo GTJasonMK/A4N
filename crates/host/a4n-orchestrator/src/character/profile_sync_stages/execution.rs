@@ -109,6 +109,11 @@ impl OrchestratorContext {
                             &stage_value,
                             &format!("角色同步阶段 {}", call.call_key),
                         )?;
+                        report_progress(
+                            progress,
+                            current,
+                            &format!("{}：{}已从调用断点恢复", input.profile_name, stage.title()),
+                        )?;
                     } else {
                         let call_order = i32::try_from(index)
                             .map_err(|_| {

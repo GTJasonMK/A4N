@@ -1,5 +1,6 @@
 use super::*;
 
+use super::super::llm_checkpoint::inherit_completed_llm_call_checkpoints;
 use super::queries::{locked_latest_workflow_run_by_business_key_model, locked_workflow_run_by_id};
 use super::validation::{
     completed_at_for_status_value, ensure_workflow_status_transition, ensure_workflow_write_open,
@@ -33,19 +34,32 @@ pub async fn resume_or_upsert_workflow_run(
             operation: "重复启动同一工作流".to_string(),
         });
     }
-    if let Some(existing) = existing
-        && existing.workflow_kind == input.workflow_kind
-        && workflow_fingerprint_matches(
-            existing.input_fingerprint_json.as_ref(),
-            input.input_fingerprint_json.as_ref(),
-        )
-        && should_resume_existing_run(&existing, &input.status)
-    {
-        let run = resume_workflow_run_model_in_transaction(&tx, existing, input).await?;
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(run);
-    }
+    let checkpoint_source = match existing.filter(|existing| {
+        existing.workflow_kind == input.workflow_kind
+            && workflow_fingerprint_matches(
+                existing.input_fingerprint_json.as_ref(),
+                input.input_fingerprint_json.as_ref(),
+            )
+    }) {
+        Some(existing) if should_resume_existing_run(&existing, &input.status) => {
+            let run = resume_workflow_run_model_in_transaction(&tx, existing, input).await?;
+            tx.commit().await.map_err(WorkflowWriteError::Database)?;
+            return Ok(run);
+        }
+        Some(existing)
+            if existing.status == WORKFLOW_STATUS_CANCELLED
+                && input.status == WORKFLOW_STATUS_RUNNING
+                && input.can_resume =>
+        {
+            Some(existing.id)
+        }
+        _ => None,
+    };
     let run = upsert_workflow_run_in_transaction(&tx, input).await?;
+    if let Some(source_id) = checkpoint_source {
+        // 旧运行保持取消，阻止晚到写入；新尝试只复用已完成、输入相同的模型调用。
+        inherit_completed_llm_call_checkpoints(&tx, source_id, run.id).await?;
+    }
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
 }

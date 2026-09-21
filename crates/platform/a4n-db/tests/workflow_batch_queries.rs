@@ -1,13 +1,17 @@
 use a4n_db::workflow::{
-    GetWorkflowRunInput, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
-    latest_workflow_run_recovery_records_by_business_keys, latest_workflow_runs_by_business_keys,
-    mark_workflow_status, resume_or_upsert_workflow_run, upsert_workflow_checkpoint,
-    upsert_workflow_run, workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
-    workflow_run_detail, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
+    CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, GetWorkflowRunInput,
+    UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowWriteError,
+    cancel_workflow_run_persistence, latest_workflow_run_recovery_records_by_business_keys,
+    latest_workflow_runs_by_business_keys, load_completed_llm_call_checkpoint,
+    mark_workflow_status, resume_or_upsert_workflow_run, save_completed_llm_call_checkpoint,
+    upsert_workflow_checkpoint, upsert_workflow_run, workflow_checkpoint_statuses_for_runs,
+    workflow_checkpoint_step_statuses, workflow_run_detail, workflow_run_model_by_id,
+    workflow_run_models_by_ids, workflow_run_statuses_by_ids,
 };
 use a4n_db_models::models::generation::generation_run;
 use a4n_domain::workflow::{
-    WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
+    WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_INTERRUPTED,
+    WORKFLOW_STATUS_RUNNING,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
@@ -130,6 +134,172 @@ async fn resume_or_upsert_reuses_matching_interrupted_run() {
     assert_eq!(resumed.status, WORKFLOW_STATUS_RUNNING);
     assert_eq!(resumed.active_task_id.as_deref(), Some("resume-task"));
     assert!(resumed.completed_at.is_none());
+}
+
+fn completed_call(run_id: i64, call_key: &str) -> CompletedLlmCallCheckpointInput {
+    CompletedLlmCallCheckpointInput {
+        workflow_run_id: run_id,
+        call_key: call_key.to_string(),
+        call_order: 1,
+        input_fingerprint_json: json!({"request": "stable"}),
+        checkpoint: CompletedLlmCallCheckpoint {
+            parsed_output: json!({"events": []}),
+            response_content: "{\"events\":[]}".to_string(),
+            usage: None,
+            finish_reason: Some("stop".to_string()),
+            artifacts_json: None,
+        },
+    }
+}
+
+#[tokio::test]
+async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_run() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let key = format!("character-call-resume:{}", uuid::Uuid::new_v4());
+    let mut input = workflow_input(&key, "same", WORKFLOW_STATUS_RUNNING);
+    input.workflow_kind = "character_profile_sync".to_string();
+    let original = resume_or_upsert_workflow_run(&db, input.clone())
+        .await
+        .unwrap();
+    save_completed_llm_call_checkpoint(&db, completed_call(original.id, "evidence"))
+        .await
+        .unwrap();
+    for (step_key, status, payload) in [
+        (
+            "business-write",
+            WORKFLOW_STATUS_COMPLETED,
+            json!({"completed": true}),
+        ),
+        (
+            "in-flight",
+            WORKFLOW_STATUS_RUNNING,
+            json!({"response_content": "partial"}),
+        ),
+    ] {
+        upsert_workflow_checkpoint(
+            &db,
+            UpsertWorkflowCheckpointInput {
+                workflow_run_id: original.id,
+                step_key: step_key.to_string(),
+                step_order: 2,
+                status: status.to_string(),
+                input_fingerprint_sha256: None,
+                input_fingerprint_json: None,
+                checkpoint_json: Some(payload),
+                artifacts_json: None,
+                generation_run_ids_json: None,
+                error_message: None,
+                completed: status == WORKFLOW_STATUS_COMPLETED,
+            },
+        )
+        .await
+        .unwrap();
+    }
+    cancel_workflow_run_persistence(&db, original.id, "用户取消工作流")
+        .await
+        .unwrap();
+    input.active_task_id = Some("new-attempt".to_string());
+    let restarted = resume_or_upsert_workflow_run(&db, input.clone())
+        .await
+        .unwrap();
+    assert_ne!(restarted.id, original.id);
+    assert_eq!(
+        workflow_checkpoint_step_statuses(&db, restarted.id)
+            .await
+            .unwrap(),
+        vec![(
+            "evidence".to_string(),
+            WORKFLOW_STATUS_COMPLETED.to_string()
+        )]
+    );
+    let restored = load_completed_llm_call_checkpoint(
+        &db,
+        restarted.id,
+        "evidence",
+        &json!({"request": "stable"}),
+    )
+    .await
+    .unwrap()
+    .expect("successful model response must survive explicit cancellation");
+    assert_eq!(restored.response_content, "{\"events\":[]}");
+    assert!(
+        load_completed_llm_call_checkpoint(
+            &db,
+            restarted.id,
+            "evidence",
+            &json!({"request": "changed"})
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    let cancelled = workflow_run_model_by_id(&db, original.id).await.unwrap();
+    assert_eq!(cancelled.status, WORKFLOW_STATUS_CANCELLED);
+    assert!(!cancelled.can_resume);
+    assert!(
+        matches!(
+            save_completed_llm_call_checkpoint(&db, completed_call(original.id, "late-response"))
+                .await,
+            Err(WorkflowWriteError::StatusConflict { current, .. })
+                if current == WORKFLOW_STATUS_CANCELLED
+        ),
+        "late responses must not write into the cancelled owner"
+    );
+    assert!(
+        matches!(
+            resume_or_upsert_workflow_run(&db, input).await,
+            Err(WorkflowWriteError::StatusConflict { current, .. })
+                if current == WORKFLOW_STATUS_RUNNING
+        ),
+        "concurrent admission must remain fenced"
+    );
+}
+
+#[tokio::test]
+async fn cancelled_retry_does_not_inherit_unrelated_or_fresh_start_calls() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    for mode in [
+        "changed_input",
+        "changed_kind",
+        "resume_disabled",
+        "already_completed",
+    ] {
+        let key = format!("call-restart-{mode}:{}", uuid::Uuid::new_v4());
+        let mut input = workflow_input(&key, "same", WORKFLOW_STATUS_RUNNING);
+        let original = resume_or_upsert_workflow_run(&db, input.clone())
+            .await
+            .unwrap();
+        save_completed_llm_call_checkpoint(&db, completed_call(original.id, "saved-call"))
+            .await
+            .unwrap();
+        if mode == "already_completed" {
+            mark_workflow_status(&db, original.id, WORKFLOW_STATUS_COMPLETED, false, None)
+                .await
+                .unwrap();
+        } else {
+            cancel_workflow_run_persistence(&db, original.id, "用户取消工作流")
+                .await
+                .unwrap();
+        }
+        match mode {
+            "changed_input" => {
+                input.input_fingerprint_json = Some(json!({"fingerprint": "changed"}))
+            }
+            "changed_kind" => input.workflow_kind = "other_workflow".to_string(),
+            "resume_disabled" => input.can_resume = false,
+            "already_completed" => {}
+            _ => unreachable!(),
+        }
+        let next = resume_or_upsert_workflow_run(&db, input).await.unwrap();
+        assert_ne!(next.id, original.id);
+        assert!(
+            workflow_checkpoint_step_statuses(&db, next.id)
+                .await
+                .unwrap()
+                .is_empty(),
+            "{mode}"
+        );
+    }
 }
 
 #[tokio::test]

@@ -174,6 +174,50 @@ pub async fn load_completed_llm_call_checkpoint(
         .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))
 }
 
+pub(super) async fn inherit_completed_llm_call_checkpoints(
+    tx: &sea_orm::DatabaseTransaction,
+    source_run_id: i64,
+    target_run_id: i64,
+) -> Result<(), WorkflowWriteError> {
+    let checkpoints = workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(source_run_id))
+        .filter(workflow_checkpoint::Column::Status.eq(WORKFLOW_STATUS_COMPLETED))
+        .order_by_asc(workflow_checkpoint::Column::StepOrder)
+        .order_by_asc(workflow_checkpoint::Column::Id)
+        .all(tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+    for checkpoint in checkpoints {
+        let Some(value) = checkpoint.checkpoint_json.as_ref() else {
+            continue;
+        };
+        // response_content 属于 LLM 调用断点合同，不继承业务写入或其他阶段的完成标记。
+        if value.get("response_content").is_none() {
+            continue;
+        }
+        validate_completed_llm_call_checkpoint_json(value, &checkpoint.step_key)
+            .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
+        upsert_workflow_checkpoint_in_transaction(
+            tx,
+            UpsertWorkflowCheckpointInput {
+                workflow_run_id: target_run_id,
+                step_key: checkpoint.step_key,
+                step_order: checkpoint.step_order,
+                status: WORKFLOW_STATUS_COMPLETED.to_string(),
+                input_fingerprint_sha256: checkpoint.input_fingerprint_sha256,
+                input_fingerprint_json: checkpoint.input_fingerprint_json,
+                checkpoint_json: checkpoint.checkpoint_json,
+                artifacts_json: checkpoint.artifacts_json,
+                generation_run_ids_json: checkpoint.generation_run_ids_json,
+                error_message: None,
+                completed: true,
+            },
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 pub async fn save_completed_llm_call_checkpoint(
     db: &DatabaseConnection,
     input: CompletedLlmCallCheckpointInput,
