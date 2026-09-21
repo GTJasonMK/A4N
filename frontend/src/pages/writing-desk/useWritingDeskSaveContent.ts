@@ -12,12 +12,12 @@ import {
   type ChapterSummary,
 } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
-import type { MessageTranslator } from "../../i18n";
+import type { Locale, MessageTranslator } from "../../i18n";
 import { formatNumber } from "../../i18n";
 
 interface UseWritingDeskSaveContentParams {
   projectId: number;
-  locale: string;
+  locale: Locale;
   lifecycleBlockedReason: string | null;
   activeNumber: number | null;
   activeChapter: ChapterSummary | null;

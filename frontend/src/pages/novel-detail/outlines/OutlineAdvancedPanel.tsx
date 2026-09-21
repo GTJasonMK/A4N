@@ -34,11 +34,7 @@ import {
 } from "../../../i18n";
 import type { RunOutlineGeneration } from "./useOutlineGeneration";
 import { outlineOptimizationVariables } from "./outlineTabUtils";
-import {
-  AdvancedActionRow,
-  CompletionRow,
-  PacingSummary,
-} from "./OutlineAdvancedPanelSections";
+import { AdvancedActionRow } from "./OutlineAdvancedPanelSections";
 import { OutlineProgressPacingGrid } from "./OutlineProgressPacingGrid";
 
 interface OutlineAdvancedPanelProps {

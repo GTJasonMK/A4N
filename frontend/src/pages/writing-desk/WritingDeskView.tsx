@@ -48,7 +48,7 @@ export interface WritingDeskViewProps {
   headerProps: HeaderProps;
   sidebarProps: SidebarProps;
   workspaceProps: WorkspaceProps;
-  resizeProps: ResizeProps;
+  resizeProps: ResizeProps | null;
   assistantPanelProps: AssistantProps;
   dialogProps: DialogProps;
   scenesOpen: boolean;
@@ -114,7 +114,7 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
         {!isMobileLayout && leftSidebarVisible && <ChapterSidebar {...sidebarProps} />}
         <ChapterWorkspace {...workspaceProps} />
 
-        {!isMobileLayout && rightPanel !== "none" && (
+        {!isMobileLayout && resizeProps && (
           <RightPanelResizeHandle {...resizeProps} />
         )}
 

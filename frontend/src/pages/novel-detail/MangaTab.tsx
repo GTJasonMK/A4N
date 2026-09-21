@@ -54,6 +54,7 @@ import { MANGA_PIPELINE_TOTAL_STEPS } from "./manga/mangaTabUtils";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
 import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
+import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
 import {
   createMangaPipelineProgressState,
   mangaPipelineConfigBlockReason,

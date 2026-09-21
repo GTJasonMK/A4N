@@ -1108,17 +1108,21 @@ export const WritingDesk: React.FC = () => {
         onOpenEmbeddingSettings: () => safeNavigateTo("/settings#embedding"),
         canEdit: canEditWritingProject,
       }}
-      resizeProps={{
-        panel: rightPanel,
-        width: rightPanelWidth,
-        maxWidth: rightPanelMaxWidth,
-        isResizing: isResizingRightPanel,
-        onResizeStart: handleRightPanelResizeStart,
-        onResizeMove: handleRightPanelResizeMove,
-        onResizeEnd: finishRightPanelResize,
-        onSetWidth: setRightPanelWidth,
-        onResetWidth: resetRightPanelWidth,
-      }}
+      resizeProps={
+        rightPanel === "none"
+          ? null
+          : {
+              panel: rightPanel,
+              width: rightPanelWidth,
+              maxWidth: rightPanelMaxWidth,
+              isResizing: isResizingRightPanel,
+              onResizeStart: handleRightPanelResizeStart,
+              onResizeMove: handleRightPanelResizeMove,
+              onResizeEnd: finishRightPanelResize,
+              onSetWidth: setRightPanelWidth,
+              onResetWidth: resetRightPanelWidth,
+            }
+      }
       assistantPanelProps={writingAssistantPanelProps}
       dialogProps={{
         projectId,
