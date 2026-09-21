@@ -68,12 +68,12 @@ impl<'a> SceneProfileSyncProgress<'a> {
         }
     }
 
-    pub fn check_cancelled(&self, message: &str) -> Result<(), String> {
+    pub fn check_cancelled(&self) -> Result<(), AppError> {
         if self
             .cancel_token
             .is_some_and(CancellationToken::is_cancelled)
         {
-            Err(message.to_string())
+            Err(AppError::Cancelled)
         } else {
             Ok(())
         }

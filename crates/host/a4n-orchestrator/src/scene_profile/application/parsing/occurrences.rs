@@ -1,7 +1,7 @@
 use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::SceneProfileSyncRequestContext;
-use super::validation::{validate_character_refs, validate_object_refs};
-use crate::scene_profile::SceneOccurrenceDraft;
+use super::validation::{validate_occurrence_references, validate_profile_refs};
+use crate::scene_profile::{SceneOccurrenceDraft, SceneProfileDraft};
 use a4n_domain::json_contract::{
     ensure_object, optional_string, positive_i64_array, reject_unknown_fields, required_array,
     required_object_value, required_string, string_array_value,
@@ -9,9 +9,10 @@ use a4n_domain::json_contract::{
 use serde_json::Value;
 use std::collections::HashSet;
 
-pub(super) fn parse_scene_occurrences(
+pub(in crate::scene_profile::application) fn parse_scene_occurrences(
     root: &Value,
     context: &SceneProfileSyncRequestContext,
+    profiles: &[SceneProfileDraft],
 ) -> Result<Vec<SceneOccurrenceDraft>, String> {
     let occurrences = required_array(root, "occurrences", "root")?;
     let mut refs = HashSet::new();
@@ -60,17 +61,25 @@ pub(super) fn parse_scene_occurrences(
             weather_or_lighting: optional_string(occurrence, "weather_or_lighting", &path)?,
             source_anchor_ids,
             evidence,
-            characters: validate_character_refs(
+            characters: validate_profile_refs(
                 occurrence,
                 "characters",
                 &path,
                 &context.character_ids,
+                "profile_id",
             )?,
-            objects: validate_object_refs(occurrence, "objects", &path, &context.object_ids)?,
+            objects: validate_profile_refs(
+                occurrence,
+                "objects",
+                &path,
+                &context.object_ids,
+                "object_profile_id",
+            )?,
             key_events: string_array_value(occurrence, "key_events", &path, false)?,
             entry_state: required_object_value(occurrence, "entry_state", &path)?,
             exit_state: required_object_value(occurrence, "exit_state", &path)?,
         });
     }
+    validate_occurrence_references(profiles, &drafts)?;
     Ok(drafts)
 }

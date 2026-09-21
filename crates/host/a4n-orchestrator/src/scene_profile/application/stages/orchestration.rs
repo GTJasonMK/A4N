@@ -10,9 +10,9 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
-use crate::OrchestratorContext;
+use crate::{OrchestratorContext, scene_profile::SceneSyncInput};
 
-use super::super::progress::{SceneProfileSyncProgress, subspan};
+use super::super::progress::SceneProfileSyncProgress;
 use super::super::types::{SceneProfileSyncRequestContext, SceneProfileSyncStageResponses};
 
 pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages(
@@ -26,9 +26,9 @@ pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages
 ) -> Result<SceneProfileSyncStageResponses, AppError> {
     let mut requests = Vec::<ChatRequest>::new();
     let mut response_chars = Vec::<Value>::new();
-    let model_span = subspan(chapter_span, 0, 4, 6);
+    let model_span = ProgressSpan::new(chapter_span.start(), chapter_span.split(4, 6).start());
 
-    let (scene_request, scenes) = scenes::run(
+    let (scene_request, scenes, profiles) = scenes::run(
         state,
         prompt_renderer,
         workflow_run_id,
@@ -40,8 +40,14 @@ pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages
     )
     .await?;
     requests.push(scene_request);
+    let mut input = SceneSyncInput {
+        profiles: profiles.drafts,
+        occurrences: Vec::new(),
+        transitions: Vec::new(),
+        entity_states: Vec::new(),
+    };
 
-    let (occurrence_request, occurrences) = occurrences::run(
+    let (occurrence_request, occurrences, parsed_occurrences) = occurrences::run(
         state,
         prompt_renderer,
         workflow_run_id,
@@ -50,10 +56,12 @@ pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages
         model_span,
         chapter_index,
         &scenes,
+        &input,
         &mut response_chars,
     )
     .await?;
     requests.push(occurrence_request);
+    input.occurrences = parsed_occurrences;
 
     let (transition_request, transitions) = transitions::run(
         state,
@@ -65,10 +73,12 @@ pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages
         chapter_index,
         &scenes,
         &occurrences,
+        &input,
         &mut response_chars,
     )
     .await?;
     requests.push(transition_request);
+    input.transitions = transitions;
 
     let (entity_request, entity_states) = entity_states::run(
         state,
@@ -80,16 +90,16 @@ pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages
         chapter_index,
         &scenes,
         &occurrences,
+        &input,
         &mut response_chars,
     )
     .await?;
     requests.push(entity_request);
+    input.entity_states = entity_states;
 
     Ok(SceneProfileSyncStageResponses {
-        scenes,
-        occurrences,
-        transitions,
-        entity_states,
+        input,
+        profile_evidence: profiles.evidence_refs,
         requests,
         response_chars,
     })

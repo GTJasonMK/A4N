@@ -1,8 +1,9 @@
 use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::SceneProfileSyncRequestContext;
-use super::validation::id_array_value;
+use super::validation::{id_array_value, validate_transition_references};
 use crate::scene_profile::{
-    SCENE_TRANSITION_MOVEMENT_TYPES, SceneTransitionDraft, normalize_movement_type_value,
+    SCENE_TRANSITION_MOVEMENT_TYPES, SceneSyncInput, SceneTransitionDraft,
+    normalize_movement_type_value,
 };
 use a4n_domain::json_contract::{
     ensure_object, optional_string, positive_i64_array, reject_unknown_fields, required_array,
@@ -10,9 +11,10 @@ use a4n_domain::json_contract::{
 };
 use serde_json::Value;
 
-pub(super) fn parse_scene_transitions(
+pub(in crate::scene_profile::application) fn parse_scene_transitions(
     root: &Value,
     context: &SceneProfileSyncRequestContext,
+    known: &SceneSyncInput,
 ) -> Result<Vec<SceneTransitionDraft>, String> {
     let transitions = required_array(root, "transitions", "root")?;
     let mut drafts = Vec::with_capacity(transitions.len());
@@ -69,6 +71,7 @@ pub(super) fn parse_scene_transitions(
             evidence,
         });
     }
+    validate_transition_references(known, &drafts)?;
     Ok(drafts)
 }
 

@@ -75,7 +75,12 @@ def main():
                     "workflow_run_id": run["id"], "include_generation_runs": False,
                 }) for run in runs]
 
-            for kind, command in [("number", "generate_chapter_analysis"), ("object", "resume_chapter_analysis_sync")]:
+            for kind, command, expected in [
+                ("number", "generate_chapter_analysis", "occurrences[0].timeline_position"),
+                ("object", "resume_chapter_analysis_sync", "occurrences[0].timeline_position"),
+                ("reference", "resume_chapter_analysis_sync", "没有对应 occurrences"),
+                ("coverage", "resume_chapter_analysis_sync", "没有对应 occurrences"),
+            ]:
                 model(kind)
                 before = len(provider_log_entries(args.provider_log))
                 if command == "generate_chapter_analysis":
@@ -89,7 +94,7 @@ def main():
                     error = command_error(result)
                     assert error.get("code") == "internal_error", error
                     message = error.get("message", "")
-                assert "occurrences[0].timeline_position" in message, message
+                assert expected in message, message
                 assert "LLM 调用失败" in message, message
                 assert "状态无效" not in message and "参数无效" not in message, message
                 names = scene_calls(before)

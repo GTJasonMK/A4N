@@ -5,7 +5,11 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
-use crate::OrchestratorContext;
+use super::super::super::parsing::parse_scene_occurrences;
+use crate::{
+    OrchestratorContext,
+    scene_profile::{SceneOccurrenceDraft, SceneSyncInput},
+};
 
 use super::super::super::progress::{
     SCENE_OCCURRENCE_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
@@ -27,16 +31,17 @@ pub(super) async fn run(
     progress: Option<&SceneProfileSyncProgress<'_>>,
     model_span: ProgressSpan,
     chapter_index: usize,
-    scenes: &Value,
+    scenes: &[Value],
+    known: &SceneSyncInput,
     response_chars: &mut Vec<Value>,
-) -> Result<(ChatRequest, Value), AppError> {
-    let request = build_scene_profile_stage_request(
+) -> Result<(ChatRequest, Vec<Value>, Vec<SceneOccurrenceDraft>), AppError> {
+    let mut request = build_scene_profile_stage_request(
         prompt_renderer,
         context,
         Some(workflow_run_id),
         SCENE_OCCURRENCE_PROMPT,
         "基于已确认场景抽取当前章节中的场景出场，只输出 occurrences",
-        json!({ "scenes": scenes.clone() }),
+        json!({ "scenes": scenes }),
         json!({
             "format": "json_object",
             "required_root_field": "occurrences",
@@ -50,13 +55,11 @@ pub(super) async fn run(
         }),
     )
     .await?;
-    let output = run_scene_profile_stage_with_checkpoint(
+    let (output, parsed) = run_scene_profile_stage_with_checkpoint(
         state,
         workflow_run_id,
-        request.clone(),
-        context,
+        &mut request,
         SCENE_OCCURRENCE_PROMPT,
-        "occurrences",
         scene_profile_stage_step_key(context, "occurrences"),
         scene_profile_stage_step_order(chapter_index, 1)?,
         scene_stage_progress_spec(
@@ -67,7 +70,8 @@ pub(super) async fn run(
         ),
         progress,
         response_chars,
+        |value| parse_scene_occurrences(value, context, &known.profiles),
     )
     .await?;
-    Ok((request, output))
+    Ok((request, output, parsed))
 }

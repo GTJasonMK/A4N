@@ -5,7 +5,11 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
-use crate::OrchestratorContext;
+use super::super::super::parsing::parse_scene_transitions;
+use crate::{
+    OrchestratorContext,
+    scene_profile::{SceneSyncInput, SceneTransitionDraft},
+};
 
 use super::super::super::progress::{
     SCENE_TRANSITION_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
@@ -27,17 +31,18 @@ pub(super) async fn run(
     progress: Option<&SceneProfileSyncProgress<'_>>,
     model_span: ProgressSpan,
     chapter_index: usize,
-    scenes: &Value,
-    occurrences: &Value,
+    scenes: &[Value],
+    occurrences: &[Value],
+    known: &SceneSyncInput,
     response_chars: &mut Vec<Value>,
-) -> Result<(ChatRequest, Value), AppError> {
-    let request = build_scene_profile_stage_request(
+) -> Result<(ChatRequest, Vec<SceneTransitionDraft>), AppError> {
+    let mut request = build_scene_profile_stage_request(
         prompt_renderer,
         context,
         Some(workflow_run_id),
         SCENE_TRANSITION_PROMPT,
         "基于场景与出场链抽取场景间转场，只输出 transitions",
-        json!({ "scenes": scenes.clone(), "occurrences": occurrences.clone() }),
+        json!({ "scenes": scenes, "occurrences": occurrences }),
         json!({
             "format": "json_object",
             "required_root_field": "transitions",
@@ -51,13 +56,11 @@ pub(super) async fn run(
         }),
     )
     .await?;
-    let output = run_scene_profile_stage_with_checkpoint(
+    let (_, parsed) = run_scene_profile_stage_with_checkpoint(
         state,
         workflow_run_id,
-        request.clone(),
-        context,
+        &mut request,
         SCENE_TRANSITION_PROMPT,
-        "transitions",
         scene_profile_stage_step_key(context, "transitions"),
         scene_profile_stage_step_order(chapter_index, 2)?,
         scene_stage_progress_spec(
@@ -68,7 +71,8 @@ pub(super) async fn run(
         ),
         progress,
         response_chars,
+        |value| parse_scene_transitions(value, context, known),
     )
     .await?;
-    Ok((request, output))
+    Ok((request, parsed))
 }

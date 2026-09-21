@@ -1,4 +1,4 @@
-use super::types::SceneProfileStageProgressSpec;
+use crate::structured_llm::StructuredLlmProgress;
 use a4n_error::AppError;
 use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
 pub(crate) use a4n_scene_host_contract::SceneProfileSyncProgress;
@@ -50,36 +50,14 @@ pub(super) const SCENE_ENTITY_STATE_PROGRESS_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("source_anchor_ids", "来源锚点", 1),
 ];
 
-pub(super) fn subspan(
-    span: ProgressSpan,
-    start_units: u32,
-    end_units: u32,
-    total_units: u32,
-) -> ProgressSpan {
-    let total_units = total_units.max(1);
-    let start_units = start_units.min(total_units);
-    let end_units = end_units.min(total_units).max(start_units);
-    let width = span.end() - span.start();
-    let mapped_start = u64::from(width) * u64::from(start_units) / u64::from(total_units);
-    let mapped_end = u64::from(width) * u64::from(end_units) / u64::from(total_units);
-    ProgressSpan::new(
-        span.start()
-            + u32::try_from(mapped_start)
-                .expect("scene subspan start is bounded by the u32 span width"),
-        span.start()
-            + u32::try_from(mapped_end)
-                .expect("scene subspan end is bounded by the u32 span width"),
-    )
-}
-
 pub(super) fn scene_stage_progress_spec(
     root_array_key: &'static str,
     item_label: &'static str,
     milestones: &'static [FieldMilestone],
     span: ProgressSpan,
-) -> SceneProfileStageProgressSpec {
-    SceneProfileStageProgressSpec {
-        structured: StructuredJsonProgressSpec {
+) -> StructuredLlmProgress {
+    StructuredLlmProgress {
+        spec: StructuredJsonProgressSpec {
             root_array_key,
             item_label,
             expected_items: None,
@@ -96,9 +74,7 @@ pub(super) fn report_scene_profile_sync_progress(
 ) -> Result<(), AppError> {
     if let Some(progress) = progress {
         progress.report(current, SCENE_PROFILE_SYNC_PROGRESS_TOTAL, message.as_ref());
-        progress
-            .check_cancelled("场景档案同步已停止")
-            .map_err(|_| AppError::Cancelled)?;
+        progress.check_cancelled()?;
     }
     Ok(())
 }

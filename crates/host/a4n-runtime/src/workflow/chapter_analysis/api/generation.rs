@@ -8,12 +8,11 @@ pub async fn preflight_generate_chapter_analysis(
     state: &AppState,
     user_id: i64,
     chapter_id: i64,
-) -> Result<ChapterSummary, String> {
+) -> Result<ChapterSummary, AppError> {
     state
         .chapter_analysis_generation_application()
         .preflight_generate(user_id, chapter_id)
         .await
-        .map_err(|error| error.to_string())
 }
 
 pub async fn generate_chapter_analysis_with_progress(

@@ -1,8 +1,8 @@
 use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::SceneProfileSyncRequestContext;
-use super::validation::validate_id_in_set;
+use super::validation::{validate_entity_state_references, validate_id_in_set};
 use crate::scene_profile::{
-    SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SceneEntityStateDraft,
+    SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SceneEntityStateDraft, SceneSyncInput,
     normalize_scene_entity_state_key_value, normalize_scene_entity_type_value,
 };
 use a4n_domain::json_contract::{
@@ -11,9 +11,10 @@ use a4n_domain::json_contract::{
 };
 use serde_json::Value;
 
-pub(super) fn parse_scene_entity_states(
+pub(in crate::scene_profile::application) fn parse_scene_entity_states(
     root: &Value,
     context: &SceneProfileSyncRequestContext,
+    known: &SceneSyncInput,
 ) -> Result<Vec<SceneEntityStateDraft>, String> {
     let entity_states = required_array(root, "entity_states", "root")?;
     let mut drafts = Vec::with_capacity(entity_states.len());
@@ -38,26 +39,6 @@ pub(super) fn parse_scene_entity_states(
         )?;
         let entity_type = scene_entity_type_string(state, "entity_type", &path)?;
         let entity_id = optional_positive_i64(state, "entity_id", &path)?;
-        match entity_type.as_str() {
-            "character" => {
-                let id = entity_id.ok_or_else(|| {
-                    format!("{path}.entity_id 不能为空，character 必须引用已有角色 ID")
-                })?;
-                validate_id_in_set(id, &context.character_ids, &format!("{path}.entity_id"))?;
-            }
-            "object" => {
-                let id = entity_id.ok_or_else(|| {
-                    format!("{path}.entity_id 不能为空，object 必须引用已有物体档案 ID")
-                })?;
-                validate_id_in_set(id, &context.object_ids, &format!("{path}.entity_id"))?;
-            }
-            "event" => {
-                if entity_id.is_some() {
-                    return Err(format!("{path}.entity_id 必须为 null，event 没有档案 ID"));
-                }
-            }
-            _ => unreachable!("validated enum"),
-        }
         let action_description = required_string(state, "action_description", &path)?;
         let entity_name_snapshot = derive_entity_name_snapshot(
             &path,
@@ -87,6 +68,7 @@ pub(super) fn parse_scene_entity_states(
             evidence,
         });
     }
+    validate_entity_state_references(known, &drafts)?;
     Ok(drafts)
 }
 
@@ -124,6 +106,7 @@ fn derive_entity_name_snapshot(
             let id = entity_id.ok_or_else(|| {
                 format!("{path}.entity_id 不能为空，character 必须引用已有角色 ID")
             })?;
+            validate_id_in_set(id, &context.character_ids, &format!("{path}.entity_id"))?;
             context
                 .character_names
                 .get(&id)
@@ -134,13 +117,19 @@ fn derive_entity_name_snapshot(
             let id = entity_id.ok_or_else(|| {
                 format!("{path}.entity_id 不能为空，object 必须引用已有物体档案 ID")
             })?;
+            validate_id_in_set(id, &context.object_ids, &format!("{path}.entity_id"))?;
             context
                 .object_names
                 .get(&id)
                 .cloned()
                 .ok_or_else(|| format!("{path}.entity_id={id} 缺少物体名称快照来源"))
         }
-        "event" => Ok(action_description.to_string()),
+        "event" => {
+            if entity_id.is_some() {
+                return Err(format!("{path}.entity_id 必须为 null，event 没有档案 ID"));
+            }
+            Ok(action_description.to_string())
+        }
         _ => unreachable!("validated enum"),
     }
 }

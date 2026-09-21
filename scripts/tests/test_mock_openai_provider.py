@@ -332,10 +332,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
                 }
             ],
         }
-        parent_chunks = self.request_sse_chunks(
-            {
-                "model": "a4n-virtual-text",
-                "messages": [
+        delivered = {"kind": "optimization_patch_set", "id": "31", "revision": "2026-09-21T12:00:00Z", "hash": "a" * 64}
+        parent_messages = [
                     {"role": "system", "content": main_system},
                     user_message,
                     locate_assistant,
@@ -344,14 +342,32 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     {
                         "role": "tool", "tool_call_id": delegate["id"],
                         "content": json.dumps({"delegation_id": "3", "child_run_id": "5",
-                            "result_refs": [{"kind": "generation_task", "id": "test-task", "revision": "1"}]}),
+                            "result_refs": [delivered]}),
                     },
-                ],
-            }
-        )
-        review_read = self.streamed_tool_call(parent_chunks,
-            "call_a4n_get_generation_task_summary", "get_generation_task_summary")
-        self.assertEqual(review_read["arguments"], {"taskId": "test-task", "attempt": 1})
+                ]
+        for name, call_id, arguments, result in [
+            ("list_optimize_sessions", "call_a4n_list_optimize_sessions", {"input": {"project_id": 7, "chapter_id": 11}}, [{"id": 21}]),
+            ("list_optimize_patch_sets", "call_a4n_list_optimize_patch_sets_21", {"input": {"session_id": 21}}, [
+                {"id": 31, "updated_at": delivered["revision"], "base_content_hash": delivered["hash"], "status": "pending", "patches": [{"old_text": "旧句", "new_text": "新句"}]},
+            ]),
+        ]:
+            chunks = self.request_sse_chunks({"model": "a4n-virtual-text", "messages": parent_messages})
+            read = self.streamed_tool_call(chunks, call_id, name)
+            self.assertEqual(read["arguments"], arguments)
+            parent_messages.extend([
+                {"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}]},
+                {"role": "tool", "tool_call_id": call_id, "content": json.dumps(result)},
+            ])
+        chunks = self.request_sse_chunks({"model": "a4n-virtual-text", "messages": parent_messages})
+        review = self.streamed_tool_call(chunks, "call_a4n_review_agent_delegation", "review_agent_delegation")
+        self.assertEqual(review["arguments"]["input"]["reviewed_refs"], [delivered])
+        self.assertEqual(review["arguments"]["input"]["decision"], "accept")
+
+        changed = json.loads(parent_messages[-1]["content"])
+        changed[0]["updated_at"] = "2026-09-21T13:00:00Z"
+        parent_messages[-1]["content"] = json.dumps(changed)
+        with self.assertRaisesRegex(ValueError, "changed versions"):
+            agent_chat_fixture({"messages": parent_messages})
 
     def test_agent_fixture_scopes_decisions_to_latest_turn(self) -> None:
         system = {

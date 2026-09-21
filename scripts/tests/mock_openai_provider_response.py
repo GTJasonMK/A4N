@@ -196,6 +196,10 @@ def response_for(body: dict[str, Any]) -> str:
         }
         if body.get("model") in timeline_fixtures:
             result["occurrences"][0]["timeline_position"] = timeline_fixtures[body["model"]]
+        if body.get("model") == "a4n-scene-sync-reference":
+            result["occurrences"][0]["scene_ref"] = "missing_scene"
+        if body.get("model") == "a4n-scene-sync-coverage":
+            result["occurrences"] = result["occurrences"][:1]
         return json.dumps(result, ensure_ascii=False)
 
     if '"name": "scene_transition_extraction"' in combined:

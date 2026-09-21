@@ -1,5 +1,6 @@
 """Deterministic Director decisions; IDs and versions come from real observations."""
 
+import hashlib
 import json
 
 
@@ -556,17 +557,18 @@ def main_fixture(body, messages):
     """Read real child artifacts before invoking the explicit review command."""
     names = {call["id"]: call.get("function", call).get("name")
              for message in messages for call in message.get("tool_calls") or []}
-    observations = {names.get(message["tool_call_id"]): json.loads(message["content"])
-                    for message in messages if message.get("role") == "tool"}
+    results = {message["tool_call_id"]: json.loads(message["content"])
+               for message in messages if message.get("role") == "tool"}
+    observations = {names.get(call_id): result for call_id, result in results.items()}
     for result in observations.values():
         if isinstance(result, dict) and "error" in result:
             return {"content": "任务未完成：" + str(result["error"])}
     visible = {tool["function"]["name"] for tool in body.get("tools", [])}
 
-    def call(name, arguments):
+    def call(name, arguments, call_id=None):
         if body.get("tools") and name not in visible:
             return {"tool_call": {"id": "describe_" + name, "name": "describe_agent_tool", "arguments": {"name": name}}}
-        return {"tool_call": {"id": "call_a4n_" + name, "name": name, "arguments": arguments}}
+        return {"tool_call": {"id": call_id or "call_a4n_" + name, "name": name, "arguments": arguments}}
 
     target = observations.get("locate_writing_target")
     if target is None:
@@ -585,19 +587,41 @@ def main_fixture(body, messages):
     user_text = "\n".join(message.get("content", "") for message in messages if message.get("role") == "user")
     if "A4N_REVIEW_SKIP" in user_text:
         return {"content": "子任务已返回，尚未验收。"}
-    if "inspect_project_context" not in observations:
-        return call("inspect_project_context", {"paths": ["chapter.content"]})
-    if "read_project_context" not in observations:
-        return call("read_project_context", {"selectors": ["chapter.content"]})
-    if "edit_article" not in observations:
-        return call("edit_article", {
-            "patches": [{"old_text": "林岚在雨夜收到一封信。", "new_text": "林岚在雨夜拆开一封无署名的信。", "reason": "强化动作与悬念"}]
-        })
+    refs = child["result_refs"]
+    readers = {"optimization_patch_set": "list_optimize_patch_sets", "optimization_turn": "list_optimize_turns"}
+    if not refs or any(ref["kind"] not in readers for ref in refs):
+        raise ValueError("child must deliver versioned optimization artifacts")
+    sessions = observations.get("list_optimize_sessions")
+    if sessions is None:
+        return call("list_optimize_sessions", {"input": {
+            "project_id": int(target["project"]["id"]), "chapter_id": int(target["chapter"]["id"]),
+        }})
+    observed = []
+    for session in sessions:
+        for kind, reader in readers.items():
+            if not any(ref["kind"] == kind for ref in refs):
+                continue
+            call_id = f"call_a4n_{reader}_{session['id']}"
+            if call_id not in results:
+                return call(reader, {"input": {"session_id": session["id"]}}, call_id)
+            for row in results[call_id]:
+                if kind == "optimization_patch_set":
+                    if not row["patches"] or row["status"] != "pending":
+                        continue
+                    revision, digest = row["updated_at"], row["base_content_hash"]
+                else:
+                    if row["final_reply"] is None:
+                        continue
+                    revision, digest = hashlib.sha256(row["final_reply"].encode()).hexdigest(), None
+                observed.append({"kind": kind, "id": str(row["id"]), "revision": revision, "hash": digest})
+    if any(not any(all(ref.get(key) == row.get(key) for key in ("kind", "id", "revision", "hash"))
+                   for row in observed) for ref in refs):
+        raise ValueError("child artifacts are missing, not pending, or have changed versions")
     if "review_agent_delegation" not in observations:
         return call("review_agent_delegation", {"input": {
             "delegation_id": child["delegation_id"], "expected_child_run_id": child["child_run_id"],
             "decision": "request_revision" if "A4N_REVIEW_REVISE" in user_text else "accept",
-            "reason": "已读取实际补丁、优化答复与任务终态；提案仍待用户确认，未写回正文。",
+            "reason": "已核对交付的优化资源及版本；提案仍待用户确认，未写回正文。",
             "reviewed_refs": refs,
         }})
     return {"content": "已显式审阅正文优化子 Agent 的补丁提案；正文尚未写回。"}

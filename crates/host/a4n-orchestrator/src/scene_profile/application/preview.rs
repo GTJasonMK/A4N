@@ -1,7 +1,6 @@
 use a4n_chapter_analysis_host_contract::ChapterAnalysisRequestStep;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
-use serde_json::json;
 use std::sync::Arc;
 
 use crate::OrchestratorContext;
@@ -11,11 +10,8 @@ use super::{
         build_scene_profile_sync_request_with_profiles, load_scene_profile_sync_anchor_context,
         load_scene_profile_sync_stable_context, select_scene_profile_sync_chapters,
     },
-    stages::build_scene_profile_stage_request,
-    types::{
-        ChapterAnchorMode, SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_PROFILE_CANDIDATES_PROMPT,
-        SCENE_TYPE_RULE,
-    },
+    stages::build_scene_profile_candidates_request,
+    types::{ChapterAnchorMode, SCENE_PROFILE_CANDIDATES_PROMPT},
 };
 
 impl OrchestratorContext {
@@ -51,27 +47,8 @@ impl OrchestratorContext {
                 Arc::clone(&existing_scene_profiles),
             );
             let chapter_number = context.chapter.chapter_number;
-            let scene_request = build_scene_profile_stage_request(
-                prompt_renderer,
-                &context,
-                None,
-                SCENE_PROFILE_CANDIDATES_PROMPT,
-                "识别或匹配当前章节中的可复用场景档案，只输出 scenes",
-                json!({}),
-                json!({
-                    "format": "json_object",
-                    "required_root_field": "scenes",
-                    "strict_rules": [
-                        "只返回 scenes 数组，不要输出 occurrences、transitions 或 entity_states",
-                        SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE,
-                        SCENE_TYPE_RULE,
-                        "importance 只能是 primary/secondary/minor",
-                        "evidence_anchor_ids 必须来自 input.text_anchors[].id",
-                        "scene_profile_id 和 parent_scene_id 只能引用 input.existing_scene_profiles[].id 或 null"
-                    ]
-                }),
-            )
-            .await?;
+            let scene_request =
+                build_scene_profile_candidates_request(prompt_renderer, &context, None).await?;
             steps.push(ChapterAnalysisRequestStep {
                 key: format!("scene_profile_sync_ch{chapter_number}_scenes"),
                 title: format!("第 {chapter_number} 章场景档案候选识别请求"),

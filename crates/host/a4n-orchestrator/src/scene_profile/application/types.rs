@@ -5,7 +5,6 @@ use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::text_anchor;
 use a4n_db_models::models::scene::scene_profile;
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_progress::{ProgressSpan, StructuredJsonProgressSpec};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -52,29 +51,10 @@ pub(super) enum ChapterAnchorMode {
 }
 
 pub(super) struct SceneProfileSyncStageResponses {
-    pub(super) scenes: Value,
-    pub(super) occurrences: Value,
-    pub(super) transitions: Value,
-    pub(super) entity_states: Value,
-    pub(super) requests: Vec<ChatRequest>,
-    pub(super) response_chars: Vec<Value>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct SceneProfileStageProgressSpec {
-    pub(super) structured: StructuredJsonProgressSpec,
-    pub(super) span: ProgressSpan,
-}
-
-pub(super) struct SceneProfileStageCheckpoint {
-    pub(super) response_content: String,
-    pub(super) parsed_output: Value,
-}
-
-#[derive(Debug)]
-pub(super) struct ParsedSceneProfileSync {
     pub(super) input: SceneSyncInput,
     pub(super) profile_evidence: Vec<SceneProfileEvidenceRefs>,
+    pub(super) requests: Vec<ChatRequest>,
+    pub(super) response_chars: Vec<Value>,
 }
 
 #[derive(Debug)]

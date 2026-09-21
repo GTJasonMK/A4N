@@ -22,9 +22,7 @@ macro_rules! chapter_analysis_web_task_command {
             args: &Value,
         ) -> Result<Value, ApiError> {
             let input: ChapterAnalysisInput = command_input(args, $command_name)?;
-            let ch = $preflight(state.runtime(), user_id, input.chapter_id)
-                .await
-                .map_err(ApiError::bad_request)?;
+            let ch = $preflight(state.runtime(), user_id, input.chapter_id).await?;
             let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
             let task = register_web_task(
                 state,
@@ -60,9 +58,7 @@ macro_rules! chapter_analysis_web_preview_command {
             args: &Value,
         ) -> Result<Value, ApiError> {
             let input: ChapterAnalysisInput = command_input(args, $command_name)?;
-            let preview = $preview(state.runtime(), user_id, input.chapter_id)
-                .await
-                .map_err(ApiError::bad_request)?;
+            let preview = $preview(state.runtime(), user_id, input.chapter_id).await?;
             to_value(preview)
         }
     };

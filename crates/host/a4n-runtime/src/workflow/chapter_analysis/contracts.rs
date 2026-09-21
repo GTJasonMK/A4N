@@ -1,3 +1,4 @@
+use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
 pub type ChapterAnalysisProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
@@ -23,7 +24,7 @@ impl<'a> ChapterAnalysisProgress<'a> {
         }
     }
 
-    /// 附加活体信号出口。不提供时行为与之前完全一致。
+    /// 附加流式输出回调。
     pub fn with_stream_reporter(
         mut self,
         stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
@@ -32,13 +33,7 @@ impl<'a> ChapterAnalysisProgress<'a> {
         self
     }
 
-    pub(super) fn report(
-        &self,
-        current: u32,
-        total: u32,
-        message: &str,
-        cancelled_message: &str,
-    ) -> Result<(), String> {
+    pub(super) fn report(&self, current: u32, total: u32, message: &str) -> Result<(), AppError> {
         if let Some(reporter) = self.reporter {
             reporter(current, total.max(1), message);
         }
@@ -46,7 +41,7 @@ impl<'a> ChapterAnalysisProgress<'a> {
             .cancel_token
             .is_some_and(CancellationToken::is_cancelled)
         {
-            Err(cancelled_message.to_string())
+            Err(AppError::Cancelled)
         } else {
             Ok(())
         }

@@ -11,7 +11,7 @@ use super::super::context::{
 use super::super::progress::{
     SCENE_PROFILE_SYNC_CHAPTER_END, SCENE_PROFILE_SYNC_CHAPTER_START,
     SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SCENE_PROFILE_SYNC_RAG_PROGRESS, SceneProfileSyncProgress,
-    report_scene_profile_sync_progress, subspan,
+    report_scene_profile_sync_progress,
 };
 use super::super::stages::run_scene_profile_sync_stages;
 use super::super::types::ChapterAnchorMode;
@@ -65,7 +65,7 @@ pub(super) async fn sync_scene_profile_chapters(
         if has_completed_scene_final_checkpoint(state, workflow_run_id, &context).await? {
             report_scene_profile_sync_progress(
                 progress,
-                subspan(chapter_span, 5, 6, 6).end(),
+                chapter_span.end(),
                 format!(
                     "第 {} 章场景档案已从断点恢复",
                     context.chapter.chapter_number

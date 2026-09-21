@@ -2,41 +2,22 @@ use a4n_domain::json_contract::{ensure_object, required_array, required_string};
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashSet};
 
-pub(in crate::scene_profile::application::parsing) fn validate_character_refs(
+pub(in crate::scene_profile::application::parsing) fn validate_profile_refs(
     value: &Value,
     key: &str,
     path: &str,
     allowed_ids: &BTreeSet<i64>,
+    id_field: &str,
 ) -> Result<Value, String> {
     let refs = required_array(value, key, path)?;
     for (index, item) in refs.iter().enumerate() {
         let item_path = format!("{path}.{key}[{index}]");
         ensure_object(item, &item_path)?;
         let id = item
-            .get("profile_id")
+            .get(id_field)
             .and_then(Value::as_i64)
-            .ok_or_else(|| format!("{item_path}.profile_id 必须是已有角色 ID"))?;
-        validate_id_in_set(id, allowed_ids, &format!("{item_path}.profile_id"))?;
-        required_string(item, "role", &item_path)?;
-    }
-    Ok(Value::Array(refs.clone()))
-}
-
-pub(in crate::scene_profile::application::parsing) fn validate_object_refs(
-    value: &Value,
-    key: &str,
-    path: &str,
-    allowed_ids: &BTreeSet<i64>,
-) -> Result<Value, String> {
-    let refs = required_array(value, key, path)?;
-    for (index, item) in refs.iter().enumerate() {
-        let item_path = format!("{path}.{key}[{index}]");
-        ensure_object(item, &item_path)?;
-        let id = item
-            .get("object_profile_id")
-            .and_then(Value::as_i64)
-            .ok_or_else(|| format!("{item_path}.object_profile_id 必须是已有物体档案 ID"))?;
-        validate_id_in_set(id, allowed_ids, &format!("{item_path}.object_profile_id"))?;
+            .ok_or_else(|| format!("{item_path}.{id_field} 必须是已有档案的整数 ID"))?;
+        validate_id_in_set(id, allowed_ids, &format!("{item_path}.{id_field}"))?;
         required_string(item, "role", &item_path)?;
     }
     Ok(Value::Array(refs.clone()))

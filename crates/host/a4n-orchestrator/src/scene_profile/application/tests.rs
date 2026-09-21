@@ -1,10 +1,14 @@
-use super::parsing::{parse_scene_profile_sync_content, parse_scene_stage_root_array};
+use super::parsing::{
+    parse_scene_entity_states, parse_scene_occurrences, parse_scene_profiles,
+    parse_scene_stage_response, parse_scene_transitions,
+};
 use super::stages::build_scene_profile_stage_request;
 use super::types::{
     SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_OCCURRENCE_COVERAGE_RULE,
     SCENE_OCCURRENCE_PROMPT, SCENE_PROFILE_CANDIDATES_PROMPT, SCENE_TRANSITION_REFERENCE_RULE,
     SceneProfileSyncRequestContext,
 };
+use crate::scene_profile::SceneSyncInput;
 use a4n_db_models::models::chapter::chapter;
 use a4n_db_models::models::project::text_anchor;
 use a4n_domain::source_spans::source_spans_for_chapters;
@@ -168,6 +172,24 @@ fn valid_scene_sync_content(context: &SceneProfileSyncRequestContext) -> Value {
     })
 }
 
+fn parse_scene_profile_sync_content(
+    content: &str,
+    context: &SceneProfileSyncRequestContext,
+) -> Result<SceneSyncInput, String> {
+    let value: Value = serde_json::from_str(content).map_err(|error| error.to_string())?;
+    let profiles = parse_scene_profiles(&value, context)?;
+    let mut input = SceneSyncInput {
+        profiles: profiles.drafts,
+        occurrences: Vec::new(),
+        transitions: Vec::new(),
+        entity_states: Vec::new(),
+    };
+    input.occurrences = parse_scene_occurrences(&value, context, &input.profiles)?;
+    input.transitions = parse_scene_transitions(&value, context, &input)?;
+    input.entity_states = parse_scene_entity_states(&value, context, &input)?;
+    Ok(input)
+}
+
 #[tokio::test]
 async fn scene_stages_share_one_chapter_prefix_without_merging_stage_instructions() {
     let context = context_for_test();
@@ -216,9 +238,8 @@ fn parses_valid_scene_profile_sync_content() {
     let context = context_for_test();
     let content = valid_scene_sync_content(&context).to_string();
 
-    let parsed = parse_scene_profile_sync_content(&content, &context)
+    let input = parse_scene_profile_sync_content(&content, &context)
         .expect("valid scene sync content should parse");
-    let input = parsed.input;
 
     assert_eq!(input.profiles.len(), 1);
     assert_eq!(input.occurrences.len(), 1);
@@ -243,6 +264,7 @@ fn parses_valid_scene_profile_sync_content() {
 fn scene_stage_parsing_enforces_field_types_before_accepting_output() {
     let context = context_for_test();
     let content = valid_scene_sync_content(&context);
+    let known = parse_scene_profile_sync_content(&content.to_string(), &context).unwrap();
     for (root_field, field, bad_value) in [
         ("scenes", "visual_description", json!({"text": "旧书房"})),
         ("occurrences", "timeline_position", json!(1)),
@@ -250,15 +272,21 @@ fn scene_stage_parsing_enforces_field_types_before_accepting_output() {
         ("entity_states", "state_after", json!("抽屉里")),
     ] {
         let mut stage = json!({root_field: content[root_field].clone()});
-        let parsed =
-            parse_scene_stage_root_array(&stage.to_string(), root_field, root_field, &context)
-                .expect("valid stage should pass the same field rules as final persistence");
-        assert_eq!(parsed, content[root_field]);
+        let parse = |value: &Value| match root_field {
+            "scenes" => parse_scene_profiles(value, &context).map(drop),
+            "occurrences" => parse_scene_occurrences(value, &context, &known.profiles).map(drop),
+            "transitions" => parse_scene_transitions(value, &context, &known).map(drop),
+            "entity_states" => parse_scene_entity_states(value, &context, &known).map(drop),
+            _ => unreachable!("fixture stage"),
+        };
+        let (output, ()) =
+            parse_scene_stage_response(&stage.to_string(), root_field, root_field, &parse)
+                .expect("valid stage should return validated drafts");
+        assert_eq!(json!(output), content[root_field]);
 
         stage[root_field][0][field] = bad_value;
-        let error =
-            parse_scene_stage_root_array(&stage.to_string(), root_field, root_field, &context)
-                .expect_err("invalid stage fields must fail before checkpointing");
+        let error = parse_scene_stage_response(&stage.to_string(), root_field, root_field, &parse)
+            .expect_err("invalid stage fields must fail before checkpointing");
         assert!(
             error.contains(&format!("{root_field}[0].{field}")),
             "{error}"
@@ -270,17 +298,19 @@ fn scene_stage_parsing_enforces_field_types_before_accepting_output() {
 fn scene_occurrence_timeline_accepts_text_or_null_without_coercion() {
     let context = context_for_test();
     let content = valid_scene_sync_content(&context);
+    let profiles = parse_scene_profiles(&content, &context).unwrap();
     let mut stage = json!({"occurrences": content["occurrences"].clone()});
     for value in [Value::Null, json!("次日清晨")] {
         stage["occurrences"][0]["timeline_position"] = value.clone();
-        let parsed = parse_scene_stage_root_array(
+        let (output, drafts) = parse_scene_stage_response(
             &stage.to_string(),
             SCENE_OCCURRENCE_PROMPT,
             "occurrences",
-            &context,
+            |value| parse_scene_occurrences(value, &context, &profiles.drafts),
         )
         .expect("text and null are valid timeline positions");
-        assert_eq!(parsed[0]["timeline_position"], value);
+        assert_eq!(output[0]["timeline_position"], value);
+        assert_eq!(drafts[0].timeline_position.as_deref(), value.as_str());
     }
     for value in [
         json!(1),
@@ -290,17 +320,51 @@ fn scene_occurrence_timeline_accepts_text_or_null_without_coercion() {
         json!([]),
     ] {
         stage["occurrences"][0]["timeline_position"] = value;
-        let error = parse_scene_stage_root_array(
+        let error = parse_scene_stage_response(
             &stage.to_string(),
             SCENE_OCCURRENCE_PROMPT,
             "occurrences",
-            &context,
+            |value| parse_scene_occurrences(value, &context, &profiles.drafts),
         )
         .expect_err("other JSON types must not be coerced to text");
         assert_eq!(
             error,
             "occurrences[0].timeline_position 必须是字符串或 null"
         );
+    }
+}
+
+#[test]
+fn scene_stages_reject_reference_errors_before_returning_drafts() {
+    let context = context_for_test();
+    let content = valid_scene_sync_content(&context);
+    let known = parse_scene_profile_sync_content(&content.to_string(), &context).unwrap();
+    for (field, reference, expected) in [
+        ("occurrences", "scene_ref", "没有对应 occurrences"),
+        (
+            "transitions",
+            "to_scene_ref",
+            "引用了不存在的 scenes[].scene_ref",
+        ),
+        (
+            "entity_states",
+            "occurrence_ref",
+            "引用了不存在的 occurrences[].occurrence_ref",
+        ),
+    ] {
+        let mut stage = json!({field: content[field].clone()});
+        stage[field][0][reference] = json!("missing");
+        let error =
+            parse_scene_stage_response(&stage.to_string(), field, field, |value| match field {
+                "occurrences" => {
+                    parse_scene_occurrences(value, &context, &known.profiles).map(drop)
+                }
+                "transitions" => parse_scene_transitions(value, &context, &known).map(drop),
+                "entity_states" => parse_scene_entity_states(value, &context, &known).map(drop),
+                _ => unreachable!("fixture stage"),
+            })
+            .expect_err("a referenced stage must be valid before it can be checkpointed");
+        assert!(error.contains(expected), "{error}");
     }
 }
 

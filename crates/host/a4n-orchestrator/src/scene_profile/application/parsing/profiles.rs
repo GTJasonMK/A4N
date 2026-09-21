@@ -12,12 +12,13 @@ use a4n_domain::{
 use serde_json::Value;
 use std::collections::HashSet;
 
-pub(super) struct ParsedSceneProfiles {
-    pub(super) drafts: Vec<SceneProfileDraft>,
-    pub(super) evidence_refs: Vec<SceneProfileEvidenceRefs>,
+#[derive(Debug)]
+pub(in crate::scene_profile::application) struct ParsedSceneProfiles {
+    pub(in crate::scene_profile::application) drafts: Vec<SceneProfileDraft>,
+    pub(in crate::scene_profile::application) evidence_refs: Vec<SceneProfileEvidenceRefs>,
 }
 
-pub(super) fn parse_scene_profiles(
+pub(in crate::scene_profile::application) fn parse_scene_profiles(
     root: &Value,
     context: &SceneProfileSyncRequestContext,
 ) -> Result<ParsedSceneProfiles, String> {

@@ -7,10 +7,7 @@ use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
 
-use super::super::parsing::parse_scene_profile_sync_content;
-use super::super::progress::{
-    SceneProfileSyncProgress, report_scene_profile_sync_progress, subspan,
-};
+use super::super::progress::{SceneProfileSyncProgress, report_scene_profile_sync_progress};
 use super::super::types::{
     SCENE_ENTITY_STATE_PROMPT, SCENE_OCCURRENCE_PROMPT, SCENE_PROFILE_CANDIDATES_PROMPT,
     SCENE_TRANSITION_PROMPT, SceneProfileSyncRequestContext, SceneProfileSyncStageResponses,
@@ -29,23 +26,15 @@ pub(super) async fn persist_scene_profile_sync_chapter(
 ) -> Result<(), AppError> {
     report_scene_profile_sync_progress(
         progress,
-        subspan(chapter_span, 4, 5, 6).start(),
+        chapter_span.split(4, 6).start(),
         format!(
-            "第 {} 章模型已返回，正在校验场景档案结果",
+            "第 {} 章场景档案各阶段已校验通过，正在准备写入",
             context.chapter.chapter_number
         ),
     )?;
-    let response_content = serde_json::to_string(&json!({
-        "scenes": stage_responses.scenes,
-        "occurrences": stage_responses.occurrences,
-        "transitions": stage_responses.transitions,
-        "entity_states": stage_responses.entity_states
-    }))?;
-    let parsed = parse_scene_profile_sync_content(&response_content, context)
-        .map_err(|error| AppError::LlmError(format!("场景档案同步输出不符合合同：{error}")))?;
     report_scene_profile_sync_progress(
         progress,
-        subspan(chapter_span, 5, 6, 6).start(),
+        chapter_span.split(5, 6).start(),
         format!(
             "正在写入第 {} 章场景档案、出场和场景状态",
             context.chapter.chapter_number
@@ -61,10 +50,10 @@ pub(super) async fn persist_scene_profile_sync_chapter(
         stage_responses
             .requests
             .iter()
-            .map(|request| request.messages.clone())
+            .map(|request| &request.messages)
             .collect::<Vec<_>>(),
     )?;
-    let profile_evidence = parsed
+    let profile_evidence = stage_responses
         .profile_evidence
         .into_iter()
         .map(|item| SceneProfileEvidenceRecordInput {
@@ -78,7 +67,7 @@ pub(super) async fn persist_scene_profile_sync_chapter(
             context.chapter.id,
             context.chapter.chapter_number,
             a4n_db::project::ChapterSourceSnapshot::from(&context.chapter),
-            parsed.input,
+            stage_responses.input,
             profile_evidence,
             RecordCompletedGenerationRunInput {
                 project_id,
@@ -113,8 +102,7 @@ pub(super) async fn persist_scene_profile_sync_chapter(
                 media_refs_json: None,
                 request_json: Some(request_json),
                 response_summary_json: Some(json!({
-                    "stages": stage_responses.response_chars,
-                    "assembled_response_chars": response_content.chars().count()
+                    "stages": stage_responses.response_chars
                 })),
                 targets: Vec::new(),
             },

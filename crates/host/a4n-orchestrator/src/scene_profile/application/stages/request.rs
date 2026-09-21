@@ -16,9 +16,39 @@ use super::super::context::{
     character_profile_for_prompt, existing_scene_profile_for_prompt, object_profile_for_prompt,
     scene_profile_chapter_context,
 };
-use super::super::types::SceneProfileSyncRequestContext;
+use super::super::types::{
+    SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_PROFILE_CANDIDATES_PROMPT, SCENE_TYPE_RULE,
+    SceneProfileSyncRequestContext,
+};
 
 const SCENE_PROFILE_SYNC_SESSION_PROMPT: &str = "scene_profile_sync_session";
+
+pub(in crate::scene_profile::application) async fn build_scene_profile_candidates_request(
+    prompt_renderer: &dyn PromptRenderer,
+    context: &SceneProfileSyncRequestContext,
+    workflow_run_id: Option<i64>,
+) -> Result<ChatRequest, AppError> {
+    build_scene_profile_stage_request(
+        prompt_renderer,
+        context,
+        workflow_run_id,
+        SCENE_PROFILE_CANDIDATES_PROMPT,
+        "识别或匹配当前章节中的可复用场景档案，只输出 scenes",
+        json!({}),
+        json!({
+            "format": "json_object",
+            "required_root_field": "scenes",
+            "strict_rules": [
+                "只返回 scenes 数组，不要输出 occurrences、transitions 或 entity_states",
+                SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE,
+                SCENE_TYPE_RULE,
+                "importance 只能是 primary/secondary/minor",
+                "evidence_anchor_ids 必须来自 input.text_anchors[].id",
+                "scene_profile_id 和 parent_scene_id 只能引用 input.existing_scene_profiles[].id 或 null"
+            ]
+        }),
+    ).await
+}
 
 pub(in crate::scene_profile::application) async fn build_scene_profile_stage_request(
     prompt_renderer: &dyn PromptRenderer,
@@ -140,8 +170,8 @@ pub(super) fn scene_profile_stage_fingerprint(
 ) -> Result<Value, AppError> {
     Ok(json!({
         "workflow": "scene_profile_sync",
-        // 旧断点仅检查根数组，不能作为已通过字段校验的结果继续复用。
-        "output_validation_version": 1,
+        // 旧断点尚未验证前序场景/出场引用，不能复用为本阶段的完成结果。
+        "output_validation_version": 2,
         "call_key": call_key,
         "prompt_name": prompt_name,
         "root_field": root_field,

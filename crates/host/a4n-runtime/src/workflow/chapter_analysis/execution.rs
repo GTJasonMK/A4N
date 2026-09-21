@@ -18,18 +18,7 @@ pub(super) async fn run_chapter_analysis_application(
     );
     let reporter = |current: u32, total: u32, message: &str| {
         if let Some(progress) = progress {
-            progress
-                .report(current, total, message, "章节结构化分析已停止")
-                .map_err(|error| {
-                    if progress
-                        .cancel_token
-                        .is_some_and(tokio_util::sync::CancellationToken::is_cancelled)
-                    {
-                        AppError::Cancelled
-                    } else {
-                        AppError::InvalidArgument(error)
-                    }
-                })?;
+            progress.report(current, total, message)?;
         }
         Ok(())
     };

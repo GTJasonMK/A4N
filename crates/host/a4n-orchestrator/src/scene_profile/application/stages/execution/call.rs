@@ -1,23 +1,23 @@
 use a4n_error::AppError;
-use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    structured_llm::{ChatJsonStreamInput, StructuredLlmProgress, stream_error_or_cancelled},
+    structured_llm::{
+        ChatJsonStreamInput, StructuredLlmProgress, StructuredLlmStreamResult,
+        stream_error_or_cancelled,
+    },
 };
 use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::super::super::progress::{SceneProfileSyncProgress, report_scene_profile_sync_progress};
-use super::super::super::types::SceneProfileStageProgressSpec;
 
 pub(super) async fn chat_scene_profile_stage(
     state: &OrchestratorContext,
     request: ChatRequest,
     prompt_name: &str,
-    stage_progress: SceneProfileStageProgressSpec,
+    stage_progress: StructuredLlmProgress,
     progress: Option<&SceneProfileSyncProgress<'_>>,
-    response_chars: &mut Vec<Value>,
-) -> Result<String, AppError> {
+) -> Result<StructuredLlmStreamResult, AppError> {
     let truncated_message = format!(
         "{prompt_name} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次章节上下文后重试"
     );
@@ -33,16 +33,13 @@ pub(super) async fn chat_scene_profile_stage(
             }
         });
     let cancel_token = progress.and_then(SceneProfileSyncProgress::cancel_token);
-    let content = state
+    state
         .chat_json_stream_result_with_sink(
             ChatJsonStreamInput {
                 request,
                 prompt_name,
                 truncated_message: &truncated_message,
-                structured_progress: Some(StructuredLlmProgress {
-                    spec: stage_progress.structured,
-                    span: stage_progress.span,
-                }),
+                structured_progress: Some(stage_progress),
                 cancel_token,
                 cancelled_message: "场景档案同步已停止",
             },
@@ -55,10 +52,5 @@ pub(super) async fn chat_scene_profile_stage(
                 .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
         )
         .await
-        .map_err(|error| stream_error_or_cancelled(error, cancel_token))?
-        .response_content;
-    response_chars.push(json!({
-        "prompt_name": prompt_name,
-        "response_chars": content.chars().count()}));
-    Ok(content)
+        .map_err(|error| stream_error_or_cancelled(error, cancel_token))
 }

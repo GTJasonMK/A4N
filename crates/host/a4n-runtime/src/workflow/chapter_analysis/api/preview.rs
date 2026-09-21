@@ -4,18 +4,18 @@ use crate::{
     },
     state::AppState,
 };
+use a4n_error::AppError;
 
 pub async fn preview_chapter_analysis_request(
     state: &AppState,
     user_id: i64,
     chapter_id: i64,
-) -> Result<ModelRequestPreview, String> {
+) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let preview = state
         .chapter_analysis_generation_preview_application()
         .preview(user_id, chapter_id, prompt_renderer)
-        .await
-        .map_err(|error| error.to_string())?;
+        .await?;
     chat_status_preview_for_state(
         state,
         "chapter_analysis",
@@ -24,19 +24,19 @@ pub async fn preview_chapter_analysis_request(
         "llm_chat",
     )
     .await
+    .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
 }
 
 pub async fn preview_resume_chapter_analysis_sync_request(
     state: &AppState,
     user_id: i64,
     chapter_id: i64,
-) -> Result<ModelRequestPreview, String> {
+) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let preview = state
         .chapter_analysis_resume_preview_application()
         .preview_resume(user_id, chapter_id, prompt_renderer)
-        .await
-        .map_err(|error| error.to_string())?;
+        .await?;
     chat_status_preview_for_state(
         state,
         "chapter_analysis_resume_sync",
@@ -45,6 +45,7 @@ pub async fn preview_resume_chapter_analysis_sync_request(
         "llm_chat",
     )
     .await
+    .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
 }
 
 fn preview_step(

@@ -30,10 +30,7 @@ impl SceneProfileSyncHostPort for RuntimeSceneProfileSyncHostPort {
             SceneRagSyncTraceSource::WorkflowRun(workflow_run_id),
         )
         .await
-        .map_err(|message| AppError::InvalidState {
-            current: "scene_profile_sync_rag".to_string(),
-            operation: message,
-        })
+        .map_err(AppError::VectorStoreError)
     }
 }
 
