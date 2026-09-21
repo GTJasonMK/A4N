@@ -149,8 +149,11 @@ import {
 } from "./video-studio/nodeContracts";
 import type { StudioEdge, StudioNode } from "./video-studio/types";
 import { formatNumber, useI18n } from "../i18n";
-
-const CANVAS_WORKFLOW_KIND = "video_canvas_graph";
+import {
+  CANVAS_WORKFLOW_KIND,
+  useCanvasWorkflowActions,
+} from "./video-studio/useCanvasWorkflowActions";
+import { useCanvasGraphActions } from "./video-studio/useCanvasGraphActions";
 
 const RequestPreviewModal = lazy(() =>
   import("../components/feedback/RequestPreviewModal").then((module) => ({
@@ -456,1082 +459,106 @@ export const VideoStudioCanvas: React.FC = () => {
     };
   }, [load]);
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange<StudioNode>[]) => {
-      const allowedChanges = canvasWriteBusy
-        ? changes.filter(
-            (change) =>
-              change.type === "select" || change.type === "dimensions",
-          )
-        : changes;
-      if (
-        allowedChanges.some(
-          (change) => change.type !== "select" && change.type !== "dimensions",
-        )
-      ) {
-        setDirty(true);
-      }
-      if (allowedChanges.length > 0) applyNodesChange(allowedChanges);
-    },
-    [applyNodesChange, canvasWriteBusy],
-  );
 
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange<StudioEdge>[]) => {
-      const allowedChanges = canvasWriteBusy
-        ? changes.filter((change) => change.type === "select")
-        : changes;
-      if (allowedChanges.some((change) => change.type !== "select")) {
-        setDirty(true);
-      }
-      const removedTargetIds = new Set(
-        allowedChanges
-          .filter((change) => change.type === "remove")
-          .map((change) => edges.find((edge) => edge.id === change.id)?.target)
-          .filter((target): target is string => Boolean(target)),
-      );
-      const invalidatedNodeIds = downstreamNodeIds(removedTargetIds, edges);
-      if (invalidatedNodeIds.size > 0) {
-        setNodes((items) =>
-          items.map((node) =>
-            invalidatedNodeIds.has(node.id)
-              ? clearCanvasNodeRuntimeResult(node)
-              : node,
-          ),
-        );
-      }
-      if (allowedChanges.length > 0) applyEdgesChange(allowedChanges);
-    },
-    [applyEdgesChange, canvasWriteBusy, edges, setNodes],
-  );
+  const graphActions = useCanvasGraphActions({
+    projectId,
+    project,
+    document,
+    nodes,
+    edges,
+    selectedNode,
+    nodeContractsByKind,
+    configOptions,
+    canEdit,
+    canvasWriteBusy,
+    canvasMutationDisabled,
+    flowInstance,
+    canvasSectionRef,
+    t,
+    addToast,
+    setDocument,
+    setNodes,
+    setEdges,
+    applyNodesChange,
+    applyEdgesChange,
+    setDirty,
+    setSaving,
+    setImporting,
+    setMobileNodeLibraryOpen,
+  });
 
-  const addNode = useCallback(
-    (kind: string, label: string, position?: { x: number; y: number }) => {
-      if (canvasMutationDisabled) return;
-      const id = `node-${Date.now()}-${Math.round(Math.random() * 10000)}`;
-      const imageConfig =
-        kind === "GenerateImageNode"
-          ? configOptions.image.find((option) => option.isDefault)
-          : undefined;
-      setNodes((items) => [
-        ...items.map((item) => ({ ...item, selected: false })),
-        {
-          id,
-          type: "studioNode",
-          selected: true,
-          position: position ?? canvasNodePosition(items.length),
-          data: {
-            label,
-            nodeKind: kind,
-            refType: defaultRefTypeForNode(kind),
-            refId: null,
-            state: "ready",
-            config: defaultConfigForNode(kind, imageConfig),
-          },
-        },
-      ]);
-      setDirty(true);
-    },
-    [canvasMutationDisabled, configOptions.image, setNodes],
-  );
-
-  const addNodeToVisibleCanvas = useCallback(
-    (kind: string, label: string) => {
-      const rect = canvasSectionRef.current?.getBoundingClientRect();
-      const position =
-        flowInstance && rect
-          ? flowInstance.screenToFlowPosition({
-              x: rect.left + rect.width / 2,
-              y: rect.top + rect.height / 2,
-            })
-          : undefined;
-      addNode(kind, label, position);
-      setMobileNodeLibraryOpen(false);
-    },
-    [addNode, flowInstance],
-  );
-
-  const onNodeTemplateDragStart = useCallback(
-    (
-      event: React.DragEvent<HTMLButtonElement>,
-      kind: string,
-      label: string,
-    ) => {
-      if (canvasMutationDisabled) {
-        event.preventDefault();
-        return;
-      }
-      event.dataTransfer.effectAllowed = "copy";
-      event.dataTransfer.setData(NODE_DRAG_KIND, kind);
-      event.dataTransfer.setData(NODE_DRAG_LABEL, label);
-      setNodeTemplateDragImage(
-        event.dataTransfer,
-        kind,
-        label,
-        flowInstance?.getZoom() ?? 1,
-        studioNodeContract(nodeContractsByKind, kind),
-        t,
-      );
-    },
-    [canvasMutationDisabled, flowInstance, nodeContractsByKind, t],
-  );
-
-  const onCanvasDragOver = useCallback(
-    (event: React.DragEvent) => {
-      if (
-        canvasMutationDisabled ||
-        !Array.from(event.dataTransfer.types).includes(NODE_DRAG_KIND)
-      )
-        return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-    },
-    [canvasMutationDisabled],
-  );
-
-  const onCanvasDrop = useCallback(
-    (event: React.DragEvent) => {
-      if (canvasMutationDisabled || !flowInstance) return;
-      const kind = event.dataTransfer.getData(NODE_DRAG_KIND);
-      const contract = kind
-        ? studioNodeContract(nodeContractsByKind, kind)
-        : null;
-      if (!kind || !contract) return;
-      event.preventDefault();
-      const label =
-        event.dataTransfer.getData(NODE_DRAG_LABEL) ||
-        contract.label ||
-        nodeKindMeta(kind, t).label;
-      addNode(
-        kind,
-        label,
-        flowInstance.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        }),
-      );
-    },
-    [addNode, canvasMutationDisabled, flowInstance, nodeContractsByKind, t],
-  );
-
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (canvasMutationDisabled) return;
-      const validation = validateCanvasConnection(
-        connection,
-        nodes,
-        edges,
-        nodeContractsByKind,
-        t,
-      );
-      if (typeof validation === "string") {
-        addToast(validation, "error");
-        return;
-      }
-      const contract = validation;
-      const config =
-        contract.role === "assembly_clip" && connection.target
-          ? { order_index: nextAssembleClipOrder(edges, connection.target) }
-          : {};
-      const invalidatedNodeIds = downstreamNodeIds(
-        new Set([connection.target].filter((id): id is string => Boolean(id))),
-        edges,
-      );
-      setEdges((items) =>
-        addEdge(
-          {
-            ...connection,
-            sourceHandle: contract.sourcePort,
-            targetHandle: contract.targetPort,
-            type: "smoothstep",
-            animated: false,
-            label: edgeRoleLabel(contract.role, t),
-            className: "a4n-studio-edge",
-            labelBgPadding: [6, 3],
-            labelBgBorderRadius: 4,
-            data: { role: contract.role, config },
-          },
-          items,
-        ),
-      );
-      setNodes((items) =>
-        items.map((item) =>
-          invalidatedNodeIds.has(item.id)
-            ? clearCanvasNodeRuntimeResult(item)
-            : item,
-        ),
-      );
-      setDirty(true);
-    },
-    [
-      addToast,
-      canvasMutationDisabled,
-      edges,
-      nodeContractsByKind,
-      nodes,
-      setEdges,
-      setNodes,
-      t,
-    ],
-  );
-
-  const isValidCanvasConnection = useCallback<IsValidConnection>(
-    (connection) =>
-      !canvasMutationDisabled &&
-      typeof validateCanvasConnection(connection, nodes, edges, nodeContractsByKind, t) !== "string",
-    [canvasMutationDisabled, edges, nodeContractsByKind, nodes, t],
-  );
-
-  const selectCanvasNode = useCallback(
-    (nodeId: string) => {
-      setNodes((items) =>
-        items.map((node) => ({ ...node, selected: node.id === nodeId })),
-      );
-      setEdges((items) => items.map((edge) => ({ ...edge, selected: false })));
-    },
-    [setEdges, setNodes],
-  );
-
-  const selectCanvasEdge = useCallback(
-    (edgeId: string) => {
-      setNodes((items) => items.map((node) => ({ ...node, selected: false })));
-      setEdges((items) =>
-        items.map((edge) => ({ ...edge, selected: edge.id === edgeId })),
-      );
-    },
-    [setEdges, setNodes],
-  );
-
-  const deleteCanvasNode = useCallback(
-    (node: StudioNode) => {
-      if (canvasMutationDisabled) return;
-      setNodes((items) => items.filter((item) => item.id !== node.id));
-      setEdges((items) =>
-        items.filter(
-          (edge) => edge.source !== node.id && edge.target !== node.id,
-        ),
-      );
-      setDirty(true);
-      addToast(t("video.deletedNode", { name: nodeDisplayTitle(node.data, t) }), "success");
-    },
-    [addToast, canvasMutationDisabled, setEdges, setNodes, t],
-  );
-
-  const deleteCanvasEdge = useCallback(
-    (edge: StudioEdge) => {
-      if (canvasMutationDisabled) return;
-      const invalidatedNodeIds = downstreamNodeIds(new Set([edge.target]), edges);
-      setEdges((items) => items.filter((item) => item.id !== edge.id));
-      setNodes((items) =>
-        items.map((item) =>
-          invalidatedNodeIds.has(item.id)
-            ? clearCanvasNodeRuntimeResult(item)
-            : item,
-        ),
-      );
-      setDirty(true);
-      addToast(t("video.deletedEdge"), "success");
-    },
-    [addToast, canvasMutationDisabled, edges, setEdges, setNodes, t],
-  );
-
-  const updateSelectedConfig = (patch: Record<string, unknown>) => {
-    if (!selectedNode || canvasMutationDisabled) return;
-    const nextConfig = {
-      ...selectedNode.data.config,
-      ...patch,
-    };
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === undefined) delete nextConfig[key];
-    }
-    const invalidatesRuntimeResult =
-      selectedNode.data.config.canvas_runtime_result === true &&
-      Object.keys(patch).some((key) => key !== "title");
-    if (invalidatesRuntimeResult) {
-      for (const key of CANVAS_RUNTIME_CONFIG_KEYS) delete nextConfig[key];
-    }
-    const nextLabel =
-      typeof patch.title === "string"
-        ? patch.title.trim() || nodeKindMeta(selectedNode.data.nodeKind, t).label
-        : selectedNode.data.label;
-    const nextData = {
-      ...selectedNode.data,
-      label: nextLabel,
-      refType: invalidatesRuntimeResult ? null : selectedNode.data.refType,
-      refId: invalidatesRuntimeResult ? null : selectedNode.data.refId,
-      state: invalidatesRuntimeResult ? "ready" : selectedNode.data.state,
-      config: nextConfig,
-    };
-    setNodes((items) =>
-      items.map((node) =>
-        node.id === selectedNode.id
-          ? {
-              ...node,
-              data: nextData,
-            }
-          : node,
-      ),
-    );
-    if (
-      selectedNode.data.nodeKind === "GenerateVideoNode" &&
-      Object.prototype.hasOwnProperty.call(patch, "input_mode")
-    ) {
-      const contract = studioNodeContract(
-        nodeContractsByKind,
-        selectedNode.data.nodeKind,
-      );
-      const activeInputIds = new Set(
-        contract
-          ? studioNodeInputPortsForData(nextData, contract).map(
-              (port) => port.id,
-            )
-          : [],
-      );
-      setEdges((items) =>
-        items.filter(
-          (edge) =>
-            edge.target !== selectedNode.id ||
-            activeInputIds.has(edge.targetHandle ?? ""),
-        ),
-      );
-    }
-    setDirty(true);
-  };
-
-  const updateSelectedRef = (refType: string | null, refId: number | null) => {
-    if (!selectedNode || canvasMutationDisabled) return;
-    setNodes((items) =>
-      items.map((node) =>
-        node.id === selectedNode.id
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                refType,
-                refId,
-              },
-            }
-          : node,
-      ),
-    );
-    setDirty(true);
-  };
-
-  const moveAssembleClip = (edgeId: string, direction: -1 | 1) => {
-    if (canvasMutationDisabled) return;
-    setEdges((items) => reorderAssembleClipEdges(items, edgeId, direction));
-    setDirty(true);
-  };
-
-  const persist = async () => {
-    if (!document || canvasWriteBusy || !canEdit) return;
-    const validationError = canvasGraphSaveValidationError(
-      nodes,
-      edges,
-      nodeContractsByKind,
-      t,
-    );
-    if (validationError) {
-      addToast(validationError, "error");
-      return;
-    }
-    setSaving(true);
-    try {
-      const nodesWithTextAssets = await persistCanvasTextAssets(
-        projectId,
-        nodes,
-        t,
-      );
-      const saved = await saveCanvasGraph(
-        projectId,
-        toCanvasGraphInput(
-          document,
-          nodesWithTextAssets,
-          edges,
-        ),
-        document.graph.version,
-      );
-      const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
-      setDocument(saved);
-      setNodes((current) =>
-        preserveSelectedItems(saved.nodes.map(toFlowNode), current),
-      );
-      setEdges((current) => preserveSelectedItems(savedEdges, current));
-      setDirty(false);
-      addToast(t("video.canvasSaved"), "success");
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("video.canvasSaveFailed")), "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const importMedia = async (mediaKind: "image" | "video" | "audio") => {
-    if (!document || canvasWriteBusy || !canEdit) return;
-    if (mediaKind === "audio" && project?.source_mode !== "freeform") {
-      addToast(t("video.freeProjectAudioOnly"), "error");
-      return;
-    }
-    const validationError = canvasGraphSaveValidationError(
-      nodes,
-      edges,
-      nodeContractsByKind,
-      t,
-    );
-    if (validationError) {
-      addToast(validationError, "error");
-      return;
-    }
-    const accept =
-      mediaKind === "image"
-        ? "image/*"
-        : mediaKind === "video"
-          ? "video/*"
-          : "audio/*";
-    const file = await pickLocalFile(accept);
-    if (!file) return;
-    setImporting(true);
-    try {
-      const imported = await importCanvasMedia({
-        project_id: projectId,
-        media_kind: mediaKind,
-        file_name: file.name,
-        mime_type: file.type,
-        data_base64: await readFileAsBase64(file),
-      });
-      let importedNode: StudioNode;
-      let successMessage: string;
-      switch (imported.media_kind) {
-        case "image":
-          importedNode = importedImageInputNode(
-            imported.image,
-            imported.asset,
-            nodes.length,
-            t,
-          );
-          successMessage = t("video.importedImage");
-          break;
-        case "video":
-          importedNode = importedVideoInputNode(
-            imported.video,
-            imported.asset,
-            nodes.length,
-            t,
-          );
-          successMessage = t("video.importedVideo");
-          break;
-        case "audio":
-          importedNode = importedAudioInputNode(imported.asset, nodes.length, t);
-          successMessage = t("video.importedAudio");
-          break;
-        default:
-          throw new Error(t("video.unsupportedImportedMedia"));
-      }
-      const nextNodes = [
-        ...nodes.map((node) => ({ ...node, selected: false })),
-        importedNode,
-      ];
-      const saved = await saveCanvasGraph(
-        projectId,
-        toCanvasGraphInput(document, nextNodes, edges),
-        document.graph.version,
-      );
-      const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
-      setDocument(saved);
-      setNodes((current) =>
-        preserveSelectedItems(saved.nodes.map(toFlowNode), current),
-      );
-      setEdges((current) => preserveSelectedItems(savedEdges, current));
-      setDirty(false);
-      addToast(successMessage, "success");
-    } catch (err) {
-      addToast(
-        extractErrorMessage(
-          err,
-          mediaKind === "image"
-            ? t("video.importImageFailed")
-            : mediaKind === "video"
-              ? t("video.importVideoFailed")
-              : t("video.importAudioFailed"),
-        ),
-        "error",
-      );
-    } finally {
-      setImporting(false);
-    }
-    };
-
-  const refreshCanvasRuntimeResults = useCallback(
-    async (graphId: number) => {
-      const freshDocument = await getCanvasGraph(projectId, graphId);
-      setDocument((current) =>
-        current && current.graph.id === freshDocument.graph.id
-          ? mergeCanvasDocumentRuntimeResults(current, freshDocument)
-          : current,
-      );
-      setNodes((current) =>
-        mergeStudioNodeRuntimeResults(current, freshDocument.nodes),
-      );
-    },
-    [projectId, setNodes],
-  );
-
-  const loadWorkflowStatus = useCallback(
-    async (workflowRunId: number, options: { silent?: boolean } = {}) => {
-      setLatestWorkflowRunId(workflowRunId);
-      setWorkflowLoading(true);
-      try {
-        const [detail, events] = await Promise.all([
-          getWorkflowRunDetail(workflowRunId, true),
-          getWorkflowRunProgressEvents(workflowRunId, 20),
-        ]);
-        setWorkflowDetail(detail);
-        setWorkflowEvents(events);
-        const refreshSignature = canvasWorkflowRuntimeRefreshSignature(detail);
-        const graphId =
-          detail.run.scope_table === "canvas_graph"
-            ? detail.run.scope_id
-            : null;
-        if (
-          refreshSignature &&
-          graphId &&
-          workflowRuntimeRefreshSignatureRef.current !== refreshSignature
-        ) {
-          workflowRuntimeRefreshSignatureRef.current = refreshSignature;
-          try {
-            await refreshCanvasRuntimeResults(graphId);
-          } catch (err) {
-            if (!options.silent) {
-              addToast(
-                extractErrorMessage(err, t("video.syncCanvasRuntimeFailed")),
-                "error",
-              );
-            }
-          }
-        }
-      } catch (err) {
-        if (!options.silent) {
-          addToast(extractErrorMessage(err, t("video.loadCanvasRunsFailed")), "error");
-        }
-      } finally {
-        setWorkflowLoading(false);
-      }
-    },
-    [addToast, refreshCanvasRuntimeResults, t],
-  );
-
-  const stopWorkflowDiscovery = useCallback(() => {
-    if (workflowDiscoveryTimerRef.current !== null) {
-      window.clearInterval(workflowDiscoveryTimerRef.current);
-      workflowDiscoveryTimerRef.current = null;
-    }
-    workflowDiscoveryInFlightRef.current = false;
-  }, []);
-
-  const findActiveCanvasWorkflowRun = useCallback(
-    async (
-      graphId: number,
-      submittedAtMs: number,
-    ): Promise<WorkflowRunSummary | null> => {
-      const runs = await listWorkflowRuns({
-        project_id: projectId,
-        workflow_kind: CANVAS_WORKFLOW_KIND,
-        resumable_only: false,
-        limit: 50,
-      });
-      const submittedFloorMs = submittedAtMs - 5000;
-      return (
-        runs.find((run) => {
-          if (run.scope_table !== "canvas_graph" || run.scope_id !== graphId)
-            return false;
-          if (run.status === "running" || run.status === "pending") return true;
-          const updatedAtMs = parseWorkflowTimestampMs(run.updated_at);
-          const createdAtMs = parseWorkflowTimestampMs(run.created_at);
-          return (
-            (updatedAtMs !== null && updatedAtMs >= submittedFloorMs) ||
-            (createdAtMs !== null && createdAtMs >= submittedFloorMs)
-          );
-        }) ?? null
-      );
-    },
-    [projectId],
-  );
-
-  const startWorkflowDiscovery = useCallback(
-    (graphId: number, submittedAtMs: number) => {
-      stopWorkflowDiscovery();
-      const tick = async () => {
-        if (workflowDiscoveryInFlightRef.current) return;
-        workflowDiscoveryInFlightRef.current = true;
-        try {
-          const run = await findActiveCanvasWorkflowRun(graphId, submittedAtMs);
-          if (!run) return;
-          await loadWorkflowStatus(run.id, { silent: true });
-          stopWorkflowDiscovery();
-        } catch (_err) {
-          // Discovery is best-effort while the run submission request is still in flight.
-        } finally {
-          workflowDiscoveryInFlightRef.current = false;
-        }
-      };
-      workflowDiscoveryTimerRef.current = window.setInterval(() => {
-        void tick();
-      }, 700);
-      void tick();
-    },
-    [findActiveCanvasWorkflowRun, loadWorkflowStatus, stopWorkflowDiscovery],
-  );
-
-  useEffect(() => stopWorkflowDiscovery, [stopWorkflowDiscovery]);
-
-  useEffect(() => {
-    if (!latestWorkflowRunId) return;
-    const status = workflowDetail?.run.status;
-    if (status !== "running" && status !== "pending") return;
-    const timer = window.setInterval(() => {
-      void loadWorkflowStatus(latestWorkflowRunId, { silent: true });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [latestWorkflowRunId, loadWorkflowStatus, workflowDetail?.run.status]);
-
-  useEffect(() => {
-    const graph = document?.graph;
-    if (!graph) return;
-    let cancelled = false;
-    const restoreLatestRun = async () => {
-      try {
-        const runs = await listWorkflowRuns({
-          project_id: projectId,
-          workflow_kind: CANVAS_WORKFLOW_KIND,
-          resumable_only: false,
-          limit: 50,
-        });
-        if (cancelled) return;
-        const latest = runs.find(
-          (run) =>
-            run.scope_table === "canvas_graph" &&
-            run.scope_id === graph.id &&
-            workflowRunGraphVersion(run) === graph.version,
-        );
-        workflowRuntimeRefreshSignatureRef.current = null;
-        if (!latest) {
-          setLatestWorkflowRunId(null);
-          setWorkflowDetail(null);
-          setWorkflowEvents([]);
-          return;
-        }
-        await loadWorkflowStatus(latest.id, { silent: true });
-      } catch {
-        if (cancelled) return;
-        setLatestWorkflowRunId(null);
-        setWorkflowDetail(null);
-        setWorkflowEvents([]);
-      }
-    };
-    void restoreLatestRun();
-    return () => {
-      cancelled = true;
-    };
-  }, [document?.graph.id, document?.graph.version, loadWorkflowStatus, projectId]);
-
-  const previewNode = async (node: StudioNode) => {
-    if (!nodeHasProviderRequest(node)) {
-      setContentPreviewNode(node);
-      return;
-    }
-    if (!document) return;
-    if (dirty) {
-      addToast(t("video.saveBeforePreview"), "info");
-      return;
-    }
-    const nodeId = numericId(node.id);
-    if (!nodeId) {
-      addToast(t("video.saveNodeBeforeRequest"), "info");
-      return;
-    }
-    setPreviewDialogOpen(true);
-    setPreviewLoading(true);
-    setPreviewData(null);
-    try {
-      const preview = await previewCanvasNodeRequest(
-        projectId,
-        document.graph.id,
-        nodeId,
-      );
-      setPreviewData(preview);
-    } catch (err) {
-      setPreviewDialogOpen(false);
-      addToast(extractErrorMessage(err, t("video.previewRequestFailed")), "error");
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  const runNode = async (node: StudioNode) => {
-    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
-    if (dirty) {
-      addToast(t("video.saveBeforeRun"), "info");
-      return;
-    }
-    const contract = studioNodeContract(
-      nodeContractsByKind,
-      node.data.nodeKind,
-    );
-    if (!contract?.runnable) {
-      addToast(t("video.inputNodeCannotRun"), "info");
-      return;
-    }
-    const nodeId = numericId(node.id);
-    if (!nodeId) {
-      addToast(t("video.saveNodeBeforeRun"), "info");
-      return;
-    }
-    const confirmation = [
-      t("video.runNodeMessage"),
-      "",
-      t("video.runNodeTarget", { name: nodeDisplayTitle(node.data, t) }),
-      t("video.runNodeConfirmDescription"),
-      t("video.runNodeInputHint"),
-    ].join("\n");
-    const confirmed = await confirmDialog({
-      title: t("video.runNodeTitle"),
-      message: confirmation,
-      confirmText: t("video.run"),
-      cancelText: t("common.cancel"),
-      dialogType: "warning",
-    });
-    if (!confirmed) {
-      return;
-    }
-    setWorkflowSubmissionLabel(t("video.runNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
-    setLatestWorkflowRunId(null);
-    setWorkflowDetail(null);
-    setWorkflowEvents([]);
-    workflowRuntimeRefreshSignatureRef.current = null;
-    const graphId = document.graph.id;
-    startWorkflowDiscovery(graphId, Date.now());
-    try {
-      const result = await runCanvasNode(projectId, graphId, nodeId);
-      addToast(
-        result.error_message ?? t("video.runOnlyNodeSubmitted"),
-        result.status === "failed" ? "info" : "success",
-      );
-      await loadWorkflowStatus(result.workflow_run_id);
-      await load();
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("video.runOnlyNodeError")), "error");
-    } finally {
-      setWorkflowSubmissionLabel(null);
-      stopWorkflowDiscovery();
-    }
-  };
-
-  const runToNode = async (node: StudioNode) => {
-    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
-    if (dirty) {
-      addToast(t("video.saveBeforeRun"), "info");
-      return;
-    }
-    if (
-      studioNodeContract(nodeContractsByKind, node.data.nodeKind)?.category !==
-      "output"
-    ) {
-      addToast(
-        t("video.runToOutputOnly"),
-        "info",
-      );
-      return;
-    }
-    const nodeId = numericId(node.id);
-    if (!nodeId) {
-      addToast(t("video.saveNodeBeforeRun"), "info");
-      return;
-    }
-    const scope = computeRunToNodeScope(
-      node,
-      nodes,
-      edges,
-      nodeContractsByKind,
-    );
-    const confirmation = runToNodeConfirmationMessage(scope, node, t);
-    const confirmed = await confirmDialog({
-      title: t("video.runToNodeTitle"),
-      message: confirmation,
-      confirmText: t("video.run"),
-      cancelText: t("common.cancel"),
-      dialogType: "warning",
-    });
-    if (!confirmed) {
-      return;
-    }
-    setWorkflowSubmissionLabel(t("video.runToNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
-    setLatestWorkflowRunId(null);
-    setWorkflowDetail(null);
-    setWorkflowEvents([]);
-    workflowRuntimeRefreshSignatureRef.current = null;
-    const graphId = document.graph.id;
-    startWorkflowDiscovery(graphId, Date.now());
-    try {
-      const result = await runCanvasGraphToNode(projectId, graphId, nodeId);
-      addToast(
-        result.error_message ?? t("video.runToNodeSubmitted"),
-        result.status === "failed" ? "info" : "success",
-      );
-      await loadWorkflowStatus(result.workflow_run_id);
-      await load();
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("video.runToNodeError")), "error");
-    } finally {
-      setWorkflowSubmissionLabel(null);
-      stopWorkflowDiscovery();
-    }
-  };
-
-  const runGraph = async () => {
-    if (
-      !document ||
-      canvasWriteBusy ||
-      !canEdit ||
-      workflowSubmitting ||
-      resumingWorkflow
-    )
-      return;
-    if (dirty) {
-      addToast(t("video.saveBeforeRun"), "info");
-      return;
-    }
-    if (canResumeCurrentCanvasRun) {
-      await resumeActiveWorkflow();
-      return;
-    }
-    setWorkflowSubmissionLabel(t("video.runCanvasSubmitting"));
-    setLatestWorkflowRunId(null);
-    setWorkflowDetail(null);
-    setWorkflowEvents([]);
-    workflowRuntimeRefreshSignatureRef.current = null;
-    const graphId = document.graph.id;
-    startWorkflowDiscovery(graphId, Date.now());
-    try {
-      const result = await runCanvasGraph(projectId, graphId);
-      addToast(
-        result.error_message ?? t("video.submittedRunCanvas"),
-        result.status === "failed" ? "info" : "success",
-      );
-      await loadWorkflowStatus(result.workflow_run_id);
-      await load();
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("video.runCanvasError")), "error");
-    } finally {
-      setWorkflowSubmissionLabel(null);
-      stopWorkflowDiscovery();
-    }
-  };
-
-  const nodeContextMenuItems = useCallback(
-    (node: StudioNode): ContextMenuEntry[] => {
-      const contract = studioNodeContract(
-        nodeContractsByKind,
-        node.data.nodeKind,
-      );
-      const isOutputNode = contract?.category === "output";
-      const isRunnableNode = Boolean(contract?.runnable);
-      const hasProviderRequest = nodeHasProviderRequest(node);
-      const items: ContextMenuEntry[] = [];
-      if (!hasProviderRequest || document) {
-        items.push({
-          label: hasProviderRequest ? t("video.viewModelRequest") : t("video.viewNodeContent"),
-          icon: <Eye size={13} />,
-          onClick: () => void previewNode(node),
-        });
-      }
-      if (isRunnableNode) {
-        items.push({
-          label: t("video.runOnlyNode"),
-          icon: <Play size={13} />,
-          disabled: canvasMutationDisabled || workflowSubmitting,
-          onClick: () => void runNode(node),
-        });
-      }
-      if (isOutputNode) {
-        items.push({
-          label: t("video.runToNode"),
-          icon: <Play size={13} />,
-          disabled: canvasMutationDisabled || workflowSubmitting,
-          onClick: () => void runToNode(node),
-        });
-      }
-      if (!canvasMutationDisabled) {
-        if (items.length > 0) items.push({ divider: true });
-        items.push({
-          label: t("video.deleteNode"),
-          icon: <Trash2 size={13} />,
-          danger: true,
-          shortcut: "Del",
-          onClick: () => deleteCanvasNode(node),
-        });
-      }
-      return items;
-    },
-    [
-      canvasMutationDisabled,
-      deleteCanvasNode,
-      document,
-      nodeContractsByKind,
-      previewNode,
-      runNode,
-      runToNode,
-      workflowSubmitting,
-      t,
-    ],
-  );
-
-  const edgeContextMenuItems = useCallback(
-    (edge: StudioEdge): ContextMenuEntry[] =>
-      !canvasMutationDisabled
-        ? [
-            {
-              label: t("video.deleteEdge"),
-              icon: <Trash2 size={13} />,
-              danger: true,
-              shortcut: "Del",
-              onClick: () => deleteCanvasEdge(edge),
-            },
-          ]
-        : [],
-    [canvasMutationDisabled, deleteCanvasEdge, t],
-  );
-
-  const mediaImportMenuItems = useCallback(
-    (): ContextMenuEntry[] => [
-      {
-        label: t("video.importImage"),
-        icon: <Upload size={13} />,
-        disabled: !document || canvasWriteBusy || !canEdit,
-        onClick: () => void importMedia("image"),
-      },
-      {
-        label: t("video.importVideo"),
-        icon: <Upload size={13} />,
-        disabled: !document || canvasWriteBusy || !canEdit,
-        onClick: () => void importMedia("video"),
-      },
-      {
-        label: t("video.importAudio"),
-        icon: <Upload size={13} />,
-        disabled:
-          !document ||
-          canvasWriteBusy ||
-          !canEdit ||
-          project?.source_mode !== "freeform",
-        onClick: () => void importMedia("audio"),
-      },
-    ],
-    [
-      canEdit,
-      document,
-      importMedia,
-      canvasWriteBusy,
-      project?.source_mode,
-      t,
-    ],
-  );
-
-  const paneContextMenuItems = useCallback(
-    (): ContextMenuEntry[] => [
-      {
-        label: t("video.runCanvasTitle"),
-        icon: <Play size={13} />,
-        disabled:
-          !document || canvasWriteBusy || !canEdit || workflowSubmitting,
-        onClick: () => void runGraph(),
-      },
-      { divider: true },
-      ...mediaImportMenuItems(),
-    ],
-    [
-      canEdit,
-      canvasWriteBusy,
-      document,
-      mediaImportMenuItems,
-      runGraph,
-      workflowSubmitting,
-      t,
-    ],
-  );
-
-  const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: StudioNode) => {
-      event.preventDefault();
-      event.stopPropagation();
-      selectCanvasNode(node.id);
-      contextMenu.open(
-        event.clientX,
-        event.clientY,
-        nodeContextMenuItems(node),
-      );
-    },
-    [contextMenu, nodeContextMenuItems, selectCanvasNode],
-  );
-
-  const onEdgeContextMenu = useCallback(
-    (event: React.MouseEvent, edge: StudioEdge) => {
-      event.preventDefault();
-      event.stopPropagation();
-      selectCanvasEdge(edge.id);
-      contextMenu.open(
-        event.clientX,
-        event.clientY,
-        edgeContextMenuItems(edge),
-      );
-    },
-    [contextMenu, edgeContextMenuItems, selectCanvasEdge],
-  );
-
-  const onPaneContextMenu = useCallback(
-    (event: React.MouseEvent | MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      contextMenu.open(event.clientX, event.clientY, paneContextMenuItems());
-    },
-    [contextMenu, paneContextMenuItems],
-  );
-
-  const cancelActiveWorkflow = async () => {
-    const taskId = workflowDetail?.run.active_task_id;
-    const workflowRunId = workflowDetail?.run.id ?? latestWorkflowRunId;
-    if ((!taskId && !workflowRunId) || cancellingWorkflow) return;
-    setCancellingWorkflow(true);
-    try {
-      await cancelWorkflow({
-        task_id: taskId,
-        workflow_run_id: workflowRunId,
-      });
-      addToast(t("video.cancelRunRequested"), "info");
-      if (workflowRunId) {
-        await loadWorkflowStatus(workflowRunId);
-      }
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("video.cancelRunFailed")), "error");
-    } finally {
-      setCancellingWorkflow(false);
-    }
-  };
-
-  const resumeActiveWorkflow = async () => {
-    const workflowRunId = workflowDetail?.run.id ?? latestWorkflowRunId;
-    if (!workflowRunId || resumingWorkflow) return;
-    setResumingWorkflow(true);
-    try {
-      const run = await resumeWorkflowRun(workflowRunId);
-      addToast(t("video.resumeRunSuccess"), "success");
-      workflowRuntimeRefreshSignatureRef.current = null;
-      await loadWorkflowStatus(run.id);
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("video.resumeRunFailed")), "error");
-    } finally {
-      setResumingWorkflow(false);
-    }
-  };
+  const workflowActions = useCanvasWorkflowActions({
+    projectId,
+    project,
+    document,
+    nodes,
+    edges,
+    nodeContractsByKind,
+    selectedNode,
+    selectedNodeRunToTarget,
+    selectedNodeRunnable,
+    canEdit,
+    canvasWriteBusy,
+    canvasMutationDisabled,
+    dirty,
+    workflowSubmitting,
+    resumingWorkflow,
+    latestWorkflowRunId,
+    workflowDetail,
+    contextMenu,
+    workflowDiscoveryTimerRef,
+    workflowDiscoveryInFlightRef,
+    workflowRuntimeRefreshSignatureRef,
+    t,
+    addToast,
+    setLatestWorkflowRunId,
+    setWorkflowDetail,
+    setWorkflowEvents,
+    setWorkflowLoading,
+    setWorkflowSubmissionLabel,
+    setCancellingWorkflow,
+    setResumingWorkflow,
+    setPreviewDialogOpen,
+    setPreviewLoading,
+    setPreviewData,
+    setContentPreviewNode,
+    refreshCanvasRuntimeResults: graphActions.refreshCanvasRuntimeResults,
+    load,
+    selectCanvasNode: graphActions.selectCanvasNode,
+    selectCanvasEdge: graphActions.selectCanvasEdge,
+    deleteCanvasNode: graphActions.deleteCanvasNode,
+    deleteCanvasEdge: graphActions.deleteCanvasEdge,
+    importMedia: graphActions.importMedia,
+  });
+  const {
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    isValidCanvasConnection,
+    addNodeToVisibleCanvas,
+    onNodeTemplateDragStart,
+    onCanvasDragOver,
+    onCanvasDrop,
+    updateSelectedConfig,
+    updateSelectedRef,
+    moveAssembleClip,
+    persist,
+    importMedia,
+  } = graphActions;
+  const {
+    loadWorkflowStatus,
+    previewNode,
+    runNode,
+    runToNode,
+    nodeContextMenuItems,
+    edgeContextMenuItems,
+    paneContextMenuItems,
+    onNodeContextMenu,
+    onEdgeContextMenu,
+    onPaneContextMenu,
+    cancelActiveWorkflow,
+    resumeActiveWorkflow,
+  } = workflowActions;
 
   const headerActionItems = useMemo<DropdownItem[]>(() => {
     const importDisabled = !document || canvasWriteBusy || !canEdit;
@@ -2006,20 +1033,6 @@ const CanvasInspectorFallback = () => {
     </div>
   );
 };
-
-function downstreamNodeIds(startNodeIds: Set<string>, edges: StudioEdge[]): Set<string> {
-  const visited = new Set(startNodeIds);
-  const queue = [...startNodeIds];
-  for (let index = 0; index < queue.length; index += 1) {
-    const source = queue[index];
-    for (const edge of edges) {
-      if (edge.source !== source || visited.has(edge.target)) continue;
-      visited.add(edge.target);
-      queue.push(edge.target);
-    }
-  }
-  return visited;
-}
 
 function workflowRunGraphVersion(run: WorkflowRunSummary): number | null {
   const fingerprint = run.input_fingerprint_json;
