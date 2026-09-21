@@ -69,11 +69,6 @@ const VideoPostProcessWorkspace = lazy(() =>
     default: module.VideoPostProcessWorkspace,
   })),
 );
-const ImageActionDialog = lazy(() =>
-  import("./images/ImageActionDialog").then((module) => ({
-    default: module.ImageActionDialog,
-  })),
-);
 const RequestPreviewModal = lazy(() =>
   import("../../components/feedback/RequestPreviewModal").then((module) => ({
     default: module.RequestPreviewModal,
@@ -169,7 +164,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     segmentPlanDraft,
     videos,
     images,
-    setImages,
     shootingScenes,
     frameSegmentPlanPromptForCards,
     segmentPlanDraftVisible,
@@ -271,21 +265,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   });
   const {
     imageBusyId,
-    imageDetails,
-    imageScoreInput,
-    imageScoringId,
-    setImageScoreInput,
-    handleCloseImageDetails,
     handleDeleteImage,
-    handleScoreImage,
-    handleToggleImageFavorite,
-    handleUpdateImage,
   } = useVideoImageActions({
     t,
     addToast,
-    images,
     actionScopeKey: videoActionScopeKey,
-    setImages,
     loadAll,
   });
 
@@ -788,22 +772,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           onPreviewVideo={handlePreviewVideoRequestForVideo}
           onDeleteVideo={handleDeleteVideo}
         />
-      ) : null}
-      {imageDetails ? (
-        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
-          <ImageActionDialog
-            image={imageDetails}
-            busyId={imageBusyId}
-            scoringId={imageScoringId}
-            scoreInput={imageScoreInput}
-            onClose={handleCloseImageDetails}
-            onToggleFavorite={(image) => void handleToggleImageFavorite(image)}
-            onUpdate={(image, input) => handleUpdateImage(image, input)}
-            onScoreInputChange={setImageScoreInput}
-            onScore={(image) => void handleScoreImage(image)}
-            onDelete={(image) => void handleDeleteImage(image)}
-          />
-        </Suspense>
       ) : null}
       {promptRequestPreviewOpen ? (
         <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
