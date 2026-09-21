@@ -72,7 +72,7 @@ impl OrchestratorContext {
         else {
             return Ok(None);
         };
-        let checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
+        let mut checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
             serde_json::from_value(snapshot.clone()).map_err(|error| {
                 AppError::InvalidArgument(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
             })?;
@@ -88,15 +88,19 @@ impl OrchestratorContext {
         let visual_plan = self
             .confirmed_visual_plan_for_shooting_script(&requested_source, None)
             .await?;
-        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_ref() else {
+        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_mut() else {
             return Ok(None);
         };
-        if identity.plan_id != visual_plan.record.id
-            || identity.plan_version != visual_plan.record.plan_version
-            || identity.plan_sha256 != visual_plan.record.plan_sha256
+        if identity.plan_sha256 != visual_plan.record.plan_sha256
+            || (requested_source.source_snapshot_id.is_none()
+                && (identity.plan_id != visual_plan.record.id
+                    || identity.plan_version != visual_plan.record.plan_version))
         {
             return Ok(None);
         }
+        // 源快照复制了导演方案；内容相同时，把场景投影到快照自身的方案身份。
+        identity.plan_id = visual_plan.record.id;
+        identity.plan_version = visual_plan.record.plan_version;
         Ok(Some(ChapterShootingScriptUnitProgress {
             workflow_run_id: run.id,
             script: checkpoint.progress.script,

@@ -67,7 +67,7 @@ impl WorkerState {
         else {
             return Ok(None);
         };
-        let checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
+        let mut checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
             serde_json::from_value(snapshot.clone()).map_err(|error| {
                 WorkerFailure::invalid_request(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
             })?;
@@ -96,17 +96,21 @@ impl WorkerState {
         .await
         .map_err(visual_plan_error)?
         .ok_or_else(|| WorkerFailure::not_found("当前正文缺少 confirmed 导演编排方案"))?;
-        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_ref() else {
+        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_mut() else {
             return Err(WorkerFailure::invalid_request(
                 "章节拍摄剧本进度 snapshot 缺少视觉编排身份",
             ));
         };
-        if identity.plan_id != confirmed.record.id
-            || identity.plan_version != confirmed.record.plan_version
-            || identity.plan_sha256 != confirmed.record.plan_sha256
+        if identity.plan_sha256 != confirmed.record.plan_sha256
+            || (source.source_snapshot_id.is_none()
+                && (identity.plan_id != confirmed.record.id
+                    || identity.plan_version != confirmed.record.plan_version))
         {
             return Ok(None);
         }
+        // 与完整剧本的快照复制一致，使用快照自己的方案身份，不改写源工作流。
+        identity.plan_id = confirmed.record.id;
+        identity.plan_version = confirmed.record.plan_version;
         Ok(Some(checkpoint.progress))
     }
 
