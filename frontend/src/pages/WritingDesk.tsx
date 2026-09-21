@@ -1,6 +1,4 @@
 import React, {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -18,14 +16,10 @@ import {
   canEditProjectMaterials,
   getProject,
   hasProjectEditorRole,
-  resetProjectGeneratedData,
   type NovelProject,
 } from "../api/project";
 import {
-  chapterContentCommitToastType,
-  importChapter,
   listChapters,
-  updateChapterContent,
   type ChapterSummary,
 } from "../api/chapter";
 import {
@@ -38,17 +32,8 @@ import {
   listChapterOutlines,
   type ChapterOutline,
 } from "../api/outline";
-import { ChapterSidebar } from "./writing-desk/ChapterSidebar";
-import {
-  ChapterWorkspace,
-  type BottomTab,
-} from "./writing-desk/ChapterWorkspace";
-import { MissingOutlineBanner } from "./writing-desk/MissingOutlineBanner";
-import {
-  WritingDeskHeader,
-  type RightPanel,
-} from "./writing-desk/WritingDeskHeader";
-import { RightPanelResizeHandle } from "./writing-desk/RightPanelResizeHandle";
+import type { BottomTab } from "./writing-desk/ChapterWorkspace";
+import type { RightPanel } from "./writing-desk/WritingDeskHeader";
 import {
   DEFAULT_GENERATION_WORD_COUNT_RANGE,
   defaultGenerationWordCountRange,
@@ -62,7 +47,6 @@ import {
 } from "./writing-desk/rightPanelLayout";
 import { useStatusBarPermanent } from "../components/ui/StatusBar";
 import { useSmartBack } from "../components/ui/BackButton";
-import { Modal } from "../components/ui/Modal";
 import { usePersistedTab } from "../hooks/usePersistedTab";
 import {
   getProjectHomeEntryRoute,
@@ -74,30 +58,12 @@ import { useChapterPromptPreview } from "./writing-desk/useChapterPromptPreview"
 import { useChapterStreamGeneration } from "./writing-desk/useChapterStreamGeneration";
 import { useWritingDeskDrafts } from "./writing-desk/useWritingDeskDrafts";
 import { useWritingDeskChapterDerivedState } from "./writing-desk/useWritingDeskChapterDerivedState";
+import { WritingDeskView } from "./writing-desk/WritingDeskView";
+import { useWritingDeskResetGeneratedData } from "./writing-desk/useWritingDeskResetGeneratedData";
+import { useWritingDeskSaveContent } from "./writing-desk/useWritingDeskSaveContent";
 import { formatNumber, useI18n } from "../i18n";
 import type { ContentDiffAction } from "../components/agent/ContentDiffPreview";
 import type { PendingContentDiff } from "../components/agent/contentOptimizationDiff";
-
-const RagQueryPanel = lazy(() =>
-  import("./writing-desk/RagQueryPanel").then((module) => ({
-    default: module.RagQueryPanel,
-  })),
-);
-const WritingAssistantPanel = lazy(() =>
-  import("./writing-desk/WritingAssistantPanel").then((module) => ({
-    default: module.WritingAssistantPanel,
-  })),
-);
-const WritingDeskDialogs = lazy(() =>
-  import("./writing-desk/WritingDeskDialogs").then((module) => ({
-    default: module.WritingDeskDialogs,
-  })),
-);
-const RequestPreviewModal = lazy(() =>
-  import("../components/feedback/RequestPreviewModal").then((module) => ({
-    default: module.RequestPreviewModal,
-  })),
-);
 
 const WRITING_DESK_BOTTOM_TABS = [
   "content",
@@ -803,25 +769,24 @@ export const WritingDesk: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [addToast, clearResetProjectState, project?.lifecycle_gate, projectId]);
 
-  const resetGeneratedDataDisabledReason = useMemo(() => {
-    if (!project) return t("writing.projectNotLoaded");
-    if (lifecycleBlockedReason) return lifecycleBlockedReason;
-    if (resetGeneratedDataBusy) return t("writing.resettingProjectData");
-    if (streamTaskId) return t("writing.streamGenerationResetBlocked");
-    if (streamBusy) return t("writing.streamStateResetBlocked");
-    if (chapters.some((chapter) => chapter.status === "generating")) {
-      return t("writing.chapterGenerationResetBlocked");
-    }
-    return null;
-  }, [
+  const {
+    canResetGeneratedData,
+    handleResetGeneratedData,
+  } = useWritingDeskResetGeneratedData({
+    projectId,
+    project,
     chapters,
     lifecycleBlockedReason,
-    project,
     resetGeneratedDataBusy,
-    streamBusy,
     streamTaskId,
-  ]);
-  const canResetGeneratedData = resetGeneratedDataDisabledReason == null;
+    streamBusy,
+    resetGeneratedDataBusyRef,
+    setResetGeneratedDataBusy,
+    setProject,
+    clearResetProjectState,
+    addToast,
+    t,
+  });
 
   const handleOptimizedChapterContentChanged = useCallback(
     async (chapterId: number) => {
@@ -936,168 +901,28 @@ export const WritingDesk: React.FC = () => {
     }
   }, [addToast, pendingContentDiff, t]);
 
-  const handleResetGeneratedData = async () => {
-    if (resetGeneratedDataBusyRef.current) {
-      addToast(t("writing.resettingProjectData"), "error");
-      return;
-    }
-    if (resetGeneratedDataDisabledReason) {
-      addToast(resetGeneratedDataDisabledReason, "error");
-      return;
-    }
-    resetGeneratedDataBusyRef.current = true;
-    const ok = await confirmDialog({
-      title: t("writing.resetProjectData"),
-      message: t("writing.resetProjectDataMessage"),
-      confirmText: t("common.reset"),
-      cancelText: t("common.cancel"),
-      dialogType: "danger",
-    });
-    if (!ok) {
-      resetGeneratedDataBusyRef.current = false;
-      return;
-    }
-
-    setResetGeneratedDataBusy(true);
-    try {
-      const response = await resetProjectGeneratedData(projectId);
-      const warnings = [...response.warnings];
-      const formalResetCommitted = response.database_committed;
-      let nextProject = response.result?.project ?? null;
-      if (!nextProject) {
-        try {
-          nextProject = await getProject(projectId);
-        } catch (error) {
-          warnings.push(extractErrorMessage(error, t("writing.refreshProjectStatusFailed")));
-        }
-      }
-      if (nextProject) {
-        setProject(nextProject);
-      } else if (response.status === "pending") {
-        setProject((current) =>
-          current ? { ...current, lifecycle_gate: "resetting" } : current,
-        );
-      }
-      if (formalResetCommitted) clearResetProjectState();
-
-      const warningText = warnings.length > 0
-        ? `${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}`
-        : "";
-      if (response.status === "pending") {
-        addToast(
-          formalResetCommitted
-            ? t("writing.resetProjectDataCommitted", { warnings: warningText })
-            : t("writing.resetProjectDataAccepted", { warnings: warningText }),
-          "info",
-        );
-      } else if (response.result) {
-        addToast(
-          t("writing.resetProjectDataSummary", {
-            chapters: response.result.deleted_chapters,
-            outlines: response.result.deleted_chapter_outlines,
-            profiles: response.result.deleted_character_profiles,
-            versions: response.result.preserved_blueprint_versions,
-            warnings: warningText,
-          }),
-          warnings.length > 0 ? "info" : "success",
-        );
-      } else {
-        addToast(
-          t("writing.resetProjectDataDone", { warnings: warningText }),
-          warnings.length > 0 ? "info" : "success",
-        );
-      }
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("writing.resetProjectDataFailed")), "error");
-    } finally {
-      resetGeneratedDataBusyRef.current = false;
-      setResetGeneratedDataBusy(false);
-    }
-  };
-
-  const handleSaveContent = async () => {
-    if (lifecycleBlockedReason) {
-      addToast(lifecycleBlockedReason, "info");
-      return;
-    }
-    if (saveContentBusyRef.current) {
-      addToast(t("writing.savingChapterBody"), "error");
-      return;
-    }
-    saveContentBusyRef.current = true;
-    setSavingContent(true);
-    try {
-      const chapterNumber = activeNumber;
-      if (!chapterNumber) {
-        addToast(t("writing.chooseChapterFirst"), "error");
-        return;
-      }
-      if (activeChapterBusy) {
-        addToast(activeChapterGeneratingMessage, "error");
-        return;
-      }
-      const contentToSave = editorContent;
-      if (!contentToSave.trim()) {
-        addToast(t("writing.savingEmptyBody"), "error");
-        return;
-      }
-      let savedContent = contentToSave;
-      let savedChapter: ChapterSummary | null = null;
-      if (activeChapter) {
-        const updated = await updateChapterContent({
-          chapter_id: activeChapter.id,
-          content: contentToSave,
-          title: activeChapter.title,
-        });
-        savedContent = updated.content;
-        savedChapter = updated;
-        setChapters((prev) =>
-          prev.map((ch) => (ch.id === updated.id ? updated : ch)),
-        );
-      } else {
-        const title = activeOutline?.title?.trim() || t("writing.chapterLabel", { number: formatNumber(chapterNumber, locale) });
-        const imported = await importChapter({
-          project_id: projectId,
-          chapter_number: chapterNumber,
-          content: contentToSave,
-          title,
-        });
-        const nextChapters = await reloadChapters({ force: true });
-        const created = nextChapters?.find(
-          (chapter) => chapter.chapter_number === chapterNumber,
-        );
-        savedChapter = created ?? imported;
-        savedContent = savedChapter.content;
-      }
-      const currentContent = getCurrentEditorContent();
-      const saveStillMatchesEditor =
-        activeNumberRef.current === chapterNumber &&
-        currentContent === contentToSave;
-      if (saveStillMatchesEditor) {
-        removeDraftForChapter(chapterNumber);
-        setEditorState(savedContent, false);
-        if (savedChapter?.derived_sync_status === "failed") {
-          addToast(
-            t("writing.savedBodySyncFailed"),
-            chapterContentCommitToastType(savedChapter.derived_sync_status),
-          );
-        } else if (savedChapter?.derived_sync_status === "running") {
-          addToast(t("writing.savedBodySyncRunning"), "info");
-        } else {
-          addToast(t("writing.savedBodyAndMaterials"), "success");
-        }
-        return;
-      }
-
-      saveLocalDraftForCurrent();
-      addToast(t("writing.savedBodyWithUnsavedEdits"), "info");
-    } catch (err) {
-      addToast(extractErrorMessage(err, t("errors.saveFailed")), "error");
-    } finally {
-      saveContentBusyRef.current = false;
-      setSavingContent(false);
-    }
-  };
+  const handleSaveContent = useWritingDeskSaveContent({
+    projectId,
+    locale,
+    lifecycleBlockedReason,
+    activeNumber,
+    activeChapter,
+    activeOutline,
+    activeChapterBusy,
+    activeChapterGeneratingMessage,
+    editorContent,
+    saveContentBusyRef,
+    activeNumberRef,
+    addToast,
+    t,
+    setSavingContent,
+    setChapters,
+    reloadChapters,
+    getCurrentEditorContent,
+    removeDraftForChapter,
+    setEditorState,
+    saveLocalDraftForCurrent,
+  });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1189,205 +1014,138 @@ export const WritingDesk: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-      {lifecycleBlockedReason ? (
-        <div
-          role="status"
-          className="shrink-0 border-b border-warning/30 bg-warning-bg px-4 py-2 text-small text-book-text-main"
-        >
-          {lifecycleBlockedReason}
-        </div>
-      ) : null}
-
-      {!lifecycleBlockedReason && outlines.length === 0 && chapters.length === 0 && (
-        <MissingOutlineBanner
-          onOpenProjectDetail={() => safeNavigateTo(getProjectPrimaryRoute(project))}
-        />
-      )}
-
-      <WritingDeskHeader
-        project={project}
-        activeNumber={activeNumber}
-        isMobileLayout={isMobileLayout}
-        canGoPrev={previousChapterNumber != null}
-        canGoNext={nextChapterNumber != null}
-        chapterNumbers={chapterNumbers}
-        chapters={chapters}
-        outlines={outlines}
-        leftSidebarVisible={!isMobileLayout && leftSidebarVisible}
-        rightPanel={rightPanel}
-        dirty={dirty}
-        savingContent={savingContent}
-        editBlockedReason={lifecycleBlockedReason}
-        activeChapterBusy={activeChapterBusy}
-        activeChapterGeneratingMessage={activeChapterGeneratingMessage}
-        rightPanelAvailable={rightPanelAvailable}
-        rightPanelUnavailableTip={rightPanelUnavailableTip}
-        onSmartBack={safeSmartBack}
-        onOpenProjectDetail={() => safeNavigateTo(getProjectPrimaryRoute(project))}
-        onCreateChapter={handleCreateChapter}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        onSelectChapter={safeSelectChapter}
-        onToggleLeftSidebar={handleToggleLeftSidebar}
-        onOpenProfiles={() => setProfilesOpen(true)}
-        onRightPanelChange={handleRightPanelChange}
-        onSaveContent={handleSaveContent}
-      />
-
-      {/* 布局：左 sidebar（可隐藏）+ 中 workspace + 右 panel（按 rightPanel 切换） */}
-      <div
-        className="grid min-h-0 min-w-0 flex-1 gap-0 overflow-hidden"
-        style={{ gridTemplateColumns: writingDeskGridTemplateColumns }}
-      >
-        {!isMobileLayout && leftSidebarVisible && (
-          <ChapterSidebar
-            projectId={projectId}
-            chapters={chapters}
-            outlines={outlines}
-            chapterNumbers={chapterNumbers}
-            filteredChapterNumbers={filteredChapterNumbers}
-            activeNumber={activeNumber}
-            activeEditorContent={editorContent}
-            activeOutline={activeOutline}
-            chapterQuery={chapterQuery}
-            draftSet={draftSet}
-            profilesRefreshKey={profilesRefreshKey}
-            onChapterQueryChange={setChapterQuery}
-            onClearChapterQuery={() => setChapterQuery("")}
-            onOpenProfiles={() => setProfilesOpen(true)}
-            onRefreshChapters={reloadChapters}
-            onCreateChapter={handleCreateChapter}
-            onSelectChapter={safeSelectChapter}
-          />
-        )}
-
-        <ChapterWorkspace
-          projectId={projectId}
-          activeNumber={activeNumber}
-          activeChapter={activeChapter}
-          activeOutline={activeOutline}
-          activeChapterContext={activeChapterContext}
-          activeChapterBusy={activeChapterBusy}
-          activeChapterGeneratingMessage={activeChapterGeneratingMessage}
-          analysisBlockedReason={analysisBlockedReason}
-          editorContent={editorContent}
-          dirty={dirty}
-          savingContent={savingContent}
-          autoScrollEditorContent={streamingActiveChapter}
-          wordCount={wordCount}
-          generatingAnalysis={analysisBusy}
-          bottomTab={bottomTab}
-          onBottomTabChange={handleBottomTabChange}
-          onEditorContentChange={(content) => setEditorState(content, true)}
-          pendingContentDiff={
-            pendingContentDiff?.chapterId === activeChapter?.id
-              ? pendingContentDiff
-              : null
-          }
-          contentDiffAction={contentDiffAction}
-          onApplyContentDiff={handleApplyContentDiff}
-          onRejectContentDiff={handleRejectContentDiff}
-          onGenerateAnalysis={handleGenerateAnalysis}
-          onPreviewGenerateAnalysis={handlePreviewAnalysisRequest}
-          onResumeAnalysisSync={handleResumeAnalysisSync}
-          onPreviewResumeAnalysisSync={handlePreviewResumeAnalysisSyncRequest}
-          onResumeDerivedSync={handleResumeDerivedSync}
-          onOpenEmbeddingSettings={() => safeNavigateTo("/settings#embedding")}
-          canEdit={canEditWritingProject}
-        />
-
-        {!isMobileLayout && rightPanel !== "none" && (
-          <RightPanelResizeHandle
-            panel={rightPanel}
-            width={rightPanelWidth}
-            maxWidth={rightPanelMaxWidth}
-            isResizing={isResizingRightPanel}
-            onResizeStart={handleRightPanelResizeStart}
-            onResizeMove={handleRightPanelResizeMove}
-            onResizeEnd={finishRightPanelResize}
-            onSetWidth={setRightPanelWidth}
-            onResetWidth={resetRightPanelWidth}
-          />
-        )}
-
-        {!isMobileLayout && rightPanel === "rag" && (
-          <Suspense fallback={<WritingDeskPanelFallback text={t("writing.loadingMaterials")} />}>
-            <RagQueryPanel projectId={projectId} chapterNumber={activeNumber} />
-          </Suspense>
-        )}
-
-        {!isMobileLayout && assistantOpen && (
-          <Suspense fallback={<WritingDeskPanelFallback text={t("writing.loadingAssistant")} />}>
-            <WritingAssistantPanel {...writingAssistantPanelProps} />
-          </Suspense>
-        )}
-      </div>
-
-      {isMobileLayout && rightPanel !== "none" && (
-        <Modal
-          isOpen
-          onClose={() => setRightPanel("none")}
-          title={rightPanel === "rag" ? t("writing.rag") : t("writing.assistant")}
-          maxWidthClassName="max-w-3xl"
-          bodyClassName="min-h-0 flex-1 overflow-hidden p-0"
-        >
-          <Suspense fallback={<WritingDeskPanelFallback text={t("writing.loadingPanel")} />}>
-            {rightPanel === "rag" ? (
-              <RagQueryPanel
-                projectId={projectId}
-                chapterNumber={activeNumber}
-                embeddedInModal
-              />
-            ) : (
-              <WritingAssistantPanel {...writingAssistantPanelProps} embeddedInModal />
-            )}
-          </Suspense>
-        </Modal>
-      )}
-
-      {scenesOpen || previewOpen || profilesOpen ? (
-        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
-          <WritingDeskDialogs
-            projectId={projectId}
-            activeNumber={activeNumber}
-            activeChapterId={activeChapter?.id ?? null}
-            scenesOpen={scenesOpen}
-            previewOpen={previewOpen}
-            profilesOpen={profilesOpen}
-            profilesRefreshKey={profilesRefreshKey}
-            sceneAiBlockedReason={currentChapterAiBlockedReason}
-            characterAiBlockedReason={currentChapterAiBlockedReason}
-            previewing={previewing}
-            previewData={previewData}
-            onScenesClose={() => setScenesOpen(false)}
-            onPreviewClose={closePromptPreview}
-            onCharacterMaterialSync={handleCharacterMaterialSync}
-            onProfilesClose={() => {
-              setProfilesOpen(false);
-              setProfilesRefreshKey((value) => value + 1);
-            }}
-          />
-        </Suspense>
-      ) : null}
-      {analysisRequestPreviewOpen ? (
-        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
-          <RequestPreviewModal
-            open
-            loading={analysisRequestPreviewLoading}
-            data={analysisRequestPreviewData}
-            fallbackTitle={t("writing.chapterAnalysisPreview")}
-            onClose={() => setAnalysisRequestPreviewOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-    </div>
+    <WritingDeskView
+      projectId={projectId}
+      activeNumber={activeNumber}
+      chapters={chapters}
+      outlines={outlines}
+      lifecycleBlockedReason={lifecycleBlockedReason}
+      isMobileLayout={isMobileLayout}
+      leftSidebarVisible={leftSidebarVisible}
+      rightPanel={rightPanel}
+      assistantOpen={assistantOpen}
+      writingDeskGridTemplateColumns={writingDeskGridTemplateColumns}
+      onCloseRightPanel={() => setRightPanel("none")}
+      onCloseAnalysisRequestPreview={() => setAnalysisRequestPreviewOpen(false)}
+      headerProps={{
+        project,
+        activeNumber,
+        isMobileLayout,
+        canGoPrev: previousChapterNumber != null,
+        canGoNext: nextChapterNumber != null,
+        chapterNumbers,
+        chapters,
+        outlines,
+        leftSidebarVisible: !isMobileLayout && leftSidebarVisible,
+        rightPanel,
+        dirty,
+        savingContent,
+        editBlockedReason: lifecycleBlockedReason,
+        activeChapterBusy,
+        activeChapterGeneratingMessage,
+        rightPanelAvailable,
+        rightPanelUnavailableTip,
+        onSmartBack: safeSmartBack,
+        onOpenProjectDetail: () => safeNavigateTo(getProjectPrimaryRoute(project)),
+        onCreateChapter: handleCreateChapter,
+        onPrev: handlePrev,
+        onNext: handleNext,
+        onSelectChapter: safeSelectChapter,
+        onToggleLeftSidebar: handleToggleLeftSidebar,
+        onOpenProfiles: () => setProfilesOpen(true),
+        onRightPanelChange: handleRightPanelChange,
+        onSaveContent: handleSaveContent,
+      }}
+      sidebarProps={{
+        projectId,
+        chapters,
+        outlines,
+        chapterNumbers,
+        filteredChapterNumbers,
+        activeNumber,
+        activeEditorContent: editorContent,
+        activeOutline,
+        chapterQuery,
+        draftSet,
+        profilesRefreshKey,
+        onChapterQueryChange: setChapterQuery,
+        onClearChapterQuery: () => setChapterQuery(""),
+        onOpenProfiles: () => setProfilesOpen(true),
+        onRefreshChapters: reloadChapters,
+        onCreateChapter: handleCreateChapter,
+        onSelectChapter: safeSelectChapter,
+      }}
+      workspaceProps={{
+        projectId,
+        activeNumber,
+        activeChapter,
+        activeOutline,
+        activeChapterContext,
+        activeChapterBusy,
+        activeChapterGeneratingMessage,
+        analysisBlockedReason,
+        editorContent,
+        dirty,
+        savingContent,
+        autoScrollEditorContent: streamingActiveChapter,
+        wordCount,
+        generatingAnalysis: analysisBusy,
+        bottomTab,
+        onBottomTabChange: handleBottomTabChange,
+        onEditorContentChange: (content) => setEditorState(content, true),
+        pendingContentDiff:
+          pendingContentDiff?.chapterId === activeChapter?.id
+            ? pendingContentDiff
+            : null,
+        contentDiffAction,
+        onApplyContentDiff: handleApplyContentDiff,
+        onRejectContentDiff: handleRejectContentDiff,
+        onGenerateAnalysis: handleGenerateAnalysis,
+        onPreviewGenerateAnalysis: handlePreviewAnalysisRequest,
+        onResumeAnalysisSync: handleResumeAnalysisSync,
+        onPreviewResumeAnalysisSync: handlePreviewResumeAnalysisSyncRequest,
+        onResumeDerivedSync: handleResumeDerivedSync,
+        onOpenEmbeddingSettings: () => safeNavigateTo("/settings#embedding"),
+        canEdit: canEditWritingProject,
+      }}
+      resizeProps={{
+        panel: rightPanel,
+        width: rightPanelWidth,
+        maxWidth: rightPanelMaxWidth,
+        isResizing: isResizingRightPanel,
+        onResizeStart: handleRightPanelResizeStart,
+        onResizeMove: handleRightPanelResizeMove,
+        onResizeEnd: finishRightPanelResize,
+        onSetWidth: setRightPanelWidth,
+        onResetWidth: resetRightPanelWidth,
+      }}
+      assistantPanelProps={writingAssistantPanelProps}
+      dialogProps={{
+        projectId,
+        activeNumber,
+        activeChapterId: activeChapter?.id ?? null,
+        scenesOpen,
+        previewOpen,
+        profilesOpen,
+        profilesRefreshKey,
+        sceneAiBlockedReason: currentChapterAiBlockedReason,
+        characterAiBlockedReason: currentChapterAiBlockedReason,
+        previewing,
+        previewData,
+        onScenesClose: () => setScenesOpen(false),
+        onPreviewClose: closePromptPreview,
+        onCharacterMaterialSync: handleCharacterMaterialSync,
+        onProfilesClose: () => {
+          setProfilesOpen(false);
+          setProfilesRefreshKey((value) => value + 1);
+        },
+      }}
+      scenesOpen={scenesOpen}
+      previewOpen={previewOpen}
+      profilesOpen={profilesOpen}
+      analysisRequestPreviewOpen={analysisRequestPreviewOpen}
+      analysisRequestPreviewLoading={analysisRequestPreviewLoading}
+      analysisRequestPreviewData={analysisRequestPreviewData}
+    />
   );
 };
-
-const WritingDeskPanelFallback: React.FC<{ text: string }> = ({ text }) => (
-  <div className="a4n-desk-rail a4n-motion-panel-enter flex h-full min-h-0 items-center justify-center border-l border-book-border/80 text-xs text-book-text-muted">
-    <LoadingSpinner size="sm" className="mr-2" />
-    {text}
-  </div>
-);

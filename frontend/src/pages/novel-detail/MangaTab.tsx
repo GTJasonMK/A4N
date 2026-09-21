@@ -10,12 +10,10 @@ import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import {
   ProgressDialog,
-  type ProgressDialogStatus,
 } from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
 import { listChapters } from "../../api/chapter";
-import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import {
   listImagesByProject,
@@ -52,125 +50,20 @@ import { sha256Hex } from "../../utils/contentHash";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { MangaChapterDetailPanel } from "./manga/MangaChapterDetailPanel";
 import { MangaChapterList } from "./manga/MangaChapterList";
-import {
-  MANGA_PIPELINE_TOTAL_STEPS,
-  mangaStageLabel,
-} from "./manga/mangaTabUtils";
+import { MANGA_PIPELINE_TOTAL_STEPS } from "./manga/mangaTabUtils";
 import { useProgressTask } from "../../hooks/useProgressTask";
-import {
-  hasSystemDefaultLlmApiKey,
-  usesSystemDefaultLlmConfig,
-} from "../../api/localRuntimeSettings";
-import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
-import { useI18n, type MessageTranslator } from "../../i18n";
-import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
+import { useI18n } from "../../i18n";
 import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
-
-interface MangaTabProps {
-  projectId: number;
-  canEditManga?: boolean;
-  snapshotChapters?: SourceSnapshotChapterSummary[];
-  assetProjectId?: number;
-  imageProjectIds?: number[];
-  /**
-   * 当前章节（写作桌联动用）。
-   * 设置后跳过左侧章节列表，直接显示该章节的漫画详情。
-   */
-  fixedChapter?: ChapterRow | null;
-}
-
-interface MangaPipelineProgressState {
-  title: string;
-  status: ProgressDialogStatus;
-  current: number;
-  total: number;
-  message: string;
-  error: string | null;
-}
+import {
+  createMangaPipelineProgressState,
+  mangaPipelineConfigBlockReason,
+  type MangaPipelineProgressState,
+  pipelineStatusIsTerminal,
+  progressStateFromPipelineStatus,
+  type MangaTabProps,
+} from "./manga/mangaPipelineProgress";
 
 const MANGA_PIPELINE_POLL_MS = 1500;
-
-const createMangaPipelineProgressState = (
-  t: MessageTranslator,
-): MangaPipelineProgressState => ({
-  title: t("comic.pipelineTitle"),
-  status: "idle",
-  current: 0,
-  total: MANGA_PIPELINE_TOTAL_STEPS,
-  message: "",
-  error: null,
-});
-
-const pipelineStatusToProgressStatus = (
-  status: MangaPipelineStatusSummary["pipeline_status"],
-): ProgressDialogStatus => {
-  switch (status) {
-    case "completed":
-      return "success";
-    case "failed":
-    case "interrupted":
-      return "error";
-    case "cancelled":
-      return "cancelled";
-    case "running":
-      return "running";
-    default:
-      return "running";
-  }
-};
-
-const pipelineStatusIsTerminal = (
-  status: MangaPipelineStatusSummary["pipeline_status"],
-): boolean =>
-  status === "completed" ||
-  status === "failed" ||
-  status === "interrupted" ||
-  status === "cancelled";
-
-const pipelineProgressMessage = (
-  status: MangaPipelineStatusSummary,
-  t: MessageTranslator,
-): string => {
-  const message = status.message?.trim();
-  if (message) return explainMangaPipelineAiConfigError(message, t);
-  const stage = status.stage ? mangaStageLabel(status.stage, t) : "";
-  return stage || status.pipeline_status || t("comic.pipelineRunning");
-};
-
-const progressStateFromPipelineStatus = (
-  status: MangaPipelineStatusSummary,
-  title: string,
-  t: MessageTranslator,
-): MangaPipelineProgressState => {
-  const nextStatus = pipelineStatusToProgressStatus(status.pipeline_status);
-  return {
-    title,
-    status: nextStatus,
-    current: status.current ?? 0,
-    total: Math.max(1, status.total ?? MANGA_PIPELINE_TOTAL_STEPS),
-    message: pipelineProgressMessage(status, t),
-    error:
-      nextStatus === "error"
-        ? explainMangaPipelineAiConfigError(
-            status.message ?? t("comic.pipelineFailed"),
-            t,
-          )
-        : null,
-  };
-};
-
-const mangaPipelineConfigBlockReason = (
-  t: MessageTranslator,
-): string | null => {
-  if (
-    usesLocalRuntimeSettings() &&
-    usesSystemDefaultLlmConfig() &&
-    !hasSystemDefaultLlmApiKey()
-  ) {
-    return t("comic.llmApiKeyRequired");
-  }
-  return null;
-};
 
 export const MangaTab: React.FC<MangaTabProps> = ({
   projectId,
