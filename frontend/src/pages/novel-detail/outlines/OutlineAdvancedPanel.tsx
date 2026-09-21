@@ -26,9 +26,20 @@ import {
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { nonEmptyText } from "../../../utils/text";
-import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../../i18n";
+import {
+  formatNumber,
+  useI18n,
+  type Locale,
+  type MessageTranslator,
+} from "../../../i18n";
 import type { RunOutlineGeneration } from "./useOutlineGeneration";
 import { outlineOptimizationVariables } from "./outlineTabUtils";
+import {
+  AdvancedActionRow,
+  CompletionRow,
+  PacingSummary,
+} from "./OutlineAdvancedPanelSections";
+import { OutlineProgressPacingGrid } from "./OutlineProgressPacingGrid";
 
 interface OutlineAdvancedPanelProps {
   projectId: number;
@@ -40,142 +51,17 @@ interface OutlineAdvancedPanelProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
-const partOptionLabel = (part: PartOutline, locale: Locale, t: MessageTranslator): string => {
+const partOptionLabel = (
+  part: PartOutline,
+  locale: Locale,
+  t: MessageTranslator,
+): string => {
   const title = nonEmptyText(part.title);
-  const heading = t("outline.partSection.part", { part: formatNumber(part.part_number, locale) });
+  const heading = t("outline.partSection.part", {
+    part: formatNumber(part.part_number, locale),
+  });
   return title ? `${heading} · ${title}` : heading;
 };
-
-const CompletionRow: React.FC<{ label: string; current: number; total: number }> = ({
-  label,
-  current,
-  total,
-}) => {
-  const { locale } = useI18n();
-  const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
-  return (
-    <div>
-      <div className="mb-1 flex items-center gap-2 text-small">
-        <span className="font-medium text-book-text-sub">{label}</span>
-        <span className="ml-auto tabular-nums text-book-text-muted">
-          {formatNumber(current, locale)} / {formatNumber(total, locale)}
-        </span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-book-bg-tertiary">
-        <div
-          className="h-full rounded-full bg-book-primary/75 transition-[width] duration-300"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-    </div>
-  );
-};
-
-const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => {
-  const { locale, t } = useI18n();
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small">
-        <span className="font-medium text-book-text-main">{data.summary || t("outline.advancedPanel.noPacingConclusion")}</span>
-        <span className="text-book-text-muted">
-          {t("outline.advancedPanel.chapterPacing", {
-            count: formatNumber(data.chapter_count, locale),
-            score: formatNumber(data.pacing_score, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          })}
-        </span>
-      </div>
-      {data.analysis.length > 0 ? (
-        <div className="divide-y divide-book-border/35">
-          {data.analysis.map((item) => (
-            <div key={item.chapter_number} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 py-1.5 text-small">
-              <span className="min-w-0 truncate text-book-text-sub">
-                {t("outline.advancedPanel.chapter", { chapter: formatNumber(item.chapter_number, locale) })}{item.title ? ` · ${item.title}` : ""}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-book-bg-tertiary">
-                  <div
-                    className="h-full rounded-full bg-book-primary/70"
-                    style={{ width: `${Math.min(100, Math.max(0, item.pacing_score * 100))}%` }}
-                  />
-                </div>
-                <span className="w-6 text-right tabular-nums text-book-text-muted">
-                  {formatNumber(item.pacing_score, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-small text-book-text-muted">{t("outline.advancedPanel.noPacingData")}</div>
-      )}
-    </div>
-  );
-};
-
-function AdvancedActionRow({
-  title,
-  description,
-  actionLabel,
-  actionBusyLabel,
-  busy,
-  disabled,
-  warning = false,
-  standalone = false,
-  onPreview,
-  onAction,
-}: {
-  title: string;
-  description: string;
-  actionLabel: string;
-  actionBusyLabel: string;
-  busy: boolean;
-  disabled: boolean;
-  warning?: boolean;
-  standalone?: boolean;
-  onPreview: () => void;
-  onAction: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div
-      className={`${standalone ? "a4n-flat-surface " : ""}flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center`}
-    >
-      <div className="min-w-0 flex-1">
-        <h5 className="text-xs font-medium text-book-text-main">{title}</h5>
-        <p className="mt-1 text-small leading-relaxed text-book-text-muted">{description}</p>
-      </div>
-      <div className="flex items-center justify-end gap-2 sm:shrink-0">
-        {!busy ? (
-          <Dropdown
-            items={[
-              {
-                label: t("outline.advanced.viewRequest"),
-                icon: <Eye size={12} />,
-                onClick: onPreview,
-                disabled,
-              },
-            ]}
-          />
-        ) : null}
-        <BookButton
-          variant={warning ? "warning" : "secondary"}
-          size="sm"
-          onClick={onAction}
-          disabled={disabled}
-          className="min-w-0 flex-1 !text-xs sm:flex-none"
-        >
-          {busy ? (
-            <span className="inline-flex items-center gap-1.5">
-              <LoadingSpinner size="sm" /> {actionBusyLabel}
-            </span>
-          ) : (
-            actionLabel
-          )}
-        </BookButton>
-      </div>
-    </div>
-  );
-}
 
 export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   projectId,
@@ -198,12 +84,15 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     });
   const showGenerationSuccess = (message: string, warnings: string[]) => {
     addToast(
-      warnings.length > 0 ? `${message}${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}` : message,
+      warnings.length > 0
+        ? `${message}${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}`
+        : message,
       warnings.length > 0 ? "info" : "success",
     );
   };
 
-  const [progress, setProgress] = useState<OutlineGenerationProgressSummary | null>(null);
+  const [progress, setProgress] =
+    useState<OutlineGenerationProgressSummary | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
   const [autoPoll, setAutoPoll] = useState(false);
 
@@ -224,7 +113,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   const [batchBusy, setBatchBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
-  const [requestPreviewData, setRequestPreviewData] = useState<ModelRequestPreview | null>(null);
+  const [requestPreviewData, setRequestPreviewData] =
+    useState<ModelRequestPreview | null>(null);
 
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
@@ -264,10 +154,13 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     };
   }, [onBusyChange]);
 
-  const showGenerationError = useCallback((err: unknown, fallback: string) => {
-    const message = extractErrorMessage(err, fallback);
-    if (!isCancelledOperation(message)) addToast(message, "error");
-  }, [addToast]);
+  const showGenerationError = useCallback(
+    (err: unknown, fallback: string) => {
+      const message = extractErrorMessage(err, fallback);
+      if (!isCancelledOperation(message)) addToast(message, "error");
+    },
+    [addToast],
+  );
 
   const isProjectCurrent = useCallback(
     (requestProjectId: number) =>
@@ -277,7 +170,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
   const isProgressCurrent = useCallback(
     (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) && progressSeqRef.current === requestSeq,
+      isProjectCurrent(requestProjectId) &&
+      progressSeqRef.current === requestSeq,
     [isProjectCurrent],
   );
 
@@ -289,7 +183,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
   const isPreviewCurrent = useCallback(
     (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) && previewSeqRef.current === requestSeq,
+      isProjectCurrent(requestProjectId) &&
+      previewSeqRef.current === requestSeq,
     [isProjectCurrent],
   );
 
@@ -316,7 +211,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         return null;
       }
       if (actionBusyRef.current) {
-        addToast(t("outline.advancedPanel.advancedOperationInProgress"), "error");
+        addToast(
+          t("outline.advancedPanel.advancedOperationInProgress"),
+          "error",
+        );
         return null;
       }
       actionBusyRef.current = true;
@@ -327,12 +225,15 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     [addToast, isProjectCurrent, onBusyChange, t],
   );
 
-  const finishAction = useCallback((requestSeq: number) => {
-    if (actionSeqRef.current === requestSeq) {
-      actionBusyRef.current = false;
-      onBusyChange?.(false);
-    }
-  }, [onBusyChange]);
+  const finishAction = useCallback(
+    (requestSeq: number) => {
+      if (actionSeqRef.current === requestSeq) {
+        actionBusyRef.current = false;
+        onBusyChange?.(false);
+      }
+    },
+    [onBusyChange],
+  );
 
   const beginPreview = useCallback(
     (requestProjectId: number): number | null => {
@@ -354,8 +255,15 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   const beginConfirmAction = useCallback(
     (requestProjectId: number): boolean => {
       if (!isProjectCurrent(requestProjectId)) return false;
-      if (disabledRef.current || actionBusyRef.current || confirmBusyRef.current) {
-        addToast(t("outline.advancedPanel.advancedOperationInProgress"), "error");
+      if (
+        disabledRef.current ||
+        actionBusyRef.current ||
+        confirmBusyRef.current
+      ) {
+        addToast(
+          t("outline.advancedPanel.advancedOperationInProgress"),
+          "error",
+        );
         return false;
       }
       confirmBusyRef.current = true;
@@ -374,7 +282,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         addToast(t("outline.advancedPanel.selectPart"), "error");
         return null;
       }
-      const part = partsRef.current.find((item) => item.id === selectedPartId) ?? null;
+      const part =
+        partsRef.current.find((item) => item.id === selectedPartId) ?? null;
       if (!part || part.project_id !== requestProjectId) {
         addToast(t("outline.advancedPanel.partsChanged"), "error");
         return null;
@@ -412,7 +321,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         setRequestPreviewOpen(false);
       }
     } finally {
-      if (isPreviewCurrent(requestProjectId, requestSeq)) setRequestPreviewLoading(false);
+      if (isPreviewCurrent(requestProjectId, requestSeq))
+        setRequestPreviewLoading(false);
       finishPreview(requestSeq);
     }
   };
@@ -463,7 +373,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     partsRef.current = parts;
     setSelectedPartId((current) => {
       if (current === "") return current;
-      return parts.some((part) => part.id === current && part.project_id === projectId)
+      return parts.some(
+        (part) => part.id === current && part.project_id === projectId,
+      )
         ? current
         : "";
     });
@@ -480,10 +392,14 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       setProgress(result);
     } catch (err) {
       if (isProgressCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, t("outline.advancedPanel.progressFailed")), "error");
+        addToast(
+          extractErrorMessage(err, t("outline.advancedPanel.progressFailed")),
+          "error",
+        );
       }
     } finally {
-      if (isProgressCurrent(requestProjectId, requestSeq)) setProgressLoading(false);
+      if (isProgressCurrent(requestProjectId, requestSeq))
+        setProgressLoading(false);
     }
   }, [addToast, isProgressCurrent, projectId, t]);
 
@@ -505,10 +421,14 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       setPacing(result);
     } catch (err) {
       if (isPacingCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, t("outline.advancedPanel.pacingFailed")), "error");
+        addToast(
+          extractErrorMessage(err, t("outline.advancedPanel.pacingFailed")),
+          "error",
+        );
       }
     } finally {
-      if (isPacingCurrent(requestProjectId, requestSeq)) setPacingLoading(false);
+      if (isPacingCurrent(requestProjectId, requestSeq))
+        setPacingLoading(false);
     }
   };
 
@@ -615,9 +535,15 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: t("outline.advancedPanel.generatePartChapters", { part: formatNumber(requestPart.part_number, locale) }),
-          startMessage: t("outline.advancedPanel.generatingPartChapters", { part: formatNumber(requestPart.part_number, locale) }),
-          successMessage: t("outline.advancedPanel.generatedPartChapters", { part: formatNumber(requestPart.part_number, locale) }),
+          title: t("outline.advancedPanel.generatePartChapters", {
+            part: formatNumber(requestPart.part_number, locale),
+          }),
+          startMessage: t("outline.advancedPanel.generatingPartChapters", {
+            part: formatNumber(requestPart.part_number, locale),
+          }),
+          successMessage: t("outline.advancedPanel.generatedPartChapters", {
+            part: formatNumber(requestPart.part_number, locale),
+          }),
           errorMessage: t("outline.advancedPanel.generateFailed"),
         },
         {
@@ -635,7 +561,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(t("outline.advancedPanel.generatedPartChapters", { part: formatNumber(requestPart.part_number, locale) }), warnings);
+      showGenerationSuccess(
+        t("outline.advancedPanel.generatedPartChapters", {
+          part: formatNumber(requestPart.part_number, locale),
+        }),
+        warnings,
+      );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -669,12 +600,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       addToast(t("outline.advancedPanel.noPartsToGenerate"), "error");
       return;
     }
-    const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
+    const foreignPart = requestParts.find(
+      (part) => part.project_id !== requestProjectId,
+    );
     if (foreignPart) {
       addToast(t("outline.advancedPanel.foreignPartsGenerate"), "error");
       return;
     }
-    const partIds = requestParts.map((part) => part.id) as [number, ...number[]];
+    const partIds = requestParts.map((part) => part.id) as [
+      number,
+      ...number[],
+    ];
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setBatchBusy(true);
@@ -682,7 +618,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       const warnings = await runGeneration(
         {
           title: t("outline.advancedPanel.batchGenerate"),
-          startMessage: t("outline.advancedPanel.batchGenerating", { count: formatNumber(partIds.length, locale) }),
+          startMessage: t("outline.advancedPanel.batchGenerating", {
+            count: formatNumber(partIds.length, locale),
+          }),
           successMessage: t("outline.advancedPanel.batchGenerated"),
           errorMessage: t("outline.advancedPanel.batchFailed"),
         },
@@ -701,7 +639,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(t("outline.advancedPanel.batchGenerated"), warnings);
+      showGenerationSuccess(
+        t("outline.advancedPanel.batchGenerated"),
+        warnings,
+      );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -720,7 +661,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       addToast(t("outline.advancedPanel.noPartsToGenerate"), "error");
       return;
     }
-    const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
+    const foreignPart = requestParts.find(
+      (part) => part.project_id !== requestProjectId,
+    );
     if (foreignPart) {
       addToast(t("outline.advancedPanel.foreignPartsPreview"), "error");
       return;
@@ -748,11 +691,16 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refinePart", { part: requestPart.part_number }),
       );
-      if (direction === null || !isActionCurrent(requestProjectId, actionSeq)) return;
+      if (direction === null || !isActionCurrent(requestProjectId, actionSeq))
+        return;
       const warnings = await runGeneration(
         {
-          title: t("outline.advancedPanel.regeneratePart", { part: formatNumber(requestPart.part_number, locale) }),
-          startMessage: t("outline.advancedPanel.regeneratingPart", { part: formatNumber(requestPart.part_number, locale) }),
+          title: t("outline.advancedPanel.regeneratePart", {
+            part: formatNumber(requestPart.part_number, locale),
+          }),
+          startMessage: t("outline.advancedPanel.regeneratingPart", {
+            part: formatNumber(requestPart.part_number, locale),
+          }),
           successMessage: t("outline.advancedPanel.regeneratedPart"),
           errorMessage: t("outline.regenerateFailed"),
         },
@@ -772,7 +720,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(t("outline.advancedPanel.regeneratedPart"), warnings);
+      showGenerationSuccess(
+        t("outline.advancedPanel.regeneratedPart"),
+        warnings,
+      );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         showGenerationError(err, t("outline.regenerateFailed"));
@@ -810,7 +761,13 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       expectedParts = outlineRecordTargets(parts);
     } catch (error) {
-      addToast(extractErrorMessage(error, t("outline.advancedPanel.confirmPartsFailed")), "error");
+      addToast(
+        extractErrorMessage(
+          error,
+          t("outline.advancedPanel.confirmPartsFailed"),
+        ),
+        "error",
+      );
       return;
     }
     const requestPartCount = expectedParts.length;
@@ -822,7 +779,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         range:
           requestChaptersPerPart == null
             ? t("outline.advancedPanel.reuseChapterSpan")
-            : t("outline.advancedPanel.repartition", { count: formatNumber(requestChaptersPerPart, locale) }),
+            : t("outline.advancedPanel.repartition", {
+                count: formatNumber(requestChaptersPerPart, locale),
+              }),
       }),
       confirmText: t("outline.advancedPanel.regenerateConfirm"),
       dialogType: "warning",
@@ -867,14 +826,18 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(t("outline.advancedPanel.regeneratedAll"), warnings);
+      showGenerationSuccess(
+        t("outline.advancedPanel.regeneratedAll"),
+        warnings,
+      );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
         showGenerationError(err, t("outline.regenerateFailed"));
       }
     } finally {
-      if (isActionCurrent(requestProjectId, actionSeq)) setRegenPartsBusy(false);
+      if (isActionCurrent(requestProjectId, actionSeq))
+        setRegenPartsBusy(false);
       finishAction(actionSeq);
     }
   };
@@ -886,7 +849,13 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       expectedParts = outlineRecordTargets(parts);
     } catch (error) {
-      addToast(extractErrorMessage(error, t("outline.advancedPanel.confirmPartsFailed")), "error");
+      addToast(
+        extractErrorMessage(
+          error,
+          t("outline.advancedPanel.confirmPartsFailed"),
+        ),
+        "error",
+      );
       return;
     }
     await openPreview(
@@ -909,7 +878,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       addToast(t("outline.advancedPanel.continueNeedPart"), "error");
       return;
     }
-    const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
+    const foreignPart = requestParts.find(
+      (part) => part.project_id !== requestProjectId,
+    );
     if (foreignPart) {
       addToast(t("outline.advancedPanel.foreignPartsContinue"), "error");
       return;
@@ -930,13 +901,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: t("outline.advancedPanel.continuePart", { part: formatNumber(lastPart.part_number + 1, locale) }),
+          title: t("outline.advancedPanel.continuePart", {
+            part: formatNumber(lastPart.part_number + 1, locale),
+          }),
           startMessage: t("outline.advancedPanel.continuingPart", {
             part: formatNumber(lastPart.part_number + 1, locale),
             start: formatNumber(startChapter, locale),
             end: formatNumber(endChapter, locale),
           }),
-          successMessage: t("outline.advancedPanel.continuedPart", { part: formatNumber(lastPart.part_number + 1, locale) }),
+          successMessage: t("outline.advancedPanel.continuedPart", {
+            part: formatNumber(lastPart.part_number + 1, locale),
+          }),
           errorMessage: t("outline.advancedPanel.continueFailed"),
         },
         {
@@ -957,7 +932,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(t("outline.advancedPanel.continuedPart", { part: formatNumber(lastPart.part_number + 1, locale) }), warnings);
+      showGenerationSuccess(
+        t("outline.advancedPanel.continuedPart", {
+          part: formatNumber(lastPart.part_number + 1, locale),
+        }),
+        warnings,
+      );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
@@ -976,7 +956,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       addToast(t("outline.advancedPanel.continueNeedPart"), "error");
       return;
     }
-    const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
+    const foreignPart = requestParts.find(
+      (part) => part.project_id !== requestProjectId,
+    );
     if (foreignPart) {
       addToast(t("outline.advancedPanel.foreignPartsPreview"), "error");
       return;
@@ -1007,116 +989,41 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <section className="a4n-flat-surface p-3">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.progressTitle")}</h4>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoPoll}
-              onClick={() => setAutoPoll((current) => !current)}
-              disabled={controlsDisabled}
-              className="ml-auto inline-flex items-center gap-2 text-small text-book-text-muted disabled:cursor-not-allowed disabled:opacity-50"
-              title={autoPoll ? t("outline.advancedPanel.autoRefreshOn") : t("outline.advancedPanel.autoRefreshOff")}
-            >
-              <span>{t("outline.advancedPanel.autoRefresh")}</span>
-              <span
-                className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
-                  autoPoll ? "bg-book-primary" : "bg-book-text-muted/25"
-                }`}
-              >
-                <span
-                  className={`absolute top-[2px] h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                    autoPoll ? "translate-x-4" : "translate-x-[2px]"
-                  }`}
-                />
-              </span>
-            </button>
-            <BookButton
-              variant="ghost"
-              size="sm"
-              onClick={loadProgress}
-              disabled={disabled || progressLoading}
-              className="!px-2 !text-small"
-            >
-              {progressLoading ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> {t("outline.advancedPanel.refreshing")}
-                </span>
-              ) : (
-                t("outline.advancedPanel.refresh")
-              )}
-            </BookButton>
-          </div>
-          {progress ? (
-            <div className="space-y-3">
-              <CompletionRow label={t("outline.advancedPanel.partsProgress")} current={progress.completed_parts} total={progress.total_parts} />
-              <CompletionRow
-                label={t("outline.advancedPanel.chaptersProgress")}
-                current={progress.completed_chapter_outlines}
-                total={progress.total_chapter_outlines}
-              />
-            </div>
-          ) : (
-            <p className="text-small text-book-text-muted">{t("outline.advancedPanel.noProgress")}</p>
-          )}
-        </section>
-
-        <section className="a4n-flat-surface p-3">
-          <div className="mb-3 flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.pacingTitle")}</h4>
-              {!pacing ? (
-                <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.pacingHint")}</p>
-              ) : null}
-            </div>
-            {pacingLoading ? (
-              <span
-                role="status"
-                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 text-small text-book-text-muted"
-                title={t("outline.advancedPanel.analyzingPacing")}
-              >
-                <LoadingSpinner size="sm" /> {t("outline.advancedPanel.analyzing")}
-              </span>
-            ) : pacing ? (
-              <Dropdown
-                items={[
-                  {
-                    label: t("outline.advancedPanel.reanalyzePacing"),
-                    onClick: loadPacing,
-                    disabled,
-                  },
-                ]}
-              />
-            ) : (
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={loadPacing}
-                disabled={disabled}
-                className="!text-xs"
-              >
-                {t("outline.advancedPanel.startAnalysis")}
-              </BookButton>
-            )}
-          </div>
-          {pacing ? <PacingSummary data={pacing} /> : null}
-        </section>
-      </div>
+      <OutlineProgressPacingGrid
+        progress={progress}
+        progressLoading={progressLoading}
+        autoPoll={autoPoll}
+        onToggleAutoPoll={() => setAutoPoll((current) => !current)}
+        onLoadProgress={loadProgress}
+        disabled={disabled}
+        controlsDisabled={controlsDisabled}
+        pacing={pacing}
+        pacingLoading={pacingLoading}
+        onLoadPacing={loadPacing}
+      />
 
       <section className="space-y-2">
         <div>
-          <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.selectedPart")}</h4>
-          <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.selectedPartHint")}</p>
+          <h4 className="text-sm font-medium text-book-text-main">
+            {t("outline.advancedPanel.selectedPart")}
+          </h4>
+          <p className="mt-0.5 text-small text-book-text-muted">
+            {t("outline.advancedPanel.selectedPartHint")}
+          </p>
         </div>
         <ThemedSelect
           value={selectedPartId}
-          onChange={(event) => setSelectedPartId(event.target.value ? Number(event.target.value) : "")}
+          onChange={(event) =>
+            setSelectedPartId(
+              event.target.value ? Number(event.target.value) : "",
+            )
+          }
           disabled={controlsDisabled}
           className="pyqt-input w-full"
         >
-          <option value="">{t("outline.advancedPanel.selectPartPlaceholder")}</option>
+          <option value="">
+            {t("outline.advancedPanel.selectPartPlaceholder")}
+          </option>
           {parts.map((part) => (
             <option key={part.id} value={part.id}>
               {partOptionLabel(part, locale, t)}
@@ -1128,7 +1035,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             title={t("outline.advancedPanel.generateSelectedPart")}
             description={t("outline.advancedPanel.batchDescription")}
             actionLabel={t("outline.advancedPanel.generateSelectedPartAction")}
-            actionBusyLabel={t("outline.advancedPanel.generateSelectedPartBusy")}
+            actionBusyLabel={t(
+              "outline.advancedPanel.generateSelectedPartBusy",
+            )}
             busy={partGenBusy}
             disabled={controlsDisabled || selectedPartId === ""}
             onPreview={handlePreviewGeneratePartChapters}
@@ -1140,15 +1049,23 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
       <section className="space-y-2">
         <div>
-          <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.allParts")}</h4>
-          <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.allPartsHint")}</p>
+          <h4 className="text-sm font-medium text-book-text-main">
+            {t("outline.advancedPanel.allParts")}
+          </h4>
+          <p className="mt-0.5 text-small text-book-text-muted">
+            {t("outline.advancedPanel.allPartsHint")}
+          </p>
         </div>
         <div className="grid gap-2">
           <AdvancedActionRow
             title={t("outline.advancedPanel.batchGenerate")}
-            description={t("outline.advancedPanel.generateSelectedPartDescription")}
+            description={t(
+              "outline.advancedPanel.generateSelectedPartDescription",
+            )}
             actionLabel={t("outline.advancedPanel.batchAction")}
-            actionBusyLabel={t("outline.advancedPanel.generateSelectedPartBusy")}
+            actionBusyLabel={t(
+              "outline.advancedPanel.generateSelectedPartBusy",
+            )}
             busy={batchBusy}
             disabled={controlsDisabled || parts.length === 0}
             onPreview={handlePreviewBatchPartOutlines}
@@ -1171,7 +1088,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
       <details className="group">
         <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
-          <span className="font-medium text-book-text-main">{t("outline.advancedPanel.rewriteSection")}</span>
+          <span className="font-medium text-book-text-main">
+            {t("outline.advancedPanel.rewriteSection")}
+          </span>
           <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
             {t("outline.advancedPanel.rewriteSectionHint")}
           </span>
@@ -1240,7 +1159,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             >
               {beatBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> {t("outline.advancedPanel.applying")}
+                  <LoadingSpinner size="sm" />{" "}
+                  {t("outline.advancedPanel.applying")}
                 </span>
               ) : (
                 t("outline.advancedPanel.applyBeatAction")

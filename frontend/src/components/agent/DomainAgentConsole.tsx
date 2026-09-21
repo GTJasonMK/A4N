@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import {
   Bot,
-  Check,
   CircleAlert,
   CircleDot,
   Clock3,
@@ -18,14 +17,12 @@ import {
   Play,
   RefreshCw,
   Send,
-  ShieldCheck,
   Square,
   Trash2,
   Workflow,
   X,
 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
-import { compactAgentValue } from "./AgentMessageRow";
 import {
   AgentMessageList,
   createPendingAgentMessage,
@@ -53,8 +50,6 @@ import {
   type AgentDeliveryMode,
   type AgentEvent,
   type AgentExecutionMode,
-  type AgentExecutionView,
-  type AgentScope,
   type AgentThreadSnapshot,
   type AgentThreadView,
 } from "../../api/agent";
@@ -65,24 +60,32 @@ import { confirmDialog } from "../feedback/ConfirmDialog";
 import { useToast } from "../feedback/Toast";
 import { useFollowLatest } from "../../hooks/useFollowLatest";
 import { isImeCompositionActive } from "../../utils/ime";
-import { useI18n, type Locale } from "../../i18n";
+import { useI18n } from "../../i18n";
 import {
   reduceAgentEvent,
   snapshotCursor,
   streamedAgentMessageIds,
 } from "../../utils/agentEventReducer";
-
-export type DomainAgentCapability = "content_optimization" | "canvas" | "director";
-
-export function matchesEditorSourceScope(
-  source: import("../../api/agent").AgentEditorSource,
-  projectId: number,
-  chapterId: number | null | undefined,
-): boolean {
-  return chapterId != null
-    && source.project_id === projectId
-    && source.chapter_id === chapterId;
-}
+import {
+  ApprovalRow,
+  ExecutionRow,
+  Notice,
+  labelFor,
+} from "./DomainAgentConsoleRows";
+import {
+  domainAgentBinding,
+  matchesEditorSourceScope,
+  scopeForBinding,
+  type DomainAgentCapability,
+} from "./DomainAgentBinding";
+export {
+  domainAgentBinding,
+  findDomainAgentThread,
+  matchesDomainAgentThread,
+  matchesEditorSourceScope,
+  type DomainAgentBinding,
+  type DomainAgentCapability,
+} from "./DomainAgentBinding";
 
 export interface DomainAgentConsoleProps {
   capability: DomainAgentCapability;
@@ -96,159 +99,16 @@ export interface DomainAgentConsoleProps {
   onResourceChanged?: () => void | Promise<void>;
   onPendingContentDiffChange?: (diff: PendingContentDiff | null) => void;
   getEditorSource?: () => import("../../api/agent").AgentEditorSource | null;
-  onEditorRequest?: (request: import("../../api/agent").AgentEditorRequest, runId: string) => Promise<void>;
+  onEditorRequest?: (
+    request: import("../../api/agent").AgentEditorRequest,
+    runId: string,
+  ) => Promise<void>;
 }
-
-export interface DomainAgentBinding {
-  capability: DomainAgentCapability;
-  projectId: number;
-  chapterId: number | null;
-  resourceKind: "project" | "chapter";
-  resourceId: string;
-}
-
-const RUN_STATUS_LABELS: Record<
-  string,
-  { zh: string; en: string }
-> = {
-  queued: { zh: "排队中", en: "Queued" },
-  running: { zh: "运行中", en: "Running" },
-  waiting: { zh: "等待中", en: "Waiting" },
-  pausing: { zh: "暂停中", en: "Pausing" },
-  paused: { zh: "已暂停", en: "Paused" },
-  cancelling: { zh: "取消中", en: "Cancelling" },
-  cancelled: { zh: "已取消", en: "Cancelled" },
-  completed: { zh: "已完成", en: "Completed" },
-  failed: { zh: "失败", en: "Failed" },
-  interrupted: { zh: "已中断", en: "Interrupted" },
-  recovery_required: { zh: "需要恢复", en: "Recovery required" },
-  active: { zh: "活跃", en: "Active" },
-  archived: { zh: "已归档", en: "Archived" },
-  pending: { zh: "待处理", en: "Pending" },
-  claimed: { zh: "处理中", en: "Claimed" },
-  approved: { zh: "已批准", en: "Approved" },
-  rejected: { zh: "已拒绝", en: "Rejected" },
-  expired: { zh: "已过期", en: "Expired" },
-  consumed: { zh: "已处理", en: "Consumed" },
-};
-
-const labelFor = (value: string | null | undefined, locale: Locale): string => {
-  if (!value) return locale === "zh-CN" ? "未知" : "Unknown";
-  const known = RUN_STATUS_LABELS[value];
-  return known
-    ? locale === "zh-CN"
-      ? known.zh
-      : known.en
-    : value.replace(/_/g, " ");
-};
 
 const randomClientMessageId = (): string =>
   typeof globalThis.crypto?.randomUUID === "function"
     ? globalThis.crypto.randomUUID()
     : `domain-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-function positiveId(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
-}
-
-export function domainAgentBinding(
-  capability: DomainAgentCapability,
-  projectId: number,
-  chapterId?: number | null,
-): DomainAgentBinding | null {
-  if (!positiveId(projectId)) return null;
-  if (capability === "content_optimization") {
-    if (!positiveId(chapterId)) return null;
-    return {
-      capability,
-      projectId,
-      chapterId,
-      resourceKind: "chapter",
-      resourceId: String(chapterId),
-    };
-  }
-  if (capability === "director") {
-    if (!positiveId(chapterId)) return null;
-    return {
-      capability,
-      projectId,
-      chapterId,
-      resourceKind: "chapter",
-      resourceId: String(chapterId),
-    };
-  }
-  if (chapterId != null) return null;
-  return {
-    capability,
-    projectId,
-    chapterId: null,
-    resourceKind: "project",
-    resourceId: String(projectId),
-  };
-}
-
-export function matchesDomainAgentThread(
-  thread: AgentThreadView,
-  binding: DomainAgentBinding,
-): boolean {
-  if (thread.kind !== "subagent" || thread.capability !== binding.capability) {
-    return false;
-  }
-  const scope = thread.scope;
-  if (
-    scope.project_id !== binding.projectId ||
-    scope.chapter_id !== binding.chapterId
-  ) {
-    return false;
-  }
-  const resource = thread.bound_resource;
-  if (
-    resource?.kind === binding.resourceKind &&
-    resource.id === binding.resourceId
-  ) {
-    return true;
-  }
-  return (
-    scope.resource_kind === binding.resourceKind &&
-    scope.resource_id === binding.resourceId
-  );
-}
-
-export function findDomainAgentThread(
-  threads: AgentThreadView[],
-  binding: DomainAgentBinding,
-): AgentThreadView | null {
-  const matches = threads.filter((thread) =>
-    matchesDomainAgentThread(thread, binding),
-  );
-  return matches.find(isAgentThreadOperational) ?? null;
-}
-
-function scopeForBinding(binding: DomainAgentBinding): AgentScope {
-  return {
-    resource_kind: binding.resourceKind,
-    resource_id: binding.resourceId,
-    project_id: binding.projectId,
-    chapter_id: binding.chapterId,
-    // The runtime derives the authoritative domain tool catalog from the
-    // capability. Keeping this list empty avoids a second frontend tool source.
-    allowed_capabilities: [binding.capability],
-    allowed_tools: [],
-  };
-}
-
-function executionTone(execution: AgentExecutionView): string {
-  if (execution.status === "succeeded") return "text-success";
-  if (
-    execution.status === "failed" ||
-    execution.status === "rejected" ||
-    execution.status === "outcome_unknown"
-  ) {
-    return "text-error";
-  }
-  if (execution.status === "awaiting_user") return "text-warning";
-  return "text-book-primary";
-}
 
 export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   capability,
@@ -269,8 +129,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const inputId = useId();
   const [thread, setThread] = useState<AgentThreadView | null>(null);
   const [snapshot, setSnapshot] = useState<AgentThreadSnapshot | null>(null);
-  const [streamedMessageIds, setStreamedMessageIds] = useState<Set<string>>(() => new Set());
-  const [pendingSubmission, setPendingSubmission] = useState<PendingAgentMessage | null>(null);
+  const [streamedMessageIds, setStreamedMessageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingSubmission, setPendingSubmission] =
+    useState<PendingAgentMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -280,12 +143,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [draft, setDraft] = useState("");
   const [deliveryMode, setDeliveryMode] =
     useState<AgentDeliveryMode>("followup");
-  const [executionMode, setExecutionMode] =
-    useState<AgentExecutionMode>(() =>
-      capability === "content_optimization" ? "review_writes" : "autonomous",
-    );
-  const [controlBusy, setControlBusy] =
-    useState<AgentControlAction | null>(null);
+  const [executionMode, setExecutionMode] = useState<AgentExecutionMode>(() =>
+    capability === "content_optimization" ? "review_writes" : "autonomous",
+  );
+  const [controlBusy, setControlBusy] = useState<AgentControlAction | null>(
+    null,
+  );
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -304,15 +167,18 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     executionId: string | null;
   } | null>(null);
 
-  const rememberStreamedMessages = useCallback((events: AgentEvent[], runId?: string) => {
-    const ids = streamedAgentMessageIds(events, runId);
-    if (ids.length === 0) return;
-    setStreamedMessageIds((current) => {
-      const next = new Set(current);
-      ids.forEach((id) => next.add(id));
-      return next.size === current.size ? current : next;
-    });
-  }, []);
+  const rememberStreamedMessages = useCallback(
+    (events: AgentEvent[], runId?: string) => {
+      const ids = streamedAgentMessageIds(events, runId);
+      if (ids.length === 0) return;
+      setStreamedMessageIds((current) => {
+        const next = new Set(current);
+        ids.forEach((id) => next.add(id));
+        return next.size === current.size ? current : next;
+      });
+    },
+    [],
+  );
 
   const binding = useMemo(
     () => domainAgentBinding(capability, projectId, chapterId),
@@ -342,7 +208,13 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     : isDirector
       ? t("agent.domain.directorSubtitle", { resource: displayResourceLabel })
       : t("agent.domain.canvasSubtitle", { resource: displayResourceLabel });
-  const icon = isOptimization ? <Bot size={15} /> : isDirector ? <Film size={15} /> : <Workflow size={15} />;
+  const icon = isOptimization ? (
+    <Bot size={15} />
+  ) : isDirector ? (
+    <Film size={15} />
+  ) : (
+    <Workflow size={15} />
+  );
 
   const commitSnapshot = useCallback((next: AgentThreadSnapshot) => {
     snapshotRef.current = next;
@@ -352,7 +224,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, []);
 
   const loadSnapshot = useCallback(
-    async (threadId: string, quiet = false): Promise<AgentThreadSnapshot | null> => {
+    async (
+      threadId: string,
+      quiet = false,
+    ): Promise<AgentThreadSnapshot | null> => {
       const requestId = snapshotRequestRef.current + 1;
       snapshotRequestRef.current = requestId;
       if (!quiet) setLoading(true);
@@ -459,8 +334,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   useEffect(() => {
     const acceptedMessageId = pendingSubmission?.acceptedMessageId;
     if (
-      acceptedMessageId
-      && snapshot?.messages.some((message) => message.id === acceptedMessageId)
+      acceptedMessageId &&
+      snapshot?.messages.some((message) => message.id === acceptedMessageId)
     ) {
       setPendingSubmission(null);
     }
@@ -485,14 +360,22 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
           setConnected(true);
           setConnectionError(null);
           await subscribeAgentThreadEvents(
-            { thread_id: threadId, after_sequence: eventCursorRef.current, limit: 200 },
+            {
+              thread_id: threadId,
+              after_sequence: eventCursorRef.current,
+              limit: 200,
+            },
             (event) => {
               if (event.thread_id !== threadId) return;
               rememberStreamedMessages([event]);
               if (reloadInFlightRef.current || clearingRef.current) return;
               const current = snapshotRef.current;
               if (!current || current.thread.id !== threadId) return;
-              const reduction = reduceAgentEvent(current, event, eventCursorRef.current);
+              const reduction = reduceAgentEvent(
+                current,
+                event,
+                eventCursorRef.current,
+              );
               if (reduction.needsReload) {
                 reloadInFlightRef.current = true;
                 void loadSnapshot(threadId, true).finally(() => {
@@ -534,11 +417,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [ensureThread, reloadNonce]);
 
   const currentRun = useMemo(() => activeAgentRun(snapshot), [snapshot]);
-  const contextRun = currentRun ?? (
-    snapshot && snapshot.runs.length > 0
+  const contextRun =
+    currentRun ??
+    (snapshot && snapshot.runs.length > 0
       ? snapshot.runs[snapshot.runs.length - 1]
-      : null
-  );
+      : null);
   const pendingApprovals = useMemo(
     () =>
       snapshot?.approvals.filter((approval) => approval.status === "pending") ??
@@ -583,24 +466,52 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [onPendingContentDiffChange, pendingContentDiff]);
 
   useEffect(() => {
-    if (!onEditorRequest || !snapshot || pendingEditorRequests.current.size > 0) return;
+    if (!onEditorRequest || !snapshot || pendingEditorRequests.current.size > 0)
+      return;
     for (const event of snapshot.events) {
       const request = event.editor_request;
-      if (!request || !event.run_id || !matchesEditorSourceScope(request.source, projectId, chapterId)) continue;
-      const execution = snapshot.executions.find((item) => item.id === request.execution_id);
+      if (
+        !request ||
+        !event.run_id ||
+        !matchesEditorSourceScope(request.source, projectId, chapterId)
+      )
+        continue;
+      const execution = snapshot.executions.find(
+        (item) => item.id === request.execution_id,
+      );
       const run = snapshot.runs.find((item) => item.id === event.run_id);
-      if (!execution || !["prepared", "awaiting_user", "dispatching"].includes(execution.status)
-        || run?.status !== "waiting" || run.waiting_reason !== "external"
-        || pendingEditorRequests.current.has(request.execution_id)) continue;
+      if (
+        !execution ||
+        !["prepared", "awaiting_user", "dispatching"].includes(
+          execution.status,
+        ) ||
+        run?.status !== "waiting" ||
+        run.waiting_reason !== "external" ||
+        pendingEditorRequests.current.has(request.execution_id)
+      )
+        continue;
       pendingEditorRequests.current.add(request.execution_id);
-      void onEditorRequest(request, event.run_id).catch((error) => {
-        addToast(extractErrorMessage(error, t("agent.domain.resourceRefreshFailed")), "error");
-      }).finally(() => {
-        pendingEditorRequests.current.delete(request.execution_id);
-        void loadSnapshot(snapshot.thread.id, true);
-      });
+      void onEditorRequest(request, event.run_id)
+        .catch((error) => {
+          addToast(
+            extractErrorMessage(error, t("agent.domain.resourceRefreshFailed")),
+            "error",
+          );
+        })
+        .finally(() => {
+          pendingEditorRequests.current.delete(request.execution_id);
+          void loadSnapshot(snapshot.thread.id, true);
+        });
     }
-  }, [addToast, chapterId, loadSnapshot, onEditorRequest, projectId, snapshot, t]);
+  }, [
+    addToast,
+    chapterId,
+    loadSnapshot,
+    onEditorRequest,
+    projectId,
+    snapshot,
+    t,
+  ]);
   const latestEvent = useMemo<AgentEvent | null>(
     () => snapshot?.events[snapshot.events.length - 1] ?? null,
     [snapshot],
@@ -656,7 +567,13 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   };
 
   const clearContext = async () => {
-    if (!thread || !isAgentThreadOperational(thread) || clearingRef.current || sendingRef.current) return;
+    if (
+      !thread ||
+      !isAgentThreadOperational(thread) ||
+      clearingRef.current ||
+      sendingRef.current
+    )
+      return;
     const confirmed = await confirmDialog({
       title: t("agent.clearContextTitle"),
       message: t("agent.clearContextMessage"),
@@ -679,7 +596,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       eventCursorRef.current = 0;
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
-      if (!await ensureThread()) {
+      if (!(await ensureThread())) {
         throw new Error(t("agent.clearContextFailed"));
       }
       setDraft("");
@@ -696,9 +613,20 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
 
   const send = async () => {
     const content = draft.trim();
-    if (!thread || !content || !canSend || sendingRef.current || clearingRef.current) return;
+    if (
+      !thread ||
+      !content ||
+      !canSend ||
+      sendingRef.current ||
+      clearingRef.current
+    )
+      return;
     const clientMessageId = randomClientMessageId();
-    const pendingMessage = createPendingAgentMessage(thread.id, content, clientMessageId);
+    const pendingMessage = createPendingAgentMessage(
+      thread.id,
+      content,
+      clientMessageId,
+    );
     setPendingSubmission({ message: pendingMessage, acceptedMessageId: null });
     setDraft("");
     sendingRef.current = true;
@@ -713,16 +641,25 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         editor_source: getEditorSource?.() ?? undefined,
       });
       if (clearingRef.current) return;
-      setPendingSubmission((current) => current?.message.id === pendingMessage.id
-        ? { ...current, acceptedMessageId: accepted.message_id }
-        : current);
+      setPendingSubmission((current) =>
+        current?.message.id === pendingMessage.id
+          ? { ...current, acceptedMessageId: accepted.message_id }
+          : current,
+      );
       const next = await loadSnapshot(thread.id, true);
-      if (next?.messages.some((message) => message.id === accepted.message_id)) {
-        setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
+      if (
+        next?.messages.some((message) => message.id === accepted.message_id)
+      ) {
+        setPendingSubmission((current) =>
+          current?.message.id === pendingMessage.id ? null : current,
+        );
       }
-      if (next && !clearingRef.current) rememberStreamedMessages(next.events, accepted.run_id);
+      if (next && !clearingRef.current)
+        rememberStreamedMessages(next.events, accepted.run_id);
     } catch (err) {
-      setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
+      setPendingSubmission((current) =>
+        current?.message.id === pendingMessage.id ? null : current,
+      );
       setDraft(content);
       const message = extractErrorMessage(err, t("agent.domain.sendFailed"));
       setError(message);
@@ -877,7 +814,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             size="sm"
             className="text-error hover:bg-error-bg hover:text-error"
             onClick={() => void clearContext()}
-            disabled={!thread || clearing || sending || !isAgentThreadOperational(thread)}
+            disabled={
+              !thread ||
+              clearing ||
+              sending ||
+              !isAgentThreadOperational(thread)
+            }
           >
             {clearing ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
           </BookIconButton>
@@ -897,7 +839,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         <div className="agent-console-activity-panel">
           <div className="agent-console-activity-panel__heading">
             <span>{t("agent.domain.activity")}</span>
-            {latestEvent ? <span className="truncate">{latestEvent.kind.replace(/_/g, " ")}</span> : null}
+            {latestEvent ? (
+              <span className="truncate">
+                {latestEvent.kind.replace(/_/g, " ")}
+              </span>
+            ) : null}
           </div>
           <div className="agent-console-activity-panel__list custom-scrollbar">
             {executions.map((execution) => (
@@ -940,27 +886,35 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               aria-live="polite"
               style={{ overflowAnchor: "none" }}
             >
-            {snapshot.messages.length === 0 && !pendingSubmission && !currentRun ? error ? (
-              <div className="agent-console-error-state" role="status">
-                <CircleAlert size={16} aria-hidden="true" />
-                <span>{t("agent.domain.loadFailed")}</span>
-                </div>
-              ) : (
-                <div className="a4n-empty-state a4n-empty-state--compact min-h-0 py-8 text-xs">
-                  <Bot size={20} />
-                  <p>{t("agent.domain.empty")}</p>
-                </div>
+              {snapshot.messages.length === 0 &&
+              !pendingSubmission &&
+              !currentRun ? (
+                error ? (
+                  <div className="agent-console-error-state" role="status">
+                    <CircleAlert size={16} aria-hidden="true" />
+                    <span>{t("agent.domain.loadFailed")}</span>
+                  </div>
+                ) : (
+                  <div className="a4n-empty-state a4n-empty-state--compact min-h-0 py-8 text-xs">
+                    <Bot size={20} />
+                    <p>{t("agent.domain.empty")}</p>
+                  </div>
+                )
               ) : null}
-            {snapshot.messages.length > 0 || pendingSubmission || currentRun ? (
-              <AgentMessageList
-                messages={snapshot.messages}
-                locale={locale}
-                streamedMessageIds={streamedMessageIds}
-                pendingMessages={pendingSubmission ? [pendingSubmission.message] : []}
-                activeRun={currentRun}
-                compactAssistantMessages
-              />
-            ) : null}
+              {snapshot.messages.length > 0 ||
+              pendingSubmission ||
+              currentRun ? (
+                <AgentMessageList
+                  messages={snapshot.messages}
+                  locale={locale}
+                  streamedMessageIds={streamedMessageIds}
+                  pendingMessages={
+                    pendingSubmission ? [pendingSubmission.message] : []
+                  }
+                  activeRun={currentRun}
+                  compactAssistantMessages
+                />
+              ) : null}
             </div>
             <FollowLatestButton
               isFollowingLatest={isFollowingLatest}
@@ -989,7 +943,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
           <div className="shrink-0 border-t border-book-border/50 bg-book-bg-paper/70 p-2.5">
             <div className="agent-console-control-row mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
               <label className="min-w-0 flex-1 sm:flex-none">
-                <span className="sr-only">{t("agent.domain.deliveryMode")}</span>
+                <span className="sr-only">
+                  {t("agent.domain.deliveryMode")}
+                </span>
                 <ThemedSelect
                   value={deliveryMode}
                   onChange={(event) =>
@@ -997,7 +953,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   }
                   className="pyqt-input h-8 min-h-8 w-full !py-1 text-[10px] sm:w-auto"
                   aria-label={t("agent.domain.deliveryMode")}
-                  disabled={!thread || !isAgentThreadOperational(thread) || sending || clearing}
+                  disabled={
+                    !thread ||
+                    !isAgentThreadOperational(thread) ||
+                    sending ||
+                    clearing
+                  }
                 >
                   <option value="followup">{t("agent.domain.followup")}</option>
                   <option value="steer">{t("agent.domain.steer")}</option>
@@ -1005,7 +966,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 </ThemedSelect>
               </label>
               <label className="min-w-0 flex-1 sm:flex-none">
-                <span className="sr-only">{t("agent.domain.executionMode")}</span>
+                <span className="sr-only">
+                  {t("agent.domain.executionMode")}
+                </span>
                 <ThemedSelect
                   value={executionMode}
                   onChange={(event) =>
@@ -1013,11 +976,22 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   }
                   className="pyqt-input h-8 min-h-8 w-full !py-1 text-[10px] sm:w-auto"
                   aria-label={t("agent.domain.executionMode")}
-                  disabled={!thread || !isAgentThreadOperational(thread) || sending || clearing}
+                  disabled={
+                    !thread ||
+                    !isAgentThreadOperational(thread) ||
+                    sending ||
+                    clearing
+                  }
                 >
-                  <option value="autonomous">{t("agent.domain.autonomous")}</option>
-                  <option value="review_writes">{t("agent.domain.reviewWrites")}</option>
-                  <option value="advice_only">{t("agent.domain.adviceOnly")}</option>
+                  <option value="autonomous">
+                    {t("agent.domain.autonomous")}
+                  </option>
+                  <option value="review_writes">
+                    {t("agent.domain.reviewWrites")}
+                  </option>
+                  <option value="advice_only">
+                    {t("agent.domain.adviceOnly")}
+                  </option>
                 </ThemedSelect>
               </label>
               <AgentContextMeter run={contextRun} locale={locale} />
@@ -1064,11 +1038,18 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 maxLength={8000}
                 placeholder={t("agent.domain.messagePlaceholder")}
                 className="pyqt-input min-h-10 min-w-0 flex-1 resize-y text-xs leading-relaxed sm:min-h-8"
-                disabled={!thread || !isAgentThreadOperational(thread) || sending || clearing}
+                disabled={
+                  !thread ||
+                  !isAgentThreadOperational(thread) ||
+                  sending ||
+                  clearing
+                }
               />
               {currentRun ? (
                 <div className="agent-console-run-actions">
-                  {["queued", "running", "waiting"].includes(currentRun.status) ? (
+                  {["queued", "running", "waiting"].includes(
+                    currentRun.status,
+                  ) ? (
                     <BookButton
                       size="sm"
                       variant="warning"
@@ -1094,10 +1075,16 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                       <Play size={13} />
                     </BookButton>
                   ) : null}
-                  {controlBusy ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : null}
+                  {controlBusy ? (
+                    <LoadingSpinner
+                      size="sm"
+                      className="text-book-text-muted"
+                    />
+                  ) : null}
                 </div>
               ) : null}
-              {currentRun && ACTIVE_AGENT_RUN_STATUSES.has(currentRun.status) ? (
+              {currentRun &&
+              ACTIVE_AGENT_RUN_STATUSES.has(currentRun.status) ? (
                 <BookButton
                   size="md"
                   variant="danger"
@@ -1105,9 +1092,17 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   aria-label={t("agent.domain.cancel")}
                   title={t("agent.domain.cancel")}
                   onClick={() => void control("cancel")}
-                  disabled={controlBusy != null || clearing || currentRun.status === "cancelling"}
+                  disabled={
+                    controlBusy != null ||
+                    clearing ||
+                    currentRun.status === "cancelling"
+                  }
                 >
-                  {controlBusy === "cancel" ? <LoadingSpinner size="sm" /> : <Square size={13} />}
+                  {controlBusy === "cancel" ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Square size={13} />
+                  )}
                 </BookButton>
               ) : (
                 <BookIconButton
@@ -1141,113 +1136,3 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     </section>
   );
 };
-
-function ExecutionRow({
-  execution,
-  locale,
-}: {
-  execution: AgentExecutionView;
-  locale: Locale;
-}) {
-  return (
-    <div className="min-w-0 rounded-lg border border-book-border/35 bg-book-bg-paper px-2 py-1.5">
-      <div className="flex min-w-0 items-center gap-1.5 text-[10px]">
-        <CircleDot size={10} className={executionTone(execution)} />
-        <span className="min-w-0 flex-1 truncate text-book-text-sub">
-          {execution.tool_name || execution.kind}
-        </span>
-        <span className="shrink-0 text-book-text-muted">
-          {labelFor(execution.status, locale)}
-        </span>
-      </div>
-      {execution.result_summary ? (
-        <p className="mt-0.5 break-words text-[10px] leading-relaxed text-book-text-muted">
-          {compactAgentValue(execution.result_summary)}
-        </p>
-      ) : null}
-      {execution.error ? (
-        <p className="mt-0.5 break-words text-[10px] leading-relaxed text-error">
-          {execution.error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function ApprovalRow({
-  approval,
-  locale,
-  busy,
-  onResolve,
-}: {
-  approval: AgentApprovalView;
-  locale: Locale;
-  busy: boolean;
-  onResolve: (
-    approval: AgentApprovalView,
-    decision: "approve" | "reject",
-  ) => void;
-}) {
-  return (
-    <div className="min-w-0 rounded-xl border border-warning/35 bg-warning-bg/55 p-2">
-      <div className="flex min-w-0 items-start gap-1.5">
-        <ShieldCheck size={13} className="mt-0.5 shrink-0 text-warning" />
-        <div className="min-w-0 flex-1">
-          <p className="break-words text-xs font-medium text-book-text-main">
-            {approval.command}
-          </p>
-          {approval.reason ? (
-            <p className="mt-0.5 break-words text-[10px] leading-relaxed text-book-text-muted">
-              {approval.reason}
-            </p>
-          ) : null}
-        </div>
-      </div>
-      <div className="mt-1.5 flex gap-1.5">
-        <BookButton
-          size="sm"
-          className="min-w-0 flex-1"
-          onClick={() => onResolve(approval, "approve")}
-          disabled={busy}
-        >
-          <Check size={12} />
-          {locale === "zh-CN" ? "批准" : "Approve"}
-        </BookButton>
-        <BookButton
-          size="sm"
-          variant="danger"
-          className="min-w-0 flex-1"
-          onClick={() => onResolve(approval, "reject")}
-          disabled={busy}
-        >
-          <X size={12} />
-          {locale === "zh-CN" ? "拒绝" : "Reject"}
-        </BookButton>
-        {busy ? <LoadingSpinner size="sm" className="self-center" /> : null}
-      </div>
-    </div>
-  );
-}
-
-function Notice({
-  children,
-  onRetry,
-}: {
-  children: React.ReactNode;
-  onRetry?: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div
-      role="alert"
-      className="flex min-w-0 shrink-0 items-start gap-2 border-b border-error/30 bg-error-bg px-3 py-2 text-[10px] leading-relaxed text-error"
-    >
-      <span className="min-w-0 flex-1 break-words">{children}</span>
-      {onRetry ? (
-        <BookButton size="sm" variant="secondary" onClick={onRetry}>
-          {t("common.retry")}
-        </BookButton>
-      ) : null}
-    </div>
-  );
-}
