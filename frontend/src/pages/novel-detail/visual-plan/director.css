@@ -87,13 +87,13 @@
 .director-generation-compact > p { flex: 1 1 160px; min-width: 0; margin: 0; }
 .director-generation-compact > button { flex: 0 0 auto; }
 .director-generation-compact > .director-generation-action { flex: 0 0 100%; width: 100%; justify-content: center; }
-.director-fields input:not([type="checkbox"]):not([type="file"]), .director-fields textarea, .director-fields select,
-.director-generation textarea, .director-generation select, .director-scene-binding select {
+.director-fields input:not([type="checkbox"]):not([type="file"]), .director-fields textarea,
+.director-generation textarea, .director-select {
   width: 100%; min-width: 0; border: 1px solid rgb(var(--color-border) / .75); border-radius: 8px;
   padding: 8px 10px; background: rgb(var(--color-bg-secondary) / .9); color: rgb(var(--color-text-primary)); font: inherit; line-height: 1.65;
 }
 .director-fields textarea, .director-generation textarea { resize: vertical; min-height: 76px; }
-.director-fields select, .director-generation select, .director-scene-binding select { min-height: 38px; }
+.director-select { min-height: 38px; }
 .director-object-time { font: 12px ui-monospace, monospace; color: rgb(var(--color-text-tertiary)); }
 .director-context-line { font-size: 11px; line-height: 1.7; color: rgb(var(--color-text-tertiary)); overflow-wrap: anywhere; }
 .director-binding-status { margin: 0; padding: 7px 9px; border-radius: 7px; background: rgb(var(--color-bg-tertiary) / .65); color: rgb(var(--color-text-secondary)); font-size: 11px; line-height: 1.5; }
@@ -169,8 +169,8 @@
 .director-candidate { display: flex; flex-direction: column; gap: 10px; }
 .director-candidate > span { font-size: 11px; color: rgb(var(--color-text-tertiary)); }
 .director-workspace button:focus-visible, .director-generation button:focus-visible { outline: 2px solid rgb(var(--color-primary)); outline-offset: 3px; }
-.director-workspace input:focus-visible, .director-workspace textarea:focus-visible, .director-workspace select:focus-visible,
-.director-generation input:focus-visible, .director-generation textarea:focus-visible, .director-generation select:focus-visible,
+.director-workspace input:focus-visible, .director-workspace textarea:focus-visible, .director-select:focus-visible,
+.director-generation input:focus-visible, .director-generation textarea:focus-visible,
 .director-timing-fields input:focus-visible { outline: 2px solid rgb(var(--color-primary) / .65); outline-offset: 1px; }
 .director-workspace button:disabled { opacity: .45; cursor: not-allowed; }
 .director-mobile-inspector { --a4n-dialog-opacity: 1; --a4n-panel-opacity: 1; position: fixed; inset: auto 12px 6px; width: auto; margin: 0; max-height: calc(100dvh - 12px); background: rgb(var(--color-bg-secondary)); }

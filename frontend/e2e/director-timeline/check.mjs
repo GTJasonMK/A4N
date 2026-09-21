@@ -37,6 +37,13 @@ async function setViewport(width, height) {
   await browser.setViewport({ width, height });
   await browser.waitUntil(async () => browser.execute((width, height) => innerWidth === width && innerHeight === height, width, height));
 }
+async function openSelect(label) {
+  const trigger = await browser.$(`button[role="combobox"][aria-label="${label}"]`);
+  await trigger.waitForDisplayed();
+  await trigger.click();
+  await browser.$('[role="listbox"]').waitForDisplayed();
+  return trigger;
+}
 async function assertWorkspaceFits(state) {
   const measurement = await browser.execute(() => {
     const workspace = document.querySelector(".director-workspace");
@@ -138,6 +145,34 @@ try {
   await prompt.setValue("镜头缓缓推近，旅人在门前停步。");
   await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "save_chapter_visual_plan_draft" && call.input.plan.segments[0].prompt.includes("缓缓推近"))));
   await browser.saveScreenshot(path.join(artifacts, "desktop-properties.png"));
+  const sceneMode = await openSelect("场景方式");
+  await browser.keys("Escape");
+  const timeBeforeSelectKeys = await browser.$(".director-timecode").getText();
+  for (const key of ["End", "Home"]) {
+    await browser.keys(key);
+    assert.equal(await browser.$(".director-timecode").getText(), timeBeforeSelectKeys, "focused selects must not seek the timeline");
+  }
+  await sceneMode.click();
+  await browser.keys(["ArrowDown", "Enter"]);
+  await openSelect("目标场景");
+  await browser.keys(["End", "ArrowUp", "Enter"]);
+  await openSelect("起始场景");
+  await browser.keys(["ArrowDown", "Enter"]);
+  await openSelect("目标场景");
+  await browser.keys(["ArrowUp", "Enter"]);
+  await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => {
+    const binding = call.command === "save_chapter_visual_plan_draft" && call.input.plan.segments[0].scene_binding;
+    return binding?.kind === "transition" && binding.from_scene_profile_id === 22 && binding.to_scene_profile_id === 11;
+  })), { timeoutMsg: "themed scene selections must reach the saved plan" });
+  await openSelect("目标场景");
+  await browser.keys(["End", "Enter"]);
+  await browser.$(".director-custom-scene input").waitForDisplayed();
+  await browser.$(".director-custom-scene").$("button=取消").click();
+  assert.equal(await browser.$('button[role="combobox"][aria-label="目标场景"]').getText(), "雨夜街道");
+  await openSelect("场景方式");
+  await browser.keys(["Home", "Enter"]);
+  await openSelect("场景");
+  await browser.keys(["Home", "ArrowDown", "Enter"]);
   await browser.$$(".director-point")[1].click();
   await browser.$("button=分镜候选（2）").click();
   await browser.$('[role="dialog"]').waitForDisplayed();
@@ -241,6 +276,14 @@ try {
   assert.ok(reachable, "mobile inspector bottom actions must be fully visible after scrolling");
   await splitButton.click();
   await browser.$("h3=拆分镜头").waitForDisplayed();
+  const splitPosition = await openSelect("分镜位置");
+  await browser.keys(["End", "Enter"]);
+  assert.match(await splitPosition.getText(), /门前停步/);
+  await openSelect("分镜位置");
+  await browser.saveScreenshot(path.join(artifacts, "mobile-split-select.png"));
+  await browser.keys("Escape");
+  await browser.$('[role="listbox"]').waitForExist({ reverse: true });
+  assert.equal(await browser.$("h3=拆分镜头").isDisplayed(), true, "Escape must close the select before its dialog");
   await browser.keys("Escape");
   await browser.$("h3=拆分镜头").waitForDisplayed({ reverse: true });
   await browser.keys("Escape");
@@ -290,10 +333,34 @@ try {
   await assertWorkspaceFits("host chrome and transition properties");
   await browser.saveScreenshot(path.join(artifacts, "host-chrome.png"));
   await browser.execute(() => { document.querySelector("main").style.padding = ""; });
+  for (const width of [1440, 1024, 390]) {
+    await setViewport(width, 844);
+    await browser.$$(".director-segment")[1].click();
+    await openSelect("目标场景");
+    const popup = await browser.execute(() => {
+      const listbox = document.querySelector('[role="listbox"]');
+      const { left, right, top, bottom } = listbox.getBoundingClientRect();
+      return { left, right, top, bottom, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    measurements.push({ state: "scene select popup", width, ...popup });
+    assert.equal(popup.overflow, 0);
+    assert.ok(popup.left >= 0 && popup.right <= width && popup.top >= 0 && popup.bottom <= 844, "scene options must remain inside the viewport");
+    await browser.saveScreenshot(path.join(artifacts, `scene-select-${width}.png`));
+    await browser.keys("Escape");
+    await browser.$('[role="listbox"]').waitForExist({ reverse: true });
+    if (width === 390) {
+      assert.equal(await browser.$('[role="dialog"]').isDisplayed(), true);
+      await browser.keys("Escape");
+      await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
+    }
+  }
   await setViewport(1440, 900);
   await browser.execute(() => window.setDirectorCanEdit(false));
   await browser.waitUntil(async () => !await browser.$(".director-inspector textarea").isEnabled());
   assert.equal(await browser.$("button=添加图片点").isEnabled(), false);
+  for (const select of await browser.$$('.director-scene-binding button[role="combobox"]')) {
+    assert.equal(await select.isEnabled(), false, "read-only scene selectors must stay disabled");
+  }
   await browser.execute(() => window.setDirectorCanEdit(true));
   const center = (element) => browser.execute((node) => { const r = node.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; }, element);
   const drag = async (start, end) => {
