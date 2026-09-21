@@ -67,6 +67,43 @@ const image = (
   }) as GeneratedImage;
 
 describe("videoPromptDownstreamCount", () => {
+  it("counts the current prompt's generated frame image", () => {
+    const frame = prompt(
+      11,
+      "first_frame_prompt",
+      "first_frame_chain",
+      {
+        ...identity,
+        source_shot_id: "shot-1",
+        segment_index_in_shot: 1,
+        segment_sha256: "segment-1",
+      },
+    );
+
+    expect(
+      videoPromptDownstreamCount(frame, [frame], [
+        image(31, frame.id, "video_first_frame_prompt"),
+      ]),
+    ).toBe(1);
+  });
+
+  it("counts the current prompt's generated video", () => {
+    const videoPrompt = prompt(
+      12,
+      "video_prompt",
+      "first_frame_chain",
+      {
+        ...identity,
+        source_shot_id: "shot-1",
+        segment_index_in_shot: 1,
+        segment_sha256: "segment-1",
+      },
+      41,
+    );
+
+    expect(videoPromptDownstreamCount(videoPrompt, [videoPrompt], [])).toBe(1);
+  });
+
   it("counts only same-chain prompt images and videos", () => {
     const plan = prompt(
       10,

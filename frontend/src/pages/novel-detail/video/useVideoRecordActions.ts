@@ -103,14 +103,18 @@ export const videoPromptDownstreamCount = (
 
   const affectedImageIds = new Set<number>();
   for (const image of frameImages) {
+    const imagePromptId = videoImageGenerationPromptId(image);
     if (
       isVideoFramePromptImageGenerationSource(
         videoImageGenerationSource(image),
       ) &&
-      affectedPromptIds.has(videoImageGenerationPromptId(image) ?? -1)
+      (affectedPromptIds.has(imagePromptId ?? -1) || imagePromptId === prompt.id)
     ) {
       affectedImageIds.add(image.id);
     }
+  }
+  if (stage === 3 && prompt.generated_video_id != null) {
+    affectedVideoIds.add(prompt.generated_video_id);
   }
 
   const downstreamPromptCount =
