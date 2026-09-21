@@ -2,7 +2,9 @@
 //!
 //! 对应文档 05-章节生成系统
 
-pub(in crate::chapter_generation) mod generation;
+pub(in crate::chapter_generation) mod generation {
+    pub(in crate::chapter_generation) mod checkpoint;
+}
 mod generation_lifecycle;
 mod response_json;
 

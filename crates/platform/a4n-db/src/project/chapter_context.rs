@@ -5,7 +5,7 @@ mod mutations;
 mod profiles;
 
 pub use chapters::{
-    chapter_by_id, chapters_before_number, chapters_for_project_numbers, character_sync_chapters,
+    chapter_by_id, chapters_before_number, character_sync_chapters,
     import_analysis_chapter_candidates,
 };
 pub use contracts::{
@@ -18,5 +18,5 @@ pub use profiles::{
     character_states_for_profiles_before_chapter, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     scene_profiles_before_chapter, snapshot_profile_ids_for_chapter,
-    snapshot_reference_for_profile_chapter, snapshot_references_for_profiles_chapter,
+    snapshot_references_for_profiles_chapter,
 };

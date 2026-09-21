@@ -3,13 +3,13 @@ use super::*;
 #[derive(Clone)]
 pub(crate) struct RuntimeAgentToolExecutor {
     state: AgentRuntimeState,
-    pub(crate) worker_request: WorkerRequest<AgentRunPayload>,
+    pub(crate) worker_request: WorkerEnvelope<AgentRunPayload>,
 }
 
 impl RuntimeAgentToolExecutor {
     pub(crate) fn new(
         state: AgentRuntimeState,
-        worker_request: WorkerRequest<AgentRunPayload>,
+        worker_request: WorkerEnvelope<AgentRunPayload>,
     ) -> Self {
         Self {
             state,

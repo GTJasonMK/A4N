@@ -60,8 +60,8 @@ use a4n_worker_contract::{
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
     AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest,
     AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerLease,
+    WorkerPrincipal, WorkerPrincipalKind,
 };
 use futures::Stream;
 use serde::Deserialize;
@@ -88,7 +88,7 @@ pub(crate) fn worker_request_for_claimed_run(
     claimed: &AgentWorkerRun,
     expected_worker_id: &str,
     runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
-) -> Result<WorkerRequest<AgentRunPayload>, AppError> {
+) -> Result<WorkerEnvelope<AgentRunPayload>, AppError> {
     let run = &claimed.run;
     let worker_id = run
         .worker_id
@@ -126,7 +126,7 @@ pub(crate) fn worker_request_for_claimed_run(
             operation: "构造 Agent worker request".into(),
         })?;
     let runtime_config_snapshot = runtime_snapshot.map(serde_json::to_value).transpose()?;
-    let request = WorkerRequest {
+    let request = WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,
         request_id: format!("agent-run-{}-{}", run.id, attempt),
         trace_id: format!("agent-run:{}:{}", run.id, attempt),

@@ -19,11 +19,3 @@ pub struct Snapshot {
     /// 创建时间。
     pub created_at: NaiveDateTime,
 }
-
-/// 快照差异。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SnapshotDelta {
-    pub from_hash: String,
-    pub to_hash: String,
-    pub delta: serde_json::Value,
-}

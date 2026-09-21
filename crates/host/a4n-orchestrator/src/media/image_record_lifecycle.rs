@@ -279,48 +279,6 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn create_imported_image_record_for_user_validated(
-        &self,
-        user_id: i64,
-        prepared: PreparedImportedImageUpload,
-        file_path: String,
-        file_size: i64,
-    ) -> Result<generated_image::Model, AppError> {
-        self.verify_project_permission(prepared.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        let PreparedImportedImageUpload {
-            project_id,
-            image_type,
-            prompt,
-            model,
-            chapter_id,
-            panel_id,
-            metadata_json,
-            decoded,
-        } = prepared;
-        let metadata_json = imported_image_metadata(
-            metadata_json,
-            decoded.source_file_name,
-            decoded.extension,
-            decoded.mime_type,
-        );
-        self.create_generated_image_record(CreateGeneratedImageRecordDraftInput {
-            project_id,
-            image_type,
-            file_path,
-            prompt,
-            model,
-            width: decoded.width,
-            height: decoded.height,
-            file_size: Some(file_size),
-            chapter_id,
-            panel_id,
-            metadata_json,
-            created_at: None,
-        })
-        .await
-    }
-
     pub async fn create_imported_image_publication_intent_for_user_validated(
         &self,
         user_id: i64,

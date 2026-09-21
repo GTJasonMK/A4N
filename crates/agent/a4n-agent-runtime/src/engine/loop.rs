@@ -87,7 +87,7 @@ pub async fn maintain_agent_worker(state: &AgentRuntimeState) {
 pub async fn claim_agent_worker_request(
     state: &AgentRuntimeState,
     worker_id: &str,
-) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError> {
+) -> Result<Option<WorkerEnvelope<AgentRunPayload>>, AppError> {
     if worker_id.trim().is_empty() {
         return Err(AppError::InvalidArgument("Agent worker_id 不能为空".into()));
     }
@@ -116,7 +116,7 @@ pub async fn claim_agent_worker_request(
 pub async fn execute_claimed_worker_run(
     state: &AgentRuntimeState,
     claimed: AgentWorkerRun,
-    request: WorkerRequest<AgentRunPayload>,
+    request: WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(), AppError> {
     validate_claimed_worker_request(&claimed, &request)?;
     if let Some(value) = request.payload.runtime_config_snapshot.clone() {
@@ -134,7 +134,7 @@ pub async fn execute_claimed_worker_run(
 async fn process_claimed_run_request(
     state: &AgentRuntimeState,
     claimed: AgentWorkerRun,
-    request: WorkerRequest<AgentRunPayload>,
+    request: WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(), AppError> {
     let failure_application = state.worker_failure_application(&claimed);
     let run_cancel = state
@@ -245,7 +245,7 @@ fn agent_duration_deadline(
 async fn suspend_agent_at_duration_limit(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
-    request: &WorkerRequest<AgentRunPayload>,
+    request: &WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(), AppError> {
     let context = state.load_agent_run_context(request).await?;
     for execution in context
@@ -271,7 +271,7 @@ async fn process_claimed_run_inner(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
     cancel: &CancellationToken,
-    request: &WorkerRequest<AgentRunPayload>,
+    request: &WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(), AppError> {
     tracing::debug!(
         run_id = claimed.run.id,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::AGENT_RUN_OPERATION;
 use crate::wire::{
-    WorkerContractError, WorkerRequest, validate_non_blank, validate_positive_optional_id,
+    WorkerContractError, WorkerEnvelope, validate_non_blank, validate_positive_optional_id,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +46,7 @@ impl AgentRunPayload {
     }
 }
 
-impl WorkerRequest<AgentRunPayload> {
+impl WorkerEnvelope<AgentRunPayload> {
     pub fn validate_agent_run(&self) -> Result<(), WorkerContractError> {
         self.validate()?;
         self.payload.validate()?;

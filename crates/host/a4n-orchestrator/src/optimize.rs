@@ -17,7 +17,11 @@ mod patch_sets;
 mod permissions;
 pub(crate) mod runtime_tools;
 mod service;
-mod session_events;
+mod session_events {
+    mod lifecycle;
+    mod messages;
+    mod patches;
+}
 mod session_names;
 mod turns;
 mod workflow_rules;

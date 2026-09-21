@@ -15,7 +15,11 @@ pub(crate) mod chapter_scene;
 pub(crate) mod chapter_visual_plan;
 pub(crate) mod character;
 pub(crate) mod config;
-pub(crate) mod export;
+pub(crate) mod export {
+    //! 导出 application：拥有项目与 Galgame 导出、格式渲染、进度与取消语义。
+
+    mod application;
+}
 pub(crate) mod galgame;
 pub(crate) mod generation;
 pub(crate) mod import_analysis;

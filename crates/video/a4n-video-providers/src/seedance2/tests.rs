@@ -1,6 +1,6 @@
 use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 
-use super::provider::Seedance2VideoProvider;
+use super::Seedance2VideoProvider;
 
 fn request() -> VideoGenerationRequest {
     VideoGenerationRequest {

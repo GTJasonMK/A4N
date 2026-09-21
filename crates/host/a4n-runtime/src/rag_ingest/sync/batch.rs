@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::{
-    PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, contracts::sync::classify_rag_record,
-    metadata::content_hash,
+    PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, metadata::content_hash,
+    sync::classify_rag_record,
 };
 
 use super::progress::{ExpectedSyncStats, RagIngestProgress};

@@ -128,17 +128,6 @@ pub async fn workflow_run_model_by_id(
     workflow_run_by_id(db, workflow_run_id).await
 }
 
-pub async fn workflow_run_model_optional_by_id(
-    db: &DatabaseConnection,
-    workflow_run_id: i64,
-) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
-    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
-    workflow_run::Entity::find_by_id(workflow_run_id)
-        .one(db)
-        .await
-        .map_err(WorkflowReadError::Database)
-}
-
 pub async fn workflow_run_status_record_by_id(
     db: &DatabaseConnection,
     workflow_run_id: i64,
@@ -193,26 +182,6 @@ pub async fn workflow_run_statuses_by_ids(
         .order_by_asc(workflow_run::Column::Id)
         .into_tuple::<(i64, String)>()
         .all(db)
-        .await
-        .map_err(WorkflowReadError::Database)
-}
-
-pub async fn workflow_run_model_by_active_task_id(
-    db: &DatabaseConnection,
-    task_id: &str,
-) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
-    let task_id = required_text(task_id.to_string(), "task_id")?;
-    workflow_run::Entity::find()
-        .filter(workflow_run::Column::ActiveTaskId.eq(task_id))
-        .filter(workflow_run::Column::Status.is_not_in([
-            WORKFLOW_STATUS_COMPLETED,
-            WORKFLOW_STATUS_FAILED,
-            WORKFLOW_STATUS_CANCELLED,
-            WORKFLOW_STATUS_SUPERSEDED,
-        ]))
-        .order_by_desc(workflow_run::Column::UpdatedAt)
-        .order_by_desc(workflow_run::Column::Id)
-        .one(db)
         .await
         .map_err(WorkflowReadError::Database)
 }

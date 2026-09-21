@@ -1,15 +1,15 @@
 use a4n_domain::ProviderError as AppError;
 
 use super::chat::ChatCompletionsVideoProvider;
-use super::cliproxy_openai::provider::CliProxyOpenAiVideoProvider;
-use super::gemini_veo::provider::GeminiVeoVideoProvider;
-use super::http::provider::HttpVideoProvider;
-use super::newapi::provider::NewApiVideoProvider;
-use super::seedance2::provider::Seedance2VideoProvider;
+use super::cliproxy_openai::CliProxyOpenAiVideoProvider;
+use super::gemini_veo::GeminiVeoVideoProvider;
+use super::http::HttpVideoProvider;
+use super::newapi::NewApiVideoProvider;
+use super::seedance2::Seedance2VideoProvider;
 use a4n_video_provider_contract::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
-    VideoProvider, video_provider_capabilities,
+    VideoProvider,
 };
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 use serde_json::Value;
@@ -19,9 +19,6 @@ pub fn pick_video_provider(
     base_url: &str,
     api_key: &str,
 ) -> Result<Box<dyn VideoProvider>, AppError> {
-    if video_provider_capabilities(backend).is_none() {
-        return Err(AppError::Internal(format!("未知视频 backend={backend}")));
-    }
     match backend {
         OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(Box::new(HttpVideoProvider::new(base_url, api_key))),
         NEWAPI_VIDEO_BACKEND => Ok(Box::new(NewApiVideoProvider::new(base_url, api_key))),
@@ -33,7 +30,7 @@ pub fn pick_video_provider(
         OPENAI_CHAT_VIDEO_BACKEND => Ok(Box::new(ChatCompletionsVideoProvider::new(
             base_url, api_key,
         )?)),
-        _ => unreachable!("video backend registry and factory are out of sync"),
+        _ => Err(AppError::Internal(format!("未知视频 backend={backend}"))),
     }
 }
 

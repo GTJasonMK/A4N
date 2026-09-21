@@ -10,21 +10,6 @@ use super::super::{OutlineDbError, PartOutlineSyncDraft};
 use super::records::update_part_outline_record;
 use super::sync::sync_part_outline_records;
 
-/// 原子同步全部分部大纲，并按同步后的分部范围重绑现有章节大纲。
-pub async fn sync_part_outline_records_and_assign_chapters_transaction(
-    db: &DatabaseConnection,
-    project_id: i64,
-    drafts: Vec<PartOutlineSyncDraft>,
-    now: NaiveDateTime,
-) -> Result<Vec<part_outline::Model>, OutlineDbError> {
-    let txn = db.begin().await?;
-    super::super::lock_outline_project_for_write(&txn, project_id, "同步分部大纲").await?;
-    let parts =
-        sync_part_outline_records_and_assign_chapters_in(&txn, project_id, drafts, now).await?;
-    txn.commit().await?;
-    Ok(parts)
-}
-
 pub async fn sync_part_outline_records_and_assign_chapters_in<C>(
     db: &C,
     project_id: i64,

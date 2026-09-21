@@ -14,9 +14,7 @@ mod publication;
 mod records;
 mod references;
 
-pub use create::{
-    create_generated_image_record, create_generated_image_record_with_generation_run_checkpoint,
-};
+pub use create::create_generated_image_record;
 pub(crate) use publication::reclaim_image_publications_for_deleted_images;
 pub use publication::{
     create_image_publication_intent, image_publication_by_id, image_publications_for_recovery,
@@ -28,12 +26,11 @@ pub(crate) use records::clear_generated_image_references_record;
 pub(crate) use records::generated_images_for_chapter_by_id_desc;
 pub use records::{
     delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
-    generated_image_by_id, generated_image_exists, generated_image_ids_by_ids,
-    generated_images_by_ids, generated_images_for_chapter, generated_images_for_project,
-    generated_images_for_projects, generated_images_for_projects_chapter_by_id_desc,
-    update_generated_image_record, video_library_chapter_image_records,
-    video_library_explicit_image_records, video_profile_material_read_model,
-    video_project_context_read_model,
+    generated_image_by_id, generated_image_ids_by_ids, generated_images_by_ids,
+    generated_images_for_chapter, generated_images_for_project, generated_images_for_projects,
+    generated_images_for_projects_chapter_by_id_desc, update_generated_image_record,
+    video_library_chapter_image_records, video_library_explicit_image_records,
+    video_profile_material_read_model, video_project_context_read_model,
 };
 pub(crate) use references::validated_video_reference_image_records_batch;
 pub(crate) use references::video_project_record;

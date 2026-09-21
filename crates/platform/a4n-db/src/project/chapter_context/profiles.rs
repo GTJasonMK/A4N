@@ -199,22 +199,6 @@ pub async fn snapshot_profile_ids_for_chapter(
         .map_err(ProjectChapterContextError::Database)
 }
 
-pub async fn snapshot_reference_for_profile_chapter<C>(
-    db: &C,
-    profile_id: i64,
-    chapter_number: i32,
-) -> Result<Option<snapshot_reference::Model>, ProjectChapterContextError>
-where
-    C: ConnectionTrait,
-{
-    snapshot_reference::Entity::find()
-        .filter(snapshot_reference::Column::ProfileId.eq(profile_id))
-        .filter(snapshot_reference::Column::ChapterNumber.eq(chapter_number))
-        .one(db)
-        .await
-        .map_err(ProjectChapterContextError::Database)
-}
-
 pub async fn snapshot_references_for_profiles_chapter<C>(
     db: &C,
     profile_ids: &[i64],

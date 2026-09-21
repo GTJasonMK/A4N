@@ -5,8 +5,8 @@ use a4n_api_contract::agent::{
 
 use super::*;
 
-fn valid_request() -> WorkerRequest<serde_json::Value> {
-    WorkerRequest {
+fn valid_request() -> WorkerEnvelope<serde_json::Value> {
+    WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,
         request_id: "request-1".into(),
         trace_id: "trace-1".into(),
@@ -35,7 +35,7 @@ fn valid_request_round_trips_and_validates() {
     let request = valid_request();
     request.validate().expect("fixture must be valid");
     let encoded = serde_json::to_string(&request).expect("request should serialize");
-    let decoded: WorkerRequest<serde_json::Value> =
+    let decoded: WorkerEnvelope<serde_json::Value> =
         serde_json::from_str(&encoded).expect("request should deserialize");
     assert_eq!(decoded, request);
 }
@@ -79,7 +79,7 @@ fn lease_and_project_relations_are_checked_at_the_boundary() {
 fn unknown_fields_are_rejected() {
     let mut value = serde_json::to_value(valid_request()).expect("request should serialize");
     value["unexpected"] = true.into();
-    let error = serde_json::from_value::<WorkerRequest<serde_json::Value>>(value)
+    let error = serde_json::from_value::<WorkerEnvelope<serde_json::Value>>(value)
         .expect_err("unknown fields must fail");
     assert!(error.to_string().contains("unknown field"));
 }

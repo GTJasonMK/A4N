@@ -1,4 +1,4 @@
-use super::contracts::SearchFilter;
+use a4n_rag_value_contract::vector_store::SearchFilter;
 
 pub(crate) fn metadata_matches_search_filter(
     metadata: &serde_json::Value,

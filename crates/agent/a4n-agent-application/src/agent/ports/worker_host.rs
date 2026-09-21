@@ -6,7 +6,7 @@ use super::*;
 impl AgentWorkerHostCommandApplicationPort for AgentApplication {
     async fn authorize_worker_host_command(
         &self,
-        request: &WorkerRequest<AgentHostCommandPayload>,
+        request: &WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<i64, AppError> {
         self.authorize_worker_host_command(request).await
     }

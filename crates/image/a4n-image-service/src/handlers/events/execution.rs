@@ -8,8 +8,8 @@ use base64::Engine as _;
 use futures::Stream;
 use std::time::Duration;
 
-use crate::contracts::{ImageGenerationOutput, ImageProviderPayload};
 use crate::protocol::service_error;
+use a4n_image_contract::{ImageGenerationOutput, ImageProviderPayload};
 
 const IMAGE_PROGRESS_HEARTBEAT: Duration = Duration::from_secs(5);
 

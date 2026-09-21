@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::rag::{ClientRagIngestUploadInput, RagIngestResult};
-use a4n_rag_core::{
-    RagEmbeddedInput, RagRecord, RagRecordSyncOutcome, contracts::sync::classify_rag_record,
-};
+use a4n_rag_core::{RagEmbeddedInput, RagRecord, RagRecordSyncOutcome, sync::classify_rag_record};
 use a4n_rag_core::{metadata::content_hash, validation::validate_embedding_batch};
 
 use super::super::sync::ExpectedSyncStats;

@@ -68,7 +68,7 @@ impl AppState {
         scope: &a4n_api_contract::agent::AgentScope,
         command: String,
         args: Value,
-        worker_request: &WorkerRequest<AgentRunPayload>,
+        worker_request: &WorkerEnvelope<AgentRunPayload>,
         execution_id: Option<i64>,
     ) -> Result<Value, a4n_error::AppError> {
         let run_id = worker_request.payload.run_id;
@@ -96,7 +96,7 @@ impl AppState {
             .map(|id| format!("execution:{id}"))
             .unwrap_or_else(|| format!("command:{command}"));
         let request_id = format!("{}:host:{host_key}", worker_request.request_id);
-        let request = WorkerRequest {
+        let request = WorkerEnvelope {
             schema_version: worker_request.schema_version,
             request_id: request_id.clone(),
             trace_id: worker_request.trace_id.clone(),
@@ -134,7 +134,7 @@ impl AppState {
     pub(crate) async fn dispatch_agent_host_command_request(
         &self,
         user_id: i64,
-        request: WorkerRequest<AgentHostCommandPayload>,
+        request: WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<Value, a4n_error::AppError> {
         request
             .validate()
@@ -161,7 +161,7 @@ impl AppState {
     /// Authorizes a Host command at the durable lease boundary.
     pub async fn authorize_agent_host_command(
         &self,
-        request: &WorkerRequest<AgentHostCommandPayload>,
+        request: &WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<i64, a4n_error::AppError> {
         self.agent_worker_application
             .authorize_worker_host_command(request)

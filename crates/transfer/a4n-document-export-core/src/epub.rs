@@ -6,7 +6,10 @@ mod builder;
 mod constants;
 mod cover;
 mod model;
-mod package;
+mod package {
+    mod ncx;
+    mod opf;
+}
 #[cfg(test)]
 mod test_support;
 mod xhtml;

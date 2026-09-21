@@ -4,7 +4,12 @@
 
 mod docx;
 mod epub;
-mod shared;
+mod shared {
+    pub(super) mod entities;
+    pub(super) mod metadata;
+    pub(super) mod result;
+    mod text;
+}
 mod txt;
 
 pub use self::docx::DocxParser;

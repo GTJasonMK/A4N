@@ -4,7 +4,7 @@ use a4n_service_protocol::{
     ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, redact_sensitive_message,
 };
 
-use crate::contracts::ImageProviderPayload;
+use a4n_image_contract::ImageProviderPayload;
 
 pub(crate) fn result_response<T>(
     request: &ServiceRequest<impl Sized>,

@@ -1,6 +1,6 @@
 use super::contracts::{ManagedServiceConfig, RemoteSecurityConfig, ServiceMode};
 use crate::errors::ServiceManagerError;
-use a4n_process_catalog::service_catalog_entry;
+use a4n_process_catalog::service_catalog_entry_ref;
 use a4n_service_protocol::SIDECAR_AUTH_TOKEN_ENV;
 
 impl ManagedServiceConfig {
@@ -28,7 +28,7 @@ impl ManagedServiceConfig {
     }
 
     fn validate_registered_local_mode(&self, mode: &str) -> Result<(), ServiceManagerError> {
-        if service_catalog_entry(&self.name).is_none() {
+        if service_catalog_entry_ref(&self.name).is_none() {
             return Err(ServiceManagerError::InvalidConfig(format!(
                 "{mode} service {} has no registered capability version",
                 self.name
@@ -38,7 +38,7 @@ impl ManagedServiceConfig {
     }
 
     fn validate_remote(&self) -> Result<(), ServiceManagerError> {
-        if service_catalog_entry(&self.name).is_some_and(|service| service.local_only) {
+        if service_catalog_entry_ref(&self.name).is_some_and(|service| service.local_only) {
             return Err(ServiceManagerError::InvalidConfig(format!(
                 "remote service {} requires access to the Host local filesystem and must run as a managed sidecar",
                 self.name

@@ -40,7 +40,7 @@ use a4n_worker_contract::{
     AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest,
     AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
     AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerEnvelope,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -149,7 +149,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
     async fn claim_worker(
         &self,
         request: &AgentWorkerClaimRequest,
-    ) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError> {
+    ) -> Result<Option<WorkerEnvelope<AgentRunPayload>>, AppError> {
         let response = self
             .client
             .post(self.url("/internal/agent/claim"))
@@ -183,7 +183,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
 
     async fn load_run_context(
         &self,
-        request: &WorkerRequest<AgentRunPayload>,
+        request: &WorkerEnvelope<AgentRunPayload>,
     ) -> Result<AgentWorkerRunContextWire, AppError> {
         let claimed = a4n_agent_runtime_contract::AgentWorkerRun::from_wire(
             request.payload.worker_run.clone(),
@@ -573,7 +573,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         _user_id: i64,
         _command: String,
         _arguments: Value,
-        request: WorkerRequest<AgentHostCommandPayload>,
+        request: WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<Value, AppError> {
         self.request_json(Method::POST, "/internal/agent/command", &request)
             .await

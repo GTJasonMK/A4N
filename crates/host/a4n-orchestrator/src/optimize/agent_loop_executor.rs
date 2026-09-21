@@ -22,10 +22,20 @@ use super::turns::{
 };
 use super::{OrchestratorContext, optimize_llm_call_input_fingerprint_json};
 
-mod analysis;
+mod analysis {
+    mod execution;
+    mod finalization;
+}
 mod contracts;
-mod decision;
-mod observations;
+mod decision {
+    mod checkpoint;
+    mod execution;
+}
+mod observations {
+    mod thought;
+    mod tool_call;
+    mod tool_result;
+}
 
 pub(in crate::optimize) use contracts::{
     AgentLoopDecisionRequest, AgentLoopExecutionError, AgentLoopGenerationContext,

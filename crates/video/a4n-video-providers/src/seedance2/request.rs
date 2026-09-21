@@ -4,7 +4,7 @@ use a4n_domain::ProviderError as AppError;
 use a4n_video_provider_contract::{SEEDANCE2_VIDEO_BACKEND, validate_video_provider_duration};
 use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 
-use super::provider::Seedance2VideoProvider;
+use super::Seedance2VideoProvider;
 
 impl Seedance2VideoProvider {
     pub(crate) fn request_body(req: &VideoGenerationRequest) -> Result<Value, AppError> {

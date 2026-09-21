@@ -14,7 +14,7 @@ pub use a4n_host_assembly::initialize_runtime;
 pub use logging::init_tracing;
 pub use routes::{
     api_router, dispatch_agent_host_command, dispatch_agent_host_command_value,
-    dispatch_generation_start, dispatch_runtime_command, dispatch_runtime_command_value,
+    dispatch_generation_start, dispatch_runtime_command_value,
 };
 pub use state::{ServerConfig, ServerState};
 

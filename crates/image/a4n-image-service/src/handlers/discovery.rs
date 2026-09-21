@@ -7,8 +7,8 @@ use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::Json;
 use serde_json::Value;
 
-use crate::contracts::ImageProviderPayload;
 use crate::protocol::{result_response, service_error, validate_image_request};
+use a4n_image_contract::ImageProviderPayload;
 
 pub(crate) async fn request_preview(
     Json(request): Json<ServiceRequest<ImageProviderPayload>>,

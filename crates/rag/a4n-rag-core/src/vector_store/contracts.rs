@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-pub use a4n_rag_value_contract::vector_store::{SearchFilter, SearchResult};
-
 /// 嵌入向量记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

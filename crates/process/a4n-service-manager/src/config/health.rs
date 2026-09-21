@@ -1,4 +1,4 @@
-use a4n_process_catalog::service_catalog_entry;
+use a4n_process_catalog::service_catalog_entry_ref;
 use a4n_service_protocol::{HealthStatus, PROTOCOL_VERSION, ServiceHealth, ServiceVersion};
 
 use super::contracts::ManagedServiceConfig;
@@ -13,8 +13,8 @@ impl ManagedServiceConfig {
     }
 
     pub(crate) fn embedded_health(&self) -> Result<ServiceHealth, ServiceManagerError> {
-        let capability_version = service_catalog_entry(&self.name)
-            .map(|entry| entry.capability_version)
+        let capability_version = service_catalog_entry_ref(&self.name)
+            .map(|entry| entry.capability_version.clone())
             .ok_or_else(|| {
                 ServiceManagerError::InvalidConfig(format!(
                     "embedded service {} has no registered capability version",

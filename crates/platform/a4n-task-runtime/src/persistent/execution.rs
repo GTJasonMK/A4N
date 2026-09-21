@@ -30,7 +30,6 @@ impl PersistentTaskQueue {
                 priority,
                 project_id,
                 context: None,
-                workflow: None,
                 cancel_token,
             },
             operation,
@@ -53,17 +52,10 @@ impl PersistentTaskQueue {
             project_id,
             cancel_token,
             context,
-            workflow,
         } = input;
         let running_task = if let Some(context) = context {
             let task_id = self
-                .submit_internal(
-                    task_type,
-                    priority,
-                    project_id,
-                    Some(&context),
-                    workflow.as_ref(),
-                )
+                .submit_internal(task_type, priority, project_id, Some(&context), None)
                 .await?;
             let mut guard = self.submitted_task_guard(task_id.clone());
             let Some(permit) = self
@@ -75,7 +67,7 @@ impl PersistentTaskQueue {
             guard.disarm();
             crate::persistent::RunningTask::new(self.db.clone(), permit)
         } else {
-            self.start_task_with_cancel(task_type, priority, project_id, workflow, cancel_token)
+            self.start_task_with_cancel(task_type, priority, project_id, None, cancel_token)
                 .await?
         };
         let result = match task_type {

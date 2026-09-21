@@ -39,7 +39,7 @@ impl AgentApplication {
     /// before the control plane executes the command on the user's behalf.
     pub async fn authorize_worker_host_command(
         &self,
-        request: &WorkerRequest<AgentHostCommandPayload>,
+        request: &WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<i64, AppError> {
         request
             .validate()

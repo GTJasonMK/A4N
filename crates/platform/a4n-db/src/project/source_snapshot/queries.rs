@@ -34,19 +34,6 @@ pub async fn source_snapshot_chapters(
         .collect())
 }
 
-pub async fn source_snapshot_chapter_by_snapshot_and_source(
-    db: &DatabaseConnection,
-    snapshot_id: i64,
-    source_chapter_id: i64,
-) -> Result<Option<source_snapshot_chapter::Model>, ProjectMutationError> {
-    source_snapshot_chapter::Entity::find()
-        .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
-        .filter(source_snapshot_chapter::Column::SourceChapterId.eq(source_chapter_id))
-        .one(db)
-        .await
-        .map_err(ProjectMutationError::Database)
-}
-
 pub async fn source_snapshot_chapter_content_by_snapshot_and_source(
     db: &DatabaseConnection,
     snapshot_id: i64,

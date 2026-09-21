@@ -1,4 +1,4 @@
-use super::provider::NewApiVideoProvider;
+use super::NewApiVideoProvider;
 use super::response::{extract_status, extract_task_id, find_video_url};
 use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 use serde_json::json;

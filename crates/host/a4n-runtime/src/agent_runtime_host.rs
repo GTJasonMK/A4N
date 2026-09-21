@@ -30,7 +30,7 @@ impl AgentRuntimeHost for NativeAgentRuntimeHost {
     async fn claim_worker(
         &self,
         request: &AgentWorkerClaimRequest,
-    ) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError> {
+    ) -> Result<Option<WorkerEnvelope<AgentRunPayload>>, AppError> {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
@@ -53,7 +53,7 @@ impl AgentRuntimeHost for NativeAgentRuntimeHost {
 
     async fn load_run_context(
         &self,
-        request: &WorkerRequest<AgentRunPayload>,
+        request: &WorkerEnvelope<AgentRunPayload>,
     ) -> Result<AgentWorkerRunContextWire, AppError> {
         crate::actions::agent_runtime::load_agent_run_context(&self.state, request).await
     }
@@ -346,7 +346,7 @@ impl AgentRuntimeHost for NativeAgentRuntimeHost {
         user_id: i64,
         command: String,
         arguments: Value,
-        request: WorkerRequest<AgentHostCommandPayload>,
+        request: WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<Value, AppError> {
         let mut request = request;
         request.payload.command = command;

@@ -2,7 +2,7 @@ use super::super::support::{
     internal_error, prepare_reference_image_for_upload, prompt_with_reference_labels,
     reference_image_field_name,
 };
-use super::provider::CliProxyImageProvider;
+use super::CliProxyImageProvider;
 use a4n_domain::ProviderError as AppError;
 use a4n_image_contract::ImageGenerationRequest;
 use reqwest::multipart::{Form, Part};

@@ -19,9 +19,7 @@ pub mod user {
     pub mod theme_preference;
     pub mod theme_resource;
     pub mod usage_stats;
-    #[path = "user.rs"]
-    pub mod user_entity;
-    pub use user_entity as user;
+    pub mod user;
     pub mod user_session;
 }
 
@@ -97,9 +95,7 @@ pub mod source_sync {
 }
 
 pub mod chapter {
-    #[path = "chapter.rs"]
-    pub mod chapter_entity;
-    pub use chapter_entity as chapter;
+    pub mod chapter;
     pub mod chapter_manga_prompt;
     pub mod chapter_outline;
     pub mod chapter_outline_provenance;

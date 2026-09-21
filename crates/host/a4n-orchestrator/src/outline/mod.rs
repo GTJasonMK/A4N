@@ -10,7 +10,30 @@ mod contracts;
 mod generation;
 mod llm_stream;
 mod part_contract;
-mod parts;
+mod parts {
+    mod continuation;
+    mod contracts;
+    mod generation {
+        mod append;
+        mod preview;
+        mod replacement;
+    }
+    mod llm {
+        mod execution;
+        mod trace;
+    }
+    mod planning;
+    mod queries;
+    mod regeneration {
+        mod execution;
+        mod preparation;
+        mod preview;
+    }
+    mod requests;
+
+    #[cfg(test)]
+    mod tests;
+}
 mod preview;
 mod rules;
 mod workflow_rules;

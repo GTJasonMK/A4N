@@ -3,7 +3,13 @@ mod contracts;
 mod llm;
 mod pipeline;
 mod progress;
-mod regeneration;
+mod regeneration {
+    mod contracts;
+    mod finalization;
+    mod orchestration;
+    mod preparation;
+    mod stages;
+}
 mod validation;
 
 pub use contracts::{

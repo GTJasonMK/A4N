@@ -2,7 +2,7 @@ use super::super::sync::RagRecordSyncOutcome;
 use super::context::{ClientIngestContext, load_client_ingest_context};
 use crate::state::AppState;
 use a4n_api_contract::rag::{ClientRagIngestPrepareOutput, PreparedClientRagIngestRecord};
-use a4n_rag_core::{contracts::sync::classify_rag_record, metadata::content_hash};
+use a4n_rag_core::{metadata::content_hash, sync::classify_rag_record};
 
 pub async fn rag_prepare_ingest_all(
     state: &AppState,

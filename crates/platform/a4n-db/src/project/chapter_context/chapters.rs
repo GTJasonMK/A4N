@@ -50,20 +50,3 @@ pub async fn chapters_before_number(
         .await
         .map_err(ProjectChapterContextError::Database)
 }
-
-pub async fn chapters_for_project_numbers(
-    db: &DatabaseConnection,
-    project_id: i64,
-    chapter_numbers: &[i32],
-) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
-    if chapter_numbers.is_empty() {
-        return Ok(Vec::new());
-    }
-    chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .filter(chapter::Column::ChapterNumber.is_in(chapter_numbers.iter().copied()))
-        .order_by_asc(chapter::Column::ChapterNumber)
-        .all(db)
-        .await
-        .map_err(ProjectChapterContextError::Database)
-}

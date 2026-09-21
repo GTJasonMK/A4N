@@ -1,5 +1,11 @@
 mod blueprint_records;
-mod chapter_cleanup;
+mod chapter_cleanup {
+    mod execution;
+    mod plan;
+
+    #[cfg(test)]
+    mod tests;
+}
 mod chapter_records;
 mod character_profile_records;
 mod continuity_records;

@@ -10,7 +10,6 @@ pub use contracts::{
     CharacterSyncWriteStepRecordInput, CharacterSyncWriteSummary,
 };
 pub use execution::apply_character_sync_persistence_record;
-pub use snapshots::character_sync_attribute_events_at_chapter;
 
 pub(in crate::character) use contracts::CharacterSyncStoredSnapshotsRecord;
 

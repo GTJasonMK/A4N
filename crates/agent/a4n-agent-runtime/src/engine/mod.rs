@@ -24,8 +24,8 @@ use a4n_worker_contract::{
     AgentWorkerChapterScopeRequest, AgentWorkerClaimRequest, AgentWorkerDelegationScopeRequest,
     AgentWorkerEditorWaitExpiryRequest, AgentWorkerExpiredRunRecoveryRequest,
     AgentWorkerExternalTaskWaitSnapshotWire, AgentWorkerRunWire, AgentWorkerToolDescribeRequest,
-    AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerToolSearchRequest, WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerLease,
+    WorkerPrincipal, WorkerPrincipalKind,
 };
 use futures::StreamExt;
 use serde::Deserialize;

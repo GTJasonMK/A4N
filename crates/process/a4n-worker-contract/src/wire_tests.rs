@@ -70,8 +70,8 @@ fn assert_unknown_field_rejected<T: DeserializeOwned + std::fmt::Debug>(
 }
 
 #[test]
-fn legacy_agent_request_alias_preserves_wire_shape_and_common_metadata() {
-    let request: WorkerRequest<_> = valid_envelope();
+fn agent_envelope_preserves_wire_shape_and_common_metadata() {
+    let request: WorkerEnvelope<_> = valid_envelope();
     request.validate().expect("envelope should validate");
     let encoded = serde_json::to_value(&request).expect("request should serialize");
     assert!(encoded.get("scope").is_none());
@@ -81,8 +81,8 @@ fn legacy_agent_request_alias_preserves_wire_shape_and_common_metadata() {
     assert_eq!(request.operation_ref().operation_id, "content.update");
     assert_eq!(request.operation_ref().task_id, None);
 
-    let decoded: WorkerRequest<serde_json::Value> =
-        serde_json::from_value(encoded).expect("legacy request should deserialize");
+    let decoded: WorkerEnvelope<serde_json::Value> =
+        serde_json::from_value(encoded).expect("agent envelope should deserialize");
     assert_eq!(decoded, request);
 }
 

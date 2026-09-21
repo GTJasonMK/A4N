@@ -16,9 +16,8 @@ pub use panel::{
 };
 pub use text::{MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2};
 pub use versions::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V2, MANGA_PAGE_PLAN_V3,
-    MangaPageDrawingPromptSchemaVersion, MangaPageGenerationSchemaVersion,
-    MangaPagePlanSchemaVersion,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaPageDrawingPromptSchemaVersion,
+    MangaPageGenerationSchemaVersion, MangaPagePlanSchemaVersion,
 };
 
 #[cfg(test)]

@@ -360,22 +360,6 @@ fn required_completion_text(value: &str, label: &str) -> Result<String, Optimize
     Ok(value.to_string())
 }
 
-pub async fn optimization_turn_events<C>(
-    db: &C,
-    turn_id: i64,
-) -> Result<Vec<optimization_turn_event::Model>, OptimizeDbError>
-where
-    C: ConnectionTrait,
-{
-    optimization_turn_event::Entity::find()
-        .filter(optimization_turn_event::Column::TurnId.eq(turn_id))
-        .order_by_asc(optimization_turn_event::Column::Seq)
-        .order_by_asc(optimization_turn_event::Column::Id)
-        .all(db)
-        .await
-        .map_err(OptimizeDbError::Database)
-}
-
 pub async fn optimization_turn_events_for_turns<C>(
     db: &C,
     turn_ids: &[i64],

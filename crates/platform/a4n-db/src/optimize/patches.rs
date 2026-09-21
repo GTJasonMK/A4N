@@ -166,42 +166,6 @@ where
     Ok(Some(patch_set))
 }
 
-pub async fn update_optimization_patch_set_status<C>(
-    db: &C,
-    patch_set: optimization_patch_set::Model,
-    patch_set_status: &str,
-    patch_decision: &str,
-    patch_apply_status: &str,
-) -> Result<(), OptimizeDbError>
-where
-    C: ConnectionTrait,
-{
-    let now = chrono::Utc::now().naive_utc();
-    optimization_patch::Entity::update_many()
-        .col_expr(
-            optimization_patch::Column::Decision,
-            sea_orm::sea_query::Expr::value(patch_decision.to_string()),
-        )
-        .col_expr(
-            optimization_patch::Column::ApplyStatus,
-            sea_orm::sea_query::Expr::value(patch_apply_status.to_string()),
-        )
-        .col_expr(
-            optimization_patch::Column::UpdatedAt,
-            sea_orm::sea_query::Expr::value(now),
-        )
-        .filter(optimization_patch::Column::PatchSetId.eq(patch_set.id))
-        .exec(db)
-        .await
-        .map_err(OptimizeDbError::Database)?;
-
-    let mut active: optimization_patch_set::ActiveModel = patch_set.into();
-    active.status = Set(patch_set_status.to_string());
-    active.updated_at = Set(now);
-    active.update(db).await.map_err(OptimizeDbError::Database)?;
-    Ok(())
-}
-
 pub async fn update_optimization_patch_sets_status<C>(
     db: &C,
     patch_set_ids: &[i64],

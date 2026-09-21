@@ -1,5 +1,8 @@
 mod choices;
-mod lines;
+mod lines {
+    mod insertion;
+    mod update;
+}
 mod scenes;
 
 use std::collections::BTreeSet;

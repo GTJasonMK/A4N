@@ -28,7 +28,7 @@ use a4n_worker_contract::{
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest,
-    AgentWorkerSkillSearchRequest, AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerSkillSearchRequest, AgentWorkerUsageRequest, WorkerEnvelope, WorkerLease,
 };
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -120,7 +120,7 @@ impl AgentRuntimeState {
 
     pub async fn load_agent_run_context(
         &self,
-        request: &WorkerRequest<AgentRunPayload>,
+        request: &WorkerEnvelope<AgentRunPayload>,
     ) -> Result<AgentRunContext, AppError> {
         self.host
             .load_run_context(request)
@@ -366,7 +366,7 @@ impl AgentRuntimeState {
 
     pub async fn review_agent_delegation(
         &self,
-        worker_request: &WorkerRequest<AgentRunPayload>,
+        worker_request: &WorkerEnvelope<AgentRunPayload>,
         user_id: i64,
         parent_run_id: Option<i64>,
         input: a4n_api_contract::agent::ReviewAgentDelegationInput,
@@ -392,7 +392,7 @@ impl AgentRuntimeState {
 
     pub async fn ensure_agent_canonical_subagent_thread(
         &self,
-        worker_request: &WorkerRequest<AgentRunPayload>,
+        worker_request: &WorkerEnvelope<AgentRunPayload>,
         user_id: i64,
         input: a4n_agent_runtime_contract::EnsureCanonicalSubagentThreadInput,
     ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
@@ -794,7 +794,7 @@ impl AgentRuntimeState {
         scope: &AgentScope,
         command: String,
         arguments: Value,
-        worker_request: &WorkerRequest<AgentRunPayload>,
+        worker_request: &WorkerEnvelope<AgentRunPayload>,
         execution_id: Option<i64>,
     ) -> Result<Value, AppError> {
         let payload = AgentHostCommandPayload {
@@ -813,7 +813,7 @@ impl AgentRuntimeState {
         let host_key = execution_id
             .map(|id| format!("execution:{id}"))
             .unwrap_or_else(|| format!("command:{command}"));
-        let request = WorkerRequest {
+        let request = WorkerEnvelope {
             schema_version: worker_request.schema_version,
             request_id: format!("{}:host:{host_key}", worker_request.request_id),
             trace_id: worker_request.trace_id.clone(),

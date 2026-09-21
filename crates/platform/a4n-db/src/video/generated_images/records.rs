@@ -17,7 +17,7 @@ pub use mutations::update_generated_image_record;
 pub(in crate::video::generated_images) use queries::generated_image_records_by_ids;
 pub(crate) use queries::generated_images_for_chapter_by_id_desc;
 pub use queries::{
-    generated_image_by_id, generated_image_exists, generated_image_ids_by_ids,
-    generated_images_by_ids, generated_images_for_chapter, generated_images_for_project,
-    generated_images_for_projects, generated_images_for_projects_chapter_by_id_desc,
+    generated_image_by_id, generated_image_ids_by_ids, generated_images_by_ids,
+    generated_images_for_chapter, generated_images_for_project, generated_images_for_projects,
+    generated_images_for_projects_chapter_by_id_desc,
 };

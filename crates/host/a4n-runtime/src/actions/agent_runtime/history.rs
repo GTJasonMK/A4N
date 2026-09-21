@@ -3,7 +3,7 @@ use super::*;
 pub async fn claim_agent_worker_request(
     state: &AppState,
     worker_id: &str,
-) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError> {
+) -> Result<Option<WorkerEnvelope<AgentRunPayload>>, AppError> {
     if worker_id.trim().is_empty() {
         return Err(AppError::InvalidArgument("Agent worker_id 不能为空".into()));
     }
@@ -33,7 +33,7 @@ pub async fn claim_agent_worker_request(
 
 pub async fn load_agent_run_context(
     state: &AppState,
-    request: &WorkerRequest<AgentRunPayload>,
+    request: &WorkerEnvelope<AgentRunPayload>,
 ) -> Result<AgentWorkerRunContextWire, AppError> {
     request.validate_agent_run().map_err(|error| {
         AppError::InvalidArgument(format!("Agent worker request 无效: {error}"))
@@ -521,7 +521,7 @@ pub async fn agent_worker_run_is_terminal(
 
 pub async fn authorize_agent_host_command(
     state: &AppState,
-    request: &WorkerRequest<a4n_worker_contract::AgentHostCommandPayload>,
+    request: &WorkerEnvelope<a4n_worker_contract::AgentHostCommandPayload>,
 ) -> Result<i64, AppError> {
     state.authorize_agent_host_command(request).await
 }

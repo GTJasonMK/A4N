@@ -38,11 +38,6 @@ pub struct WorkerEnvelope<T> {
     pub payload: T,
 }
 
-/// Compatibility name for the Agent worker wire envelope.
-///
-/// This alias intentionally keeps the existing JSON shape and field names.
-pub type WorkerRequest<T> = WorkerEnvelope<T>;
-
 impl<T> WorkerEnvelope<T> {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_worker_schema_version(self.schema_version)?;

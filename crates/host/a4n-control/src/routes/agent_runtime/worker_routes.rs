@@ -16,7 +16,7 @@ pub(super) async fn claim_worker(
 pub(super) async fn load_agent_context(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(request): Json<WorkerRequest<AgentRunPayload>>,
+    Json(request): Json<WorkerEnvelope<AgentRunPayload>>,
 ) -> Result<Json<AgentWorkerRunContextWire>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     request
@@ -602,7 +602,7 @@ pub(super) async fn agent_worker_run_is_terminal(
 pub(super) async fn command(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(request): Json<WorkerRequest<AgentHostCommandPayload>>,
+    Json(request): Json<WorkerEnvelope<AgentHostCommandPayload>>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     request

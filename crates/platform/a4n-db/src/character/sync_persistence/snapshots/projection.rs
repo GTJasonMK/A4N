@@ -4,14 +4,6 @@ use std::collections::HashMap;
 
 use crate::character::CharacterDbError;
 
-pub fn character_sync_attribute_events_at_chapter(
-    events: &[attribute_event::Model],
-    chapter_number: i32,
-) -> Value {
-    let by_chapter = character_sync_attribute_events_by_chapter(events);
-    character_sync_attribute_events_from_index(&by_chapter, chapter_number)
-}
-
 pub(super) type CharacterSyncEventsByChapter<'a> = HashMap<i32, Vec<&'a attribute_event::Model>>;
 
 pub(super) fn character_sync_attribute_events_by_chapter(

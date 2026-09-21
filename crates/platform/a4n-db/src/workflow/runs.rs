@@ -29,8 +29,7 @@ pub use queries::{
     latest_workflow_run_recovery_records_by_business_keys,
     latest_workflow_run_status_record_by_business_key, latest_workflow_runs_by_business_keys,
     list_workflow_run_models, list_workflow_runs, workflow_run_access_record_by_active_task_id,
-    workflow_run_detail, workflow_run_model_by_active_task_id, workflow_run_model_by_id,
-    workflow_run_model_optional_by_id, workflow_run_models_by_ids,
+    workflow_run_detail, workflow_run_model_by_id, workflow_run_models_by_ids,
     workflow_run_status_record_by_id, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
     workflow_runs_by_project_kind,
 };

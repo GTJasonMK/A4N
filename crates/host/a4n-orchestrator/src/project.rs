@@ -37,7 +37,10 @@ pub(crate) fn ensure_positive_project_id(project_id: i64) -> Result<(), a4n_erro
 }
 
 mod chapters;
-mod duplication;
+mod duplication {
+    #[cfg(test)]
+    mod tests;
+}
 mod errors;
 mod family_package;
 mod family_transfer;

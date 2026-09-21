@@ -1,7 +1,17 @@
-mod beat_mapping;
+mod beat_mapping {
+    mod checkpoint;
+    mod execution;
+    mod preparation;
+    mod preview;
+    mod request;
+}
 mod contracts;
 mod generation;
-mod llm;
+mod llm {
+    mod checkpoint;
+    mod execution;
+    mod trace;
+}
 mod preview;
 mod queries;
 mod regeneration;

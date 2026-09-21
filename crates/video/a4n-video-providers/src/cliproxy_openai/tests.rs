@@ -1,4 +1,5 @@
-use super::provider::CliProxyOpenAiVideoProvider;
+use super::CliProxyOpenAiVideoProvider;
+use super::request::request_body_for_route;
 use super::response::*;
 use a4n_video_provider_contract::{VideoJobDeleteOutcome, VideoProvider};
 use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
@@ -30,7 +31,7 @@ fn openai_route_uses_wrapper_fields_for_references() {
         VideoMediaInput::from_images(None, None, vec!["https://example.test/ref.png".into()])
             .unwrap();
 
-    let body = CliProxyOpenAiVideoProvider::request_body(&req).unwrap();
+    let body = request_body_for_route(&req, true).unwrap();
     assert_eq!(body["model"], "grok-imagine-video");
     assert_eq!(body["seconds"], "5");
     assert_eq!(body["size"], "1280x720");
@@ -159,7 +160,7 @@ fn request_body_sends_references_only_without_first_frame() {
     req.media =
         VideoMediaInput::from_images(None, None, vec!["https://example.test/ref.png".into()])
             .unwrap();
-    let body = CliProxyOpenAiVideoProvider::request_body(&req).unwrap();
+    let body = request_body_for_route(&req, true).unwrap();
     assert_eq!(
         body["reference_images"][0]["url"],
         "https://example.test/ref.png"
@@ -196,7 +197,7 @@ fn model_names_do_not_block_reference_image_requests_locally() {
             VideoMediaInput::from_images(None, None, vec!["https://example.test/ref.png".into()])
                 .unwrap();
 
-        let body = CliProxyOpenAiVideoProvider::request_body(&req).unwrap();
+        let body = request_body_for_route(&req, true).unwrap();
 
         assert_eq!(body["model"], model);
         assert_eq!(
@@ -218,7 +219,7 @@ fn first_frame_and_references_are_rejected() {
         ],
     )
     .unwrap();
-    let err = CliProxyOpenAiVideoProvider::request_body(&req).unwrap_err();
+    let err = request_body_for_route(&req, true).unwrap_err();
     assert!(err.to_string().contains("不允许同时发送"));
 }
 
@@ -234,7 +235,7 @@ fn reference_limits_are_enforced() {
     )
     .unwrap();
     assert!(
-        CliProxyOpenAiVideoProvider::request_body(&req)
+        request_body_for_route(&req, true)
             .unwrap_err()
             .to_string()
             .contains("最多支持 7 张")
@@ -245,7 +246,7 @@ fn reference_limits_are_enforced() {
             .unwrap();
     req.duration_secs = 11;
     assert!(
-        CliProxyOpenAiVideoProvider::request_body(&req)
+        request_body_for_route(&req, true)
             .unwrap_err()
             .to_string()
             .contains("最大时长为 10 秒")
@@ -258,7 +259,7 @@ fn duration_must_match_gateway_range() {
     for duration in [0, 16] {
         req.duration_secs = duration;
         assert!(
-            CliProxyOpenAiVideoProvider::request_body(&req)
+            request_body_for_route(&req, true)
                 .unwrap_err()
                 .to_string()
                 .contains("1-15 秒")

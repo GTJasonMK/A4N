@@ -8,7 +8,7 @@ mod contracts;
 mod validation;
 
 pub use contracts::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V2, MANGA_PAGE_PLAN_V3, MangaCameraAngleV2,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaCameraAngleV2,
     MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
     MangaPageGenerationSchemaVersion, MangaPageImportanceV2, MangaPagePacingV2,
     MangaPagePlanSchemaVersion, MangaPagePlanV3, MangaPageRoleV2, MangaPageV3,

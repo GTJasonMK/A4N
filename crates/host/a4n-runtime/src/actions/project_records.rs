@@ -8,4 +8,4 @@ pub use api::{
     get_project_summary, list_projects, list_source_snapshot_chapters,
     reset_project_generated_data, update_project,
 };
-pub use summaries::{project_summaries_with_family_for_user, project_summary_with_family_for_user};
+pub use summaries::project_summary_with_family_for_user;

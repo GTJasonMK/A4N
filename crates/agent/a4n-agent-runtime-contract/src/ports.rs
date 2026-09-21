@@ -76,7 +76,7 @@ pub trait AgentRunLeaseRecoveryApplicationPort: Send + Sync {
 pub trait AgentWorkerHostCommandApplicationPort: Send + Sync {
     async fn authorize_worker_host_command(
         &self,
-        request: &WorkerRequest<AgentHostCommandPayload>,
+        request: &WorkerEnvelope<AgentHostCommandPayload>,
     ) -> Result<i64, AppError>;
 }
 

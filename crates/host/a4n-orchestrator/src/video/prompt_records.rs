@@ -1,6 +1,9 @@
 mod contracts;
 mod matching;
-mod records;
+mod records {
+    mod mutations;
+    mod reuse;
+}
 
 #[cfg(test)]
 pub use contracts::VideoPromptUpdateInput;

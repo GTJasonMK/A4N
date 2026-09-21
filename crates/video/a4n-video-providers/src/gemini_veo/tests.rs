@@ -1,4 +1,4 @@
-use super::provider::GeminiVeoVideoProvider;
+use super::GeminiVeoVideoProvider;
 use super::response::{find_video_uri, veo_resolution_from_size};
 use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
 use serde_json::json;

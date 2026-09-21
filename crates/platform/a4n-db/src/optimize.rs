@@ -26,7 +26,7 @@ pub use patches::{
     create_optimization_patch_set, matching_pending_optimization_patch_sets,
     optimization_patch_set_by_id, optimization_patch_set_by_turn_id,
     optimization_patch_set_patches, optimization_patch_set_patches_for_sets,
-    optimization_patch_sets, pending_optimization_patch_sets, update_optimization_patch_set_status,
+    optimization_patch_sets, pending_optimization_patch_sets,
     update_optimization_patch_sets_status,
 };
 pub use sessions::{
@@ -37,7 +37,7 @@ pub use sessions::{
 pub use turns::{
     append_optimization_turn_event, complete_optimization_analysis_turn,
     complete_optimization_chat_turn, complete_optimization_patch_turn, create_optimization_turn,
-    optimization_turn_by_agent_turn_id, optimization_turn_by_id, optimization_turn_events,
+    optimization_turn_by_agent_turn_id, optimization_turn_by_id,
     optimization_turn_events_for_turns, optimization_turns, update_optimization_turn,
 };
 pub use types::{

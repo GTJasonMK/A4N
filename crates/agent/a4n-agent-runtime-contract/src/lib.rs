@@ -33,7 +33,7 @@ use a4n_worker_contract::{
     AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
     AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerSkillLoadRequest,
     AgentWorkerSkillSearchRequest, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
-    AgentWorkerUsageRequest, WorkerRequest,
+    AgentWorkerUsageRequest, WorkerEnvelope,
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};

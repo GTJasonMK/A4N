@@ -4,7 +4,12 @@ use super::ParseResult;
 use super::shared::result::parse_extracted_document;
 
 mod archive;
-mod helpers;
+mod helpers {
+    pub(super) mod html;
+    pub(super) mod ordering;
+    pub(super) mod path;
+    pub(super) mod spine;
+}
 #[cfg(test)]
 mod tests;
 use archive::read_epub_archive;

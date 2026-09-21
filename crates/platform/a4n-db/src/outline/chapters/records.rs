@@ -1,6 +1,6 @@
 use a4n_db_models::models::chapter::chapter_outline;
 use chrono::NaiveDateTime;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use super::super::types::OutlineDbError;
 use a4n_domain::chapter::ChapterOutlineSyncDraft;
@@ -76,18 +76,4 @@ where
     active.status = Set("draft".to_string());
     active.updated_at = Set(updated_at);
     Ok(active.update(db).await?)
-}
-
-pub async fn update_chapter_outline_record_transaction(
-    db: &DatabaseConnection,
-    existing: chapter_outline::Model,
-    part_id: Option<i64>,
-    draft: &ChapterOutlineSyncDraft,
-    now: NaiveDateTime,
-) -> Result<chapter_outline::Model, OutlineDbError> {
-    let txn = db.begin().await?;
-    super::super::lock_outline_project_for_write(&txn, existing.project_id, "更新章节大纲").await?;
-    let updated = update_chapter_outline_record(&txn, existing, part_id, draft, now).await?;
-    txn.commit().await?;
-    Ok(updated)
 }

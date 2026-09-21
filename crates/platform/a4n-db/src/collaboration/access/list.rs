@@ -55,22 +55,6 @@ pub async fn list_accessible_projects(
     Ok(AccessibleProjectsPage { items, total })
 }
 
-/// 返回当前用户按协作规则可见的项目 ID，供其他 DB 查询在分页前做授权过滤。
-pub async fn accessible_project_ids(
-    db: &DatabaseConnection,
-    user_id: i64,
-) -> Result<Vec<i64>, CollaborationDbError> {
-    novel_project::Entity::find()
-        .select_only()
-        .column(novel_project::Column::Id)
-        .filter(accessible_project_condition(db, user_id, ProjectAccessScope::All).await?)
-        .order_by_asc(novel_project::Column::Id)
-        .into_tuple::<i64>()
-        .all(db)
-        .await
-        .map_err(CollaborationDbError::Database)
-}
-
 async fn accessible_project_condition(
     db: &DatabaseConnection,
     user_id: i64,

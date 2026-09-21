@@ -1,7 +1,7 @@
 use super::*;
 use a4n_api_contract::agent::*;
 use a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView;
-use a4n_worker_contract::{AgentRunPayload, WorkerRequest};
+use a4n_worker_contract::{AgentRunPayload, WorkerEnvelope};
 
 pub fn respond_agent_editor(
     state: &AppState,
@@ -179,7 +179,7 @@ async fn resolve_response(
     request: &AgentEditorRequest,
     call: &ToolCall,
     response: AgentEditorResponse,
-    worker_request: &WorkerRequest<AgentRunPayload>,
+    worker_request: &WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(Value, Option<ChapterVisualPlanView>), AppError> {
     let budget: AgentBudget = serde_json::from_value(context.budget.clone())?;
     validate_agent_budget(&budget)?;

@@ -1,5 +1,5 @@
-use super::chat::provider::ChatCompletionsImageProvider;
-use super::cliproxy::provider::CliProxyImageProvider;
+use super::chat::ChatCompletionsImageProvider;
+use super::cliproxy::CliProxyImageProvider;
 use super::comfyui::ComfyUiImageProvider;
 use super::openai::OpenAiCompatibleImageProvider;
 use super::openai_edit::OpenAiCompatibleImageEditProvider;
@@ -9,7 +9,7 @@ use a4n_domain::ProviderError as AppError;
 use a4n_domain::image::{
     CLIPROXY_IMAGE_BACKEND, COMFYUI_IMAGE_BACKEND, OPENAI_CHAT_IMAGE_BACKEND,
     OPENAI_COMPATIBLE_IMAGE_BACKEND, OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND,
-    STABLE_DIFFUSION_IMAGE_BACKEND, image_provider_capabilities,
+    STABLE_DIFFUSION_IMAGE_BACKEND,
 };
 use a4n_image_contract::ImageGenerationRequest;
 use a4n_image_provider_contract::ImageProvider;
@@ -21,9 +21,6 @@ pub fn pick_image_provider(
     base_url: &str,
     api_key: &str,
 ) -> Result<Box<dyn ImageProvider>, AppError> {
-    if image_provider_capabilities(backend).is_none() {
-        return Err(internal_error(format!("未知 backend={backend}")));
-    }
     match backend {
         OPENAI_COMPATIBLE_IMAGE_BACKEND => Ok(Box::new(OpenAiCompatibleImageProvider::new(
             base_url, api_key,
@@ -39,7 +36,7 @@ pub fn pick_image_provider(
             Ok(Box::new(StableDiffusionWebUiImageProvider::new(base_url)?))
         }
         COMFYUI_IMAGE_BACKEND => Ok(Box::new(ComfyUiImageProvider::new(base_url)?)),
-        _ => unreachable!("image backend registry and factory are out of sync"),
+        _ => Err(internal_error(format!("未知 backend={backend}"))),
     }
 }
 

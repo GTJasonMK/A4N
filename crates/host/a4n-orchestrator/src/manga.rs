@@ -12,7 +12,21 @@ mod pipeline_json;
 mod pipeline_persist;
 mod pipeline_preview;
 mod pipeline_prompt;
-mod pipeline_run;
+mod pipeline_run {
+    mod checkpoint {
+        mod llm;
+    }
+    mod completion;
+    mod contracts;
+    mod drawing_prompt;
+    mod early_extraction;
+    mod late_extraction;
+    mod pipeline {
+        mod execution;
+    }
+    mod planning;
+    mod progress;
+}
 mod pipeline_state;
 mod prompt_optimization;
 mod record_errors;

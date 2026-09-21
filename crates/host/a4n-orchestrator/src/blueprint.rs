@@ -29,7 +29,11 @@ use generation::{BLUEPRINT_GENERATION_STAGES, preview_generate_request};
 mod generation;
 mod json;
 mod persistence;
-mod refine;
+mod refine {
+    mod checkpoint;
+    mod execution;
+    mod preview;
+}
 
 use a4n_blueprint_contract::{
     BlueprintGenerationApplicationPort, BlueprintGenerationPreviewApplicationPort,

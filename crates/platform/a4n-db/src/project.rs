@@ -39,13 +39,12 @@ pub use blueprint_sync::{
 pub use chapter_context::{
     ChapterGenerationReferenceContextRows, ProjectChapterContextError,
     ProtagonistProfileCurrentStateUpdate, chapter_by_id, chapter_generation_reference_context_rows,
-    chapters_before_number, chapters_for_project_numbers,
-    character_states_for_profiles_before_chapter, character_sync_chapters,
+    chapters_before_number, character_states_for_profiles_before_chapter, character_sync_chapters,
     import_analysis_chapter_candidates, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     refresh_project_current_chapter, scene_profiles_before_chapter,
-    snapshot_profile_ids_for_chapter, snapshot_reference_for_profile_chapter,
-    snapshot_references_for_profiles_chapter, update_protagonist_profile_current_state,
+    snapshot_profile_ids_for_chapter, snapshot_references_for_profiles_chapter,
+    update_protagonist_profile_current_state,
 };
 pub use chapter_scene_records::{
     ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput, ProjectChapterSceneWriteError,
@@ -104,10 +103,7 @@ pub(crate) use freeform_reset::FreeformGeneratedResetTargets;
 pub use freeform_reset::{
     FreeformGeneratedResetDbError, reset_freeform_video_generated_data_records,
 };
-pub use material_refs::{
-    character_portrait_project_id, primary_material_image_ids_for_projects,
-    protagonist_profile_project_id,
-};
+pub use material_refs::{primary_material_image_ids_for_projects, protagonist_profile_project_id};
 pub use mutation::{
     CreateFreeformVideoProjectParams, CreateProjectRecordInput, PROJECT_KIND_TEXT,
     PROJECT_KIND_VIDEO, ProjectMutationError, SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
@@ -148,7 +144,6 @@ pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impac
 pub(crate) use source_snapshot::create_source_snapshot_in_record;
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
-    source_snapshot_chapter_by_snapshot_and_source,
     source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapters,
 };
 pub(crate) use status::delete_project_status_history;

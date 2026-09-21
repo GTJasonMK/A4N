@@ -17,9 +17,9 @@ mod snapshots;
 
 pub use candidates::{
     SourceSyncAnchorConflictCandidateRecord, SourceSyncProfileGenerationSpecRefRecord,
-    anchor_conflict_candidates_for_run, generation_specs_for_profile_ref,
-    generation_specs_for_profile_refs, generation_specs_for_source_chapter,
-    generation_specs_for_source_chapters, local_states_for_generation_specs,
+    anchor_conflict_candidates_for_run, generation_specs_for_profile_refs,
+    generation_specs_for_source_chapter, generation_specs_for_source_chapters,
+    local_states_for_generation_specs,
 };
 pub use conflicts::{
     SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput, detach_derived_project_record,

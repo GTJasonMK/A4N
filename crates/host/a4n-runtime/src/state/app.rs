@@ -14,7 +14,7 @@ use a4n_db::character::Sha256SnapshotStore;
 use a4n_event::{BroadcastEventBus, InternalEvent};
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 use a4n_worker_contract::{
-    AGENT_HOST_COMMAND_OPERATION, AgentHostCommandPayload, AgentRunPayload, WorkerRequest,
+    AGENT_HOST_COMMAND_OPERATION, AgentHostCommandPayload, AgentRunPayload, WorkerEnvelope,
 };
 use serde_json::Value;
 
@@ -108,7 +108,7 @@ pub type AgentHostCommandDispatcher = Arc<
             i64,
             String,
             AgentHostCommandPayload,
-            WorkerRequest<AgentHostCommandPayload>,
+            WorkerEnvelope<AgentHostCommandPayload>,
         ) -> AgentHostCommandFuture
         + Send
         + Sync,

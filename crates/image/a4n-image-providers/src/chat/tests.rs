@@ -1,5 +1,4 @@
-use super::parser::ChatImagePayload;
-use super::provider::ChatCompletionsImageProvider;
+use super::parser::{ChatImagePayload, extract_chat_image_payload};
 use a4n_domain::ProviderError as AppError;
 
 /// 用最小 1x1 PNG 像素的 base64 作为测试样本，避免重复书写魔数。
@@ -7,7 +6,7 @@ const PNG_1X1_B64: &str =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 fn parse(body: serde_json::Value) -> Result<ChatImagePayload, AppError> {
-    ChatCompletionsImageProvider::parse_response_for_test(&body.to_string())
+    extract_chat_image_payload(&body.to_string())
 }
 
 #[test]

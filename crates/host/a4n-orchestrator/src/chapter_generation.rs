@@ -1,5 +1,16 @@
 mod application;
-mod context_before;
+mod context_before {
+    mod analysis;
+    mod character_state;
+    mod object_profile;
+    mod resolution;
+    mod scene_profile;
+    mod shared;
+    mod summaries;
+
+    #[cfg(test)]
+    mod tests;
+}
 mod lifecycle;
 mod preparation;
 pub(crate) mod rag_context;

@@ -1,31 +1,8 @@
 use super::ProjectFamilyDbError;
-use a4n_db_models::models::{
-    asset::profile_primary_material,
-    character::{character_portrait, protagonist_profile},
-};
+use a4n_db_models::models::{asset::profile_primary_material, character::protagonist_profile};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
 };
-
-pub async fn character_portrait_project_id(
-    db: &DatabaseConnection,
-    portrait_id: i64,
-) -> Result<i64, ProjectFamilyDbError> {
-    if portrait_id <= 0 {
-        return Err(ProjectFamilyDbError::InvalidArgument(
-            "portrait_id 必须大于 0".to_string(),
-        ));
-    }
-    let portrait = character_portrait::Entity::find_by_id(portrait_id)
-        .select_only()
-        .column(character_portrait::Column::ProjectId)
-        .into_tuple::<i64>()
-        .one(db)
-        .await
-        .map_err(ProjectFamilyDbError::Database)?
-        .ok_or_else(|| ProjectFamilyDbError::NotFound(format!("立绘不存在: {portrait_id}")))?;
-    Ok(portrait)
-}
 
 pub async fn protagonist_profile_project_id(
     db: &DatabaseConnection,

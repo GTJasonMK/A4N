@@ -10,7 +10,12 @@ mod finalization;
 mod inputs;
 mod preparation;
 mod reuse_preparation;
-mod service_facade;
+mod service_facade {
+    mod frame_stages;
+    mod mode_routers;
+    mod preparation;
+    mod video_stages;
+}
 mod unit_execution;
 mod unit_workflow;
 

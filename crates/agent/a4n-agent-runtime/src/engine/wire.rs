@@ -8,7 +8,7 @@ pub(crate) fn worker_request_for_claimed_run(
     claimed: &AgentWorkerRun,
     expected_worker_id: &str,
     runtime_snapshot: Option<a4n_api_contract::runtime_config::RuntimeConfigSnapshot>,
-) -> Result<WorkerRequest<AgentRunPayload>, AppError> {
+) -> Result<WorkerEnvelope<AgentRunPayload>, AppError> {
     let run = &claimed.run;
     let worker_id = run
         .worker_id
@@ -46,7 +46,7 @@ pub(crate) fn worker_request_for_claimed_run(
             operation: "构造 Agent worker request".into(),
         })?;
     let runtime_config_snapshot = runtime_snapshot.map(serde_json::to_value).transpose()?;
-    let request = WorkerRequest {
+    let request = WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,
         request_id: format!("agent-run-{}-{}", run.id, attempt),
         trace_id: format!("agent-run:{}:{}", run.id, attempt),
@@ -86,7 +86,7 @@ pub(crate) fn worker_request_for_claimed_run(
 
 pub(crate) fn validate_claimed_worker_request(
     claimed: &AgentWorkerRun,
-    request: &WorkerRequest<AgentRunPayload>,
+    request: &WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(), AppError> {
     request.validate_agent_run().map_err(|error| {
         AppError::InvalidArgument(format!("Agent worker payload 无效: {error}"))

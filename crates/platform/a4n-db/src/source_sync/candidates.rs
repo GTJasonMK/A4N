@@ -8,8 +8,8 @@ pub use contracts::{
     SourceSyncAnchorConflictCandidateRecord, SourceSyncProfileGenerationSpecRefRecord,
 };
 pub use generation_specs::{
-    generation_specs_for_profile_ref, generation_specs_for_profile_refs,
-    generation_specs_for_source_chapter, generation_specs_for_source_chapters,
+    generation_specs_for_profile_refs, generation_specs_for_source_chapter,
+    generation_specs_for_source_chapters,
 };
 pub use local_state::local_states_for_generation_specs;
 

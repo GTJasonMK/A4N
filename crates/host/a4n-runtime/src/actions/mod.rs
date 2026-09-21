@@ -1,6 +1,9 @@
 pub(crate) mod access;
 pub mod admin_records;
-pub(crate) mod agent_domains;
+pub(crate) mod agent_domains {
+    pub(crate) mod canvas;
+    pub(crate) mod content_optimization;
+}
 pub mod agent_runtime;
 pub mod auth_records;
 pub mod blueprint_records;

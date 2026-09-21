@@ -8,8 +8,9 @@ mod contracts;
 pub(crate) mod filters;
 mod store;
 
+pub use a4n_rag_value_contract::vector_store::{SearchFilter, SearchResult};
 pub use completeness::CompletenessReport;
-pub use contracts::{DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult};
+pub use contracts::{DeleteFilter, EmbeddingRecord};
 pub use store::VectorStore;
 
 #[cfg(test)]

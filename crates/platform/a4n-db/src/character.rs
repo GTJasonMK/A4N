@@ -43,7 +43,7 @@ pub use sync_persistence::{
     AppliedCharacterSyncPersistenceRecord, CharacterSyncAttributeEventRecordInput,
     CharacterSyncPersistenceInput, CharacterSyncProtectedAttribute,
     CharacterSyncWriteStepRecordInput, CharacterSyncWriteSummary,
-    apply_character_sync_persistence_record, character_sync_attribute_events_at_chapter,
+    apply_character_sync_persistence_record,
 };
 pub use timeline::{
     CharacterConflictContextRows, CharacterProfileRollbackResult, CharacterTimelineDeletionSummary,

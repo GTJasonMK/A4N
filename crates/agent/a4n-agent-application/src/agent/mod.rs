@@ -72,7 +72,7 @@ use a4n_worker_contract::{
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
+    AgentWorkerUsageRequest, WorkerEnvelope, WorkerLease,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,

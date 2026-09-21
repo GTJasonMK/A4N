@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use super::identity::current_embedding_identity;
 use crate::{OrchestratorContext, rag::rag_project_prefix};
-use a4n_rag_core::contracts::sync::classify_rag_record;
+use a4n_rag_core::sync::classify_rag_record;
 use a4n_rag_core::{
     DeleteRagRecordsInput, PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, RagSyncError,
 };

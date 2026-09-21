@@ -287,7 +287,7 @@ use a4n_runtime::host_api::theme as theme_actions;
 use a4n_runtime::host_api::video_generation as video_generation_actions;
 use a4n_runtime::host_api::video_prompts as video_prompt_actions;
 use a4n_runtime::host_api::video_records as video_records_actions;
-use a4n_worker_contract::{AgentHostCommandPayload, WorkerRequest};
+use a4n_worker_contract::{AgentHostCommandPayload, WorkerEnvelope};
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
@@ -318,17 +318,6 @@ pub async fn invoke(
     Ok(Json(result).into_response())
 }
 
-pub async fn dispatch_runtime_command(
-    runtime: &a4n_runtime::AppState,
-    user_id: i64,
-    args: Value,
-    cmd: String,
-) -> Result<Value, String> {
-    dispatch_runtime_command_inner(runtime, user_id, args, cmd, None)
-        .await
-        .map_err(|error| error.to_string())
-}
-
 pub async fn dispatch_runtime_command_value(
     runtime: &a4n_runtime::AppState,
     user_id: i64,
@@ -343,7 +332,7 @@ pub async fn dispatch_runtime_command_value(
 pub async fn dispatch_agent_host_command(
     runtime: &a4n_runtime::AppState,
     user_id: i64,
-    request: WorkerRequest<AgentHostCommandPayload>,
+    request: WorkerEnvelope<AgentHostCommandPayload>,
 ) -> Result<Value, String> {
     dispatch_agent_host_command_inner(runtime, user_id, request)
         .await
@@ -353,7 +342,7 @@ pub async fn dispatch_agent_host_command(
 pub async fn dispatch_agent_host_command_value(
     runtime: &a4n_runtime::AppState,
     user_id: i64,
-    request: WorkerRequest<AgentHostCommandPayload>,
+    request: WorkerEnvelope<AgentHostCommandPayload>,
 ) -> Result<Value, ApiError> {
     dispatch_agent_host_command_inner(runtime, user_id, request).await
 }
@@ -361,7 +350,7 @@ pub async fn dispatch_agent_host_command_value(
 async fn dispatch_agent_host_command_inner(
     runtime: &a4n_runtime::AppState,
     user_id: i64,
-    request: WorkerRequest<AgentHostCommandPayload>,
+    request: WorkerEnvelope<AgentHostCommandPayload>,
 ) -> Result<Value, ApiError> {
     request
         .validate()

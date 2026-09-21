@@ -8,10 +8,9 @@ pub use release::{
     ReleaseRuntimeFileManifest, ReleaseToolCatalogEntry, ReleaseToolManifest, release_tool_catalog,
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProcessKind {
-    #[default]
     CapabilitySidecar,
     StatefulWorker,
 }
@@ -29,9 +28,7 @@ pub struct MigrationCompatibility {
 
 /// 统一的进程元数据视图。
 ///
-/// `ServiceCatalogEntry` 保留 sidecar 的历史字段形状；这个类型把 sidecar
-/// 和 stateful worker 归一化到同一个查询结果，供生命周期管理器和后续发布
-/// 编排使用。
+/// 将 sidecar 和 stateful worker 的当前合同归一化，供生命周期管理和发布编排查询。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessMetadata {
@@ -58,34 +55,12 @@ pub struct ProcessMetadata {
     pub migration: MigrationCompatibility,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ServiceCatalogWire {
-    name: String,
-    binary: String,
-    capability_version: String,
-    addr_env: String,
-    url_env: String,
-    default_addr: String,
-    #[serde(default)]
-    local_only: bool,
-    #[serde(default)]
-    kind: ProcessKind,
-    #[serde(default)]
-    contract_version: Option<String>,
-    #[serde(default)]
-    data_scope: Vec<String>,
-    #[serde(default)]
-    dependencies: Vec<String>,
-    #[serde(default)]
-    migration: MigrationCompatibility,
-}
-
 /// 进程管理、开发脚本和发布包共享的 sidecar 清单。
 ///
 /// 清单文件是唯一的机器可读来源；运行时和检查脚本都应从这里派生，
 /// 不再各自维护服务名、端口和环境变量的平行列表。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServiceCatalogEntry {
     pub name: String,
     pub binary: String,
@@ -95,29 +70,11 @@ pub struct ServiceCatalogEntry {
     pub default_addr: String,
     #[serde(default)]
     pub local_only: bool,
-}
-
-impl<'de> Deserialize<'de> for ServiceCatalogEntry {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        ServiceCatalogWire::deserialize(deserializer).map(Into::into)
-    }
-}
-
-impl From<ServiceCatalogWire> for ServiceCatalogEntry {
-    fn from(entry: ServiceCatalogWire) -> Self {
-        Self {
-            name: entry.name,
-            binary: entry.binary,
-            capability_version: entry.capability_version,
-            addr_env: entry.addr_env,
-            url_env: entry.url_env,
-            default_addr: entry.default_addr,
-            local_only: entry.local_only,
-        }
-    }
+    pub kind: ProcessKind,
+    pub contract_version: String,
+    pub data_scope: Vec<String>,
+    pub dependencies: Vec<String>,
+    pub migration: MigrationCompatibility,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,8 +102,7 @@ pub struct StatefulWorkerCatalogEntry {
 }
 
 pub fn service_catalog() -> Result<Vec<ServiceCatalogEntry>, serde_json::Error> {
-    serde_json::from_str::<Vec<ServiceCatalogWire>>(include_str!("../service-catalog.json"))
-        .map(|entries| entries.into_iter().map(Into::into).collect())
+    serde_json::from_str(include_str!("../service-catalog.json"))
 }
 
 pub fn stateful_worker_catalog() -> Result<Vec<StatefulWorkerCatalogEntry>, serde_json::Error> {
@@ -160,20 +116,10 @@ fn embedded_service_catalog() -> &'static [ServiceCatalogEntry] {
         .as_slice()
 }
 
-pub fn service_catalog_entry(name: &str) -> Option<ServiceCatalogEntry> {
-    service_catalog_entry_ref(name).cloned()
-}
-
 pub fn service_catalog_entry_ref(name: &str) -> Option<&'static ServiceCatalogEntry> {
     embedded_service_catalog()
         .iter()
         .find(|entry| entry.name == name)
-}
-
-pub fn service_catalog_entry_for_capability_version(
-    capability_version: &str,
-) -> Option<ServiceCatalogEntry> {
-    service_catalog_entry_for_capability_version_ref(capability_version).cloned()
 }
 
 pub fn service_catalog_entry_for_capability_version_ref(
@@ -193,14 +139,14 @@ fn embedded_stateful_worker_catalog() -> &'static [StatefulWorkerCatalogEntry] {
         .as_slice()
 }
 
-impl From<&ServiceCatalogWire> for ProcessMetadata {
-    fn from(entry: &ServiceCatalogWire) -> Self {
+impl From<&ServiceCatalogEntry> for ProcessMetadata {
+    fn from(entry: &ServiceCatalogEntry) -> Self {
         Self {
             name: entry.name.clone(),
             kind: entry.kind,
             binary: entry.binary.clone(),
             capability_version: Some(entry.capability_version.clone()),
-            contract_version: entry.contract_version.clone(),
+            contract_version: Some(entry.contract_version.clone()),
             addr_env: entry.addr_env.clone(),
             url_env: Some(entry.url_env.clone()),
             default_addr: entry.default_addr.clone(),
@@ -234,9 +180,7 @@ impl From<&StatefulWorkerCatalogEntry> for ProcessMetadata {
 }
 
 pub fn process_catalog() -> Result<Vec<ProcessMetadata>, serde_json::Error> {
-    let sidecar_records =
-        serde_json::from_str::<Vec<ServiceCatalogWire>>(include_str!("../service-catalog.json"))?;
-    let sidecars = sidecar_records
+    let sidecars = service_catalog()?
         .iter()
         .map(ProcessMetadata::from)
         .collect::<Vec<_>>();
@@ -276,7 +220,7 @@ pub fn stateful_worker_catalog_entry_ref(
 mod tests {
     use super::{
         ProcessKind, ServiceCatalogEntry, process_catalog, process_catalog_entry, service_catalog,
-        service_catalog_entry_for_capability_version, stateful_worker_catalog,
+        service_catalog_entry_for_capability_version_ref, stateful_worker_catalog,
     };
 
     #[test]
@@ -317,17 +261,18 @@ mod tests {
     #[test]
     fn catalog_resolves_capability_version_to_one_service() {
         assert_eq!(
-            service_catalog_entry_for_capability_version("export-render-v3")
-                .map(|entry| entry.name),
-            Some("export".to_string())
+            service_catalog_entry_for_capability_version_ref("export-render-v3")
+                .map(|entry| entry.name.as_str()),
+            Some("export")
         );
-        assert!(service_catalog_entry_for_capability_version("unknown-v1").is_none());
+        assert!(service_catalog_entry_for_capability_version_ref("unknown-v1").is_none());
         assert_eq!(
-            service_catalog_entry_for_capability_version("media-ffmpeg-v1").map(|entry| entry.name),
-            Some("media".to_string())
+            service_catalog_entry_for_capability_version_ref("media-ffmpeg-v1")
+                .map(|entry| entry.name.as_str()),
+            Some("media")
         );
         assert!(
-            super::service_catalog_entry("media")
+            super::service_catalog_entry_ref("media")
                 .expect("media service catalog entry")
                 .local_only
         );
@@ -832,25 +777,24 @@ mod tests {
     }
 
     #[test]
-    fn legacy_sidecar_json_uses_compatible_metadata_defaults() {
-        let legacy = r#"
-            {
-              "name":"legacy",
-              "binary":"a4n-legacy-service",
-              "capability_version":"legacy-v1",
-              "addr_env":"A4N_LEGACY_ADDR",
-              "url_env":"A4N_LEGACY_URL",
-              "default_addr":"127.0.0.1:47650"
-            }
-        "#;
-        let entry: super::ServiceCatalogEntry =
-            serde_json::from_str(legacy).expect("old sidecar catalog entry should still parse");
-        assert_eq!(entry.capability_version, "legacy-v1");
-        assert_eq!(entry.default_addr, "127.0.0.1:47650");
+    fn sidecar_catalog_requires_explicit_process_metadata() {
+        let entry = service_catalog().unwrap().remove(0);
+        for field in [
+            "kind",
+            "contract_version",
+            "data_scope",
+            "dependencies",
+            "migration",
+        ] {
+            let mut value = serde_json::to_value(&entry).unwrap();
+            value.as_object_mut().unwrap().remove(field);
+            let error = serde_json::from_value::<ServiceCatalogEntry>(value).unwrap_err();
+            assert!(error.to_string().contains(field), "{field}: {error}");
+        }
     }
 
     #[test]
-    fn legacy_sidecar_struct_accepts_new_metadata_without_changing_its_shape() {
+    fn sidecar_catalog_round_trip_preserves_process_metadata() {
         let catalog_entry = r#"
             {
               "name":"prompt",
@@ -869,8 +813,16 @@ mod tests {
         let entry: ServiceCatalogEntry =
             serde_json::from_str(catalog_entry).expect("new catalog metadata should be readable");
         assert_eq!(entry.name, "prompt");
-        let serialized = serde_json::to_value(entry).expect("legacy entry should serialize");
-        assert!(serialized.get("kind").is_none());
-        assert!(serialized.get("contract_version").is_none());
+        let serialized = serde_json::to_value(&entry).expect("catalog entry should serialize");
+        assert_eq!(serialized["kind"], "capability_sidecar");
+        assert_eq!(serialized["contract_version"], "service-protocol-v2");
+        assert_eq!(
+            serialized["data_scope"],
+            serde_json::json!(["prompt.render"])
+        );
+        assert_eq!(
+            serde_json::from_value::<ServiceCatalogEntry>(serialized).unwrap(),
+            entry
+        );
     }
 }

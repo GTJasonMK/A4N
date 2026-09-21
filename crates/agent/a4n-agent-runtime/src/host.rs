@@ -34,7 +34,7 @@ use a4n_worker_contract::{
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
     AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest,
     AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WorkerEnvelope,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -52,11 +52,11 @@ pub trait AgentRuntimeHost: Send + Sync {
     async fn claim_worker(
         &self,
         request: &AgentWorkerClaimRequest,
-    ) -> Result<Option<WorkerRequest<AgentRunPayload>>, AppError>;
+    ) -> Result<Option<WorkerEnvelope<AgentRunPayload>>, AppError>;
 
     async fn load_run_context(
         &self,
-        request: &WorkerRequest<AgentRunPayload>,
+        request: &WorkerEnvelope<AgentRunPayload>,
     ) -> Result<AgentWorkerRunContextWire, AppError>;
 
     async fn renew_worker_lease(
@@ -255,7 +255,7 @@ pub trait AgentRuntimeHost: Send + Sync {
         user_id: i64,
         command: String,
         arguments: Value,
-        request: WorkerRequest<a4n_worker_contract::AgentHostCommandPayload>,
+        request: WorkerEnvelope<a4n_worker_contract::AgentHostCommandPayload>,
     ) -> Result<Value, AppError>;
 
     async fn package_execution_enabled(&self) -> Result<bool, AppError>;

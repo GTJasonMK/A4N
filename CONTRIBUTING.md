@@ -34,6 +34,8 @@
 
 迁移类型或函数时，同步修改调用方并删除旧导入路径文件。公共 crate 接口和 Host API 白名单可以显式转导出；内部实现直接引用定义所在的包，不新增只有 `pub use` 的中转模块。
 
+功能入口文件直接承载主实现，避免 `foo.rs` 只声明 `provider`、实际代码再绕进 `foo/provider.rs`。简单分组的子模块声明可放回父模块；公共 API 和 ORM 目录索引按职责保留。删除无调用入口时继续清理其私有辅助函数、唯一赋值状态和导出链，不把“只在转导出中出现”算作实际调用。
+
 ## 开发环境
 
 需要 Rust、Node.js 22、npm、PostgreSQL 16+，Linux 桌面构建还需要 WebKitGTK、GTK 和 Ayatana AppIndicator 开发库。

@@ -212,11 +212,11 @@ const MAX_TOOL_PROJECT_PAGE_SIZE: u64 = 100;
 #[derive(Clone)]
 pub(crate) struct RuntimeAgentToolExecutor {
     state: AppState,
-    worker_request: WorkerRequest<AgentRunPayload>,
+    worker_request: WorkerEnvelope<AgentRunPayload>,
 }
 
 impl RuntimeAgentToolExecutor {
-    pub(crate) fn new(state: AppState, worker_request: WorkerRequest<AgentRunPayload>) -> Self {
+    pub(crate) fn new(state: AppState, worker_request: WorkerEnvelope<AgentRunPayload>) -> Self {
         Self {
             state,
             worker_request,

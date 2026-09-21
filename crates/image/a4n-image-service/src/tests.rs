@@ -5,8 +5,8 @@ use a4n_service_protocol::{
     PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
 };
 
-use crate::contracts::ImageProviderPayload;
 use crate::protocol::validate_image_request;
+use a4n_image_contract::ImageProviderPayload;
 
 #[test]
 fn rejects_incompatible_capability_version() {

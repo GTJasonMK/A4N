@@ -2,7 +2,14 @@ mod audio_import;
 mod audio_rules;
 mod editing_nodes;
 mod errors;
-mod graph_execution;
+mod graph_execution {
+    mod execution;
+    mod planning;
+    mod preparation;
+
+    #[cfg(test)]
+    mod tests;
+}
 mod image_generation;
 mod input_rules;
 mod media_import;

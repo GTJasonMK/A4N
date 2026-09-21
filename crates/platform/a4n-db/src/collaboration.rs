@@ -21,9 +21,9 @@ use queries::*;
 
 mod access;
 pub use access::{
-    accessible_project_ids, list_accessible_projects, project_access_info,
-    project_access_info_batch, project_ids_with_permission, resolve_root_project,
-    verify_project_permission, verify_project_permissions,
+    list_accessible_projects, project_access_info, project_access_info_batch,
+    project_ids_with_permission, resolve_root_project, verify_project_permission,
+    verify_project_permissions,
 };
 
 mod members;

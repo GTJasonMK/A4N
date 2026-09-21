@@ -11,8 +11,15 @@ mod execution;
 mod outputs;
 #[path = "chapter_analysis/owner/mod.rs"]
 mod owner;
-mod persistence;
-mod stages;
+mod persistence {
+    mod checkpoints;
+    mod trace;
+}
+mod stages {
+    mod contracts;
+    mod entrypoints;
+    mod runner;
+}
 mod workflow;
 
 pub use outputs::{ChapterAnalysisOutputError, chapter_analysis_foreshadowing_drafts};

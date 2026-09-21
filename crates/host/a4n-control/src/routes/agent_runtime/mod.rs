@@ -49,7 +49,7 @@ use a4n_worker_contract::{
     AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest,
     AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest, AgentWorkerUsageRequest,
     AgentWorkerWaitRequest, AgentWorkerWorkflowCancelScanRequest,
-    AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WorkerEnvelope,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};

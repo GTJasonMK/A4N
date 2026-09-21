@@ -5,7 +5,12 @@
 
 mod git_persistence;
 mod loader;
-mod mutation;
+mod mutation {
+    mod batch;
+    mod reset;
+    mod update;
+    mod validation;
+}
 mod operations;
 mod overrides;
 mod state;

@@ -160,16 +160,3 @@ where
 {
     generated_image::Entity::find_by_id(image_id).one(db).await
 }
-
-pub async fn generated_image_exists<C>(db: &C, image_id: i64) -> Result<bool, DbErr>
-where
-    C: ConnectionTrait,
-{
-    Ok(generated_image::Entity::find_by_id(image_id)
-        .select_only()
-        .column(generated_image::Column::Id)
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some())
-}
