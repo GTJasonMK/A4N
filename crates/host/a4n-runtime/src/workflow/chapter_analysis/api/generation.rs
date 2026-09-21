@@ -1,4 +1,5 @@
 use a4n_api_contract::chapter::ChapterSummary;
+use a4n_error::AppError;
 
 use super::super::{ChapterAnalysisProgress, execution::run_chapter_analysis_application};
 use crate::state::AppState;
@@ -20,6 +21,6 @@ pub async fn generate_chapter_analysis_with_progress(
     user_id: i64,
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
-) -> Result<a4n_api_contract::chapter::ChapterAnalysisMutationResult, String> {
+) -> Result<a4n_api_contract::chapter::ChapterAnalysisMutationResult, AppError> {
     run_chapter_analysis_application(state, user_id, chapter_id, progress).await
 }

@@ -3,6 +3,7 @@ mod occurrences;
 mod scenes;
 mod transitions;
 
+use a4n_error::AppError;
 use serde_json::Value;
 
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -22,7 +23,7 @@ pub(in crate::scene_profile::application) async fn run_scene_profile_sync_stages
     progress: Option<&SceneProfileSyncProgress<'_>>,
     chapter_span: ProgressSpan,
     chapter_index: usize,
-) -> Result<SceneProfileSyncStageResponses, String> {
+) -> Result<SceneProfileSyncStageResponses, AppError> {
     let mut requests = Vec::<ChatRequest>::new();
     let mut response_chars = Vec::<Value>::new();
     let model_span = subspan(chapter_span, 0, 4, 6);

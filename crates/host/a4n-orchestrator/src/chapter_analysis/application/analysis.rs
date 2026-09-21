@@ -653,14 +653,7 @@ impl OrchestratorContext {
             host_port.scene_profile_sync_host_port(),
             Some(&scene_progress),
         )
-        .await
-        .map_err(|error| match error {
-            AppError::Cancelled => AppError::Cancelled,
-            error => AppError::InvalidState {
-                current: "chapter_analysis_scene_sync".to_string(),
-                operation: error.to_string(),
-            },
-        })?;
+        .await?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,

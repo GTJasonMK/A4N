@@ -188,7 +188,15 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(scene_profile_candidates_response(combined), ensure_ascii=False)
 
     if '"name": "scene_occurrence_extraction"' in combined:
-        return json.dumps(scene_occurrence_response(combined), ensure_ascii=False)
+        result = scene_occurrence_response(combined)
+        timeline_fixtures = {
+            "a4n-scene-sync-number": 1,
+            "a4n-scene-sync-object": {"order": 1},
+            "a4n-scene-sync-null": None,
+        }
+        if body.get("model") in timeline_fixtures:
+            result["occurrences"][0]["timeline_position"] = timeline_fixtures[body["model"]]
+        return json.dumps(result, ensure_ascii=False)
 
     if '"name": "scene_transition_extraction"' in combined:
         return json.dumps(scene_transition_response(combined), ensure_ascii=False)

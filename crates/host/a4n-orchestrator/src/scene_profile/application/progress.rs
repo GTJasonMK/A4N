@@ -1,4 +1,5 @@
 use super::types::SceneProfileStageProgressSpec;
+use a4n_error::AppError;
 use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
 pub(crate) use a4n_scene_host_contract::SceneProfileSyncProgress;
 
@@ -92,11 +93,12 @@ pub(super) fn report_scene_profile_sync_progress(
     progress: Option<&SceneProfileSyncProgress<'_>>,
     current: u32,
     message: impl AsRef<str>,
-    cancelled_message: &str,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if let Some(progress) = progress {
         progress.report(current, SCENE_PROFILE_SYNC_PROGRESS_TOTAL, message.as_ref());
-        progress.check_cancelled(cancelled_message)?;
+        progress
+            .check_cancelled("场景档案同步已停止")
+            .map_err(|_| AppError::Cancelled)?;
     }
     Ok(())
 }

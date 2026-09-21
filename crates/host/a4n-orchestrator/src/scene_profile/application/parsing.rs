@@ -19,6 +19,7 @@ pub(super) fn parse_scene_stage_root_array(
     content: &str,
     prompt_name: &str,
     root_field: &str,
+    context: &SceneProfileSyncRequestContext,
 ) -> Result<Value, String> {
     let value: Value = serde_json::from_str(content.trim()).map_err(|err| {
         let mut message = format!("{prompt_name} 结果必须是 JSON 对象: {err}");
@@ -31,6 +32,14 @@ pub(super) fn parse_scene_stage_root_array(
         return Err(format!("{prompt_name} 结果必须是 JSON 对象"));
     }
     reject_unknown_fields(&value, prompt_name, &[root_field])?;
+    // 阶段结果和恢复断点共用领域解析器，字段校验通过后才能缓存或交给下一阶段。
+    match root_field {
+        "scenes" => parse_scene_profiles(&value, context).map(drop),
+        "occurrences" => parse_scene_occurrences(&value, context).map(drop),
+        "transitions" => parse_scene_transitions(&value, context).map(drop),
+        "entity_states" => parse_scene_entity_states(&value, context).map(drop),
+        _ => Err(format!("不支持的场景同步阶段字段: {root_field}")),
+    }?;
     value
         .get(root_field)
         .and_then(Value::as_array)

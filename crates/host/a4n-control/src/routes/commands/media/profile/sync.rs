@@ -5,8 +5,8 @@ use serde_json::Value;
 use super::super::super::{
     ApiError, ServerState, finish_web_task, optional_string_field, register_web_task,
     sanitize_optional_task_id, scene_profile_sync_actions,
-    strict_optional_task_runtime_command_input, string_action_result, to_value,
-    web_fire_and_forget_progress_reporter, web_stream_reporter,
+    strict_optional_task_runtime_command_input, to_value, web_fire_and_forget_progress_reporter,
+    web_stream_reporter,
 };
 
 pub(in crate::routes::commands) async fn sync_scene_profiles(
@@ -44,12 +44,5 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
         Some(&progress),
     )
     .await;
-    to_value(finish_web_task(
-        state,
-        task.as_ref(),
-        string_action_result(
-            result,
-            task.as_ref().is_some_and(|handle| handle.is_cancelled()),
-        ),
-    )?)
+    to_value(finish_web_task(state, task.as_ref(), result)?)
 }

@@ -42,12 +42,11 @@ pub async fn sync_scene_profiles(
     user_id: i64,
     input: SyncSceneProfilesInput,
     progress: Option<&SceneProfileSyncProgress<'_>>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let prompt_renderer = state;
     let host_port = RuntimeSceneProfileSyncHostPort::new(state);
     state
         .scene_profile_sync_application()
         .sync(user_id, input, prompt_renderer, &host_port, progress)
         .await
-        .map_err(|error| error.to_string())
 }

@@ -10,7 +10,7 @@ pub(super) async fn run_chapter_analysis_application(
     user_id: i64,
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
-) -> Result<ChapterAnalysisMutationResult, String> {
+) -> Result<ChapterAnalysisMutationResult, AppError> {
     let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = crate::actions::character_ai::RuntimeCharacterProfileSyncStageTracePort::new(
@@ -50,5 +50,4 @@ pub(super) async fn run_chapter_analysis_application(
             Some(&trace_port),
         )
         .await
-        .map_err(|error| error.to_string())
 }

@@ -1,4 +1,4 @@
-use super::parsing::parse_scene_profile_sync_content;
+use super::parsing::{parse_scene_profile_sync_content, parse_scene_stage_root_array};
 use super::stages::build_scene_profile_stage_request;
 use super::types::{
     SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_OCCURRENCE_COVERAGE_RULE,
@@ -237,6 +237,71 @@ fn parses_valid_scene_profile_sync_content() {
             .image_prompt_seed
             .contains("安静、旧物感强")
     );
+}
+
+#[test]
+fn scene_stage_parsing_enforces_field_types_before_accepting_output() {
+    let context = context_for_test();
+    let content = valid_scene_sync_content(&context);
+    for (root_field, field, bad_value) in [
+        ("scenes", "visual_description", json!({"text": "旧书房"})),
+        ("occurrences", "timeline_position", json!(1)),
+        ("transitions", "time_cost", json!(5)),
+        ("entity_states", "state_after", json!("抽屉里")),
+    ] {
+        let mut stage = json!({root_field: content[root_field].clone()});
+        let parsed =
+            parse_scene_stage_root_array(&stage.to_string(), root_field, root_field, &context)
+                .expect("valid stage should pass the same field rules as final persistence");
+        assert_eq!(parsed, content[root_field]);
+
+        stage[root_field][0][field] = bad_value;
+        let error =
+            parse_scene_stage_root_array(&stage.to_string(), root_field, root_field, &context)
+                .expect_err("invalid stage fields must fail before checkpointing");
+        assert!(
+            error.contains(&format!("{root_field}[0].{field}")),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn scene_occurrence_timeline_accepts_text_or_null_without_coercion() {
+    let context = context_for_test();
+    let content = valid_scene_sync_content(&context);
+    let mut stage = json!({"occurrences": content["occurrences"].clone()});
+    for value in [Value::Null, json!("次日清晨")] {
+        stage["occurrences"][0]["timeline_position"] = value.clone();
+        let parsed = parse_scene_stage_root_array(
+            &stage.to_string(),
+            SCENE_OCCURRENCE_PROMPT,
+            "occurrences",
+            &context,
+        )
+        .expect("text and null are valid timeline positions");
+        assert_eq!(parsed[0]["timeline_position"], value);
+    }
+    for value in [
+        json!(1),
+        json!(1.5),
+        json!(true),
+        json!({"order": 1}),
+        json!([]),
+    ] {
+        stage["occurrences"][0]["timeline_position"] = value;
+        let error = parse_scene_stage_root_array(
+            &stage.to_string(),
+            SCENE_OCCURRENCE_PROMPT,
+            "occurrences",
+            &context,
+        )
+        .expect_err("other JSON types must not be coerced to text");
+        assert_eq!(
+            error,
+            "occurrences[0].timeline_position 必须是字符串或 null"
+        );
+    }
 }
 
 #[test]

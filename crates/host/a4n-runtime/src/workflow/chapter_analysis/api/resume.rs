@@ -22,7 +22,7 @@ pub async fn resume_chapter_analysis_sync_with_progress(
     user_id: i64,
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
-) -> Result<ChapterSummary, String> {
+) -> Result<ChapterSummary, AppError> {
     let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
@@ -59,7 +59,6 @@ pub async fn resume_chapter_analysis_sync_with_progress(
             Some(&trace_port),
         )
         .await
-        .map_err(|error| error.to_string())
 }
 
 pub async fn resume_chapter_analysis_workflow_run(

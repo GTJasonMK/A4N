@@ -1,3 +1,4 @@
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -10,7 +11,8 @@ use super::super::super::progress::{
     SCENE_OCCURRENCE_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
 };
 use super::super::super::types::{
-    SCENE_OCCURRENCE_COVERAGE_RULE, SCENE_OCCURRENCE_PROMPT, SceneProfileSyncRequestContext,
+    SCENE_OCCURRENCE_COVERAGE_RULE, SCENE_OCCURRENCE_PROMPT, SCENE_OCCURRENCE_TIMELINE_RULE,
+    SceneProfileSyncRequestContext,
 };
 use super::super::execution::run_scene_profile_stage_with_checkpoint;
 use super::super::request::{
@@ -27,7 +29,7 @@ pub(super) async fn run(
     chapter_index: usize,
     scenes: &Value,
     response_chars: &mut Vec<Value>,
-) -> Result<(ChatRequest, Value), String> {
+) -> Result<(ChatRequest, Value), AppError> {
     let request = build_scene_profile_stage_request(
         prompt_renderer,
         context,
@@ -42,6 +44,7 @@ pub(super) async fn run(
                 "只返回 occurrences 数组，不要输出 scenes、transitions 或 entity_states",
                 "scene_ref 必须来自 input.previous_stages.scenes[].scene_ref",
                 SCENE_OCCURRENCE_COVERAGE_RULE,
+                SCENE_OCCURRENCE_TIMELINE_RULE,
                 "source_anchor_ids 必须来自 input.text_anchors[].id"
             ]
         }),
@@ -51,6 +54,7 @@ pub(super) async fn run(
         state,
         workflow_run_id,
         request.clone(),
+        context,
         SCENE_OCCURRENCE_PROMPT,
         "occurrences",
         scene_profile_stage_step_key(context, "occurrences"),

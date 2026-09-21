@@ -1,23 +1,23 @@
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    structured_llm::{ChatJsonStreamInput, StructuredLlmProgress},
+    structured_llm::{ChatJsonStreamInput, StructuredLlmProgress, stream_error_or_cancelled},
 };
 use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::super::super::progress::{SceneProfileSyncProgress, report_scene_profile_sync_progress};
-use super::super::super::types::{SceneProfileStageCallResult, SceneProfileStageProgressSpec};
+use super::super::super::types::SceneProfileStageProgressSpec;
 
 pub(super) async fn chat_scene_profile_stage(
     state: &OrchestratorContext,
     request: ChatRequest,
     prompt_name: &str,
-    root_field: &str,
     stage_progress: SceneProfileStageProgressSpec,
     progress: Option<&SceneProfileSyncProgress<'_>>,
     response_chars: &mut Vec<Value>,
-) -> Result<SceneProfileStageCallResult, String> {
+) -> Result<String, AppError> {
     let truncated_message = format!(
         "{prompt_name} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次章节上下文后重试"
     );
@@ -32,6 +32,7 @@ pub(super) async fn chat_scene_profile_stage(
                 progress.stream_text(&streamed);
             }
         });
+    let cancel_token = progress.and_then(SceneProfileSyncProgress::cancel_token);
     let content = state
         .chat_json_stream_result_with_sink(
             ChatJsonStreamInput {
@@ -42,35 +43,22 @@ pub(super) async fn chat_scene_profile_stage(
                     spec: stage_progress.structured,
                     span: stage_progress.span,
                 }),
-                cancel_token: progress.and_then(SceneProfileSyncProgress::cancel_token),
+                cancel_token,
                 cancelled_message: "场景档案同步已停止",
             },
             |current, message| {
-                report_scene_profile_sync_progress(progress, current, message, "场景档案同步已停止")
+                report_scene_profile_sync_progress(progress, current, message)
+                    .map_err(|error| error.to_string())
             },
             stream_sink
                 .as_mut()
                 .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
         )
-        .await?
+        .await
+        .map_err(|error| stream_error_or_cancelled(error, cancel_token))?
         .response_content;
     response_chars.push(json!({
         "prompt_name": prompt_name,
         "response_chars": content.chars().count()}));
-    let parsed = super::super::super::parsing::parse_scene_stage_root_array(
-        &content,
-        prompt_name,
-        root_field,
-    )?;
-    let item_count = parsed.as_array().map_or(0, Vec::len);
-    report_scene_profile_sync_progress(
-        progress,
-        stage_progress.span.end(),
-        format!("{prompt_name} 已完成：解析到 {item_count} 条{root_field}"),
-        "场景档案同步已停止",
-    )?;
-    Ok(SceneProfileStageCallResult {
-        output: parsed,
-        response_content: content,
-    })
+    Ok(content)
 }

@@ -21,11 +21,8 @@ impl OrchestratorContext {
         host_port: &dyn SceneProfileSyncHostPort,
         progress: Option<&SceneProfileSyncProgress<'_>>,
     ) -> Result<(), AppError> {
-        report_scene_profile_sync_progress(progress, 0, "正在读取可同步章节", "场景档案同步已停止")
-            .map_err(scene_profile_sync_application_error)?;
-        let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number)
-            .await
-            .map_err(scene_profile_sync_application_error)?;
+        report_scene_profile_sync_progress(progress, 0, "正在读取可同步章节")?;
+        let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number).await?;
         let workflow_run = self
             .begin_scene_profile_sync_workflow_validated(
                 project_id,
@@ -43,19 +40,8 @@ impl OrchestratorContext {
             chapters,
             progress,
         )
-        .await
-        .map_err(scene_profile_sync_application_error);
+        .await;
         self.finalize_workflow_result(workflow_run.id, result, "场景档案同步")
             .await
-    }
-}
-
-fn scene_profile_sync_application_error(message: String) -> AppError {
-    if message == "场景档案同步已停止" {
-        return AppError::Cancelled;
-    }
-    AppError::InvalidState {
-        current: "scene_profile_sync".to_string(),
-        operation: message,
     }
 }

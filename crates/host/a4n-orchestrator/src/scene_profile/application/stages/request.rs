@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde_json::{Value, json};
 
 use a4n_domain::source_spans::text_anchor_prompt_values;
+use a4n_error::AppError;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT,
     context_aware_system_user_json_llm_request,
@@ -27,23 +28,21 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     instruction: &str,
     previous_stages: Value,
     output_contract: Value,
-) -> Result<ChatRequest, String> {
+) -> Result<ChatRequest, AppError> {
     let stage_prompt = prompt_renderer
         .render_prompt(
             prompt_name,
             &HashMap::new(),
             Some(context.chapter.project_id),
         )
-        .await
-        .map_err(|err| err.to_string())?;
+        .await?;
     let system_prompt = prompt_renderer
         .render_prompt(
             SCENE_PROFILE_SYNC_SESSION_PROMPT,
             &HashMap::new(),
             Some(context.chapter.project_id),
         )
-        .await
-        .map_err(|err| err.to_string())?;
+        .await?;
     let payload = json!({
         "task": {
             "name": prompt_name,
@@ -65,8 +64,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
         "执行场景档案同步阶段",
         "只返回 output_contract 要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段",
         &payload,
-    )
-    .map_err(|err| format!("场景档案同步阶段上下文序列化失败: {err}"))?;
+    )?;
     let user_prompt = format!("[阶段指令]\n{}\n\n{user_prompt}", stage_prompt.trim());
     context_aware_system_user_json_llm_request(
         system_prompt,
@@ -97,6 +95,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
             )),
         },
     )
+    .map_err(AppError::InvalidArgument)
 }
 
 fn scene_profile_stage_stable_context(context: &SceneProfileSyncRequestContext) -> Value {
@@ -121,13 +120,16 @@ pub(super) fn scene_profile_stage_step_key(
 pub(super) fn scene_profile_stage_step_order(
     chapter_index: usize,
     stage_index: usize,
-) -> Result<i32, String> {
+) -> Result<i32, AppError> {
     let order = chapter_index
         .checked_mul(10)
         .and_then(|value| value.checked_add(stage_index))
         .and_then(|value| value.checked_add(1))
-        .ok_or_else(|| "场景档案同步阶段序号超出 usize 范围".to_string())?;
-    i32::try_from(order).map_err(|_| "场景档案同步阶段序号超出 i32 范围".to_string())
+        .ok_or_else(|| {
+            AppError::InvalidArgument("场景档案同步阶段序号超出 usize 范围".to_string())
+        })?;
+    i32::try_from(order)
+        .map_err(|_| AppError::InvalidArgument("场景档案同步阶段序号超出 i32 范围".to_string()))
 }
 
 pub(super) fn scene_profile_stage_fingerprint(
@@ -135,12 +137,13 @@ pub(super) fn scene_profile_stage_fingerprint(
     prompt_name: &str,
     root_field: &str,
     request: &ChatRequest,
-) -> Result<Value, String> {
+) -> Result<Value, AppError> {
     Ok(json!({
         "workflow": "scene_profile_sync",
+        // 旧断点仅检查根数组，不能作为已通过字段校验的结果继续复用。
+        "output_validation_version": 1,
         "call_key": call_key,
         "prompt_name": prompt_name,
         "root_field": root_field,
-        "request": context_aware_chat_request_trace_json(request)
-            .map_err(|err| format!("场景档案同步阶段请求序列化失败: {err}"))?}))
+        "request": context_aware_chat_request_trace_json(request)?}))
 }

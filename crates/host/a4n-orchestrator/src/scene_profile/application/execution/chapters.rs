@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter;
+use a4n_error::AppError;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -26,7 +27,7 @@ pub(super) async fn sync_scene_profile_chapters(
     workflow_run_id: i64,
     chapters: Vec<chapter::Model>,
     progress: Option<&SceneProfileSyncProgress<'_>>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let stable = load_scene_profile_sync_stable_context(state, project_id).await?;
     let anchors = load_scene_profile_sync_anchor_context(
         state,
@@ -46,10 +47,9 @@ pub(super) async fn sync_scene_profile_chapters(
             state,
             project_id,
             chapter,
-            anchors
-                .get(&chapter_id)
-                .cloned()
-                .ok_or_else(|| "场景档案同步锚点批量读取缺少章节".to_string())?,
+            anchors.get(&chapter_id).cloned().ok_or_else(|| {
+                AppError::Internal(anyhow::anyhow!("场景档案同步锚点批量读取缺少章节"))
+            })?,
             &stable,
         )
         .await?;
@@ -61,7 +61,6 @@ pub(super) async fn sync_scene_profile_chapters(
                 "正在分阶段同步第 {} 章场景档案",
                 context.chapter.chapter_number
             ),
-            "场景档案同步已停止",
         )?;
         if has_completed_scene_final_checkpoint(state, workflow_run_id, &context).await? {
             report_scene_profile_sync_progress(
@@ -71,7 +70,6 @@ pub(super) async fn sync_scene_profile_chapters(
                     "第 {} 章场景档案已从断点恢复",
                     context.chapter.chapter_number
                 ),
-                "场景档案同步已停止",
             )?;
             continue;
         }
@@ -101,17 +99,14 @@ pub(super) async fn sync_scene_profile_chapters(
         progress,
         SCENE_PROFILE_SYNC_RAG_PROGRESS,
         "正在同步场景档案 RAG",
-        "场景档案同步已停止",
     )?;
     host_port
         .sync_scene_rag_records(project_id, workflow_run_id)
-        .await
-        .map_err(|error| error.to_string())?;
+        .await?;
     report_scene_profile_sync_progress(
         progress,
         SCENE_PROFILE_SYNC_PROGRESS_TOTAL,
         "场景档案同步已完成",
-        "场景档案同步已停止",
     )?;
     Ok(())
 }

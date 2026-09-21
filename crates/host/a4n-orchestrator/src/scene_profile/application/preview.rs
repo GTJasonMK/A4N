@@ -25,16 +25,10 @@ impl OrchestratorContext {
         chapter_number: Option<i32>,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
-        let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number)
-            .await
-            .map_err(scene_profile_sync_preview_error)?;
+        let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number).await?;
         let (stable, existing_scene_profiles, anchors) = futures::join!(
             load_scene_profile_sync_stable_context(self, project_id),
-            async {
-                self.scene_profiles_by_project(project_id)
-                    .await
-                    .map_err(|error| error.to_string())
-            },
+            self.scene_profiles_by_project(project_id),
             load_scene_profile_sync_anchor_context(
                 self,
                 project_id,
@@ -42,20 +36,17 @@ impl OrchestratorContext {
                 ChapterAnchorMode::RequireExistingCurrent,
             ),
         );
-        let stable = stable.map_err(scene_profile_sync_preview_error)?;
-        let existing_scene_profiles =
-            Arc::new(existing_scene_profiles.map_err(scene_profile_sync_preview_error)?);
-        let anchors = anchors.map_err(scene_profile_sync_preview_error)?;
+        let stable = stable?;
+        let existing_scene_profiles = Arc::new(existing_scene_profiles?);
+        let anchors = anchors?;
         let mut steps = Vec::new();
         for chapter in chapters {
             let chapter_id = chapter.id;
             let context = build_scene_profile_sync_request_with_profiles(
                 chapter,
-                anchors
-                    .get(&chapter_id)
-                    .cloned()
-                    .ok_or_else(|| "场景档案同步锚点批量读取缺少章节".to_string())
-                    .map_err(scene_profile_sync_preview_error)?,
+                anchors.get(&chapter_id).cloned().ok_or_else(|| {
+                    AppError::Internal(anyhow::anyhow!("场景档案同步锚点批量读取缺少章节"))
+                })?,
                 &stable,
                 Arc::clone(&existing_scene_profiles),
             );
@@ -80,8 +71,7 @@ impl OrchestratorContext {
                     ]
                 }),
             )
-            .await
-            .map_err(scene_profile_sync_preview_error)?;
+            .await?;
             steps.push(ChapterAnalysisRequestStep {
                 key: format!("scene_profile_sync_ch{chapter_number}_scenes"),
                 title: format!("第 {chapter_number} 章场景档案候选识别请求"),
@@ -90,12 +80,5 @@ impl OrchestratorContext {
             });
         }
         Ok(steps)
-    }
-}
-
-fn scene_profile_sync_preview_error(message: String) -> AppError {
-    AppError::InvalidState {
-        current: "scene_profile_sync_preview".to_string(),
-        operation: message,
     }
 }

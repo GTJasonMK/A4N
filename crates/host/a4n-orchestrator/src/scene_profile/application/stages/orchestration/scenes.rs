@@ -1,3 +1,4 @@
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -27,7 +28,7 @@ pub(super) async fn run(
     model_span: ProgressSpan,
     chapter_index: usize,
     response_chars: &mut Vec<Value>,
-) -> Result<(ChatRequest, Value), String> {
+) -> Result<(ChatRequest, Value), AppError> {
     let request = build_scene_profile_stage_request(
         prompt_renderer,
         context,
@@ -53,6 +54,7 @@ pub(super) async fn run(
         state,
         workflow_run_id,
         request.clone(),
+        context,
         SCENE_PROFILE_CANDIDATES_PROMPT,
         "scenes",
         scene_profile_stage_step_key(context, "scenes"),

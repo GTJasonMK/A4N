@@ -7,6 +7,7 @@ use a4n_db_models::models::chapter::chapter;
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::text_anchor;
 use a4n_db_models::models::scene::scene_profile;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -14,13 +15,13 @@ use std::sync::Arc;
 pub(super) async fn load_scene_profile_sync_stable_context(
     state: &OrchestratorContext,
     project_id: i64,
-) -> Result<SceneProfileSyncStableContext, String> {
+) -> Result<SceneProfileSyncStableContext, AppError> {
     let (object_profiles, character_profiles) = futures::join!(
         state.object_profiles_by_project(project_id),
         state.protagonist_profiles_for_project(project_id),
     );
-    let object_profiles = Arc::new(object_profiles.map_err(|error| error.to_string())?);
-    let character_profiles = Arc::new(character_profiles.map_err(|error| error.to_string())?);
+    let object_profiles = Arc::new(object_profiles?);
+    let character_profiles = Arc::new(character_profiles?);
     let object_ids = Arc::new(object_profiles.iter().map(|profile| profile.id).collect());
     let character_ids = Arc::new(
         character_profiles
@@ -57,11 +58,8 @@ pub(super) async fn build_scene_profile_sync_request(
     chapter: chapter::Model,
     text_anchors: Vec<text_anchor::Model>,
     stable: &SceneProfileSyncStableContext,
-) -> Result<SceneProfileSyncRequestContext, String> {
-    let existing_scene_profiles = state
-        .scene_profiles_by_project(project_id)
-        .await
-        .map_err(|error| error.to_string())?;
+) -> Result<SceneProfileSyncRequestContext, AppError> {
+    let existing_scene_profiles = state.scene_profiles_by_project(project_id).await?;
     Ok(build_scene_profile_sync_request_with_profiles(
         chapter,
         text_anchors,
@@ -99,20 +97,22 @@ pub(super) async fn load_scene_profile_sync_anchor_context(
     project_id: i64,
     chapters: &[chapter::Model],
     anchor_mode: ChapterAnchorMode,
-) -> Result<BTreeMap<i64, Vec<text_anchor::Model>>, String> {
+) -> Result<BTreeMap<i64, Vec<text_anchor::Model>>, AppError> {
     let chapter_ids = chapters
         .iter()
         .map(|chapter| chapter.id)
         .collect::<Vec<_>>();
     let groups = match anchor_mode {
-        ChapterAnchorMode::EnsureCurrent => state
-            .ensure_chapter_content_anchor_records_batch(project_id, &chapter_ids)
-            .await
-            .map_err(|error| error.to_string())?,
-        ChapterAnchorMode::RequireExistingCurrent => state
-            .require_current_chapter_content_anchors_for_preview_batch(project_id, &chapter_ids)
-            .await
-            .map_err(|error| error.to_string())?,
+        ChapterAnchorMode::EnsureCurrent => {
+            state
+                .ensure_chapter_content_anchor_records_batch(project_id, &chapter_ids)
+                .await?
+        }
+        ChapterAnchorMode::RequireExistingCurrent => {
+            state
+                .require_current_chapter_content_anchors_for_preview_batch(project_id, &chapter_ids)
+                .await?
+        }
     };
     Ok(chapter_ids.into_iter().zip(groups).collect())
 }
@@ -121,30 +121,31 @@ pub(super) async fn select_scene_profile_sync_chapters(
     state: &OrchestratorContext,
     project_id: i64,
     chapter_number: Option<i32>,
-) -> Result<Vec<chapter::Model>, String> {
+) -> Result<Vec<chapter::Model>, AppError> {
     if project_id <= 0 {
-        return Err("场景档案同步 project_id 必须大于 0".to_string());
+        return Err(AppError::InvalidArgument(
+            "场景档案同步 project_id 必须大于 0".to_string(),
+        ));
     }
     if chapter_number.is_some_and(|value| value <= 0) {
-        return Err("场景档案同步章节号必须大于 0".to_string());
+        return Err(AppError::InvalidArgument(
+            "场景档案同步章节号必须大于 0".to_string(),
+        ));
     }
-    let mut chapters = state
-        .character_sync_chapters(project_id)
-        .await
-        .map_err(|error| error.to_string())?;
+    let mut chapters = state.character_sync_chapters(project_id).await?;
     if let Some(chapter_number) = chapter_number {
         chapters.retain(|chapter| chapter.chapter_number == chapter_number);
         if chapters.is_empty() {
-            return Err(format!(
+            return Err(AppError::InvalidArgument(format!(
                 "第 {chapter_number} 章没有可用于场景档案同步的有效正文"
-            ));
+            )));
         }
         return Ok(chapters);
     }
     if chapters.is_empty() {
-        return Err(format!(
+        return Err(AppError::InvalidArgument(format!(
             "项目还没有可用于场景档案同步的章节: project_id={project_id}"
-        ));
+        )));
     }
     Ok(chapters)
 }

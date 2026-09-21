@@ -1,3 +1,4 @@
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::OrchestratorContext;
@@ -10,11 +11,10 @@ pub(super) async fn load_completed_scene_profile_stage_checkpoint(
     workflow_run_id: i64,
     call_key: &str,
     input_fingerprint_json: &Value,
-) -> Result<Option<SceneProfileStageCheckpoint>, String> {
+) -> Result<Option<SceneProfileStageCheckpoint>, AppError> {
     let Some(checkpoint) = state
         .load_completed_llm_call_checkpoint(workflow_run_id, call_key, input_fingerprint_json)
-        .await
-        .map_err(|err| err.to_string())?
+        .await?
     else {
         return Ok(None);
     };
@@ -32,7 +32,7 @@ pub(super) async fn save_completed_scene_profile_stage_checkpoint(
     input_fingerprint_json: Value,
     response_content: &str,
     parsed_output: Value,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     state
         .save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
             workflow_run_id,
@@ -48,5 +48,4 @@ pub(super) async fn save_completed_scene_profile_stage_checkpoint(
             },
         })
         .await
-        .map_err(|err| err.to_string())
 }

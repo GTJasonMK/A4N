@@ -4,6 +4,7 @@ use super::super::types::{
 };
 use crate::{OrchestratorContext, workflow::CompletedWorkflowCheckpointInput};
 use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 fn scene_final_step_key(context: &SceneProfileSyncRequestContext) -> String {
@@ -13,12 +14,15 @@ fn scene_final_step_key(context: &SceneProfileSyncRequestContext) -> String {
     )
 }
 
-fn scene_final_step_order(chapter_index: usize) -> Result<i32, String> {
+fn scene_final_step_order(chapter_index: usize) -> Result<i32, AppError> {
     let order = chapter_index
         .checked_mul(10)
         .and_then(|value| value.checked_add(9))
-        .ok_or_else(|| "场景档案同步章节完成序号超出 usize 范围".to_string())?;
-    i32::try_from(order).map_err(|_| "场景档案同步章节完成序号超出 i32 范围".to_string())
+        .ok_or_else(|| {
+            AppError::InvalidArgument("场景档案同步章节完成序号超出 usize 范围".to_string())
+        })?;
+    i32::try_from(order)
+        .map_err(|_| AppError::InvalidArgument("场景档案同步章节完成序号超出 i32 范围".to_string()))
 }
 
 fn scene_final_fingerprint(context: &SceneProfileSyncRequestContext) -> Value {
@@ -45,14 +49,13 @@ pub(in crate::scene_profile::application) async fn has_completed_scene_final_che
     state: &OrchestratorContext,
     workflow_run_id: i64,
     context: &SceneProfileSyncRequestContext,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     let step_key = scene_final_step_key(context);
     let fingerprint = scene_final_fingerprint(context);
     state
         .load_completed_workflow_checkpoint(Some(workflow_run_id), &step_key, &fingerprint)
         .await
         .map(|checkpoint| checkpoint.is_some())
-        .map_err(|error| error.to_string())
 }
 
 pub(in crate::scene_profile::application) async fn save_scene_final_checkpoint(
@@ -60,7 +63,7 @@ pub(in crate::scene_profile::application) async fn save_scene_final_checkpoint(
     workflow_run_id: i64,
     context: &SceneProfileSyncRequestContext,
     chapter_index: usize,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     state
         .save_completed_workflow_checkpoint(CompletedWorkflowCheckpointInput {
             workflow_run_id: Some(workflow_run_id),
@@ -70,5 +73,4 @@ pub(in crate::scene_profile::application) async fn save_scene_final_checkpoint(
             checkpoint_json: None,
         })
         .await
-        .map_err(|error| error.to_string())
 }
