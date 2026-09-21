@@ -1,8 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
-import { promptDialog } from "../../components/feedback/PromptDialog";
-import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
 import {
@@ -21,21 +18,11 @@ import {
 } from "../../api/outline";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
-import {
-  ChapterOutlineSection,
-  type ChapterOutlineEditForm,
-} from "./outlines/ChapterOutlineSection";
-import { OutlineAdvancedToolsDialog } from "./outlines/OutlineAdvancedToolsDialog";
-import {
-  ChapterOutlineActionDialog,
-  ChapterOutlineDetailDialog,
-  ManualChapterOutlineDialog,
-  type ManualChapterOutlineForm,
-  ManualPartOutlineDialog,
-  type ManualPartOutlineForm,
-  PartDetailDialog,
+import type { ChapterOutlineEditForm } from "./outlines/ChapterOutlineSection";
+import type {
+  ManualChapterOutlineForm,
+  ManualPartOutlineForm,
 } from "./outlines/OutlineDialogs";
-import { PartOutlineSection } from "./outlines/PartOutlineSection";
 import {
   DELETE_LATEST_CHAPTER_OUTLINES_ACTION,
   DELETE_LATEST_PARTS_ACTION,
@@ -46,7 +33,12 @@ import {
 } from "./outlines/outlineTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { useOutlineGeneration } from "./outlines/useOutlineGeneration";
+import {
+  requestOptimizationDirection,
+  useOutlineTabGuards,
+} from "./outlines/useOutlineTabGuards";
 import { useI18n } from "../../i18n";
+import { OutlinesTabView } from "./outlines/OutlinesTabView";
 
 type OutlineView = "parts" | "chapters";
 
@@ -110,15 +102,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const [delActing, setDelActing] = useState<string | null>(null);
   const [regenLastPart, setRegenLastPart] = useState(false);
 
-  const requestOptimizationDirection = (title: string) =>
-    promptDialog({
-      title,
-      message: t("outline.dialogs.optimizationDirectionMessage"),
-      placeholder: t("outline.dialogs.optimizationDirectionPlaceholder"),
-      multiline: true,
-      confirmText: t("outline.dialogs.startOptimization"),
-    });
-
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const partsRef = useRef<PartOutline[]>([]);
@@ -132,100 +115,31 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   activeProjectIdRef.current = projectId;
 
-  const isProjectCurrent = useCallback(
-    (requestProjectId: number) =>
-      mountedRef.current && activeProjectIdRef.current === requestProjectId,
-    [],
-  );
-
-  const isLoadCurrent = useCallback(
-    (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) && loadSeqRef.current === requestSeq,
-    [isProjectCurrent],
-  );
-
-  const isActionCurrent = useCallback(
-    (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) && actionSeqRef.current === requestSeq,
-    [isProjectCurrent],
-  );
-
-  const isPreviewCurrent = useCallback(
-    (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) && previewSeqRef.current === requestSeq,
-    [isProjectCurrent],
-  );
-
-  const beginAction = useCallback(
-    (requestProjectId: number): number | null => {
-      if (!isProjectCurrent(requestProjectId)) return null;
-      if (!canEditOutlines) {
-        addToast(t("outline.readOnlyEdit"), "error");
-        return null;
-      }
-      if (actionBusyRef.current) {
-        addToast(t("outline.operationInProgress"), "error");
-        return null;
-      }
-      actionBusyRef.current = true;
-      actionSeqRef.current += 1;
-      return actionSeqRef.current;
-    },
-    [addToast, canEditOutlines, isProjectCurrent, t],
-  );
-
-  const finishAction = useCallback((requestSeq: number) => {
-    if (actionSeqRef.current === requestSeq) {
-      actionBusyRef.current = false;
-    }
-  }, []);
-
-  const invalidatePreview = useCallback(() => {
-    previewSeqRef.current += 1;
-    previewBusyRef.current = false;
-  }, []);
-
-  const beginPreview = useCallback(
-    (requestProjectId: number): number | null => {
-      if (!isProjectCurrent(requestProjectId)) return null;
-      if (!canEditOutlines) {
-        addToast(t("outline.readOnlyPreview"), "error");
-        return null;
-      }
-      if (previewBusyRef.current) return null;
-      previewBusyRef.current = true;
-      previewSeqRef.current += 1;
-      return previewSeqRef.current;
-    },
-    [addToast, canEditOutlines, isProjectCurrent, t],
-  );
-
-  const finishPreview = useCallback((requestSeq: number) => {
-    if (previewSeqRef.current === requestSeq) {
-      previewBusyRef.current = false;
-    }
-  }, []);
-
-  const beginConfirmAction = useCallback(
-    (requestProjectId: number): boolean => {
-      if (!isProjectCurrent(requestProjectId)) return false;
-      if (!canEditOutlines) {
-        addToast(t("outline.readOnlyEdit"), "error");
-        return false;
-      }
-      if (actionBusyRef.current || confirmBusyRef.current) {
-        addToast(t("outline.operationInProgress"), "error");
-        return false;
-      }
-      confirmBusyRef.current = true;
-      return true;
-    },
-    [addToast, canEditOutlines, isProjectCurrent, t],
-  );
-
-  const finishConfirmAction = useCallback(() => {
-    confirmBusyRef.current = false;
-  }, []);
+  const {
+    beginAction,
+    beginConfirmAction,
+    beginPreview,
+    finishAction,
+    finishConfirmAction,
+    finishPreview,
+    invalidatePreview,
+    isActionCurrent,
+    isLoadCurrent,
+    isPreviewCurrent,
+    isProjectCurrent,
+  } = useOutlineTabGuards({
+    canEditOutlines,
+    addToast,
+    t,
+    mountedRef,
+    activeProjectIdRef,
+    loadSeqRef,
+    actionSeqRef,
+    previewSeqRef,
+    actionBusyRef,
+    previewBusyRef,
+    confirmBusyRef,
+  });
 
   const closeRequestPreview = useCallback(() => {
     invalidatePreview();
@@ -777,6 +691,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refineChapter", { chapter: o.chapter_number }),
+        t,
       );
       if (direction === null || !isActionCurrent(requestProjectId, actionSeq)) return;
       const variables = outlineOptimizationVariables(direction);
@@ -831,6 +746,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refinePart", { part: part.part_number }),
+        t,
       );
       if (direction === null || !isActionCurrent(requestProjectId, actionSeq)) return;
       const warnings = await runOutlineGeneration(
@@ -883,6 +799,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refineChapter", { chapter: o.chapter_number }),
+        t,
       );
       if (direction === null || !isPreviewCurrent(requestProjectId, previewSeq)) return;
       setRequestPreviewOpen(true);
@@ -1156,192 +1073,93 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     partRegenId != null;
   const interactionBusy = mutationBusy || requestPreviewLoading;
 
-  if (loading) {
-    return (
-      <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> {t("outline.loading")}
-      </div>
-    );
-  }
-
   return (
-    <div className="content-main flex flex-col gap-5">
-      <nav
-        className="tab-bar min-w-0 shrink-0 border-b border-book-border/45"
-        role="tablist"
-        aria-label={t("outline.tabs.ariaLabel")}
-      >
-        <button
-          id="outline-parts-tab"
-          type="button"
-          role="tab"
-          aria-selected={activeOutlineView === "parts"}
-          aria-controls="outline-parts-panel"
-          onClick={() => setActiveOutlineView("parts")}
-          data-active={activeOutlineView === "parts" ? "1" : undefined}
-          className="pyqt-tab"
-        >
-          {t("outline.tabs.parts")}
-        </button>
-        <button
-          id="outline-chapters-tab"
-          type="button"
-          role="tab"
-          aria-selected={activeOutlineView === "chapters"}
-          aria-controls="outline-chapters-panel"
-          onClick={() => setActiveOutlineView("chapters")}
-          data-active={activeOutlineView === "chapters" ? "1" : undefined}
-          className="pyqt-tab"
-        >
-          {t("outline.tabs.chapters")}
-        </button>
-      </nav>
-
-      {activeOutlineView === "parts" ? (
-        <div
-          id="outline-parts-panel"
-          role="tabpanel"
-          aria-labelledby="outline-parts-tab"
-          className="min-w-0"
-        >
-          <PartOutlineSection
-            parts={parts}
-            canEdit={canEditOutlines}
-            partCount={partCount}
-            chaptersPerPart={chaptersPerPart}
-            defaultChaptersPerPart={defaultChaptersPerPart}
-            generating={generatingParts}
-            disabled={interactionBusy}
-            onPartCountChange={setPartCount}
-            onChaptersPerPartChange={setChaptersPerPart}
-            onGenerate={() => void handleGenerateParts()}
-            onPreviewGenerate={() => void handlePreviewGenerateParts()}
-            onCreatePart={() => openManualPart(null)}
-            onOpenAdvanced={() => {
-              if (!canEditOutlines) {
-                addToast(t("outline.readOnlyTools"), "error");
-                return;
-              }
-              setAdvancedOpen(true);
-            }}
-            onOpenPart={setPartDetail}
-          />
-        </div>
-      ) : (
-        <div
-          id="outline-chapters-panel"
-          role="tabpanel"
-          aria-labelledby="outline-chapters-tab"
-          className="min-w-0"
-        >
-          <ChapterOutlineSection
-            outlines={outlines}
-            canEdit={canEditOutlines}
-            chapterCount={chapterCount}
-            generating={generatingOutlines}
-            editingId={editingId}
-            editForm={editForm}
-            savingId={savingId}
-            regenId={regenId}
-            delActing={delActing}
-            disabled={interactionBusy}
-            onChapterCountChange={setChapterCount}
-            onGenerate={() => void handleGenerateChapterOutlines()}
-            onPreviewGenerate={() => void handlePreviewGenerateChapterOutlines()}
-            onCreate={openManualChapter}
-            onOpenDetail={setOutlineDetail}
-            onCancelEdit={cancelEdit}
-            onEditFormChange={setEditForm}
-            onSave={(outline) => void handleSaveOutline(outline)}
-            onOpenAction={(outline) => {
-              if (!canEditOutlines) {
-                addToast(t("outline.readOnlyEdit"), "error");
-                return;
-              }
-              setOutlineAction(outline);
-            }}
-          />
-        </div>
-      )}
-
-      {partDetail && (
-        <PartDetailDialog
-          part={partDetail}
-          onClose={() => setPartDetail(null)}
-          onEdit={canEditOutlines ? openManualPart : undefined}
-          onRefine={canEditOutlines ? (part) => void handleRefinePart(part) : undefined}
-          disabled={interactionBusy}
-        />
-      )}
-      {manualChapterInitial && canEditOutlines ? (
-        <ManualChapterOutlineDialog
-          initial={manualChapterInitial}
-          saving={manualSaving === "chapter"}
-          onClose={() => setManualChapterInitial(null)}
-          onSave={handleSaveManualChapter}
-        />
-      ) : null}
-      {manualPartEditor && canEditOutlines ? (
-        <ManualPartOutlineDialog
-          part={manualPartEditor.part}
-          initial={manualPartEditor.initial}
-          saving={manualSaving === "part"}
-          onClose={() => setManualPartEditor(null)}
-          onSave={handleSaveManualPart}
-        />
-      ) : null}
-      {outlineDetail && (
-        <ChapterOutlineDetailDialog
-          outline={outlineDetail}
-          onClose={() => setOutlineDetail(null)}
-        />
-      )}
-      {canEditOutlines && (
-        <ChapterOutlineActionDialog
-          outline={outlineAction}
-          regenId={regenId}
-          delActing={delActing}
-          disabled={interactionBusy}
-          onClose={() => setOutlineAction(null)}
-          onEdit={startEdit}
-          onRegenerate={handleRegenOutline}
-          onPreviewRegenerate={(outline) => void handlePreviewRegenOutline(outline)}
-          onDelete={handleDeleteOutline}
-        />
-      )}
-
-      {canEditOutlines && (
-        <OutlineAdvancedToolsDialog
-          open={advancedOpen}
-          projectId={projectId}
-          parts={parts}
-          outlines={outlines}
-          chaptersPerPart={chaptersPerPart}
-          delPartCount={delPartCount}
-          delChapterCount={delChapterCount}
-          delActing={delActing}
-          regenLastPart={regenLastPart}
-          runGeneration={runOutlineGeneration}
-          disabled={interactionBusy}
-          onClose={() => setAdvancedOpen(false)}
-          onDelPartCountChange={setDelPartCount}
-          onDelChapterCountChange={setDelChapterCount}
-          onRegenLastPart={() => void handleRegenLastPart()}
-          onPreviewRegenLastPart={() => void handlePreviewRegenLastPart()}
-          onDeleteLatestParts={() => void handleDeleteLatestParts()}
-          onDeleteLatestOutlines={() => void handleDeleteLatestOutlines()}
-          onChanged={async () => {
-            await load({ showLoading: false });
-          }}
-        />
-      )}
-      <RequestPreviewModal
-        open={requestPreviewOpen}
-        loading={requestPreviewLoading}
-        data={requestPreviewData}
-        fallbackTitle={t("outline.requestPreviewTitle")}
-        onClose={closeRequestPreview}
-      />
-    </div>
+    <OutlinesTabView
+      projectId={projectId}
+      loading={loading}
+      activeOutlineView={activeOutlineView}
+      parts={parts}
+      outlines={outlines}
+      canEditOutlines={canEditOutlines}
+      partCount={partCount}
+      chaptersPerPart={chaptersPerPart}
+      defaultChaptersPerPart={defaultChaptersPerPart}
+      generatingParts={generatingParts}
+      chapterCount={chapterCount}
+      generatingOutlines={generatingOutlines}
+      editingId={editingId}
+      editForm={editForm}
+      savingId={savingId}
+      regenId={regenId}
+      manualChapterInitial={manualChapterInitial}
+      manualPartEditor={manualPartEditor}
+      manualSaving={manualSaving}
+      partDetail={partDetail}
+      outlineDetail={outlineDetail}
+      outlineAction={outlineAction}
+      advancedOpen={advancedOpen}
+      delPartCount={delPartCount}
+      delChapterCount={delChapterCount}
+      delActing={delActing}
+      regenLastPart={regenLastPart}
+      interactionBusy={interactionBusy}
+      requestPreviewOpen={requestPreviewOpen}
+      requestPreviewLoading={requestPreviewLoading}
+      requestPreviewData={requestPreviewData}
+      runOutlineGeneration={runOutlineGeneration}
+      onSetOutlineView={setActiveOutlineView}
+      onPartCountChange={setPartCount}
+      onChaptersPerPartChange={setChaptersPerPart}
+      onGenerateParts={() => void handleGenerateParts()}
+      onPreviewGenerateParts={() => void handlePreviewGenerateParts()}
+      onCreatePart={() => openManualPart(null)}
+      onOpenAdvanced={() => {
+        if (!canEditOutlines) {
+          addToast(t("outline.readOnlyTools"), "error");
+          return;
+        }
+        setAdvancedOpen(true);
+      }}
+      onOpenPart={setPartDetail}
+      onChapterCountChange={setChapterCount}
+      onGenerateChapterOutlines={() => void handleGenerateChapterOutlines()}
+      onPreviewGenerateChapterOutlines={() => void handlePreviewGenerateChapterOutlines()}
+      onCreateChapter={openManualChapter}
+      onOpenOutlineDetail={setOutlineDetail}
+      onCancelEdit={cancelEdit}
+      onEditFormChange={setEditForm}
+      onSaveOutline={(outline) => void handleSaveOutline(outline)}
+      onOpenOutlineAction={(outline) => {
+        if (!canEditOutlines) {
+          addToast(t("outline.readOnlyEdit"), "error");
+          return;
+        }
+        setOutlineAction(outline);
+      }}
+      onClosePartDetail={() => setPartDetail(null)}
+      onEditPart={openManualPart}
+      onRefinePart={(part) => void handleRefinePart(part)}
+      onCloseManualChapter={() => setManualChapterInitial(null)}
+      onSaveManualChapter={(form) => void handleSaveManualChapter(form)}
+      onCloseManualPart={() => setManualPartEditor(null)}
+      onSaveManualPart={(form) => void handleSaveManualPart(form)}
+      onCloseOutlineDetail={() => setOutlineDetail(null)}
+      onCloseOutlineAction={() => setOutlineAction(null)}
+      onStartEdit={startEdit}
+      onRegenerateOutline={(outline) => void handleRegenOutline(outline)}
+      onPreviewRegenerateOutline={(outline) => void handlePreviewRegenOutline(outline)}
+      onDeleteOutline={(outline) => void handleDeleteOutline(outline)}
+      onCloseAdvanced={() => setAdvancedOpen(false)}
+      onDelPartCountChange={setDelPartCount}
+      onDelChapterCountChange={setDelChapterCount}
+      onRegenLastPart={() => void handleRegenLastPart()}
+      onPreviewRegenLastPart={() => void handlePreviewRegenLastPart()}
+      onDeleteLatestParts={() => void handleDeleteLatestParts()}
+      onDeleteLatestOutlines={() => void handleDeleteLatestOutlines()}
+      onChanged={async () => {
+        await load({ showLoading: false });
+      }}
+      onCloseRequestPreview={closeRequestPreview}
+    />
   );
 };
