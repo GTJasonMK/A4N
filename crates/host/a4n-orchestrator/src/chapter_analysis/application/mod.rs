@@ -12,6 +12,7 @@ use a4n_db_models::models::{
     generation::{workflow_checkpoint, workflow_run},
 };
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_domain::workflow::WORKFLOW_MODE_DERIVED_REPLAY;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
@@ -47,12 +48,11 @@ use super::{
 
 const STEP_FACTS: &str = "chapter_analysis.facts";
 const STEP_DERIVED_SYNC: &str = "chapter_analysis.derived_sync";
-pub const CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS: &str = "chapter_analysis.sync_outputs";
-pub const CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC: &str = "chapter_analysis.outline_sync";
-pub const CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY: &str = "chapter_analysis.object_discovery";
-pub const CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY: &str = "chapter_analysis.character_discovery";
-pub const CHAPTER_ANALYSIS_STEP_SCENE_SYNC: &str = "chapter_analysis.scene_sync";
-pub const CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC: &str = "chapter_analysis.character_sync";
+pub use a4n_chapter_content_core::{
+    CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
+    CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,
+    CHAPTER_ANALYSIS_STEP_SCENE_SYNC, CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS,
+};
 const STEP_REFRESH_STATUS: &str = "chapter_analysis.refresh_status";
 
 include!("analysis.rs");

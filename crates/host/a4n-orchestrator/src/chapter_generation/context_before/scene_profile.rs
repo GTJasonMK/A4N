@@ -1,7 +1,7 @@
 use super::shared::truncate_chars;
 use crate::OrchestratorContext;
 use crate::chapter_generation::non_empty_trimmed;
-use a4n_db_models::models::scene::scene_profile;
+use a4n_db::project::ChapterSceneProfileContext;
 use serde_json::Value;
 
 const SCENE_PROFILE_CONTEXT_LIMIT: usize = 8;
@@ -15,12 +15,13 @@ pub(super) async fn recent_scene_profile_context_lines(
         .scene_profiles_before_chapter(project_id, chapter_number)
         .await
         .map_err(|err| format!("构建场景档案上下文失败：{err}"))?;
-    profiles.sort_by_key(|profile| {
-        (
-            importance_rank(&profile.importance),
-            std::cmp::Reverse(profile.last_seen_chapter),
-            profile.id,
-        )
+    profiles.sort_by_key(|profile| match profile {
+        ChapterSceneProfileContext::Authored(profile) => (std::cmp::Reverse(0), profile.id),
+        ChapterSceneProfileContext::Observed {
+            profile_id,
+            occurrence,
+            ..
+        } => (std::cmp::Reverse(occurrence.chapter_number), *profile_id),
     });
     Ok(profiles
         .iter()
@@ -29,26 +30,35 @@ pub(super) async fn recent_scene_profile_context_lines(
         .collect())
 }
 
-fn scene_profile_context_line(profile: &scene_profile::Model) -> Option<String> {
+fn scene_profile_context_line(context: &ChapterSceneProfileContext) -> Option<String> {
     let mut details = Vec::new();
-    push_text_detail(&mut details, "视觉", &profile.visual_description, 100);
-    push_text_detail(&mut details, "布局", &profile.spatial_layout, 100);
-    push_text_detail(&mut details, "氛围", &profile.atmosphere, 80);
-    if let Some(current_state) = compact_json_detail(&profile.current_state_json, 160) {
-        details.push(format!("当前: {current_state}"));
-    }
+    let label = match context {
+        ChapterSceneProfileContext::Authored(profile) => {
+            push_text_detail(&mut details, "视觉", &profile.visual_description, 100);
+            push_text_detail(&mut details, "布局", &profile.spatial_layout, 100);
+            push_text_detail(&mut details, "氛围", &profile.atmosphere, 80);
+            format!("{}（作者预设）", profile.name)
+        }
+        ChapterSceneProfileContext::Observed {
+            name, occurrence, ..
+        } => {
+            push_text_detail(&mut details, "本次出场", &occurrence.summary, 160);
+            if let Some(mood) = occurrence.mood.as_deref() {
+                push_text_detail(&mut details, "氛围", mood, 80);
+            }
+            if let Some(weather) = occurrence.weather_or_lighting.as_deref() {
+                push_text_detail(&mut details, "环境", weather, 80);
+            }
+            if let Some(state) = compact_json_detail(&occurrence.exit_state_json, 180) {
+                details.push(format!("退出状态: {state}"));
+            }
+            format!("{name}（第{}章后）", occurrence.chapter_number)
+        }
+    };
     if details.is_empty() {
         None
     } else {
-        Some(format!(
-            "- {}（第{}-{}章，{} / {}）：{}",
-            profile.name,
-            profile.first_seen_chapter,
-            profile.last_seen_chapter,
-            profile.importance,
-            profile.scene_type,
-            details.join("；")
-        ))
+        Some(format!("- {label}：{}", details.join("；")))
     }
 }
 
@@ -67,13 +77,5 @@ fn compact_json_detail(value: &Value, limit: usize) -> Option<String> {
             let text = value.to_string();
             non_empty_trimmed(&text).map(|text| truncate_chars(text, limit))
         }
-    }
-}
-
-fn importance_rank(value: &str) -> u8 {
-    match value {
-        "primary" => 0,
-        "secondary" => 1,
-        _ => 2,
     }
 }

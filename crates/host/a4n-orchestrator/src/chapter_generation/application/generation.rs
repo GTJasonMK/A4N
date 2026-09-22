@@ -677,9 +677,56 @@ impl OrchestratorContext {
         self.ensure_text_source_project(project_id, operation)
             .await?;
         self.validate_chapter_generation_readiness(project_id, chapter_number)?;
+        self.ensure_prior_chapter_analysis_replay_complete(project_id, chapter_number)
+            .await?;
         self.preflight_chapter_content_change_validated(project_id, chapter_number)
             .await
             .map_err(|error| error.to_string())
+    }
+
+    async fn ensure_prior_chapter_analysis_replay_complete(
+        &self,
+        project_id: i64,
+        chapter_number: i32,
+    ) -> Result<(), String> {
+        let chapters = self
+            .chapters_before_number(project_id, chapter_number)
+            .await
+            .map_err(|error| format!("读取前文章节资料状态失败: {error}"))?;
+        let chapter_ids = chapters
+            .iter()
+            .map(|chapter| chapter.id)
+            .collect::<std::collections::HashSet<_>>();
+        if chapter_ids.is_empty() {
+            return Ok(());
+        }
+        let runs = self
+            .workflow_runs_by_project_kind(project_id, "chapter_analysis")
+            .await
+            .map_err(|error| format!("读取前文章节分析状态失败: {error}"))?;
+        if let Some(run) = runs.into_iter().find(|run| {
+            run.chapter_id
+                .is_some_and(|chapter_id| chapter_ids.contains(&chapter_id))
+                && (run.status == crate::workflow::WORKFLOW_STATUS_RUNNING
+                    || (run.can_resume
+                        && matches!(
+                            run.status.as_str(),
+                            crate::workflow::WORKFLOW_STATUS_INTERRUPTED
+                                | crate::workflow::WORKFLOW_STATUS_FAILED
+                                | crate::workflow::WORKFLOW_STATUS_CANCELLED
+                        )))
+        }) {
+            return Err(format!(
+                "第 {} 章之前仍有未完成的章节资料重放（workflow_run_id={}），请先恢复同步",
+                chapters
+                    .iter()
+                    .find(|chapter| Some(chapter.id) == run.chapter_id)
+                    .map(|chapter| chapter.chapter_number)
+                    .unwrap_or_default(),
+                run.id
+            ));
+        }
+        Ok(())
     }
 
     async fn prepare_chapter_generation_application(

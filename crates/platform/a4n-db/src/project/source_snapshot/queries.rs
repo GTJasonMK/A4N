@@ -4,7 +4,30 @@ use super::{
 };
 use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use a4n_domain::project::ProjectSourceMode;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect,
+};
+
+pub(crate) async fn projects_using_source_snapshot<C: ConnectionTrait>(
+    db: &C,
+    root_project_id: i64,
+    snapshot_id: Option<i64>,
+) -> Result<Vec<i64>, DbErr> {
+    // 修改实时来源不会改变派生项目已采用的快照。
+    let Some(snapshot_id) = snapshot_id else {
+        return Ok(Vec::new());
+    };
+    novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .filter(novel_project::Column::RootProjectId.eq(root_project_id))
+        .filter(novel_project::Column::SourceSnapshotId.eq(snapshot_id))
+        .order_by_asc(novel_project::Column::Id)
+        .into_tuple::<i64>()
+        .all(db)
+        .await
+}
 
 pub async fn source_snapshot_chapters(
     db: &DatabaseConnection,

@@ -207,19 +207,6 @@ impl ProjectFamilyApplication {
         .map_err(AppError::Database)
     }
 
-    async fn claim_media_workflow_v2_reset(
-        &self,
-        project_id: Option<i64>,
-    ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
-        a4n_db::cleanup_outbox::claim_media_workflow_v2_reset(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map(|claim| claim.map(Into::into))
-        .map_err(AppError::Database)
-    }
-
     async fn insert_file_artifact_cleanup_intent(
         &self,
         project_id: i64,
@@ -254,29 +241,6 @@ impl ProjectFamilyApplication {
             .await
             .map(|claim| claim.map(Into::into))
             .map_err(AppError::Database)
-    }
-
-    async fn reset_media_workflows_to_v2(
-        &self,
-        project_id: i64,
-        cleanup_intent_id: i64,
-    ) -> Result<(), AppError> {
-        a4n_db::media_workflow_reset::reset_media_workflows_to_v2(
-            self.database.connection(),
-            project_id,
-            cleanup_intent_id,
-        )
-        .await
-        .map_err(AppError::Database)
-    }
-
-    async fn media_workflow_v2_reset_pending(&self, project_id: i64) -> Result<bool, AppError> {
-        a4n_db::cleanup_outbox::media_workflow_v2_reset_pending(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(AppError::Database)
     }
 
     async fn project_ids_with_incomplete_cleanup(&self) -> Result<Vec<i64>, AppError> {
@@ -561,15 +525,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn claim_media_workflow_v2_reset(
-        &self,
-        project_id: Option<i64>,
-    ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
-        self.project_family
-            .claim_media_workflow_v2_reset(project_id)
-            .await
-    }
-
     pub(crate) async fn insert_file_artifact_cleanup_intent(
         &self,
         project_id: i64,
@@ -612,33 +567,6 @@ impl OrchestratorContext {
         self.project_family
             .purge_completed_cleanup_audits(limit)
             .await
-    }
-
-    pub(crate) async fn reset_media_workflows_to_v2(
-        &self,
-        project_id: i64,
-        cleanup_intent_id: i64,
-    ) -> Result<(), AppError> {
-        self.project_family
-            .reset_media_workflows_to_v2(project_id, cleanup_intent_id)
-            .await
-    }
-
-    pub(crate) async fn ensure_media_workflow_v2_ready(
-        &self,
-        project_id: i64,
-    ) -> Result<(), AppError> {
-        if self
-            .project_family
-            .media_workflow_v2_reset_pending(project_id)
-            .await?
-        {
-            return Err(AppError::InvalidState {
-                current: "media_workflow_contract_v2_reset_pending".to_string(),
-                operation: "启动媒体生成流水线".to_string(),
-            });
-        }
-        Ok(())
     }
 
     pub(crate) async fn complete_claimed_cleanup(
@@ -792,13 +720,6 @@ impl a4n_cleanup_contract::CleanupOutboxApplicationPort for OrchestratorContext 
         OrchestratorContext::claim_project_deletion_cleanup(self, project_id).await
     }
 
-    async fn claim_media_workflow_v2_reset(
-        &self,
-        project_id: Option<i64>,
-    ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
-        OrchestratorContext::claim_media_workflow_v2_reset(self, project_id).await
-    }
-
     async fn claim_file_artifact_cleanup(
         &self,
         project_id: Option<i64>,
@@ -819,14 +740,6 @@ impl a4n_cleanup_contract::CleanupOutboxApplicationPort for OrchestratorContext 
 
     async fn purge_completed_cleanup_audits(&self, limit: usize) -> Result<u64, AppError> {
         OrchestratorContext::purge_completed_cleanup_audits(self, limit).await
-    }
-
-    async fn reset_media_workflows_to_v2(
-        &self,
-        project_id: i64,
-        cleanup_intent_id: i64,
-    ) -> Result<(), AppError> {
-        OrchestratorContext::reset_media_workflows_to_v2(self, project_id, cleanup_intent_id).await
     }
 
     async fn complete_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError> {

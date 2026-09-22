@@ -779,6 +779,9 @@ impl OrchestratorContext {
         if !chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
             return Ok(());
         }
+        if run.mode.as_deref() == Some(WORKFLOW_MODE_DERIVED_REPLAY) {
+            return Ok(());
+        }
         if self
             .completed_chapter_analysis_phase(
                 workflow_run_id,
@@ -834,7 +837,9 @@ impl OrchestratorContext {
             return Ok(false);
         }
         let checkpoint =
-            if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+            if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json)
+                && run.mode.as_deref() != Some(WORKFLOW_MODE_DERIVED_REPLAY)
+            {
                 let fingerprint = chapter_analysis_phase_fingerprint(
                     chapter,
                     CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
@@ -869,7 +874,9 @@ impl OrchestratorContext {
         {
             return Ok(false);
         }
-        if !chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+        if !chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json)
+            || run.mode.as_deref() == Some(WORKFLOW_MODE_DERIVED_REPLAY)
+        {
             return self
                 .chapter_analysis_run_has_saved_analysis_from_checkpoint(run, chapter, None);
         }
@@ -891,7 +898,9 @@ impl OrchestratorContext {
         chapter: &chapter::Model,
         checkpoint: Option<&workflow_checkpoint::Model>,
     ) -> Result<bool, AppError> {
-        if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+        if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json)
+            && run.mode.as_deref() != Some(WORKFLOW_MODE_DERIVED_REPLAY)
+        {
             let Some(checkpoint) = checkpoint else {
                 return Ok(false);
             };

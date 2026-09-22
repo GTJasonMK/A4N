@@ -9,7 +9,7 @@ use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
 use std::time::Duration;
 
 #[tokio::test]
-async fn director_resources_are_family_scoped_and_survive_reset_and_supersession() {
+async fn director_resources_are_family_scoped_and_survive_supersession() {
     use a4n_db::chapter_visual_plan::{ConfirmChapterVisualPlanInput, confirm_chapter_visual_plan};
     use a4n_db_models::models::{ai::generated_image, scene::scene_profile};
     use a4n_domain::{chapter_visual_plan::SceneBindingV3, scene_profile::SceneProfileRecordInput};
@@ -195,16 +195,6 @@ async fn director_resources_are_family_scoped_and_survive_reset_and_supersession
     .await
     .unwrap()
     .visual_plan;
-    let reset = a4n_db::cleanup_outbox::insert_media_workflow_v2_reset_intent(
-        &db,
-        format!("director-reset-{}", media_project.id),
-        a4n_db::cleanup_outbox::MediaWorkflowV2ResetPayload::new(media_project.id),
-    )
-    .await
-    .unwrap();
-    a4n_db::media_workflow_reset::reset_media_workflows_to_v2(&db, media_project.id, reset.id)
-        .await
-        .unwrap();
     assert!(
         generated_image::Entity::find_by_id(image.id)
             .one(&db)

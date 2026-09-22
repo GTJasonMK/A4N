@@ -1,10 +1,7 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
 
-use super::{
-    contracts::{DeleteStoredChapterShootingScriptInput, ShootingScriptDbError},
-    editing::invalidate_downstream_projects,
-};
+use super::contracts::{DeleteStoredChapterShootingScriptInput, ShootingScriptDbError};
 
 pub async fn delete_chapter_shooting_script_and_invalidate(
     db: &DatabaseConnection,
@@ -42,14 +39,6 @@ pub async fn delete_chapter_shooting_script_and_invalidate(
         });
     }
 
-    invalidate_downstream_projects(
-        &tx,
-        current.root_project_id,
-        current.id,
-        current.revision,
-        "delete",
-    )
-    .await?;
     tx.commit().await?;
     Ok(())
 }

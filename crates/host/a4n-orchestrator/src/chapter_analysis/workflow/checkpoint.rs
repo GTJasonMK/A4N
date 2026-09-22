@@ -1,7 +1,7 @@
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
-use serde_json::{Value, json};
+use serde_json::Value;
 
-use super::{chapter_analysis_run_input_matches, chapter_analysis_workflow_fingerprint};
+use super::chapter_analysis_run_input_matches;
 use crate::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,16 +57,6 @@ pub fn require_completed_chapter_analysis_phase(
             step_key: step_key.to_string(),
         })
     }
-}
-
-pub fn chapter_analysis_phase_fingerprint(chapter: &chapter::Model, step_key: &str) -> Value {
-    json!({
-        "schema_version": 1,
-        "workflow": "chapter_analysis.derived_sync",
-        "step_key": step_key,
-        "chapter": chapter_analysis_workflow_fingerprint(chapter),
-        "analysis_data": chapter.analysis_data.as_ref(),
-    })
 }
 
 pub fn chapter_analysis_resume_block_reason(

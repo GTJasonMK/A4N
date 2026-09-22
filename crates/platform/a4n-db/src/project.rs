@@ -37,9 +37,10 @@ pub use blueprint_sync::{
     novel_blueprint_for_project,
 };
 pub use chapter_context::{
-    ChapterGenerationReferenceContextRows, ProjectChapterContextError,
-    ProtagonistProfileCurrentStateUpdate, chapter_by_id, chapter_generation_reference_context_rows,
-    chapters_before_number, character_states_for_profiles_before_chapter, character_sync_chapters,
+    ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
+    ChapterSceneProfileContext, ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate,
+    chapter_by_id, chapter_generation_reference_context_rows, chapters_before_number,
+    character_states_for_profiles_before_chapter, character_sync_chapters,
     import_analysis_chapter_candidates, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     refresh_project_current_chapter, scene_profiles_before_chapter,
@@ -66,9 +67,8 @@ pub(crate) use cleanup::{
     delete_project_optimization_tree, delete_project_text_anchors,
 };
 pub(crate) use cleanup::{
-    delete_project_generated_artifact_links, delete_project_generated_artifact_rows,
-    delete_project_generation_media_graph, delete_project_generation_runs,
-    delete_project_task_queue_records, delete_project_workflow_runs, project_generated_media_paths,
+    delete_project_generation_media_graph, delete_project_task_queue_records,
+    project_generated_media_paths,
 };
 pub use duplicate::{
     ProjectDuplicateError, duplicate_derived_project_record, duplicate_freeform_project_record,
@@ -142,6 +142,8 @@ pub use progress::{
 };
 pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impacts};
 pub(crate) use source_snapshot::create_source_snapshot_in_record;
+pub(crate) use source_snapshot::projects_using_source_snapshot;
+pub use source_snapshot::scene_profiles_for_source;
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
     source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapters,

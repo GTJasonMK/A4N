@@ -31,7 +31,6 @@ impl OrchestratorContext {
             workflow_run_id,
             resume_from_checkpoint,
         } = input;
-        self.ensure_media_workflow_v2_ready(project_id).await?;
         let script_context = self
             .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
                 project_id,

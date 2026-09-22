@@ -137,6 +137,7 @@ impl OrchestratorContext {
                 locked.chapter_number,
                 false,
                 false,
+                Some(workflow_run_id),
             )
             .await?;
             host_port.validate_chapter_cleanup_artifacts(&artifacts)?;

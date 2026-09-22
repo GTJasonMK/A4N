@@ -2,6 +2,7 @@ use a4n_db::workflow::{
     CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, GetWorkflowRunInput,
     UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowProgressEventInput,
     WorkflowWriteError, cancel_workflow_run_persistence,
+    invalidate_chapter_analysis_after_source_change,
     latest_workflow_run_recovery_records_by_business_keys, latest_workflow_runs_by_business_keys,
     load_completed_llm_call_checkpoint, mark_workflow_status, persist_workflow_progress_snapshot,
     record_workflow_progress_event, resume_or_upsert_workflow_run,
@@ -101,6 +102,109 @@ async fn latest_workflow_runs_by_business_keys_returns_one_latest_row_per_key() 
             (latest.id, WORKFLOW_STATUS_RUNNING.to_string()),
             (other.id, WORKFLOW_STATUS_COMPLETED.to_string()),
         ]
+    );
+}
+
+#[tokio::test]
+async fn chapter_source_change_invalidates_derived_checkpoints_but_keeps_llm_calls() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: format!("workflow invalidation {}", uuid::Uuid::new_v4()),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .expect("project must be created");
+    let chapters = futures::future::try_join_all((1..=2).map(|chapter_number| {
+        a4n_db::chapter_content::import_chapter_content_record(
+            &db,
+            a4n_domain::chapter::ImportChapterContentInput {
+                project_id: project.id,
+                chapter_number,
+                content: format!("第{chapter_number}章正文"),
+                title: None,
+            },
+            "workflow invalidation test",
+        )
+    }))
+    .await
+    .expect("chapters must be created");
+
+    let mut runs = Vec::new();
+    for chapter in &chapters {
+        let run = upsert_workflow_run(
+            &db,
+            UpsertWorkflowRunInput {
+                business_key: format!("chapter_analysis:{}:{}", project.id, chapter.id),
+                workflow_kind: "chapter_analysis".to_string(),
+                project_id: Some(project.id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                scope_table: Some("chapter".to_string()),
+                scope_id: Some(chapter.id),
+                chapter_id: Some(chapter.id),
+                mode: None,
+                input_fingerprint_json: Some(json!({"chapter_id": chapter.id})),
+                status: WORKFLOW_STATUS_RUNNING.to_string(),
+                current_step_key: Some("chapter_analysis.refresh_status".to_string()),
+                active_task_id: None,
+                can_resume: true,
+                resume_block_reason: None,
+                error_message: None,
+            },
+        )
+        .await
+        .expect("chapter analysis run must be created");
+        for step_key in [
+            "chapter_analysis.facts",
+            "chapter_analysis.sync_outputs",
+            "chapter_analysis.character_sync.profile.7",
+            "scene_profile_sync.chapter.2.scenes",
+        ] {
+            upsert_workflow_checkpoint(
+                &db,
+                UpsertWorkflowCheckpointInput {
+                    workflow_run_id: run.id,
+                    step_key: step_key.to_string(),
+                    step_order: 1,
+                    status: WORKFLOW_STATUS_COMPLETED.to_string(),
+                    input_fingerprint_sha256: None,
+                    input_fingerprint_json: Some(json!({"chapter_id": chapter.id})),
+                    checkpoint_json: Some(json!({"completed": true})),
+                    artifacts_json: None,
+                    generation_run_ids_json: None,
+                    error_message: None,
+                    completed: true,
+                },
+            )
+            .await
+            .expect("checkpoint must be created");
+        }
+        runs.push(run);
+    }
+
+    invalidate_chapter_analysis_after_source_change(&db, project.id, 1, Some(runs[0].id))
+        .await
+        .expect("chapter analysis invalidation must succeed");
+
+    let preserved = workflow_run_model_by_id(&db, runs[0].id).await.unwrap();
+    assert_eq!(preserved.status, WORKFLOW_STATUS_RUNNING);
+    let invalidated = workflow_run_model_by_id(&db, runs[1].id).await.unwrap();
+    assert_eq!(invalidated.status, WORKFLOW_STATUS_INTERRUPTED);
+    assert!(invalidated.can_resume);
+    let remaining = workflow_checkpoint_step_statuses(&db, runs[1].id)
+        .await
+        .unwrap();
+    assert_eq!(
+        remaining,
+        vec![(
+            "chapter_analysis.facts".to_string(),
+            WORKFLOW_STATUS_COMPLETED.to_string(),
+        )]
     );
 }
 

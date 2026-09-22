@@ -73,15 +73,14 @@ impl OrchestratorContext {
     pub(crate) async fn visual_plan_scene_context(
         &self,
         plan: &ChapterVisualPlanV3,
+        source: &ResolvedChapterSource,
     ) -> Result<Vec<Value>, AppError> {
-        let mut scenes = Vec::new();
-        for id in plan.referenced_scene_ids() {
-            let scene = a4n_db::scene_profile::scene_profile_by_id(self.database.connection(), id)
+        let ids = plan.referenced_scene_ids().into_iter().collect::<Vec<_>>();
+        let scenes =
+            a4n_db::project::scene_profiles_for_source(self.database.connection(), source, &ids)
                 .await
-                .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-            scenes.push(json!({"id":scene.id,"name":scene.name,"description":scene.base_description,"visual_description":scene.visual_description,"spatial_layout":scene.spatial_layout,"atmosphere":scene.atmosphere}));
-        }
-        Ok(scenes)
+                .map_err(crate::shooting_script::errors::resolve_source_error)?;
+        Ok(scenes.into_iter().map(|scene| json!({"id":scene.id,"name":scene.name,"description":scene.base_description,"visual_description":scene.visual_description,"spatial_layout":scene.spatial_layout,"atmosphere":scene.atmosphere})).collect())
     }
 
     pub(crate) async fn preview_visual_plan_point_generation(
@@ -127,7 +126,9 @@ impl OrchestratorContext {
                     .flatten()
             })
             .ok_or_else(|| AppError::InvalidArgument("图片点没有所属镜头段".into()))?;
-        let scenes = self.visual_plan_scene_context(&current.plan).await?;
+        let scenes = self
+            .visual_plan_scene_context(&current.plan, &source)
+            .await?;
         let context = json!({
             "chapter_title":source.title,"chapter_context":source.content,"frame":current.plan.frame,
             "point":point,"segment":segment,"scenes":scenes,"user_description":options.user_description,
@@ -215,7 +216,9 @@ impl OrchestratorContext {
             .expect("validated end");
         let points = current.plan.points.iter().filter(|point| point.at_ms >= start && point.at_ms < end.at_ms)
             .map(|point| json!({"relative_at_ms":point.at_ms - start,"label":point.label,"description":point.description,"image_id":point.image_id})).collect::<Vec<_>>();
-        let scenes = self.visual_plan_scene_context(&current.plan).await?;
+        let scenes = self
+            .visual_plan_scene_context(&current.plan, &source)
+            .await?;
         let payload = json!({
             "chapter_title":source.title,"chapter_context":source.content,
             "duration_ms":end.at_ms-start,"existing_prompt":segment.prompt,"scene_binding":segment.scene_binding,

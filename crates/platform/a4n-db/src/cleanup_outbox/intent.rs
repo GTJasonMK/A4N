@@ -3,8 +3,8 @@ use super::contracts::{
     GENERATION_ARTIFACT_UNBIND_KIND, GENERATION_PROVIDER_JOB_CLEANUP_KIND,
     GENERATION_STAGING_ARTIFACT_DELETE_KIND, GenerationArtifactUnbindPayload,
     GenerationCleanupScope, GenerationProviderJobCleanupPayload,
-    GenerationStagingArtifactDeletePayload, MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND,
-    MediaWorkflowV2ResetPayload, PROJECT_DELETE_CLEANUP_KIND, ProjectDeletionCleanupPayload,
+    GenerationStagingArtifactDeletePayload, PROJECT_DELETE_CLEANUP_KIND,
+    ProjectDeletionCleanupPayload,
 };
 use a4n_db_models::models::task::cleanup_outbox;
 use chrono::Utc;
@@ -12,7 +12,6 @@ use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveValue::NotSet, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
 };
-use std::collections::HashMap;
 
 struct PreparedCleanupIntent {
     dedupe_key: String,
@@ -79,96 +78,6 @@ where
         })?,
     )
     .await
-}
-
-pub async fn insert_media_workflow_v2_reset_intent<C>(
-    db: &C,
-    dedupe_key: String,
-    payload: MediaWorkflowV2ResetPayload,
-) -> Result<cleanup_outbox::Model, DbErr>
-where
-    C: ConnectionTrait,
-{
-    insert_cleanup_intent(
-        db,
-        dedupe_key,
-        MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND,
-        Some(payload.project_id),
-        None,
-        None,
-        None,
-        serde_json::to_value(payload).map_err(|error| {
-            DbErr::Custom(format!("序列化媒体工作流 v2 reset payload 失败: {error}"))
-        })?,
-    )
-    .await
-}
-
-pub async fn insert_media_workflow_v2_reset_intents<C, I>(
-    db: &C,
-    intents: I,
-) -> Result<Vec<cleanup_outbox::Model>, DbErr>
-where
-    C: ConnectionTrait,
-    I: IntoIterator<Item = (String, MediaWorkflowV2ResetPayload)>,
-{
-    let specs = intents
-        .into_iter()
-        .map(|(dedupe_key, payload)| {
-            let project_id = payload.project_id;
-            let payload_json = serde_json::to_value(payload).map_err(|error| {
-                DbErr::Custom(format!("序列化媒体工作流 v2 reset payload 失败: {error}"))
-            })?;
-            prepare_cleanup_intent(
-                dedupe_key,
-                MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND,
-                Some(project_id),
-                None,
-                None,
-                None,
-                payload_json,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if specs.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let dedupe_keys = specs
-        .iter()
-        .map(|spec| spec.dedupe_key.clone())
-        .collect::<Vec<_>>();
-    let now = Utc::now().naive_utc();
-    cleanup_outbox::Entity::insert_many(specs.iter().map(|spec| spec.active_model(now)))
-        .on_conflict(
-            OnConflict::column(cleanup_outbox::Column::DedupeKey)
-                .do_nothing()
-                .to_owned(),
-        )
-        .do_nothing()
-        .exec_without_returning(db)
-        .await?;
-    let records = cleanup_outbox::Entity::find()
-        .filter(cleanup_outbox::Column::DedupeKey.is_in(dedupe_keys))
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|record| (record.dedupe_key.clone(), record))
-        .collect::<HashMap<_, _>>();
-
-    specs
-        .iter()
-        .map(|spec| {
-            let existing = records.get(&spec.dedupe_key).ok_or_else(|| {
-                DbErr::Custom(format!(
-                    "cleanup outbox 插入或 dedupe 冲突后找不到记录: {}",
-                    spec.dedupe_key
-                ))
-            })?;
-            validate_existing_cleanup_intent(existing, spec)?;
-            Ok(existing.clone())
-        })
-        .collect()
 }
 
 pub async fn insert_file_artifact_cleanup_intent<C>(

@@ -216,22 +216,6 @@ impl ProjectDeletionCleanupPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct MediaWorkflowV2ResetPayload {
-    pub version: u32,
-    pub project_id: i64,
-}
-
-impl MediaWorkflowV2ResetPayload {
-    pub fn new(project_id: i64) -> Self {
-        Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            project_id,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
 pub struct FileArtifactCleanupPayload {
     pub version: u32,
     pub project_id: i64,
@@ -267,12 +251,6 @@ pub struct ProjectDeletionCleanupClaim {
 }
 
 #[derive(Debug, Clone)]
-pub struct MediaWorkflowV2ResetClaim {
-    pub record: CleanupClaimRecord,
-    pub payload: MediaWorkflowV2ResetPayload,
-}
-
-#[derive(Debug, Clone)]
 pub struct FileArtifactCleanupClaim {
     pub record: CleanupClaimRecord,
     pub payload: FileArtifactCleanupPayload,
@@ -298,11 +276,6 @@ pub trait CleanupOutboxApplicationPort: Send + Sync {
         project_id: Option<i64>,
     ) -> Result<Option<ProjectDeletionCleanupClaim>, AppError>;
 
-    async fn claim_media_workflow_v2_reset(
-        &self,
-        project_id: Option<i64>,
-    ) -> Result<Option<MediaWorkflowV2ResetClaim>, AppError>;
-
     async fn claim_file_artifact_cleanup(
         &self,
         project_id: Option<i64>,
@@ -316,12 +289,6 @@ pub trait CleanupOutboxApplicationPort: Send + Sync {
     async fn project_ids_with_incomplete_cleanup(&self) -> Result<Vec<i64>, AppError>;
 
     async fn purge_completed_cleanup_audits(&self, limit: usize) -> Result<u64, AppError>;
-
-    async fn reset_media_workflows_to_v2(
-        &self,
-        project_id: i64,
-        cleanup_intent_id: i64,
-    ) -> Result<(), AppError>;
 
     async fn complete_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError>;
 

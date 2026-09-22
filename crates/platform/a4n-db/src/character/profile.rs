@@ -42,7 +42,7 @@ struct InitialProfileEditContext {
     last_synced_chapter: i32,
 }
 
-fn initial_profile_editable(
+pub(in crate::character) fn initial_profile_editable(
     last_synced_chapter: i32,
     project_active: bool,
     has_timeline_records: bool,
@@ -179,10 +179,10 @@ where
     Ok(!timeline_profile_ids(db, &[profile_id]).await?.is_empty())
 }
 
-async fn timeline_profile_ids<C>(
+pub(in crate::character) async fn timeline_profile_ids<C>(
     db: &C,
     profile_ids: &[i64],
-) -> Result<HashSet<i64>, crate::character::CharacterDbError>
+) -> Result<HashSet<i64>, sea_orm::DbErr>
 where
     C: ConnectionTrait,
 {

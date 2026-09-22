@@ -15,6 +15,33 @@ pub enum ProjectChapterContextError {
     Database(#[from] DbErr),
 }
 
+#[derive(Debug, Clone)]
+pub struct ChapterProfileEvidence {
+    pub anchor_id: i64,
+    pub chapter_number: i32,
+    pub quote: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum ChapterObjectProfileContext {
+    Authored(a4n_db_models::models::asset::object_profile::Model),
+    Observed {
+        profile_id: i64,
+        name: String,
+        evidence: Vec<ChapterProfileEvidence>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ChapterSceneProfileContext {
+    Authored(a4n_db_models::models::scene::scene_profile::Model),
+    Observed {
+        profile_id: i64,
+        name: String,
+        occurrence: a4n_db_models::models::scene::scene_occurrence::Model,
+    },
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ChapterGenerationReferenceContextRows {
     pub blueprint: Option<novel_blueprint::Model>,

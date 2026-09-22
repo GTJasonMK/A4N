@@ -75,6 +75,7 @@ pub mod media_asset_generation_ref_contract;
 pub mod media_asset_snapshot_context;
 pub mod media_provenance_snapshot_context;
 pub mod media_provider_options;
+pub mod media_workflow_reset_retirement;
 pub mod model_cost_pricing;
 pub mod model_usage_ledger;
 pub mod neutral_video_segment_plan;

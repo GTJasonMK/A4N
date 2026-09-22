@@ -50,8 +50,8 @@ pub(in crate::workflow) use validation::{
 mod runs;
 pub use runs::{
     claim_exclusive_workflow_run, completed_workflow_checkpoint_by_fingerprint,
-    delete_workflow_checkpoints_by_keys, latest_workflow_run_by_business_key,
-    latest_workflow_run_by_business_key_for_update,
+    delete_workflow_checkpoints_by_keys, invalidate_chapter_analysis_after_source_change,
+    latest_workflow_run_by_business_key, latest_workflow_run_by_business_key_for_update,
     latest_workflow_run_recovery_records_by_business_keys,
     latest_workflow_run_status_record_by_business_key, latest_workflow_runs_by_business_keys,
     list_workflow_run_models, list_workflow_runs, mark_workflow_current_step, mark_workflow_status,

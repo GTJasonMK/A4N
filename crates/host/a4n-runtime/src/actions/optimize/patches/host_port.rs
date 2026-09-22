@@ -16,14 +16,11 @@ impl<'a> RuntimeOptimizePatchApplyHostPort<'a> {
 
 #[async_trait]
 impl OptimizePatchApplyHostPort for RuntimeOptimizePatchApplyHostPort<'_> {
-    async fn postprocess_chapter_after_content_change(
-        &self,
-        chapter_id: i64,
-    ) -> Result<(), AppError> {
+    async fn settle_chapter_content_sync(&self, workflow_run_id: i64) -> Result<(), AppError> {
         let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(self.state);
         self.state
             .chapter_content_sync_application()
-            .postprocess(&host_port, chapter_id)
+            .settle(&host_port, workflow_run_id)
             .await
     }
 }

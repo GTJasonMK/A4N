@@ -1,7 +1,7 @@
 use super::shared::truncate_chars;
 use crate::OrchestratorContext;
-use a4n_db_models::models::asset::object_profile;
-use std::cmp::Ordering;
+use a4n_db::project::ChapterObjectProfileContext;
+use std::cmp::Reverse;
 
 const OBJECT_PROFILE_CONTEXT_LIMIT: usize = 8;
 
@@ -14,11 +14,22 @@ pub(super) async fn recent_object_profile_context_lines(
         .object_profiles_before_chapter(project_id, chapter_number)
         .await
         .map_err(|err| format!("构建物体档案上下文失败：{err}"))?;
-    if profiles.len() > OBJECT_PROFILE_CONTEXT_LIMIT {
-        profiles.select_nth_unstable_by(OBJECT_PROFILE_CONTEXT_LIMIT - 1, compare_profiles);
-        profiles.truncate(OBJECT_PROFILE_CONTEXT_LIMIT);
-    }
-    profiles.sort_unstable_by(compare_profiles);
+    profiles.sort_by_key(|profile| match profile {
+        ChapterObjectProfileContext::Authored(profile) => (Reverse(0), profile.id),
+        ChapterObjectProfileContext::Observed {
+            profile_id,
+            evidence,
+            ..
+        } => (
+            Reverse(
+                evidence
+                    .last()
+                    .expect("historical profile has source evidence")
+                    .chapter_number,
+            ),
+            *profile_id,
+        ),
+    });
     Ok(profiles
         .iter()
         .map(object_profile_context_line)
@@ -26,57 +37,31 @@ pub(super) async fn recent_object_profile_context_lines(
         .collect())
 }
 
-fn object_profile_context_line(profile: &object_profile::Model) -> String {
-    let mut details = Vec::new();
-    details.push(format!(
-        "外观: {}",
-        truncate_chars(&profile.visual_description, 100)
-    ));
-    details.push(format!(
-        "状态: {}",
-        truncate_chars(&profile.material_and_state, 80)
-    ));
-    details.push(format!(
-        "叙事用途: {}",
-        truncate_chars(&profile.story_usage, 100)
-    ));
-    details.push(format!(
-        "视觉用途: {}",
-        truncate_chars(&profile.visual_usage, 100)
-    ));
-    details.push(format!(
-        "生成用途: {}",
-        truncate_chars(&profile.generation_usage, 100)
-    ));
-    if let Some(location) = profile
-        .location_context
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        details.push(format!("语境: {}", truncate_chars(location, 80)));
+fn object_profile_context_line(context: &ChapterObjectProfileContext) -> String {
+    match context {
+        ChapterObjectProfileContext::Authored(profile) => format!(
+            "- {}（作者预设）：外观: {}；状态: {}；用途: {}",
+            profile.name,
+            truncate_chars(&profile.visual_description, 100),
+            truncate_chars(&profile.material_and_state, 100),
+            truncate_chars(&profile.story_usage, 120),
+        ),
+        ChapterObjectProfileContext::Observed { name, evidence, .. } => {
+            let recent = evidence.len().saturating_sub(2);
+            let selected = evidence
+                .iter()
+                .take(usize::from(recent > 0))
+                .chain(evidence[recent..].iter());
+            let facts = selected
+                .map(|item| {
+                    format!(
+                        "第{}章正文：{}",
+                        item.chapter_number,
+                        truncate_chars(&item.quote, 240)
+                    )
+                })
+                .collect::<Vec<_>>();
+            format!("- {name}：{}", facts.join("；"))
+        }
     }
-    format!(
-        "- {}（第{}-{}章，{}）：{}",
-        profile.name,
-        profile.first_seen_chapter,
-        profile.last_seen_chapter,
-        profile.importance,
-        details.join("；")
-    )
-}
-
-fn importance_rank(value: &str) -> u8 {
-    match value {
-        "primary" => 0,
-        "secondary" => 1,
-        _ => 2,
-    }
-}
-
-fn compare_profiles(left: &object_profile::Model, right: &object_profile::Model) -> Ordering {
-    importance_rank(&left.importance)
-        .cmp(&importance_rank(&right.importance))
-        .then_with(|| right.last_seen_chapter.cmp(&left.last_seen_chapter))
-        .then_with(|| left.id.cmp(&right.id))
 }

@@ -49,16 +49,12 @@ impl OrchestratorContext {
             .chapter_manga_source_by_number(project_id, chapter_number, true)
             .await?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
-        let (media_ready_result, shooting_script_result) = futures::join!(
-            self.ensure_media_workflow_v2_ready(project_id),
-            self.require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-                project_id,
-                source_chapter_id: source.chapter_id,
-                visual_plan_id: None,
-            }),
-        );
-        media_ready_result?;
-        shooting_script_result?;
+        self.require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
+            project_id,
+            source_chapter_id: source.chapter_id,
+            visual_plan_id: None,
+        })
+        .await?;
         Ok(())
     }
 

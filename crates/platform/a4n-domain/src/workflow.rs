@@ -6,6 +6,7 @@ pub const WORKFLOW_STATUS_FAILED: &str = "failed";
 pub const WORKFLOW_STATUS_CANCELLED: &str = "cancelled";
 pub const WORKFLOW_STATUS_COMPLETED: &str = "completed";
 pub const WORKFLOW_STATUS_SUPERSEDED: &str = "superseded";
+pub const WORKFLOW_MODE_DERIVED_REPLAY: &str = "derived_replay";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnifiedResumeDispatch {

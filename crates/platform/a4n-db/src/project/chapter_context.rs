@@ -9,8 +9,8 @@ pub use chapters::{
     import_analysis_chapter_candidates,
 };
 pub use contracts::{
-    ChapterGenerationReferenceContextRows, ProjectChapterContextError,
-    ProtagonistProfileCurrentStateUpdate,
+    ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
+    ChapterSceneProfileContext, ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate,
 };
 pub use generation::chapter_generation_reference_context_rows;
 pub use mutations::{refresh_project_current_chapter, update_protagonist_profile_current_state};

@@ -57,7 +57,6 @@ impl ProjectSummaryRow {
 
 #[derive(Debug, FromQueryResult)]
 pub(crate) struct ProjectWriteIdentity {
-    pub(crate) project_kind: String,
     pub(crate) lifecycle_gate: String,
 }
 
@@ -130,7 +129,6 @@ where
 {
     let mut query = novel_project::Entity::find_by_id(project_id)
         .select_only()
-        .column(novel_project::Column::ProjectKind)
         .column(novel_project::Column::LifecycleGate);
     if db.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();

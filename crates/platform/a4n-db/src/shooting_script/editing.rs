@@ -1,8 +1,5 @@
-use a4n_db_models::models::project::novel_project;
 use a4n_domain::shooting_script::EditStoredChapterShootingScriptInput;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
-};
+use sea_orm::TransactionTrait;
 
 use super::{
     codec::stored_visual_plan_identity,
@@ -50,12 +47,10 @@ pub async fn edit_chapter_shooting_script_and_invalidate(
             invalidated_project_ids: Vec::new(),
         });
     }
-    let invalidated_project_ids = invalidate_downstream_projects(
+    let invalidated_project_ids = crate::project::projects_using_source_snapshot(
         &tx,
         current.record.root_project_id,
-        shooting_script.record.id,
-        shooting_script.record.revision,
-        "edit",
+        current.record.source_snapshot_id,
     )
     .await?;
     tx.commit().await?;
@@ -63,34 +58,4 @@ pub async fn edit_chapter_shooting_script_and_invalidate(
         shooting_script,
         invalidated_project_ids,
     })
-}
-
-pub(super) async fn invalidate_downstream_projects<C: ConnectionTrait>(
-    db: &C,
-    root_project_id: i64,
-    record_id: i64,
-    revision: i32,
-    operation: &str,
-) -> Result<Vec<i64>, ShootingScriptDbError> {
-    let invalidated_project_ids = novel_project::Entity::find()
-        .select_only()
-        .column(novel_project::Column::Id)
-        .filter(novel_project::Column::RootProjectId.eq(root_project_id))
-        .filter(novel_project::Column::ProjectKind.is_in(["comic", "video", "galgame"]))
-        .into_tuple::<i64>()
-        .all(db)
-        .await?;
-    crate::cleanup_outbox::insert_media_workflow_v2_reset_intents(
-        db,
-        invalidated_project_ids.iter().map(|project_id| {
-            (
-                format!(
-                    "shooting-script-{operation}:{record_id}:revision:{revision}:project:{project_id}"
-                ),
-                crate::cleanup_outbox::MediaWorkflowV2ResetPayload::new(*project_id),
-            )
-        }),
-    )
-    .await?;
-    Ok(invalidated_project_ids)
 }

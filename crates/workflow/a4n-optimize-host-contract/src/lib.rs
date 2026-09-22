@@ -24,10 +24,7 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait OptimizePatchApplyHostPort: Send + Sync {
-    async fn postprocess_chapter_after_content_change(
-        &self,
-        chapter_id: i64,
-    ) -> Result<(), AppError>;
+    async fn settle_chapter_content_sync(&self, workflow_run_id: i64) -> Result<(), AppError>;
 }
 
 /// Runtime-facing Agent tools owned by the content-optimization application.

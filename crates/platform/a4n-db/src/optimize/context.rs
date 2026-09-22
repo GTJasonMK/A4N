@@ -248,13 +248,20 @@ where
     }))
 }
 
-pub async fn write_optimization_chapter_patch_content<C>(
-    db: &C,
+pub async fn write_optimization_chapter_patch_content(
+    db: &sea_orm::DatabaseTransaction,
     input: OptimizationChapterPatchWriteInput,
-) -> Result<chapter::Model, OptimizeDbError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<chapter::Model, OptimizeDbError> {
+    if !crate::chapter_content::chapter_source_snapshots_match_for_update(
+        db,
+        &[crate::project::ChapterSourceSnapshot::from(&input.chapter)],
+    )
+    .await?
+    {
+        return Err(OptimizeDbError::InvalidArgument(
+            "应用补丁前章节正文已变化，请刷新后重新生成补丁".into(),
+        ));
+    }
     let mut active: chapter::ActiveModel = input.chapter.into();
     crate::chapter_content::assign_chapter_content(
         &mut active,

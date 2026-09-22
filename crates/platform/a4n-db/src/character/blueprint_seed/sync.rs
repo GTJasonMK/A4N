@@ -1,15 +1,14 @@
 use super::construction::{blueprint_relationship_seed_map, profile_seed_from_blueprint_character};
 use super::contracts::CharacterProfileSeedError;
 use super::persistence::{
-    insert_or_update_profile_seed_with_existing, merge_profile_seed_model,
-    update_profile_seed_models_batch,
+    insert_profile_seed, merge_profile_seed_model, update_profile_seed_models_batch,
 };
 use a4n_db_models::models::{
     character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship},
 };
 use chrono::NaiveDateTime;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::{BTreeSet, HashMap};
 
 /// 从蓝图角色和关系播种或补齐角色档案。
@@ -51,11 +50,20 @@ where
     let mut profiles_by_name = protagonist_profile::Entity::find()
         .filter(protagonist_profile::Column::ProjectId.eq(project_id))
         .filter(protagonist_profile::Column::Name.is_in(profile_names.iter().copied()))
+        .lock_exclusive()
         .all(db)
         .await?
         .into_iter()
         .map(|profile| (profile.name.clone(), profile))
         .collect::<HashMap<_, _>>();
+    let timeline_profile_ids = crate::character::profile::timeline_profile_ids(
+        db,
+        &profiles_by_name
+            .values()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>(),
+    )
+    .await?;
     let relationship_map = blueprint_relationship_seed_map(characters, relationships);
     let mut pending_updates = HashMap::<i64, protagonist_profile::Model>::new();
     for character in characters {
@@ -71,16 +79,14 @@ where
                 .unwrap_or(&[]),
         );
         if let Some(existing) = profiles_by_name.get(name).cloned() {
-            if let Some(profile) = merge_profile_seed_model(existing, &seed, now) {
+            let has_timeline = timeline_profile_ids.contains(&existing.id);
+            if let Some(profile) = merge_profile_seed_model(existing, &seed, now, has_timeline) {
                 profiles_by_name.insert(name.to_string(), profile.clone());
                 pending_updates.insert(profile.id, profile);
             }
             continue;
         }
-        if let Some(profile) =
-            insert_or_update_profile_seed_with_existing(db, project_id, character, &seed, now, None)
-                .await?
-        {
+        if let Some(profile) = insert_profile_seed(db, project_id, character, &seed, now).await? {
             profiles_by_name.insert(name.to_string(), profile);
         }
     }

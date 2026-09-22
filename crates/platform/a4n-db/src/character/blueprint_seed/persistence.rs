@@ -1,32 +1,25 @@
 use super::contracts::{BlueprintProfileSeed, CharacterProfileSeedError};
 use super::merge::merge_missing_seed_attributes;
-use crate::character::{
-    apply_profile_current_state, profile_by_project_name, profile_current_state_fields,
-};
+use crate::character::{apply_profile_current_state, profile_current_state_fields};
 use a4n_db_models::models::{character::protagonist_profile, project::blueprint_character};
 use chrono::NaiveDateTime;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TryInsertResult,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+    TryInsertResult,
     sea_query::{CaseStatement, Expr, OnConflict},
 };
 
-pub(super) async fn insert_or_update_profile_seed_with_existing<C>(
+pub(super) async fn insert_profile_seed<C>(
     db: &C,
     project_id: i64,
     character: &blueprint_character::Model,
     seed: &BlueprintProfileSeed,
     now: NaiveDateTime,
-    existing: Option<protagonist_profile::Model>,
 ) -> Result<Option<protagonist_profile::Model>, CharacterProfileSeedError>
 where
     C: ConnectionTrait,
 {
     let name = character.name.trim();
-    if let Some(profile) = existing {
-        return apply_profile_seed_to_existing(db, profile, seed, now)
-            .await
-            .map(Some);
-    }
     let mut active = protagonist_profile::ActiveModel {
         project_id: Set(project_id),
         name: Set(name.to_string()),
@@ -60,31 +53,23 @@ where
     match result {
         TryInsertResult::Inserted(rows) if rows > 0 => Ok(None),
         TryInsertResult::Conflicted | TryInsertResult::Inserted(_) => {
-            let profile = profile_by_project_name(db, project_id, name)
+            let profile = protagonist_profile::Entity::find()
+                .filter(protagonist_profile::Column::ProjectId.eq(project_id))
+                .filter(protagonist_profile::Column::Name.eq(name))
+                .lock_exclusive()
+                .one(db)
                 .await?
                 .ok_or_else(|| {
                     CharacterProfileSeedError::Internal(format!(
                         "蓝图角色档案插入发生唯一键冲突，但重读同名档案失败: project_id={project_id}, name={name}"
                     ))
                 })?;
-            apply_profile_seed_to_existing(db, profile, seed, now)
+            supplement_profile_from_seed(db, profile, seed, now)
                 .await
                 .map(Some)
         }
         TryInsertResult::Empty => Ok(None),
     }
-}
-
-async fn apply_profile_seed_to_existing<C>(
-    db: &C,
-    profile: protagonist_profile::Model,
-    seed: &BlueprintProfileSeed,
-    now: NaiveDateTime,
-) -> Result<protagonist_profile::Model, CharacterProfileSeedError>
-where
-    C: ConnectionTrait,
-{
-    supplement_profile_from_seed(db, profile, seed, now).await
 }
 
 async fn supplement_profile_from_seed<C>(
@@ -96,7 +81,10 @@ async fn supplement_profile_from_seed<C>(
 where
     C: ConnectionTrait,
 {
-    let Some(next) = merge_profile_seed_model(profile.clone(), seed, now) else {
+    let has_timeline = crate::character::profile::timeline_profile_ids(db, &[profile.id])
+        .await?
+        .contains(&profile.id);
+    let Some(next) = merge_profile_seed_model(profile.clone(), seed, now, has_timeline) else {
         return Ok(profile);
     };
     let mut active: protagonist_profile::ActiveModel = profile.into();
@@ -116,7 +104,16 @@ pub(super) fn merge_profile_seed_model(
     profile: protagonist_profile::Model,
     seed: &BlueprintProfileSeed,
     now: NaiveDateTime,
+    has_timeline_records: bool,
 ) -> Option<protagonist_profile::Model> {
+    // 蓝图只补齐初始档案；时间线开始后，缺失字段可能代表已删除的事实。
+    if !crate::character::profile::initial_profile_editable(
+        profile.last_synced_chapter,
+        true,
+        has_timeline_records,
+    ) {
+        return None;
+    }
     let mut next = profile.clone();
     let mut base_attributes = profile.base_attributes.clone();
     let mut current_state = profile.current_state.clone();

@@ -211,49 +211,6 @@ async fn cleanup_intent_dedupe_is_idempotent_but_rejects_other_payload() {
 }
 
 #[tokio::test]
-async fn media_workflow_reset_intents_batch_preserves_order_and_dedupe_contract() {
-    let db = setup_db().await;
-    let base_project_id = Utc::now().timestamp_micros();
-    let intents = (0..3)
-        .map(|offset| {
-            (
-                format!("test-media-reset-batch-{base_project_id}-{offset}"),
-                MediaWorkflowV2ResetPayload::new(base_project_id + offset),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    let first = insert_media_workflow_v2_reset_intents(&db, intents.clone())
-        .await
-        .unwrap();
-    assert_eq!(
-        first
-            .iter()
-            .map(|record| record.dedupe_key.as_str())
-            .collect::<Vec<_>>(),
-        intents
-            .iter()
-            .map(|(dedupe_key, _)| dedupe_key.as_str())
-            .collect::<Vec<_>>()
-    );
-
-    let second = insert_media_workflow_v2_reset_intents(&db, intents.clone())
-        .await
-        .unwrap();
-    assert_eq!(
-        first.iter().map(|record| record.id).collect::<Vec<_>>(),
-        second.iter().map(|record| record.id).collect::<Vec<_>>()
-    );
-
-    let mut conflicting = intents;
-    conflicting[1].1 = MediaWorkflowV2ResetPayload::new(base_project_id + 99);
-    let error = insert_media_workflow_v2_reset_intents(&db, conflicting)
-        .await
-        .unwrap_err();
-    assert!(error.to_string().contains("已绑定其他 payload"));
-}
-
-#[tokio::test]
 async fn expired_cleanup_lease_is_fenced_and_reclaimed() {
     let db = setup_db().await;
     let project_id = Utc::now().timestamp_micros();

@@ -26,7 +26,6 @@ pub mod inspiration;
 pub mod llm_context;
 pub mod manga;
 pub mod media;
-pub mod media_workflow_reset;
 pub mod model_usage;
 pub mod optimize;
 pub mod outline;

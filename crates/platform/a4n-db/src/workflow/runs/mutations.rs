@@ -7,6 +7,99 @@ use super::validation::{
     requires_explicit_interrupted_resume, should_resume_existing_run, should_update_existing_run,
     validate_workflow_run_input, validate_workflow_status_fields, workflow_fingerprint_matches,
 };
+use a4n_db_models::models::chapter::chapter;
+use sea_orm::sea_query::LockType;
+use sea_orm::{Condition, DbErr};
+
+const CHAPTER_ANALYSIS_WORKFLOW_KIND: &str = "chapter_analysis";
+const CHAPTER_ANALYSIS_DERIVED_CHECKPOINTS: &[&str] = &[
+    "chapter_analysis.derived_sync",
+    "chapter_analysis.outline_sync",
+    "chapter_analysis.sync_outputs",
+    "chapter_analysis.object_discovery",
+    "chapter_analysis.character_discovery",
+    "chapter_analysis.scene_sync",
+    "chapter_analysis.character_sync",
+    "chapter_analysis.refresh_status",
+    "chapter_analysis.replacement_cleanup",
+    "chapter_analysis.replacement_commit",
+];
+
+/// 正文在某章发生变化后，使该章及后续章节的派生分析重新进入可恢复状态。
+///
+/// LLM 阶段 checkpoint 保留，供恢复时复用；资料同步 checkpoint 和每章的
+/// 角色/场景投影 checkpoint 删除，避免把已回退的全局资料误报为 completed。
+pub async fn invalidate_chapter_analysis_after_source_change<C>(
+    db: &C,
+    project_id: i64,
+    chapter_number: i32,
+    preserve_workflow_run_id: Option<i64>,
+) -> Result<(), DbErr>
+where
+    C: ConnectionTrait,
+{
+    if project_id <= 0 || chapter_number <= 0 {
+        return Err(DbErr::Custom(
+            "章节分析失效范围必须使用正 project_id 和 chapter_number".to_string(),
+        ));
+    }
+    let chapter_ids = chapter::Entity::find()
+        .select_only()
+        .column(chapter::Column::Id)
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.gte(chapter_number))
+        .into_tuple::<i64>()
+        .all(db)
+        .await?;
+    if chapter_ids.is_empty() {
+        return Ok(());
+    }
+
+    let runs = workflow_run::Entity::find()
+        .filter(workflow_run::Column::WorkflowKind.eq(CHAPTER_ANALYSIS_WORKFLOW_KIND))
+        .filter(workflow_run::Column::ProjectId.eq(project_id))
+        .filter(workflow_run::Column::ChapterId.is_in(chapter_ids))
+        .filter(workflow_run::Column::Status.ne(WORKFLOW_STATUS_SUPERSEDED))
+        .lock(LockType::Update)
+        .all(db)
+        .await?;
+    for run in runs {
+        let mut step_condition = Condition::any();
+        for step_key in CHAPTER_ANALYSIS_DERIVED_CHECKPOINTS {
+            step_condition = step_condition.add(workflow_checkpoint::Column::StepKey.eq(*step_key));
+        }
+        step_condition = step_condition
+            .add(
+                workflow_checkpoint::Column::StepKey
+                    .like("chapter_analysis.character_sync.profile.%"),
+            )
+            .add(workflow_checkpoint::Column::StepKey.like("scene_profile_sync.chapter.%"));
+        workflow_checkpoint::Entity::delete_many()
+            .filter(workflow_checkpoint::Column::WorkflowRunId.eq(run.id))
+            .filter(step_condition)
+            .exec(db)
+            .await?;
+
+        if preserve_workflow_run_id == Some(run.id) {
+            continue;
+        }
+        let now = Utc::now().naive_utc();
+        let mut active: workflow_run::ActiveModel = run.into();
+        active.status = Set(WORKFLOW_STATUS_INTERRUPTED.to_string());
+        active.mode = Set(Some(
+            a4n_domain::workflow::WORKFLOW_MODE_DERIVED_REPLAY.to_string(),
+        ));
+        active.current_step_key = Set(Some("chapter_analysis.derived_sync".to_string()));
+        active.active_task_id = Set(None);
+        active.can_resume = Set(true);
+        active.resume_block_reason = Set(None);
+        active.error_message = Set(Some("正文变化后等待重新同步章节派生资料".to_string()));
+        active.updated_at = Set(now);
+        active.completed_at = Set(Some(now));
+        active.update(db).await?;
+    }
+    Ok(())
+}
 
 pub async fn upsert_workflow_run(
     db: &DatabaseConnection,

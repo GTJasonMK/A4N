@@ -323,25 +323,10 @@ pub async fn confirm_chapter_visual_plan(
             .exec(&tx)
             .await?;
     }
-    let invalidated_project_ids = novel_project::Entity::find()
-        .select_only()
-        .column(novel_project::Column::Id)
-        .filter(novel_project::Column::RootProjectId.eq(current.record.root_project_id))
-        .filter(novel_project::Column::ProjectKind.is_in(["comic", "video", "galgame"]))
-        .into_tuple::<i64>()
-        .all(&tx)
-        .await?;
-    crate::cleanup_outbox::insert_media_workflow_v2_reset_intents(
+    let invalidated_project_ids = crate::project::projects_using_source_snapshot(
         &tx,
-        invalidated_project_ids.iter().map(|project_id| {
-            (
-                format!(
-                    "visual-plan-confirm:{}:version:{}:project:{}",
-                    current.record.id, current.record.plan_version, project_id
-                ),
-                crate::cleanup_outbox::MediaWorkflowV2ResetPayload::new(*project_id),
-            )
-        }),
+        current.record.root_project_id,
+        current.record.source_snapshot_id,
     )
     .await?;
     let visual_plan = chapter_visual_plan_by_id(&tx, current.record.id).await?;

@@ -6,9 +6,79 @@ use a4n_db_models::models::{
     asset::object_profile, character::protagonist_profile, project::source_snapshot_profile,
     scene::scene_profile,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde::Serialize;
 use serde_json::{Value, json};
+
+pub async fn scene_profiles_for_source<C: ConnectionTrait>(
+    db: &C,
+    source: &crate::project::ResolvedChapterSource,
+    profile_ids: &[i64],
+) -> Result<Vec<scene_profile::Model>, crate::project::ResolveChapterSourceError> {
+    use crate::project::ResolveChapterSourceError;
+    let ids = profile_ids
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    if ids.iter().any(|id| *id <= 0) {
+        return Err(ResolveChapterSourceError::InvalidArgument(
+            "场景档案 ID 必须大于 0".into(),
+        ));
+    }
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let profiles = if let Some(snapshot_id) = source.source_snapshot_id {
+        let rows = source_snapshot_profile::Entity::find()
+            .filter(source_snapshot_profile::Column::SnapshotId.eq(snapshot_id))
+            .filter(source_snapshot_profile::Column::RootProjectId.eq(source.root_project_id))
+            .filter(source_snapshot_profile::Column::ProfileKind.eq("scene"))
+            .filter(source_snapshot_profile::Column::SourceProfileId.is_in(ids.iter().copied()))
+            .order_by_asc(source_snapshot_profile::Column::SourceProfileId)
+            .all(db)
+            .await?;
+        rows.into_iter()
+            .map(|row| {
+                if hash_json(&row.payload_json) != row.payload_hash {
+                    return Err(ResolveChapterSourceError::InvalidState(format!(
+                        "场景快照 {} 内容哈希不一致",
+                        row.id
+                    )));
+                }
+                let profile: scene_profile::Model = serde_json::from_value(row.payload_json)
+                    .map_err(|error| {
+                        ResolveChapterSourceError::InvalidState(format!(
+                            "场景快照 {} 无效：{error}",
+                            row.id
+                        ))
+                    })?;
+                if profile.id != row.source_profile_id
+                    || profile.project_id != source.root_project_id
+                {
+                    return Err(ResolveChapterSourceError::InvalidState(format!(
+                        "场景快照 {} 来源身份不一致",
+                        row.id
+                    )));
+                }
+                Ok(profile)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        scene_profile::Entity::find()
+            .filter(scene_profile::Column::ProjectId.eq(source.root_project_id))
+            .filter(scene_profile::Column::Id.is_in(ids.iter().copied()))
+            .order_by_asc(scene_profile::Column::Id)
+            .all(db)
+            .await?
+    };
+    if profiles.len() != ids.len() {
+        return Err(ResolveChapterSourceError::NotFound(format!(
+            "章节来源 {} 缺少引用的场景档案",
+            source.source_revision_key
+        )));
+    }
+    Ok(profiles)
+}
 
 pub(super) async fn freeze_profiles<C>(
     db: &C,

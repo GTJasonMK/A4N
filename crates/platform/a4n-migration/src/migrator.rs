@@ -124,6 +124,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::model_usage_ledger::Migration),
             Box::new(crate::migrations::generation_task_workflow_binding_repair::Migration),
             Box::new(crate::migrations::optimization_session_agent_unification::Migration),
+            Box::new(crate::migrations::media_workflow_reset_retirement::Migration),
             Box::new(crate::migrations::optimization_turn_agent_idempotency::Migration),
         ]
     }
@@ -179,7 +180,6 @@ mod tests {
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "character_timeline_provenance",
                 "chapter_video_timeline",
                 "chapter_video_timeline_cleanup",
                 "character_deletion_mark_provenance",
@@ -238,6 +238,7 @@ mod tests {
                 "model_usage_ledger",
                 "generation_task_workflow_binding_repair",
                 "optimization_session_agent_unification",
+                "media_workflow_reset_retirement",
                 "optimization_turn_agent_idempotency",
             ],
             "deployed migration history must remain registered in execution order"

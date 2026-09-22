@@ -16,6 +16,7 @@ use a4n_db_models::models::{
     generation::{workflow_checkpoint, workflow_run},
 };
 use a4n_domain::source_text_hash;
+use a4n_domain::workflow::WORKFLOW_MODE_DERIVED_REPLAY;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -221,7 +222,9 @@ pub fn chapter_analysis_run_has_saved_analysis_from_checkpoints(
     {
         return Ok(false);
     }
-    if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+    if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json)
+        && run.mode.as_deref() != Some(WORKFLOW_MODE_DERIVED_REPLAY)
+    {
         let fingerprint =
             chapter_analysis_phase_fingerprint(chapter, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP);
         let fingerprint_sha256 =
@@ -700,5 +703,84 @@ mod tests {
             3,
         )
         .expect("a profile first discovered at the target chapter is deleted, not rewound");
+    }
+
+    #[test]
+    fn derived_replay_is_visible_as_resumable_pending_material() {
+        let now = Utc::now().naive_utc();
+        let chapter = chapter::Model {
+            id: 11,
+            project_id: 2,
+            outline_id: None,
+            chapter_number: 3,
+            title: Some("第三章".into()),
+            content: "正文".into(),
+            word_count: 2,
+            status: "draft".into(),
+            summary: None,
+            style_tags: None,
+            analysis_data: Some(json!({
+                "metadata": {"characters": [], "locations": [], "items": [], "tags": [], "tone": null, "timeline_marker": null},
+                "summaries": {"compressed": "摘要", "one_line": "摘要", "keywords": []},
+                "character_states": {},
+                "foreshadowing": {"planted": [], "resolved": [], "tensions": []},
+                "key_events": []
+            })),
+            created_at: now,
+            updated_at: now,
+        };
+        let source_fingerprint = chapter_analysis_workflow_fingerprint(&chapter);
+        let run = workflow_run::Model {
+            id: 7,
+            business_key: "chapter_analysis:2:11".into(),
+            workflow_kind: "chapter_analysis".into(),
+            project_id: Some(2),
+            root_project_id: None,
+            source_snapshot_id: None,
+            scope_table: Some("chapter".into()),
+            scope_id: Some(11),
+            chapter_id: Some(11),
+            mode: Some(WORKFLOW_MODE_DERIVED_REPLAY.into()),
+            input_fingerprint_json: Some(json!({
+                "schema_version": 2,
+                "workflow_kind": "chapter_analysis",
+                "analysis_revision": "replay-1",
+                "source_fingerprint": source_fingerprint,
+            })),
+            status: WORKFLOW_STATUS_INTERRUPTED.into(),
+            current_step_key: Some("chapter_analysis.derived_sync".into()),
+            progress_json: None,
+            active_task_id: None,
+            can_resume: true,
+            resume_block_reason: None,
+            error_message: Some("正文变化后等待重新同步章节派生资料".into()),
+            created_at: now,
+            updated_at: now,
+            completed_at: Some(now),
+        };
+        let mut summary = chapter_summary(&chapter);
+        attach_chapter_sync_state(
+            std::slice::from_ref(&chapter),
+            std::slice::from_mut(&mut summary),
+            std::slice::from_ref(&run),
+            &[],
+            &[],
+        )
+        .expect("replay status should project");
+
+        assert_eq!(
+            summary.analysis_sync_status.as_deref(),
+            Some(WORKFLOW_STATUS_INTERRUPTED)
+        );
+        assert!(summary.analysis_sync_can_resume);
+        assert!(summary.analysis_sync_has_saved_analysis);
+        assert_eq!(
+            summary.material_sync.objects,
+            ChapterMaterialSyncStatus::Pending
+        );
+        assert_eq!(
+            summary.material_sync.scenes,
+            ChapterMaterialSyncStatus::Pending
+        );
     }
 }

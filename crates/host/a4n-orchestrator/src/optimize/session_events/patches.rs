@@ -1,4 +1,4 @@
-use a4n_db::optimize::OptimizationSessionUpdateInput;
+use a4n_db::optimize::{OptimizationSessionMessageInsertInput, OptimizationSessionUpdateInput};
 use a4n_error::AppError;
 use serde_json::json;
 
@@ -8,18 +8,17 @@ use super::super::{OrchestratorContext, optimize_db_error};
 impl OrchestratorContext {
     pub(crate) async fn record_patches_applied(
         &self,
+        tx: &sea_orm::DatabaseTransaction,
         session_id: i64,
         chapter_id: i64,
         word_count: i32,
         content_hash: &str,
         patches: &[OptimizationPatch],
     ) -> Result<(), AppError> {
-        if patches.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "应用补丁列表不能为空".to_string(),
-            ));
-        }
-        let session = self.get_session(session_id).await?;
+        let session = a4n_db::optimize::optimization_session_by_id(tx, session_id)
+            .await
+            .map_err(optimize_db_error)?
+            .ok_or_else(|| AppError::NotFound(format!("优化会话不存在：{session_id}")))?;
         let patch_count = patches.len();
         let patch_count_i32 = i32::try_from(patch_count)
             .map_err(|_| AppError::InvalidArgument("本次应用补丁数量超出 i32 范围".to_string()))?;
@@ -36,26 +35,36 @@ impl OrchestratorContext {
             "content_hash": content_hash,
             "patch_ids": patches.iter().map(|patch| patch.patch_id.as_str()).collect::<Vec<_>>(),
         }))?;
-        self.save_message_with_tool_calls(
-            session_id,
-            "tool",
-            &content,
-            Some(json!({
+        a4n_db::optimize::insert_optimization_session_message(
+            tx,
+            OptimizationSessionMessageInsertInput {
+                session_id,
+                role: "tool".into(),
+                content,
+                tool_calls: Some(json!({
                 "tool": "apply_chapter_patches",
                 "chapter_id": chapter_id,
-            })),
+                })),
+            },
         )
-        .await?;
-        self.save_agent_event(
-            session_id,
-            &format!(
-                "已应用 {} 个局部补丁到章节正文，当前字数 {word_count}。",
-                patches.len()
-            ),
+        .await
+        .map_err(optimize_db_error)?;
+        a4n_db::optimize::insert_optimization_session_message(
+            tx,
+            OptimizationSessionMessageInsertInput {
+                session_id,
+                role: "agent_event".into(),
+                content: format!(
+                    "已应用 {} 个局部补丁到章节正文，当前字数 {word_count}。",
+                    patches.len()
+                ),
+                tool_calls: None,
+            },
         )
-        .await?;
+        .await
+        .map_err(optimize_db_error)?;
         a4n_db::optimize::update_optimization_session(
-            self.database.connection(),
+            tx,
             OptimizationSessionUpdateInput {
                 session,
                 status: Some("waiting_user".to_string()),

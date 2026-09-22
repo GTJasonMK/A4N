@@ -1,18 +1,22 @@
 use a4n_db_models::models::chapter::chapter;
-use a4n_domain::source_text_hash as source_content_sha256;
-use serde_json::{Value, json};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 mod checkpoint;
 
-pub const CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP: &str = "chapter_analysis.replacement_commit";
-pub const CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP: &str = "chapter_analysis.replacement_cleanup";
+pub use a4n_chapter_content_core::{
+    CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+};
 
+pub use a4n_chapter_content_core::{
+    chapter_analysis_phase_fingerprint, chapter_analysis_run_input_matches,
+    chapter_analysis_run_uses_replacement_commit, chapter_analysis_workflow_fingerprint,
+};
 pub use checkpoint::{
-    ChapterAnalysisResumeBlockReason, chapter_analysis_phase_fingerprint,
-    chapter_analysis_resume_block_reason, require_completed_chapter_analysis_phase,
+    ChapterAnalysisResumeBlockReason, chapter_analysis_resume_block_reason,
+    require_completed_chapter_analysis_phase,
 };
 
 pub fn chapter_analysis_workflow_run_input(
@@ -47,50 +51,4 @@ pub fn chapter_analysis_workflow_run_input(
 
 pub fn chapter_analysis_workflow_business_key(project_id: i64, chapter_id: i64) -> String {
     format!("chapter_analysis:{project_id}:{chapter_id}")
-}
-
-pub fn chapter_analysis_workflow_fingerprint(chapter: &chapter::Model) -> Value {
-    json!({
-        "schema_version": 1,
-        "workflow_kind": "chapter_analysis",
-        "project_id": chapter.project_id,
-        "chapter_id": chapter.id,
-        "chapter_number": chapter.chapter_number,
-        "content_sha256": source_content_sha256(&chapter.content),
-        "title": chapter.title,
-        "updated_at": chapter.updated_at,
-    })
-}
-
-pub fn chapter_analysis_run_input_matches(
-    run_fingerprint_json: &Option<Value>,
-    chapter: &chapter::Model,
-) -> bool {
-    let Some(fingerprint) = run_fingerprint_json.as_ref() else {
-        return false;
-    };
-    let source = if fingerprint.get("schema_version").and_then(Value::as_i64) == Some(2)
-        && fingerprint.get("workflow_kind").and_then(Value::as_str) == Some("chapter_analysis")
-        && fingerprint
-            .get("analysis_revision")
-            .and_then(Value::as_str)
-            .is_some_and(|revision| !revision.is_empty())
-    {
-        fingerprint.get("source_fingerprint")
-    } else {
-        Some(fingerprint)
-    };
-    source == Some(&chapter_analysis_workflow_fingerprint(chapter))
-}
-
-pub fn chapter_analysis_run_uses_replacement_commit(run_fingerprint_json: &Option<Value>) -> bool {
-    run_fingerprint_json.as_ref().is_some_and(|fingerprint| {
-        fingerprint.get("schema_version").and_then(Value::as_i64) == Some(2)
-            && fingerprint.get("workflow_kind").and_then(Value::as_str) == Some("chapter_analysis")
-            && fingerprint
-                .get("analysis_revision")
-                .and_then(Value::as_str)
-                .is_some_and(|revision| !revision.is_empty())
-            && fingerprint.get("source_fingerprint").is_some()
-    })
 }

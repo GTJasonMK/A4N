@@ -5,14 +5,12 @@ use a4n_api_contract::profile::{
 use a4n_db::{
     DbHandle,
     project::{
-        ChapterGenerationReferenceContextRows, ForeshadowingAnalysisDraft,
-        ForeshadowingAnalysisSyncResult,
+        ChapterGenerationReferenceContextRows, ChapterObjectProfileContext,
+        ChapterSceneProfileContext, ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult,
     },
 };
-use a4n_db_models::models::{
-    asset::object_profile,
-    character::{character_state_index, foreshadowing_index, protagonist_profile},
-    scene::scene_profile,
+use a4n_db_models::models::character::{
+    character_state_index, foreshadowing_index, protagonist_profile,
 };
 use a4n_error::AppError;
 
@@ -108,7 +106,7 @@ impl ProjectChapterContextApplication {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Vec<object_profile::Model>, AppError> {
+    ) -> Result<Vec<ChapterObjectProfileContext>, AppError> {
         a4n_db::project::object_profiles_before_chapter(
             self.database.connection(),
             project_id,
@@ -122,7 +120,7 @@ impl ProjectChapterContextApplication {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Vec<scene_profile::Model>, AppError> {
+    ) -> Result<Vec<ChapterSceneProfileContext>, AppError> {
         a4n_db::project::scene_profiles_before_chapter(
             self.database.connection(),
             project_id,
@@ -230,7 +228,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Vec<object_profile::Model>, AppError> {
+    ) -> Result<Vec<ChapterObjectProfileContext>, AppError> {
         self.project_chapter_context
             .object_profiles_before_chapter(project_id, chapter_number)
             .await
@@ -240,7 +238,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Vec<scene_profile::Model>, AppError> {
+    ) -> Result<Vec<ChapterSceneProfileContext>, AppError> {
         self.project_chapter_context
             .scene_profiles_before_chapter(project_id, chapter_number)
             .await

@@ -12,6 +12,7 @@ pub async fn cleanup_chapter_derived_data_in<C>(
     chapter_number: i32,
     cleanup_foreshadowing: bool,
     prune_ai_scene_profiles: bool,
+    preserve_chapter_analysis_workflow_run_id: Option<i64>,
 ) -> Result<ChapterDerivedCleanupArtifacts, AppError>
 where
     C: ConnectionTrait + TransactionTrait,
@@ -63,6 +64,14 @@ where
                 .await
                 .map_err(|error| owner_error("清理章节伏笔", error))?;
     }
+    a4n_db::workflow::invalidate_chapter_analysis_after_source_change(
+        db,
+        project_id,
+        chapter_number,
+        preserve_chapter_analysis_workflow_run_id,
+    )
+    .await
+    .map_err(|error| owner_error("失效后续章节分析派生 checkpoint", error))?;
     Ok(artifacts)
 }
 

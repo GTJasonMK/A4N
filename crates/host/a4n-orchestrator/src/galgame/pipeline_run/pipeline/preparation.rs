@@ -13,7 +13,6 @@ pub(super) async fn prepare_galgame_pipeline(
     project_id: i64,
     options: &GalgamePipelineRunOptions,
 ) -> Result<GalgamePipelinePromptContext, AppError> {
-    service.ensure_media_workflow_v2_ready(project_id).await?;
     let context = service.galgame_pipeline_prompt_context(project_id).await?;
     ensure_galgame_pipeline_not_cancelled(service, options.workflow_run_id).await?;
 

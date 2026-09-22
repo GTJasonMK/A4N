@@ -1,6 +1,6 @@
 use super::claim::{
     process_claimed_cleanup, process_claimed_file_artifact_cleanup,
-    process_claimed_generation_cleanup, process_claimed_media_workflow_reset,
+    process_claimed_generation_cleanup,
 };
 use super::publication::recover_image_publications;
 use crate::actions::app_error_message;
@@ -15,22 +15,17 @@ const WORKER_INTERVAL: Duration = Duration::from_secs(30);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CleanupKind {
     FileArtifact,
-    MediaWorkflowReset,
     ProjectDeletion,
     Generation,
 }
 
-const CLEANUP_KINDS: [CleanupKind; 4] = [
+const CLEANUP_KINDS: [CleanupKind; 3] = [
     CleanupKind::FileArtifact,
-    CleanupKind::MediaWorkflowReset,
     CleanupKind::ProjectDeletion,
     CleanupKind::Generation,
 ];
-const HOST_CLEANUP_KINDS: [CleanupKind; 3] = [
-    CleanupKind::MediaWorkflowReset,
-    CleanupKind::ProjectDeletion,
-    CleanupKind::Generation,
-];
+const HOST_CLEANUP_KINDS: [CleanupKind; 2] =
+    [CleanupKind::ProjectDeletion, CleanupKind::Generation];
 
 fn cleanup_kinds_for(artifact_media_worker_enabled: bool) -> &'static [CleanupKind] {
     if artifact_media_worker_enabled {
@@ -80,22 +75,6 @@ pub async fn drain_cleanup_outbox(
                         tracing::warn!(cleanup_id = id, error = %error, "文件 artifact cleanup 处理失败，继续 drain 其他任务");
                         first_error
                             .get_or_insert(format!("file_artifact_cleanup id={id}: {error}"));
-                    }
-                }
-            }
-            CleanupKind::MediaWorkflowReset => {
-                if let Some(claim) = state
-                    .cleanup_outbox_application()
-                    .claim_media_workflow_v2_reset(project_id)
-                    .await
-                    .map_err(app_error_message)?
-                {
-                    claimed = true;
-                    let id = claim.record.id;
-                    if let Err(error) = process_claimed_media_workflow_reset(state, claim).await {
-                        tracing::warn!(cleanup_id = id, error = %error, "媒体工作流 reset cleanup 处理失败，继续 drain 其他任务");
-                        first_error
-                            .get_or_insert(format!("media_workflow_v2_reset id={id}: {error}"));
                     }
                 }
             }
@@ -239,11 +218,9 @@ mod tests {
             order,
             vec![
                 CleanupKind::FileArtifact,
-                CleanupKind::MediaWorkflowReset,
                 CleanupKind::ProjectDeletion,
                 CleanupKind::Generation,
                 CleanupKind::FileArtifact,
-                CleanupKind::MediaWorkflowReset,
                 CleanupKind::ProjectDeletion,
                 CleanupKind::Generation,
             ]
@@ -253,9 +230,9 @@ mod tests {
     #[test]
     fn host_cleanup_kind_set_excludes_artifact_owner_work() {
         let kinds = cleanup_kinds_for(true);
-        assert_eq!(kinds.len(), 3);
+        assert_eq!(kinds.len(), 2);
         assert!(!kinds.contains(&CleanupKind::FileArtifact));
-        assert_eq!(cleanup_kinds_for(false).len(), 4);
+        assert_eq!(cleanup_kinds_for(false).len(), 3);
     }
 
     #[test]

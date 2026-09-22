@@ -1,11 +1,10 @@
 use super::contracts::{
     CLEANUP_LEASE_SECONDS, CLEANUP_STATUS_FAILED, CLEANUP_STATUS_PENDING, CLEANUP_STATUS_RUNNING,
-    ClaimedFileArtifactCleanup, ClaimedGenerationCleanup, ClaimedMediaWorkflowV2Reset,
-    ClaimedProjectCleanup, FILE_ARTIFACT_CLEANUP_KIND, GENERATION_ARTIFACT_UNBIND_KIND,
+    ClaimedFileArtifactCleanup, ClaimedGenerationCleanup, ClaimedProjectCleanup,
+    FILE_ARTIFACT_CLEANUP_KIND, GENERATION_ARTIFACT_UNBIND_KIND,
     GENERATION_PROVIDER_JOB_CLEANUP_KIND, GENERATION_STAGING_ARTIFACT_DELETE_KIND,
-    GenerationCleanupPayload, MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND, PROJECT_DELETE_CLEANUP_KIND,
-    PendingGenerationProviderJobCleanup, parse_file_artifact_cleanup_payload,
-    parse_generation_cleanup_payload, parse_media_workflow_v2_reset_payload,
+    GenerationCleanupPayload, PROJECT_DELETE_CLEANUP_KIND, PendingGenerationProviderJobCleanup,
+    parse_file_artifact_cleanup_payload, parse_generation_cleanup_payload,
     parse_project_deletion_payload,
 };
 use super::transitions::fail_claimed_cleanup;
@@ -29,36 +28,6 @@ pub async fn claim_project_deletion_cleanup(
         };
         match parse_project_deletion_payload(&record) {
             Ok(payload) => return Ok(Some(ClaimedProjectCleanup { record, payload })),
-            Err(error) => {
-                fail_claimed_cleanup(
-                    db,
-                    record.id,
-                    required_lease_token(&record)?,
-                    error.to_string(),
-                )
-                .await?;
-            }
-        }
-    }
-}
-
-pub async fn claim_media_workflow_v2_reset(
-    db: &(impl ConnectionTrait + TransactionTrait),
-    project_id: Option<i64>,
-) -> Result<Option<ClaimedMediaWorkflowV2Reset>, DbErr> {
-    loop {
-        let Some(record) = claim_cleanup_by_kind(
-            db,
-            &[MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND],
-            project_id,
-            true,
-        )
-        .await?
-        else {
-            return Ok(None);
-        };
-        match parse_media_workflow_v2_reset_payload(&record) {
-            Ok(payload) => return Ok(Some(ClaimedMediaWorkflowV2Reset { record, payload })),
             Err(error) => {
                 fail_claimed_cleanup(
                     db,
@@ -236,26 +205,6 @@ fn required_lease_token(record: &cleanup_outbox::Model) -> Result<&str, DbErr> {
             record.id
         ))
     })
-}
-
-pub async fn media_workflow_v2_reset_pending<C>(db: &C, project_id: i64) -> Result<bool, DbErr>
-where
-    C: ConnectionTrait,
-{
-    Ok(cleanup_outbox::Entity::find()
-        .select_only()
-        .column(cleanup_outbox::Column::Id)
-        .filter(cleanup_outbox::Column::ProjectId.eq(project_id))
-        .filter(cleanup_outbox::Column::CleanupKind.eq(MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND))
-        .filter(cleanup_outbox::Column::Status.is_in([
-            CLEANUP_STATUS_PENDING,
-            CLEANUP_STATUS_RUNNING,
-            CLEANUP_STATUS_FAILED,
-        ]))
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .is_some())
 }
 
 pub async fn project_ids_with_incomplete_cleanup<C>(db: &C) -> Result<Vec<i64>, DbErr>

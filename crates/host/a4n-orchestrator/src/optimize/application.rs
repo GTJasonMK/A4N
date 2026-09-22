@@ -25,6 +25,7 @@ use a4n_optimize_host_contract::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
+use sea_orm::TransactionTrait;
 use std::collections::HashMap;
 
 use crate::OrchestratorContext;
@@ -281,41 +282,48 @@ impl OrchestratorContext {
             let word_count = i32::try_from(next_content.chars().count()).map_err(|_| {
                 AppError::InvalidArgument("应用补丁后的章节正文字符数超出 i32 范围".to_string())
             })?;
-            let written = self
-                .write_optimization_chapter_patch_content(OptimizationChapterPatchWriteInput {
+            let tx = self.database.connection().begin().await?;
+            let written = a4n_db::optimize::write_optimization_chapter_patch_content(
+                &tx,
+                OptimizationChapterPatchWriteInput {
                     chapter,
                     content: next_content,
                     word_count,
-                })
-                .await?;
-            input
-                .host_port
-                .postprocess_chapter_after_content_change(written.id)
-                .await?;
-            let updated = self
-                .optimization_chapter_by_id(written.id)
-                .await?
-                .ok_or_else(|| {
-                    AppError::NotFound(format!(
-                        "应用局部补丁后刷新章节失败: 章节不存在: {}",
-                        written.id
-                    ))
-                })?;
-            let content_hash = optimization_content_hash(&updated.content);
+                },
+            )
+            .await
+            .map_err(super::optimize_db_error)?;
+            let sync_run = a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(
+                &tx,
+                &written,
+                |_| Ok(()),
+            )
+            .await?;
+            let content_hash = optimization_content_hash(&written.content);
             self.record_patches_applied(
+                &tx,
                 input.session_id,
-                updated.id,
-                updated.word_count,
+                written.id,
+                written.word_count,
                 &content_hash,
                 input.patches,
             )
             .await?;
-            self.mark_matching_patch_sets_applied(input.session_id, input.base_content_hash)
+            self.mark_matching_patch_sets_applied(&tx, input.session_id, input.base_content_hash)
                 .await?;
+            tx.commit().await?;
+            input
+                .host_port
+                .settle_chapter_content_sync(sync_run.id)
+                .await
+                .map_err(|error| AppError::InvalidState {
+                    current: format!("正文补丁已保存，资料同步工作流 {} 未完成", sync_run.id),
+                    operation: format!("请继续恢复资料同步：{error}"),
+                })?;
             Ok(ApplyOptimizePatchesApplicationResult {
-                chapter_id: updated.id,
+                chapter_id: written.id,
                 applied_count: input.patches.len(),
-                word_count: updated.word_count,
+                word_count: written.word_count,
             })
         }
         .await;
@@ -353,27 +361,31 @@ impl OrchestratorContext {
 
     async fn mark_matching_patch_sets_applied(
         &self,
+        tx: &sea_orm::DatabaseTransaction,
         session_id: i64,
         base_content_hash: &str,
     ) -> Result<(), AppError> {
-        let patch_sets = self
-            .matching_pending_optimization_patch_sets(
-                session_id,
-                base_content_hash,
-                PATCH_SET_STATUS_PENDING,
-            )
-            .await?;
+        let patch_sets = a4n_db::optimize::matching_pending_optimization_patch_sets(
+            tx,
+            session_id,
+            base_content_hash,
+            PATCH_SET_STATUS_PENDING,
+        )
+        .await
+        .map_err(super::optimize_db_error)?;
         let patch_set_ids = patch_sets
             .iter()
             .map(|patch_set| patch_set.id)
             .collect::<Vec<_>>();
-        self.update_optimization_patch_sets_status(
+        a4n_db::optimize::update_optimization_patch_sets_status(
+            tx,
             &patch_set_ids,
             PATCH_SET_STATUS_APPLIED,
             PATCH_DECISION_ACCEPTED,
             PATCH_APPLY_STATUS_APPLIED,
         )
-        .await?;
+        .await
+        .map_err(super::optimize_db_error)?;
         Ok(())
     }
 

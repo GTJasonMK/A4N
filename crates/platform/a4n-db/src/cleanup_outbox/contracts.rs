@@ -4,15 +4,13 @@ pub use a4n_cleanup_contract::{
     GenerationCleanupObservationOutcome, GenerationCleanupOutcome, GenerationCleanupPayload,
     GenerationCleanupRetryOutcome, GenerationCleanupScope, GenerationProviderJobCleanupOperation,
     GenerationProviderJobCleanupPayload, GenerationStagingArtifactDeletePayload,
-    MediaWorkflowV2ResetClaim, MediaWorkflowV2ResetPayload, ProjectDeletionCleanupClaim,
-    ProjectDeletionCleanupPayload,
+    ProjectDeletionCleanupClaim, ProjectDeletionCleanupPayload,
 };
 use a4n_db_models::models::task::cleanup_outbox;
 use chrono::Duration;
 use sea_orm::DbErr;
 
 pub const PROJECT_DELETE_CLEANUP_KIND: &str = "project_delete";
-pub const MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND: &str = "media_workflow_contract_v2_reset";
 pub const FILE_ARTIFACT_CLEANUP_KIND: &str = "file_artifact_cleanup";
 pub const GENERATION_PROVIDER_JOB_CLEANUP_KIND: &str = "generation_provider_job_cleanup";
 pub const GENERATION_STAGING_ARTIFACT_DELETE_KIND: &str = "generation_staging_artifact_delete";
@@ -46,12 +44,6 @@ pub struct ClaimedProjectCleanup {
 }
 
 #[derive(Debug, Clone)]
-pub struct ClaimedMediaWorkflowV2Reset {
-    pub record: cleanup_outbox::Model,
-    pub payload: MediaWorkflowV2ResetPayload,
-}
-
-#[derive(Debug, Clone)]
 pub struct ClaimedGenerationCleanup {
     pub record: cleanup_outbox::Model,
     pub payload: GenerationCleanupPayload,
@@ -74,15 +66,6 @@ pub struct ClaimedFileArtifactCleanup {
 
 impl From<ClaimedProjectCleanup> for ProjectDeletionCleanupClaim {
     fn from(claim: ClaimedProjectCleanup) -> Self {
-        Self {
-            record: cleanup_claim_record(&claim.record),
-            payload: claim.payload,
-        }
-    }
-}
-
-impl From<ClaimedMediaWorkflowV2Reset> for MediaWorkflowV2ResetClaim {
-    fn from(claim: ClaimedMediaWorkflowV2Reset) -> Self {
         Self {
             record: cleanup_claim_record(&claim.record),
             payload: claim.payload,
@@ -146,24 +129,6 @@ pub(super) fn parse_project_deletion_payload(
             ))
         },
     )
-}
-
-pub(super) fn parse_media_workflow_v2_reset_payload(
-    record: &cleanup_outbox::Model,
-) -> Result<MediaWorkflowV2ResetPayload, DbErr> {
-    validate_record_payload_hash(record)?;
-    let payload: MediaWorkflowV2ResetPayload = serde_json::from_value(record.payload_json.clone())
-        .map_err(|error| DbErr::Custom(format!("解析媒体工作流 v2 reset payload 失败: {error}")))?;
-    if payload.version != CLEANUP_PAYLOAD_VERSION
-        || Some(payload.project_id) != record.project_id
-        || record.payload_version != CLEANUP_PAYLOAD_VERSION as i32
-    {
-        return Err(DbErr::Custom(format!(
-            "媒体工作流 v2 reset payload 合同不一致: id={}",
-            record.id
-        )));
-    }
-    Ok(payload)
 }
 
 pub(super) fn parse_file_artifact_cleanup_payload(

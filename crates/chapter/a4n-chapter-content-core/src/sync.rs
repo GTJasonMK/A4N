@@ -47,6 +47,7 @@ where
         chapter.chapter_number,
         true,
         false,
+        None,
     )
     .await?;
     if let Some(previous) = previous.filter(|run| {
