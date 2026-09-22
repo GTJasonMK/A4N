@@ -14,6 +14,7 @@ use super::common::{
 pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
     visual_json: &Value,
     source_spans: &[SourceSpan],
+    known_beats: &HashSet<(i64, i64, i64)>,
 ) -> Result<(), AppError> {
     reject_manga_unknown_fields(visual_json, &["scenes"], "manga_visual_anchor_extraction")?;
     let scenes = visual_json
@@ -56,7 +57,11 @@ pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
             &source_spans,
             &format!("{path}.source_span_ids"),
         )?;
-        validate_manga_beat_refs(scene.get("beat_refs"), &format!("{path}.beat_refs"))?;
+        validate_manga_beat_refs(
+            scene.get("beat_refs"),
+            &format!("{path}.beat_refs"),
+            known_beats,
+        )?;
     }
     Ok(())
 }
@@ -65,6 +70,7 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
     items_json: &Value,
     source_spans: &[SourceSpan],
     allowed_source_span_ids: &[String],
+    known_beats: &HashSet<(i64, i64, i64)>,
 ) -> Result<(), AppError> {
     reject_manga_unknown_fields(items_json, &["items"], "manga_item_extraction")?;
     let items = items_json
@@ -103,6 +109,7 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
         validate_manga_beat_ref(
             item.get("first_appearance_beat_ref"),
             &format!("{path}.first_appearance_beat_ref"),
+            known_beats,
         )?;
         let ids = item
             .get("source_span_ids")

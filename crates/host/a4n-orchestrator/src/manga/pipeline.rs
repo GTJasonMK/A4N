@@ -3,9 +3,6 @@ pub(super) mod persist;
 pub(super) mod preview;
 pub(super) mod prompt;
 pub(super) mod run {
-    mod checkpoint {
-        mod llm;
-    }
     mod completion;
     mod contracts;
     mod drawing_prompt;

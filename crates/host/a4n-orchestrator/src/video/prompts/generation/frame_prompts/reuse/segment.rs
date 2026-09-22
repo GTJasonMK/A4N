@@ -275,12 +275,15 @@ pub(in crate::video::prompts::generation::frame_prompts) fn reusable_segment_pla
             row.shot_number
         )));
     }
-    if metadata.get("plan_complete").and_then(Value::as_bool) != Some(true) {
-        return Err(AppError::InvalidArgument(format!(
-            "已保存{context} #{} 尚未覆盖全部拍摄场景，不能作为完整规划复用",
-            row.shot_number
-        )));
-    }
+    let plan_complete = metadata
+        .get("plan_complete")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "已保存{context} #{} 缺少有效的 plan_complete",
+                row.shot_number
+            ))
+        })?;
     let saved_source_hash = metadata
         .get("source")
         .and_then(|source| source.get("content_sha256"))
@@ -349,7 +352,7 @@ pub(in crate::video::prompts::generation::frame_prompts) fn reusable_segment_pla
         metadata_json: Some(metadata_json),
     });
     Ok(ReusableSegmentPlan {
-        segment_plan,
+        plan_complete,
         draft,
     })
 }
@@ -426,10 +429,9 @@ pub(in crate::video::prompts::generation::frame_prompts) fn prompt_resume_contex
     if row.style.as_deref() != Some(style) || row.aspect_ratio.as_deref() != Some(aspect_ratio) {
         return false;
     }
-    source_hash_matches(
-        prompt_row_source_hash(row),
-        current_source_hash(source_metadata),
-    )
+    prompt_row_source_hash(row)
+        .zip(current_source_hash(source_metadata))
+        .is_some_and(|(saved, current)| saved == current)
 }
 
 fn prompt_row_source_hash(row: &chapter_video_prompt::Model) -> Option<&str> {
@@ -448,14 +450,6 @@ fn current_source_hash(source_metadata: &Value) -> Option<&str> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-}
-
-fn source_hash_matches(row_hash: Option<&str>, current_hash: Option<&str>) -> bool {
-    match (row_hash, current_hash) {
-        (Some(row_hash), Some(current_hash)) => row_hash == current_hash,
-        (None, None) => true,
-        _ => false,
-    }
 }
 
 #[cfg(test)]

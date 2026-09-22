@@ -28,8 +28,6 @@ pub(in crate::manga) struct MangaPromptGenerationTrace {
     pub(in crate::manga) input_fingerprint_json: Value,
     pub(in crate::manga) usage: Option<UsageInfo>,
     pub(in crate::manga) finish_reason: Option<String>,
-    #[serde(skip)]
-    pub(in crate::manga) restored_parsed_output: Option<Value>,
 }
 
 pub(in crate::manga) struct MangaPreparedLlmCall {

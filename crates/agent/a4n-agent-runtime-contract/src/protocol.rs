@@ -196,6 +196,7 @@ pub fn decode_agent_response(
     protocol: &str,
     execution_id: i64,
 ) -> Result<AgentModelDecision, AppError> {
+    a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())?;
     if protocol != AGENT_PROTOCOL_JSON_COMPAT {
         let calls = response.message.tool_calls.clone().unwrap_or_default();
         if calls.is_empty() {
@@ -208,6 +209,16 @@ pub fn decode_agent_response(
             return Ok(AgentModelDecision::Final {
                 reply: reply.to_string(),
             });
+        }
+        let mut ids = std::collections::HashSet::new();
+        for call in &calls {
+            if call.id.trim().is_empty()
+                || call.name.trim().is_empty()
+                || !call.arguments.is_object()
+                || !ids.insert(call.id.as_str())
+            {
+                return Err(AppError::LlmError("Agent model tool calls require unique nonempty ids, a tool name and object arguments".into()));
+            }
         }
         return Ok(AgentModelDecision::ToolCalls {
             content: response.message.content.clone(),
@@ -380,5 +391,27 @@ mod tests {
             agent_protocol_from_request_snapshot(&snapshot),
             AGENT_PROTOCOL_JSON_COMPAT
         );
+    }
+
+    #[test]
+    fn completed_model_response_must_be_valid_before_replay() {
+        let mut value = response("完成");
+        value.finish_reason = Some("length".into());
+        assert!(decode_agent_response(&value, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, 1).is_err());
+        value.finish_reason = Some("tool_calls".into());
+        let call = ToolCall {
+            id: "call-1".into(),
+            name: "read_project_context".into(),
+            arguments: json!({}),
+            stream_index: None,
+            provider_metadata: None,
+        };
+        value.message.tool_calls = Some(vec![call.clone()]);
+        assert!(decode_agent_response(&value, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, 1).is_ok());
+        value.message.tool_calls = Some(vec![call.clone(), call]);
+        assert!(decode_agent_response(&value, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, 1).is_err());
+        value.message.tool_calls.as_mut().unwrap().truncate(1);
+        value.message.tool_calls.as_mut().unwrap()[0].arguments = json!([]);
+        assert!(decode_agent_response(&value, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, 1).is_err());
     }
 }

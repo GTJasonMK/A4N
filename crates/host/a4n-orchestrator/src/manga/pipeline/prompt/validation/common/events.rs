@@ -19,6 +19,7 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_nonnegative
 pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_ref(
     value: Option<&Value>,
     path: &str,
+    known_beats: &HashSet<(i64, i64, i64)>,
 ) -> Result<(i64, i64, i64), AppError> {
     let object = value
         .and_then(Value::as_object)
@@ -47,12 +48,19 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_ref(
         .and_then(Value::as_i64)
         .filter(|value| *value > 0)
         .ok_or_else(|| AppError::InvalidArgument(format!("{path}.shot_index 必须是正整数")))?;
-    Ok((scene_index, shot_index, beat_index))
+    let beat_ref = (scene_index, shot_index, beat_index);
+    if !known_beats.contains(&beat_ref) {
+        return Err(AppError::InvalidArgument(format!(
+            "{path} 引用了不存在的拍摄节拍: scene_index={scene_index}, shot_index={shot_index}, beat_index={beat_index}"
+        )));
+    }
+    Ok(beat_ref)
 }
 
 pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_refs(
     value: Option<&Value>,
     path: &str,
+    known_beats: &HashSet<(i64, i64, i64)>,
 ) -> Result<(), AppError> {
     let refs = value
         .and_then(Value::as_array)
@@ -63,7 +71,8 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_refs(
 
     let mut seen = HashSet::with_capacity(refs.len());
     for (index, value) in refs.iter().enumerate() {
-        let beat_ref = validate_manga_beat_ref(Some(value), &format!("{path}[{index}]"))?;
+        let beat_ref =
+            validate_manga_beat_ref(Some(value), &format!("{path}[{index}]"), known_beats)?;
         if !seen.insert(beat_ref) {
             return Err(AppError::InvalidArgument(format!(
                 "{path} 包含重复拍摄节拍引用：scene_index={}, shot_index={}, beat_index={}",
@@ -72,4 +81,23 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_refs(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn typed_beat_reference_must_exist_before_the_next_stage() {
+        let known = HashSet::from([(1, 1, 1)]);
+        let mut value = json!({"scene_index": 1, "shot_index": 1, "beat_index": 1});
+        assert!(validate_manga_beat_ref(Some(&value), "beat_ref", &known).is_ok());
+        for field in ["scene_index", "shot_index", "beat_index"] {
+            value[field] = json!(2);
+            let error = validate_manga_beat_ref(Some(&value), "beat_ref", &known).unwrap_err();
+            assert!(error.to_string().contains("不存在的拍摄节拍"));
+            value[field] = json!(1);
+        }
+    }
 }

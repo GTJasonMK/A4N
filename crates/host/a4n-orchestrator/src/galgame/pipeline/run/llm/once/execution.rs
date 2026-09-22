@@ -10,14 +10,15 @@ use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInpu
 
 use super::{GalgameLlmOnceInput, PreparedGalgameLlmOnce};
 
-pub(super) async fn execute_galgame_llm_once<F>(
+pub(super) async fn execute_galgame_llm_once<T, F>(
     service: &OrchestratorContext,
     input: &GalgameLlmOnceInput<'_>,
     prepared: PreparedGalgameLlmOnce,
     validate: F,
-) -> Result<Value, AppError>
+) -> Result<(Value, T), AppError>
 where
-    F: Fn(Value) -> Result<Value, AppError>,
+    T: serde::Serialize,
+    F: Fn(Value) -> Result<T, AppError>,
 {
     let request = ChatRequest::new(
         vec![
@@ -49,6 +50,7 @@ where
     }
     let raw_output = response.message.content;
     let parsed_output = validate(parse_strict_json_response(&raw_output, input.prompt_name)?)?;
+    let parsed_json = serde_json::to_value(&parsed_output)?;
     let usage_json = response
         .usage
         .as_ref()
@@ -62,7 +64,7 @@ where
             call_order: input.call_order,
             input_fingerprint_json: prepared.fingerprint_json,
             checkpoint: CompletedLlmCallCheckpoint {
-                parsed_output: parsed_output.clone(),
+                parsed_output: parsed_json.clone(),
                 response_content: raw_output,
                 usage: usage_json,
                 finish_reason: response.finish_reason,
@@ -73,5 +75,5 @@ where
             },
         })
         .await?;
-    Ok(parsed_output)
+    Ok((parsed_json, parsed_output))
 }

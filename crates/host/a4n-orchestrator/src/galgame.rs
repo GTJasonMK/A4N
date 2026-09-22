@@ -56,15 +56,13 @@ pub(in crate::galgame) use pipeline::json::validate_staged_presentation;
 pub(crate) use pipeline::json::{
     GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelineBackgroundPlan,
     GalgamePipelineBranchSceneLineStaged, GalgamePipelineChoicePlan, GalgamePipelineEventCgPlan,
-    GalgamePipelineLineStaged, GalgamePipelineScene, GalgamePipelineShootingBeat,
-    GalgameScriptAdaptation, GalgameShootingScriptProjection, GalgameVisualPlan,
-    branch_design_from_value, character_staging_from_value, script_adaptation_from_value,
-    shooting_script_projection_from_value, visual_plan_from_value,
+    GalgamePipelineLineDraft, GalgamePipelineLineStaged, GalgamePipelineScene,
+    GalgamePipelineShootingBeat, GalgameScriptAdaptation, GalgameShootingScriptProjection,
+    GalgameVisualPlan, branch_design_from_value, character_staging_from_value,
+    script_adaptation_from_value, shooting_script_projection_from_value, visual_plan_from_value,
 };
 #[cfg(test)]
-use pipeline::json::{
-    GalgamePipelineLineDraft, GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged,
-};
+use pipeline::json::{GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged};
 pub(crate) use pipeline::persist::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
     GalgameScriptPersistPlan, build_galgame_script_persist_plan,

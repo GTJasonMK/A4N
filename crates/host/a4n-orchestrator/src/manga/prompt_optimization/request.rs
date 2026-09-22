@@ -11,7 +11,7 @@ pub(super) const MANGA_PROMPT_OPTIMIZATION_PROMPT_NAME: &str = "manga_prompt_opt
 pub(super) const MANGA_PROMPT_OPTIMIZATION_USER_PROMPT_NAME: &str =
     "manga_prompt_optimization_user";
 
-fn manga_prompt_optimization_call_key(prompt_id: i64) -> String {
+pub(super) fn manga_prompt_optimization_call_key(prompt_id: i64) -> String {
     format!("optimize_manga_prompt:prompt:{prompt_id}")
 }
 

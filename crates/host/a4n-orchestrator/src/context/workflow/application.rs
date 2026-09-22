@@ -292,6 +292,34 @@ impl WorkflowApplication {
         .map_err(workflow_read_app_error)
     }
 
+    pub(in crate::context) async fn validate_llm_call_output<T>(
+        &self,
+        workflow_run_id: i64,
+        call_key: &str,
+        input_fingerprint_json: &serde_json::Value,
+        output: Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        let error = match output {
+            Ok(output) => return Ok(output),
+            Err(error) => error,
+        };
+        if let Err(rejection_error) = a4n_db::workflow::reject_completed_llm_call_checkpoint(
+            self.database.connection(),
+            workflow_run_id,
+            call_key,
+            input_fingerprint_json,
+            &error.to_string(),
+        )
+        .await
+        {
+            return Err(AppError::InvalidState {
+                current: format!("{error}；撤销无效调用断点失败：{rejection_error}"),
+                operation: format!("校验 LLM 调用 {call_key}"),
+            });
+        }
+        Err(error)
+    }
+
     pub(in crate::context) async fn cancel_workflow_run_persistence(
         &self,
         workflow_run_id: i64,

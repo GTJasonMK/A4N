@@ -117,6 +117,9 @@ def main():
             result = wait_for_run(cli, started["run_id"], 60, 0.1)
             assert result["status"] == "failed", result
             assert any(row["body"]["model"] == "a4n-llm-lifecycle-length" for row in provider_log_entries(args.provider_log)[before:]), "Agent did not reach the Provider"
+            executions = [row for row in thread_snapshot(cli, thread["id"])["executions"]
+                          if row["run_id"] == started["run_id"] and row["kind"] == "model_call"]
+            assert len(executions) == 1 and executions[0]["status"] == "failed", executions
             report["checks"].append("Agent rejects a nonempty length-limited final answer")
 
             thread = data(checked(cli, ["agent", "thread", "create", "--kind", "subagent", "--capability", "canvas",

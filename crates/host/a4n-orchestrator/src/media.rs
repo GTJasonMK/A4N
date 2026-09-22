@@ -180,7 +180,7 @@ impl OrchestratorContext {
             metadata_json,
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow_run = self.begin_workflow_run_validated(input).await?;
+        let workflow_run = self.begin_or_resume_workflow_run_validated(input).await?;
         Ok(ImageGenerationWorkflowStart {
             workflow_run,
             step_key,

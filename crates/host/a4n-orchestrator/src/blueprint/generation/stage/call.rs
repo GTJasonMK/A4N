@@ -34,6 +34,16 @@ pub(super) async fn execute_blueprint_stage_call(
         .await?
     {
         ensure_not_cancelled(&cancel_token)?;
+        let value = restored_blueprint_stage_output(
+            &checkpoint.parsed_output,
+            &checkpoint.response_content,
+            spec.title,
+            spec.output_schema,
+        )
+        .and_then(|value| (spec.validate)(&value).map(|()| value));
+        let value = context
+            .validate_llm_call_output(workflow_run_id, &call_key, &fingerprint_json, value)
+            .await?;
         for delta in crate::generation::checkpoint::split_text_delta(&checkpoint.response_content) {
             publisher
                 .text_delta(BLUEPRINT_RAW_JSON_STREAM_ID, &delta)
@@ -61,13 +71,6 @@ pub(super) async fn execute_blueprint_stage_call(
                 operation: "恢复蓝图阶段累计 usage".to_string(),
             })?;
         }
-        let value = restored_blueprint_stage_output(
-            &checkpoint.parsed_output,
-            &checkpoint.response_content,
-            spec.title,
-            spec.output_schema,
-        )?;
-        (spec.validate)(&value)?;
         publisher
             .progress(a4n_service_protocol::ProgressEvent {
                 stage_code: spec.key.to_string(),

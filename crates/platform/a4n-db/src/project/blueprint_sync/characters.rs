@@ -5,7 +5,7 @@ use a4n_domain::json_contract::is_empty_json_value;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 pub(in crate::project) async fn sync_blueprint_characters<C>(
     db: &C,
@@ -41,23 +41,11 @@ async fn write_blueprint_characters<C>(
 where
     C: ConnectionTrait,
 {
-    let mut seen_keys = HashSet::new();
-    let mut incoming = Vec::with_capacity(characters.len());
-    for character in characters {
-        let key = normalized_blueprint_identity(&character.name);
-        if key.is_empty() {
-            return Err(BlueprintSyncError::InvalidArgument(
-                "蓝图角色名称不能为空".to_string(),
-            ));
-        }
-        if !seen_keys.insert(key.clone()) {
-            return Err(BlueprintSyncError::InvalidArgument(format!(
-                "蓝图角色重复: {}",
-                character.name
-            )));
-        }
-        incoming.push((key, character));
-    }
+    let keys = a4n_domain::project::blueprint_character_identity_keys(
+        characters.iter().map(|character| character.name.as_str()),
+    )
+    .map_err(BlueprintSyncError::InvalidArgument)?;
+    let incoming = keys.into_iter().zip(characters);
 
     let existing = blueprint_character::Entity::find()
         .filter(blueprint_character::Column::ProjectId.eq(project_id))

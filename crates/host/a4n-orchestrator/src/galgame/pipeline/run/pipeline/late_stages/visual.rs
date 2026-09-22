@@ -32,7 +32,7 @@ pub(super) async fn run_visual_planning_stage(
         galgame_visual_planning_user_message(&early.scenes_json, &early.lines_staged_json)?;
     let request_user_prompt =
         galgame_visual_planning_session_user_message(&early.lines_staged_json)?;
-    let visual_plan_json = execution
+    let (_, visual_plan) = execution
         .service
         .run_galgame_llm_stage(
             GalgameLlmStageInput {
@@ -51,7 +51,14 @@ pub(super) async fn run_visual_planning_stage(
             },
             |value| {
                 let parsed = visual_plan_from_value(value, "galgame_visual_planning")?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                crate::galgame::build_galgame_script_persist_plan(
+                    &early.scenes,
+                    &early.staging,
+                    &parsed,
+                    &early.branch_plan,
+                    &execution.prompt_context.source_spans,
+                )?;
+                Ok(parsed)
             },
         )
         .await?;
@@ -66,5 +73,5 @@ pub(super) async fn run_visual_planning_stage(
             "已完成 Galgame 视觉资产规划",
         )
         .await?;
-    visual_plan_from_value(visual_plan_json, CHECKPOINT_VISUAL_PLAN)
+    Ok(visual_plan)
 }

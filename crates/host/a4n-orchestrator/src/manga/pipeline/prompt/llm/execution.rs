@@ -4,7 +4,11 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use serde_json::Value;
 
-use crate::{OrchestratorContext, structured_llm::parse_strict_json_response};
+use crate::{
+    OrchestratorContext,
+    structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response},
+    workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
+};
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::contracts::{MangaLlmCallInput, MangaPromptGenerationTrace};
@@ -25,10 +29,15 @@ pub(in crate::manga) struct MangaRenderTraceInput<'a> {
 }
 
 impl OrchestratorContext {
-    pub(in crate::manga) async fn render_and_chat_trace(
+    pub(in crate::manga) async fn render_and_validate_manga_call<T, F>(
         &self,
         input: MangaRenderTraceInput<'_>,
-    ) -> Result<MangaPromptGenerationTrace, AppError> {
+        validate: F,
+    ) -> Result<(MangaPromptGenerationTrace, T), AppError>
+    where
+        T: serde::Serialize,
+        F: FnOnce(&Value) -> Result<T, AppError>,
+    {
         let MangaRenderTraceInput {
             prompt_renderer,
             prompt_name,
@@ -83,7 +92,7 @@ impl OrchestratorContext {
                     None,
                 )
             };
-        Ok(MangaPromptGenerationTrace {
+        let trace = MangaPromptGenerationTrace {
             prompt_name: prompt_name.to_string(),
             request_json: prepared.request_json,
             messages_json: prepared.messages_json,
@@ -94,18 +103,47 @@ impl OrchestratorContext {
             input_fingerprint_json: prepared.input_fingerprint_json,
             usage,
             finish_reason,
-            restored_parsed_output,
-        })
+        };
+        let parsed = parse_strict_json_response::<Value>(&trace.response_text, &trace.prompt_name)
+            .and_then(|value| {
+                let output = validate(&value)?;
+                let parsed_output = serde_json::to_value(&output)?;
+                if let Some(saved) = restored_parsed_output.as_ref() {
+                    ensure_checkpoint_parsed_output_matches(
+                        saved,
+                        &parsed_output,
+                        &format!("漫画管线 {}", trace.call_key),
+                    )?;
+                }
+                Ok((output, parsed_output))
+            });
+        let (output, parsed_output) = if restored_parsed_output.is_some() {
+            self.validate_llm_call_output(
+                trace.workflow_run_id,
+                &trace.call_key,
+                &trace.input_fingerprint_json,
+                parsed,
+            )
+            .await?
+        } else {
+            parsed?
+        };
+        if restored_parsed_output.is_none() {
+            self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
+                workflow_run_id,
+                call_key: trace.call_key.clone(),
+                call_order: trace.call_order,
+                input_fingerprint_json: trace.input_fingerprint_json.clone(),
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output,
+                    response_content: trace.response_text.clone(),
+                    usage: trace.usage.as_ref().map(serde_json::to_value).transpose()?,
+                    finish_reason: trace.finish_reason.clone(),
+                    artifacts_json: None,
+                },
+            })
+            .await?;
+        }
+        Ok((trace, output))
     }
-}
-
-pub(in crate::manga) fn parse_and_validate_manga_llm_output<F, T>(
-    trace: &MangaPromptGenerationTrace,
-    validate: F,
-) -> Result<T, AppError>
-where
-    F: FnOnce(&Value) -> Result<T, AppError>,
-{
-    let parsed = parse_strict_json_response::<Value>(&trace.response_text, &trace.prompt_name)?;
-    validate(&parsed)
 }

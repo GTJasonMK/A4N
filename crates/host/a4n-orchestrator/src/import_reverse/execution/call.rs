@@ -29,7 +29,10 @@ pub(super) async fn execute_import_reverse_call(
             &checkpoint.parsed_output,
             &checkpoint.response_content,
             target,
-        )?;
+        );
+        let output = context
+            .validate_llm_call_output(workflow_run_id, prompt_name, &fingerprint_json, output)
+            .await?;
         return crate::import_reverse::candidate::reverse_candidate_checkpoint_response(
             workflow_run_id,
             target,

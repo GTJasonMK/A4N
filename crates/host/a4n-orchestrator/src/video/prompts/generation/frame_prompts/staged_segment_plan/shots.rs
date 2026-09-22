@@ -15,13 +15,12 @@ use super::super::{
     CompletedVideoLlmCheckpointInput, ProgressSpan, RenderOrRestoreJsonWithValidationInput,
     VIDEO_PREVIOUS_OUTPUT_SHOOTING_SCRIPT, VideoContextManifestInput, VideoContextPreviousOutput,
     VideoPlanningPromptContext, VideoPromptStepProgress, build_segment_plan_for_shot_user,
-    build_video_context_manifest, parse_generated_segment_plan_with_current_config,
-    parse_video_segment_plan_input_values, render_json_with_validation_with_context,
-    report_video_prompt_checkpoint, report_video_prompt_item_committed,
-    report_video_prompt_progress, save_completed_video_llm_checkpoint, segment_plan_progress_spec,
-    serialize_video_value, source_spans_for_shot,
-    validate_segment_plan_against_shooting_script_projection, video_execution_chain_identity,
-    video_segment_plan_input_values, video_stage_fingerprint,
+    build_video_context_manifest, parse_video_segment_plan_response,
+    render_json_with_validation_with_context, report_video_prompt_checkpoint,
+    report_video_prompt_item_committed, report_video_prompt_progress,
+    save_completed_video_llm_checkpoint, segment_plan_progress_spec, serialize_video_value,
+    source_spans_for_shot, validate_segment_plan_against_shooting_script_projection,
+    video_execution_chain_identity, video_segment_plan_input_values, video_stage_fingerprint,
 };
 use super::{
     contracts::{RenderedSegmentPlanShots, StagedSegmentPlanInput},
@@ -178,7 +177,7 @@ pub(super) async fn render_segment_plan_shots(
             .load_completed_llm_call_checkpoint(workflow_run_id, &step_key, &fingerprint_json)
             .await?
         {
-            let (response_content, segment_shot) = restore_segment_plan_shot_checkpoint(
+            let restored = restore_segment_plan_shot_checkpoint(
                 &checkpoint,
                 &shot_context,
                 &shot_source_spans,
@@ -186,7 +185,10 @@ pub(super) async fn render_segment_plan_shots(
                 &shot.source_shot_id,
                 duration_secs,
                 default_aspect_ratio,
-            )?;
+            );
+            let (response_content, segment_shot) = service
+                .validate_llm_call_output(workflow_run_id, &step_key, &fingerprint_json, restored)
+                .await?;
             completed_shots[index] = Some((
                 segment_shot,
                 json!({
@@ -266,7 +268,7 @@ pub(super) async fn render_segment_plan_shots(
             .ok_or_else(|| {
                 AppError::InvalidArgument("视频片段规划镜头序号超出 i32 范围".to_string())
             })?;
-        let (mut trace, segment_shot) = render_json_with_validation_with_context(
+        let (trace, segment_shot) = render_json_with_validation_with_context(
             RenderOrRestoreJsonWithValidationInput {
                 service,
                 workflow_run_id,
@@ -300,12 +302,6 @@ pub(super) async fn render_segment_plan_shots(
             },
         )
         .await?;
-        if serde_json::from_str::<Value>(trace.response_text.trim()).is_err() {
-            trace.response_text = json!({
-                "segments": segment_shot.input_values.clone(),
-            })
-            .to_string();
-        }
         let stage_output = json!({
             "source_shot_id": source_shot_id.clone(),
             "prompt_name": trace.prompt_name.clone(),
@@ -473,23 +469,16 @@ fn reuse_published_segment_plan_shot(
     let context = format!("已发布镜头 #{source_shot_id} 的片段规划");
     let published_values = video_segment_plan_input_values(&published_segments, &context)?;
     let raw = json!({ "segments": published_values }).to_string();
-    let input_values = parse_video_segment_plan_input_values(&raw, &context)?;
-    let (_, segment_plan) = parse_generated_segment_plan_with_current_config(
+    parse_and_validate_segment_plan_shot(
         &raw,
+        &context,
         source_spans,
         &scoped_projection,
+        source_shot_id,
         duration_secs,
         default_aspect_ratio,
-    )?;
-    validate_segment_plan_against_shooting_script_projection(&segment_plan, &scoped_projection)?;
-    let checkpoint_values = segment_plan
-        .into_iter()
-        .map(serde_json::to_value)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(Some(ValidatedSegmentPlanShot {
-        input_values,
-        checkpoint_values,
-    }))
+    )
+    .map(Some)
 }
 
 fn restore_segment_plan_shot_checkpoint(
@@ -524,18 +513,17 @@ fn parse_and_validate_segment_plan_shot(
     duration_secs: i32,
     default_aspect_ratio: &str,
 ) -> Result<ValidatedSegmentPlanShot, AppError> {
-    let input_values = parse_video_segment_plan_input_values(raw, context)?;
     let scoped_projection =
         shooting_script_projection_for_shot(shooting_script_projection, source_shot_id)?;
-    let combined_raw = json!({ "segments": &input_values }).to_string();
-    let (_, segment_plan) = parse_generated_segment_plan_with_current_config(
-        &combined_raw,
+    let segment_plan = parse_video_segment_plan_response(
+        raw,
         source_spans,
         &scoped_projection,
         duration_secs,
         default_aspect_ratio,
     )?;
     validate_segment_plan_against_shooting_script_projection(&segment_plan, &scoped_projection)?;
+    let input_values = video_segment_plan_input_values(&segment_plan, context)?;
     let checkpoint_values = segment_plan
         .into_iter()
         .map(serde_json::to_value)
@@ -614,6 +602,7 @@ fn shooting_script_projection_for_shot(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::parse_generated_segment_plan_with_current_config;
     use super::*;
     use a4n_video_contract::{VideoExecutionProjectionV2, VideoShootingScriptIdentityV1};
 
@@ -658,6 +647,25 @@ mod tests {
         segment["covered_beat_ids"] = json!(covered_beat_ids);
         response["segments"] = json!(vec![segment; segment_count]);
         response.to_string()
+    }
+
+    #[test]
+    fn per_shot_validation_rejects_invalid_terminal_delimiters() {
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let raw = repeated_segment_plan_json(1, 6, &["beat-1"]);
+        assert!(
+            parse_and_validate_segment_plan_shot(
+                &format!("{raw}]}}"),
+                "测试镜头",
+                &source_spans,
+                &projection,
+                "shot-1",
+                6,
+                "16:9",
+            )
+            .is_err()
+        );
     }
 
     #[test]

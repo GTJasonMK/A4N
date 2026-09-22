@@ -177,6 +177,38 @@ fn director_constraints_reject_changed_identity_timing_and_images() {
 }
 
 #[test]
+fn scene_call_uses_the_publication_content_rules() {
+    let script = valid_script();
+    let scene = &script.scenes[0];
+    assert!(
+        scene
+            .validate_content(&script.user_additions, false)
+            .is_ok()
+    );
+    for field in ["slugline", "lens_intent", "beat_objective", "dialogue_beat"] {
+        let mut scene = scene.clone();
+        match field {
+            "slugline" => scene.slugline.clear(),
+            "lens_intent" => scene.shots[0].lens_intent.clear(),
+            "beat_objective" => scene.shots[0].performance_beats[0].objective.clear(),
+            "dialogue_beat" => scene.shots[0].dialogue_cues.push(ShootingDialogueCueV1 {
+                beat_id: "missing".into(),
+                speaker: "主角".into(),
+                line_or_intent: "谁在那里".into(),
+                listener_reaction: None,
+            }),
+            _ => unreachable!(),
+        }
+        assert!(
+            scene
+                .validate_content(&script.user_additions, false)
+                .is_err(),
+            "{field}"
+        );
+    }
+}
+
+#[test]
 fn schema_version_rejects_noncanonical_values_during_deserialization() {
     let mut value = serde_json::to_value(valid_script()).unwrap();
     value["schema_version"] = serde_json::json!("legacy_shooting_script");

@@ -42,7 +42,7 @@ pub(super) struct PreparedSegmentPlan {
 }
 
 pub(crate) struct ReusableSegmentPlan {
-    pub(crate) segment_plan: Vec<VideoSegmentPlan>,
+    pub(super) plan_complete: bool,
     pub(super) draft: NewChapterVideoPrompt,
 }
 

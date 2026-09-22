@@ -2,7 +2,7 @@ use super::contracts::ChatAgentLoopInput;
 use crate::optimize::OrchestratorContext;
 use crate::optimize::agent_loop::executor::{
     AgentLoopDecisionRequest, AgentLoopExecutionError, AgentLoopThinkObservationInput,
-    FailedAgentLoopToolInput,
+    FailedAgentLoopToolInput, ValidatedAgentLoopAction,
 };
 use crate::optimize::agent_loop::{
     AGENT_LOOP_RUNAWAY_GUARD_STEPS, AgentLoopAction, tool_observation,
@@ -31,7 +31,7 @@ impl OrchestratorContext {
         let mut observations = Vec::new();
         for step in 1..=AGENT_LOOP_RUNAWAY_GUARD_STEPS {
             let phase = format!("内容优化对话 Agent Loop #{step}");
-            let decision = self
+            let (decision, action) = self
                 .request_agent_loop_decision(
                     turn_id,
                     session.id,
@@ -46,6 +46,7 @@ impl OrchestratorContext {
                         build_error_label: "普通对话 Agent Loop",
                         request_event_label: "普通对话 Agent Loop",
                         parse_error_label: "普通对话 Loop",
+                        parse_final: &crate::optimize::agent_loop::final_reply,
                         workflow_run_id,
                         generation,
                     },
@@ -61,30 +62,32 @@ impl OrchestratorContext {
             };
             self.save_agent_event(session.id, &decision_event).await?;
 
-            match decision.action {
-                AgentLoopAction::Think => {
+            match action {
+                ValidatedAgentLoopAction::Think(observation) => {
                     observations.push(
                         self.record_agent_loop_think_observation(AgentLoopThinkObservationInput {
                             turn_id,
                             session_id: session.id,
                             step,
                             decision: &decision,
+                            observation,
                             think_event_prefix: "普通对话思考",
-                            error_context: "普通对话",
                         })
                         .await?,
                     );
                 }
-                AgentLoopAction::RunTool => {
-                    let (tool_name, tool_arguments) = self
-                        .prepare_agent_loop_tool_call(
-                            turn_id,
-                            session.id,
-                            step,
-                            &decision,
-                            "普通对话",
-                        )
-                        .await?;
+                ValidatedAgentLoopAction::RunTool {
+                    tool_name,
+                    arguments: tool_arguments,
+                } => {
+                    self.record_agent_loop_tool_call(
+                        turn_id,
+                        step,
+                        &decision,
+                        &tool_name,
+                        &tool_arguments,
+                    )
+                    .await?;
                     let result = match self
                         .execute_accounted_optimization_tool(
                             generation,
@@ -136,7 +139,7 @@ impl OrchestratorContext {
                     .await?;
                     observations.push(observation);
                 }
-                AgentLoopAction::Final => {
+                ValidatedAgentLoopAction::Final(reply) => {
                     if crate::optimize::runtime_tools::accounting::has_new_user_input(
                         self, generation,
                     )
@@ -145,7 +148,7 @@ impl OrchestratorContext {
                         continue;
                     }
                     return self
-                        .finish_chat_agent_loop(session, turn_id, step, &decision)
+                        .finish_chat_agent_loop(session, reply)
                         .await
                         .map_err(AgentLoopExecutionError::App);
                 }

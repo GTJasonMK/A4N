@@ -830,35 +830,53 @@ async fn process_claimed_run_inner(
                     return Err(error);
                 }
             };
+            response
+        };
+        let decision = decode_agent_response(&response, &request_protocol, model_execution.id)
+            .and_then(|decision| {
+                if budget.max_tokens.is_some() && response.usage.is_none() {
+                    return Err(AppError::InvalidState {
+                        current: format!(
+                            "Agent run {} 的模型响应缺少 usage，无法执行 max_tokens 预算",
+                            claimed.run.id
+                        ),
+                        operation: "执行 Agent model call".into(),
+                    });
+                }
+                Ok(decision)
+            });
+        if !replayed_model_execution {
             execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
                     lease_token: claimed.lease_token.clone(),
                     execution_id: model_execution.id,
-                    status: "succeeded".into(),
+                    status: if decision.is_ok() {
+                        "succeeded"
+                    } else {
+                        "failed"
+                    }
+                    .into(),
                     result_json: Some(serde_json::to_value(&response)?),
-                    result_summary: Some("Agent model call completed".into()),
+                    result_summary: Some(
+                        if decision.is_ok() {
+                            "Agent model call validated"
+                        } else {
+                            "Agent model call validation failed"
+                        }
+                        .into(),
+                    ),
                     result_refs_json: None,
-                    error_message: None,
+                    error_message: decision.as_ref().err().map(ToString::to_string),
                 })
                 .await?;
-            response
-        };
-        a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())?;
+        }
         // A succeeded durable execution is a replay after a worker restart;
         // its usage was already persisted before the crash. Counting it
         // again would let retries silently exceed token budgets.
         if !replayed_model_execution {
             if let Some(info) = response.usage.as_ref() {
                 tokens = tokens.saturating_add(info.total_tokens as u64);
-            } else if budget.max_tokens.is_some() {
-                return Err(AppError::InvalidState {
-                    current: format!(
-                        "Agent run {} 的模型响应缺少 usage，无法执行 max_tokens 预算",
-                        claimed.run.id
-                    ),
-                    operation: "执行 Agent model call".into(),
-                });
             }
         }
         usage["tokens_used"] = json!(tokens);
@@ -872,7 +890,7 @@ async fn process_claimed_run_inner(
             tokens,
         )
         .await?;
-        let decision = decode_agent_response(&response, &request_protocol, model_execution.id)?;
+        let decision = decision?;
         let (assistant_content, calls, is_final) = match decision {
             AgentModelDecision::Final { reply } => (reply, Vec::new(), true),
             AgentModelDecision::Think { content } => (content, Vec::new(), false),

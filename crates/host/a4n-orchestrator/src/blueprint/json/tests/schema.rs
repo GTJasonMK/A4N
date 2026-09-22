@@ -10,6 +10,17 @@ fn rejects_unknown_top_level_blueprint_field() {
 }
 
 #[test]
+fn stages_reject_duplicate_entities_before_later_calls() {
+    let mut value: serde_json::Value = serde_json::from_str(&valid_blueprint()).unwrap();
+    let character = value["characters"][0].clone();
+    value["characters"].as_array_mut().unwrap().push(character);
+    assert!(crate::blueprint::json::parser::validate_characters_stage(&value).unwrap_err().to_string().contains("角色重复"));
+    let relationship = value["relationships"][0].clone();
+    value["relationships"].as_array_mut().unwrap().push(relationship);
+    assert!(crate::blueprint::json::parser::validate_relationships_stage(&value).unwrap_err().to_string().contains("关系重复"));
+}
+
+#[test]
 fn rejects_unknown_character_field() {
     let mut value: serde_json::Value = serde_json::from_str(&valid_blueprint()).unwrap();
     value["characters"][0]["power_tags"] = json!(["记忆"]);

@@ -1,6 +1,53 @@
 use super::*;
 
 #[test]
+fn generated_script_and_staging_are_checked_before_following_calls() {
+    let scenes = single_shooting_script_projection();
+    let mut staging = single_narration_staging();
+    let line = &staging.scene_lines[0].lines[0];
+    let mut script = GalgameScriptAdaptation {
+        scene_lines: vec![GalgamePipelineSceneLineDraft {
+            scene_index: 1,
+            lines: vec![GalgamePipelineLineDraft {
+                index: line.index,
+                beat_ref: line.beat_ref,
+                line_type: line.line_type.clone(),
+                speaker_name: line.speaker_name.clone(),
+                text: line.text.clone(),
+                source_span_ids: line.source_span_ids.clone(),
+            }],
+        }],
+        branch_scene_lines: Vec::new(),
+    };
+    assert!(
+        validate_galgame_script_adaptation(
+            &script,
+            &scenes,
+            &empty_branch_design(),
+            &single_source_span()
+        )
+        .is_ok()
+    );
+    assert!(validate_galgame_staging(&staging, &script, &[]).is_ok());
+    script.scene_lines[0].lines[0].beat_ref.beat_index = 99;
+    assert!(
+        validate_galgame_script_adaptation(
+            &script,
+            &scenes,
+            &empty_branch_design(),
+            &single_source_span()
+        )
+        .is_err()
+    );
+    script.scene_lines[0].lines[0].beat_ref.beat_index = 1;
+    staging.scene_lines[0].lines[0].text = "改写的事实".into();
+    assert!(validate_galgame_staging(&staging, &script, &[]).is_err());
+    staging.scene_lines[0].lines[0].text = script.scene_lines[0].lines[0].text.clone();
+    staging.scene_lines[0].lines[0].presentation.exit = vec![999];
+    assert!(validate_galgame_staging(&staging, &script, &[]).is_err());
+}
+
+#[test]
 fn rejects_persist_plan_when_dialogue_has_no_profile() {
     let scenes = shooting_script_projection_from_value(
         json!({

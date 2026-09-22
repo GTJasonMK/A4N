@@ -2,8 +2,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameSceneRegenerationInput, OrchestratorContext, galgame_script_adaptation_user_message,
-    script_adaptation_from_value,
+    GalgameBranchDesign, GalgameSceneRegenerationInput, GalgameScriptAdaptation,
+    OrchestratorContext, galgame_script_adaptation_user_message, script_adaptation_from_value,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -15,10 +15,10 @@ pub(super) async fn run_script_adaptation_stage(
     service: &OrchestratorContext,
     input: &GalgameSceneRegenerationInput,
     prepared: &PreparedGalgameSceneRegeneration,
-    branch_plan_json: &Value,
+    branch: &(Value, GalgameBranchDesign),
     prompt_renderer: &dyn PromptRenderer,
-) -> Result<Value, AppError> {
-    let lines_draft_json = service
+) -> Result<(Value, GalgameScriptAdaptation), AppError> {
+    service
         .run_galgame_llm_once(
             GalgameLlmOnceInput {
                 prompt_renderer,
@@ -32,16 +32,20 @@ pub(super) async fn run_script_adaptation_stage(
                 user_prompt: galgame_script_adaptation_user_message(
                     std::slice::from_ref(&prepared.prompt_chapter),
                     &prepared.scenes_json,
-                    branch_plan_json,
+                    &branch.0,
                 )?,
             },
             |value| {
                 let parsed = script_adaptation_from_value(value, "galgame_script_adaptation")?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                ensure_single_regenerated_scene_lines(&parsed)?;
+                crate::galgame::pipeline::persist::validate_galgame_script_adaptation(
+                    &parsed,
+                    &prepared.shooting_script_projection,
+                    &branch.1,
+                    &prepared.persist_source_spans,
+                )?;
+                Ok(parsed)
             },
         )
-        .await?;
-    let script_adaptation = script_adaptation_from_value(lines_draft_json.clone(), "lines_draft")?;
-    ensure_single_regenerated_scene_lines(&script_adaptation)?;
-    Ok(lines_draft_json)
+        .await
 }

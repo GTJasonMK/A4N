@@ -26,9 +26,14 @@ fn parse_characters_with_minimum(
             "blueprint.characters 至少需要 3 个角色".to_string(),
         ));
     }
-    items
+    let characters = items
         .iter()
         .enumerate()
         .map(parse_character_entry)
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    a4n_domain::project::blueprint_character_identity_keys(
+        characters.iter().map(|character| character.name.as_str()),
+    )
+    .map_err(AppError::InvalidArgument)?;
+    Ok(characters)
 }

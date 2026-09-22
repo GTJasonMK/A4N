@@ -50,7 +50,7 @@ impl OrchestratorContext {
                 &fingerprint_json,
                 request,
                 label,
-                Some(structured_progress),
+                structured_progress,
                 progress_total,
                 progress,
                 stream_reporter,
@@ -58,15 +58,24 @@ impl OrchestratorContext {
             )
             .await?;
         let restored = raw.restored_parsed_output.is_some();
-        let output = parse_strict_json_response::<T>(&raw.response_content, label)
-            .and_then(|output| validate_output(&output).map(|()| output))?;
-        if let Some(saved) = raw.restored_parsed_output.as_ref() {
-            ensure_checkpoint_parsed_output_matches(
-                saved,
-                &serde_json::to_value(&output)?,
-                &format!("分镜脚本 {step_key}"),
-            )?;
-        }
+        let output =
+            parse_strict_json_response::<T>(&raw.response_content, label).and_then(|output| {
+                validate_output(&output)?;
+                if let Some(saved) = raw.restored_parsed_output.as_ref() {
+                    ensure_checkpoint_parsed_output_matches(
+                        saved,
+                        &serde_json::to_value(&output)?,
+                        &format!("分镜脚本 {step_key}"),
+                    )?;
+                }
+                Ok(output)
+            });
+        let output = if restored {
+            self.validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
+                .await?
+        } else {
+            output?
+        };
         if !restored {
             self.persist_parsed_shooting_call(
                 workflow_run_id,

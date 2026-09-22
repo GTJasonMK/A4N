@@ -2,8 +2,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameCharacterStaging, GalgamePipelineStartStage, character_staging_from_value,
-    galgame_character_staging_user_message,
+    GalgameCharacterStaging, GalgamePipelineStartStage, GalgameScriptAdaptation,
+    character_staging_from_value, galgame_character_staging_user_message,
 };
 
 use super::super::super::contracts::CHECKPOINT_LINES_STAGED;
@@ -15,6 +15,7 @@ pub(super) async fn run_character_staging_stage(
     execution: &GalgamePipelineExecution<'_>,
     scenes_json: &Value,
     lines_draft_json: &Value,
+    script: &GalgameScriptAdaptation,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
     let stage = GalgamePipelineStartStage::CharacterStaging;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
@@ -35,7 +36,7 @@ pub(super) async fn run_character_staging_stage(
         &execution.prompt_context.speaker_profiles,
     )?;
     let request_user_prompt = user_prompt.clone();
-    let lines_staged_json = execution
+    let output = execution
         .service
         .run_galgame_llm_stage(
             GalgameLlmStageInput {
@@ -54,7 +55,12 @@ pub(super) async fn run_character_staging_stage(
             },
             |value| {
                 let parsed = character_staging_from_value(value, "galgame_character_staging")?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                crate::galgame::pipeline::persist::validate_galgame_staging(
+                    &parsed,
+                    script,
+                    &execution.prompt_context.speaker_profiles,
+                )?;
+                Ok(parsed)
             },
         )
         .await?;
@@ -69,6 +75,5 @@ pub(super) async fn run_character_staging_stage(
             "已完成 Galgame 角色演出标注",
         )
         .await?;
-    let staging = character_staging_from_value(lines_staged_json.clone(), CHECKPOINT_LINES_STAGED)?;
-    Ok((lines_staged_json, staging))
+    Ok(output)
 }

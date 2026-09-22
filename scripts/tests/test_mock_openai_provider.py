@@ -32,6 +32,7 @@ from mock_openai.fixtures.entities import (
     scene_transition_response,
 )
 from mock_openai.fixtures.shooting import (
+    shooting_adaptation_response,
     shooting_span_ids,
     shooting_design_response,
     video_segment_plan_response,
@@ -618,6 +619,24 @@ class MockOpenAIProviderTest(unittest.TestCase):
             targeted["shots"][0]["performance_beats"][0]["source_span_ids"],
             ["ch1:s2:f1"],
         )
+
+    def test_shooting_adaptation_cites_only_matching_sources_in_the_unit(self) -> None:
+        context = {
+            "source_spans": [
+                {"id": "ch1:s1:f1", "paragraph_index": 1, "text": "走进机房"},
+                {"id": "ch1:s2:f1", "paragraph_index": 2, "text": "观察钟表"},
+                {"id": "ch1:s3:f1", "paragraph_index": 3, "text": "走进机房"},
+            ],
+            "unit": {"narrative_unit_index": 1, "participants": ["林岚"],
+                     "source_span_ids": ["ch1:s1:f1", "ch1:s2:f1", "ch1:s99:f1"]},
+            "locked_visual_unit": {"shots": [{"segment_id": "shot-1", "prompt": "林岚走进机房。"}]},
+        }
+        output = shooting_adaptation_response(json.dumps(context, ensure_ascii=False))
+        self.assertEqual(output["performance_facts"][0]["source_span_ids"], ["ch1:s1:f1"])
+        context["locked_visual_unit"]["shots"][0]["prompt"] = "林岚观察星空。"
+        output = shooting_adaptation_response(json.dumps(context, ensure_ascii=False))
+        self.assertEqual(output["performance_facts"][0]["source_span_ids"], [])
+        self.assertEqual(output["performance_facts"][0]["user_addition_ids"], ["director:shot-1"])
 
     def test_shooting_span_ids_requires_structured_source_spans(self) -> None:
         with self.assertRaisesRegex(ValueError, "shooting script prompt contains no source spans"):

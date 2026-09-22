@@ -26,9 +26,20 @@ fn parse_relationships_with_requirement(
             "blueprint.relationships 不能为空".to_string(),
         ));
     }
-    items
+    let relationships = items
         .iter()
         .enumerate()
         .map(parse_relationship_entry)
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    a4n_domain::project::blueprint_relationship_identity_keys(relationships.iter().map(
+        |relationship| {
+            (
+                relationship.relationship_type.as_str(),
+                relationship.character_a.as_str(),
+                relationship.character_b.as_str(),
+            )
+        },
+    ))
+    .map_err(AppError::InvalidArgument)?;
+    Ok(relationships)
 }

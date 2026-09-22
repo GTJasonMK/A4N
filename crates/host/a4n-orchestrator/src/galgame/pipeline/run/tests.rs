@@ -23,21 +23,27 @@ use super::checkpoints::restored_galgame_llm_stage_output;
 use super::progress::galgame_progress_update;
 use super::validation::{
     ensure_single_regenerated_scene_lines, ensure_single_regenerated_staged_lines,
-    normalize_single_scene_visual_plan,
+    ensure_single_regenerated_visual_plan,
 };
 
 #[test]
 fn restored_galgame_llm_stage_output_revalidates_parsed_output() {
+    let validations = std::cell::Cell::new(0);
     let restored = restored_galgame_llm_stage_output(
-        &json!({ "value": 1 }),
-        r#"{"value":1}"#,
-        "scenes",
-        "galgame_test",
-        Ok,
+        &json!({ "choices": [] }),
+        r#"{"choices":[]}"#,
+        "branch_plan",
+        "galgame_branch_design",
+        |value| {
+            validations.set(validations.get() + 1);
+            crate::galgame::branch_design_from_value(value, "galgame_branch_design")
+        },
     )
     .expect("restored checkpoint");
 
-    assert_eq!(restored, json!({ "value": 1 }));
+    assert_eq!(restored.0, json!({ "choices": [] }));
+    assert!(restored.1.choices.is_empty());
+    assert_eq!(validations.get(), 1);
 }
 
 #[test]
@@ -213,7 +219,8 @@ fn source_sync_scene_regeneration_visual_plan_rejects_extra_scene_backgrounds() 
         event_cgs: vec![],
     };
 
-    let err = normalize_single_scene_visual_plan(plan).expect_err("extra scene must fail visibly");
+    let err =
+        ensure_single_regenerated_visual_plan(&plan).expect_err("extra scene must fail visibly");
 
     assert!(
         err.to_string()
@@ -248,7 +255,8 @@ fn source_sync_scene_regeneration_visual_plan_rejects_extra_scene_event_cg() {
         ],
     };
 
-    let err = normalize_single_scene_visual_plan(plan).expect_err("extra event CG scene must fail");
+    let err =
+        ensure_single_regenerated_visual_plan(&plan).expect_err("extra event CG scene must fail");
 
     assert!(err.to_string().contains("事件 CG 不能引用其他场"));
 }
@@ -265,5 +273,5 @@ fn source_sync_scene_regeneration_visual_plan_requires_background() {
         event_cgs: vec![],
     };
 
-    assert!(normalize_single_scene_visual_plan(plan).is_err());
+    assert!(ensure_single_regenerated_visual_plan(&plan).is_err());
 }

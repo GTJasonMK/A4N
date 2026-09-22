@@ -159,7 +159,8 @@ pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
 
 fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt::Model {
     let now = chrono::Utc::now().naive_utc();
-    let segment = segment(1);
+    let mut segment = segment(1);
+    segment.reference_image_ids.clear();
     let projection = shooting_script_projection();
     let execution_identity = video_execution_chain_identity(
         &projection,

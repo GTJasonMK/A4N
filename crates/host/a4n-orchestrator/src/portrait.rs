@@ -57,7 +57,7 @@ impl OrchestratorContext {
         }
         let business_key =
             portrait_generate_business_key(fingerprint).map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+        self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
             business_key,
             workflow_kind: "portrait_generation".to_string(),
             project_id: Some(project_id),
@@ -96,7 +96,7 @@ impl OrchestratorContext {
         }
         let business_key =
             portrait_prompt_business_key(fingerprint).map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+        self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
             business_key,
             workflow_kind: "portrait_prompt_generation".to_string(),
             project_id: Some(project_id),
@@ -126,7 +126,7 @@ impl OrchestratorContext {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+        self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
             business_key: format!("missing_portrait_generation:{project_id}"),
             workflow_kind: "missing_portrait_generation".to_string(),
             project_id: Some(project_id),
@@ -170,7 +170,7 @@ impl OrchestratorContext {
         }
         let business_key = portrait_image_business_key(workflow_kind, fingerprint)
             .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+        self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
             business_key,
             workflow_kind: workflow_kind.to_string(),
             project_id: Some(project_id),

@@ -3,6 +3,59 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub fn normalized_blueprint_identity(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+pub fn blueprint_character_identity_keys<'a>(
+    names: impl IntoIterator<Item = &'a str>,
+) -> Result<Vec<String>, String> {
+    let mut seen = std::collections::HashSet::new();
+    names
+        .into_iter()
+        .map(|name| {
+            let key = normalized_blueprint_identity(name);
+            if key.is_empty() {
+                return Err("蓝图角色名称不能为空".to_string());
+            }
+            if !seen.insert(key.clone()) {
+                return Err(format!("蓝图角色重复: {name}"));
+            }
+            Ok(key)
+        })
+        .collect()
+}
+
+pub fn blueprint_relationship_identity_keys<'a>(
+    relationships: impl IntoIterator<Item = (&'a str, &'a str, &'a str)>,
+) -> Result<Vec<String>, String> {
+    let mut seen = std::collections::HashSet::new();
+    relationships
+        .into_iter()
+        .map(|(kind, a, b)| {
+            if !BLUEPRINT_RELATIONSHIP_TYPES.contains(&kind) {
+                return Err(format!(
+                    "蓝图关系 relationship_type 无效：{kind}；必须是以下值之一：{}",
+                    BLUEPRINT_RELATIONSHIP_TYPES.join(", ")
+                ));
+            }
+            let keys = [kind, a, b].map(normalized_blueprint_identity);
+            if keys.iter().any(String::is_empty) {
+                return Err("蓝图关系的角色和类型不能为空".to_string());
+            }
+            let key = keys.join("|");
+            if !seen.insert(key.clone()) {
+                return Err(format!("蓝图关系重复: {kind} / {a} / {b}"));
+            }
+            Ok(key)
+        })
+        .collect()
+}
+
 /// 一页制分页：page 从 1 起，计算 offset。
 pub fn project_list_offset(page: u64, limit: u64) -> Result<u64, String> {
     page.checked_sub(1)

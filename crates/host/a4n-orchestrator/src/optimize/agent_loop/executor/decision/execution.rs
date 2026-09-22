@@ -1,5 +1,6 @@
 use super::super::{
     AgentLoopDecision, AgentLoopDecisionRequest, AgentLoopExecutionError, OrchestratorContext,
+    ValidatedAgentLoopAction,
 };
 
 mod call;
@@ -14,12 +15,12 @@ use persistence::persist_agent_loop_decision_call;
 use preparation::prepare_agent_loop_decision_call;
 
 impl OrchestratorContext {
-    pub(in crate::optimize) async fn request_agent_loop_decision(
+    pub(in crate::optimize) async fn request_agent_loop_decision<T>(
         &self,
         turn_id: i64,
         session_id: i64,
-        request: AgentLoopDecisionRequest<'_>,
-    ) -> Result<AgentLoopDecision, AgentLoopExecutionError> {
+        request: AgentLoopDecisionRequest<'_, T>,
+    ) -> Result<(AgentLoopDecision, ValidatedAgentLoopAction<T>), AgentLoopExecutionError> {
         let PreparedAgentDecisionCall {
             chat_request,
             call_key,

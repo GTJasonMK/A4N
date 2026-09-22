@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use super::contracts::ChapterShootingScriptV1;
+use super::contracts::{ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingSceneV1};
 
 mod rules;
 mod scene;
@@ -15,6 +15,33 @@ mod tests;
 pub struct ShootingScriptValidationError {
     pub path: String,
     pub message: String,
+}
+
+impl ShootingDirectingStatementV1 {
+    pub fn validate(&self) -> Result<(), ShootingScriptValidationError> {
+        script::validate_statement(self)
+    }
+}
+
+impl ShootingSceneV1 {
+    /// 调用输出经确定性装配后复用发布时的内容规则；跨场景引用仍由整章校验负责。
+    pub fn validate_content(
+        &self,
+        user_additions: &[crate::chapter_visual_plan::VisualUserAdditionV1],
+        requires_visual_plan: bool,
+    ) -> Result<(), ShootingScriptValidationError> {
+        scene::validate_scene(
+            self,
+            &format!("scenes[{}]", self.scene_index),
+            &mut std::collections::HashSet::new(),
+            &mut std::collections::HashSet::new(),
+            &user_additions
+                .iter()
+                .map(|addition| addition.id.as_str())
+                .collect(),
+            requires_visual_plan,
+        )
+    }
 }
 
 impl ChapterShootingScriptV1 {

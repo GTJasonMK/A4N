@@ -174,6 +174,48 @@ pub async fn load_completed_llm_call_checkpoint(
         .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))
 }
 
+pub async fn reject_completed_llm_call_checkpoint(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    call_key: &str,
+    input_fingerprint_json: &Value,
+    error_message: &str,
+) -> Result<(), WorkflowWriteError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    let call_key = required_text(call_key.to_string(), "call_key")?;
+    let fingerprint = llm_call_checkpoint_fingerprint_sha256(input_fingerprint_json)
+        .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let run = runs::locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    runs::ensure_workflow_write_open(&run.status, "拒绝无效 LLM 调用断点")?;
+    // 保留原请求指纹和响应用于诊断；只撤销本次复核失败的调用完成状态。
+    workflow_checkpoint::Entity::update_many()
+        .col_expr(
+            workflow_checkpoint::Column::Status,
+            sea_orm::sea_query::Expr::value(WORKFLOW_STATUS_FAILED),
+        )
+        .col_expr(
+            workflow_checkpoint::Column::ErrorMessage,
+            sea_orm::sea_query::Expr::value(error_message),
+        )
+        .col_expr(
+            workflow_checkpoint::Column::CompletedAt,
+            sea_orm::sea_query::Expr::value(None::<chrono::NaiveDateTime>),
+        )
+        .col_expr(
+            workflow_checkpoint::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(Utc::now().naive_utc()),
+        )
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::StepKey.eq(call_key))
+        .filter(workflow_checkpoint::Column::InputFingerprintSha256.eq(fingerprint))
+        .filter(workflow_checkpoint::Column::Status.eq(WORKFLOW_STATUS_COMPLETED))
+        .exec(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)
+}
+
 pub(super) async fn inherit_completed_llm_call_checkpoints(
     tx: &sea_orm::DatabaseTransaction,
     source_run_id: i64,
@@ -197,6 +239,23 @@ pub(super) async fn inherit_completed_llm_call_checkpoints(
         }
         validate_completed_llm_call_checkpoint_json(value, &checkpoint.step_key)
             .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
+        let mut fingerprint = checkpoint.input_fingerprint_json.clone().ok_or_else(|| {
+            WorkflowWriteError::InvalidData(format!(
+                "{} LLM 调用断点缺少输入指纹",
+                checkpoint.step_key
+            ))
+        })?;
+        let source_hash = llm_call_checkpoint_fingerprint_sha256(&fingerprint)
+            .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
+        if checkpoint.input_fingerprint_sha256.as_deref() != Some(source_hash.as_str()) {
+            return Err(WorkflowWriteError::InvalidData(format!(
+                "{} LLM 调用断点输入指纹与摘要不一致",
+                checkpoint.step_key
+            )));
+        }
+        retarget_call_fingerprint(&mut fingerprint, source_run_id, target_run_id);
+        let fingerprint_hash = llm_call_checkpoint_fingerprint_sha256(&fingerprint)
+            .map_err(|error| WorkflowWriteError::InvalidData(error.to_string()))?;
         upsert_workflow_checkpoint_in_transaction(
             tx,
             UpsertWorkflowCheckpointInput {
@@ -204,8 +263,8 @@ pub(super) async fn inherit_completed_llm_call_checkpoints(
                 step_key: checkpoint.step_key,
                 step_order: checkpoint.step_order,
                 status: WORKFLOW_STATUS_COMPLETED.to_string(),
-                input_fingerprint_sha256: checkpoint.input_fingerprint_sha256,
-                input_fingerprint_json: checkpoint.input_fingerprint_json,
+                input_fingerprint_sha256: Some(fingerprint_hash),
+                input_fingerprint_json: Some(fingerprint),
                 checkpoint_json: checkpoint.checkpoint_json,
                 artifacts_json: checkpoint.artifacts_json,
                 generation_run_ids_json: checkpoint.generation_run_ids_json,
@@ -216,6 +275,53 @@ pub(super) async fn inherit_completed_llm_call_checkpoints(
         .await?;
     }
     Ok(())
+}
+
+fn retarget_call_fingerprint(value: &mut Value, source_run_id: i64, target_run_id: i64) {
+    match value {
+        Value::Object(object) => {
+            if object.get("messages").is_some_and(Value::is_array)
+                && object.contains_key("trace_context")
+            {
+                // Only diagnostic ownership follows the new run. Provider messages
+                // and tool arguments remain the exact inputs of the saved call.
+                if let Some(trace) = object
+                    .get_mut("trace_context")
+                    .and_then(Value::as_object_mut)
+                    && trace.get("workflow_run_id").and_then(Value::as_i64) == Some(source_run_id)
+                {
+                    trace.insert("workflow_run_id".into(), json!(target_run_id));
+                }
+                return;
+            }
+            for (key, child) in object {
+                if key != "messages" {
+                    retarget_call_fingerprint(child, source_run_id, target_run_id);
+                }
+            }
+        }
+        Value::Array(values) => {
+            for child in values {
+                retarget_call_fingerprint(child, source_run_id, target_run_id);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inherited_fingerprint_changes_only_request_trace_ownership() {
+        let messages = json!([{"role": "assistant", "tool_calls": [{"arguments": {"trace_context": {"workflow_run_id": 7}}}]}]);
+        let mut value = json!({"request": {"messages": messages, "trace_context": {"workflow_run_id": 7}}, "source": {"workflow_run_id": 7}});
+        retarget_call_fingerprint(&mut value, 7, 8);
+        assert_eq!(value["request"]["trace_context"]["workflow_run_id"], 8);
+        assert_eq!(value["request"]["messages"], messages);
+        assert_eq!(value["source"]["workflow_run_id"], 7);
+    }
 }
 
 pub async fn save_completed_llm_call_checkpoint(

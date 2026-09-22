@@ -158,6 +158,18 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn validate_llm_call_output<T>(
+        &self,
+        workflow_run_id: i64,
+        call_key: &str,
+        input_fingerprint_json: &serde_json::Value,
+        output: Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        self.workflow
+            .validate_llm_call_output(workflow_run_id, call_key, input_fingerprint_json, output)
+            .await
+    }
+
     pub(crate) async fn cancel_workflow_run_and_interrupt_videos(
         &self,
         workflow_run_id: i64,

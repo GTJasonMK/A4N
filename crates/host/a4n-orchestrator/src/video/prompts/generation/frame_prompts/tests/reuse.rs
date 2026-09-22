@@ -1,6 +1,64 @@
 use super::*;
 
 #[test]
+fn partial_segment_plan_is_validated_without_being_treated_as_complete() {
+    let mut row = segment_plan_row(14, Some("current-source"));
+    row.metadata_json.as_mut().unwrap()["plan_complete"] = json!(false);
+    let source_metadata = json!({"content_sha256": "current-source"});
+    let source_spans = vec![source_span("s1", 1)];
+    let projection = shooting_script_projection();
+    let validate = |row| {
+        reusable_segment_plan_from_row(ReusableSegmentPlanFromRowInput {
+            row,
+            source_metadata: &source_metadata,
+            source_spans: &source_spans,
+            style: "测试风格",
+            duration_secs: 5,
+            aspect_ratio: "16:9",
+            shooting_script_projection: &projection,
+            contract_version: FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
+            context: "视频片段规划",
+            draft_workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
+            draft_prompt_type: "frame_segment_plan",
+            draft_title: "视频片段规划",
+        })
+    };
+    assert!(!validate(row.clone()).unwrap().plan_complete);
+    row.metadata_json.as_mut().unwrap()["source"]["content_sha256"] = json!("changed");
+    assert!(validate(row).is_err());
+}
+
+#[test]
+fn prompt_resume_requires_matching_nonempty_source_hashes() {
+    let row = segment_plan_row(15, None);
+    assert!(!prompt_resume_context_matches(
+        &row,
+        &json!({}),
+        "测试风格",
+        "16:9"
+    ));
+    let row = segment_plan_row(15, Some("same-source"));
+    for source in [
+        json!({}),
+        json!({"content_sha256": " "}),
+        json!({"content_sha256": "different"}),
+    ] {
+        assert!(!prompt_resume_context_matches(
+            &row,
+            &source,
+            "测试风格",
+            "16:9"
+        ));
+    }
+    assert!(prompt_resume_context_matches(
+        &row,
+        &json!({"content_sha256": "same-source"}),
+        "测试风格",
+        "16:9"
+    ));
+}
+
+#[test]
 fn segment_plan_reuse_requires_saved_source_hash() {
     let row = segment_plan_row(11, None);
     let source_metadata = json!({ "content_sha256": "current-source" });

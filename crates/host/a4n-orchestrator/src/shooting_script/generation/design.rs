@@ -77,7 +77,7 @@ pub(super) async fn generate_shooting_scene(
                 progress,
                 stream_reporter,
                 cancel_token,
-                |output| validate_design_shot(output, unit, planned_shot, &facts),
+                |output| validate_design_shot(output, unit, planned_shot, &facts, prepared),
             )
             .await?;
         restored &= stage.restored;
@@ -116,7 +116,7 @@ pub(super) async fn generate_shooting_scene(
         unit_progress.span.end(),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         &format!(
-            "拍摄单元 {}/{} {}，正在校验",
+            "拍摄单元 {}/{} {}并通过校验",
             unit_offset + 1,
             total_unit_count,
             if restored {
@@ -170,6 +170,7 @@ fn validate_design_shot(
     unit: &ScreenplayPlanUnit,
     planned_shot: &VisualSegmentProjectionV3,
     facts: &[&ScreenplayPerformanceFactV1],
+    prepared: &PreparedChapterShootingScriptRequest,
 ) -> Result<(), AppError> {
     if scene.narrative_unit_index != unit.narrative_unit_index || scene.shots.len() != 1 {
         return Err(AppError::InvalidArgument(format!(
@@ -210,7 +211,27 @@ fn validate_design_shot(
         }
     }
     validate_required_fact_coverage(scene, facts.iter().copied())?;
-    Ok(())
+    super::screenplay::validate_transition_contracts(
+        &scene.transition_contracts,
+        unit.narrative_unit_index,
+        prepared.visual_plan_projection.narrative_units.len(),
+    )?;
+    // 当前调用只装配目标镜头，内容校验必须先于调用断点和下一镜头请求。
+    let planned = crate::chapter_visual_plan::DirectorScriptUnit {
+        shots: vec![planned_shot.clone()],
+        ..prepared
+            .visual_unit(unit.narrative_unit_index, &unit.scene_identity)?
+            .clone()
+    };
+    let assembled = super::super::assembly::assemble_scene(
+        (unit.narrative_unit_index - 1) as usize,
+        scene.clone(),
+        unit,
+        &planned,
+    )?;
+    assembled
+        .validate_content(&prepared.visual_plan_projection.user_additions, true)
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
 fn validate_design_unit(

@@ -2,7 +2,7 @@ use super::messages::{
     OptimizeIssue, build_content_optimization_chat_user_message,
     build_content_optimization_patch_user_message, build_content_optimization_user_message,
     is_content_optimization_analysis_prompt, materialize_optimization_issue_evidence,
-    optimization_chat_history, parse_content_optimization_issues, parse_optimization_issues,
+    optimization_chat_history, parse_optimization_issues,
 };
 use super::*;
 use a4n_db_models::models::ai::{optimization_session, optimization_turn};

@@ -13,7 +13,7 @@ use super::super::contracts::{
 };
 use super::regeneration::{
     ensure_single_regenerated_scene_lines, ensure_single_regenerated_staged_lines,
-    normalize_single_scene_visual_plan,
+    ensure_single_regenerated_visual_plan,
 };
 
 pub(crate) fn validate_source_sync_scene_regeneration_stage_outputs(
@@ -70,7 +70,7 @@ pub(crate) fn validate_source_sync_scene_regeneration_stage_outputs(
         required_stage_output_value(object, SOURCE_SYNC_STAGE_VISUAL_PLANNING)?,
         "stage_outputs.visual_planning",
     )?;
-    let visual_plan = normalize_single_scene_visual_plan(visual_plan)?;
+    ensure_single_regenerated_visual_plan(&visual_plan)?;
     if visual_plan.backgrounds[0].source_span_ids.is_empty()
         || visual_plan
             .event_cgs

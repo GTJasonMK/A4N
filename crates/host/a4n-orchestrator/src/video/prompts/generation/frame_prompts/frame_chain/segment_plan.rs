@@ -126,14 +126,6 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
         )
         .await?;
     }
-    let previous_recipe_state = load_previous_shared_segment_recipe_state(
-        service,
-        project_id,
-        chapter_id,
-        regenerate_existing || incremental_unit,
-    )
-    .await?;
-
     let reusable_segment = if regenerate_existing || incremental_unit {
         None
     } else {
@@ -149,6 +141,17 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
         })
         .await?
     };
+    let previous_recipe_state = load_previous_shared_segment_recipe_state(
+        service,
+        project_id,
+        chapter_id,
+        regenerate_existing
+            || incremental_unit
+            || reusable_segment
+                .as_ref()
+                .is_some_and(|plan| !plan.plan_complete),
+    )
+    .await?;
     if !regenerate_existing && !incremental_unit && reusable_segment.is_none() {
         ensure_no_existing_segment_plan_before_new_planning(
             service,
@@ -171,8 +174,9 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
     }
 
     report_video_prompt_progress(&mut progress, 20, 100, segment_storage_progress)?;
-    let (_segment_plan, segment_draft) = if let Some(existing) = reusable_segment {
-        (existing.segment_plan, existing.draft)
+    // 合法的部分规划继续走逐调用恢复；只有完整规划可以直接结束规划阶段。
+    let segment_draft = if let Some(existing) = reusable_segment.filter(|plan| plan.plan_complete) {
+        existing.draft
     } else {
         let prepared = render_segment_plan_from_shooting_script_projection(
             SegmentPlanFromShootingScriptProjectionInput {
@@ -213,7 +217,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
         if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
             return Err(AppError::Cancelled);
         }
-        let new_segment_plan = prepared.segment_plan.clone();
+        let new_segment_plan = prepared.segment_plan;
         let (segment_plan, segment_recipes) = if new_segment_plan.is_empty() {
             previous_recipe_state
                 .clone()
@@ -269,7 +273,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
             duration_secs,
             &aspect_ratio,
         )?;
-        let segment_draft = segment_plan_draft(SegmentPlanDraftInput {
+        segment_plan_draft(SegmentPlanDraftInput {
             project_id,
             chapter_id,
             style: &style,
@@ -278,12 +282,11 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
             source_metadata: &source_metadata,
             stage_outputs: prepared.segment_stage_outputs,
             execution_identity,
-            segments: segment_plan.clone(),
+            segments: segment_plan,
             recipes: segment_recipes,
             plan_complete,
             generation_trace: prepared.segment_trace,
-        });
-        (segment_plan, segment_draft)
+        })
     };
     if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
         return Err(AppError::Cancelled);

@@ -1,7 +1,6 @@
 use super::super::{
     AppError, OptimizeAnalysisTurnExecution, OrchestratorContext, Value, final_issues,
-    final_response_from_issues, materialize_optimization_issue_evidence, optimization_session,
-    parse_content_optimization_issues, parse_optimization_issues,
+    materialize_optimization_issue_evidence, optimization_session, parse_optimization_issues,
 };
 
 impl OrchestratorContext {
@@ -9,44 +8,9 @@ impl OrchestratorContext {
         &self,
         session: optimization_session::Model,
         turn_id: i64,
-        final_arguments: Value,
-        analysis_context: &Value,
+        output: (String, Value),
     ) -> Result<OptimizeAnalysisTurnExecution, AppError> {
-        let issues = match final_issues(&final_arguments) {
-            Ok(issues) => issues,
-            Err(err) => {
-                self.save_agent_event(session.id, &format!("Agent Loop final 参数无效：{err}"))
-                    .await?;
-                return Err(err);
-            }
-        };
-        let assistant_response = final_response_from_issues(issues)?;
-        let issues = match parse_content_optimization_issues(&assistant_response) {
-            Ok(issues) => issues,
-            Err(err) => {
-                self.save_agent_event(session.id, &format!("分析结果解析失败：{err}"))
-                    .await?;
-                return Err(err);
-            }
-        };
-        let parsed_issues = match parse_optimization_issues(&issues) {
-            Ok(issues) => issues,
-            Err(err) => {
-                self.save_agent_event(session.id, &format!("分析问题契约解析失败：{err}"))
-                    .await?;
-                return Err(err);
-            }
-        };
-        let parsed_issues =
-            match materialize_optimization_issue_evidence(parsed_issues, analysis_context) {
-                Ok(issues) => issues,
-                Err(err) => {
-                    self.save_agent_event(session.id, &format!("分析问题证据解析失败：{err}"))
-                        .await?;
-                    return Err(err);
-                }
-            };
-        let canonical_issues = serde_json::to_value(parsed_issues)?;
+        let (assistant_response, canonical_issues) = output;
         self.save_agent_event(
             session.id,
             "Agent 已返回并校验 final，等待 generation terminal 事务保存分析结果。",
@@ -57,5 +21,45 @@ impl OrchestratorContext {
             assistant_response,
             canonical_issues,
         })
+    }
+}
+
+pub(super) fn parse_final_analysis_output(
+    arguments: &Value,
+    analysis_context: &Value,
+) -> Result<(String, Value), AppError> {
+    let issues = parse_optimization_issues(&final_issues(arguments)?)?;
+    let issues = materialize_optimization_issue_evidence(issues, analysis_context)?;
+    let assistant_response = serde_json::to_string_pretty(arguments)?;
+    Ok((assistant_response, serde_json::to_value(issues)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn final_call_validates_and_materializes_evidence_before_checkpoint() {
+        let context =
+            json!({"current_chapter": {"source_spans": [{"id": "span-1", "text": "走入旧城"}]}});
+        let mut arguments = json!({"issues": [{"id": "issue-1", "tool": "edit_article", "arguments": {
+            "evidence_span_id": "span-1", "goal": "补足动作"}, "description": "动作不清楚", "severity": "minor"}]});
+        let (_, issues) = parse_final_analysis_output(&arguments, &context).unwrap();
+        assert_eq!(issues[0]["arguments"]["evidence"], "走入旧城");
+        arguments["issues"][0]["arguments"]["evidence_span_id"] = json!("missing-span");
+        assert!(
+            parse_final_analysis_output(&arguments, &context)
+                .unwrap_err()
+                .to_string()
+                .contains("missing-span")
+        );
+        for arguments in [
+            json!({}),
+            json!({"issues": {}}),
+            json!({"issues": [], "extra": true}),
+        ] {
+            assert!(parse_final_analysis_output(&arguments, &context).is_err());
+        }
     }
 }

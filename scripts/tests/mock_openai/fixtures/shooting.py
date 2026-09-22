@@ -42,6 +42,7 @@ def shooting_adaptation_response(combined: str) -> dict[str, Any]:
     if context is None:
         raise UnhandledPromptError("adaptation requires a locked director unit")
     unit, locked = context["unit"], context["locked_visual_unit"]
+    source_text = dict(source_span_pairs(combined))
     return {
         "schema_version": "screenplay_unit_adaptation_v1",
         "narrative_unit_index": unit["narrative_unit_index"],
@@ -49,7 +50,11 @@ def shooting_adaptation_response(combined: str) -> dict[str, Any]:
             {
                 "fact_index": index,
                 "shot_id": shot["segment_id"],
-                "source_span_ids": [],
+                "source_span_ids": [
+                    span_id for span_id in unit["source_span_ids"]
+                    if span_id in source_text and source_text[span_id].strip()
+                    and source_text[span_id] in shot["prompt"]
+                ],
                 "user_addition_ids": ["director:" + shot["segment_id"]],
                 "actor": next(iter(unit["participants"]), None),
                 "objective": "用行动验证周衡是否可信。",

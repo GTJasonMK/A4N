@@ -3,21 +3,23 @@ use serde_json::Value;
 
 use crate::structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response};
 
-pub(super) fn restored_galgame_llm_stage_output<F>(
+pub(super) fn restored_galgame_llm_stage_output<T, F>(
     checkpoint_parsed_output: &Value,
     response_content: &str,
     checkpoint_key: &str,
     prompt_name: &str,
     validate: F,
-) -> Result<Value, AppError>
+) -> Result<(Value, T), AppError>
 where
-    F: Fn(Value) -> Result<Value, AppError>,
+    T: serde::Serialize,
+    F: Fn(Value) -> Result<T, AppError>,
 {
     let reparsed = validate(parse_strict_json_response(response_content, prompt_name)?)?;
+    let parsed_json = serde_json::to_value(&reparsed)?;
     ensure_checkpoint_parsed_output_matches(
         checkpoint_parsed_output,
-        &reparsed,
+        &parsed_json,
         &format!("Galgame 管线 {checkpoint_key}"),
     )?;
-    Ok(reparsed)
+    Ok((parsed_json, reparsed))
 }

@@ -18,6 +18,59 @@ use super::{
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
 
+#[tokio::test]
+async fn prompt_call_validates_and_checkpoints_before_application_writes() {
+    use a4n_test_support::llm::CapturingSequenceLlmProvider;
+    use std::sync::Arc;
+    let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(vec![
+        json!({"image_prompt": " "}).to_string(),
+        json!({"image_prompt": "完整的单页漫画提示词"}).to_string(),
+    ]));
+    let context = crate::test_support::TestOrchestratorBuilder::new(database.clone())
+        .with_llm(provider.clone())
+        .build()
+        .await;
+    let workflow = a4n_db::workflow::upsert_workflow_run(database.as_ref(), serde_json::from_value(json!({
+        "business_key": "manga-call-checkpoint-test", "workflow_kind": "manga_prompt_optimization", "status": "running", "can_resume": true,
+    })).unwrap()).await.unwrap();
+    let request =
+        a4n_llm_provider_contract::ChatRequest::system_user("system", "优化构图", None, None);
+    let fingerprint = a4n_llm_trace::context_aware_chat_request_trace_json(&request).unwrap();
+    assert!(
+        context
+            .run_manga_prompt_optimization_call(
+                workflow.id,
+                "optimize",
+                &fingerprint,
+                request.clone()
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        a4n_db::workflow::load_completed_llm_call_checkpoint(
+            database.as_ref(),
+            workflow.id,
+            "optimize",
+            &fingerprint
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    let output = context
+        .run_manga_prompt_optimization_call(workflow.id, "optimize", &fingerprint, request.clone())
+        .await
+        .unwrap();
+    let restored = context
+        .run_manga_prompt_optimization_call(workflow.id, "optimize", &fingerprint, request)
+        .await
+        .unwrap();
+    assert_eq!(restored, output);
+    assert_eq!(provider.captured_user_messages().len(), 2);
+}
+
 struct TestPromptRenderer;
 
 #[async_trait]

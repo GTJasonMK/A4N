@@ -267,6 +267,9 @@ fn canvas_llm_error_mapping_preserves_cancellation() {
 
 #[test]
 fn restored_checkpoint_rejects_mismatch() {
+    assert!(
+        validate_restored_checkpoint_for_test(json!({"text": ""}), " ", "canvas-call").is_err()
+    );
     let mismatch = validate_restored_checkpoint_for_test(
         json!({"text": "旧文本"}),
         "新文本",
@@ -464,7 +467,7 @@ async fn fresh_truncated_llm_response_marks_failed_without_artifact() {
         summary
             .error_message
             .as_deref()
-            .is_some_and(|message| message.contains("可能被截断"))
+            .is_some_and(|message| message.contains("截断"))
     );
     assert_eq!(spec.status, "failed");
     assert_eq!(artifact_count, 0);

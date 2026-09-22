@@ -5,7 +5,7 @@ use super::super::super::super::MangaPipelineStage;
 use super::super::super::json::required_object_field;
 use super::super::super::prompt::{
     MangaRenderTraceInput, manga_character_binding_user_message,
-    parse_and_validate_manga_llm_output, validate_manga_character_binding_source_span_ids,
+    validate_manga_character_binding_source_span_ids,
 };
 use super::super::contracts::MangaRunContext;
 
@@ -19,23 +19,29 @@ pub(super) async fn run_character_binding_stage(
         &context.source_spans,
         context.reference_assets.clone(),
     )?;
-    let characters_trace = context
+    let (characters_trace, characters_stage_json) = context
         .service
-        .render_and_chat_trace(MangaRenderTraceInput {
-            prompt_renderer: context.prompt_renderer,
-            prompt_name: "manga_character_binding",
-            project_id: context.project_id,
-            workflow_run_id: context.workflow_run_id,
-            call_key: format!(
-                "manga_pipeline:{}:manga_character_binding",
-                context.chapter_id
-            ),
-            call_order: 1,
-            restore_from_checkpoint: context.resume_from_checkpoint,
-            variables: &context.variables,
-            user_content: characters_user,
-            temperature: 0.3,
-        })
+        .render_and_validate_manga_call(
+            MangaRenderTraceInput {
+                prompt_renderer: context.prompt_renderer,
+                prompt_name: "manga_character_binding",
+                project_id: context.project_id,
+                workflow_run_id: context.workflow_run_id,
+                call_key: format!(
+                    "manga_pipeline:{}:manga_character_binding",
+                    context.chapter_id
+                ),
+                call_order: 1,
+                restore_from_checkpoint: context.resume_from_checkpoint,
+                variables: &context.variables,
+                user_content: characters_user,
+                temperature: 0.3,
+            },
+            |value| {
+                validate_manga_character_binding_source_span_ids(value, &context.source_spans)?;
+                Ok(value.clone())
+            },
+        )
         .await?;
     context
         .service
@@ -46,14 +52,6 @@ pub(super) async fn run_character_binding_stage(
             context.task_id,
             &characters_trace,
         )
-        .await?;
-    let characters_stage_json = parse_and_validate_manga_llm_output(&characters_trace, |value| {
-        validate_manga_character_binding_source_span_ids(value, &context.source_spans)?;
-        Ok(value.clone())
-    })?;
-    context
-        .service
-        .save_or_validate_manga_llm_checkpoint(&characters_trace, &characters_stage_json)
         .await?;
     let characters_json = required_object_field(
         &characters_stage_json,

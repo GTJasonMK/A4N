@@ -13,8 +13,8 @@ use a4n_db::workflow::{
 };
 use a4n_db_models::models::generation::generation_run;
 use a4n_domain::workflow::{
-    WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_INTERRUPTED,
-    WORKFLOW_STATUS_RUNNING,
+    WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
+    WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
@@ -511,6 +511,62 @@ async fn cancelled_retry_does_not_inherit_unrelated_or_fresh_start_calls() {
             "{mode}"
         );
     }
+}
+
+#[tokio::test]
+async fn new_attempt_after_failure_inherits_validated_calls() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let key = format!("failed-call-retry:{}", uuid::Uuid::new_v4());
+    let input = workflow_input(&key, "same", WORKFLOW_STATUS_RUNNING);
+    let original = upsert_workflow_run(&db, input.clone()).await.unwrap();
+    let mut call = completed_call(original.id, "first-call");
+    call.input_fingerprint_json = json!({"request": {
+        "messages": [{"role": "user", "content": "stable input"}],
+        "trace_context": {"workflow_run_id": original.id}
+    }});
+    let mut expected_fingerprint = call.input_fingerprint_json.clone();
+    save_completed_llm_call_checkpoint(&db, call).await.unwrap();
+    mark_workflow_status(
+        &db,
+        original.id,
+        WORKFLOW_STATUS_FAILED,
+        true,
+        Some("second call validation failed"),
+    )
+    .await
+    .unwrap();
+    let retry = upsert_workflow_run(&db, input.clone()).await.unwrap();
+    assert_ne!(retry.id, original.id);
+    expected_fingerprint["request"]["trace_context"]["workflow_run_id"] = json!(retry.id);
+    assert!(
+        load_completed_llm_call_checkpoint(&db, retry.id, "first-call", &expected_fingerprint)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        workflow_run_model_by_id(&db, original.id)
+            .await
+            .unwrap()
+            .status,
+        WORKFLOW_STATUS_FAILED
+    );
+    assert!(
+        save_completed_llm_call_checkpoint(&db, completed_call(original.id, "late-call"))
+            .await
+            .is_err()
+    );
+
+    mark_workflow_status(&db, retry.id, WORKFLOW_STATUS_COMPLETED, false, None)
+        .await
+        .unwrap();
+    let fresh = upsert_workflow_run(&db, input).await.unwrap();
+    assert!(
+        workflow_checkpoint_step_statuses(&db, fresh.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]

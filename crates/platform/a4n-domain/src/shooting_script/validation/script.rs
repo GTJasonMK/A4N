@@ -138,7 +138,7 @@ pub(super) fn validate_script(
     Ok(())
 }
 
-fn validate_statement(
+pub(super) fn validate_statement(
     value: &ShootingDirectingStatementV1,
 ) -> Result<(), ShootingScriptValidationError> {
     for (field, text) in [

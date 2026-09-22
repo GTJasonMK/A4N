@@ -3,18 +3,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Value, json};
 
 use crate::character::{
-    optional_string, optional_string_or_null, project_character_attribute_changes, required_array,
-    required_attribute_change_operation, required_category, required_i32_at, required_string,
-    required_value,
+    optional_string, optional_string_or_null, required_array, required_attribute_change_operation,
+    required_category, required_i32_at, required_string, required_value,
 };
 
 use super::fields::{
     optional_limited_string_or_null, reject_legacy_anchor_field, required_limited_string,
     required_limited_string_array, required_positive_i64,
 };
-use crate::character::profile_sync::stages::contracts::{
-    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncExtraction,
-};
+use crate::character::profile_sync::stages::contracts::CharacterProfileSyncChapterStateDraft;
 
 const CHARACTER_SYNC_DESCRIPTION_MAX_CHARS: usize = 120;
 const CHARACTER_SYNC_IMPACT_ANALYSIS_MAX_CHARS: usize = 160;
@@ -326,13 +323,5 @@ pub(super) fn sort_sync_items_by_chapter(items: &mut [Value]) -> Result<(), Stri
     for (slot, (_, _, item)) in items.iter_mut().zip(keyed) {
         *slot = item;
     }
-    Ok(())
-}
-
-pub(super) fn validate_materialized_character_sync_projection(
-    extraction: &CharacterProfileSyncExtraction,
-    baseline_state: &Value,
-) -> Result<(), String> {
-    project_character_attribute_changes(baseline_state.clone(), &extraction.changes)?;
     Ok(())
 }

@@ -51,12 +51,6 @@ pub(super) async fn prepare_patch_generation_completion(
         input_fingerprint_json,
     } = call;
     let response_content = response.message.content.clone();
-    service
-        .record_llm_response(session.id, "局部补丁生成", &response.message.content)
-        .await?;
-    service
-        .save_agent_event(session.id, "LLM 已返回局部补丁，正在保存并校验。")
-        .await?;
     if !restored {
         let usage = response
             .usage
@@ -80,6 +74,9 @@ pub(super) async fn prepare_patch_generation_completion(
             })
             .await?;
     }
+    service
+        .record_llm_response(session.id, "局部补丁生成", &response_content)
+        .await?;
     let tool_calls = json!({ "tool": EDIT_ARTICLE_TOOL, "chapter_id": chapter_id });
     let tool_content = serde_json::to_string_pretty(&json!({
         "tool": EDIT_ARTICLE_TOOL,

@@ -14,15 +14,24 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
         workflow_run_id: i64,
+        retrying: bool,
         generation: &AgentLoopGenerationContext<'_>,
     ) -> Result<OptimizeAnalysisTurnExecution, AgentLoopExecutionError> {
-        let session = self.get_session(session_id).await?;
+        let mut session = self.get_session(session_id).await?;
         if session.status != "analyzing" {
-            return Err(a4n_error::AppError::InvalidState {
-                current: session.status,
-                operation: "执行内容优化分析".to_string(),
+            if !retrying {
+                return Err(a4n_error::AppError::InvalidState {
+                    current: session.status,
+                    operation: "执行内容优化分析".to_string(),
+                }
+                .into());
             }
-            .into());
+            session = a4n_db::optimize::resume_optimization_analysis_session(
+                self.database.connection(),
+                session_id,
+            )
+            .await
+            .map_err(super::super::optimize_db_error)?;
         }
 
         let session_messages = self.session_messages(session_id).await?;

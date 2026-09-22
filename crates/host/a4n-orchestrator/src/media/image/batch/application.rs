@@ -82,7 +82,7 @@ impl OrchestratorContext {
     ) -> Result<BatchImageGenerationOutcome, AppError> {
         validate_batch_input(&input)?;
         let workflow_run = self
-            .begin_workflow_run_validated(
+            .begin_or_resume_workflow_run_validated(
                 batch_image_workflow_run_input(input.project_id, &input.requests)
                     .map_err(AppError::InvalidArgument)?,
             )

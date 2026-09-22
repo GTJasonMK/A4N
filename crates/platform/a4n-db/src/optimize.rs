@@ -32,7 +32,8 @@ pub use patches::{
 pub use sessions::{
     create_optimization_session, delete_optimization_session_with_messages,
     insert_optimization_session_message, optimization_session_by_id, optimization_session_messages,
-    optimization_session_name_exists, optimization_sessions, update_optimization_session,
+    optimization_session_name_exists, optimization_sessions, resume_optimization_analysis_session,
+    update_optimization_session,
 };
 pub use turns::{
     append_optimization_turn_event, complete_optimization_analysis_turn,

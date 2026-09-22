@@ -37,13 +37,14 @@ struct PreparedGalgameLlmStage {
 }
 
 impl OrchestratorContext {
-    pub(in crate::galgame::pipeline::run) async fn run_galgame_llm_stage<F>(
+    pub(in crate::galgame::pipeline::run) async fn run_galgame_llm_stage<T, F>(
         &self,
         input: GalgameLlmStageInput<'_>,
         validate: F,
-    ) -> Result<Value, AppError>
+    ) -> Result<(Value, T), AppError>
     where
-        F: Fn(Value) -> Result<Value, AppError>,
+        T: serde::Serialize,
+        F: Fn(Value) -> Result<T, AppError>,
     {
         ensure_galgame_pipeline_not_cancelled(self, input.workflow_run_id).await?;
         self.mark_workflow_current_step(input.workflow_run_id, input.stage.key())

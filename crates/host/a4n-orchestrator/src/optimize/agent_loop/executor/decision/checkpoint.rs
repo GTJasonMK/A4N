@@ -26,6 +26,7 @@ pub(super) fn restored_agent_loop_decision(
         &agent_loop_decision_json(&decision),
         &format!("内容优化 Agent Loop {call_key}"),
     )?;
+    a4n_llm_provider_contract::validate_finish_reason(finish_reason.as_deref())?;
     Ok((
         ChatResponse {
             message: ChatMessage::assistant(response_content),
@@ -74,6 +75,25 @@ mod tests {
             agent_loop_decision_json(&parsed)["arguments"]["tool"],
             json!("get_project_information")
         );
+    }
+
+    #[test]
+    fn rejects_checkpoint_without_a_successful_finish_reason() {
+        let response =
+            r#"{"thought":"完成","public_update":null,"action":"final","arguments":{"issues":[]}}"#;
+        let parsed = super::parse_agent_loop_decision_response(response).unwrap();
+        for reason in [None, Some("content_filter"), Some("length")] {
+            assert!(
+                restored_agent_loop_decision(
+                    agent_loop_decision_json(&parsed),
+                    response.into(),
+                    None,
+                    reason.map(str::to_string),
+                    "test-call",
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]

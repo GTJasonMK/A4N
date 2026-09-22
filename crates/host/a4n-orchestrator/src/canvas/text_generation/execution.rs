@@ -11,9 +11,7 @@ use a4n_db::{
 };
 use a4n_domain::CanvasNodeRefKind;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::{
-    ChatMessage, ChatRequest, ChatResponse, UsageInfo, is_truncated_finish_reason,
-};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, ChatResponse, UsageInfo};
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
@@ -380,6 +378,16 @@ impl OrchestratorContext {
             None
         };
 
+        let requires_usage = if let Some(execution) = &model_execution {
+            agent
+                .run_budget_snapshot(execution.run_id)
+                .await?
+                .remaining
+                .max_tokens
+                .is_some()
+        } else {
+            false
+        };
         if let Some(checkpoint) = self
             .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &input_fingerprint_json)
             .await?
@@ -403,13 +411,25 @@ impl OrchestratorContext {
                     ));
                 }
             }
-            return validate_restored_canvas_llm_text_checkpoint(
+            let output = validate_restored_canvas_llm_text_checkpoint(
                 &checkpoint.parsed_output,
                 &checkpoint.response_content,
                 checkpoint.usage,
                 checkpoint.finish_reason,
                 &call_key,
-            );
+            )
+            .and_then(|output| {
+                validate_canvas_llm_usage(output.usage.is_some(), requires_usage)?;
+                Ok(output)
+            });
+            return self
+                .validate_llm_call_output(
+                    workflow_run_id,
+                    &call_key,
+                    &input_fingerprint_json,
+                    output,
+                )
+                .await;
         }
 
         let restored = model_execution
@@ -424,8 +444,9 @@ impl OrchestratorContext {
                 .map_err(AppError::from)
             })
             .transpose()?;
+        let replayed = restored.is_some();
         let response = if let Some(response) = restored {
-            response
+            Ok(response)
         } else {
             if let Some(execution) = &model_execution {
                 if execution.status != "prepared" {
@@ -437,56 +458,43 @@ impl OrchestratorContext {
                     .record_task_execution(&task, execution.id, None, None, None)
                     .await?;
             }
-            let response = llm_port
+            llm_port
                 .stream_complete(CanvasTextGenerationLlmCall {
                     project_id: input.project_id,
                     workflow_run_id,
                     config_id: llm_input.config_id,
                     request,
                 })
-                .await;
-            if let Some(execution) = &model_execution {
-                agent
-                    .record_task_execution(
-                        &task,
-                        execution.id,
-                        response
-                            .as_ref()
-                            .ok()
-                            .map(serde_json::to_value)
-                            .transpose()?,
-                        None,
-                        response.as_ref().err().map(ToString::to_string),
-                    )
-                    .await?;
-            }
-            response.map_err(map_canvas_llm_error)?
+                .await
+                .map_err(map_canvas_llm_error)
         };
+        let response_json = response
+            .as_ref()
+            .ok()
+            .map(serde_json::to_value)
+            .transpose()?;
+        let validated = response.and_then(|response| {
+            validate_canvas_llm_usage(response.usage.is_some(), requires_usage)?;
+            let text = validate_canvas_llm_text_content(
+                &response.message.content,
+                response.finish_reason.as_deref(),
+            )?;
+            Ok((response, text))
+        });
         if let Some(execution) = &model_execution
-            && response.usage.is_none()
-            && agent
-                .run_budget_snapshot(execution.run_id)
-                .await?
-                .remaining
-                .max_tokens
-                .is_some()
+            && !replayed
         {
-            return Err(AppError::InvalidArgument(
-                "Canvas 模型缺少 usage，无法核实 Agent token 预算".into(),
-            ));
+            agent
+                .record_task_execution(
+                    &task,
+                    execution.id,
+                    response_json,
+                    None,
+                    validated.as_ref().err().map(ToString::to_string),
+                )
+                .await?;
         }
-        if is_truncated_finish_reason(response.finish_reason.as_deref()) {
-            return Err(AppError::InvalidArgument(
-                "LlmTextNode 输出达到当前 max_tokens 上限，文本可能被截断；请提高模型配置 max_output_tokens 或减少上游文本后重试"
-                    .to_string(),
-            ));
-        }
-        let transformed_text = response.message.content.trim().to_string();
-        if transformed_text.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "LlmTextNode 返回空文本".to_string(),
-            ));
-        }
+        let (response, transformed_text) = validated?;
         let usage_json = response
             .usage
             .as_ref()
@@ -521,6 +529,27 @@ pub(super) fn map_canvas_llm_error(error: AppError) -> AppError {
     }
 }
 
+fn validate_canvas_llm_usage(has_usage: bool, required: bool) -> Result<(), AppError> {
+    if required && !has_usage {
+        return Err(AppError::InvalidArgument(
+            "Canvas 模型缺少 usage，无法核实 Agent token 预算".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_canvas_llm_text_content(
+    content: &str,
+    finish_reason: Option<&str>,
+) -> Result<String, AppError> {
+    a4n_llm_provider_contract::validate_finish_reason(finish_reason)?;
+    let content = content.trim();
+    if content.is_empty() {
+        return Err(AppError::InvalidArgument("LlmTextNode 返回空文本".into()));
+    }
+    Ok(content.to_string())
+}
+
 fn validate_restored_canvas_llm_text_checkpoint(
     parsed_output: &Value,
     response_content: &str,
@@ -534,7 +563,8 @@ fn validate_restored_canvas_llm_text_checkpoint(
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("{call_key}.parsed_output.text 必须是字符串"))
         })?;
-    let transformed_text = response_content.trim().to_string();
+    let transformed_text =
+        validate_canvas_llm_text_content(response_content, finish_reason.as_deref())?;
     ensure_checkpoint_parsed_output_matches(
         parsed_text,
         transformed_text.as_str(),
@@ -563,8 +593,29 @@ pub(super) fn validate_restored_checkpoint_for_test(
         &parsed_output,
         response_content,
         None,
-        None,
+        Some("stop".into()),
         call_key,
     )
     .map(|validated| validated.transformed_text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_canvas_llm_text_content;
+
+    #[test]
+    fn text_call_requires_a_successful_finish_reason() {
+        for reason in [
+            None,
+            Some("length"),
+            Some("content_filter"),
+            Some("unknown"),
+        ] {
+            assert!(validate_canvas_llm_text_content("有文本也不代表调用成功", reason).is_err());
+        }
+        assert_eq!(
+            validate_canvas_llm_text_content(" 完成 ", Some("stop")).unwrap(),
+            "完成"
+        );
+    }
 }

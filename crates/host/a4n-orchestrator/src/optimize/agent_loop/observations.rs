@@ -160,7 +160,3 @@ pub(in crate::optimize) fn failed_tool_observation(
         "error": err.to_string(),
     })
 }
-
-pub(in crate::optimize) fn final_response_from_issues(issues: Value) -> Result<String, AppError> {
-    Ok(serde_json::to_string_pretty(&json!({"issues": issues}))?)
-}

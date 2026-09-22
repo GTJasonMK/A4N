@@ -219,6 +219,30 @@ fn adaptation_requires_each_fact_to_name_its_carrier_shot() {
 }
 
 #[test]
+fn adaptation_rejects_unusable_facts_before_shooting_design() {
+    let prepared = prepared();
+    let visual = &prepared.visual_plan_projection.narrative_units[0];
+    let layout = layout_unit();
+    let mut output = adaptation(1);
+    assert!(validate_unit_adaptation(&output, &layout, visual).is_ok());
+    output.performance_facts[0].actor = Some("甲与乙".into());
+    assert!(
+        validate_unit_adaptation(&output, &layout, visual)
+            .unwrap_err()
+            .to_string()
+            .contains("actor")
+    );
+    output.performance_facts[0].actor = Some("甲".into());
+    output.performance_facts[0].visible_action.clear();
+    assert!(
+        validate_unit_adaptation(&output, &layout, visual)
+            .unwrap_err()
+            .to_string()
+            .contains("visible_action")
+    );
+}
+
+#[test]
 fn layout_detail_parser_rejects_string_for_preserved_knowledge_array() {
     let raw = r#"
     {
