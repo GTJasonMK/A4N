@@ -190,10 +190,15 @@ impl OrchestratorContext {
         let expected_file_size = i64::try_from(provider_output.bytes.len())
             .map_err(|_| AppError::InvalidArgument("图片过大，无法记录文件大小".to_string()))?;
         let expected_sha256 = format!("{:x}", Sha256::digest(&provider_output.bytes));
+        // 相同请求可以独立生成多次；发布身份属于工作流中的这一次调用。
         let publication_id = format!(
             "image-publication-generation-{}",
-            generation_checkpoint_fingerprint_sha256(&workflow.fingerprint_json)
-                .map_err(|error| AppError::InvalidArgument(error.to_string()))?
+            generation_checkpoint_fingerprint_sha256(&json!({
+                "workflow_run_id": workflow.workflow_run_id,
+                "step_key": workflow.step_key,
+                "input_fingerprint": workflow.fingerprint_json,
+            }))
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?
         );
         let prepared_file = host_port.prepare_generated_image_file(
             super::contracts::PrepareGeneratedImageFileInput {

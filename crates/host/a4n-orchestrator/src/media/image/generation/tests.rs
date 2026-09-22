@@ -438,6 +438,104 @@ fn image_request_trace_records_aspect_ratio_and_redacts_reference_payload() {
 }
 
 #[tokio::test]
+async fn independent_image_calls_do_not_reuse_or_revive_previous_publications() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let host = TestImageGenerationHost::default();
+    let input = execution_input(project_id, user_id);
+    let progress = ImageGenerationProgress::none();
+    let first = context
+        .run_image_generation_validated(&host, input.clone(), &progress)
+        .await
+        .unwrap();
+    let second = context
+        .run_image_generation_validated(&host, input.clone(), &progress)
+        .await
+        .unwrap();
+    assert_ne!(first.summary.id, second.summary.id);
+    assert_ne!(first.summary.file_path, second.summary.file_path);
+    assert!(!second.restored);
+
+    a4n_db::video::delete_generated_image_record_with_cleanup(database.as_ref(), second.summary.id)
+        .await
+        .unwrap();
+    use a4n_db_models::models::media::image_publication;
+    let deleted = image_publication::Entity::find()
+        .filter(image_publication::Column::ImageId.eq(second.summary.id))
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    a4n_db::video::mark_image_publication_reclaimed(
+        database.as_ref(),
+        &deleted.publication_id,
+        deleted.version,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let third = context
+        .run_image_generation_validated(&host, input, &progress)
+        .await
+        .expect("删除旧图片后，相同请求必须能以新的发布意图生成");
+    assert_ne!(third.summary.id, second.summary.id);
+    assert!(!third.restored);
+    let deleted = image_publication::Entity::find_by_id(deleted.publication_id)
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        deleted.status,
+        a4n_domain::media::IMAGE_PUBLICATION_STATUS_RECLAIMED
+    );
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 3);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 3);
+}
+
+#[tokio::test]
+async fn same_workflow_image_steps_have_distinct_publications_and_replay_independently() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let host = TestImageGenerationHost::default();
+    let mut input = execution_input(project_id, user_id);
+    let started = context
+        .begin_image_generation_workflow_validated(
+            project_id,
+            input.chapter_id,
+            &input.command,
+            &input.image_type,
+            input.panel_id.as_deref(),
+            &image_generation_request_trace_json(&input.config, &input.request),
+            input.metadata_json.as_ref(),
+        )
+        .await
+        .unwrap();
+    let progress = ImageGenerationProgress::none();
+    let mut images = Vec::new();
+    for step in [1, 2, 1] {
+        input.workflow = ImageGenerationWorkflowBinding::ExistingItem {
+            workflow_run_id: started.workflow_run.id,
+            step_key: format!("image_batch.item.{step}"),
+            step_order: step,
+            fingerprint_json: started.fingerprint_json.clone(),
+        };
+        images.push(
+            context
+                .run_image_generation_validated(&host, input.clone(), &progress)
+                .await
+                .unwrap(),
+        );
+    }
+    assert_ne!(images[0].summary.id, images[1].summary.id);
+    assert_eq!(images[0].summary.id, images[2].summary.id);
+    assert!(images[2].restored);
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
 async fn image_generation_application_persists_complete_trace() {
     let (database, context, user_id) = setup_context().await;
     let project_id = insert_project(database.as_ref(), user_id).await;
