@@ -4,7 +4,7 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use super::OptimizeAgentPermissions;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::agent_loop_executor::AgentLoopGenerationContext;
+use super::agent_loop::executor::AgentLoopGenerationContext;
 
 pub(in crate::optimize) struct OptimizeSendUserMessageInput<'a, 'generation> {
     pub session_id: i64,

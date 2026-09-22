@@ -111,7 +111,7 @@ impl crate::OrchestratorContext {
             .cloned()
             .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少执行身份".to_string()))?;
         let video_execution_identity =
-            crate::video::prompt_generation::video_segment_execution_identity(
+            crate::video::prompts::generation::video_segment_execution_identity(
                 plan_identity,
                 Some(plan.id),
                 Some(&recipe),

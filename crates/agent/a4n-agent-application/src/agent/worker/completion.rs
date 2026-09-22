@@ -1,6 +1,17 @@
 //! worker run completion 与 failure。
 
+use super::super::{AgentApplication, AgentWorkerRun};
 use super::*;
+use a4n_agent_runtime_contract::AgentWorkerCompletionApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerFailureApplicationPort;
+use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerFailureRequest;
+use a4n_worker_contract::{
+    AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunStatusSnapshotWire,
+};
+use serde_json::Value;
 
 impl AgentApplication {
     pub(crate) async fn complete_claimed_run(
@@ -196,5 +207,94 @@ impl AgentApplication {
             .map(|_| ())
             .map_err(agent_db_error_to_app)
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerCompletionApplicationPort for AgentApplication {
+    async fn run_is_terminal(&self, claimed: &AgentWorkerRun) -> Result<bool, AppError> {
+        AgentApplication::show_run(
+            self,
+            claimed.thread.owner_user_id,
+            &claimed.run.id.to_string(),
+        )
+        .await
+        .map(|run| run.status.is_terminal())
+    }
+
+    async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
+        AgentApplication::result_refs_for_run(self, claimed).await
+    }
+
+    async fn result_refs_for_run_request(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
+        AgentApplication::result_refs_for_run_request(self, request).await
+    }
+
+    async fn complete_worker_run_request(
+        &self,
+        request: &AgentWorkerCompletionRequest,
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
+        AgentApplication::complete_worker_run_request(self, request).await
+    }
+
+    async fn run_is_terminal_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
+        AgentApplication::run_is_terminal_request(self, request).await
+    }
+
+    async fn complete_child_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        content: String,
+        result_summary: String,
+        result_refs_json: Option<Value>,
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
+        AgentApplication::complete_child_run(
+            self,
+            claimed,
+            content,
+            result_summary,
+            result_refs_json,
+            observed_input_message_id,
+        )
+        .await
+    }
+
+    async fn complete_claimed_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        content: String,
+        result_refs_json: Option<Value>,
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
+        AgentApplication::complete_claimed_run(
+            self,
+            claimed,
+            content,
+            result_refs_json,
+            observed_input_message_id,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerFailureApplicationPort for AgentApplication {
+    async fn fail_child_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        error_message: String,
+    ) -> Result<(), AppError> {
+        AgentApplication::fail_child_run(self, claimed, error_message).await
+    }
+
+    async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError> {
+        AgentApplication::fail_worker_run(self, request).await
     }
 }

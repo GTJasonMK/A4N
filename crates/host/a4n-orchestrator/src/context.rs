@@ -1,3 +1,4 @@
+mod project;
 use std::sync::Arc;
 
 use a4n_db::DbHandle;
@@ -14,7 +15,7 @@ mod asset;
 mod auth;
 mod canvas;
 mod chapter_content;
-mod chapter_content_projection;
+
 mod character;
 mod collaboration;
 mod construction;
@@ -33,25 +34,12 @@ mod optimize;
 mod outline;
 mod package;
 mod profile_material;
-mod project_blueprint;
-mod project_bundle_transfer;
-mod project_chapter_context;
-mod project_chapter_records;
-mod project_duplication;
-mod project_family;
-mod project_family_transfer;
-mod project_mutation;
-mod project_outline_records;
-mod project_read;
-mod project_scene_records;
-mod project_status;
+
 mod prompt_engine;
 mod prompt_override;
 mod providers;
 mod rag;
-mod rag_ingest;
-mod rag_search;
-mod rag_store;
+
 mod scene_profile;
 mod settings;
 mod shooting_script;
@@ -61,7 +49,7 @@ mod source_sync;
 mod task_queue;
 mod text_anchor;
 mod video;
-mod video_studio_transfer;
+
 mod workflow;
 
 use a4n_agent_application::agent::AgentApplication;
@@ -81,16 +69,16 @@ use llm_context::LlmContextApplication;
 use manga::MangaApplication;
 use optimize::OptimizeApplication;
 use profile_material::ProfileMaterialApplication;
-use project_blueprint::ProjectBlueprintApplication;
-use project_chapter_context::ProjectChapterContextApplication;
-use project_chapter_records::ProjectChapterRecordsApplication;
-use project_duplication::ProjectDuplicationApplication;
-use project_family::ProjectFamilyApplication;
-use project_mutation::ProjectMutationApplication;
-use project_outline_records::ProjectOutlineRecordsApplication;
-use project_read::ProjectReadApplication;
-use project_scene_records::ProjectSceneRecordsApplication;
-use project_status::ProjectStatusApplication;
+use project::blueprint::ProjectBlueprintApplication;
+use project::chapter_context::ProjectChapterContextApplication;
+use project::chapter_records::ProjectChapterRecordsApplication;
+use project::duplication::ProjectDuplicationApplication;
+use project::family::ProjectFamilyApplication;
+use project::mutation::ProjectMutationApplication;
+use project::outline_records::ProjectOutlineRecordsApplication;
+use project::read::ProjectReadApplication;
+use project::scene_records::ProjectSceneRecordsApplication;
+use project::status::ProjectStatusApplication;
 use prompt_override::PromptOverrideApplication;
 use rag::RagApplication;
 use scene_profile::SceneProfileApplication;

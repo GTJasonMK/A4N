@@ -17,9 +17,9 @@ use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
 
-use super::prompt_context::{video_context_character_names, video_profile_context};
-use super::prompt_records::{PromptWorkflowRowsContext, VideoExecutionIdentityMatch};
-use super::prompt_store::{NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft};
+use super::prompts::context::{video_context_character_names, video_profile_context};
+use super::prompts::records::{PromptWorkflowRowsContext, VideoExecutionIdentityMatch};
+use super::prompts::store::{NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft};
 use super::*;
 use a4n_db::generation::RecordStartedGenerationRunInput;
 use a4n_db::project::{

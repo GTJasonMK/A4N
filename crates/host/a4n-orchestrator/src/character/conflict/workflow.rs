@@ -1,18 +1,14 @@
-use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::ChatRequest;
-use serde_json::Value;
-
+use super::CHARACTER_CONFLICT_KIND;
 use crate::{
-    character::{
-        conflict_context_rules::CharacterConflictChapterScope,
-        conflict_rules::{
-            character_conflict_business_key, character_conflict_workflow_fingerprint,
-        },
-    },
+    character::conflict::context_rules::CharacterConflictChapterScope,
     workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING},
 };
-
-use super::CHARACTER_CONFLICT_KIND;
+use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
+use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_trace::context_aware_chat_request_trace_json;
+use serde_json::Value;
+use serde_json::json;
 
 pub(super) fn character_conflict_workflow_run_input(
     project_id: i64,
@@ -52,4 +48,49 @@ pub(super) fn character_conflict_workflow_run_input(
         },
         fingerprint,
     ))
+}
+
+// 角色冲突检查工作流指纹纯规则。
+
+pub(in crate::character) fn character_conflict_workflow_fingerprint(
+    project_id: i64,
+    name: &str,
+    start_chapter: Option<i32>,
+    end_chapter: Option<i32>,
+    request: &ChatRequest,
+) -> Result<Value, AppError> {
+    Ok(json!({
+        "workflow": CHARACTER_CONFLICT_KIND,
+        "schema_version": "character_conflict_workflow_v1",
+        "project_id": project_id,
+        "character_name": name,
+        "chapter_scope": {
+            "start_chapter": start_chapter,
+            "end_chapter": end_chapter,
+        },
+        "request": context_aware_chat_request_trace_json(request)?,
+    }))
+}
+
+pub(in crate::character) fn character_conflict_business_key(
+    fingerprint: &Value,
+) -> Result<String, AppError> {
+    Ok(format!(
+        "{CHARACTER_CONFLICT_KIND}:{}",
+        generation_checkpoint_fingerprint_sha256(fingerprint)?
+    ))
+}
+
+pub(in crate::character) fn character_conflict_call_fingerprint_json(
+    call_key: &str,
+    workflow_fingerprint: &Value,
+    request: &ChatRequest,
+) -> Result<Value, AppError> {
+    Ok(json!({
+        "schema_version": "character_conflict_call_v1",
+        "workflow": CHARACTER_CONFLICT_KIND,
+        "call_key": call_key,
+        "workflow_fingerprint": workflow_fingerprint,
+        "request": context_aware_chat_request_trace_json(request)?,
+    }))
 }

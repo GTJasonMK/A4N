@@ -45,7 +45,9 @@ impl OrchestratorContext {
                 &visual_plan.plan,
                 &source_spans,
             )?;
-        let scene_profiles = self.visual_plan_scene_context(&visual_plan.plan).await?;
+        let scene_profiles = self
+            .visual_plan_scene_context(&visual_plan.plan, &source)
+            .await?;
         let layout_unit_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
             &HashMap::new(),

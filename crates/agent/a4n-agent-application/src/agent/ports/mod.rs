@@ -7,4 +7,3 @@ mod memory;
 mod run;
 mod thread;
 mod tools;
-mod worker_host;

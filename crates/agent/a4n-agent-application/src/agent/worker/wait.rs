@@ -1,6 +1,19 @@
 //! worker wait、editor 与 durable update。
 
+use super::super::{AgentApplication, AgentWorkerRun};
 use super::*;
+use crate::agent::agent_db_error_to_app;
+use a4n_agent_runtime_contract::AgentEditorClaimApplicationPort;
+use a4n_agent_runtime_contract::AgentEditorResponseApplicationPort;
+use a4n_agent_runtime_contract::AgentEditorWaitApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerActivationApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerWaitApplicationPort;
+use a4n_api_contract::agent::{AgentEditorRequest, RespondAgentEditorInput};
+use a4n_db::agent;
+use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerEditorWaitRequest;
+use a4n_worker_contract::AgentWorkerRunLeaseRequest;
+use a4n_worker_contract::AgentWorkerRunWaitRequest;
 
 impl AgentApplication {
     pub(crate) async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
@@ -246,5 +259,81 @@ impl AgentApplication {
         )
         .await
         .map(|_| ())
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerActivationApplicationPort for AgentApplication {
+    async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+        AgentApplication::mark_turn_active(self, claimed).await
+    }
+
+    async fn mark_turn_active_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::mark_turn_active_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerWaitApplicationPort for AgentApplication {
+    async fn wait_run(&self, claimed: &AgentWorkerRun, reason: &str) -> Result<(), AppError> {
+        AgentApplication::wait_run(self, claimed, reason).await
+    }
+
+    async fn wait_run_request(&self, request: &AgentWorkerRunWaitRequest) -> Result<(), AppError> {
+        AgentApplication::wait_run_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentEditorClaimApplicationPort for AgentApplication {
+    async fn claim_editor_request(
+        &self,
+        user_id: i64,
+        input: &RespondAgentEditorInput,
+    ) -> Result<(AgentWorkerRun, AgentEditorRequest), AppError> {
+        AgentApplication::claim_editor_request(self, user_id, input).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentEditorResponseApplicationPort for AgentApplication {
+    async fn wait_for_editor(
+        &self,
+        claimed: &AgentWorkerRun,
+        request: &AgentEditorRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::wait_for_editor(self, claimed, request).await
+    }
+
+    async fn wait_for_editor_request(
+        &self,
+        request: &AgentWorkerEditorWaitRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::wait_for_editor_request(self, request).await
+    }
+
+    async fn requeue_after_external_response(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<(), AppError> {
+        AgentApplication::requeue_after_external_response(self, claimed).await
+    }
+}
+
+impl AgentApplication {
+    pub async fn expire_editor_requests(&self, limit: u64) -> Result<usize, AppError> {
+        agent::expire_editor_requests(self.connection(), limit)
+            .await
+            .map_err(agent_db_error_to_app)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentEditorWaitApplicationPort for AgentApplication {
+    async fn expire_editor_requests(&self, limit: u64) -> Result<usize, AppError> {
+        AgentApplication::expire_editor_requests(self, limit).await
     }
 }

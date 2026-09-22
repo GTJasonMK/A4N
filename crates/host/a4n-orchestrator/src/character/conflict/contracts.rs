@@ -4,7 +4,7 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 
 pub use a4n_character_host_contract::CharacterConflictProgressReporter;
 
-use crate::character::conflict_context_rules::CharacterConflictChapterScope;
+use crate::character::conflict::context_rules::CharacterConflictChapterScope;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ValidatedCharacterConflictInput {

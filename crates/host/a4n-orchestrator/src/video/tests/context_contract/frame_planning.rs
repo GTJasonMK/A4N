@@ -5,7 +5,7 @@ fn frame_prompt_builders_require_sectioned_image_prompt_text() {
     let reference_ids = json!([]);
     let engine = prompt_engine();
 
-    let single_frame_prompt = super::super::prompt_context::build_single_frame_prompt_user(
+    let single_frame_prompt = super::super::prompts::context::build_single_frame_prompt_user(
         frame_prompt_context!(
             &engine,
             &segment_plan,
@@ -43,7 +43,7 @@ fn frame_prompt_builders_require_sectioned_image_prompt_text() {
     assert!(single_frame_prompt.contains("style_template_verbatim"));
     assert!(!single_frame_prompt.contains("frame_number_rule"));
 
-    let initial_frame_prompt = super::super::prompt_context::build_first_frame_prompt_user(
+    let initial_frame_prompt = super::super::prompts::context::build_first_frame_prompt_user(
         frame_prompt_context!(
             &engine,
             &segment_plan,
@@ -66,7 +66,7 @@ fn frame_prompt_builders_require_sectioned_image_prompt_text() {
 fn planning_prompt_builders_include_safe_visual_rewrite_rule() {
     let source_spans = Vec::new();
     let engine = prompt_engine();
-    let context = super::super::prompt_context::VideoPlanningPromptContext {
+    let context = super::super::prompts::context::VideoPlanningPromptContext {
         prompt_renderer: &engine,
         project_id: PROMPT_PROJECT_ID,
         chapter_summary: None,
@@ -88,7 +88,7 @@ fn planning_prompt_builders_include_safe_visual_rewrite_rule() {
             }
         ]
     });
-    let segment_prompt = super::super::prompt_context::build_segment_plan_for_shot_user(
+    let segment_prompt = super::super::prompts::context::build_segment_plan_for_shot_user(
         context,
         &current_shot,
         &source_spans,

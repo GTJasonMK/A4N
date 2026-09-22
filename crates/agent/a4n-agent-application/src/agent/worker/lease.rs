@@ -1,6 +1,19 @@
 //! worker run claim、lease、context 与预算读取。
 
+use super::super::AgentRunContext;
+use super::super::AgentWorkerBudgetSnapshot;
+use super::super::{AgentApplication, AgentWorkerRun};
 use super::*;
+use a4n_agent_runtime_contract::AgentRunLeaseRecoveryApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerBudgetApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerClaimApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerContextApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerLeaseApplicationPort;
+use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerBudgetRequest;
+use a4n_worker_contract::AgentWorkerContextSummaryRequest;
+use a4n_worker_contract::AgentWorkerRunLeaseRequest;
+use serde_json::Value;
 
 impl AgentApplication {
     pub(crate) async fn claim_worker_run(
@@ -631,5 +644,109 @@ impl AgentApplication {
         })
         .await?;
         self.worker_budget_snapshot(request.run_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerClaimApplicationPort for AgentApplication {
+    async fn claim_worker_run(&self, worker_id: &str) -> Result<Option<AgentWorkerRun>, AppError> {
+        AgentApplication::claim_worker_run(self, worker_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerContextApplicationPort for AgentApplication {
+    async fn load_run_context(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<AgentRunContext, AppError> {
+        AgentApplication::load_run_context(self, claimed).await
+    }
+
+    async fn update_context_summary(
+        &self,
+        claimed: &AgentWorkerRun,
+        context_summary: Value,
+    ) -> Result<(), AppError> {
+        AgentApplication::update_context_summary(self, claimed, context_summary).await
+    }
+
+    async fn update_context_summary_request(
+        &self,
+        request: &AgentWorkerContextSummaryRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::update_context_summary_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerLeaseApplicationPort for AgentApplication {
+    async fn renew_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+        AgentApplication::renew_worker_lease(self, claimed).await
+    }
+
+    async fn renew_worker_lease_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::renew_worker_lease_request(self, request).await
+    }
+}
+
+impl AgentApplication {
+    pub async fn worker_budget_snapshot(
+        &self,
+        run_id: i64,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        let snapshot = self.run_budget_snapshot(run_id).await?;
+        Ok(AgentWorkerBudgetSnapshot {
+            usage: snapshot.usage,
+            max_tokens: snapshot.remaining.max_tokens,
+            max_duration_seconds: snapshot.remaining.max_duration_seconds,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerBudgetApplicationPort for AgentApplication {
+    async fn worker_budget_snapshot(
+        &self,
+        run_id: i64,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        AgentApplication::worker_budget_snapshot(self, run_id).await
+    }
+
+    async fn worker_budget_snapshot_request(
+        &self,
+        request: &AgentWorkerBudgetRequest,
+    ) -> Result<AgentWorkerBudgetSnapshot, AppError> {
+        AgentApplication::worker_budget_snapshot_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentRunLeaseRecoveryApplicationPort for AgentApplication {
+    async fn recover_expired_runs(
+        &self,
+        limit: u64,
+        error_message: Option<&str>,
+    ) -> Result<usize, AppError> {
+        Ok(
+            AgentApplication::recover_expired_runs(self, limit, error_message)
+                .await?
+                .len(),
+        )
+    }
+}
+
+// Agent worker host command port。
+
+#[async_trait::async_trait]
+impl AgentWorkerHostCommandApplicationPort for AgentApplication {
+    async fn authorize_worker_host_command(
+        &self,
+        request: &WorkerEnvelope<AgentHostCommandPayload>,
+    ) -> Result<i64, AppError> {
+        self.authorize_worker_host_command(request).await
     }
 }

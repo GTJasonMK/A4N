@@ -1,6 +1,18 @@
 //! worker message load、approval 与 recovery。
 
+use super::super::{AgentApplication, AgentWorkerRun};
 use super::*;
+use a4n_agent_runtime_contract::AgentApprovalExpiryApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerApprovalApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerRecoveryApplicationPort;
+use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerRecoveryRequest;
+use a4n_worker_contract::{
+    AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
+    AgentWorkerApprovalRequest,
+};
+use chrono::NaiveDateTime;
+use serde_json::Value;
 
 impl AgentApplication {
     pub(crate) async fn load_message_request(
@@ -201,5 +213,81 @@ impl AgentApplication {
         .await
         .map(|_| ())
         .map_err(agent_db_error_to_app)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerApprovalApplicationPort for AgentApplication {
+    async fn approved_execution(
+        &self,
+        thread_id: i64,
+        execution_id: i64,
+    ) -> Result<bool, AppError> {
+        AgentApplication::approved_execution(self, thread_id, execution_id)
+            .await
+            .map(|approval| approval.is_some())
+    }
+
+    async fn approved_execution_request(
+        &self,
+        request: &AgentWorkerApprovalCheckRequest,
+    ) -> Result<AgentWorkerApprovalCheckSnapshotWire, AppError> {
+        AgentApplication::approved_execution_request(self, request).await
+    }
+
+    async fn request_worker_approval(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_id: i64,
+        operation_json: Value,
+        resource_preconditions_json: Option<Value>,
+        expires_at: Option<NaiveDateTime>,
+    ) -> Result<(), AppError> {
+        AgentApplication::request_worker_approval(
+            self,
+            claimed,
+            execution_id,
+            operation_json,
+            resource_preconditions_json,
+            expires_at,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn request_worker_approval_request(
+        &self,
+        request: &AgentWorkerApprovalRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::request_worker_approval_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerRecoveryApplicationPort for AgentApplication {
+    async fn mark_recovery_required(
+        &self,
+        claimed: &AgentWorkerRun,
+        reason: String,
+    ) -> Result<(), AppError> {
+        AgentApplication::mark_recovery_required(self, claimed, reason)
+            .await
+            .map(|_| ())
+    }
+
+    async fn mark_recovery_required_request(
+        &self,
+        request: &AgentWorkerRecoveryRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::mark_recovery_required_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentApprovalExpiryApplicationPort for AgentApplication {
+    async fn expire_pending_approvals(&self, limit: u64) -> Result<usize, AppError> {
+        Ok(AgentApplication::expire_pending_approvals(self, limit)
+            .await?
+            .len())
     }
 }

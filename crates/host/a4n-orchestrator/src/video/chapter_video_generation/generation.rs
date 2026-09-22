@@ -781,13 +781,13 @@ impl OrchestratorContext {
             .and_then(|value| value.get("video_execution_identity"))
             .cloned()
             .ok_or_else(|| invalid_argument("当前片段规划缺少执行身份"))?;
-        let expected_identity = super::prompt_generation::video_segment_execution_identity(
+        let expected_identity = super::prompts::generation::video_segment_execution_identity(
             plan_identity,
             Some(plan_id),
             Some(&recipe),
             (source_shot_id, segment_index_in_shot),
         )?;
-        let valid = super::prompt_records::video_execution_segment_lineage_matches(
+        let valid = super::prompts::records::video_execution_segment_lineage_matches(
             prompt.metadata_json.as_ref(),
             &expected_identity,
         ) && prompt.workflow_mode == recipe.workflow_mode.as_str()

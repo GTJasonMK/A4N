@@ -13,11 +13,9 @@ use serde_json::Value;
 
 use crate::{
     OrchestratorContext,
-    character::{
-        discovery_rules::{
-            select_character_discovery_chapters, validate_discovered_character_chapter_scope,
-        },
-        discovery_workflow_rules::{
+    character::discovery::{
+        rules::{select_character_discovery_chapters, validate_discovered_character_chapter_scope},
+        workflow::{
             character_discovery_call_fingerprint_json, character_discovery_workflow_run_input,
         },
     },

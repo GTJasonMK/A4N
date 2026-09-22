@@ -24,7 +24,7 @@ use crate::workflow::WORKFLOW_STATUS_COMPLETED;
 use a4n_db::video::ChapterVideoPromptTimelineRecord;
 use std::collections::HashMap;
 
-use crate::video::prompt_json::InsertedSegmentDraft;
+use crate::video::prompts::json::InsertedSegmentDraft;
 use crate::{OrchestratorContext, structured_llm::ensure_checkpoint_parsed_output_matches};
 use a4n_domain::collaboration::ProjectAccessRole;
 

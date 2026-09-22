@@ -2,6 +2,9 @@
 //!
 //! 统一拥有统计、请求构造、workflow/checkpoint、LLM 调用、严格输出校验和决策写入。
 
+pub(super) mod rules;
+pub(super) mod workflow;
+
 mod contracts;
 mod execution;
 mod output;

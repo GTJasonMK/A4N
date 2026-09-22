@@ -1,7 +1,7 @@
 use super::*;
 use a4n_test_support::llm::CancellingLlmProvider;
 
-use crate::video::prompt_context::video_source_metadata;
+use crate::video::prompts::context::video_source_metadata;
 use std::{collections::HashMap, sync::OnceLock, time::Duration};
 
 fn segment_plan_fixture() -> Value {

@@ -2,6 +2,9 @@
 //!
 //! 统一拥有输入合同、上下文与请求构造、workflow/checkpoint、LLM 调用和输出校验。
 
+pub(super) mod context_rules;
+pub(super) mod output_rules;
+
 mod contracts;
 mod execution;
 mod request;

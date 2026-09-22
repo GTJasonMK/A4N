@@ -1,11 +1,8 @@
 //! 媒体资产应用编排：文件边界校验、文件事实计算与 provenance 原子落库。
 
-mod batch_image_application;
-mod batch_image_rules;
+mod image;
+
 mod contracts;
-mod image_generation;
-mod image_record_lifecycle;
-mod image_workflow_rules;
 
 pub(crate) use a4n_image_host_contract::{
     GalgameImageGenerationApplicationPort, ImageBatchRequestPreviewApplicationPort,
@@ -16,17 +13,17 @@ pub(crate) use a4n_image_host_contract::{
 };
 #[cfg(test)]
 pub(crate) use a4n_image_host_contract::{PersistedGeneratedImageFile, PreparedGeneratedImageFile};
-pub(crate) use batch_image_application::{
+pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
+pub(crate) use image::batch::application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
-pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
-pub(crate) use image_generation::generated_image_summary;
-pub(crate) use image_generation::{
+pub(crate) use image::generation::generated_image_summary;
+pub(crate) use image::generation::{
     ImageGenerationExecutionInput, ImageGenerationPostCommitAction, ImageGenerationWorkflowBinding,
     image_generation_request_trace_json,
 };
 
-pub(crate) use image_workflow_rules::{
+pub(crate) use image::workflow::{
     batch_image_item_step_key, batch_image_workflow_run_input, image_generation_step_key,
     image_generation_workflow_fingerprint, image_generation_workflow_run_input,
 };

@@ -1,19 +1,14 @@
 mod attribute_lifecycle;
 mod conflict;
-mod conflict_context_rules;
-mod conflict_output_rules;
-mod conflict_rules;
+
 mod discovery;
-mod discovery_rules;
-mod discovery_workflow_rules;
+
 mod implicit_classification;
 mod implicit_review;
-mod implicit_review_rules;
-mod implicit_review_workflow_rules;
+
 mod json_field_rules;
 mod profile_sync;
-mod profile_sync_batch;
-mod profile_sync_stages;
+
 mod sync_projection;
 mod sync_rules;
 use a4n_error::AppError;
@@ -233,13 +228,13 @@ pub(crate) use discovery::{
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
 pub(crate) use implicit_review::IMPLICIT_UPDATE_WORKFLOW_KIND;
+pub(crate) use profile_sync::stages::{
+    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
+    CharacterProfileSyncStageInput,
+};
 pub(crate) use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncSubject,
-};
-pub(crate) use profile_sync_stages::{
-    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
-    CharacterProfileSyncStageInput,
 };
 pub(crate) use sync_projection::{
     CharacterSyncAttributeEventDraft, pending_character_sync_attribute_events,

@@ -33,7 +33,7 @@ macro_rules! final_video_context {
         $aspect_ratio:expr,
         $reference_ids:expr $(,)?
     ) => {
-        super::super::prompt_context::FinalVideoPromptContext {
+        crate::video::prompts::context::FinalVideoPromptContext {
             prompt_renderer: $prompt_renderer,
             project_id: PROMPT_PROJECT_ID,
             chapter_summary: None,
@@ -62,7 +62,7 @@ macro_rules! frame_prompt_context {
         $aspect_ratio:expr,
         $reference_ids:expr $(,)?
     ) => {
-        super::super::prompt_context::FramePromptContext {
+        crate::video::prompts::context::FramePromptContext {
             prompt_renderer: $prompt_renderer,
             project_id: PROMPT_PROJECT_ID,
             chapter_summary: None,

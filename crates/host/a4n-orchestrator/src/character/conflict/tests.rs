@@ -1,7 +1,7 @@
 use a4n_api_contract::character::CharacterConflictCheckInput;
 use serde_json::json;
 
-use crate::character::conflict_context_rules::CharacterConflictChapterScope;
+use crate::character::conflict::context_rules::CharacterConflictChapterScope;
 
 use super::{
     execution::validated_character_conflict_input,

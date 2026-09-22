@@ -1,9 +1,9 @@
 use super::super::OrchestratorContext;
-use super::super::agent_loop::insert_current_chapter_content;
-use super::super::agent_loop_executor::{
+use super::super::agent_loop::executor::{
     AgentLoopExecutionError, AgentLoopGenerationContext, ExplicitAnalysisAgentLoopInput,
     OptimizeAnalysisTurnExecution,
 };
+use super::super::agent_loop::insert_current_chapter_content;
 use super::super::context::build_content_optimization_context;
 use super::super::messages::is_content_optimization_analysis_prompt;
 use crate::optimize::permissions::optimization_permissions_from_session;

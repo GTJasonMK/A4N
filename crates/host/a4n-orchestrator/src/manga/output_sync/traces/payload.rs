@@ -7,7 +7,7 @@ use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::super::layout_rules::manga_page_generation_layout;
-use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
+use super::super::super::pipeline::prompt::MangaPromptGenerationTrace;
 use super::contracts::MangaPageGenerationTraceRecord;
 
 pub(super) fn build_manga_page_generation_trace_record(

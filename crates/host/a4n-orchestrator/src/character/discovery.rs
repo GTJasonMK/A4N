@@ -2,6 +2,9 @@
 //!
 //! 统一拥有上下文、请求、streaming LLM、checkpoint、输出校验、档案落库和 evidence 绑定。
 
+pub(super) mod rules;
+pub(super) mod workflow;
+
 mod context;
 mod contracts;
 mod execution;

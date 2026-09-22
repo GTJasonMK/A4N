@@ -7,7 +7,7 @@ fn video_prompt_builders_require_sectioned_api_prompt_text() {
     let engine = prompt_engine();
 
     let boundary_prompt =
-        super::super::prompt_context::build_boundary_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_boundary_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &json!({"frames": []}),
@@ -28,7 +28,7 @@ fn video_prompt_builders_require_sectioned_api_prompt_text() {
     assert!(boundary_prompt.contains("不要配背景音乐"));
 
     let first_frame_prompt =
-        super::super::prompt_context::build_first_frame_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_first_frame_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &json!({"frames": []}),
@@ -63,7 +63,7 @@ fn video_prompt_builders_share_final_prompt_contract() {
     let engine = prompt_engine();
 
     let boundary_prompt =
-        super::super::prompt_context::build_boundary_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_boundary_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &json!({"frames": []}),
@@ -79,7 +79,7 @@ fn video_prompt_builders_share_final_prompt_contract() {
         .expect("boundary prompt builder should render");
 
     let first_frame_prompt =
-        super::super::prompt_context::build_first_frame_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_first_frame_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &json!({"frames": []}),
@@ -95,7 +95,7 @@ fn video_prompt_builders_share_final_prompt_contract() {
         .expect("first-frame prompt builder should render");
 
     let chat_prompt =
-        super::super::prompt_context::build_chat_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_chat_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &json!({"frames": []}),

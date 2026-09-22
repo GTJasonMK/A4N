@@ -8,9 +8,7 @@ pub(crate) use a4n_db::project::{
 pub(crate) use a4n_db::project::{
     ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
 };
-pub(crate) use a4n_db::project_family_import::{
-    ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter, snapshot_profile_key,
-};
+pub(crate) use a4n_db::project_family_import::{ProjectFamilyImportPackage, snapshot_profile_key};
 pub(crate) use a4n_domain::project::{ProjectProgressSummary, ProjectSourceMode};
 use a4n_domain::project_reset::{
     FreeformVideoGeneratedDataResetResult, ProjectGeneratedDataResetOutcome,

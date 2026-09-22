@@ -4,6 +4,8 @@
 //! projections. Model/provider execution stays outside this module so the
 //! runtime can drive queued runs without introducing a second workflow owner.
 
+mod workflow;
+
 pub use a4n_agent_runtime_contract::{
     AgentApprovalExpiryApplicationPort, AgentContextSummary, AgentDelegationSnapshot,
     AgentEditorClaimApplicationPort, AgentEditorResponseApplicationPort,
@@ -57,22 +59,14 @@ use a4n_domain::agent::{
 };
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
-    AgentWorkerApprovalRequest, AgentWorkerBudgetRequest, AgentWorkerCompletionRequest,
-    AgentWorkerCompletionSnapshotWire, AgentWorkerContextSummaryRequest,
-    AgentWorkerDelegationReviewRequest, AgentWorkerDelegationReviewSnapshotWire,
-    AgentWorkerDelegationStartRequest, AgentWorkerDelegationStartSnapshotWire,
-    AgentWorkerDelegationThreadRequest, AgentWorkerDelegationThreadSnapshotWire,
-    AgentWorkerEditorWaitRequest, AgentWorkerEventRequest, AgentWorkerExecutionCreateRequest,
-    AgentWorkerExecutionLookupRequest, AgentWorkerExecutionResultRequest,
-    AgentWorkerExecutionUpdateRequest, AgentWorkerFailureRequest, AgentWorkerHistoryRequest,
-    AgentWorkerHistorySnapshotWire, AgentWorkerInboxClaimRequest, AgentWorkerInboxConsumeRequest,
-    AgentWorkerInboxMessageRequest, AgentWorkerInboxPersistRequest,
-    AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
-    AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire,
-    AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WorkerEnvelope, WorkerLease,
+    AgentHostCommandPayload, AgentWorkerDelegationReviewRequest,
+    AgentWorkerDelegationReviewSnapshotWire, AgentWorkerDelegationStartRequest,
+    AgentWorkerDelegationStartSnapshotWire, AgentWorkerDelegationThreadRequest,
+    AgentWorkerDelegationThreadSnapshotWire, AgentWorkerEventRequest,
+    AgentWorkerExecutionResultRequest, AgentWorkerHistoryRequest, AgentWorkerHistorySnapshotWire,
+    AgentWorkerInboxMessageRequest, AgentWorkerMemoryRequest, AgentWorkerMessageOperation,
+    AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
+    AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest, WorkerEnvelope, WorkerLease,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -106,34 +100,11 @@ struct UserEventFields {
     message_id: Option<i64>,
 }
 
-mod approval_expiry;
-mod budget;
-mod editor_claim;
-mod editor_response;
-mod editor_wait;
 mod external_task_wait;
 mod generation;
-mod generation_cancel;
-mod lease_recovery;
+
 mod skills;
-mod worker_activation;
-mod worker_approval;
-mod worker_claim;
-mod worker_completion;
-mod worker_context;
-mod worker_delegation;
-mod worker_execution;
-mod worker_failure;
-mod worker_history;
-mod worker_inbox;
-mod worker_lease;
-mod worker_message;
-mod worker_read;
-mod worker_recovery;
-mod worker_usage;
-mod worker_wait;
-mod workflow_binding;
-mod workflow_cancel;
+
 #[derive(Clone)]
 pub struct AgentApplication {
     database: DbHandle,

@@ -98,12 +98,13 @@ impl crate::OrchestratorContext {
             .as_ref()
             .and_then(|metadata| metadata.get("video_execution_identity"))
             .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少执行身份".to_string()))?;
-        let expected_identity = crate::video::prompt_generation::video_segment_execution_identity(
-            plan_identity.clone(),
-            Some(plan.id),
-            Some(&recipe),
-            target,
-        )?;
+        let expected_identity =
+            crate::video::prompts::generation::video_segment_execution_identity(
+                plan_identity.clone(),
+                Some(plan.id),
+                Some(&recipe),
+                target,
+            )?;
         if selected.project_id != project_id
             || selected.chapter_id != Some(chapter_id)
             || selected.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
@@ -113,7 +114,7 @@ impl crate::OrchestratorContext {
                 .map(str::trim)
                 .is_none_or(str::is_empty)
             || selected.workflow_mode.as_deref() != Some(recipe.workflow_mode.as_str())
-            || !crate::video::prompt_records::video_execution_segment_lineage_matches(
+            || !crate::video::prompts::records::video_execution_segment_lineage_matches(
                 selected.metadata_json.as_ref(),
                 &expected_identity,
             )
