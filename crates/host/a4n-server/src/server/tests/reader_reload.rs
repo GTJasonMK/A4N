@@ -1,5 +1,4 @@
-
-    #[test]
+#[test]
     fn marker_change_without_binary_change_does_not_select_a_process() {
         let mut edge = live_child();
         let mut control = live_child();

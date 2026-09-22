@@ -1,3 +1,4 @@
+mod worker;
 use std::{
     env,
     net::{SocketAddr, TcpStream},
@@ -23,10 +24,6 @@ mod health;
 mod process;
 mod startup;
 mod types;
-mod worker_catalog;
-mod worker_poll;
-mod worker_restarts;
-mod worker_supervision;
 
 #[cfg(all(test, unix))]
 mod tests;
@@ -35,9 +32,9 @@ use config::*;
 use health::*;
 use process::*;
 use types::*;
-use worker_catalog::*;
-use worker_poll::*;
-use worker_restarts::*;
-use worker_supervision::*;
+use worker::catalog::*;
+use worker::poll::*;
+use worker::restarts::*;
+use worker::supervision::*;
 
 pub(crate) use startup::run;

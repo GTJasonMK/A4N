@@ -1,5 +1,4 @@
-
-    #[test]
+#[test]
     fn detects_replaced_worker_binary() {
         let tempdir = tempfile::tempdir().expect("temporary directory should be created");
         let worker_binary = tempdir.path().join("a4n-agent-worker");

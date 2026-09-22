@@ -1,5 +1,4 @@
-
-    #[test]
+#[test]
     fn edge_binary_change_only_selects_edge_replacement() {
         let mut edge = live_child();
         let mut control = live_child();

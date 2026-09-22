@@ -465,4 +465,100 @@ impl AppState {
     ) -> &dyn a4n_api_contract::manga::MangaRecordMutationApplicationPort {
         self.manga_record_mutation_application.as_ref()
     }
+
+    pub(crate) fn canvas_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::canvas::CanvasReadApplicationPort {
+        self.canvas_read_application.as_ref()
+    }
+
+    pub(crate) fn canvas_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::canvas::CanvasMutationApplicationPort {
+        self.canvas_mutation_application.as_ref()
+    }
+
+    pub(crate) fn canvas_render_text_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasRenderTextNodeApplicationPort {
+        self.canvas_render_text_application.as_ref()
+    }
+
+    pub(crate) fn canvas_llm_text_application(
+        &self,
+    ) -> &dyn a4n_canvas_host_contract::CanvasLlmTextNodeApplicationPort {
+        self.canvas_llm_text_application.as_ref()
+    }
+
+    pub(crate) fn canvas_image_application(
+        &self,
+    ) -> &dyn a4n_canvas_host_contract::CanvasImageNodeApplicationPort {
+        self.canvas_image_application.as_ref()
+    }
+
+    pub(crate) fn canvas_video_application(
+        &self,
+    ) -> &dyn a4n_canvas_host_contract::CanvasVideoNodeApplicationPort {
+        self.canvas_video_application.as_ref()
+    }
+
+    pub(crate) fn canvas_preview_application(
+        &self,
+    ) -> &dyn a4n_canvas_host_contract::CanvasPreviewApplicationPort {
+        self.canvas_preview_application.as_ref()
+    }
+
+    pub(crate) fn canvas_editing_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasEditingNodeApplicationPort {
+        self.canvas_editing_application.as_ref()
+    }
+
+    pub(crate) fn canvas_probe_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasProbeNodeApplicationPort {
+        self.canvas_probe_application.as_ref()
+    }
+
+    pub(crate) fn canvas_output_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasOutputNodeApplicationPort {
+        self.canvas_output_application.as_ref()
+    }
+
+    pub(crate) fn canvas_image_import_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasImageImportApplicationPort {
+        self.canvas_image_import_application.as_ref()
+    }
+
+    pub(crate) fn canvas_video_import_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasVideoImportApplicationPort {
+        self.canvas_video_import_application.as_ref()
+    }
+
+    pub(crate) fn canvas_audio_import_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasAudioImportApplicationPort {
+        self.canvas_audio_import_application.as_ref()
+    }
+
+    pub(crate) fn canvas_graph_preparation_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasGraphPreparationApplicationPort {
+        self.canvas_graph_preparation_application.as_ref()
+    }
+
+    pub(crate) fn canvas_graph_execution_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasGraphExecutionApplicationPort {
+        self.canvas_graph_execution_application.as_ref()
+    }
+
+    pub(crate) fn canvas_graph_failure_application(
+        &self,
+    ) -> &dyn a4n_canvas_contract::CanvasGraphFailureApplicationPort {
+        self.canvas_graph_failure_application.as_ref()
+    }
 }
