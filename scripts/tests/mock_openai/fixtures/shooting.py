@@ -6,9 +6,9 @@ import json
 import re
 from typing import Any
 
-from mock_openai_fixture_entities import source_span_id, source_span_pairs
-from mock_openai_fixture_reverse import embedded_json_objects
-from mock_openai_prompt_parsing import json_task_payload
+from mock_openai.fixtures.entities import source_span_id, source_span_pairs
+from mock_openai.fixtures.reverse import embedded_json_objects
+from mock_openai.prompt_parsing import json_task_payload
 def shooting_span_ids(combined: str) -> list[str]:
     ids = [span_id for span_id, _ in source_span_pairs(combined)]
     ids = list(dict.fromkeys(ids))

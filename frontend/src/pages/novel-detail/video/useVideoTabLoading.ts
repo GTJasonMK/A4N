@@ -13,17 +13,15 @@ import {
   loadVideoSegmentPlanDraft,
   loadVideoTabData,
 } from "./loadVideoTabData";
-import {
-  completedSegmentPlanPreviewItems,
-  hasPendingProviderJob,
-  isSegmentPlanDraftCheckpointKey,
-} from "./videoTabUtils";
+import { completedSegmentPlanPreviewItems } from "./videoSegmentPlan";
+import { hasPendingProviderJob } from "./videoOptionUtils";
+import { isSegmentPlanDraftCheckpointKey } from "./videoFramePromptUtils";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import {
   runVideoPromptGenerationTask,
 } from "./useVideoPromptGenerationActions";
 import { textInputValue } from "../../../utils/text";
-import { DEFAULT_DRAFT } from "./videoTabUtils";
+import { DEFAULT_DRAFT } from "./videoTabConstants";
 import type { MessageTranslator } from "../../../i18n";
 import type { VideoTabState } from "./useVideoTabState";
 
@@ -453,4 +451,3 @@ export function useVideoTabLoading({
 
   return { loadAll, refreshPrompts, refreshSegmentPlanDraft };
 }
-

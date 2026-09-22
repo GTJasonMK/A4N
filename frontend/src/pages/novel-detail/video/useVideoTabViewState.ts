@@ -21,25 +21,25 @@ import type {
   ReferenceMediaDraft,
 } from "./referenceMediaWorkspace";
 import { referenceMediaRecipeFromDraft } from "./referenceMediaWorkspace";
+import { CHAT_VIDEO_DURATION_LIMITS, videoTailFrameSourceVideoId } from "./videoImageUtils";
 import {
-  CHAT_VIDEO_DURATION_LIMITS,
   DEFAULT_DRAFT,
   VIDEO_FINAL_PROMPT_TYPE,
   VIDEO_FIRST_FRAME_PROMPT_TYPE,
   VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_STORYBOARD_PROMPT_TYPE,
+  videoGuidanceConfigurationError,
+} from "./videoTabConstants";
+import {
   videoExecutionSegmentIdentityMatchesPrompt,
   videoExecutionSegmentIdentityMatchesVideo,
   videoExecutionSegmentIdentityIndex,
   videoExecutionIdentityOfPrompt,
   videoExecutionSegmentNumberInPlanByLineage,
-  videoGuidanceConfigurationError,
-  videoTailFrameSourceVideoId,
-  finalVideoExecutionIdentityIsComplete,
-  latestVideoFrameImageForPrompt,
-  videoOptionsValidationError,
-  videoSegmentRecipeGenerationFingerprintJson,
-} from "./videoTabUtils";
+} from "./videoExecutionIdentity";
+import { finalVideoExecutionIdentityIsComplete, videoSegmentRecipeGenerationFingerprintJson } from "./videoSegmentPlan";
+import { latestVideoFrameImageForPrompt } from "./videoFramePromptUtils";
+import { videoOptionsValidationError } from "./videoOptionUtils";
 
 type DerivedVideoTabState = ReturnType<typeof useVideoTabDerivedState>;
 export interface VideoTabViewStateOptions

@@ -36,15 +36,17 @@ import {
   promptByteCount,
   promptCharCount,
   staleVideoPromptMessage,
+} from "./videoOptionUtils";
+import {
   videoGuidanceConfigurationError,
-  videoPromptSourceFrameNumbers,
   VIDEO_FINAL_PROMPT_TYPE,
   videoWorkflowModeLabel,
   type PromptDraft,
   type VideoDurationLimits,
-  type VideoSegmentCardPlan,
-  type VideoFrameImageIndexes,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
+import { videoPromptSourceFrameNumbers } from "./videoFramePromptUtils";
+import { type VideoSegmentCardPlan } from "./videoSegmentPlan";
+import { type VideoFrameImageIndexes } from "./videoImageUtils";
 import { directorSections } from "./videoGenerationDisplay";
 
 const MEDIA_SLOT_GRID_CLASS =

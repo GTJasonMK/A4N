@@ -36,13 +36,13 @@ if ! rg -n 'pub trait GalgameReadApplicationPort' crates/host/a4n-api-contract/s
 fi
 
 if ! rg -n 'galgame_asset_plan_application\(\)' \
-    crates/host/a4n-runtime/src/actions/galgame_records/asset_generation/execution.rs; then
+    crates/host/a4n-runtime/src/actions/galgame_records/asset_generation/mod.rs; then
     printf 'Runtime Galgame asset planning must route through GalgameAssetPlanApplicationPort\n' >&2
     exit 1
 fi
 
 if ! rg -n 'galgame_asset_generation_application\(\)' \
-    crates/host/a4n-runtime/src/actions/galgame_records/asset_generation/execution.rs; then
+    crates/host/a4n-runtime/src/actions/galgame_records/asset_generation/mod.rs; then
     printf 'Runtime Galgame asset execution must route through GalgameAssetGenerationApplicationPort\n' >&2
     exit 1
 fi
@@ -294,7 +294,7 @@ if ! rg -n 'pub struct GeneratePageImageInput' \
 fi
 
 if rg -n 'GeneratePageImageInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image_generation.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     || rg -n 'a4n_orchestrator::media::GeneratePageImageInput' crates/host/a4n-runtime/src; then
     printf 'Page image input must be consumed from the API contract\n' >&2
     exit 1
@@ -307,7 +307,7 @@ if ! rg -n 'pub struct GenerateBatchImagesInput' \
 fi
 
 if rg -n 'GenerateBatchImagesInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image_generation.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     || rg -n 'a4n_orchestrator::media::GenerateBatchImagesInput' crates/host/a4n-runtime/src; then
     printf 'Batch image input must be consumed from the API contract\n' >&2
     exit 1
@@ -320,7 +320,7 @@ if ! rg -n 'pub struct GenerateSceneImageInput' \
 fi
 
 if rg -n 'GenerateSceneImageInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image_generation.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     || rg -n 'a4n_orchestrator::media::GenerateSceneImageInput' crates/host/a4n-runtime/src; then
     printf 'Scene image input must be consumed from the API contract\n' >&2
     exit 1
@@ -333,7 +333,7 @@ if ! rg -n 'pub struct GenerateGalgameImageInput' \
 fi
 
 if rg -n 'GenerateGalgameImageInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image_generation.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     || rg -n 'a4n_orchestrator::media::GenerateGalgameImageInput' crates/host/a4n-runtime/src; then
     printf 'Galgame image input must be consumed from the API contract\n' >&2
     exit 1
@@ -441,12 +441,12 @@ fi
 if ! rg -n 'pub trait OutlinePartGenerationPreviewApplicationPort' \
     crates/planning/a4n-outline-contract/src/lib.rs || \
    ! rg -n 'outline_part_generation_preview_application\(\)' \
-    crates/host/a4n-runtime/src/actions/outline_records/parts/generation/preview.rs; then
+    crates/host/a4n-runtime/src/actions/outline_records/parts/generation.rs; then
     printf 'Part outline generation previews must route through OutlinePartGenerationPreviewApplicationPort\n' >&2
     exit 1
 fi
 if rg -U -n 'outline_preview_application\(\)\s*\.\s*preview_(generate|regenerate)_parts' \
-    crates/host/a4n-runtime/src/actions/outline_records/parts/generation/preview.rs; then
+    crates/host/a4n-runtime/src/actions/outline_records/parts/generation.rs; then
     printf 'Part outline generation previews must not use the mixed outline preview port\n' >&2
     exit 1
 fi

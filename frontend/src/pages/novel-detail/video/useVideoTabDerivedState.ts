@@ -19,26 +19,22 @@ import {
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
 import type { MessageTranslator } from "../../../i18n";
+import { currentFinalVideoPromptMatchesSegment } from "./videoSegmentPlan";
+import { extractSourceContentHash, trimmedText } from "./videoTabShared";
+import { isSelectableReferenceImage, videoDurationLimitsFromConfig } from "./videoOptionUtils";
 import {
-  currentFinalVideoPromptMatchesSegment,
-  extractSourceContentHash,
-  isSelectableReferenceImage,
   isVideoFramePromptImageGenerationSource,
   promptHasVideoWorkflowContract,
   promptOutputLanguageOfPrompt,
   promptSourcePromptType,
   readSavedReferenceImageIds,
-  trimmedText,
-  type VideoDurationLimits,
   videoImageGenerationPromptId,
   videoImageGenerationSource,
   videoTailFrameSourceVideoId,
-  videoDurationLimitsFromConfig,
   videoWorkflowModeOfPrompt,
-  videoExecutionSegmentIdentityMatchesPrompt,
-  videoExecutionSegmentIdentityMatchesVideo,
-  videoExecutionSegmentIdentityIndex,
-  videoWorkflowModeOfVideo,
+} from "./videoImageUtils";
+import {
+  type VideoDurationLimits,
   VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION,
   VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION,
   VIDEO_FIRST_FRAME_PROMPT_TYPE,
@@ -46,7 +42,13 @@ import {
   VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
   VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION,
   VIDEO_STORYBOARD_PROMPT_TYPE,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
+import {
+  videoExecutionSegmentIdentityMatchesPrompt,
+  videoExecutionSegmentIdentityMatchesVideo,
+  videoExecutionSegmentIdentityIndex,
+} from "./videoExecutionIdentity";
+import { videoWorkflowModeOfVideo } from "./videoAssemblyUtils";
 
 interface UseVideoTabDerivedStateParams {
   prompts: ChapterVideoPrompt[];

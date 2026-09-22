@@ -43,24 +43,28 @@ import type { ChapterRow } from "../shared";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
 import type { MessageTranslator } from "../../../i18n";
 import { promptTitle } from "./videoGenerationDisplay";
+import { extractSourceContentHash } from "./videoTabShared";
 import {
-  extractSourceContentHash,
   hasPendingProviderJob,
   isDurationAllowed,
-  isVideoFramePromptImageGenerationSource,
-  isVideoFramePromptType,
-  readSavedReferenceImageIds,
   staleVideoPromptMessage,
-  videoExecutionPromptsShareGenerationChain,
+} from "./videoOptionUtils";
+import {
+  isVideoFramePromptImageGenerationSource,
+  readSavedReferenceImageIds,
   videoImageGenerationPromptId,
   videoImageGenerationSource,
   videoPromptSupportsProviderGeneration,
-  videoProviderRequestPreviewBlockedReason,
+} from "./videoImageUtils";
+import {
+  isVideoFramePromptType,
   VIDEO_FINAL_PROMPT_TYPE,
   VIDEO_FRAME_SEGMENT_PLAN_PROMPT_TYPE,
   type PromptDraft,
   type VideoDurationLimits,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
+import { videoExecutionPromptsShareGenerationChain } from "./videoExecutionIdentity";
+import { videoProviderRequestPreviewBlockedReason } from "./videoAssemblyUtils";
 
 type AddToast = (message: string, type: ToastType) => void;
 

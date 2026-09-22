@@ -10,7 +10,7 @@ import type {
   ClientRagIngestPrepareOutput,
   RagIngestResult,
   UploadedRagEmbedding,
-} from "./types";
+} from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 import { formatNumber, type Locale, type MessageTranslator } from "../../i18n";
 

@@ -7,7 +7,7 @@ keeps the historical import surface and executable path stable.
 
 from __future__ import annotations
 
-from mock_openai_fixture_adaptations import (
+from mock_openai.fixtures.adaptations import (
     galgame_branch_design_response,
     galgame_character_staging_response,
     galgame_script_adaptation_response,
@@ -27,7 +27,7 @@ from mock_openai_fixture_adaptations import (
     manga_synthesis_response,
     manga_visual_anchor_response,
 )
-from mock_openai_fixture_entities import (
+from mock_openai.fixtures.entities import (
     character_discovery_response,
     character_sync_attribute_changes_response,
     character_sync_behaviors_response,
@@ -52,8 +52,8 @@ from mock_openai_fixture_entities import (
     source_span_pairs,
     text_anchor_id,
 )
-from mock_openai_fixture_media import chapter_visual_plan_fixture
-from mock_openai_fixture_reverse import (
+from mock_openai.fixtures.media import chapter_visual_plan_fixture
+from mock_openai.fixtures.reverse import (
     agent_chat_fixture,
     cache_fixture_usage,
     embedding_for,
@@ -63,7 +63,7 @@ from mock_openai_fixture_reverse import (
     reverse_outline_response,
     reverse_part_outline_response,
 )
-from mock_openai_fixture_shooting import (
+from mock_openai.fixtures.shooting import (
     chat_video_prompt_response,
     shooting_adaptation_response,
     shooting_design_input,
@@ -76,7 +76,7 @@ from mock_openai_fixture_shooting import (
     video_static_frame_response,
     video_storyboard_frame_response,
 )
-from mock_openai_fixture_story import (
+from mock_openai.fixtures.story import (
     blueprint_response,
     chapter_body_response,
     chapter_outline_response,
@@ -84,15 +84,15 @@ from mock_openai_fixture_story import (
     inspiration_response,
     part_outline_response,
 )
-from mock_openai_prompt_parsing import current_task_prompt_name, json_task_payload
-from mock_openai_provider_protocol import (
+from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
+from mock_openai.protocol import (
     MP4_1S_BASE64,
     PNG_1X1_BASE64,
     UnhandledPromptError,
     VideoIdempotencyConflict,
 )
-from mock_openai_provider_response import response_for
-from mock_openai_provider_transport import ProviderHandler, ProviderServer, main
+from mock_openai.response import response_for
+from mock_openai.transport import ProviderHandler, ProviderServer, main
 
 
 if __name__ == "__main__":

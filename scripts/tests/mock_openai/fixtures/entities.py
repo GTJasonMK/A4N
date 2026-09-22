@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from mock_openai_fixture_reverse import embedded_json_objects
+from mock_openai.fixtures.reverse import embedded_json_objects
 
 def source_span_pairs(combined: str) -> list[tuple[str, str]]:
     return list(
@@ -686,4 +686,3 @@ def optimization_chat_response(combined: str) -> dict[str, Any]:
             "new_text": original + "她握紧信封，停下脚步。", "reason": "以可见动作承接原文。",
         }]},
     }}
-

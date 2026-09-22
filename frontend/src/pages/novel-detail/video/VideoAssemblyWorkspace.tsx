@@ -47,12 +47,8 @@ import {
   videoPlaybackDataToObjectUrl,
 } from "../../../utils/videoPlayback";
 import { EmptyHint, type ChapterRow } from "../shared";
-import {
-  assemblyPushSourceIds,
-  assemblyPushStatus,
-  formatVideoDuration,
-  formatVideoCreatedAt,
-} from "./videoTabUtils";
+import { assemblyPushSourceIds, assemblyPushStatus } from "./videoAssemblyUtils";
+import { formatVideoDuration, formatVideoCreatedAt } from "./videoImageUtils";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 

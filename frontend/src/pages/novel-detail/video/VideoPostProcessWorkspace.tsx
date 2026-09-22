@@ -33,10 +33,9 @@ import {
   assemblyPushIndex,
   assemblyPushSourceIds,
   assemblyPushStatus,
-  formatVideoDuration,
-  formatVideoCreatedAt,
   latestNonRejectedAssemblyPush,
-} from "./videoTabUtils";
+} from "./videoAssemblyUtils";
+import { formatVideoDuration, formatVideoCreatedAt } from "./videoImageUtils";
 
 import { VideoPostProcessTimeline } from "./VideoPostProcessTimeline";
 interface VideoPostProcessWorkspaceProps {

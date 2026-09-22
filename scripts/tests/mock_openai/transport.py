@@ -14,19 +14,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from mock_openai_fixture_reverse import (
+from mock_openai.fixtures.reverse import (
     agent_chat_fixture,
     cache_fixture_usage,
     embedding_for,
     message_text,
 )
-from mock_openai_provider_protocol import (
+from mock_openai.protocol import (
     MP4_1S_BASE64,
     PNG_1X1_BASE64,
     UnhandledPromptError,
     VideoIdempotencyConflict,
 )
-from mock_openai_provider_response import response_for
+from mock_openai.response import response_for
 class ProviderHandler(BaseHTTPRequestHandler):
     server: "ProviderServer"
 

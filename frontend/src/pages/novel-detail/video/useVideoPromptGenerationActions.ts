@@ -41,29 +41,37 @@ import {
   buildVideoFrameImageTraceMetadata,
   buildVideoFrameImageRequest,
   boundaryFramePromptChainTo,
-  completedSegmentPlanPreviewItems,
-  durationOptionsAllowed,
   frameImageReferencesForPrompt,
   isBoundaryFramePrompt,
   isSegmentPlanDraftCheckpointKey,
-  isDurationAllowed,
   latestVideoFrameImageForPrompt,
-  promptHasVideoWorkflowContract,
+  referenceLabelOrderError,
+  shiftReferenceLabels,
+} from "./videoFramePromptUtils";
+import { completedSegmentPlanPreviewItems } from "./videoSegmentPlan";
+import {
+  durationOptionsAllowed,
+  isDurationAllowed,
   promptLengthError,
+} from "./videoOptionUtils";
+import {
+  promptHasVideoWorkflowContract,
   promptOutputLanguageOfPrompt,
   promptSourcePromptType,
   readSavedReferenceImageIds,
-  referenceLabelOrderError,
-  shiftReferenceLabels,
+  videoWorkflowModeOfPrompt,
+  CHAT_VIDEO_DURATION_LIMITS,
+} from "./videoImageUtils";
+import {
   videoExecutionIdentityOfPrompt,
   videoExecutionSegmentNumberInPlan,
   videoExecutionSegmentNumberInPlanByLineage,
-  videoWorkflowModeOfPrompt,
   videoExecutionIdentityMatches,
+} from "./videoExecutionIdentity";
+import {
   videoFrameImageContractForPromptType,
   type VideoDurationLimits,
   type VideoGenOptions,
-  CHAT_VIDEO_DURATION_LIMITS,
   VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION,
   VIDEO_FIRST_FRAME_PROMPT_TYPE,
   VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION,
@@ -72,7 +80,7 @@ import {
   VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_STORYBOARD_PROMPT_TYPE,
   VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
 import { formatNumber, type Locale, type MessageTranslator } from "../../../i18n";
 

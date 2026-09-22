@@ -6,9 +6,9 @@ import json
 import re
 from typing import Any
 
-from mock_openai_fixture_entities import source_span_id
-from mock_openai_fixture_reverse import embedded_json_objects
-from mock_openai_prompt_parsing import json_task_payload
+from mock_openai.fixtures.entities import source_span_id
+from mock_openai.fixtures.reverse import embedded_json_objects
+from mock_openai.prompt_parsing import json_task_payload
 def galgame_beat_ref(scene: dict[str, Any]) -> dict[str, int]:
     beat = scene["beats"][0]
     return {

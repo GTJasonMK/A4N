@@ -3,10 +3,8 @@ import type { ChapterRow } from "../shared";
 import type { ChapterVideoPrompt, VideoSegmentExecutionRecipe } from "../../../api/video";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
 import { translateMessage, type MessageTranslator } from "../../../i18n";
-import {
-  DEFAULT_VIDEO_OPTIONS,
-  videoDurationLimitsFromConfig,
-} from "./videoTabUtils";
+import { DEFAULT_VIDEO_OPTIONS } from "./videoTabConstants";
+import { videoDurationLimitsFromConfig } from "./videoOptionUtils";
 
 const mocks = vi.hoisted(() => ({
   startChapterVideoFramePrompts: vi.fn(),

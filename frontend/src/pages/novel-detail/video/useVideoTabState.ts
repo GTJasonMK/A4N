@@ -32,21 +32,25 @@ import {
 import {
   DEFAULT_DRAFT,
   DEFAULT_VIDEO_OPTIONS,
+  type PromptDraft,
+  type VideoGenOptions,
+} from "./videoTabConstants";
+import {
   latestVideoSegmentPlanPrompt,
-  parseNullableNumber,
-  parseVideoOptions,
   readVideoSegmentRecipes,
-  serializeNullableNumber,
-  serializeVideoOptions,
   videoOptionsFromSegmentRecipe,
   videoSegmentCardsFromPlanPrompt,
   videoSegmentCardsFromSegments,
   videoSegmentRecipeFrameFingerprintJson,
   videoSegmentRecipeGenerationFingerprintJson,
-  type PromptDraft,
-  type VideoGenOptions,
   type VideoSegmentCardPlan,
-} from "./videoTabUtils";
+} from "./videoSegmentPlan";
+import {
+  parseNullableNumber,
+  parseVideoOptions,
+  serializeNullableNumber,
+  serializeVideoOptions,
+} from "./videoOptionUtils";
 import {
   loadedSegmentPlanDraftIsActive,
   type LoadedSegmentPlanDraft,

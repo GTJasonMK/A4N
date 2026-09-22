@@ -17,7 +17,7 @@ import {
   type VideoDurationLimits,
   type VideoAspectRatio,
   type VideoGenOptions,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
 
 interface VideoPlanningWorkspaceProps {

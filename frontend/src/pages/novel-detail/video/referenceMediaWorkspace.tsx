@@ -19,16 +19,17 @@ import type { ChapterRow } from "../shared";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
 import {
   durationLimitsLabel,
-  isChapterVideoMaterialImage,
   isDurationAllowed,
-  isProjectReusableVideoMaterialImage,
+  referenceImageScopeLabel,
+} from "./videoOptionUtils";
+import { isChapterVideoMaterialImage, isProjectReusableVideoMaterialImage } from "./videoImageUtils";
+import {
   MAX_CHAT_REFERENCE_IMAGES,
   MAX_REFERENCE_IMAGES,
   MAX_VIDEO_LIBRARY_IMAGES,
-  referenceImageScopeLabel,
   type VideoAspectRatio,
   type VideoDurationLimits,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
 
 const REFERENCE_MEDIA_PROMPT_MIN_CHARS = 100;
 const REFERENCE_MEDIA_LIMITS = {

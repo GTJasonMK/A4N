@@ -39,9 +39,9 @@ if ! rg -n 'character_discovery_application\(\)' \
     crates/host/a4n-runtime/src/actions/character_ai/character_discovery_flow/request.rs \
     crates/host/a4n-runtime/src/actions/character_ai/character_discovery_flow/execution.rs || \
    ! rg -n 'character_profile_sync_application\(\)' \
-    crates/host/a4n-runtime/src/actions/character_ai/sync_profile/preview.rs \
-    crates/host/a4n-runtime/src/actions/character_ai/sync_profile/execution.rs \
-    crates/host/a4n-runtime/src/actions/character_ai/sync_batch.rs; then
+    crates/host/a4n-runtime/src/actions/character_ai/sync/profile/preview.rs \
+    crates/host/a4n-runtime/src/actions/character_ai/sync/profile/execution.rs \
+    crates/host/a4n-runtime/src/actions/character_ai/sync/batch.rs; then
     printf 'Character workers must route through worker-specific ports\n' >&2
     exit 1
 fi
@@ -84,7 +84,7 @@ fi
 
 if ! rg -n 'a4n_api_contract::image::GeneratedImageSummary|image::GeneratedImageSummary' \
     crates/host/a4n-orchestrator/src/media/image_generation \
-    crates/host/a4n-orchestrator/src/media/image_record_lifecycle.rs \
+    crates/host/a4n-orchestrator/src/media/image/records.rs \
     crates/host/a4n-runtime/src/actions/image_records \
     crates/host/a4n-runtime/src/actions/video_records/imports/canvas/frame.rs; then
     printf 'GeneratedImageSummary consumers must use the image API contract directly\n' >&2

@@ -17,30 +17,39 @@ import {
   assemblyPushIndex,
   assemblyPushSourceIds,
   assemblyPushStatus,
+  latestNonRejectedAssemblyPush,
+} from "./videoAssemblyUtils";
+import {
   completedSegmentPlanPreviewItems,
   currentFinalVideoPromptMatchesSegment,
-  guidanceModeForWorkflowChange,
-  indexVideoFrameImages,
-  isVideoFramePromptType,
-  isSegmentPlanDraftCheckpointKey,
   latestVideoSegmentPlanPrompt,
-  latestVideoFrameImageForPrompt,
-  latestNonRejectedAssemblyPush,
-  parseVideoOptions,
   readVideoSegmentRecipes,
-  serializeVideoOptions,
   videoSegmentCardsFromPlanPrompt,
   videoSegmentCardsFromSegments,
+  videoSegmentRecipeGenerationFingerprintJson,
+} from "./videoSegmentPlan";
+import {
+  guidanceModeForWorkflowChange,
+  isVideoFramePromptType,
+  videoGuidanceConfigurationError,
+  videoAspectRatiosForImageSizes,
+} from "./videoTabConstants";
+import { indexVideoFrameImages, formatVideoDuration } from "./videoImageUtils";
+import {
+  isSegmentPlanDraftCheckpointKey,
+  latestVideoFrameImageForPrompt,
+  videoPromptSourceFrameNumbers,
+} from "./videoFramePromptUtils";
+import {
+  parseVideoOptions,
+  serializeVideoOptions,
+  videoDurationLimitsFromConfig,
+} from "./videoOptionUtils";
+import {
   videoExecutionPromptsShareGenerationChain,
   videoExecutionSegmentIdentityIndex,
   videoExecutionSegmentIdentityMatchesVideo,
-  videoGuidanceConfigurationError,
-  videoPromptSourceFrameNumbers,
-  videoAspectRatiosForImageSizes,
-  videoDurationLimitsFromConfig,
-  videoSegmentRecipeGenerationFingerprintJson,
-  formatVideoDuration,
-} from "./videoTabUtils";
+} from "./videoExecutionIdentity";
 import { translateMessage, type MessageTranslator } from "../../../i18n";
 
 const t: MessageTranslator = (key, params) =>

@@ -7,7 +7,7 @@ import json
 import re
 from typing import Any
 
-from mock_openai_fixture_story import blueprint_response
+from mock_openai.fixtures.story import blueprint_response
 
 def embedding_for(text: str, dimension: int) -> list[float]:
     digest = hashlib.sha256(text.encode("utf-8")).digest()

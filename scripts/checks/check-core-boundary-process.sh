@@ -170,7 +170,7 @@ fi
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext|actions::config_records::shared::require_config_admin' \
     crates/host/a4n-runtime/src/actions/config_records/llm/records \
     crates/host/a4n-runtime/src/actions/config_records/image/records.rs \
-    crates/host/a4n-runtime/src/actions/config_records/video/records.rs \
+    crates/host/a4n-runtime/src/actions/config_records/video.rs \
     crates/host/a4n-runtime/src/actions/config_records/embedding/records.rs \
     crates/host/a4n-runtime/src/actions/config_records/discovery.rs; then
     printf 'Runtime config CRUD actions must consume split configuration ports instead of the concrete orchestrator or duplicate authorization\n' >&2
@@ -194,7 +194,7 @@ fi
 if ! rg -n 'config_(read|mutation)_application\(\)' \
     crates/host/a4n-runtime/src/actions/config_records/llm/records \
     crates/host/a4n-runtime/src/actions/config_records/image/records.rs \
-    crates/host/a4n-runtime/src/actions/config_records/video/records.rs \
+    crates/host/a4n-runtime/src/actions/config_records/video.rs \
     crates/host/a4n-runtime/src/actions/config_records/embedding/records.rs \
     crates/host/a4n-runtime/src/actions/config_records/discovery.rs; then
     printf 'Runtime config CRUD actions must route through split configuration ports\n' >&2

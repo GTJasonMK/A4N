@@ -6,10 +6,8 @@ import {
   selectVideoPlanningUnitIndex,
   VideoPlanningWorkspace,
 } from "./VideoPlanningWorkspace";
-import {
-  DEFAULT_VIDEO_OPTIONS,
-  videoDurationLimitsFromConfig,
-} from "./videoTabUtils";
+import { DEFAULT_VIDEO_OPTIONS } from "./videoTabConstants";
+import { videoDurationLimitsFromConfig } from "./videoOptionUtils";
 import { I18nProvider } from "../../../i18n";
 
 const durationLimits = videoDurationLimitsFromConfig(null);

@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import type { ImportReviewSummary } from "./types";
+import type { ImportReviewSummary } from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function listImportQueue(projectId: Id): Promise<ImportReviewSummary[]> {

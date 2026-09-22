@@ -68,7 +68,7 @@ if rg -n 'state\.application\(\)\.(search_tools|describe_tool)' \
     exit 1
 fi
 if ! rg -n 'search_tools_for_worker|describe_tool_for_worker' \
-    crates/agent/a4n-agent-application/src/agent/worker_read.rs \
+    crates/agent/a4n-agent-application/src/agent/worker/ports.rs \
     crates/agent/a4n-agent-runtime/src/engine; then
     printf 'Agent worker tool discovery read port is missing\n' >&2
     exit 1
@@ -79,7 +79,7 @@ if rg -U -n 'ensure_argument_resource_scope\(\s*self\.state\.application\(\)' \
     exit 1
 fi
 if ! rg -n 'verify_chapters_in_project_for_worker' \
-    crates/agent/a4n-agent-application/src/agent/worker_read.rs \
+    crates/agent/a4n-agent-application/src/agent/worker/ports.rs \
     crates/agent/a4n-agent-runtime/src/engine; then
     printf 'Agent worker resource scope read port is missing\n' >&2
     exit 1
@@ -90,7 +90,7 @@ if rg -U -n 'state\.application\(\)\s*\.\s*show_run' \
     exit 1
 fi
 if ! rg -n 'run_is_terminal' \
-    crates/agent/a4n-agent-application/src/agent/worker_completion.rs \
+    crates/agent/a4n-agent-application/src/agent/worker/completion.rs \
     crates/agent/a4n-agent-runtime/src/engine; then
     printf 'Agent worker terminal status completion port is missing\n' >&2
     exit 1
@@ -101,7 +101,7 @@ if rg -n 'state\.application\(\)\.review_delegation' \
     exit 1
 fi
 if ! rg -n 'review_delegation' \
-    crates/agent/a4n-agent-application/src/agent/worker_delegation.rs \
+    crates/agent/a4n-agent-application/src/agent/worker/ports.rs \
     crates/agent/a4n-agent-runtime/src/engine; then
     printf 'Agent worker delegation review port is missing\n' >&2
     exit 1

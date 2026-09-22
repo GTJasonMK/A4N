@@ -25,7 +25,7 @@ import type { ChapterRow } from "../shared";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
 import { generationClient } from "../../../api/generationTasks";
 import { asJsonRecord } from "../../../utils/jsonRecord";
-import { VIDEO_ASPECT_RATIOS } from "./videoTabUtils";
+import { VIDEO_ASPECT_RATIOS } from "./videoTabConstants";
 import type { MessageTranslator } from "../../../i18n";
 
 export interface LoadedSegmentPlanDraft {
