@@ -120,49 +120,40 @@ def fingerprint_path?(path)
   FINGERPRINT_PATHS.any? { |pattern| pattern.match?(path) } && !ignored_deploy_path?(path)
 end
 
-def changed_paths(root)
-  tracked = run_git(root, "diff", "--name-only", "HEAD", "--")
-  untracked = run_git(root, "ls-files", "--others", "--exclude-standard")
-  (tracked.lines + untracked.lines).map { |line| normalize_path(line.strip) }
-    .reject(&:empty?)
-    .uniq
-end
-
 def file_digest(path)
   Digest::SHA256.file(path).hexdigest
 end
 
-def worktree_fingerprint(root)
-  paths = run_git(root, "ls-files", "-co", "--exclude-standard")
-    .lines.map { |line| normalize_path(line.strip) }
-    .select { |path| fingerprint_path?(path) }
+def source_files(root)
+  run_git(root, "ls-files", "-co", "--exclude-standard", "-z")
+    .split("\0")
+    .reject { |path| ignored_deploy_path?(path) }
     .select { |path| File.file?(root.join(path)) }
     .uniq.sort
-  digest = Digest::SHA256.new
-  paths.each do |path|
-    digest.update(path)
-    digest.update("\0")
-    digest.update(file_digest(root.join(path)))
-    digest.update("\n")
-  end
-  digest.hexdigest
+    .to_h { |path| [path, file_digest(root.join(path))] }
 end
 
-def package_fingerprint(root, package_root)
-  paths = Dir.glob(package_root.join("**", "*").to_s, File::FNM_DOTMATCH)
-    .select { |path| File.file?(path) }
-    .map { |path| normalize_path(Pathname(path).relative_path_from(root).to_s) }
-    .select { |path| fingerprint_path?(path) }
-    .sort
+def deployed_source_files(state)
+  return nil unless state.key?("source_files")
+
+  files = state["source_files"]
+  valid = files.is_a?(Hash) && files.all? do |path, digest|
+    path.is_a?(String) && !path.empty? && !path.include?("\0") &&
+      !path.split("/", -1).any? { |part| ["", ".", ".."].include?(part) } &&
+      digest.is_a?(String) && digest.match?(/\A[0-9a-f]{64}\z/)
+  end
+  fail_with("invalid source snapshot in deployment state") unless valid
+  files
+end
+
+def fingerprint(files)
   digest = Digest::SHA256.new
-  paths.each do |path|
+  files.sort.each do |path, hash|
     digest.update(path)
     digest.update("\0")
-    digest.update(file_digest(root.join(path)))
+    digest.update(hash)
     digest.update("\n")
   end
-  digest.update("Cargo.lock\0") if root.join("Cargo.lock").file?
-  digest.update(file_digest(root.join("Cargo.lock"))) if root.join("Cargo.lock").file?
   digest.hexdigest
 end
 
@@ -246,10 +237,14 @@ def artifact_inventory(root)
   [artifacts, roles]
 end
 
-def package_fingerprints(root, package_roots, package_names)
+def package_fingerprints(root, package_roots, package_names, files)
   package_names.to_h do |name|
     package_root = package_roots[name]
-    [name, package_root ? package_fingerprint(root, package_root) : nil]
+    next [name, nil] unless package_root
+
+    prefix = "#{normalize_path(package_root.relative_path_from(root))}/"
+    inputs = files.select { |path, _hash| path.start_with?(prefix) || path == "Cargo.lock" }
+    [name, fingerprint(inputs)]
   end
 end
 
@@ -260,7 +255,11 @@ def plan(options)
   requested_mode = options.fetch(:mode, "auto")
   fail_with("unsupported mode: #{requested_mode}") unless %w[auto full].include?(requested_mode)
 
-  changed = changed_paths(root)
+  files = source_files(root)
+  deployed_files = deployed_source_files(state)
+  # Git HEAD alone cannot describe a release built from uncommitted input.
+  changed = (files.keys | (deployed_files || {}).keys)
+    .select { |path| files[path] != deployed_files&.[](path) }.sort
   relevant_changed = changed.reject { |path| ignored_deploy_path?(path) }
   unknown = relevant_changed.reject { |path| fingerprint_path?(path) }
   reverse, package_roots = package_graph(root, metadata)
@@ -286,6 +285,8 @@ def plan(options)
     full_reason = "builder image changed"
   elsif state.key?("cargo_offline") && state["cargo_offline"] != (options[:cargo_offline] == "true")
     full_reason = "Cargo offline mode changed"
+  elsif deployed_files.nil?
+    full_reason = "remote deployment source snapshot is missing"
   elsif !unknown.empty?
     full_reason = "unclassified deployment paths: #{unknown.join(", ")}"
   elsif relevant_changed.any? { |path| path == "Cargo.toml" || path == "Cargo.lock" }
@@ -311,7 +312,7 @@ def plan(options)
     payloads << "static" if relevant_changed.any? { |path| path.start_with?("frontend/") }
   end
 
-  component_fingerprints = package_fingerprints(root, package_roots, all_packages)
+  component_fingerprints = package_fingerprints(root, package_roots, all_packages, files)
   components = selected_packages.map do |package|
     {
       "package" => package,
@@ -328,8 +329,9 @@ def plan(options)
     "fallback_reason" => full_reason,
     "branch" => run_git(root, "branch", "--show-current").strip,
     "head_commit" => run_git(root, "rev-parse", "HEAD").strip,
-    "dirty" => !changed.empty?,
-    "worktree_fingerprint" => worktree_fingerprint(root),
+    "dirty" => !run_git(root, "status", "--porcelain", "-z").empty?,
+    "source_files" => files,
+    "worktree_fingerprint" => fingerprint(files.select { |path, _hash| fingerprint_path?(path) }),
     "changed_paths" => changed,
     "changed_packages" => changed_packages,
     "affected_packages" => affected,

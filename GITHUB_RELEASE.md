@@ -35,6 +35,14 @@ git diff --stat
 
 iOS 构建与侧载限制见 [ios/README.md](ios/README.md)。云端部署由 [deploy-cloud.sh](scripts/deploy/deploy-cloud.sh)单独处理，不等同于 GitHub Release 发布。
 
+## 云端更新
+
+配置工作树的 `.deploy.env` 后运行 `./scripts/deploy/deploy-cloud.sh`。自动模式比较上次部署保存的源文件 SHA-256，覆盖已提交、未提交和删除的内容；旧部署记录缺少源文件快照时，首次更新会执行全量构建并建立基线。`--full` 可显式要求全量更新。
+
+云端 Rust 产物位于 `$CARGO_TARGET_DIR/deploy-cloud/target`，容器使用当前用户的 UID/GID，并以只读方式挂载源码。容器 Cargo 元数据位于相邻的 `cargo-home`；离线模式只读复用本机 `${CARGO_HOME:-$HOME/.cargo}` 的 registry/git 缓存。`CARGO_TARGET_DIR` 保持调用者设置，默认是当前工作树的 `target`。
+
+更新脚本后需先完成一次构建，再使用 `--skip-build` 复用新目录中的产物。云服务器仍应配置固定监听地址（默认 `127.0.0.1:8080`），供反向代理与健康检查访问。
+
 ## 正式对外分发
 
 正式发布前，应从同一已验证 commit 构建，核对版本、完整性 manifest、SHA-256、所选服务和平台运行结果；签名与公证必须有该次产物的真实验证证据。平台工具与检查见 `scripts/checks/`，不要用其他版本的历史测试记录代替。

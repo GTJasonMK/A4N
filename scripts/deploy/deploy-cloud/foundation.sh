@@ -57,10 +57,10 @@ required_binary_paths() {
     local spec binary
     for spec in "${TOOL_SPECS[@]}"; do
         binary="${spec#*:}"
-        printf '%s/release/%s\n' "$CARGO_TARGET_DIR" "$binary"
+        printf '%s/release/%s\n' "$BUILD_TARGET_DIR" "$binary"
     done
     for binary in "${SERVICE_BINARIES[@]}"; do
-        printf '%s/release/%s\n' "$CARGO_TARGET_DIR" "$binary"
+        printf '%s/release/%s\n' "$BUILD_TARGET_DIR" "$binary"
     done
 }
 
@@ -184,11 +184,6 @@ finish_deploy_record() {
     fi
     exit "$status"
 }
-
-trap finish_deploy_record EXIT
-trap 'handle_deploy_signal 130' INT
-trap 'handle_deploy_signal 143' TERM
-trap 'handle_deploy_signal 129' HUP
 
 normalize_base_path() {
     local value="$1"

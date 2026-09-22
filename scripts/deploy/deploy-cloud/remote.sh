@@ -1,6 +1,6 @@
 replace_remote_delta() {
     log_section "远端增量替换（不停止 Host）"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" <<'REMOTE'
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" <<'REMOTE' || return $?
 set -euo pipefail
 app="$1"
 package_path="$2"

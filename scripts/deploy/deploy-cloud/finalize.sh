@@ -8,7 +8,7 @@ smoke_test() {
     fi
 
     log_section "公网 Smoke Test"
-    local app_status health temp_media_status asset_path asset_status root_status redirect_status
+    local app_status app_html health temp_media_status asset_path asset_status root_status redirect_status
 
     app_status="$(http_status "$PUBLIC_APP_URL/")"
     [[ "$app_status" == "200" ]] || die "$PUBLIC_APP_URL/ 预期 200，实际 $app_status"
@@ -26,8 +26,10 @@ smoke_test() {
     [[ "$redirect_status" == "301" || "$redirect_status" == "308" || "$redirect_status" == "200" ]] || die "$PUBLIC_APP_URL 预期 301/308/200，实际 $redirect_status"
     log_ok "$PUBLIC_APP_URL -> $redirect_status"
 
-    asset_path="$(grep -m1 -o "$PUBLIC_BASE_PATH/assets/[^\" ]*\\.js" "$FRONTEND_DIST/index.html")" \
-        || die "未从 index.html 找到 JS asset 路径"
+    app_html="$(curl -fsS "$PUBLIC_APP_URL/")"
+    asset_path="$(grep -m1 -o "$PUBLIC_BASE_PATH/assets/[^\" ]*\\.js" <<< "$app_html")" \
+        || die "未从线上 index.html 找到 JS asset 路径"
+    asset_path="${asset_path%%$'\n'*}"
     asset_status="$(http_status "$PUBLIC_ORIGIN$asset_path")"
     [[ "$asset_status" == "200" ]] || die "$PUBLIC_ORIGIN$asset_path 预期 200，实际 $asset_status"
     log_ok "$PUBLIC_ORIGIN$asset_path -> 200"

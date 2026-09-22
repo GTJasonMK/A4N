@@ -50,7 +50,7 @@ ensure_builder_image() {
     if $REBUILD_BUILDER || ! docker image inspect "$BUILDER_IMAGE" >/dev/null 2>&1; then
         log_info "构建 Docker 镜像: $BUILDER_IMAGE"
         write_builder_dockerfile
-        docker build -t "$BUILDER_IMAGE" -f "$CACHE_ROOT/Dockerfile.noble-builder" "$CACHE_ROOT"
+        docker build -t "$BUILDER_IMAGE" - < "$CACHE_ROOT/Dockerfile.noble-builder"
     else
         log_ok "构建镜像已存在: $BUILDER_IMAGE"
     fi
@@ -62,19 +62,21 @@ ensure_builder_image() {
 build_backend() {
     log_section "本地容器构建后端"
     ensure_builder_image
-    mkdir -p "$CARGO_TARGET_DIR" "$CACHE_ROOT"
+    mkdir -p "$BUILD_TARGET_DIR" "$BUILD_CARGO_HOME/registry" "$BUILD_CARGO_HOME/git"
 
     local offline_flag=()
+    local host_cargo_home="${CARGO_HOME:-$HOME/.cargo}"
     local docker_cache_mounts=(
         -v "$A4N_ONNXRUNTIME_ROOT:/opt/a4n-onnxruntime:ro"
+        -v "$BUILD_CARGO_HOME:/cargo-home"
     )
     if [[ "$CARGO_OFFLINE" == "true" ]]; then
-        [[ -d "$HOME/.cargo/registry" ]] || die "离线构建需要 $HOME/.cargo/registry，或使用 --online"
-        [[ -d "$HOME/.cargo/git" ]] || die "离线构建需要 $HOME/.cargo/git，或使用 --online"
+        [[ -d "$host_cargo_home/registry" ]] || die "离线构建需要 $host_cargo_home/registry，或使用 --online"
+        [[ -d "$host_cargo_home/git" ]] || die "离线构建需要 $host_cargo_home/git，或使用 --online"
         offline_flag=(--offline)
         docker_cache_mounts+=(
-            -v "$HOME/.cargo/registry:/usr/local/cargo/registry:ro"
-            -v "$HOME/.cargo/git:/usr/local/cargo/git:ro"
+            -v "$host_cargo_home/registry:/cargo-home/registry:ro"
+            -v "$host_cargo_home/git:/cargo-home/git:ro"
         )
         log_info "cargo 使用离线构建"
     else
@@ -90,7 +92,8 @@ build_backend() {
 
     rm -f -- "$DOCKER_BUILD_CIDFILE"
     docker run --rm -t --cidfile "$DOCKER_BUILD_CIDFILE" \
-        -e CARGO_HOME=/usr/local/cargo \
+        --user "$(id -u):$(id -g)" \
+        -e CARGO_HOME=/cargo-home \
         -e RUSTUP_HOME=/usr/local/rustup \
         -e CARGO_BUILD_JOBS="${A4N_DEPLOY_CARGO_JOBS:-2}" \
         -e CARGO_TERM_PROGRESS_WHEN=always \
@@ -100,8 +103,8 @@ build_backend() {
         -e ORT_PREFER_DYNAMIC_LINK=1 \
         -e LD_LIBRARY_PATH=/opt/a4n-onnxruntime/lib \
         "${docker_cache_mounts[@]}" \
-        -v "$PROJECT_ROOT:/work" \
-        -v "$CARGO_TARGET_DIR:/cargo-target" \
+        -v "$PROJECT_ROOT:/work:ro" \
+        -v "$BUILD_TARGET_DIR:/cargo-target" \
         -w /work \
         "$BUILDER_IMAGE" \
         bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release${cargo_packages} --target-dir /cargo-target --locked ${offline_flag[*]}" &
@@ -181,10 +184,10 @@ prepare_package() {
     local spec binary
     for spec in "${TOOL_SPECS[@]}"; do
         binary="${spec#*:}"
-        cp "$CARGO_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/$binary"
+        cp "$BUILD_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/$binary"
     done
     for binary in "${SERVICE_BINARIES[@]}"; do
-        cp "$CARGO_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/services/$binary"
+        cp "$BUILD_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/services/$binary"
     done
     cp -L "$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so" "$PACKAGE_DIR/bin/services/libonnxruntime.so.1"
     cp -a "$FRONTEND_DIST/." "$PACKAGE_DIR/static/"

@@ -60,10 +60,13 @@ ROOT_EXPECTED_STATUS="${A4N_DEPLOY_ROOT_EXPECTED_STATUS:-404}"
 BUILDER_IMAGE="${A4N_DEPLOY_BUILDER_IMAGE:-a4n-rust-noble:1.95}"
 RUST_BASE_IMAGE="${A4N_DEPLOY_RUST_BASE:-docker.m.daocloud.io/library/rust:1.95-bookworm}"
 UBUNTU_BASE_IMAGE="${A4N_DEPLOY_UBUNTU_BASE:-docker.m.daocloud.io/library/ubuntu:24.04}"
-BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-server"
-CONTROL_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-control"
-AGENT_WORKER_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-agent-worker"
-MIGRATION_BINARY_PATH="$CARGO_TARGET_DIR/release/a4n-migration"
+CACHE_ROOT="$CARGO_TARGET_DIR/deploy-cloud"
+BUILD_TARGET_DIR="$CACHE_ROOT/target"
+BUILD_CARGO_HOME="$CACHE_ROOT/cargo-home"
+BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-server"
+CONTROL_BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-control"
+AGENT_WORKER_BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-agent-worker"
+MIGRATION_BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-migration"
 HOST_PACKAGE="a4n-server"
 TARGET_PLATFORM="linux-x86_64"
 RELEASE_MANIFEST_TOOL="$PROJECT_ROOT/scripts/release_manifest.rb"
@@ -81,7 +84,6 @@ REBUILD_BUILDER=false
 RUN_SMOKE=true
 KEEP_PACKAGE=false
 
-CACHE_ROOT="$CARGO_TARGET_DIR/deploy-cloud"
 PACKAGE_DIR="$CACHE_ROOT/package"
 DELTA_DIR="$CACHE_ROOT/delta-package"
 PACKAGE_PATH="$CACHE_ROOT/a4n-deploy.tar.gz"
@@ -122,6 +124,10 @@ source "$SCRIPT_DIR/deploy-cloud/finalize.sh"
 
 main() {
     acquire_deploy_lock
+    trap finish_deploy_record EXIT
+    trap 'handle_deploy_signal 130' INT
+    trap 'handle_deploy_signal 143' TERM
+    trap 'handle_deploy_signal 129' HUP
     start_deploy_record
     echo -e "${BOLD}${CYAN}A4N 云端一键部署${NC}"
     echo -e "  目标: ${CYAN}$REMOTE${NC}"
@@ -173,4 +179,6 @@ main() {
     echo -e "${GREEN}${BOLD}部署完成: $PUBLIC_APP_URL/${NC}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
