@@ -1,3 +1,4 @@
+pub(super) mod store;
 use super::CharacterDbError;
 use a4n_db_models::models::character::snapshot_reference;
 use sea_orm::{
@@ -8,16 +9,14 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::character) struct CharacterSnapshotReferenceUpsertInput {
+pub(super) struct CharacterSnapshotReferenceUpsertInput {
     pub profile_id: i64,
     pub chapter_number: i32,
     pub snapshot_hash: String,
     pub data: Value,
 }
 
-pub(in crate::character) fn character_snapshot_content_hash(
-    data: &Value,
-) -> Result<String, serde_json::Error> {
+pub(super) fn character_snapshot_content_hash(data: &Value) -> Result<String, serde_json::Error> {
     let json = serde_json::to_string(data)?;
     let mut hasher = Sha256::new();
     hasher.update(json.as_bytes());
@@ -97,7 +96,7 @@ where
         .await
 }
 
-pub(in crate::character) async fn upsert_snapshot_reference<C>(
+pub(super) async fn upsert_snapshot_reference<C>(
     db: &C,
     input: CharacterSnapshotReferenceUpsertInput,
 ) -> Result<snapshot_reference::Model, DbErr>
@@ -138,7 +137,7 @@ where
     .await
 }
 
-pub(in crate::character) async fn snapshot_reference_by_hash<C>(
+pub(super) async fn snapshot_reference_by_hash<C>(
     db: &C,
     content_hash: &str,
 ) -> Result<Option<snapshot_reference::Model>, DbErr>

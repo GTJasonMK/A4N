@@ -200,7 +200,7 @@ pub async fn begin_project_lifecycle_gate(
             let derived_count = crate::project::derived_project_count(&tx, project_id).await?;
             if derived_count > 0 {
                 return Err(GenerationLifecycleGateError::InvalidArgument(
-                    crate::project_delete::ProjectDeleteDbError::DerivedProjectsExist {
+                    crate::project::delete::ProjectDeleteDbError::DerivedProjectsExist {
                         project_id,
                         derived_count,
                     }

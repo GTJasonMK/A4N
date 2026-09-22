@@ -1,5 +1,7 @@
 //! 故事蓝图主体、版本和项目同步的 DB 边界。
 
+pub mod context;
+
 mod contracts;
 mod manual;
 mod project;

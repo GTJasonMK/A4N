@@ -1,7 +1,7 @@
+pub(crate) mod prompts;
 use sea_orm::{ConnectionTrait, DbErr};
 
-mod prompt_records;
-pub use prompt_records::{
+pub use prompts::records::{
     ChapterVideoPromptCandidateRecord, ChapterVideoPromptTimelineRecord,
     chapter_video_boundary_frame_prompt_candidates,
     chapter_video_first_frame_chain_prompt_candidates, chapter_video_first_frame_prompt_candidates,
@@ -13,7 +13,7 @@ pub use prompt_records::{
     chapter_video_prompts_for_chapter, chapter_video_storyboard_prompt_candidates,
     completed_shared_segment_plan_id_for_source_hash, update_chapter_video_prompt_record,
 };
-pub(crate) use prompt_records::{
+pub(crate) use prompts::records::{
     PromptDependencyRecord, chapter_video_prompt_dependency_records,
     chapter_video_prompt_previous_frame_candidates, chapter_video_prompt_record,
     chapter_video_prompt_sibling_dependency_records, chapter_video_prompt_sibling_records,

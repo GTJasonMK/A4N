@@ -4,6 +4,8 @@
 //! smaller contract so task ownership, fencing, and business payloads do not
 //! become part of the capability protocol.
 
+mod agent;
+
 // Bump this whenever the Control/worker HTTP payload changes. The server
 // rejects a mixed pair before a stale worker can reach a stricter command
 // route with an incompatible payload.
@@ -14,16 +16,13 @@ pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
 
 pub use a4n_api_contract::agent::AgentScope;
 
-mod agent_operations;
-mod agent_requests;
-mod agent_runtime;
 mod capabilities;
 mod protocols;
 mod wire;
 
-pub use agent_operations::*;
-pub use agent_requests::*;
-pub use agent_runtime::*;
+pub use agent::operations::*;
+pub use agent::requests::*;
+pub use agent::runtime::*;
 pub use capabilities::*;
 pub use protocols::*;
 pub use wire::*;
