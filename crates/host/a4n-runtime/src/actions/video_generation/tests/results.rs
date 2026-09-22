@@ -11,6 +11,6 @@ fn provider_generation_run_update_smoke_matches_orch() {
         .expect_err("missing generation run target must be visible");
     assert_eq!(
         err,
-        "完成 provider 视频生成失败：视频 #42 缺少可更新的 generation_run"
+        "无法完成 provider 视频生成：视频 #42 缺少可更新的 generation_run"
     );
 }

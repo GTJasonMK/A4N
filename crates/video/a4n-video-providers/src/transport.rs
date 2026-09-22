@@ -41,15 +41,22 @@ pub(crate) async fn post_json(
     provider_idempotency_key_sha256: Option<&str>,
     label: &str,
 ) -> Result<Value, AppError> {
-    let request_body_bytes = serde_json::to_vec(body)
-        .map_err(|error| AppError::Internal(format!("{label}请求体序列化失败：{error}")))?
-        .len();
+    let body = serde_json::to_vec(body)
+        .map_err(|error| AppError::Internal(format!("{label}请求体序列化失败：{error}")))?;
+    let request_body_bytes = body.len();
     tracing::debug!(
         request_body_bytes,
         provider_label = label,
         "视频 provider 请求体已准备"
     );
-    let request = apply_api_key(client.post(url).json(body), api_key, auth);
+    let request = apply_api_key(
+        client
+            .post(url)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body),
+        api_key,
+        auth,
+    );
     let request = with_provider_idempotency_key(request, provider_idempotency_key_sha256)?;
     let response = send(request, label).await?;
     parse_json_response(response, label)

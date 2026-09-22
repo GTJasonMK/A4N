@@ -313,12 +313,18 @@ fn data_url_mime(value: &str) -> Result<Option<String>, String> {
     Ok(Some(mime))
 }
 
-/// New API 首帧仅允许 PNG/JPEG data URL（非 data URL 放行）。
-pub fn ensure_newapi_first_frame_image_supported(image_url: Option<&str>) -> Result<(), String> {
-    let Some(image_url) = image_url.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok(());
+/// New API 的内联首帧（包括待读取的本地图片）仅允许 PNG/JPEG。
+pub fn ensure_newapi_first_frame_image_supported(
+    image: Option<&a4n_video::VideoMediaSource>,
+) -> Result<(), String> {
+    let mime = match image {
+        None => None,
+        Some(a4n_video::VideoMediaSource::Url { url }) => data_url_mime(url)?,
+        Some(a4n_video::VideoMediaSource::Artifact { artifact }) => {
+            Some(artifact.content_type.clone())
+        }
     };
-    let Some(mime) = data_url_mime(image_url)? else {
+    let Some(mime) = mime else {
         return Ok(());
     };
     match mime.as_str() {
@@ -410,10 +416,12 @@ mod tests {
     #[test]
     fn newapi_first_frame_and_binding_messages() {
         assert!(
-            ensure_newapi_first_frame_image_supported(Some("data:image/png;base64,abc")).is_ok()
+            ensure_newapi_first_frame_image_supported(Some(&"data:image/png;base64,abc".into()))
+                .is_ok()
         );
         assert!(
-            ensure_newapi_first_frame_image_supported(Some("data:image/webp;base64,abc")).is_err()
+            ensure_newapi_first_frame_image_supported(Some(&"data:image/webp;base64,abc".into()))
+                .is_err()
         );
         let msgs = provider_image_binding_violation_messages(
             "newapi-video",

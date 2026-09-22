@@ -7,6 +7,7 @@ use reqwest::header::CONTENT_TYPE;
 
 use super::HttpSidecarTransport;
 use super::errors::{timeout_error, transport_error};
+use super::json::serialize_request;
 use crate::ServiceClientResult;
 use serde::Serialize;
 
@@ -17,13 +18,21 @@ impl HttpSidecarTransport {
         request: a4n_service_protocol::ServiceRequest<T>,
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> ServiceClientResult<()> {
+        let body = serialize_request(&request)?;
+        tracing::debug!(
+            service = self.expected_service_name,
+            path,
+            request_body_bytes = body.len(),
+            "sidecar event request prepared"
+        );
         let client = self.request_client()?;
         let response = tokio::select! {
             biased;
             _ = events.closed() => return Err(cancelled_error()),
             response = tokio::time::timeout(self.connect_timeout, async {
                 self.authorize_request(client.post(self.url(path)), &request)?
-                    .json(&request)
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(body)
                     .send()
                     .await
                     .map_err(transport_error)?

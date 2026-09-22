@@ -10,6 +10,8 @@ import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from email import policy
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -152,43 +154,55 @@ class ProviderHandler(BaseHTTPRequestHandler):
             self._json(200, {"created": 0, "data": [{"b64_json": self.server.image_base64}]})
             return
 
-        try:
-            body = json.loads(raw_body or b"{}")
-        except json.JSONDecodeError as error:
-            self._json(400, {"error": {"message": f"invalid json: {error}"}})
-            return
-
         if normalized_path == "/api/temp-media":
             if not self._has_bearer_token():
                 self._json(401, {"error": {"message": "missing bearer token"}})
                 return
+            content_type = self.headers.get("Content-Type", "")
+            if not content_type.startswith("multipart/form-data;"):
+                self._json(415, {"error": {"message": "temp media upload requires multipart/form-data"}})
+                return
             try:
-                media_bytes = base64.b64decode(body["data_base64"], validate=True)
-                owner_user_id = int(body["owner_user_id"])
-                project_id = int(body["project_id"])
-                source_image_id = int(body["source_image_id"])
-                expires_in_seconds = int(body["expires_in_seconds"])
-                file_name = str(body["file_name"])
-                mime_type = str(body["mime_type"])
+                message = BytesParser(policy=policy.default).parsebytes(
+                    b"Content-Type: " + content_type.encode("ascii") + b"\r\n\r\n" + raw_body
+                )
+                parts = list(message.iter_parts())
+                if [part.get_param("name", header="content-disposition") for part in parts] != ["metadata", "file"]:
+                    raise ValueError("expected metadata and file parts in order")
+                body = json.loads(parts[0].get_payload(decode=True))
+                if set(body) != {"owner_user_id", "project_id", "source_media_kind", "source_media_id", "file_name", "mime_type"}:
+                    raise ValueError("invalid metadata fields")
+                media_bytes = parts[1].get_payload(decode=True)
+                if any(type(body[key]) is not int for key in ("owner_user_id", "project_id", "source_media_id")):
+                    raise ValueError("identity fields must be integers")
+                if any(not isinstance(body[key], str) or not body[key].strip() for key in ("source_media_kind", "file_name", "mime_type")):
+                    raise ValueError("media metadata strings must not be empty")
+                owner_user_id = body["owner_user_id"]
+                project_id = body["project_id"]
+                source_media_id = body["source_media_id"]
+                source_media_kind = body["source_media_kind"]
+                file_name = body["file_name"]
+                mime_type = body["mime_type"]
+                if parts[1].get_content_type() != mime_type:
+                    raise ValueError("file MIME does not match metadata")
             except (KeyError, TypeError, ValueError) as error:
                 self._json(400, {"error": {"message": f"invalid temp media upload: {error}"}})
                 return
-            if min(owner_user_id, project_id, source_image_id, expires_in_seconds) <= 0:
-                self._json(400, {"error": {"message": "temp media identity and ttl must be positive"}})
+            if min(owner_user_id, project_id, source_media_id) <= 0 or not source_media_kind:
+                self._json(400, {"error": {"message": "temp media identity must be valid"}})
                 return
             sha256 = hashlib.sha256(media_bytes).hexdigest()
             artifact_id = sha256[:32]
-            expires_at = datetime.now(timezone.utc) + timedelta(
-                seconds=min(expires_in_seconds, 86_340)
-            )
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
             self.server.record(
                 self.path,
                 {
                     "owner_user_id": owner_user_id,
                     "project_id": project_id,
-                    "source_image_id": source_image_id,
-                    "source_media_kind": body.get("source_media_kind"),
-                    "source_media_id": body.get("source_media_id"),
+                    "source_media_kind": source_media_kind,
+                    "source_media_id": source_media_id,
+                    "content_type": "multipart/form-data",
+                    "body_bytes": len(raw_body),
                     "file_name": file_name,
                     "mime_type": mime_type,
                     "byte_size": len(media_bytes),
@@ -203,14 +217,19 @@ class ProviderHandler(BaseHTTPRequestHandler):
                     "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
                     "owner_user_id": owner_user_id,
                     "project_id": project_id,
-                    "source_image_id": source_image_id,
-                    "source_media_kind": body.get("source_media_kind"),
-                    "source_media_id": body.get("source_media_id"),
+                    "source_media_kind": source_media_kind,
+                    "source_media_id": source_media_id,
                     "content_type": mime_type,
                     "sha256": sha256,
                     "byte_size": len(media_bytes),
                 },
             )
+            return
+
+        try:
+            body = json.loads(raw_body or b"{}")
+        except json.JSONDecodeError as error:
+            self._json(400, {"error": {"message": f"invalid json: {error}"}})
             return
 
         self.server.record(self.path, body)

@@ -263,10 +263,6 @@ impl ChapterVideoGenerationHostPort for RejectingChapterHost {
         Ok(seedance_config(config_id.unwrap_or(7)))
     }
 
-    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError> {
-        Ok(ProviderImageInputTransport::InlineDataUrl)
-    }
-
     async fn resolve_chapter_video_image_inputs(
         &self,
         _input: ChapterVideoImageInput,
@@ -307,8 +303,11 @@ impl ChapterVideoPreviewHostPort for RejectingChapterHost {
         <Self as ChapterVideoGenerationHostPort>::resolve_video_config(self, config_id).await
     }
 
-    fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError> {
-        <Self as ChapterVideoGenerationHostPort>::resolve_image_transport(self)
+    fn resolve_image_transport_for_preview(
+        &self,
+        _backend: &str,
+    ) -> Result<ProviderImageInputTransport, AppError> {
+        Ok(ProviderImageInputTransport::InlineDataUrl)
     }
 
     async fn resolve_chapter_video_image_inputs_for_preview(

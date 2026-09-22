@@ -3,8 +3,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub const TEMP_MEDIA_MAX_TTL_SECONDS: i64 = 24 * 60 * 60;
+pub const TEMP_MEDIA_METADATA_PART: &str = "metadata";
+pub const TEMP_MEDIA_FILE_PART: &str = "file";
 
-/// Host-to-relay request for a temporary provider input.
+/// Metadata part of a multipart upload; the file part carries the original bytes.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TempMediaUploadRequest {
@@ -17,7 +19,6 @@ pub struct TempMediaUploadRequest {
     pub source_media_id: i64,
     pub file_name: String,
     pub mime_type: String,
-    pub data_base64: String,
 }
 
 /// Opaque temporary artifact returned by the relay.
@@ -73,7 +74,6 @@ mod tests {
             source_media_id: 13,
             file_name: "reference.png".into(),
             mime_type: "image/png".into(),
-            data_base64: "iVBORw0KGgo=".into(),
         };
         let value = serde_json::to_value(&request).unwrap();
         assert_eq!(value["owner_user_id"], 7);

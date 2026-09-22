@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -221,7 +222,31 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     "a4n-virtual-video",
                 ],
             )
+
         self.assertEqual(self.request_json("/health"), (200, {"status": "ok"}))
+
+    def test_temporary_media_upload_transfers_original_binary(self) -> None:
+        metadata = {"owner_user_id": 7, "project_id": 11, "source_media_kind": "generated_image",
+                    "source_media_id": 13, "file_name": "reference.png", "mime_type": "image/png"}
+        image = base64.b64decode(PNG_1X1_BASE64)
+        boundary = "a4n-temp-media-test"
+        body = (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\n\r\n'.encode()
+            + json.dumps(metadata).encode()
+            + f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="reference.png"\r\nContent-Type: image/png\r\n\r\n'.encode()
+            + image + f'\r\n--{boundary}--\r\n'.encode()
+        )
+        status, response = self.request_json("/api/temp-media", body,
+            f"multipart/form-data; boundary={boundary}", {"Authorization": "Bearer upload-test"})
+        self.assertEqual(status, 200)
+        self.assertEqual(response["byte_size"], len(image))
+        self.assertEqual(response["sha256"], hashlib.sha256(image).hexdigest())
+        self.assertEqual(response["source_media_id"], 13)
+        self.assertNotIn("source_image_id", response)
+        with self.assertRaises(HTTPError) as error:
+            self.request_json("/api/temp-media", {**metadata, "data_base64": PNG_1X1_BASE64},
+                              headers={"Authorization": "Bearer upload-test"})
+        self.assertEqual(error.exception.code, 415)
 
     def test_streaming_chat_ping(self) -> None:
         request = Request(

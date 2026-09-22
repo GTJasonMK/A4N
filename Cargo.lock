@@ -649,7 +649,6 @@ dependencies = [
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",
- "base64 0.22.1",
  "chrono",
  "futures",
  "parking_lot",
@@ -2654,6 +2653,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2982,12 +2982,16 @@ name = "a4n-video-providers"
 version = "0.1.0"
 dependencies = [
  "a4n-domain",
+ "a4n-generation-artifact-contract",
+ "a4n-storage",
  "a4n-video-provider-contract",
  "a4n-video-sidecar-contract",
  "async-trait",
  "base64 0.22.1",
  "reqwest 0.12.28",
  "serde_json",
+ "sha2",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -3061,6 +3065,7 @@ dependencies = [
  "base64 0.22.1",
  "futures",
  "serde_json",
+ "sha2",
  "tokio",
  "tracing",
 ]
@@ -3069,6 +3074,7 @@ dependencies = [
 name = "a4n-video-sidecar-contract"
 version = "0.1.0"
 dependencies = [
+ "a4n-generation-artifact-contract",
  "serde",
  "serde_json",
 ]
@@ -3527,6 +3533,7 @@ dependencies = [
  "matchit 0.8.4",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
@@ -6682,6 +6689,23 @@ dependencies = [
  "serde",
  "thiserror 2.0.18",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "multer"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83e87776546dc87511aa5ee218730c92b666d7264ab6ed41f9d215af9cd5224b"
+dependencies = [
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "http",
+ "httparse",
+ "memchr",
+ "mime",
+ "spin",
+ "version_check",
 ]
 
 [[package]]

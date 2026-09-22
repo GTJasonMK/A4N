@@ -6,9 +6,13 @@ use crate::actions::video_generation::media::types::{
 };
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_domain::media::image_mime_from_path;
-use a4n_service_protocol::GenerationArtifactRef;
-use a4n_storage::canonicalize_data_file_path;
-use base64::Engine as _;
+use a4n_service_protocol::{
+    ArtifactLocation, ArtifactOwnership, ArtifactRef, GenerationArtifactRef,
+};
+use a4n_storage::{canonicalize_data_file_path, data_dir_relative_file_path};
+use a4n_video::VideoMediaSource;
+use sha2::{Digest, Sha256};
+use std::io::Read;
 use std::path::Path;
 
 pub(in crate::actions::video_generation::media) async fn image_file_to_provider_input(
@@ -20,7 +24,7 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
     inline_total_bytes: &mut u64,
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
-) -> Result<String, String> {
+) -> Result<VideoMediaSource, String> {
     let canonical_path = canonicalize_data_file_path(
         data_dir,
         &image.file_path,
@@ -44,19 +48,26 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
             let secret = jwt_secret.ok_or_else(|| "public_url 传输缺少 JWT secret".to_string())?;
             let url = image_file_to_provider_media_url(secret, user_id, base, image)?;
             validate_provider_public_image_url(&url, &format!("参考图片 #{}", image.id)).await?;
-            Ok(url)
+            Ok(url.into())
         }
         ProviderImageInputTransport::RemoteTempUpload => {
             let uploaded =
                 image_file_to_remote_temp_media_url(&canonical_path, user_id, image, mime).await?;
             staging_artifacts.push(uploaded.artifact);
-            Ok(uploaded.url)
+            Ok(uploaded.url.into())
         }
         ProviderImageInputTransport::InlineDataUrl => {
-            let bytes = std::fs::read(&canonical_path)
+            let mut digest = Sha256::new();
+            let byte_size = std::fs::File::open(&canonical_path)
+                .and_then(|file| {
+                    std::io::copy(&mut file.take(MAX_REFERENCE_IMAGE_BYTES + 1), &mut digest)
+                })
                 .map_err(|e| format!("无法读取参考图片 #{}：{e}", image.id))?;
+            if byte_size > MAX_REFERENCE_IMAGE_BYTES {
+                return Err(format!("参考图片 #{} 超过单图片大小限制", image.id));
+            }
             *inline_total_bytes = inline_total_bytes
-                .checked_add(metadata.len())
+                .checked_add(byte_size)
                 .ok_or_else(|| "参考图片总大小超过 u64 上限".to_string())?;
             if *inline_total_bytes > MAX_REFERENCE_IMAGE_TOTAL_BYTES {
                 return Err(format!(
@@ -64,8 +75,24 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
                     MAX_REFERENCE_IMAGE_TOTAL_BYTES / 1024 / 1024
                 ));
             }
-            let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
-            Ok(format!("data:{mime};base64,{encoded}"))
+            Ok(VideoMediaSource::Artifact {
+                artifact: ArtifactRef {
+                    artifact_id: format!("generated-image-{}", image.id),
+                    artifact_kind: "generated_image".into(),
+                    owner_user_id: Some(user_id),
+                    project_id: Some(image.project_id),
+                    content_type: mime.to_string(),
+                    sha256: format!("{:x}", digest.finalize()),
+                    byte_size,
+                    location: ArtifactLocation::LocalPath(data_dir_relative_file_path(
+                        data_dir,
+                        &canonical_path,
+                        "视频图片",
+                    )?),
+                    expires_at: None,
+                    ownership: ArtifactOwnership::Host,
+                },
+            })
         }
     }
 }

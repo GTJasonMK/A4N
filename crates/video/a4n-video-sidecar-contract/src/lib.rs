@@ -3,36 +3,97 @@
 //! Provider implementations, HTTP clients, and Runtime adapters stay outside
 //! this crate so a wire change does not pull the execution stack into clients.
 
+use a4n_generation_artifact_contract::{ArtifactLocation, ArtifactOwnership, ArtifactRef};
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const VIDEO_SERVICE_NAME: &str = "video";
-pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v7";
+pub const VIDEO_PROVIDER_CAPABILITY_VERSION: &str = "video-provider-v8";
 pub const VIDEO_SERVICE_ADDR_ENV: &str = "A4N_VIDEO_SERVICE_ADDR";
 pub const VIDEO_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47646";
+pub const MAX_VIDEO_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+pub const MAX_VIDEO_IMAGE_TOTAL_BYTES: u64 = 32 * 1024 * 1024;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
+pub enum VideoMediaSource {
+    Url { url: String },
+    Artifact { artifact: ArtifactRef },
+}
+
+impl From<String> for VideoMediaSource {
+    fn from(url: String) -> Self {
+        Self::Url { url }
+    }
+}
+
+impl From<&str> for VideoMediaSource {
+    fn from(url: &str) -> Self {
+        Self::from(url.to_string())
+    }
+}
+
+pub type VideoGenerationInput = VideoGenerationRequest<VideoMediaSource>;
+
+pub fn validate_video_image_artifact(artifact: &ArtifactRef) -> Result<&str, String> {
+    if artifact.ownership != ArtifactOwnership::Host
+        || artifact.artifact_kind != "generated_image"
+        || !artifact.owner_user_id.is_some_and(|id| id > 0)
+        || !artifact.project_id.is_some_and(|id| id > 0)
+    {
+        return Err("视频图片引用必须是带用户和项目范围的 Host 图片".into());
+    }
+    if artifact.artifact_id.is_empty()
+        || artifact.artifact_id.len() > 128
+        || !artifact
+            .artifact_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        || artifact.sha256.len() != 64
+        || !artifact
+            .sha256
+            .bytes()
+            .all(|b| b.is_ascii_digit() || matches!(b, b'a'..=b'f'))
+        || artifact.byte_size == 0
+        || artifact.byte_size > MAX_VIDEO_IMAGE_BYTES
+    {
+        return Err("视频图片引用的标识、SHA-256 或文件大小无效".into());
+    }
+    let ArtifactLocation::LocalPath(path) = &artifact.location else {
+        return Err("视频图片引用必须使用本地媒体路径".into());
+    };
+    let prefix = format!("projects/{}/", artifact.project_id.unwrap());
+    if !path.starts_with(&prefix)
+        || path.contains('\\')
+        || path.split('/').any(|part| matches!(part, "" | "." | ".."))
+    {
+        return Err("视频图片路径必须位于引用项目的数据目录中".into());
+    }
+    Ok(path)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum VideoMediaInput {
+pub enum VideoMediaInput<Source = String> {
     None,
     Frames {
-        first: String,
-        last: Option<String>,
-        references: Vec<String>,
+        first: Source,
+        last: Option<Source>,
+        references: Vec<Source>,
     },
     References {
-        images: Vec<String>,
+        images: Vec<Source>,
         videos: Vec<String>,
         audio: Vec<String>,
     },
 }
 
-impl VideoMediaInput {
+impl<Source> VideoMediaInput<Source> {
     pub fn from_images(
-        first: Option<String>,
-        last: Option<String>,
-        references: Vec<String>,
+        first: Option<Source>,
+        last: Option<Source>,
+        references: Vec<Source>,
     ) -> Result<Self, String> {
         match (first, last, references) {
             (Some(first), last, references) => Ok(Self::Frames {
@@ -50,32 +111,96 @@ impl VideoMediaInput {
         }
     }
 
-    pub fn first_frame(&self) -> Option<&str> {
+    pub fn first_frame(&self) -> Option<&Source> {
         match self {
             Self::Frames { first, .. } => Some(first),
             _ => None,
         }
     }
 
-    pub fn last_frame(&self) -> Option<&str> {
+    pub fn last_frame(&self) -> Option<&Source> {
         match self {
-            Self::Frames { last, .. } => last.as_deref(),
+            Self::Frames { last, .. } => last.as_ref(),
             _ => None,
         }
     }
 
-    pub fn reference_images(&self) -> &[String] {
+    pub fn reference_images(&self) -> &[Source] {
         match self {
             Self::Frames { references, .. } => references,
             Self::References { images, .. } => images,
             Self::None => &[],
         }
     }
+
+    pub fn try_map_images<T, E>(
+        self,
+        mut map: impl FnMut(Source) -> Result<T, E>,
+    ) -> Result<VideoMediaInput<T>, E> {
+        Ok(match self {
+            Self::None => VideoMediaInput::None,
+            Self::Frames {
+                first,
+                last,
+                references,
+            } => VideoMediaInput::Frames {
+                first: map(first)?,
+                last: last.map(&mut map).transpose()?,
+                references: references
+                    .into_iter()
+                    .map(&mut map)
+                    .collect::<Result<_, _>>()?,
+            },
+            Self::References {
+                images,
+                videos,
+                audio,
+            } => VideoMediaInput::References {
+                images: images.into_iter().map(&mut map).collect::<Result<_, _>>()?,
+                videos,
+                audio,
+            },
+        })
+    }
+}
+
+impl VideoMediaInput<VideoMediaSource> {
+    pub fn validate_artifacts(&self) -> Result<(), String> {
+        let mut total_bytes = 0_u64;
+        for artifact in self.artifacts() {
+            validate_video_image_artifact(artifact)?;
+            total_bytes = total_bytes
+                .checked_add(artifact.byte_size)
+                .filter(|total| *total <= MAX_VIDEO_IMAGE_TOTAL_BYTES)
+                .ok_or_else(|| "视频图片总大小超过限制".to_string())?;
+        }
+        Ok(())
+    }
+
+    pub fn artifacts(&self) -> impl Iterator<Item = &ArtifactRef> {
+        let (first, last, images) = match self {
+            Self::None => (None, None, &[][..]),
+            Self::Frames {
+                first,
+                last,
+                references,
+            } => (Some(first), last.as_ref(), references.as_slice()),
+            Self::References { images, .. } => (None, None, images.as_slice()),
+        };
+        first
+            .into_iter()
+            .chain(last)
+            .chain(images)
+            .filter_map(|source| match source {
+                VideoMediaSource::Artifact { artifact } => Some(artifact),
+                VideoMediaSource::Url { .. } => None,
+            })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct VideoGenerationRequest {
+pub struct VideoGenerationRequest<Source = String> {
     pub prompt: String,
     pub negative_prompt: Option<String>,
     pub width: i32,
@@ -83,15 +208,31 @@ pub struct VideoGenerationRequest {
     pub duration_secs: i32,
     pub fps: i32,
     pub model: String,
-    pub media: VideoMediaInput,
+    pub media: VideoMediaInput<Source>,
 }
 
-impl VideoGenerationRequest {
+impl<Source> VideoGenerationRequest<Source> {
     pub fn validate_dimensions(&self) -> Result<(), String> {
         if self.width <= 0 || self.height <= 0 {
             return Err("视频请求宽度和高度必须为正整数".to_string());
         }
         Ok(())
+    }
+
+    pub fn try_map_images<T, E>(
+        self,
+        map: impl FnMut(Source) -> Result<T, E>,
+    ) -> Result<VideoGenerationRequest<T>, E> {
+        Ok(VideoGenerationRequest {
+            prompt: self.prompt,
+            negative_prompt: self.negative_prompt,
+            width: self.width,
+            height: self.height,
+            duration_secs: self.duration_secs,
+            fps: self.fps,
+            model: self.model,
+            media: self.media.try_map_images(map)?,
+        })
     }
 }
 
@@ -106,7 +247,7 @@ pub struct VideoProviderPayload {
     pub provider_idempotency_key_sha256: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<i64>,
-    pub request: VideoGenerationRequest,
+    pub request: VideoGenerationInput,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -254,7 +395,7 @@ mod tests {
 
     #[test]
     fn media_input_rejects_tail_frame_without_first_frame() {
-        let error = VideoMediaInput::from_images(None, Some("last".into()), Vec::new())
+        let error = VideoMediaInput::<String>::from_images(None, Some("last".into()), Vec::new())
             .expect_err("a tail frame requires a first frame");
         assert!(error.contains("尾帧不能脱离首帧"));
     }

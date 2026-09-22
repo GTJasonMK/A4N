@@ -1,17 +1,10 @@
 use a4n_domain::media::canonical_audio_mime;
-use base64::Engine as _;
 use std::ffi::OsStr;
 use std::path::Path;
 
 pub(super) const TEMP_MEDIA_ARTIFACT_EXTENSIONS: &[&str] = &[
     "png", "jpg", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg",
 ];
-
-pub(super) fn decode_base64_media(value: &str) -> Result<Vec<u8>, String> {
-    base64::engine::general_purpose::STANDARD
-        .decode(value.trim())
-        .map_err(|err| format!("临时媒体 data_base64 无效：{err}"))
-}
 
 pub(super) fn normalize_temp_media_type(
     value: &str,

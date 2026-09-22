@@ -6,6 +6,7 @@ use crate::actions::video_generation::media::types::ProviderImageInputTransport;
 use a4n_api_contract::video::VideoRecordReadApplicationPort;
 use a4n_domain::image::validate_reference_image_id_list;
 use a4n_service_protocol::GenerationArtifactRef;
+use a4n_video::VideoMediaSource;
 use std::path::Path;
 
 pub(crate) async fn reference_image_provider_inputs_by_ids(
@@ -18,7 +19,7 @@ pub(crate) async fn reference_image_provider_inputs_by_ids(
     ids: Vec<i64>,
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<VideoMediaSource>, String> {
     validate_reference_image_id_list(&ids)?;
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -47,7 +48,7 @@ pub(crate) async fn reference_image_provider_input_by_id(
     id: Option<i64>,
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
-) -> Result<Option<String>, String> {
+) -> Result<Option<VideoMediaSource>, String> {
     let Some(id) = id else {
         return Ok(None);
     };
@@ -76,7 +77,7 @@ async fn reference_image_provider_inputs_for_ids(
     ids: Vec<i64>,
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<VideoMediaSource>, String> {
     let images =
         validated_reference_images_for_ids(video, user_id, project_id, chapter_id, ids).await?;
     let mut urls = Vec::with_capacity(images.len());

@@ -19,6 +19,10 @@ use super::super::contracts::video_config_params;
 use super::super::events::generate_video_via_sidecar;
 use super::sidecar::{delete_video_via_sidecar, poll_video_via_sidecar, video_status_via_sidecar};
 
+#[cfg(not(feature = "embedded-media-providers"))]
+const VIDEO_PROVIDER_UNAVAILABLE: &str =
+    "视频 provider 未启用：请使用 video sidecar，或用 embedded-media-providers feature 构建";
+
 fn pick_provider_for_config(
     config: &VideoProviderConfig,
 ) -> Result<Box<dyn VideoProvider>, String> {
@@ -35,16 +39,14 @@ fn pick_provider_for_config(
     #[cfg(not(feature = "embedded-media-providers"))]
     {
         let _ = config;
-        Err(
-            "视频 provider 未启用：请使用 video sidecar，或用 embedded-media-providers feature 构建"
-                .to_string(),
-        )
+        Err(VIDEO_PROVIDER_UNAVAILABLE.to_string())
     }
 }
 
 pub(crate) async fn generate_video(
     profile: RuntimeProfile,
     client: Option<Arc<dyn VideoClient>>,
+    data_dir: &std::path::Path,
     config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
@@ -69,11 +71,25 @@ pub(crate) async fn generate_video(
         .await;
     }
 
-    let provider = pick_provider_for_config(config).map_err(AppError::ConfigError)?;
-    provider
-        .generate(request, provider_idempotency_key_sha256.as_deref())
-        .await
-        .map_err(AppError::from)
+    #[cfg(feature = "embedded-media-providers")]
+    {
+        let provider = pick_provider_for_config(config).map_err(AppError::ConfigError)?;
+        let request =
+            a4n_video_providers::materialize_video_input(request, Some(data_dir.to_path_buf()))
+                .await
+                .map_err(AppError::from)?;
+        provider
+            .generate(request, provider_idempotency_key_sha256.as_deref())
+            .await
+            .map_err(AppError::from)
+    }
+    #[cfg(not(feature = "embedded-media-providers"))]
+    {
+        let _ = data_dir;
+        Err(AppError::ConfigError(
+            VIDEO_PROVIDER_UNAVAILABLE.to_string(),
+        ))
+    }
 }
 
 pub(crate) async fn poll_video(

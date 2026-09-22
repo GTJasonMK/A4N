@@ -3,13 +3,13 @@ use a4n_service_protocol::{
     PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
     VIDEO_PROVIDER_CAPABILITY_VERSION as VIDEO_CAPABILITY_VERSION,
 };
-use a4n_video_sidecar_contract::VideoGenerationRequest;
+use a4n_video_sidecar_contract::VideoGenerationInput as VideoGenerationRequest;
 use a4n_video_sidecar_contract::{VideoPollPayload, VideoProviderPayload};
 
 #[test]
 fn rejects_incompatible_capability_version() {
     let mut request = provider_request(video_payload(""), false);
-    request.capability_version = "video-provider-v0".to_string();
+    request.capability_version = "video-provider-v7".to_string();
 
     let error = validate_video_provider_request(&request).expect_err("version mismatch");
 
@@ -30,6 +30,87 @@ fn rejects_incompatible_protocol_version_with_trace() {
     let error = response.error.expect("version mismatch error");
     assert_eq!(error.code, ServiceErrorCode::VersionMismatch);
     assert!(error.message.contains("unsupported protocol version"));
+}
+
+#[test]
+fn local_image_artifacts_require_matching_scope_and_bounded_content() {
+    use a4n_service_protocol::{
+        ArtifactLocation, ArtifactOwnership, ArtifactRef, SecretForwardingPolicy,
+    };
+    use a4n_video_sidecar_contract::{MAX_VIDEO_IMAGE_BYTES, VideoMediaInput, VideoMediaSource};
+    let mut request = provider_request(video_payload(""), true);
+    request.user_id = Some(7);
+    request.project_id = Some(11);
+    request.root_project_id = Some(3);
+    request.payload.project_id = Some(11);
+    let artifact = ArtifactRef {
+        artifact_id: "generated-image-13".into(),
+        artifact_kind: "generated_image".into(),
+        owner_user_id: Some(7),
+        project_id: Some(11),
+        content_type: "image/png".into(),
+        sha256: "a".repeat(64),
+        byte_size: 8,
+        location: ArtifactLocation::LocalPath("projects/11/images/13.png".into()),
+        expires_at: None,
+        ownership: ArtifactOwnership::Host,
+    };
+    request.payload.request.media = VideoMediaInput::Frames {
+        first: VideoMediaSource::Artifact {
+            artifact: artifact.clone(),
+        },
+        last: None,
+        references: Vec::new(),
+    };
+    validate_video_provider_request(&request).unwrap();
+
+    let mut remote = request.clone();
+    remote.secret_policy = SecretForwardingPolicy::trusted_remote_no_secrets();
+    assert_eq!(
+        validate_video_provider_request(&remote).unwrap_err().code,
+        ServiceErrorCode::Unauthorized
+    );
+    let mut other_user = request.clone();
+    other_user.user_id = Some(8);
+    assert_eq!(
+        validate_video_provider_request(&other_user)
+            .unwrap_err()
+            .code,
+        ServiceErrorCode::Unauthorized
+    );
+    let mut other_project = request.clone();
+    other_project.project_id = Some(12);
+    other_project.payload.project_id = Some(12);
+    assert_eq!(
+        validate_video_provider_request(&other_project)
+            .unwrap_err()
+            .code,
+        ServiceErrorCode::Unauthorized
+    );
+
+    let mut invalid = artifact.clone();
+    invalid.location = ArtifactLocation::LocalPath("projects/11/../12/secret.png".into());
+    request.payload.request.media = VideoMediaInput::Frames {
+        first: VideoMediaSource::Artifact { artifact: invalid },
+        last: None,
+        references: Vec::new(),
+    };
+    assert_eq!(
+        validate_video_provider_request(&request).unwrap_err().code,
+        ServiceErrorCode::ConfigurationError
+    );
+    let mut large = artifact;
+    large.byte_size = MAX_VIDEO_IMAGE_BYTES;
+    request.payload.request.media = VideoMediaInput::Frames {
+        first: VideoMediaSource::Artifact {
+            artifact: large.clone(),
+        },
+        last: Some(VideoMediaSource::Artifact { artifact: large }),
+        references: Vec::new(),
+    };
+    let error = validate_video_provider_request(&request).unwrap_err();
+    assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
+    assert!(error.message.contains("总大小"));
 }
 
 #[test]

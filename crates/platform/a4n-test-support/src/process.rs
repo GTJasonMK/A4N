@@ -64,8 +64,8 @@ pub use a4n_service_protocol::{
 };
 pub use a4n_video_client::{HttpVideoClient, VideoClient, VideoPollRequest, VideoProviderRequest};
 pub use a4n_video_sidecar_contract::{
-    VideoDeleteOutput, VideoGenerationRequest, VideoJobOutput, VideoMediaInput, VideoPollPayload,
-    VideoProviderPayload, VideoStatusOutput,
+    VideoDeleteOutput, VideoGenerationInput as VideoGenerationRequest, VideoJobOutput,
+    VideoMediaInput, VideoPollPayload, VideoProviderPayload, VideoStatusOutput,
 };
 
 pub fn sidecar_base_url(addr: SocketAddr) -> String {

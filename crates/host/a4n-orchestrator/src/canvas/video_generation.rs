@@ -1038,6 +1038,7 @@ async fn prepare_canvas_video_request(
         .resolve_canvas_video_images_for_preview(CanvasVideoImageInput {
             user_id,
             project_id,
+            backend: config.backend.clone(),
             mode,
             first_frame_image_id,
             last_frame_image_id,

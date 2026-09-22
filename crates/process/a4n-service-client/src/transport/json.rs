@@ -55,6 +55,12 @@ impl HttpSidecarTransport {
         O: DeserializeOwned,
     {
         let body = serialize_request(&request)?;
+        tracing::debug!(
+            service = self.expected_service_name,
+            path,
+            request_body_bytes = body.len(),
+            "sidecar JSON request prepared"
+        );
         let client = self.request_client()?;
         let mut response = tokio::time::timeout(self.request_timeout, async {
             self.authorize_request(client.post(self.url(path)), &request)?

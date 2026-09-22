@@ -2,12 +2,11 @@ use super::probe::validate_provider_public_image_url;
 use crate::actions::video_generation::media::reference_images::remote_temp_upload_config;
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::temp_media::{
-    TEMP_MEDIA_MAX_TTL_SECONDS, TempMediaDeleteRequest, TempMediaUploadRequest,
-    TempMediaUploadResponse,
+    TEMP_MEDIA_FILE_PART, TEMP_MEDIA_MAX_TTL_SECONDS, TEMP_MEDIA_METADATA_PART,
+    TempMediaDeleteRequest, TempMediaUploadRequest, TempMediaUploadResponse,
 };
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::truncate_error_body;
-use base64::Engine as _;
 use chrono::{DateTime, Duration, Utc};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -96,13 +95,15 @@ pub(super) async fn image_file_to_remote_temp_media_url(
         .map(str::to_string)
         .ok_or_else(|| format!("参考图片 #{} 路径缺少有效 UTF-8 文件名", image.id))?;
     let uploaded = media_bytes_to_remote_temp_media_url(
-        owner_user_id,
-        image.project_id,
-        "generated_image",
-        image.id,
-        &file_name,
-        mime,
-        &bytes,
+        TempMediaUploadRequest {
+            owner_user_id,
+            project_id: image.project_id,
+            source_media_kind: "generated_image".into(),
+            source_media_id: image.id,
+            file_name,
+            mime_type: mime.to_string(),
+        },
+        bytes,
     )
     .await?;
     validate_provider_public_image_url(
@@ -114,29 +115,34 @@ pub(super) async fn image_file_to_remote_temp_media_url(
 }
 
 pub(crate) async fn media_bytes_to_remote_temp_media_url(
-    owner_user_id: i64,
-    project_id: i64,
-    source_media_kind: &str,
-    source_media_id: i64,
-    file_name: &str,
-    mime: &str,
-    bytes: &[u8],
+    payload: TempMediaUploadRequest,
+    bytes: Vec<u8>,
 ) -> Result<RemoteTempMediaUpload, String> {
     let (upload_url, token) = remote_temp_upload_config()?;
-    let sha256 = format!("{:x}", Sha256::digest(bytes));
-    let payload = TempMediaUploadRequest {
-        owner_user_id,
-        project_id,
-        source_media_kind: source_media_kind.to_string(),
-        source_media_id,
-        file_name: file_name.to_string(),
-        mime_type: mime.to_string(),
-        data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
-    };
+    upload_remote_temp_media(&upload_url, &token, payload, bytes).await
+}
+
+async fn upload_remote_temp_media(
+    upload_url: &str,
+    token: &str,
+    payload: TempMediaUploadRequest,
+    bytes: Vec<u8>,
+) -> Result<RemoteTempMediaUpload, String> {
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let byte_size = bytes.len();
+    let metadata = serde_json::to_string(&payload)
+        .map_err(|error| format!("序列化远端临时媒体 metadata 失败：{error}"))?;
+    let file = reqwest::multipart::Part::bytes(bytes)
+        .file_name(payload.file_name.clone())
+        .mime_str(&payload.mime_type)
+        .map_err(|error| format!("远端临时媒体 MIME 无效：{error}"))?;
+    let body = reqwest::multipart::Form::new()
+        .text(TEMP_MEDIA_METADATA_PART, metadata)
+        .part(TEMP_MEDIA_FILE_PART, file);
     let response = remote_temp_media_http_client()
         .post(upload_url.trim())
         .bearer_auth(token)
-        .json(&payload)
+        .multipart(body)
         .send()
         .await
         .map_err(|err| format!("上传远端临时媒体失败：{err}"))?;
@@ -160,21 +166,21 @@ pub(crate) async fn media_bytes_to_remote_temp_media_url(
     })?;
     let (url, expires_at_ms) = validate_remote_temp_media_response(
         &parsed,
-        owner_user_id,
-        project_id,
-        source_media_kind,
-        source_media_id,
-        mime,
+        payload.owner_user_id,
+        payload.project_id,
+        &payload.source_media_kind,
+        payload.source_media_id,
+        &payload.mime_type,
         &sha256,
-        bytes.len(),
+        byte_size,
         Utc::now(),
     )?;
     tracing::info!(
         artifact_id = parsed.artifact_id.trim(),
-        owner_user_id,
-        project_id,
-        source_media_kind,
-        source_media_id,
+        owner_user_id = payload.owner_user_id,
+        project_id = payload.project_id,
+        source_media_kind = payload.source_media_kind,
+        source_media_id = payload.source_media_id,
         expires_at = parsed.expires_at,
         "远端临时媒体上传完成"
     );
@@ -263,6 +269,78 @@ fn valid_remote_temp_artifact_id(artifact_id: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn upload_remote_temp_media_sends_binary_and_preserves_metadata() {
+        use base64::Engine as _;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let encoded = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        let image = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap();
+        let metadata = TempMediaUploadRequest {
+            owner_user_id: 7,
+            project_id: 11,
+            source_media_kind: "generated_image".into(),
+            source_media_id: 13,
+            file_name: "参考图片.png".into(),
+            mime_type: "image/png".into(),
+        };
+        let metadata_json = serde_json::to_string(&metadata).unwrap();
+        let mut output = response();
+        output.sha256 = format!("{:x}", Sha256::digest(&image));
+        output.byte_size = image.len() as u64;
+        output.expires_at = (Utc::now() + Duration::hours(1)).to_rfc3339();
+        let response_json = serde_json::to_string(&output).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let header_end = loop {
+                assert!(socket.read_buf(&mut request).await.unwrap() > 0);
+                if let Some(position) = request.windows(4).position(|value| value == b"\r\n\r\n") {
+                    break position + 4;
+                }
+            };
+            let header = String::from_utf8_lossy(&request[..header_end]).to_ascii_lowercase();
+            assert!(header.contains("content-type: multipart/form-data;"));
+            let length = header
+                .lines()
+                .find_map(|line| line.strip_prefix("content-length:"))
+                .unwrap()
+                .trim()
+                .parse::<usize>()
+                .unwrap();
+            while request.len() < header_end + length {
+                assert!(socket.read_buf(&mut request).await.unwrap() > 0);
+            }
+            socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response_json}", response_json.len()).as_bytes()).await.unwrap();
+            request
+        });
+        let result = upload_remote_temp_media(
+            &format!("http://{addr}/temp-media"),
+            "upload-test-token",
+            metadata,
+            image.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.artifact.byte_size, image.len() as u64);
+        assert_eq!(result.artifact.sha256, output.sha256);
+        let request = server.await.unwrap();
+        assert!(request.windows(image.len()).any(|part| part == image));
+        assert!(
+            request
+                .windows(metadata_json.len())
+                .any(|part| part == metadata_json.as_bytes())
+        );
+        assert!(
+            !request
+                .windows(encoded.len())
+                .any(|part| part == encoded.as_bytes())
+        );
+    }
 
     fn response() -> TempMediaUploadResponse {
         TempMediaUploadResponse {

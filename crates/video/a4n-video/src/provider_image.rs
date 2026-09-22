@@ -1,8 +1,9 @@
 //! 视频 provider 参考图输入的纯规则。
 
-use a4n_video_provider_contract::ProviderImageInputTransport;
+use a4n_video_provider_contract::{GEMINI_VEO_VIDEO_BACKEND, ProviderImageInputTransport};
 
-pub fn provider_image_input_transport_override(
+pub fn provider_image_input_transport_for_backend(
+    backend: &str,
     override_value: Option<&str>,
 ) -> Result<Option<ProviderImageInputTransport>, String> {
     let override_value = override_value
@@ -17,7 +18,7 @@ pub fn provider_image_input_transport_override(
             Ok(value.to_ascii_lowercase())
         })
         .transpose()?;
-    match override_value.as_deref() {
+    let transport = match override_value.as_deref() {
         Some("public_url") => Ok(Some(ProviderImageInputTransport::PublicUrl)),
         Some("remote_temp_upload") => Ok(Some(ProviderImageInputTransport::RemoteTempUpload)),
         Some("inline_data_url") => Ok(Some(ProviderImageInputTransport::InlineDataUrl)),
@@ -25,7 +26,20 @@ pub fn provider_image_input_transport_override(
         Some(other) => Err(format!(
             "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
         )),
+    }?;
+    if backend == GEMINI_VEO_VIDEO_BACKEND {
+        if matches!(
+            transport,
+            Some(
+                ProviderImageInputTransport::PublicUrl
+                    | ProviderImageInputTransport::RemoteTempUpload
+            )
+        ) {
+            return Err("Gemini Veo 当前图片合同只支持 inline_data_url，不能使用 public_url 或 remote_temp_upload".into());
+        }
+        return Ok(Some(ProviderImageInputTransport::InlineDataUrl));
     }
+    Ok(transport)
 }
 
 pub fn is_provider_supported_image_content_type(value: &str) -> bool {
@@ -94,19 +108,36 @@ mod tests {
 
     #[test]
     fn transport_defaults_and_invalid_values_are_explicit() {
-        assert_eq!(provider_image_input_transport_override(None).unwrap(), None);
+        let backend = a4n_video_provider_contract::CLIPROXY_OPENAI_VIDEO_BACKEND;
         assert_eq!(
-            provider_image_input_transport_override(Some("remote_temp_upload")).unwrap(),
-            Some(ProviderImageInputTransport::RemoteTempUpload)
-        );
-        assert_eq!(
-            provider_image_input_transport_override(Some("auto")).unwrap(),
+            provider_image_input_transport_for_backend(backend, None).unwrap(),
             None
         );
         assert_eq!(
-            provider_image_input_transport_override(Some("inline_data_url")).unwrap(),
+            provider_image_input_transport_for_backend(backend, Some("remote_temp_upload"))
+                .unwrap(),
+            Some(ProviderImageInputTransport::RemoteTempUpload)
+        );
+        assert_eq!(
+            provider_image_input_transport_for_backend(backend, Some("auto")).unwrap(),
+            None
+        );
+        assert_eq!(
+            provider_image_input_transport_for_backend(backend, Some("inline_data_url")).unwrap(),
             Some(ProviderImageInputTransport::InlineDataUrl)
         );
-        assert!(provider_image_input_transport_override(Some("bad")).is_err());
+        assert!(provider_image_input_transport_for_backend(backend, Some("bad")).is_err());
+        assert_eq!(
+            provider_image_input_transport_for_backend(GEMINI_VEO_VIDEO_BACKEND, Some("auto"))
+                .unwrap(),
+            Some(ProviderImageInputTransport::InlineDataUrl)
+        );
+        assert!(
+            provider_image_input_transport_for_backend(
+                GEMINI_VEO_VIDEO_BACKEND,
+                Some("public_url")
+            )
+            .is_err()
+        );
     }
 }

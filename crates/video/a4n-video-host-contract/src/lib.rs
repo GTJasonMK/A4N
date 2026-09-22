@@ -11,7 +11,7 @@ use a4n_provider_contract::VideoProviderConfig;
 use a4n_video_provider_contract::{
     ProviderImageInputTransport, VideoGenerationResult, VideoJobState,
 };
-use a4n_video_sidecar_contract::VideoGenerationRequest;
+use a4n_video_sidecar_contract::{VideoGenerationInput, VideoMediaSource};
 use async_trait::async_trait;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
@@ -38,7 +38,7 @@ pub struct VideoProviderRequestInput {
     pub user_id: i64,
     pub project_id: i64,
     pub config: VideoProviderConfig,
-    pub request: VideoGenerationRequest,
+    pub request: VideoGenerationInput,
     pub provider_idempotency_key_sha256: Option<String>,
 }
 
@@ -59,6 +59,7 @@ pub enum VideoProviderValidationMode {
 pub struct CanvasVideoImageInput {
     pub user_id: i64,
     pub project_id: i64,
+    pub backend: String,
     pub mode: VideoProviderValidationMode,
     pub first_frame_image_id: Option<i64>,
     pub last_frame_image_id: Option<i64>,
@@ -67,9 +68,9 @@ pub struct CanvasVideoImageInput {
 
 #[derive(Debug, Clone)]
 pub struct CanvasVideoResolvedImages {
-    pub first_frame_image_url: Option<String>,
-    pub last_frame_image_url: Option<String>,
-    pub reference_image_urls: Vec<String>,
+    pub first_frame_image_url: Option<VideoMediaSource>,
+    pub last_frame_image_url: Option<VideoMediaSource>,
+    pub reference_image_urls: Vec<VideoMediaSource>,
 }
 
 #[derive(Debug, Clone)]
@@ -86,9 +87,9 @@ pub struct ChapterVideoImageInput {
 
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedChapterVideoImageInputs {
-    pub reference_image_urls: Vec<String>,
-    pub first_frame_image_url: Option<String>,
-    pub last_frame_image_url: Option<String>,
+    pub reference_image_urls: Vec<VideoMediaSource>,
+    pub first_frame_image_url: Option<VideoMediaSource>,
+    pub last_frame_image_url: Option<VideoMediaSource>,
     pub staging_artifacts: Vec<GenerationArtifactRef>,
 }
 
@@ -99,7 +100,7 @@ pub struct CanvasVideoRequestPreview {
     pub model: String,
     pub graph_id: i64,
     pub node_id: i64,
-    pub request: VideoGenerationRequest,
+    pub request: VideoGenerationInput,
 }
 
 #[derive(Debug, Clone)]
@@ -214,8 +215,6 @@ pub trait ChapterVideoGenerationHostPort: ChapterVideoPreviewHostPort {
         &self,
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError>;
-
-    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError>;
 
     async fn resolve_chapter_video_image_inputs(
         &self,
@@ -333,7 +332,10 @@ pub trait ChapterVideoPreviewHostPort: Send + Sync {
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError>;
 
-    fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError>;
+    fn resolve_image_transport_for_preview(
+        &self,
+        backend: &str,
+    ) -> Result<ProviderImageInputTransport, AppError>;
 
     async fn resolve_chapter_video_image_inputs_for_preview(
         &self,

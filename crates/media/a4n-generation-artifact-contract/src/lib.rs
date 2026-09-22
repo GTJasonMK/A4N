@@ -14,6 +14,40 @@ const MAX_KEY_BYTES: usize = 256;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct ArtifactRef {
+    pub artifact_id: String,
+    pub artifact_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_user_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<i64>,
+    pub content_type: String,
+    pub sha256: String,
+    pub byte_size: u64,
+    pub location: ArtifactLocation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    pub ownership: ArtifactOwnership,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactLocation {
+    LocalPath(String),
+    UploadUrl(String),
+    DownloadUrl(String),
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactOwnership {
+    Host,
+    Sidecar,
+    Remote,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct GenerationArtifactRef {
     #[schemars(length(min = 1, max = MAX_KEY_BYTES))]
     pub artifact_id: String,

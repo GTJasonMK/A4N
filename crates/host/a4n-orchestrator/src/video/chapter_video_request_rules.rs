@@ -428,12 +428,12 @@ pub(crate) fn sanitized_chapter_video_request_for_snapshot(
         .boundary_frame_ids
         .first
         .filter(|_| context.request.media.first_frame().is_some())
-        .map(|id| historical_image_placeholder_media_url(id, "首帧"));
+        .map(|id| historical_image_placeholder_media_url(id, "首帧").into());
     let last_frame_image_url = context
         .boundary_frame_ids
         .last
         .filter(|_| context.request.media.last_frame().is_some())
-        .map(|id| historical_image_placeholder_media_url(id, "尾帧"));
+        .map(|id| historical_image_placeholder_media_url(id, "尾帧").into());
     let reference_image_urls = reference_ids
         .into_iter()
         .enumerate()
@@ -446,7 +446,7 @@ pub(crate) fn sanitized_chapter_video_request_for_snapshot(
             } else {
                 "参考图"
             };
-            historical_image_placeholder_media_url(id, role)
+            historical_image_placeholder_media_url(id, role).into()
         })
         .collect();
     Ok(VideoGenerationRequest {

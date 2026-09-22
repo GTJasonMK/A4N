@@ -3,6 +3,7 @@ use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::video::VideoRecordReadApplicationPort;
 use a4n_domain::image::validate_reference_image_id_list;
 use a4n_domain::media::image_mime_from_path;
+use a4n_video::VideoMediaSource;
 use std::path::Path;
 
 pub(crate) async fn reference_image_request_preview_urls_by_ids(
@@ -11,7 +12,7 @@ pub(crate) async fn reference_image_request_preview_urls_by_ids(
     project_id: i64,
     chapter_id: i64,
     ids: Vec<i64>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<VideoMediaSource>, String> {
     validate_reference_image_id_list(&ids)?;
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -25,7 +26,7 @@ pub(crate) async fn reference_image_request_preview_url_by_id(
     project_id: i64,
     chapter_id: i64,
     id: Option<i64>,
-) -> Result<Option<String>, String> {
+) -> Result<Option<VideoMediaSource>, String> {
     let Some(id) = id else {
         return Ok(None);
     };
@@ -46,7 +47,7 @@ async fn reference_image_request_preview_urls_for_ids(
     project_id: i64,
     chapter_id: i64,
     ids: Vec<i64>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<VideoMediaSource>, String> {
     let images =
         validated_reference_images_for_ids(video, user_id, project_id, chapter_id, ids).await?;
     images
@@ -55,7 +56,9 @@ async fn reference_image_request_preview_urls_for_ids(
         .collect()
 }
 
-fn reference_image_request_preview_url(image: &GeneratedImageSummary) -> Result<String, String> {
+fn reference_image_request_preview_url(
+    image: &GeneratedImageSummary,
+) -> Result<VideoMediaSource, String> {
     let file_path = image.file_path.trim();
     if file_path.is_empty() {
         return Err(format!("参考图片 #{} 文件路径为空", image.id));
@@ -69,5 +72,6 @@ fn reference_image_request_preview_url(image: &GeneratedImageSummary) -> Result<
     Ok(format!(
         "https://example.invalid/a4n-media/preview/generated-image-{}",
         image.id
-    ))
+    )
+    .into())
 }

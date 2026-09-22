@@ -18,7 +18,7 @@ use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::video_provider_capabilities;
 use a4n_video::{
     ProviderImageInputTransport, VideoGenerationResult, VideoJobState,
-    is_canvas_video_record_fields, provider_image_input_transport_override,
+    is_canvas_video_record_fields,
 };
 use a4n_video_host_contract::{
     CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoResolvedImages,
@@ -71,10 +71,16 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
             .map_err(host_error)
     }
 
-    fn resolve_image_transport_setting(&self) -> Result<ProviderImageInputTransport, AppError> {
+    fn resolve_image_transport_setting(
+        &self,
+        backend: &str,
+    ) -> Result<ProviderImageInputTransport, AppError> {
         let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
-        if let Some(transport) = provider_image_input_transport_override(override_value.as_deref())
-            .map_err(host_error)?
+        if let Some(transport) = a4n_video::provider_image_input_transport_for_backend(
+            backend,
+            override_value.as_deref(),
+        )
+        .map_err(host_error)?
         {
             return Ok(transport);
         }
@@ -213,6 +219,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                         crate::sidecar_clients::generate_video(
                             state.runtime_profile(),
                             state.capabilities().video.clone(),
+                            state.data_dir(),
                             &input.config,
                             input.request,
                             input.provider_idempotency_key_sha256,
@@ -571,13 +578,15 @@ impl ReferenceMediaVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
         bytes: &[u8],
     ) -> Result<(String, GenerationArtifactRef), AppError> {
         let uploaded = media_bytes_to_remote_temp_media_url(
-            owner_user_id,
-            project_id,
-            source_media_kind,
-            source_media_id,
-            file_name,
-            mime_type,
-            bytes,
+            a4n_api_contract::temp_media::TempMediaUploadRequest {
+                owner_user_id,
+                project_id,
+                source_media_kind: source_media_kind.to_string(),
+                source_media_id,
+                file_name: file_name.to_string(),
+                mime_type: mime_type.to_string(),
+            },
+            bytes.to_vec(),
         )
         .await
         .map_err(host_error)?;
@@ -657,7 +666,7 @@ impl CanvasVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         input: CanvasVideoImageInput,
     ) -> Result<CanvasVideoResolvedImages, AppError> {
-        let transport = self.resolve_image_transport_setting()?;
+        let transport = self.resolve_image_transport_setting(&input.backend)?;
         let resolved = self
             .resolve_video_image_inputs(ChapterVideoImageInput {
                 user_id: input.user_id,
@@ -743,6 +752,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
                     crate::sidecar_clients::generate_video(
                         self.state.runtime_profile(),
                         self.state.capabilities().video.clone(),
+                        self.state.data_dir(),
                         &input.config,
                         input.request,
                         None,
@@ -840,8 +850,11 @@ impl ChapterVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
         self.resolve_config(config_id).await
     }
 
-    fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError> {
-        <Self as ChapterVideoGenerationHostPort>::resolve_image_transport(self)
+    fn resolve_image_transport_for_preview(
+        &self,
+        backend: &str,
+    ) -> Result<ProviderImageInputTransport, AppError> {
+        self.resolve_image_transport_setting(backend)
     }
 
     async fn resolve_chapter_video_image_inputs_for_preview(
@@ -866,10 +879,6 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError> {
         self.resolve_config(config_id).await
-    }
-
-    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError> {
-        self.resolve_image_transport_setting()
     }
 
     async fn resolve_chapter_video_image_inputs(

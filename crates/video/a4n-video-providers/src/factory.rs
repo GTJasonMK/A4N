@@ -11,7 +11,9 @@ use a4n_video_provider_contract::{
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
     VideoProvider,
 };
-use a4n_video_sidecar_contract::VideoGenerationRequest;
+use a4n_video_sidecar_contract::{
+    VideoGenerationInput, VideoMediaSource, validate_video_image_artifact,
+};
 use serde_json::Value;
 
 pub fn pick_video_provider(
@@ -37,8 +39,27 @@ pub fn pick_video_provider(
 pub fn video_provider_request_body_preview(
     backend: &str,
     base_url: &str,
-    request: &VideoGenerationRequest,
+    request: &VideoGenerationInput,
 ) -> Result<Value, AppError> {
+    request
+        .media
+        .validate_artifacts()
+        .map_err(AppError::InvalidArgument)?;
+    let request = request
+        .clone()
+        .try_map_images(|source| -> Result<String, AppError> {
+            match source {
+                VideoMediaSource::Url { url } => Ok(url),
+                VideoMediaSource::Artifact { artifact } => {
+                    validate_video_image_artifact(&artifact).map_err(AppError::InvalidArgument)?;
+                    Ok(format!(
+                        "https://example.invalid/a4n-media/preview/{}",
+                        artifact.artifact_id
+                    ))
+                }
+            }
+        })?;
+    let request = &request;
     match backend {
         OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(HttpVideoProvider::request_body(request)),
         NEWAPI_VIDEO_BACKEND => NewApiVideoProvider::request_body(request),
@@ -60,7 +81,9 @@ pub fn video_provider_request_body_preview(
 mod tests {
     use super::*;
     use a4n_video_provider_contract::VIDEO_PROVIDER_CAPABILITIES;
-    use a4n_video_sidecar_contract::VideoMediaInput;
+    use a4n_video_sidecar_contract::{
+        VideoGenerationInput as VideoGenerationRequest, VideoMediaInput,
+    };
 
     #[test]
     fn accepts_canonical_video_backends() {

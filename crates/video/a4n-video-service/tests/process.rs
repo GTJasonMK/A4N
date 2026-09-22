@@ -14,6 +14,97 @@ use axum::http::StatusCode;
 use tokio::time::{Duration, timeout};
 
 #[tokio::test]
+async fn local_image_references_use_small_requests_and_reject_changed_files() {
+    use a4n_service_protocol::{ArtifactLocation, ArtifactOwnership, ArtifactRef};
+    use a4n_test_support::process::SidecarProcessTestDir;
+    use a4n_video_sidecar_contract::VideoMediaSource;
+    use futures::FutureExt;
+    use sha2::{Digest, Sha256};
+
+    let media_dir = SidecarProcessTestDir::new("video-media-input");
+    let image = vec![b'a'; 6 * 1024 * 1024 + 123];
+    let relative_path = "projects/11/images/reference.png";
+    std::fs::create_dir_all(media_dir.path().join("projects/11/images")).unwrap();
+    std::fs::write(media_dir.path().join(relative_path), &image).unwrap();
+    let addr = unused_local_addr();
+    let (manager, _temp_dir) = sidecar_manager(
+        "video",
+        env!("CARGO_BIN_EXE_a4n-video-service"),
+        addr,
+        "A4N_VIDEO_SERVICE_ADDR",
+        [(
+            "A4N_DATA_DIR".to_string(),
+            media_dir.path().to_str().unwrap().to_string(),
+        )],
+    );
+    let process = start_sidecar(&manager, VIDEO_SERVICE_NAME).await;
+    let provider =
+        FakeJsonProvider::start(serde_json::json!({"id":"artifact-job","status":"queued"})).await;
+    let client =
+        HttpVideoClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
+    let mut request = video_generation_request(
+        "video-media-artifact",
+        "video-media-artifact-trace",
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        "cliproxy-openai-video",
+        provider.base_url(),
+        "process-provider-secret",
+        "animate image",
+    );
+    request.user_id = Some(7);
+    request.project_id = Some(11);
+    request.root_project_id = Some(11);
+    request.payload.project_id = Some(11);
+    request.payload.request.media = VideoMediaInput::Frames {
+        first: VideoMediaSource::Artifact {
+            artifact: ArtifactRef {
+                artifact_id: "generated-image-13".into(),
+                artifact_kind: "generated_image".into(),
+                owner_user_id: Some(7),
+                project_id: Some(11),
+                content_type: "image/png".into(),
+                sha256: format!("{:x}", Sha256::digest(&image)),
+                byte_size: image.len() as u64,
+                location: ArtifactLocation::LocalPath(relative_path.into()),
+                expires_at: None,
+                ownership: ArtifactOwnership::Host,
+            },
+        },
+        last: None,
+        references: Vec::new(),
+    };
+    let wire_bytes = serde_json::to_vec(&request).unwrap().len();
+    assert!(wire_bytes < 2048);
+    println!(
+        "video artifact wire_bytes={wire_bytes} image_bytes={}",
+        image.len()
+    );
+    let preview = client.preview_request(request.clone()).await.unwrap();
+    assert_eq!(preview.status, ServiceStatus::Ok);
+    assert!(serde_json::to_vec(&preview).unwrap().len() < 2048);
+    let events = video_generation_events(&client, request.clone()).await;
+    assert_eq!(
+        events.last().unwrap().event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Completed
+    );
+    provider.stop().await;
+
+    std::fs::write(media_dir.path().join(relative_path), b"changed").unwrap();
+    let (provider, request_started, _body_dropped) = HangingJsonProvider::start().await;
+    request.payload.base_url = provider.base_url();
+    let events = video_generation_events(&client, request).await;
+    let error = events.last().unwrap().error.as_ref().unwrap();
+    assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
+    assert!(error.message.contains("内容已变化"));
+    assert!(
+        request_started.now_or_never().is_none(),
+        "changed files must not reach the provider"
+    );
+    provider.stop().await;
+    finish_sidecar(process, &manager, VIDEO_SERVICE_NAME, addr).await;
+}
+
+#[tokio::test]
 async fn video_media_requests_above_json_limit_reach_the_provider() {
     let addr = unused_local_addr();
     let (manager, _temp_dir) = sidecar_manager(
@@ -43,7 +134,7 @@ async fn video_media_requests_above_json_limit_reach_the_provider() {
     let image = format!("data:image/png;base64,{}", "A".repeat(8 * 1024 * 1024));
     request.payload.request.duration_secs = 7;
     request.payload.request.media = VideoMediaInput::Frames {
-        first: image.clone(),
+        first: image.clone().into(),
         last: None,
         references: Vec::new(),
     };

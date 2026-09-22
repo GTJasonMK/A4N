@@ -53,6 +53,7 @@ async fn video_sidecar_missing_capability_fails_without_embedded_fallback() {
     let error = generate_video(
         RuntimeProfile::Sidecar,
         None,
+        std::path::Path::new("."),
         &video_config(),
         video_request(),
         None,
@@ -148,6 +149,7 @@ async fn video_generation_still_requires_secret_with_redacted_config() {
     let error = generate_video(
         RuntimeProfile::Sidecar,
         Some(client.clone()),
+        std::path::Path::new("."),
         &redacted_video_config(),
         video_request(),
         None,
@@ -176,6 +178,7 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
     let output = generate_video(
         RuntimeProfile::Sidecar,
         Some(client.clone()),
+        std::path::Path::new("."),
         &video_config(),
         video_request(),
         Some("a".repeat(64)),

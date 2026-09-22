@@ -6,7 +6,9 @@ pub use a4n_video_provider_contract::{
     validate_video_provider_duration, validate_video_provider_idempotency_key,
     video_provider_capabilities,
 };
-pub use a4n_video_sidecar_contract::{VideoGenerationRequest, VideoMediaInput};
+pub use a4n_video_sidecar_contract::VideoMediaSource;
+pub type VideoGenerationRequest = a4n_video_sidecar_contract::VideoGenerationInput;
+pub type VideoMediaInput = a4n_video_sidecar_contract::VideoMediaInput<VideoMediaSource>;
 
 pub fn chapter_video_prompt_summary(
     prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
@@ -58,7 +60,7 @@ pub use lifecycle::ensure_provider_generation_run_updated;
 pub use prompt::{append_video_request_prompt_length_context, video_request_prompt_length_context};
 pub use provider_image::{
     encode_query_component, is_provider_supported_image_content_type,
-    provider_image_input_transport_override, truncate_error_body, truncate_url_for_error,
+    provider_image_input_transport_for_backend, truncate_error_body, truncate_url_for_error,
 };
 pub use snapshot::provider_request_snapshot_value;
 pub use tail_frame::{

@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { workspace = true }
+a4n-storage = { workspace = true }
 a4n-video-provider-contract = { workspace = true }
 a4n-video-sidecar-contract = { workspace = true }
 
@@ -13,7 +14,10 @@ async-trait = { workspace = true }
 base64 = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
+a4n-generation-artifact-contract = { workspace = true }
+tempfile = { workspace = true }

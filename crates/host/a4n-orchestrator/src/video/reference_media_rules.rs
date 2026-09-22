@@ -341,7 +341,7 @@ pub(crate) fn build_reference_media_video_request(
         fps: config.default_fps,
         model: config.model.clone(),
         media: VideoMediaInput::References {
-            images: image_files,
+            images: image_files.into_iter().map(Into::into).collect(),
             videos: video_files,
             audio: audio_files,
         },
@@ -506,7 +506,12 @@ mod tests {
         let a4n_video::VideoMediaInput::References { images, .. } = &request.media else {
             panic!("expected reference media");
         };
-        assert_eq!(images, &["https://example.test/ref.png"]);
+        assert_eq!(
+            images,
+            &[a4n_video::VideoMediaSource::from(
+                "https://example.test/ref.png"
+            )]
+        );
         let note = reference_media_provider_request_note(
             "当前表单",
             &video_config(SEEDANCE2_VIDEO_BACKEND),
@@ -541,7 +546,9 @@ mod tests {
 
         assert_eq!(
             request.media.reference_images(),
-            ["https://example.test/ref.png"]
+            [a4n_video::VideoMediaSource::from(
+                "https://example.test/ref.png"
+            )]
         );
         let note = reference_media_provider_request_note("当前表单", &config, &request).unwrap();
         assert!(note.contains("reference_images"));

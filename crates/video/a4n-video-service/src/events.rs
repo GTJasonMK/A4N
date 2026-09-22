@@ -2,7 +2,7 @@ use crate::protocol::service_error;
 use crate::providers::video_generation_output;
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceRequest};
 use a4n_sidecar_bootstrap::service_event_channel;
-use a4n_video_providers::pick_video_provider;
+use a4n_video_providers::{materialize_video_input, pick_video_provider};
 use a4n_video_sidecar_contract::VideoProviderPayload;
 use axum::body::Bytes;
 use futures::Stream;
@@ -31,9 +31,14 @@ pub(crate) fn video_generation_event_stream(
                 &request.payload.base_url,
                 &request.payload.api_key,
             )?;
+            let input = materialize_video_input(
+                request.payload.request,
+                std::env::var_os("A4N_DATA_DIR").map(std::path::PathBuf::from),
+            )
+            .await?;
             provider
                 .generate(
-                    request.payload.request.clone(),
+                    input,
                     request.payload.provider_idempotency_key_sha256.as_deref(),
                 )
                 .await

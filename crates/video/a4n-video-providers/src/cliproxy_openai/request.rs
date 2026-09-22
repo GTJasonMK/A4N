@@ -39,7 +39,7 @@ pub(super) fn request_body_for_route(
     let first_frame_image_url = req
         .media
         .first_frame()
-        .map(str::trim)
+        .map(|url| url.trim())
         .filter(|url| !url.is_empty());
     let reference_image_urls = req
         .media
@@ -52,7 +52,7 @@ pub(super) fn request_body_for_route(
     if req
         .media
         .last_frame()
-        .map(str::trim)
+        .map(|url| url.trim())
         .is_some_and(|url| !url.is_empty())
     {
         return Err(AppError::InvalidArgument(

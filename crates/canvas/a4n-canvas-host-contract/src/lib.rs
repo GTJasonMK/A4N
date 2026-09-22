@@ -73,7 +73,7 @@ pub struct CanvasVideoProviderInput {
     pub project_id: i64,
     pub workflow_run_id: i64,
     pub config: VideoProviderConfig,
-    pub request: a4n_video_sidecar_contract::VideoGenerationRequest,
+    pub request: a4n_video_sidecar_contract::VideoGenerationInput,
 }
 
 pub struct CanvasVideoFileInput<'a> {

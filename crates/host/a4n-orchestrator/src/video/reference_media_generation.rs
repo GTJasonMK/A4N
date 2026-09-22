@@ -436,7 +436,10 @@ impl OrchestratorContext {
                     uploaded_image_urls,
                     "image_files",
                 )
-                .map_err(AppError::InvalidArgument)?,
+                .map_err(AppError::InvalidArgument)?
+                .into_iter()
+                .map(Into::into)
+                .collect(),
                 videos: resolve_reference_media_urls(
                     &reference_media.video_rows,
                     uploaded_video_urls,

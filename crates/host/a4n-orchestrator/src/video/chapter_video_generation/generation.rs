@@ -248,7 +248,7 @@ impl OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
 
-        let transport = host_port.resolve_image_transport_for_preview()?;
+        let transport = host_port.resolve_image_transport_for_preview(&config.backend)?;
         if transport == ProviderImageInputTransport::RemoteTempUpload {
             append_provider_input_note(
                 &mut provider_input_note,
@@ -301,10 +301,8 @@ impl OrchestratorContext {
             })
             .await?;
         if config.backend == NEWAPI_VIDEO_BACKEND && mode == VideoProviderValidationMode::Generate {
-            ensure_newapi_first_frame_image_supported(
-                image_inputs.first_frame_image_url.as_deref(),
-            )
-            .map_err(AppError::InvalidArgument)?;
+            ensure_newapi_first_frame_image_supported(image_inputs.first_frame_image_url.as_ref())
+                .map_err(AppError::InvalidArgument)?;
         }
         let first_frame_image_url_available = image_inputs.first_frame_image_url.is_some();
         let last_frame_image_url_available = image_inputs.last_frame_image_url.is_some();

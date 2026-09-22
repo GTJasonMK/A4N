@@ -1,7 +1,7 @@
 use a4n_domain::ProviderError as AppError;
 use a4n_service_protocol::{
-    ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
-    redact_sensitive_message,
+    SecretMaterialScope, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
+    VIDEO_SERVICE_NAME, redact_sensitive_message,
 };
 use a4n_video_provider_contract::validate_video_provider_idempotency_key;
 use a4n_video_sidecar_contract::{VideoPollPayload, VideoProviderPayload};
@@ -25,6 +25,27 @@ pub(crate) fn validate_video_provider_request(
             ServiceError::non_retryable(ServiceErrorCode::ConfigurationError, error.to_string())
         })?;
     validate_project_scope(request.payload.project_id, request.project_id, "generation")?;
+    for artifact in request.payload.request.media.artifacts() {
+        if request.secret_policy.scope != SecretMaterialScope::LocalSidecarOnly
+            || request.user_id.is_none()
+            || artifact.owner_user_id != request.user_id
+            || (artifact.project_id != request.project_id
+                && artifact.project_id != request.root_project_id)
+        {
+            return Err(ServiceError::non_retryable(
+                ServiceErrorCode::Unauthorized,
+                "本地视频图片引用必须属于当前用户和项目范围，且只能发送给本地 sidecar",
+            ));
+        }
+    }
+    request
+        .payload
+        .request
+        .media
+        .validate_artifacts()
+        .map_err(|error| {
+            ServiceError::non_retryable(ServiceErrorCode::ConfigurationError, error)
+        })?;
     validate_video_provider_idempotency_key(
         request.payload.provider_idempotency_key_sha256.as_deref(),
     )
