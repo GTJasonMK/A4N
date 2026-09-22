@@ -143,12 +143,6 @@ pub trait ChapterContentSyncApplicationPort: Send + Sync {
         workflow_run_id: i64,
     ) -> Result<(), a4n_error::AppError>;
 
-    async fn postprocess(
-        &self,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        chapter_id: i64,
-    ) -> Result<(), a4n_error::AppError>;
-
     async fn cleanup_derived_rag(
         &self,
         project_id: i64,

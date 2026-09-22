@@ -82,15 +82,6 @@ impl ChapterContentSyncApplicationPort for OrchestratorContext {
             .map(|_| ())
     }
 
-    async fn postprocess(
-        &self,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        chapter_id: i64,
-    ) -> Result<(), AppError> {
-        self.postprocess_chapter_derived_data_validated(host_port, chapter_id)
-            .await
-    }
-
     async fn cleanup_derived_rag(
         &self,
         project_id: i64,
