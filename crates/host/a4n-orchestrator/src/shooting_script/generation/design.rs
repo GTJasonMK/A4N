@@ -81,17 +81,9 @@ pub(super) async fn generate_shooting_scene(
             )
             .await?;
         restored &= stage.restored;
-        if scene.is_none() {
-            scene = Some(stage.output.clone());
-        }
-        shots.push(
-            stage
-                .output
-                .shots
-                .into_iter()
-                .next()
-                .ok_or_else(|| AppError::InvalidArgument("拍摄设计镜头为空".into()))?,
-        );
+        let mut output = stage.output;
+        shots.append(&mut output.shots);
+        scene.get_or_insert(output);
         progress(
             shot_progress.span.end(),
             CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
@@ -202,14 +194,6 @@ fn validate_design_shot(
         &allowed_sources,
         &participants,
     )?;
-    for fact in facts {
-        if fact.shot_id != shot.shot_id {
-            return Err(AppError::InvalidArgument(format!(
-                "叙事单元 {} fact {} 未绑定到当前镜头 {}",
-                unit.narrative_unit_index, fact.fact_index, shot.shot_id
-            )));
-        }
-    }
     validate_required_fact_coverage(scene, facts.iter().copied())?;
     super::screenplay::validate_transition_contracts(
         &scene.transition_contracts,
@@ -217,17 +201,13 @@ fn validate_design_shot(
         prepared.visual_plan_projection.narrative_units.len(),
     )?;
     // 当前调用只装配目标镜头，内容校验必须先于调用断点和下一镜头请求。
-    let planned = crate::chapter_visual_plan::DirectorScriptUnit {
-        shots: vec![planned_shot.clone()],
-        ..prepared
-            .visual_unit(unit.narrative_unit_index, &unit.scene_identity)?
-            .clone()
-    };
+    let planned = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     let assembled = super::super::assembly::assemble_scene(
         (unit.narrative_unit_index - 1) as usize,
         scene.clone(),
         unit,
-        &planned,
+        planned,
+        std::slice::from_ref(planned_shot),
     )?;
     assembled
         .validate_content(&prepared.visual_plan_projection.user_additions, true)
@@ -272,33 +252,7 @@ fn validate_design_unit(
             )));
         }
     }
-    validate_design_scene_content_against_plan_unit(scene, unit)
-}
-
-fn validate_design_scene_content_against_plan_unit(
-    scene: &ShootingSceneV1,
-    planned_unit: &ScreenplayPlanUnit,
-) -> Result<(), AppError> {
-    let allowed_sources = planned_unit
-        .source_span_ids
-        .iter()
-        .map(String::as_str)
-        .collect::<HashSet<_>>();
-    let participants = planned_unit
-        .participants
-        .iter()
-        .map(String::as_str)
-        .collect::<HashSet<_>>();
-    validate_scene_actors(scene, &participants)?;
-    for shot in &scene.shots {
-        validate_shot_sources(
-            scene.narrative_unit_index,
-            shot,
-            &allowed_sources,
-            &participants,
-        )?;
-    }
-    validate_required_fact_coverage(scene, planned_unit.performance_facts.iter())
+    Ok(())
 }
 
 fn validate_scene_actors(

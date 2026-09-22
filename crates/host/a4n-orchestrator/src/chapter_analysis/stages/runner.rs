@@ -1,6 +1,7 @@
 mod call;
 
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL;
+use a4n_db::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::chapter_analysis::chapter_analysis_stage_fingerprint;
@@ -43,18 +44,30 @@ impl OrchestratorContext {
             )?;
             output
         } else {
-            let response_content =
+            let response =
                 chat_chapter_analysis_stage(self, request.clone(), spec, progress).await?;
-            let output =
-                parse_chapter_analysis_stage_output(&response_content, spec.context, &validate)?;
-            self.save_completed_chapter_analysis_stage_checkpoint(
+            let output = parse_chapter_analysis_stage_output(
+                &response.response_content,
+                spec.context,
+                &validate,
+            )?;
+            self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id,
-                spec.step_key,
-                spec.step_order,
-                fingerprint,
-                response_content,
-                output.clone(),
-            )
+                call_key: spec.step_key.to_string(),
+                call_order: spec.step_order,
+                input_fingerprint_json: fingerprint,
+                checkpoint: CompletedLlmCallCheckpoint {
+                    parsed_output: output.clone(),
+                    response_content: response.response_content,
+                    usage: response
+                        .usage
+                        .as_ref()
+                        .map(serde_json::to_value)
+                        .transpose()?,
+                    finish_reason: response.finish_reason,
+                    artifacts_json: None,
+                },
+            })
             .await?;
             output
         };

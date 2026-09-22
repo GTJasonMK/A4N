@@ -79,7 +79,7 @@ fn assemble_script(
                         unit.narrative_unit_index
                     ))
                 })?;
-            assemble_scene(index, scene, unit, planned)
+            assemble_scene(index, scene, unit, planned, &planned.shots)
         })
         .collect::<Result<Vec<_>, _>>()?;
     let present_units = scenes
@@ -138,6 +138,7 @@ pub(super) fn assemble_scene(
     mut scene: ShootingSceneV1,
     unit: &ScreenplayPlanUnit,
     planned: &DirectorScriptUnit,
+    planned_shots: &[VisualSegmentProjectionV3],
 ) -> Result<ShootingSceneV1, AppError> {
     if unit.scene_identity != planned.id || unit.sequence_index != planned.sequence_index {
         return Err(AppError::InvalidArgument(format!(
@@ -145,7 +146,7 @@ pub(super) fn assemble_scene(
             unit.narrative_unit_index
         )));
     }
-    if scene.shots.len() != planned.shots.len() {
+    if scene.shots.len() != planned_shots.len() {
         return Err(AppError::InvalidArgument(format!(
             "拍摄设计 unit {} 的镜头数量与导演编排不一致",
             unit.narrative_unit_index
@@ -159,13 +160,12 @@ pub(super) fn assemble_scene(
     scene.intercut_group_id = planned.intercut_group_id.clone();
     scene.editing_mode = planned.editing_mode;
     scene.visual_narrative_unit_id = Some(planned.id.clone());
-    scene.user_addition_ids = planned
-        .shots
+    scene.user_addition_ids = planned_shots
         .iter()
         .map(|shot| format!("director:{}", shot.segment_id))
         .collect();
     scene.title = planned.title.clone();
-    for (index, (shot, constraint)) in scene.shots.iter_mut().zip(&planned.shots).enumerate() {
+    for (index, (shot, constraint)) in scene.shots.iter_mut().zip(planned_shots).enumerate() {
         apply_visual_shot_plan(shot, constraint, index)?;
     }
     // Source spans are actual model citations, not uniformly assigned timeline buckets.

@@ -105,7 +105,8 @@ impl OrchestratorContext {
                     .await
                     .map(|_| ())
             }
-            Ok(outcome) if outcome.succeeded() == 0 => {
+            // best-effort 对外保留成功项，内部工作流仍需恢复尚未成功的调用。
+            Ok(outcome) if outcome.failed() > 0 => {
                 let error =
                     outcome
                         .first_error

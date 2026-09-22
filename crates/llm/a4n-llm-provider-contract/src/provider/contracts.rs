@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use a4n_domain::llm::{LLM_PROVIDER_CAPABILITIES, LlmProtocolKind, LlmProviderCapabilities};
+pub use a4n_domain::llm::{
+    LLM_PROVIDER_CAPABILITIES, LlmFinishReason, LlmProtocolKind, LlmProviderCapabilities,
+};
 
 /// 模型能力标记
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,36 +195,14 @@ pub fn is_truncated_finish_reason(finish_reason: Option<&str>) -> bool {
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LlmFinishReason {
-    Stop,
-    ToolCalls,
-    Truncated,
-}
-
 /// Transport termination and usable output are distinct: a length-limited
 /// response has a terminal event, but must not complete the business task.
 pub fn classify_finish_reason(
     finish_reason: Option<&str>,
 ) -> Result<LlmFinishReason, a4n_error::AppError> {
-    match finish_reason {
-        Some("stop") => Ok(LlmFinishReason::Stop),
-        Some("tool_calls") => Ok(LlmFinishReason::ToolCalls),
-        Some("length" | "max_tokens") => Ok(LlmFinishReason::Truncated),
-        None | Some("") => Err(a4n_error::AppError::LlmError(
-            "模型流结束但缺少 finish_reason".to_string(),
-        )),
-        Some(reason) => Err(a4n_error::AppError::LlmError(format!(
-            "模型未正常完成：finish_reason={reason}"
-        ))),
-    }
+    a4n_domain::llm::classify_finish_reason(finish_reason).map_err(a4n_error::AppError::LlmError)
 }
 
 pub fn validate_finish_reason(finish_reason: Option<&str>) -> Result<(), a4n_error::AppError> {
-    match classify_finish_reason(finish_reason)? {
-        LlmFinishReason::Stop | LlmFinishReason::ToolCalls => Ok(()),
-        LlmFinishReason::Truncated => Err(a4n_error::AppError::LlmError(
-            "模型输出被 max_tokens 截断，任务未完成".to_string(),
-        )),
-    }
+    a4n_domain::llm::validate_finish_reason(finish_reason).map_err(a4n_error::AppError::LlmError)
 }

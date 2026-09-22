@@ -124,6 +124,12 @@ def main():
             profiles = call("list_scene_profiles", {"project_id": project["id"]})
             assert profiles and all(item["occurrence_count"] > 0 for item in profiles), profiles
             report["checks"].append("text timeline succeeds through standalone scene synchronization")
+            calls = [item["checkpoint_json"] for detail in workflow_details() for item in detail["checkpoints"]
+                     if item["status"] == "completed" and isinstance(item["checkpoint_json"], dict)
+                     and "response_content" in item["checkpoint_json"]]
+            assert calls and all(call["finish_reason"] == "stop" for call in calls), calls
+            assert all(isinstance(call["usage"], dict) and call["usage"]["total_tokens"] > 0 for call in calls), calls
+            report["checks"].append("completed analysis and discovery calls retain the provider finish reason and usage")
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError) as error:
         report["error"] = f"{type(error).__name__}: {error}"

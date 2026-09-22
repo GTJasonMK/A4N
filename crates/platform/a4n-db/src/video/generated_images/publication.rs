@@ -220,6 +220,25 @@ where
         .map_err(VideoDbError::Database)
 }
 
+pub async fn image_publication_by_image_id<C>(
+    db: &C,
+    image_id: i64,
+) -> Result<Option<image_publication::Model>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    if image_id <= 0 {
+        return Err(VideoDbError::InvalidArgument(
+            "image_id 必须是正整数".to_string(),
+        ));
+    }
+    image_publication::Entity::find()
+        .filter(image_publication::Column::ImageId.eq(image_id))
+        .one(db)
+        .await
+        .map_err(VideoDbError::Database)
+}
+
 pub(crate) async fn reclaim_image_publications_for_deleted_images<C>(
     db: &C,
     image_ids: &[i64],

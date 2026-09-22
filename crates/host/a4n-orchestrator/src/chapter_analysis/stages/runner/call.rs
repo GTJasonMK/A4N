@@ -2,7 +2,9 @@ use a4n_chapter_analysis::CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 
-use crate::structured_llm::{ChatJsonStreamInput, stream_error_or_cancelled};
+use crate::structured_llm::{
+    ChatJsonStreamInput, StructuredLlmStreamResult, stream_error_or_cancelled,
+};
 
 use crate::OrchestratorContext;
 
@@ -15,7 +17,7 @@ pub(super) async fn chat_chapter_analysis_stage(
     request: ChatRequest,
     spec: ChapterAnalysisStageSpec,
     progress: &mut ChapterAnalysisProgress<'_>,
-) -> Result<String, AppError> {
+) -> Result<StructuredLlmStreamResult, AppError> {
     let truncated_message = format!(
         "{} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少章节正文长度后重试",
         spec.stage
@@ -54,6 +56,5 @@ pub(super) async fn chat_chapter_analysis_stage(
                 .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
         )
         .await
-        .map(|result| result.response_content)
         .map_err(|error| stream_error_or_cancelled(error, progress.cancel_token))
 }
