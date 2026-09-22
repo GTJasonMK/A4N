@@ -170,7 +170,7 @@ impl OrchestratorContext {
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?
         );
         let mut image = self
-            .load_image_generation_checkpoint(host_port, workflow, input.project_id)
+            .load_image_generation_checkpoint(host_port, workflow, &input)
             .await?;
         if image.is_none() {
             progress
@@ -464,7 +464,7 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn ImageGenerationHostPort,
         workflow: &ImageGenerationWorkflowScope,
-        project_id: i64,
+        input: &ImageGenerationExecutionInput,
     ) -> Result<Option<generated_image::Model>, AppError> {
         let Some(checkpoint) = self
             .load_completed_workflow_checkpoint(
@@ -499,13 +499,14 @@ impl OrchestratorContext {
                         workflow.step_key
                     ))
                 })?;
+        let _publication_guard = self.lock_image_publications().await;
         let image = self.generated_image_by_id(image_id).await?.ok_or_else(|| {
             AppError::NotFound(format!(
                 "{} checkpoint 指向的图片记录不存在: {image_id}",
                 workflow.step_key
             ))
         })?;
-        if image.project_id != project_id {
+        if image.project_id != input.project_id {
             return Err(AppError::InvalidArgument(format!(
                 "{} checkpoint 指向其他项目图片: image_project_id={}",
                 workflow.step_key, image.project_id
@@ -517,8 +518,35 @@ impl OrchestratorContext {
                 workflow.step_key, checkpoint_file_path, image.file_path
             )));
         }
-        host_port.validate_generated_image_file(&image.file_path, "断点图片文件")?;
-        Ok(Some(image))
+        let publication =
+            a4n_db::video::image_publication_by_image_id(self.database.connection(), image_id)
+                .await
+                .map_err(crate::video::video_db_error)?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!(
+                        "{} checkpoint 图片缺少发布记录: {image_id}",
+                        workflow.step_key
+                    ))
+                })?;
+        if publication.status != IMAGE_PUBLICATION_STATUS_PUBLISHED {
+            return Err(AppError::InvalidState {
+                current: publication.status,
+                operation: "恢复图片调用断点".into(),
+            });
+        }
+        let restored = self
+            .restore_published_image(host_port, input, &publication)
+            .await?;
+        if restored.id != image_id {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "checkpoint:image_id={image_id},publication:image_id={}",
+                    restored.id
+                ),
+                operation: "恢复图片调用断点".into(),
+            });
+        }
+        Ok(Some(restored))
     }
 
     async fn complete_image_generation_post_commit(

@@ -153,6 +153,7 @@ struct TestImageGenerationHost {
     fail_persist: bool,
     fail_validate: bool,
     fail_remove: bool,
+    inspected_sha256: Option<String>,
     delete_workflow_on_generate: Option<Arc<DatabaseConnection>>,
 }
 
@@ -263,10 +264,10 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
     ) -> Result<GeneratedMediaArtifactFile, AppError> {
         Ok(GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
-            sha256: {
+            sha256: self.inspected_sha256.clone().unwrap_or_else(|| {
                 use sha2::Digest;
                 format!("{:x}", sha2::Sha256::digest(png_1x1_bytes()))
-            },
+            }),
             byte_size: png_1x1_bytes().len() as u64,
         })
     }
@@ -824,6 +825,86 @@ async fn batch_image_generation_keeps_successes_after_item_failure() {
     );
     assert_eq!(outcome.failed_item_keys, ["image-request-1"]);
     assert_eq!(outcome.items[0].item_key, "image-request-2");
+}
+
+#[tokio::test]
+async fn batch_image_retry_reuses_successful_calls_after_partial_failure() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let host = TestImageGenerationHost {
+        fail_generate_call: Some(1),
+        ..Default::default()
+    };
+    let batch = || BatchImageGenerationApplicationInput {
+        requested_by_user_id: user_id,
+        project_id,
+        requests: vec![json!({"prompt": "first"}), json!({"prompt": "second"})],
+        items: ["first", "second"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, prompt)| {
+                let mut request = image_request();
+                request.prompt = prompt.into();
+                let mut config = image_provider_config();
+                config.max_concurrent = 1;
+                BatchImageExecutionItem {
+                    index,
+                    request,
+                    image_type: "scene".into(),
+                    chapter_id: None,
+                    panel_id: None,
+                    metadata_json: None,
+                    config,
+                }
+            })
+            .collect(),
+        runtime_config_snapshot: None,
+    };
+    let first = context
+        .run_batch_image_generation_validated(&host, batch(), &ImageGenerationProgress::none())
+        .await
+        .unwrap();
+    assert_eq!(first.succeeded(), 1);
+    assert_eq!(first.failed(), 1);
+    let saved_id = first.items[0].summary.id;
+
+    let resumed = context
+        .run_batch_image_generation_validated(&host, batch(), &ImageGenerationProgress::none())
+        .await
+        .unwrap();
+    assert_eq!(resumed.succeeded(), 2);
+    assert_eq!(resumed.failed(), 0);
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 3);
+    assert_eq!(resumed.items[1].summary.id, saved_id);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn image_checkpoint_replay_checks_the_published_file_facts() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let mut input = execution_input(project_id, user_id);
+    context
+        .run_image_generation_validated(
+            &TestImageGenerationHost::default(),
+            input.clone(),
+            &ImageGenerationProgress::none(),
+        )
+        .await
+        .unwrap();
+    let (workflow, checkpoint) = image_workflow_and_checkpoint(database.as_ref(), project_id).await;
+    bind_existing_item(&mut input, &workflow, &checkpoint);
+    let host = TestImageGenerationHost {
+        inspected_sha256: Some("f".repeat(64)),
+        ..Default::default()
+    };
+    let error = context
+        .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
+        .await
+        .expect_err("文件内容变更后不能复用原图片调用断点");
+    assert!(error.to_string().contains("文件事实"), "{error}");
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]

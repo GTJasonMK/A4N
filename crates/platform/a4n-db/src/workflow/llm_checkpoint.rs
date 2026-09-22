@@ -36,10 +36,6 @@ pub fn required_llm_call_workflow_run_id(
     })
 }
 
-fn is_truncated_finish_reason(finish_reason: Option<&str>) -> bool {
-    matches!(finish_reason, Some("length" | "max_tokens"))
-}
-
 fn completed_llm_call_checkpoint_from_json(
     checkpoint_json: Value,
     artifacts_json: Option<Value>,
@@ -115,10 +111,13 @@ fn completed_llm_call_checkpoint_from_json(
             )));
         }
     };
-    if is_truncated_finish_reason(finish_reason.as_deref()) {
-        return Err(WorkflowCheckpointContractError::Invalid(format!(
-            "{call_key} LLM 调用断点标记为截断响应，不能保存或恢复"
-        )));
+    // 已有断点允许未记录结束元数据；显式值仍须表示正常完成。
+    if let Some(reason) = finish_reason.as_deref() {
+        a4n_domain::llm::validate_finish_reason(Some(reason)).map_err(|error| {
+            WorkflowCheckpointContractError::Invalid(format!(
+                "{call_key} LLM 调用断点无效: {error}"
+            ))
+        })?;
     }
     Ok(CompletedLlmCallCheckpoint {
         parsed_output,

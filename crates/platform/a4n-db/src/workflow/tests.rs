@@ -82,16 +82,34 @@ fn workflow_checkpoint_contract_error_keeps_json_source() {
 
 #[test]
 fn validates_completed_llm_call_checkpoint_contract() {
-    validate_completed_llm_call_checkpoint_json(
-        &serde_json::json!({
+    for reason in [None, Some("stop"), Some("tool_calls")] {
+        validate_completed_llm_call_checkpoint_json(
+            &serde_json::json!({
+                "parsed_output": {"value": 1},
+                "response_content": "{\"value\":1}",
+                "usage": null,
+                "finish_reason": reason,
+            }),
+            "test.call",
+        )
+        .expect("valid checkpoint, including optional metadata omitted by earlier producers");
+    }
+}
+
+#[test]
+fn completed_call_checkpoint_rejects_unsuccessful_finish_reason() {
+    for reason in [Some(""), Some("content_filter"), Some("unexpected")] {
+        let checkpoint = serde_json::json!({
             "parsed_output": {"value": 1},
             "response_content": "{\"value\":1}",
             "usage": null,
-            "finish_reason": null,
-        }),
-        "test.call",
-    )
-    .expect("valid checkpoint");
+            "finish_reason": reason,
+        });
+        assert!(
+            validate_completed_llm_call_checkpoint_json(&checkpoint, "test.call").is_err(),
+            "unsuccessful finish_reason {reason:?} must not be a reusable call"
+        );
+    }
 }
 
 #[test]
@@ -129,7 +147,7 @@ fn rejects_completed_llm_call_checkpoint_with_truncated_finish_reason() {
     assert!(matches!(
         error,
         WorkflowCheckpointContractError::Invalid(message)
-            if message.contains("标记为截断响应")
+            if message.contains("截断")
     ));
 }
 

@@ -1,6 +1,4 @@
-use a4n_db::workflow::{
-    CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, UpsertWorkflowCheckpointInput,
-};
+use a4n_db::workflow::UpsertWorkflowCheckpointInput;
 use a4n_domain::workflow::WORKFLOW_STATUS_COMPLETED;
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -8,31 +6,6 @@ use serde_json::{Value, json};
 use super::super::OrchestratorContext;
 
 impl OrchestratorContext {
-    pub(in crate::chapter_analysis) async fn save_completed_chapter_analysis_stage_checkpoint(
-        &self,
-        workflow_run_id: i64,
-        step_key: &str,
-        step_order: i32,
-        input_fingerprint_json: Value,
-        response_content: String,
-        parsed_output: Value,
-    ) -> Result<(), AppError> {
-        self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-            workflow_run_id,
-            call_key: step_key.to_string(),
-            call_order: step_order,
-            input_fingerprint_json,
-            checkpoint: CompletedLlmCallCheckpoint {
-                parsed_output,
-                response_content,
-                usage: None,
-                finish_reason: None,
-                artifacts_json: None,
-            },
-        })
-        .await
-    }
-
     pub(in crate::chapter_analysis) async fn save_completed_chapter_analysis_final_checkpoint(
         &self,
         workflow_run_id: i64,

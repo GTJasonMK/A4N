@@ -239,7 +239,7 @@ impl OrchestratorContext {
                     reporter(&streamed);
                 }
             });
-            let response_content = self
+            let response = self
                 .chat_json_stream_result_with_sink(
                     ChatJsonStreamInput {
                         request: llm_request.clone(),
@@ -266,13 +266,13 @@ impl OrchestratorContext {
                         .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
                 )
                 .await
-                .map(|result| result.response_content)
                 .map_err(|error| {
                     stream_error_or_cancelled(
                         error,
                         progress.and_then(|progress| progress.cancel_token),
                     )
                 })?;
+            let response_content = response.response_content;
             report_object_discovery_progress(progress, 80, "模型已返回，正在校验物体发现结果")?;
             let (parsed_drafts, parsed_output) = parse_and_validate_object_discovery_output(
                 &response_content,
@@ -289,8 +289,12 @@ impl OrchestratorContext {
                 checkpoint: CompletedLlmCallCheckpoint {
                     parsed_output,
                     response_content: response_content.clone(),
-                    usage: None,
-                    finish_reason: None,
+                    usage: response
+                        .usage
+                        .as_ref()
+                        .map(serde_json::to_value)
+                        .transpose()?,
+                    finish_reason: response.finish_reason,
                     artifacts_json: None,
                 },
             })

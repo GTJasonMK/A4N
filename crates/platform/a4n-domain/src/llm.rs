@@ -8,6 +8,31 @@ pub use usage::LlmCallUsageTraceInput;
 pub const DEFAULT_LLM_MAX_CONTEXT_TOKENS: usize = 128_000;
 pub const DEFAULT_LLM_MAX_OUTPUT_TOKENS: usize = 8_192;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlmFinishReason {
+    Stop,
+    ToolCalls,
+    Truncated,
+}
+
+pub fn classify_finish_reason(finish_reason: Option<&str>) -> Result<LlmFinishReason, String> {
+    match finish_reason {
+        Some("stop") => Ok(LlmFinishReason::Stop),
+        Some("tool_calls") => Ok(LlmFinishReason::ToolCalls),
+        Some("length" | "max_tokens") => Ok(LlmFinishReason::Truncated),
+        None | Some("") => Err("模型流结束但缺少 finish_reason".to_string()),
+        Some(reason) => Err(format!("模型未正常完成：finish_reason={reason}")),
+    }
+}
+
+/// 传输结束不等于业务完成；调用断点与 Provider 共用同一成功条件。
+pub fn validate_finish_reason(finish_reason: Option<&str>) -> Result<(), String> {
+    match classify_finish_reason(finish_reason)? {
+        LlmFinishReason::Stop | LlmFinishReason::ToolCalls => Ok(()),
+        LlmFinishReason::Truncated => Err("模型输出被 max_tokens 截断，任务未完成".to_string()),
+    }
+}
+
 pub const LLM_RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
     "model",
     "messages",
