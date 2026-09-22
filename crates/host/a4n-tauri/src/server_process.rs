@@ -1,14 +1,14 @@
 use a4n_config::app_config::{AppConfig, portable_home_dir};
 use reqwest::StatusCode;
+use std::net::SocketAddr;
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-const LOCAL_SERVER_URL: &str = "http://127.0.0.1:8080";
 const SERVER_BINARY_ENV: &str = "A4N_SERVER_BINARY";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
@@ -29,37 +29,24 @@ const PORTRAIT_WORKER_BINARY_ENV: &str = "A4N_PORTRAIT_WORKER_BINARY";
 const SOURCE_SNAPSHOT_WORKER_BINARY_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
 
-#[derive(Debug, PartialEq, Eq)]
-enum ServerProbe {
-    Healthy,
-    Occupied,
-    Unreachable,
-}
-
 pub(crate) struct LocalServerProcess {
     child: Mutex<Option<Child>>,
+    address_directory: tempfile::TempDir,
 }
 
 impl LocalServerProcess {
     pub(crate) async fn start(
         app: &AppHandle,
         config: &AppConfig,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        match server_probe().await {
-            ServerProbe::Healthy => {
-                return Err(format!(
-                    "{LOCAL_SERVER_URL} 已有运行中的 A4N Server；local-server 模式不会复用未知版本的进程，请先停止它，或使用 remote 模式显式连接"
-                )
-                .into());
-            }
-            ServerProbe::Occupied => {
-                return Err(format!(
-                    "{LOCAL_SERVER_URL} 已被其他 HTTP 服务占用；请停止占用 8080 端口的服务，或使用 remote 模式显式连接"
-                )
-                .into());
-            }
-            ServerProbe::Unreachable => {}
-        }
+    ) -> Result<(Self, String), Box<dyn std::error::Error>> {
+        let configured_address = a4n_config::optional_non_empty_env_string("A4N_WEB_ADDR")?
+            .as_deref()
+            .map(parse_local_server_address)
+            .transpose()?;
+        // A private directory gives this launch its own address record, including Edge restarts.
+        let address_directory = tempfile::Builder::new()
+            .prefix("a4n-http-")
+            .tempdir_in(&config.temp_dir)?;
 
         let server = resolve_binary(app, "a4n-server", SERVER_BINARY_ENV)?;
         let control = resolve_binary(app, "a4n-control", CONTROL_BINARY_ENV)?;
@@ -124,7 +111,10 @@ impl LocalServerProcess {
 
         let mut command = Command::new(&server);
         command
-            .env("A4N_WEB_ADDR", "127.0.0.1:8080")
+            .env(
+                "A4N_WEB_LISTEN_FILE",
+                address_directory.path().join("http.addr"),
+            )
             .env(CONTROL_BINARY_ENV, &control)
             .env(EDGE_BINARY_ENV, &edge)
             .env(AGENT_WORKER_BINARY_ENV, &agent_worker)
@@ -152,6 +142,9 @@ impl LocalServerProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
+        if let Some(address) = configured_address {
+            command.env("A4N_WEB_ADDR", address.to_string());
+        }
         configure_parent_death_signal(&mut command);
 
         if let Some(sidecar_dir) = bundled_sidecar_dir(app, &server) {
@@ -163,14 +156,12 @@ impl LocalServerProcess {
             .map_err(|error| format!("启动 A4N Server 失败: {}: {error}", server.display()))?;
         let process = Self {
             child: Mutex::new(Some(child)),
+            address_directory,
         };
-        if let Err(error) = wait_until_healthy(&process).await {
-            process.stop();
-            return Err(error);
-        }
+        let api_base_url = wait_until_healthy(&process).await?;
 
-        tracing::info!(url = LOCAL_SERVER_URL, "A4N HTTP-only Server 启动完成");
-        Ok(process)
+        tracing::info!(url = %api_base_url, "A4N HTTP-only Server 启动完成");
+        Ok((process, api_base_url))
     }
 
     pub(crate) fn stop(&self) {
@@ -216,42 +207,37 @@ impl Drop for LocalServerProcess {
     }
 }
 
-async fn server_probe() -> ServerProbe {
-    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
-    let Some(client) = CLIENT
-        .get_or_init(|| {
-            reqwest::Client::builder()
-                .timeout(Duration::from_secs(1))
-                .build()
-                .ok()
-        })
-        .as_ref()
-    else {
-        return ServerProbe::Unreachable;
-    };
-    let Ok(response) = client
-        .get(format!("{LOCAL_SERVER_URL}/api/health"))
-        .send()
-        .await
-    else {
-        return ServerProbe::Unreachable;
-    };
-    let status = response.status();
-    let body = response.text().await.ok();
-    classify_server_response(status, body.as_deref())
+fn parse_local_server_address(value: &str) -> Result<SocketAddr, Box<dyn std::error::Error>> {
+    let address: SocketAddr = value.trim().parse()?;
+    if !address.ip().is_loopback() {
+        return Err(format!("桌面本地 Server 必须使用 loopback 地址: {address}").into());
+    }
+    Ok(address)
 }
 
-fn classify_server_response(status: StatusCode, body: Option<&str>) -> ServerProbe {
-    if status == StatusCode::OK && body.is_some_and(|body| body.trim() == "ok") {
-        ServerProbe::Healthy
-    } else {
-        ServerProbe::Occupied
+fn read_server_address(path: &Path) -> Result<Option<SocketAddr>, Box<dyn std::error::Error>> {
+    let value = match std::fs::read_to_string(path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let address = parse_local_server_address(&value)?;
+    if address.port() == 0 {
+        return Err("Server 尚未发布实际监听端口".into());
     }
+    Ok(Some(address))
 }
 
 async fn wait_until_healthy(
     process: &LocalServerProcess,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<String, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(1))
+        .build()?;
+    let address_file = process.address_directory.path().join("http.addr");
+    let mut last_error = None;
     for _ in 0..200 {
         let exit_status = {
             let mut child = process
@@ -264,24 +250,28 @@ async fn wait_until_healthy(
                 .map_err(|error| format!("读取 A4N Server 子进程状态失败: {error}"))?
         };
         if let Some(status) = exit_status {
-            return Err(format!(
-                "A4N Server 在健康检查通过前退出（{status}）；请检查 Server 日志，并确认 {LOCAL_SERVER_URL} 未被占用"
-            )
-            .into());
+            return Err(
+                format!("A4N Server 在健康检查通过前退出（{status}）；请检查 Server 日志").into(),
+            );
         }
-        match server_probe().await {
-            ServerProbe::Healthy => return Ok(()),
-            ServerProbe::Occupied => {
-                return Err(format!(
-                    "{LOCAL_SERVER_URL} 在启动过程中被其他 HTTP 服务占用；请停止占用 8080 端口的服务"
-                )
-                .into());
+        if let Some(address) = read_server_address(&address_file)? {
+            let api_base_url = format!("http://{address}/api");
+            match client.get(format!("{api_base_url}/health")).send().await {
+                Ok(response) => {
+                    let status = response.status();
+                    if status == StatusCode::OK && response.text().await?.trim() == "ok" {
+                        return Ok(api_base_url);
+                    }
+                    return Err(
+                        format!("{api_base_url}/health 返回无效健康响应（{status}）").into(),
+                    );
+                }
+                Err(error) => last_error = Some(error.to_string()),
             }
-            ServerProbe::Unreachable => {}
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
-    Err("A4N Server 启动超时；请检查 Server 日志".into())
+    Err(format!("A4N Server 启动超时；请检查 Server 日志；最后连接错误: {last_error:?}").into())
 }
 
 fn run_migration(binary: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -406,23 +396,31 @@ fn server_portable_home() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{ServerProbe, classify_server_response, resolve_binary_in_directories};
-    use reqwest::StatusCode;
+    use super::{parse_local_server_address, read_server_address, resolve_binary_in_directories};
 
     #[test]
-    fn classifies_any_http_response_as_port_occupied() {
-        assert_eq!(
-            classify_server_response(StatusCode::OK, Some("ok\n")),
-            ServerProbe::Healthy
-        );
-        assert_eq!(
-            classify_server_response(StatusCode::NOT_FOUND, Some("not found")),
-            ServerProbe::Occupied
-        );
-        assert_eq!(
-            classify_server_response(StatusCode::OK, None),
-            ServerProbe::Occupied
-        );
+    fn accepts_only_published_loopback_endpoints() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("http.addr");
+        assert!(read_server_address(&path).unwrap().is_none());
+        for value in ["127.0.0.1:38191", "[::1]:38192"] {
+            std::fs::write(&path, value).unwrap();
+            assert_eq!(
+                read_server_address(&path).unwrap().unwrap().to_string(),
+                value
+            );
+        }
+        for invalid in [
+            "",
+            "not-an-address",
+            "127.0.0.1:0",
+            "0.0.0.0:8080",
+            "192.0.2.1:8080",
+        ] {
+            std::fs::write(&path, invalid).unwrap();
+            assert!(read_server_address(&path).is_err(), "accepted {invalid}");
+        }
+        assert_eq!(parse_local_server_address("127.0.0.1:0").unwrap().port(), 0);
     }
 
     #[test]

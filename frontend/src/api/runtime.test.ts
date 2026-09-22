@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -16,12 +16,28 @@ vi.mock("./authStorage", () => ({
   requireCurrentUserId: mocks.requireCurrentUserId,
 }));
 
-import { runtimeInvoke } from "./runtime";
+import { runtimeInvoke, toRuntimeMediaSrc } from "./runtime";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe("runtimeInvoke", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
     mocks.requireCurrentUserId.mockClear();
+  });
+
+  it("uses the bound desktop endpoint for HTTP media requests", () => {
+    vi.stubEnv("VITE_A4N_API_TRANSPORT", "web");
+    vi.stubGlobal("window", {
+      __TAURI_INTERNALS__: {},
+      __A4N_API_BASE_URL__: "http://127.0.0.1:38191/api",
+    });
+    expect(toRuntimeMediaSrc("images/test.png")).toBe(
+      "http://127.0.0.1:38191/api/media?path=images%2Ftest.png",
+    );
   });
 
   it("routes profile updates through the shared host dispatcher", async () => {

@@ -111,6 +111,11 @@ A4N_JWT_SECRET=replace-with-a-long-random-secret \
 系统库。检查失败会直接停止，不进入 Cargo 或前端构建。
 开发调试请使用该入口；直接执行 `cargo tauri dev` 不会经过这套依赖门禁。
 
+桌面 `local-server` 模式未设置 `A4N_WEB_ADDR` 时，优先监听 `127.0.0.1:8080`；
+端口被占用则由系统分配空闲端口，实际 API 地址在窗口加载前传给前端。
+设置 `A4N_WEB_ADDR` 会固定监听地址，占用时明确失败；设置 `127.0.0.1:0` 可每次由系统分配。
+桌面本地地址必须为 loopback。HTTP 入口热重启会沿用本次启动已发布的地址。
+
 构建前端并启动 Web 服务端：
 
 ```bash

@@ -1,3 +1,9 @@
+declare global {
+  interface Window {
+    readonly __A4N_API_BASE_URL__?: string;
+  }
+}
+
 export function isTauriRuntime(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -15,11 +21,17 @@ export function shouldUseHttpBackend(): boolean {
 }
 
 export function apiBaseUrl(): string {
+  if (isTauriRuntime() && window.__A4N_API_BASE_URL__ !== undefined) {
+    return window.__A4N_API_BASE_URL__;
+  }
   const value = import.meta.env.VITE_A4N_API_BASE_URL;
   if (typeof value === "string" && value.trim() && value.trim() !== "/api") {
     return value.trim().replace(/\/$/, "");
   }
-  return isTauriRuntime() ? "http://127.0.0.1:8080/api" : "/api";
+  if (isTauriRuntime()) {
+    throw new Error("Desktop HTTP API address is not configured");
+  }
+  return "/api";
 }
 
 type BackendKind = "local_tauri" | "remote_http";

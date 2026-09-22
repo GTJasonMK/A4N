@@ -70,21 +70,23 @@ fn setup_http_mode(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig::default();
     app_paths(&config).ensure_dirs()?;
-    if !remote_only {
-        let server = tauri::async_runtime::block_on(server_process::LocalServerProcess::start(
-            app.handle(),
-            &config,
-        ))?;
+    let api_base_url = if !remote_only {
+        let (server, api_base_url) = tauri::async_runtime::block_on(
+            server_process::LocalServerProcess::start(app.handle(), &config),
+        )?;
         app.manage(server);
-    }
+        Some(api_base_url)
+    } else {
+        None
+    };
     app.manage(commands::frontend_state::FrontendStatePath(
         app_paths(&config).frontend_state_file(),
     ));
-    window::create_main_window(app, &config)?;
+    window::create_main_window(app, &config, api_base_url.as_deref())?;
     app.manage(commands::config::local_embedding::LocalEmbeddingRuntimeState::new(&config));
     tracing::info!(
         remote_only,
-        api_base_url = ?std::env::var("VITE_A4N_API_BASE_URL").ok(),
+        api_base_url = ?api_base_url.or_else(|| std::env::var("VITE_A4N_API_BASE_URL").ok()),
         "A4N Tauri HTTP 模式启动完成，已跳过本地 AppState 初始化并启用本机 Embedding Runtime"
     );
     Ok(())
@@ -98,7 +100,7 @@ fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::E
     app.manage(commands::frontend_state::FrontendStatePath(
         app_paths(app_state.host_app_config()).frontend_state_file(),
     ));
-    window::create_main_window(app, app_state.host_app_config())?;
+    window::create_main_window(app, app_state.host_app_config(), None)?;
     // Keep an Arc alive so the dispatcher can upgrade its weak reference, and
     // retain the existing AppState-managed command contract for all commands.
     app.manage(app_state.clone());

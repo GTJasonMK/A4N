@@ -51,6 +51,7 @@ a4n-task-runtime = { workspace = true }
 # 异步
 tokio = { workspace = true }
 reqwest = { workspace = true }
+tempfile = { workspace = true }
 
 # 配置解析
 toml = "0.9"
@@ -75,4 +76,3 @@ base64 = { workspace = true }
 sea-orm = { workspace = true }
 sha2 = { workspace = true }
 tauri = { workspace = true, features = ["test"] }
-tempfile = { workspace = true }

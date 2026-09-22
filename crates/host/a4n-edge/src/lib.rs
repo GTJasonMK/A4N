@@ -1,3 +1,4 @@
+use anyhow::Context;
 use axum::{
     Router,
     body::Body,
@@ -11,7 +12,7 @@ use reqwest::Client;
 use std::{
     env,
     net::SocketAddr,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -58,7 +59,10 @@ async fn async_main(
     stop_requested: Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
     init_tracing();
-    let bind_addr = parse_addr("A4N_WEB_ADDR", DEFAULT_WEB_ADDR)?;
+    let configured_addr = parse_optional_addr("A4N_WEB_ADDR")?;
+    let address_file = env::var_os("A4N_WEB_LISTEN_FILE").map(PathBuf::from);
+    let bind_addr = configured_addr
+        .unwrap_or_else(|| parse_addr_value(DEFAULT_WEB_ADDR).expect("valid default address"));
     let control_addr = match control_addr {
         Some(control_addr) => control_addr,
         None => parse_optional_addr("A4N_CONTROL_ADDR")?.unwrap_or_else(|| {
@@ -71,7 +75,13 @@ async fn async_main(
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .build()?;
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+    let listener = bind_web_listener(
+        bind_addr,
+        configured_addr.is_none() && address_file.is_some(),
+        address_file.as_deref(),
+    )
+    .await?;
+    let bind_addr = listener.local_addr()?;
     let app = router(
         EdgeState {
             client,
@@ -87,6 +97,56 @@ async fn async_main(
         .with_graceful_shutdown(shutdown_signal(stop_requested))
         .await?;
     Ok(())
+}
+
+async fn bind_web_listener(
+    preferred: SocketAddr,
+    automatic: bool,
+    address_file: Option<&Path>,
+) -> anyhow::Result<tokio::net::TcpListener> {
+    let saved_address = match address_file.map(std::fs::read_to_string) {
+        Some(Ok(value)) => {
+            let address = parse_addr_value(value.trim())?;
+            anyhow::ensure!(
+                address.port() != 0
+                    && address.ip() == preferred.ip()
+                    && (automatic || preferred.port() == 0 || address == preferred),
+                "已发布的 HTTP 监听地址与启动配置不一致: {address}"
+            );
+            Some(address)
+        }
+        Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Some(Err(error)) => return Err(error).context("读取 HTTP 监听地址失败"),
+        None => None,
+    };
+    // A restarted Edge must keep the endpoint already handed to its clients.
+    let address = saved_address.unwrap_or(preferred);
+    let listener = match tokio::net::TcpListener::bind(address).await {
+        Ok(listener) => listener,
+        Err(error)
+            if automatic
+                && saved_address.is_none()
+                && error.kind() == std::io::ErrorKind::AddrInUse =>
+        {
+            let listener =
+                tokio::net::TcpListener::bind(SocketAddr::new(preferred.ip(), 0)).await?;
+            tracing::info!(
+                requested = %preferred,
+                selected = %listener.local_addr()?,
+                "默认 HTTP 端口被占用，已选择空闲端口"
+            );
+            listener
+        }
+        Err(error) => return Err(error).with_context(|| format!("监听 HTTP 地址 {address} 失败")),
+    };
+    if let Some(path) = address_file {
+        // Publish only after binding, atomically, so readers never see a partial address.
+        let pending = path.with_extension("pending");
+        std::fs::write(&pending, listener.local_addr()?.to_string())
+            .context("写入 HTTP 监听地址失败")?;
+        std::fs::rename(&pending, path).context("发布 HTTP 监听地址失败")?;
+    }
+    Ok(listener)
 }
 
 fn init_tracing() {
@@ -177,10 +237,6 @@ fn is_hop_by_hop(name: &HeaderName) -> bool {
     )
 }
 
-fn parse_addr(name: &str, default: &str) -> anyhow::Result<SocketAddr> {
-    parse_optional_addr(name)?.map_or_else(|| parse_addr_value(default), Ok)
-}
-
 fn parse_optional_addr(name: &str) -> anyhow::Result<Option<SocketAddr>> {
     let Some(value) = env::var_os(name) else {
         return Ok(None);
@@ -231,7 +287,7 @@ async fn wait_for_stop_request(stop_requested: Arc<AtomicBool>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{EdgeState, is_hop_by_hop, parse_addr_value, router};
+    use super::{EdgeState, bind_web_listener, is_hop_by_hop, parse_addr_value, router};
     use axum::{
         Router,
         body::{Body, to_bytes},
@@ -246,6 +302,60 @@ mod tests {
     fn parses_control_addresses_and_rejects_invalid_values() {
         assert_eq!(parse_addr_value("127.0.0.1:18080").unwrap().port(), 18080);
         assert!(parse_addr_value("not-an-address").is_err());
+    }
+
+    #[tokio::test]
+    async fn managed_listener_publishes_a_bound_port_and_preserves_it_on_restart() {
+        let directory = tempfile::tempdir().unwrap();
+        let address_file = directory.path().join("http.addr");
+        let occupied = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let preferred = occupied.local_addr().unwrap();
+        let listener = bind_web_listener(preferred, true, Some(&address_file))
+            .await
+            .unwrap();
+        let selected = listener.local_addr().unwrap();
+        assert_ne!(selected, preferred);
+        assert_ne!(selected.port(), 0);
+        assert_eq!(
+            std::fs::read_to_string(&address_file).unwrap(),
+            selected.to_string()
+        );
+        assert!(tokio::net::TcpListener::bind(selected).await.is_err());
+
+        drop(listener);
+        drop(occupied);
+        let restarted = bind_web_listener(preferred, true, Some(&address_file))
+            .await
+            .unwrap();
+        assert_eq!(restarted.local_addr().unwrap(), selected);
+        assert!(
+            bind_web_listener(preferred, true, Some(&address_file))
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn fixed_ports_and_invalid_address_records_fail_without_selecting_another_port() {
+        let directory = tempfile::tempdir().unwrap();
+        let address_file = directory.path().join("http.addr");
+        let occupied = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let preferred = occupied.local_addr().unwrap();
+        assert!(
+            bind_web_listener(preferred, false, Some(&address_file))
+                .await
+                .is_err()
+        );
+        assert!(!address_file.exists());
+        for invalid in ["not-an-address", "127.0.0.1:0", "0.0.0.0:8080"] {
+            std::fs::write(&address_file, invalid).unwrap();
+            assert!(
+                bind_web_listener(preferred, true, Some(&address_file))
+                    .await
+                    .is_err()
+            );
+            assert_eq!(std::fs::read_to_string(&address_file).unwrap(), invalid);
+        }
     }
 
     #[test]
