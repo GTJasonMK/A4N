@@ -65,8 +65,8 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
         <FormField label={t("settingsForm.imageProvider")}>
           <ThemedSelect
             value={form.provider}
-            onChange={(event) =>
-              setForm({ ...form, provider: event.target.value })
+            onChange={(selectedValue) =>
+              setForm({ ...form, provider: selectedValue })
             }
             className="pyqt-input w-full"
             disabled={structureDisabled}

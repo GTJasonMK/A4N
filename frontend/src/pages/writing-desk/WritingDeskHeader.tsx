@@ -117,8 +117,8 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
       aria-label={t("writing.chooseChapterTitle")}
       title={t("writing.chooseChapterTitle")}
       value={activeNumber == null ? "" : String(activeNumber)}
-      onChange={(event) => {
-        const nextNumber = Number(event.target.value);
+      onChange={(selectedValue) => {
+        const nextNumber = Number(selectedValue);
         if (Number.isSafeInteger(nextNumber) && nextNumber > 0) {
           void onSelectChapter(nextNumber);
         }

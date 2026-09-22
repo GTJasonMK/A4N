@@ -13,8 +13,7 @@
 
   button,
   input,
-  textarea,
-  select {
+  textarea {
     font: inherit;
     color-scheme: inherit;
   }
@@ -24,7 +23,6 @@
   a,
   input,
   textarea,
-  select,
   summary {
     -webkit-tap-highlight-color: transparent;
   }
@@ -38,8 +36,7 @@
   }
 
   input,
-  textarea,
-  select {
+  textarea {
     caret-color: rgb(var(--color-primary));
   }
 
@@ -58,10 +55,7 @@
   input:-webkit-autofill:focus,
   textarea:-webkit-autofill,
   textarea:-webkit-autofill:hover,
-  textarea:-webkit-autofill:focus,
-  select:-webkit-autofill,
-  select:-webkit-autofill:hover,
-  select:-webkit-autofill:focus {
+  textarea:-webkit-autofill:focus {
     -webkit-text-fill-color: rgb(var(--color-text-primary));
     -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-bg-secondary) / var(--a4n-control-opacity)) inset;
     caret-color: rgb(var(--color-primary));

@@ -360,8 +360,7 @@ export const DeletionManager: React.FC<{
           {t("characterDetail.deletion.category")}
           <ThemedSelect
             value={filterCategory}
-            onChange={(event) => {
-              const next = event.target.value;
+            onChange={(next) => {
               const nextKey = deletionMarkLoadKey(profileId, next, filterStatus);
               currentLoadScopeKeyRef.current = nextKey;
               if (currentLoadScopeKey !== nextKey) invalidateLoadedMarks();
@@ -382,8 +381,8 @@ export const DeletionManager: React.FC<{
           {t("characterDetail.deletion.status")}
           <ThemedSelect
             value={filterStatus}
-            onChange={(event) => {
-              const next = event.target.value as DeletionMarkStatusFilter;
+            onChange={(selectedValue) => {
+              const next = selectedValue as DeletionMarkStatusFilter;
               const nextKey = deletionMarkLoadKey(profileId, filterCategory, next);
               currentLoadScopeKeyRef.current = nextKey;
               if (currentLoadScopeKey !== nextKey) invalidateLoadedMarks();
@@ -429,7 +428,7 @@ export const DeletionManager: React.FC<{
             <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.category")}</span>
             <ThemedSelect
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
+              onChange={setCategory}
               disabled={requesting}
               className="pyqt-input !px-2 !py-1"
             >

@@ -150,8 +150,8 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             <ThemedSelect
               value={reverseType}
               disabled={toolsBusy}
-              onChange={(e) =>
-                onReverseTypeChange(e.target.value as ReverseEngineeringTarget)
+              onChange={(selectedValue) =>
+                onReverseTypeChange(selectedValue as ReverseEngineeringTarget)
               }
               className="pyqt-input !px-2 !py-1 text-xs"
             >

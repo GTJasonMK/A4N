@@ -46,8 +46,8 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   return (
     <ThemedSelect
       value={value ?? ""}
-      onChange={(event) => {
-        const next = Number(event.target.value);
+      onChange={(selectedValue) => {
+        const next = Number(selectedValue);
         onChange(Number.isInteger(next) && next > 0 ? next : null);
       }}
       className={`pyqt-input min-w-0 ${className}`}

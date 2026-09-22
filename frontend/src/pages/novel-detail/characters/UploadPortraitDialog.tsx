@@ -198,7 +198,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.profile")}</label>
           <ThemedSelect
             value={profileId}
-            onChange={(event) => setProfileId(Number(event.target.value))}
+            onChange={(selectedValue) => setProfileId(Number(selectedValue))}
             className="pyqt-input w-full"
             disabled={busy || profiles.length === 0}
           >
@@ -214,7 +214,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.type")}</label>
           <ThemedSelect
             value={portraitType}
-            onChange={(event) => setPortraitType(event.target.value as PortraitType)}
+            onChange={(selectedValue) => setPortraitType(selectedValue as PortraitType)}
             className="pyqt-input w-full"
             disabled={busy}
           >

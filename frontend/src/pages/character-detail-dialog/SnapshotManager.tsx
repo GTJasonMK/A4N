@@ -520,8 +520,8 @@ export const SnapshotManager: React.FC<{
             <div className="flex flex-wrap items-center gap-2">
               <ThemedSelect
                 value={diffFromChapter}
-                onChange={(event) => {
-                  const parsed = Number(event.target.value);
+                onChange={(selectedValue) => {
+                  const parsed = Number(selectedValue);
                   if (Number.isFinite(parsed) && parsed >= 0)
                     setDiffFromChapter(parsed);
                 }}
@@ -538,8 +538,8 @@ export const SnapshotManager: React.FC<{
               <span className="text-book-text-muted">→</span>
               <ThemedSelect
                 value={diffToChapterValue}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
+                onChange={(selectedValue) => {
+                  const value = Number(selectedValue);
                   setDiffToChapter(Number.isFinite(value) ? value : null);
                 }}
                 disabled={snapshotChapters.length === 0}
@@ -572,12 +572,12 @@ export const SnapshotManager: React.FC<{
             <div className="flex flex-wrap items-center gap-2">
               <ThemedSelect
                 value={rollbackChapterValue}
-                onChange={(event) => {
-                  if (!event.target.value) {
+                onChange={(selectedValue) => {
+                  if (!selectedValue) {
                     setRollbackChapter(null);
                     return;
                   }
-                  const value = Number(event.target.value);
+                  const value = Number(selectedValue);
                   setRollbackChapter(Number.isFinite(value) ? value : null);
                 }}
                 disabled={rollbackChapters.length === 0}

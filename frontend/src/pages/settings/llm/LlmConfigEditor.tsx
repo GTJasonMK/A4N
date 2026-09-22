@@ -68,7 +68,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           <ThemedSelect
             value={form.provider}
             aria-label={t("settingsForm.providerPreset")}
-            onChange={(event) => setForm(selectLlmProvider(form, event.target.value, providers))}
+            onChange={(selectedValue) => setForm(selectLlmProvider(form, selectedValue, providers))}
             className="pyqt-input w-full"
             disabled={structureDisabled}
           >
@@ -99,8 +99,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         <ThemedSelect
           value={form.agent_protocol}
           aria-label={t("settingsForm.agentProtocol")}
-          onChange={(event) =>
-            setForm({ ...form, agent_protocol: event.target.value })
+          onChange={(selectedValue) =>
+            setForm({ ...form, agent_protocol: selectedValue })
           }
           className="pyqt-input w-full"
           disabled={structureDisabled}

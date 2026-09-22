@@ -117,7 +117,7 @@ export const ReferenceBindingsPanel: React.FC<{
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
               <ThemedSelect
                 value={selectedKey}
-                onChange={(event) => onSelectCandidate(bindingKey, event.target.value)}
+                onChange={(selectedValue) => onSelectCandidate(bindingKey, selectedValue)}
                 className="pyqt-input h-8 min-w-0 !px-2 !py-1 text-xs"
                 disabled={chapterLocked || assetsLoading || candidates.length === 0}
               >

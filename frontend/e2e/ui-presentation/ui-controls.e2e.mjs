@@ -107,6 +107,21 @@ describe("nested editor and input contracts", () => {
     await $('[role="listbox"]').waitForExist({ reverse: true });
   });
 
+  it("updates selected values by keyboard and pointer without native controls", async () => {
+    const select = await $("#mode-label").parentElement().$('button[role="combobox"]');
+    assert.equal((await $$("select, datalist")).length, 0);
+    await select.click();
+    const disabledOption = await $('[role="option"][aria-disabled="true"]');
+    await disabledOption.waitForDisplayed();
+    await disabledOption.click();
+    assert.equal(await select.getText(), "叙事");
+    await browser.keys(["End", "Enter"]);
+    assert.equal(await select.getText(), "对话", "keyboard navigation skips disabled options");
+    await select.click();
+    await $('//div[@role="option" and normalize-space(.)="叙事"]').click();
+    assert.equal(await select.getText(), "叙事");
+  });
+
   it("shows the available choices when opening a populated combobox", async () => {
     await $('input[role="combobox"]').click();
     await $('[role="listbox"]').waitForDisplayed();

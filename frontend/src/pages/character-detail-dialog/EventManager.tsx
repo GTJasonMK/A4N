@@ -386,8 +386,7 @@ export const EventManager: React.FC<{
             {t("characterDetail.event.category")}
             <ThemedSelect
               value={filterCategory}
-              onChange={(event) => {
-                const nextValue = event.target.value;
+              onChange={(nextValue) => {
                 if (filterCategoryRef.current !== nextValue) invalidateLoadedEvents();
                 setFilterCategory(nextValue);
               }}
@@ -405,8 +404,7 @@ export const EventManager: React.FC<{
             {t("characterDetail.event.operation")}
             <ThemedSelect
               value={filterOperation}
-              onChange={(event) => {
-                const nextValue = event.target.value;
+              onChange={(nextValue) => {
                 if (filterOperationRef.current !== nextValue) invalidateLoadedEvents();
                 setFilterOperation(nextValue);
               }}
@@ -458,7 +456,7 @@ export const EventManager: React.FC<{
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.operation")}</span>
             <ThemedSelect
               value={mode}
-              onChange={(event) => setMode(event.target.value === "modify" ? "modify" : "add")}
+              onChange={(selectedValue) => setMode(selectedValue === "modify" ? "modify" : "add")}
               disabled={saving}
               className="pyqt-input !px-2 !py-1"
             >
@@ -486,7 +484,7 @@ export const EventManager: React.FC<{
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.category")}</span>
             <ThemedSelect
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
+              onChange={setCategory}
               disabled={saving}
               className="pyqt-input !px-2 !py-1"
             >

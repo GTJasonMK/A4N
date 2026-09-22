@@ -251,7 +251,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           />
           <ThemedSelect
             value={role}
-            onChange={(event) => setRole(event.target.value as ProjectMemberRole)}
+            onChange={(selectedValue) => setRole(selectedValue as ProjectMemberRole)}
             className="pyqt-input h-9 w-full"
           >
                 {memberRoleOptions.map((item) => (
@@ -291,8 +291,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                   value={member.role}
                   aria-label={t("novel.collaborationActions.adjustRole", { username: member.username })}
                   disabled={busyActionKeys.has(`role:${member.user_id}`)}
-                  onChange={(event) =>
-                    void handleRoleChange(member, event.target.value as ProjectMemberRole)
+                  onChange={(selectedValue) =>
+                    void handleRoleChange(member, selectedValue as ProjectMemberRole)
                   }
                   className="pyqt-input h-8 w-24 text-small sm:w-28"
                 >

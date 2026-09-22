@@ -263,8 +263,8 @@ export const ExportPanel: React.FC<{
         <span className="text-small text-book-text-muted">{t("novel.exportPanel.format")}</span>
         <ThemedSelect
           value={selectedFormat}
-          onChange={(event) =>
-            setSelectedFormat(event.target.value as ExportFormat)
+          onChange={(selectedValue) =>
+            setSelectedFormat(selectedValue as ExportFormat)
           }
           className="pyqt-input w-full !py-1.5 text-xs"
           disabled={exportBusy}

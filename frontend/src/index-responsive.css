@@ -98,11 +98,9 @@
   }
 
   input.pyqt-input,
-  select.pyqt-input,
   .a4n-themed-select__trigger.pyqt-input,
   textarea.pyqt-input,
   input.book-control,
-  select.book-control,
   textarea.book-control {
     min-height: 44px;
     font-size: 16px;
@@ -197,7 +195,6 @@
     }
 
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
-    select,
     textarea {
       min-height: 40px !important;
     }
@@ -223,7 +220,6 @@
     }
 
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
-    select,
     textarea {
       min-height: 44px !important;
       font-size: 16px !important;

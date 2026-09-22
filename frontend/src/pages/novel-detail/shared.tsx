@@ -240,7 +240,7 @@ export function SelectField({
       {label}
       <ThemedSelect
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
         className="pyqt-input !px-2 !py-1 text-xs"
       >
         {options.map((option) => (

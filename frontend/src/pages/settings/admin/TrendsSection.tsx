@@ -43,7 +43,7 @@ export const TrendsSection: React.FC = () => {
           {t("settingsAdmin.usageRange")}
           <ThemedSelect
             value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+            onChange={(selectedValue) => setDays(Number(selectedValue))}
             className="pyqt-input w-24 !px-2 !py-1"
             aria-label={t("settingsAdmin.usageRange")}
           >

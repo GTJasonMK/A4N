@@ -104,7 +104,7 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
         </label>
         <ThemedSelect
           value={selectedTemplate?.id ?? "custom"}
-          onChange={(event) => applyTemplate(event.target.value)}
+          onChange={applyTemplate}
           disabled={disabled}
           title={selectedTemplate ? templateName(selectedTemplate) : t("common.stylePicker.custom")}
           aria-label={t("common.stylePicker.templateAria", { label })}

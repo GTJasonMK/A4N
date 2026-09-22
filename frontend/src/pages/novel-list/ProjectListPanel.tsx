@@ -125,8 +125,8 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
               <ThemedSelect
                 aria-label={t("novel.projectTypeFilter")}
                 value={projectKindFilter}
-                onChange={(event) =>
-                  onProjectKindFilterChange(event.target.value as ProjectKindFilter)
+                onChange={(selectedValue) =>
+                  onProjectKindFilterChange(selectedValue as ProjectKindFilter)
                 }
                 className="pyqt-input a4n-compact-select h-8 min-w-0 flex-1 sm:min-w-[6.75rem] sm:flex-none max-md:w-full"
               >
@@ -142,8 +142,8 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
               <ThemedSelect
                 aria-label={t("novel.accessFilter")}
                 value={accessScope}
-                onChange={(event) =>
-                  onAccessScopeChange(event.target.value as ProjectAccessScope)
+                onChange={(selectedValue) =>
+                  onAccessScopeChange(selectedValue as ProjectAccessScope)
                 }
                 className="pyqt-input a4n-compact-select h-8 min-w-0 flex-1 sm:min-w-[6.75rem] sm:flex-none max-md:w-full"
               >

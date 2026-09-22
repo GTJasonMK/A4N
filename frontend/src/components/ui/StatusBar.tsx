@@ -103,7 +103,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
       /* 用固定定位壳体检测，避免避让 transform 改变检测区域并造成抖动。 */
       const shellRect = shell.getBoundingClientRect();
       const overlapsControl = Array.from(document.querySelectorAll<HTMLElement>(
-        "button, a[href], input, select, textarea, [role=button]",
+        "button, a[href], input, textarea, [role=button]",
       )).some((control) => {
         if (control.closest(".a4n-status-bar-shell")) return false;
         if (control.matches(":disabled, [hidden], [aria-hidden='true']") || getComputedStyle(control).pointerEvents === "none") return false;

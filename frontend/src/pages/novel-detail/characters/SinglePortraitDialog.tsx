@@ -377,7 +377,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
             {profiles.length > 0 ? (
               <ThemedSelect
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={setName}
                 className="pyqt-input w-full"
               >
                 {profiles.map((profile) => (

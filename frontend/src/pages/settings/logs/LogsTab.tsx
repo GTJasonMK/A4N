@@ -228,7 +228,7 @@ export const LogsTab: React.FC = () => {
               id="log-lines"
               aria-label={t("settingsLogs.logLines")}
               value={lines}
-              onChange={(e) => setLines(Number(e.target.value))}
+              onChange={(selectedValue) => setLines(Number(selectedValue))}
               className="pyqt-input w-28 px-2 py-1"
             >
               <option value={100}>{t("settingsLogs.recentLines", { count: "100" })}</option>
@@ -240,7 +240,7 @@ export const LogsTab: React.FC = () => {
               id="log-days"
               aria-label={t("settingsLogs.logDate")}
               value={daysAgo}
-              onChange={(e) => setDaysAgo(Number(e.target.value))}
+              onChange={(selectedValue) => setDaysAgo(Number(selectedValue))}
               className="pyqt-input w-24 px-2 py-1"
             >
               <option value={0}>{t("settingsLogs.today")}</option>

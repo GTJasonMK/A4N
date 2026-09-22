@@ -198,7 +198,6 @@
   }
 
   input.pyqt-input,
-  select.pyqt-input,
   .a4n-themed-select__trigger.pyqt-input {
     min-height: 40px;
   }

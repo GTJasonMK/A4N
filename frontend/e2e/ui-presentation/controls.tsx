@@ -56,9 +56,10 @@ function Controls() {
           <label className="flex flex-col gap-2"><span>下一字段</span><input className="pyqt-input" /></label>
           <label className="flex flex-col gap-2">
             <span id="mode-label">场景类型</span>
-            <ThemedSelect value={mode} onChange={(event) => setMode(event.target.value)} disabled={selectDisabled}
+            <ThemedSelect value={mode} onChange={setMode} disabled={selectDisabled}
               aria-invalid="true" aria-describedby="mode-error" className="pyqt-input">
               <option value="narration">叙事</option><option value="dialogue">对话</option>
+              <option value="unavailable" disabled>不可用类型</option>
             </ThemedSelect>
           </label>
           <span id="mode-error">请选择合适的场景类型。</span>
@@ -75,7 +76,7 @@ function Controls() {
         </section>
         <section className="a4n-flat-surface space-y-3 p-4">
           <label className="flex flex-col gap-2"><span>长模型目录</span>
-            <ThemedSelect id="long-select" value={catalogModel} onChange={(event) => setCatalogModel(event.target.value)}>
+            <ThemedSelect id="long-select" value={catalogModel} onChange={setCatalogModel}>
               {catalogOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </ThemedSelect>
           </label>
@@ -91,7 +92,7 @@ function Controls() {
         {dialog === "scene" ? (
           <div className="space-y-4">
             <label className="flex flex-col gap-2"><span>对白方式</span>
-              <ThemedSelect value={mode} onChange={(event) => setMode(event.target.value)} className="pyqt-input">
+              <ThemedSelect value={mode} onChange={setMode} className="pyqt-input">
                 <option value="narration">叙事</option><option value="dialogue">对话</option>
               </ThemedSelect>
             </label>

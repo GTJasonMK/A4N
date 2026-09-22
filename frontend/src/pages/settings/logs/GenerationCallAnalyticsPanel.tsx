@@ -147,7 +147,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
           {t("settingsLogs.usageRange")}
           <ThemedSelect
             value={days}
-            onChange={(event) => setDays(Number(event.target.value))}
+            onChange={(selectedValue) => setDays(Number(selectedValue))}
             className="pyqt-input w-28 px-2 py-1"
             aria-label={t("settingsLogs.usageRange")}
           >

@@ -581,7 +581,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
             <ThemedSelect
               aria-label={t("settingsTheme.backgroundRoute")}
               value={backgroundRoute}
-              onChange={(event) => setBackgroundRoute(event.target.value)}
+              onChange={setBackgroundRoute}
               className="pyqt-input !min-h-8 !w-auto max-w-full !px-2 text-xs"
               disabled={saving}
             >
@@ -672,7 +672,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                 <span className="mb-1 block">{t("settingsTheme.backgroundPosition")}</span>
                 <ThemedSelect
                   value={currentBackground.position}
-                  onChange={(event) => updateBackground({ position: event.target.value })}
+                  onChange={(selectedValue) => updateBackground({ position: selectedValue })}
                   disabled={saving}
                   className="pyqt-input !min-h-8 w-full !px-2 text-xs"
                 >
@@ -685,7 +685,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                 <span className="mb-1 block">{t("settingsTheme.backgroundSize")}</span>
                 <ThemedSelect
                   value={currentBackground.size}
-                  onChange={(event) => updateBackground({ size: event.target.value })}
+                  onChange={(selectedValue) => updateBackground({ size: selectedValue })}
                   disabled={saving}
                   className="pyqt-input !min-h-8 w-full !px-2 text-xs"
                 >

@@ -49,7 +49,11 @@ export const config = {
     viteProcess = spawn(
       process.execPath,
       ["./node_modules/vite/bin/vite.js", "--host", host, "--port", String(port), "--strictPort"],
-      { cwd: frontendRoot, stdio: ["ignore", "pipe", "pipe"] },
+      {
+        cwd: frontendRoot,
+        env: { ...process.env, VITE_A4N_API_TRANSPORT: "tauri" },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
     );
     const recordOutput = (chunk) => {
       viteOutput = `${viteOutput}${chunk}`.slice(-12_000);

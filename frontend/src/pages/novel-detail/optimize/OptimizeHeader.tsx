@@ -49,8 +49,8 @@ export function OptimizeHeader({
             value={String(selectedChapter)}
             title={t("writing.chooseChapterTitle")}
             aria-label={t("writing.chooseChapterTitle")}
-            onChange={(event) => {
-              const chapterId = Number(event.target.value);
+            onChange={(selectedValue) => {
+              const chapterId = Number(selectedValue);
               onSelectChapter(
                 Number.isSafeInteger(chapterId) && chapterId > 0 ? chapterId : "",
               );

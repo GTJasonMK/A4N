@@ -500,10 +500,10 @@ const RelationshipEditorModal: React.FC<{
           </span>
           <ThemedSelect
             value={state.profileId}
-            onChange={(event) =>
+            onChange={(selectedValue) =>
               onChange({
                 ...state,
-                profileId: Number(event.target.value),
+                profileId: Number(selectedValue),
               })
             }
             disabled={saving || state.editing}

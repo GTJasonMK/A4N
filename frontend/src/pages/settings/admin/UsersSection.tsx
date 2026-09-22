@@ -619,7 +619,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             <ThemedSelect
               className="pyqt-input"
               value={createForm.role}
-              onChange={(e) => updateCreateForm({ role: e.target.value })}
+              onChange={(selectedValue) => updateCreateForm({ role: selectedValue })}
               disabled={createBusy}
             >
               {USER_ROLES.map((role) => (

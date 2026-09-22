@@ -122,10 +122,6 @@ async function fieldByLabel(label, tag = "input", scope = null) {
     for (const control of controls) {
       if (await control.isDisplayed().catch(() => false)) return control;
     }
-    if (tag === "select") {
-      const themedControl = await item.$('button[role="combobox"]');
-      if (await themedControl.isDisplayed().catch(() => false)) return themedControl;
-    }
     const forId = await item.getAttribute("for");
     if (forId) {
       // React-generated ids can contain ':' and therefore cannot be used
@@ -427,25 +423,11 @@ async function configureServerEmbedding() {
   await create.click();
   await waitForBodyMatch(/新建.*(?:嵌入|Embedding).*配置|嵌入配置|Embedding 配置/);
   await setField("配置名称", "Chromium E2E 嵌入");
-  const backend = await fieldByLabel("后端", "select", null);
-  if ((await backend.getAttribute("role")) === "combobox") {
-    await backend.click();
-    await browser.waitUntil(
-      async () => {
-        try {
-          const option = await firstVisibleContaining("[role=\"option\"]", "OpenAI 兼容 API");
-          if (!option) return false;
-          await option.click();
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      { timeout: 30_000, interval: 100, timeoutMsg: "未找到 OpenAI 兼容 API 下拉选项" },
-    );
-  } else {
-    await backend.selectByVisibleText("OpenAI 兼容 API");
-  }
+  const backend = await fieldByLabel("后端", 'button[role="combobox"]');
+  await backend.click();
+  const option = await $('//div[@role="option" and normalize-space(.)="OpenAI 兼容 API"]');
+  await option.waitForClickable({ timeout: 30_000 });
+  await option.click();
   await setField("模型", "a4n-virtual-embedding");
   await setField("接口地址", providerUrl);
   await setField("访问密钥", "a4n-e2e-provider-key");

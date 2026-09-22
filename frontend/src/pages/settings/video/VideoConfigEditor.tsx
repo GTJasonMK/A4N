@@ -80,12 +80,12 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         <FormField label={t("settingsForm.videoProvider")}>
           <ThemedSelect
             value={form.provider}
-            onChange={(event) => {
+            onChange={(selectedValue) => {
               const provider = providers.find(
-                (item) => item.id === event.target.value,
+                (item) => item.id === selectedValue,
               );
               if (!provider)
-                throw new Error(t("settingsForm.providerNotRegistered", { provider: event.target.value }));
+                throw new Error(t("settingsForm.providerNotRegistered", { provider: selectedValue }));
               setForm({
                 ...form,
                 provider: provider.id,
@@ -171,7 +171,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         <FormField label={t("settingsForm.size")}>
           <ThemedSelect
             value={form.size}
-            onChange={(event) => setForm({ ...form, size: event.target.value })}
+            onChange={(selectedValue) => setForm({ ...form, size: selectedValue })}
             className="pyqt-input w-full"
             disabled={structureDisabled}
           >

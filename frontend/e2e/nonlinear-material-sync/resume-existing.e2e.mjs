@@ -100,8 +100,11 @@ describe("恢复稀疏章节资料同步", () => {
   it("用户主动归纳分部后确认写入正式资料，并保留已有章纲", async () => {
     await browser.url(`/novel/${projectId}`);
     const details = await openMaterialSummary();
-    const target = await details.$("select");
-    await target.selectByAttribute("value", "part_outline");
+    const target = await details.$('button[role="combobox"]');
+    await target.click();
+    const option = await $('//div[@role="option" and normalize-space(.)="分部大纲"]');
+    await option.waitForClickable();
+    await option.click();
 
     await browser.pause(2_000);
     if (!(await details.getText()).includes("分部大纲候选（尚未写入正式资料）")) {

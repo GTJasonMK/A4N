@@ -870,8 +870,8 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
             {durationLimits.durationMode === "fixed" ? (
               <ThemedSelect
                 value={draft.duration_secs}
-                onChange={(event) =>
-                  updateDraft({ duration_secs: Number(event.target.value) })
+                onChange={(selectedValue) =>
+                  updateDraft({ duration_secs: Number(selectedValue) })
                 }
                 disabled={selectedPromptRunning}
                 className="book-control h-9 px-2 text-xs"

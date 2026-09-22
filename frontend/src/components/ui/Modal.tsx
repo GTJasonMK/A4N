@@ -34,7 +34,6 @@ const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   'textarea:not([disabled])',
   'input:not([disabled])',
-  'select:not([disabled])',
   'summary',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');

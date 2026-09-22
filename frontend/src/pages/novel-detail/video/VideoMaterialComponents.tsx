@@ -354,7 +354,7 @@ export function ToolbarSelect({
       <span className="shrink-0 text-book-text-muted">{label}</span>
       <ThemedSelect
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
         disabled={disabled}
         className="pyqt-input a4n-compact-select h-7 !min-h-7 min-w-0 flex-1 !border-transparent !bg-transparent !pl-1 text-xs text-book-text-main"
       >

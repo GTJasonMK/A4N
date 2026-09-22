@@ -358,7 +358,7 @@ export const AuthPage: React.FC = () => {
                 <span className="text-body-sm font-medium text-book-text-sub">{t("auth.loginService")}</span>
                 <ThemedSelect
                   value={oauthProvider}
-                  onChange={(e) => handleOauthProviderChange(e.target.value)}
+                  onChange={handleOauthProviderChange}
                   disabled={oauthBusy || oauthAuthorizeUrl !== null}
                   className="pyqt-input min-w-0"
                 >

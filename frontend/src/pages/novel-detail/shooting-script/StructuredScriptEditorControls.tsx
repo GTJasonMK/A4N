@@ -240,7 +240,7 @@ export const SelectField: React.FC<{
     <span className="mb-1 block text-small text-book-text-muted">{label}</span>
     <ThemedSelect
       value={value}
-      onChange={(event) => onChange(path, event.target.value)}
+      onChange={(selectedValue) => onChange(path, selectedValue)}
       className="pyqt-input w-full text-xs"
     >
       {options.map(([optionValue, optionLabel]) => (

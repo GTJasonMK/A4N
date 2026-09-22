@@ -124,8 +124,8 @@ export const ChoiceEditor: React.FC<{
                   className="pyqt-input text-xs text-book-text-main"
                   value={draft.target_scene_id}
                   disabled={disabled || scenes.length === 0}
-                  onChange={(event) =>
-                    updateDraft(index, { target_scene_id: event.target.value })
+                  onChange={(selectedValue) =>
+                    updateDraft(index, { target_scene_id: selectedValue })
                   }
                 >
                   <option value="">

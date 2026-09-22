@@ -324,7 +324,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
           <ThemedSelect
             aria-label={t("video.chapter.chooseSceneAria")}
             value={selectedUnitIndex ?? ""}
-            onChange={(event) => setSelectedUnitIndex(Number(event.target.value))}
+            onChange={(selectedValue) => setSelectedUnitIndex(Number(selectedValue))}
             disabled={busy || loading || editingPlan || draft != null || shootingScenes.length === 0}
             className="pyqt-input max-w-64 !px-2 !py-2 text-xs"
           >
@@ -402,9 +402,9 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                   <span className="text-book-text-muted">{t("video.chapter.aspectRatioLabel")}</span>
                   <ThemedSelect
                     value={options.aspectRatio}
-                    onChange={(event) => onOptionsChange((previous) => ({
+                    onChange={(selectedValue) => onOptionsChange((previous) => ({
                       ...previous,
-                      aspectRatio: event.target.value as VideoGenOptions["aspectRatio"],
+                      aspectRatio: selectedValue as VideoGenOptions["aspectRatio"],
                     }))}
                     disabled={busy || aspectRatioLoading || supportedAspectRatios.length === 0}
                     className="pyqt-input !px-2 !py-1.5"
@@ -421,9 +421,9 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                   <span className="text-book-text-muted">{t("video.chapter.promptLanguageLabel")}</span>
                   <ThemedSelect
                     value={options.promptOutputLanguage}
-                    onChange={(event) => onOptionsChange((previous) => ({
+                    onChange={(selectedValue) => onOptionsChange((previous) => ({
                       ...previous,
-                      promptOutputLanguage: event.target.value as VideoGenOptions["promptOutputLanguage"],
+                      promptOutputLanguage: selectedValue as VideoGenOptions["promptOutputLanguage"],
                     }))}
                     disabled={busy}
                     className="pyqt-input !px-2 !py-1.5"
@@ -437,9 +437,9 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                   <span className="text-book-text-muted">{t("video.chapter.defaultDuration")}</span>
                   <ThemedSelect
                     value={options.durationSecs}
-                    onChange={(event) => onOptionsChange((previous) => ({
+                    onChange={(selectedValue) => onOptionsChange((previous) => ({
                       ...previous,
-                      durationSecs: Number(event.target.value),
+                      durationSecs: Number(selectedValue),
                     }))}
                     disabled={busy}
                     className="pyqt-input !px-2 !py-1.5"

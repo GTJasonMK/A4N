@@ -409,7 +409,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           <ThemedSelect
             value={configText(config, "display_mode") || "summary"}
             disabled={disabled}
-            onChange={(event) => onChange({ display_mode: event.target.value })}
+            onChange={(selectedValue) => onChange({ display_mode: selectedValue })}
             className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="summary">{t("video.canvas.inspector.summary")}</option>
@@ -438,7 +438,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           <ThemedSelect
             value={configText(config, "output_kind")}
             disabled={disabled}
-            onChange={(event) => onChange({ output_kind: event.target.value })}
+            onChange={(selectedValue) => onChange({ output_kind: selectedValue })}
             className={INSPECTOR_CONTROL_CLASS}
           >
             <option value={CANVAS_PROMPT_KIND}>{t("video.canvas.inspector.canvasPrompt")}</option>
@@ -472,7 +472,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           <ThemedSelect
             value={configText(config, "output_kind")}
             disabled={disabled}
-            onChange={(event) => onChange({ output_kind: event.target.value })}
+            onChange={(selectedValue) => onChange({ output_kind: selectedValue })}
             className={INSPECTOR_CONTROL_CLASS}
           >
             <option value={CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT}>{t("video.canvas.inspector.shotScript")}</option>
@@ -501,7 +501,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           <ThemedSelect
             value={inputMode ?? ""}
             disabled={disabled}
-            onChange={(event) => onChange({ input_mode: event.target.value })}
+            onChange={(selectedValue) => onChange({ input_mode: selectedValue })}
             className={INSPECTOR_CONTROL_CLASS}
           >
             {inputMode == null ? <option value="" disabled>{t("video.canvas.inspector.missingInputMode")}</option> : null}
@@ -602,7 +602,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           <ThemedSelect
             value={frameKind}
             disabled={disabled}
-            onChange={(event) => onChange({ frame_kind: event.target.value, at_secs: event.target.value === "time" ? configNumber(config, "at_secs") : undefined })}
+            onChange={(selectedValue) => onChange({ frame_kind: selectedValue, at_secs: selectedValue === "time" ? configNumber(config, "at_secs") : undefined })}
             className={INSPECTOR_CONTROL_CLASS}
           >
             <option value="first">{t("video.canvas.inspector.firstFrame")}</option>
@@ -838,7 +838,7 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
       <ThemedSelect
         value={value ?? ""}
         disabled={disabled || (options.length === 0 && !selectedMissing)}
-        onChange={(event) => onChange(numberOrNull(event.target.value, 1))}
+        onChange={(selectedValue) => onChange(numberOrNull(selectedValue, 1))}
         className={INSPECTOR_CONTROL_CLASS}
       >
         <option value="">{options.length === 0 ? t("video.canvas.inspector.noConfigAvailable") : t("video.canvas.inspector.defaultConfig")}</option>

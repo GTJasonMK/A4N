@@ -88,9 +88,9 @@ export function ImageSizeSelect({
       <ThemedSelect
         value={selectedValue}
         disabled={disabled || loading || error != null || sizes.length === 0}
-        onChange={(event) => {
+        onChange={(selectedValue) => {
           const next = sizes.find(
-            (candidate) => `${candidate.width}x${candidate.height}` === event.target.value,
+            (candidate) => `${candidate.width}x${candidate.height}` === selectedValue,
           );
           if (next) onChange(next);
         }}

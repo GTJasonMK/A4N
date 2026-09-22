@@ -116,7 +116,7 @@ const FilterSelect: React.FC<{
     <span className="sr-only">{allLabel}</span>
     <ThemedSelect
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={onChange}
       className="pyqt-input min-w-[7.5rem] !px-2 !py-1.5 text-xs"
     >
       <option value={ALL_STORY_EVENT_FILTER}>{allLabel}</option>

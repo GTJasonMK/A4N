@@ -709,10 +709,10 @@ function SceneProfileEditModal({
             <span className="text-book-text-muted">{t("novel.profile.parentScene")}</span>
             <ThemedSelect
               value={draft.parent_scene_id ?? ""}
-              onChange={(event) =>
+              onChange={(selectedValue) =>
                 update(
                   "parent_scene_id",
-                  event.target.value ? Number(event.target.value) : null,
+                  selectedValue ? Number(selectedValue) : null,
                 )
               }
               className="pyqt-input"

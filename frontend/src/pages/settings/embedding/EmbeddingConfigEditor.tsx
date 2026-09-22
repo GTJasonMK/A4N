@@ -66,8 +66,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
         <FormField label={t("settingsForm.backend")}>
           <ThemedSelect
             value={form.backend}
-            onChange={(e) => {
-              const backend = e.target.value;
+            onChange={(backend) => {
               const fastembedModel = pickFastembedModel();
               setForm({
                 ...form,
@@ -114,8 +113,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
           >
             <ThemedSelect
               value={form.model}
-              onChange={(e) => {
-                const modelName = e.target.value;
+              onChange={(modelName) => {
                 const localModel = resolveLocalModel(modelName);
                 setForm({
                   ...form,

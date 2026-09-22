@@ -78,7 +78,7 @@ describe("EmbeddingConfigEditor", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain('<option value="BGEBaseENV15" selected="">BGEBaseENV15</option>');
+    expect(html).toContain('>BGEBaseENV15</span>');
   });
 
   it("keeps model options compact when download metadata is available", () => {
@@ -122,7 +122,7 @@ describe("EmbeddingConfigEditor", () => {
     );
 
     expect(html).toContain(
-      '<option value="BGESmallZHV15" selected="">BGESmallZHV15 · 512 维 · 已下载</option>',
+      '>BGESmallZHV15 · 512 维 · 已下载</span>',
     );
   });
 });

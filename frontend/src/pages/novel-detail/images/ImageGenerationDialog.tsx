@@ -199,8 +199,8 @@ export function ImageGenerationDialog({
                 <ThemedSelect
                   id="object-image-profile"
                   value={selectedObjectProfileId ?? ""}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
+                  onChange={(selectedValue) => {
+                    const value = Number(selectedValue);
                     onSelectedObjectProfileIdChange(
                       Number.isFinite(value) && value > 0 ? value : null,
                     );

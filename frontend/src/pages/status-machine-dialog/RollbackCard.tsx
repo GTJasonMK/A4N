@@ -55,8 +55,8 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
           {t("statusMachine.targetStage")}
           <ThemedSelect
             value={target ?? ""}
-            onChange={(event) => {
-              const value = event.target.value as ProjectStatus;
+            onChange={(selectedValue) => {
+              const value = selectedValue as ProjectStatus;
               if (value) void onPreview(value);
               else onCancel();
             }}

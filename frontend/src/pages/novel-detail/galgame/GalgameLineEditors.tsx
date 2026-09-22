@@ -195,8 +195,7 @@ export const SceneMetaEditor: React.FC<{
           className="pyqt-input text-book-text-main md:col-span-3"
           value={draft.next_scene_id}
           disabled={disabled}
-          onChange={(event) => {
-            const value = event.target.value;
+          onChange={(value) => {
             setDraft((current) => ({ ...current, next_scene_id: value }));
             onPatch({ next_scene_id: value ? Number(value) : null });
           }}
@@ -303,8 +302,8 @@ export const LineEditor: React.FC<LineEditorProps> = ({
           className="pyqt-input text-xs text-book-text-main"
           value={line.line_type}
           disabled={disabled}
-          onChange={(event) => {
-            const nextType = event.target.value as GalgameLineType;
+          onChange={(selectedValue) => {
+            const nextType = selectedValue as GalgameLineType;
             onPatch({
               line_type: nextType,
               speaker_profile_id: SPEAKING_LINE_TYPES.has(nextType)
@@ -334,12 +333,12 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             className="pyqt-input text-xs text-book-text-main"
             value={line.speaker_profile_id ?? ""}
             disabled={disabled || speakerProfiles.length === 0}
-            onChange={(event) =>
+            onChange={(selectedValue) =>
               onPatch({
-                speaker_profile_id: event.target.value
-                  ? Number(event.target.value)
+                speaker_profile_id: selectedValue
+                  ? Number(selectedValue)
                   : null,
-                expression: event.target.value
+                expression: selectedValue
                   ? expressionValue || "neutral"
                   : line.expression,
               })
@@ -362,8 +361,8 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             className="pyqt-input text-xs text-book-text-main"
             value={line.position ?? ""}
             disabled={disabled}
-            onChange={(event) => {
-              const position = event.target.value as GalgameStagePositionV2 | "";
+            onChange={(selectedValue) => {
+              const position = selectedValue as GalgameStagePositionV2 | "";
               onPatch({ position: position || null });
             }}
           >
@@ -473,8 +472,8 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             className="pyqt-input text-xs text-book-text-main"
             value={expressionValue}
             disabled={disabled}
-            onChange={(event) =>
-              onPatch({ expression: event.target.value || null })
+            onChange={(selectedValue) =>
+              onPatch({ expression: selectedValue || null })
             }
           >
             {EXPRESSIONS.map((item) => (
@@ -603,8 +602,8 @@ const PresentationEditor: React.FC<{
             className="pyqt-input text-xs text-book-text-main"
             value={cgImportance}
             disabled={disabled}
-            onChange={(event) => {
-              const importance = event.target.value as GalgameCgImportance;
+            onChange={(selectedValue) => {
+              const importance = selectedValue as GalgameCgImportance;
               setCgImportance(importance);
               if (cgNote.trim()) update({ cgNote, cgImportance: importance });
             }}
@@ -623,8 +622,8 @@ const PresentationEditor: React.FC<{
           className="pyqt-input text-xs text-book-text-main"
           value={transition}
           disabled={disabled}
-          onChange={(event) => {
-            const nextTransition = event.target.value as GalgameTransition | "";
+          onChange={(selectedValue) => {
+            const nextTransition = selectedValue as GalgameTransition | "";
             setTransition(nextTransition);
             update({ transition: nextTransition });
           }}

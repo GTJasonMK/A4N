@@ -1,16 +1,10 @@
 import assert from "node:assert/strict";
 
-const segmentHeaderText = (segmentNumber) =>
-  browser.execute((target) => {
-    const button = [
-      ...document.querySelectorAll("button[data-video-segment]"),
-    ].find(
-      (element) =>
-        element.getAttribute("data-video-segment") === String(target) &&
-        !element.closest('[role="dialog"]'),
-    );
-    return button?.innerText ?? "";
-  }, segmentNumber);
+const segmentHeaderText = async (segmentNumber) => {
+  const button = await pageSegmentButton(segmentNumber);
+  await button.waitForDisplayed();
+  return button.getText();
+};
 
 const pageSegmentButton = (segmentNumber) =>
   $(
@@ -41,7 +35,7 @@ const openSegmentConfig = async (segmentNumber) => {
 
 const closeSegmentConfig = async (segmentNumber) => {
   const dialog = await segmentConfigDialog(segmentNumber);
-  const close = await dialog.$('button[aria-label="关闭弹窗"]');
+  const close = await dialog.$('button[aria-label="关闭"]');
   await close.waitForClickable();
   await close.click();
   await dialog.waitForExist({ reverse: true });
@@ -308,7 +302,7 @@ describe("video segment mode switching in Chromium", () => {
       async () => (await persistedSnapshots()).length === 1,
     );
     const closeMaterialDialog = await materialDialog.$(
-      'button[aria-label="关闭弹窗"]',
+      'button[aria-label="关闭"]',
     );
     await closeMaterialDialog.waitForClickable();
     await closeMaterialDialog.click();
@@ -614,7 +608,7 @@ describe("video segment mode switching in Chromium", () => {
     assert.ok(Math.abs(layout.setupLeft - layout.workspaceLeft) <= 1);
     assert.ok(Math.abs(layout.setupRight - layout.workspaceRight) <= 1);
     assert.ok(layout.setupBottom <= layout.workspaceTop + 1);
-    await dialog.$('button[aria-label="关闭弹窗"]').click();
+    await dialog.$('button[aria-label="关闭"]').click();
     await dialog.waitForExist({ reverse: true });
 
     await browser.url("/e2e/video-mode-switch/?scenario=stale-plan-adoption");
@@ -636,7 +630,7 @@ describe("video segment mode switching in Chromium", () => {
     });
     assert.equal(versionLayout.count, 1);
     assert.ok((versionLayout.widthDifference ?? Number.POSITIVE_INFINITY) <= 4);
-    await versionsDialog.$('button[aria-label="关闭弹窗"]').click();
+    await versionsDialog.$('button[aria-label="关闭"]').click();
     await versionsDialog.waitForExist({ reverse: true });
   });
 
@@ -673,7 +667,7 @@ describe("video segment mode switching in Chromium", () => {
       assert.ok(layout.height >= layout.viewportHeight - 20);
       assert.ok(layout.bottom >= layout.viewportHeight - 1);
       assert.ok(layout.setupBottom <= layout.workspaceTop + 1);
-      await dialog.$('button[aria-label="关闭弹窗"]').click();
+      await dialog.$('button[aria-label="关闭"]').click();
       await dialog.waitForExist({ reverse: true });
     } finally {
       await browser.setWindowSize(1440, 1000);
@@ -805,7 +799,7 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal(updatedRecipe.guidance_mode, "continuity");
     assert.equal(updatedRecipe.continuity_source_video_id, null);
     assert.match(await segmentHeaderText(1), /首尾帧生成/);
-    assert.match(await segmentHeaderText(2), /首帧生成/);
+    assert.match(await segmentHeaderText(2), /首帧续接/);
 
     const firstFrameSource = await dialog.$('[aria-label="首帧来源"]');
     await firstFrameSource.waitForExist();
@@ -843,17 +837,20 @@ describe("video segment mode switching in Chromium", () => {
       '//div[@role="dialog" and .//h3[normalize-space()="续接首帧配置"]]',
     );
     await continuityDialog.waitForExist();
-    const source = await continuityDialog.$("select");
-    await source.waitForExist();
-    assert.equal(await source.getValue(), "");
+    const source = await continuityDialog.$('button[role="combobox"]');
+    await source.waitForDisplayed();
+    assert.equal(await source.getText(), "选择更早片段已采用的视频…");
     await source.waitForEnabled();
-    await source.selectByAttribute("value", "501");
+    await source.click();
+    const option = await $('//div[@role="option" and contains(., "501")]');
+    await option.waitForClickable();
+    await option.click();
     await browser.waitUntil(async () => (await recipeUpdates()).length === 4);
     await browser.execute(() => window.dispatchEvent(new Event("focus")));
     await browser.waitUntil(async () => (await postSelectRefreshes()) === 1);
     const sourceRecipe = (await recipeUpdates())[3];
     assert.equal(sourceRecipe.continuity_source_video_id, 501);
-    await browser.waitUntil(async () => (await source.getValue()) === "501");
+    await browser.waitUntil(async () => (await source.getText()).includes("501"));
   });
 
   it("keeps old-plan videos out of candidates and only adopts the current plan video", async () => {

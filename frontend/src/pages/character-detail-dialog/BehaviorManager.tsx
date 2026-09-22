@@ -151,8 +151,8 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
           <ThemedSelect
             value={limit}
             disabled={loading}
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
+            onChange={(selectedValue) => {
+              const parsed = Number(selectedValue);
               if (parsed === 20 || parsed === 50 || parsed === 100) {
                 const next = parsed;
                 if (limitRef.current !== next) invalidateLoadedResults();

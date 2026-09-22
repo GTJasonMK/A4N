@@ -166,7 +166,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               <span className="mb-1 block">{t("settings.webSearchProtocol")}</span>
               <ThemedSelect
                 value={form.protocol}
-                onChange={(event) => updateField("protocol", event.currentTarget.value)}
+                onChange={(selectedValue) => updateField("protocol", selectedValue)}
                 disabled={saving}
                 className="pyqt-input h-9 min-h-9 w-full text-xs"
               >

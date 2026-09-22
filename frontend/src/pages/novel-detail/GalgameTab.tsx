@@ -812,9 +812,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                       disabled={
                         !canEditGalgame || generating || pipelineCancelling
                       }
-                      onChange={(event) =>
+                      onChange={(selectedValue) =>
                         setPipelineStartStage(
-                          event.target.value as GalgamePipelineStartStage | "",
+                          selectedValue as GalgamePipelineStartStage | "",
                         )
                       }
                     >

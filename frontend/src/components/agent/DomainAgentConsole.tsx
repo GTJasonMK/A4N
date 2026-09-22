@@ -950,8 +950,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 </span>
                 <ThemedSelect
                   value={deliveryMode}
-                  onChange={(event) =>
-                    setDeliveryMode(event.target.value as AgentDeliveryMode)
+                  onChange={(selectedValue) =>
+                    setDeliveryMode(selectedValue as AgentDeliveryMode)
                   }
                   className="pyqt-input h-8 min-h-8 w-full !py-1 text-[10px] sm:w-auto"
                   aria-label={t("agent.domain.deliveryMode")}
@@ -973,8 +973,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 </span>
                 <ThemedSelect
                   value={executionMode}
-                  onChange={(event) =>
-                    setExecutionMode(event.target.value as AgentExecutionMode)
+                  onChange={(selectedValue) =>
+                    setExecutionMode(selectedValue as AgentExecutionMode)
                   }
                   className="pyqt-input h-8 min-h-8 w-full !py-1 text-[10px] sm:w-auto"
                   aria-label={t("agent.domain.executionMode")}

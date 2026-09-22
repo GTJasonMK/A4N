@@ -917,11 +917,11 @@ export const VideoGenerationWorkspace: React.FC<
                   selectedSegmentNumber == null ||
                   savingRecipeSegments.has(selectedSegmentNumber)
                 }
-                onChange={(event) => {
+                onChange={(selectedValue) => {
                   if (selectedSegmentNumber == null) return;
                   void onContinuitySourceChange(
                     selectedSegmentNumber,
-                    Number(event.target.value) || null,
+                    Number(selectedValue) || null,
                   );
                 }}
                 className="book-control h-10 w-full px-3 text-small"

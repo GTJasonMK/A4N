@@ -419,10 +419,9 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   <ThemedSelect
                     value={form.prompt_output_language}
                     disabled={acting != null}
-                    onChange={(event) =>
+                    onChange={(selectedValue) =>
                       updateForm({
-                        prompt_output_language: event.target
-                          .value as PromptOutputLanguage,
+                        prompt_output_language: selectedValue as PromptOutputLanguage,
                       })
                     }
                     className="book-control mt-1 h-9 w-full px-2 text-xs"
@@ -438,8 +437,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   <ThemedSelect
                     value={form.duration_secs}
                     disabled={acting != null}
-                    onChange={(event) =>
-                      updateForm({ duration_secs: Number(event.target.value) })
+                    onChange={(selectedValue) =>
+                      updateForm({ duration_secs: Number(selectedValue) })
                     }
                     className="book-control mt-1 h-9 w-full px-2 text-xs"
                   >
@@ -459,8 +458,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                       aspectRatioLoading ||
                       supportedAspectRatios.length === 0
                     }
-                    onChange={(event) =>
-                      updateForm({ aspect_ratio: event.target.value })
+                    onChange={(selectedValue) =>
+                      updateForm({ aspect_ratio: selectedValue })
                     }
                     className="book-control mt-1 h-9 w-full px-2 text-xs"
                   >
@@ -628,10 +627,10 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     aria-label={t("video.chapter.moveInserted", { number: editingItem.display_index })}
                     value=""
                     disabled={acting != null}
-                    onChange={(event) => {
+                    onChange={(selectedValue) => {
                       const selected = editingMoveGaps.find(
                         (candidate) =>
-                          insertedSegmentGapKey(candidate) === event.target.value,
+                          insertedSegmentGapKey(candidate) === selectedValue,
                       );
                       if (!selected) return;
                       void onMove({

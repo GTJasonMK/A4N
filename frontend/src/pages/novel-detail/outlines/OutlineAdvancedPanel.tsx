@@ -1009,9 +1009,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         </div>
         <ThemedSelect
           value={selectedPartId}
-          onChange={(event) =>
+          onChange={(selectedValue) =>
             setSelectedPartId(
-              event.target.value ? Number(event.target.value) : "",
+              selectedValue ? Number(selectedValue) : "",
             )
           }
           disabled={controlsDisabled}

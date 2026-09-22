@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { I18nProvider } from "../../src/i18n";
 import {
   IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
   IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
@@ -742,6 +743,10 @@ let releaseParallelFirstSave = null;
 let releaseCrossModeSourceRecipeSave = null;
 const callSnapshot = (value) => JSON.parse(JSON.stringify(value));
 const invoke = async (command, args = {}) => {
+  if (command === "invoke_host_command") {
+    if (args.userId !== 1) throw new Error("unexpected fixture caller");
+    return invoke(args.command, args.args);
+  }
   calls.push({ command, args: callSnapshot(args) });
   switch (command) {
     case "get_all_frontend_state":
@@ -772,6 +777,7 @@ const invoke = async (command, args = {}) => {
       storyboardImage = null;
       return null;
     case "list_video_configs":
+    case "list_image_configs":
     case "list_active_generation_tasks":
       return [];
     case "list_generation_task_history":
@@ -797,6 +803,8 @@ const invoke = async (command, args = {}) => {
       return { record: {}, script: shootingScript };
     case "get_chapter_shooting_script_unit_progress":
       return null;
+    case "get_chapter_video_timeline":
+      return { id: 1, revision: 1, items: [] };
     case "list_videos_by_chapter":
       return chapterVideos();
     case "list_workflow_runs":
@@ -1181,21 +1189,23 @@ window.__A4N_VIDEO_MODE_E2E__ = {
 await initializePortableStorage();
 
 createRoot(document.getElementById("root")).render(
-  <ProgressTaskProvider>
-    <div style={{ height: "100vh", padding: 16 }}>
-      <ToastContainer />
-      <ConfirmDialogHost />
-      <PromptDialogHost />
-      <VideoTab
-        projectId={projectId}
-        fixedChapter={{
-          id: chapterId,
-          chapter_number: 1,
-          title: "第一章",
-          content,
-          status: "completed",
-        }}
-      />
-    </div>
-  </ProgressTaskProvider>,
+  <I18nProvider initialLocale="zh-CN">
+    <ProgressTaskProvider>
+      <div style={{ height: "100vh", padding: 16 }}>
+        <ToastContainer />
+        <ConfirmDialogHost />
+        <PromptDialogHost />
+        <VideoTab
+          projectId={projectId}
+          fixedChapter={{
+            id: chapterId,
+            chapter_number: 1,
+            title: "第一章",
+            content,
+            status: "completed",
+          }}
+        />
+      </div>
+    </ProgressTaskProvider>
+  </I18nProvider>,
 );

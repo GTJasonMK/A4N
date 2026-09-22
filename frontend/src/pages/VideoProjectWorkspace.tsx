@@ -234,7 +234,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                   <span className="shrink-0 font-medium text-book-text-muted">{t("video.sourceChapter")}</span>
                   <ThemedSelect
                     value={selectedSourceChapterId ?? ""}
-                    onChange={(event) => setSelectedSourceChapterId(Number(event.target.value))}
+                    onChange={(selectedValue) => setSelectedSourceChapterId(Number(selectedValue))}
                     className="pyqt-input h-9 min-w-0 flex-1 !px-2 !py-1.5 text-xs"
                   >
                     {chapters.map((chapter) => {
