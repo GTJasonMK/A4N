@@ -240,8 +240,7 @@ pub enum OptimizationContextSelection {
     },
 }
 
-/// Canonical optimization context sources. The `chapter` alias is accepted
-/// for older prompts; responses always use `current_chapter`.
+/// Canonical optimization context sources.
 pub const OPTIMIZATION_CONTEXT_SOURCES: &[&str] = &[
     "current_chapter",
     "current_chapter_outline",
@@ -257,7 +256,7 @@ pub const OPTIMIZATION_CONTEXT_SOURCES: &[&str] = &[
 
 pub fn canonical_optimization_context_source(source: &str) -> Option<&'static str> {
     match source.trim() {
-        "chapter" | "current_chapter" => Some("current_chapter"),
+        "current_chapter" => Some("current_chapter"),
         "current_chapter_outline" => Some("current_chapter_outline"),
         "project_detail" => Some("project_detail"),
         "blueprint" => Some("blueprint"),
@@ -276,7 +275,7 @@ pub fn canonical_optimization_context_source(source: &str) -> Option<&'static st
 pub struct InspectOptimizationContextInput {
     #[serde(default)]
     #[schemars(
-        description = "Canonical source: current_chapter, current_chapter_outline, project_detail, blueprint, part_outlines, chapter_outlines, character_profiles, foreshadowing_index, previous_chapters, or next_chapters. Legacy alias chapter is accepted."
+        description = "Canonical source: current_chapter, current_chapter_outline, project_detail, blueprint, part_outlines, chapter_outlines, character_profiles, foreshadowing_index, previous_chapters, or next_chapters."
     )]
     pub source: Option<String>,
     #[serde(default)]
@@ -289,7 +288,7 @@ pub struct InspectOptimizationContextInput {
 #[serde(deny_unknown_fields)]
 pub struct ReadOptimizationContextInput {
     #[schemars(
-        description = "Canonical source: current_chapter, current_chapter_outline, project_detail, blueprint, part_outlines, chapter_outlines, character_profiles, foreshadowing_index, previous_chapters, or next_chapters. Legacy alias chapter is accepted."
+        description = "Canonical source: current_chapter, current_chapter_outline, project_detail, blueprint, part_outlines, chapter_outlines, character_profiles, foreshadowing_index, previous_chapters, or next_chapters."
     )]
     pub source: String,
     #[serde(default)]
@@ -308,7 +307,7 @@ pub struct SearchOptimizationContextInput {
     pub query: String,
     #[serde(default)]
     #[schemars(
-        description = "Canonical source: current_chapter, current_chapter_outline, project_detail, blueprint, part_outlines, chapter_outlines, character_profiles, foreshadowing_index, previous_chapters, or next_chapters. Legacy alias chapter is accepted."
+        description = "Canonical source: current_chapter, current_chapter_outline, project_detail, blueprint, part_outlines, chapter_outlines, character_profiles, foreshadowing_index, previous_chapters, or next_chapters."
     )]
     pub source: Option<String>,
     #[serde(default)]
@@ -322,11 +321,8 @@ mod tests {
     use super::{OPTIMIZATION_CONTEXT_SOURCES, canonical_optimization_context_source};
 
     #[test]
-    fn context_source_aliases_canonicalize_without_accepting_unknown_sources() {
-        assert_eq!(
-            canonical_optimization_context_source("chapter"),
-            Some("current_chapter")
-        );
+    fn context_sources_require_canonical_names() {
+        assert!(canonical_optimization_context_source("chapter").is_none());
         assert_eq!(
             canonical_optimization_context_source(" current_chapter "),
             Some("current_chapter")

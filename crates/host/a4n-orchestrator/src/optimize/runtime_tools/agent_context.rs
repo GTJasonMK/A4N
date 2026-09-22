@@ -604,10 +604,7 @@ fn collect_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        canonical_source, inspect_source, paragraph_ranges, read_chapter_paragraphs, read_paths,
-        source_hash_for_requested_source,
-    };
+    use super::{inspect_source, paragraph_ranges, read_chapter_paragraphs, read_paths};
     use serde_json::json;
 
     #[test]
@@ -666,12 +663,5 @@ mod tests {
                 .as_str()
                 .is_some_and(|cursor| cursor.starts_with("paragraph:"))
         );
-    }
-
-    #[test]
-    fn legacy_chapter_source_resolves_to_current_chapter() {
-        let context = json!({"current_chapter": {"content": "正文"}});
-        assert_eq!(canonical_source("chapter").unwrap(), "current_chapter");
-        assert!(source_hash_for_requested_source(&context, Some("chapter")).is_ok());
     }
 }
