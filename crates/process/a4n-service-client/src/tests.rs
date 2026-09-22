@@ -8,6 +8,7 @@ use a4n_service_protocol::{
     SIDECAR_TRACE_ID_HEADER, ServiceErrorCode, ServiceRequest, ServiceResponse, TraceContext,
     sidecar_resource_policy,
 };
+use reqwest::StatusCode;
 use std::{net::SocketAddr, time::Duration};
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 
@@ -104,8 +105,13 @@ fn sidecar_transport_authorizes_health_requests() {
 
 #[tokio::test]
 async fn event_stream_response_headers_have_a_connect_deadline() {
-    let (addr, server) =
-        delayed_http_server(Duration::from_millis(100), Vec::new(), Duration::ZERO).await;
+    let (addr, server) = delayed_http_server(
+        StatusCode::OK,
+        Duration::from_millis(100),
+        Vec::new(),
+        Duration::ZERO,
+    )
+    .await;
     let transport = test_transport(format!("http://{addr}"), LLM_SERVICE_NAME).with_test_timeouts(
         Duration::from_millis(20),
         Duration::from_secs(1),
@@ -127,6 +133,7 @@ async fn event_stream_response_headers_have_a_connect_deadline() {
 #[tokio::test]
 async fn non_streaming_responses_have_a_request_deadline() {
     let (addr, server) = delayed_http_server(
+        StatusCode::OK,
         Duration::from_millis(100),
         vec![r#"{"status":"ok"}"#],
         Duration::ZERO,
@@ -151,6 +158,7 @@ async fn non_streaming_responses_have_a_request_deadline() {
 #[tokio::test]
 async fn event_stream_chunks_have_an_idle_deadline() {
     let (addr, server) = delayed_http_server(
+        StatusCode::OK,
         Duration::ZERO,
         vec![
             r#"{"task_id":"task","event_kind":"chunk","sequence":1,"payload":{"text":"x"}}
@@ -184,6 +192,66 @@ async fn event_stream_chunks_have_an_idle_deadline() {
         a4n_service_protocol::CapabilityTaskEventKind::Chunk
     );
     server.abort();
+}
+
+#[tokio::test]
+async fn http_rejections_preserve_permanent_and_transient_error_semantics() {
+    for (status, code, retryable) in [
+        (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            ServiceErrorCode::ConfigurationError,
+            false,
+        ),
+        (
+            StatusCode::BAD_REQUEST,
+            ServiceErrorCode::ConfigurationError,
+            false,
+        ),
+        (
+            StatusCode::UNAUTHORIZED,
+            ServiceErrorCode::Unauthorized,
+            false,
+        ),
+        (StatusCode::FORBIDDEN, ServiceErrorCode::Unauthorized, false),
+        (
+            StatusCode::REQUEST_TIMEOUT,
+            ServiceErrorCode::ServiceUnavailable,
+            true,
+        ),
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            ServiceErrorCode::ServiceUnavailable,
+            true,
+        ),
+        (
+            StatusCode::BAD_GATEWAY,
+            ServiceErrorCode::ServiceUnavailable,
+            true,
+        ),
+    ] {
+        for streaming in [false, true] {
+            let (addr, server) =
+                delayed_http_server(status, Duration::ZERO, Vec::new(), Duration::ZERO).await;
+            let transport = test_transport(format!("http://{addr}"), LLM_SERVICE_NAME);
+            let error = if streaming {
+                let (events, _receiver) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+                transport
+                    .post_event_stream("/events", test_json_request(), events)
+                    .await
+                    .expect_err("HTTP error must reject the event stream")
+            } else {
+                transport
+                    .post::<_, serde_json::Value>("/json", test_json_request())
+                    .await
+                    .expect_err("HTTP error must reject the JSON request")
+            };
+            assert_eq!(error.code, code, "{status}, streaming={streaming}");
+            assert_eq!(error.retryable, Some(retryable));
+            assert!(error.message.contains(status.as_str()));
+            assert!(!error.message.contains(&addr.to_string()));
+            server.await.expect("HTTP status server should finish");
+        }
+    }
 }
 
 #[test]
@@ -387,6 +455,7 @@ fn parse_event_line_redacts_error_message() {
 }
 
 async fn delayed_http_server(
+    status: StatusCode,
     header_delay: Duration,
     chunks: Vec<&'static str>,
     inter_chunk_delay: Duration,
@@ -407,7 +476,7 @@ async fn delayed_http_server(
         tokio::time::sleep(header_delay).await;
         let body_len = chunks.iter().map(|chunk| chunk.len()).sum::<usize>();
         let headers = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: {SIDECAR_EVENT_CONTENT_TYPE}\r\nContent-Length: {body_len}\r\nConnection: close\r\n\r\n"
+            "HTTP/1.1 {status}\r\nContent-Type: {SIDECAR_EVENT_CONTENT_TYPE}\r\nContent-Length: {body_len}\r\nConnection: close\r\n\r\n"
         );
         if socket.write_all(headers.as_bytes()).await.is_err() {
             return;

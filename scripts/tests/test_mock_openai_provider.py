@@ -524,7 +524,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
             content = json.loads(payload["choices"][0]["message"]["content"])
             self.assertTrue(expected_keys.issubset(content))
 
-    def test_shooting_design_mirrors_all_locked_visual_shots(self) -> None:
+    def test_shooting_design_uses_the_structured_target_shot(self) -> None:
         spans = [
             {"id": "ch1:s1:f1", "paragraph_index": 1, "text": "建立空间"},
             {"id": "ch1:s2:f1", "paragraph_index": 2, "text": "进入地下机房"},
@@ -556,6 +556,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                             "user_addition_ids": [],
                             "shots": locked_shots,
                         },
+                        "target_shot": locked_shots[1],
                         "screenplay_plan_unit": {
                             "scene_identity": "unit_1",
                             "sequence_index": 1,
@@ -600,19 +601,18 @@ class MockOpenAIProviderTest(unittest.TestCase):
         response = shooting_design_response(prompt)
         self.assertEqual(
             [shot["shot_id"] for shot in response["shots"]],
-            ["shot_1", "shot_2"],
+            ["shot_2"],
         )
         self.assertEqual(
             [shot["source_span_ids"] for shot in response["shots"]],
-            [[], ["ch1:s2:f1"]],
+            [["ch1:s2:f1"]],
         )
-        self.assertEqual(response["shots"][0]["performance_beats"], [])
         self.assertEqual(
-            response["shots"][1]["performance_beats"][0]["source_span_ids"],
+            response["shots"][0]["performance_beats"][0]["source_span_ids"],
             ["ch1:s2:f1"],
         )
-        self.assertEqual(response["shots"][1]["performance_beats"][0]["actor"], "林岚")
-        targeted = shooting_design_response(f"{prompt}\ntarget_shot_id=shot_2")
+        self.assertEqual(response["shots"][0]["performance_beats"][0]["actor"], "林岚")
+        targeted = shooting_design_response(f"{prompt}\n只设计 target_shot_id=shot_2。响应只能包含目标镜头。")
         self.assertEqual([shot["shot_id"] for shot in targeted["shots"]], ["shot_2"])
         self.assertEqual(
             targeted["shots"][0]["performance_beats"][0]["source_span_ids"],

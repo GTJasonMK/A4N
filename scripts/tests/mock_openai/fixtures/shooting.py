@@ -172,17 +172,20 @@ def shooting_design_scene_template(combined: str) -> dict[str, Any]:
     }
 
 
-def shooting_design_input(combined: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def shooting_design_input(combined: str) -> tuple[dict[str, Any], dict[str, Any], str]:
     for value in embedded_json_objects(combined):
         locked = value.get("locked_visual_unit")
         screenplay = value.get("screenplay_plan_unit")
         if isinstance(locked, dict) and isinstance(screenplay, dict):
-            return locked, screenplay
+            target = value.get("target_shot")
+            if not isinstance(target, dict) or not isinstance(target.get("segment_id"), str) or not target["segment_id"]:
+                raise UnhandledPromptError("shooting design input has no target_shot.segment_id")
+            return locked, screenplay, target["segment_id"]
     raise UnhandledPromptError("shooting design prompt contains no locked visual unit")
 
 
 def shooting_design_response(combined: str) -> dict[str, Any]:
-    locked, screenplay = shooting_design_input(combined)
+    locked, screenplay, target_id = shooting_design_input(combined)
     planned_shots = locked.get("shots")
     facts = screenplay.get("performance_facts")
     if not isinstance(planned_shots, list) or not planned_shots:
@@ -218,13 +221,13 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
     if not isinstance(participants, list):
         raise UnhandledPromptError("screenplay plan unit participants are invalid")
 
-    target_ids = re.findall(r"target_shot_id=([^\s\n]+)", combined)
-    target_id = target_ids[-1] if target_ids else None
     selected = [
         (planned, assigned_facts)
         for planned, assigned_facts in zip(planned_shots, facts_by_shot)
-        if target_id is None or planned.get("segment_id") == target_id
+        if planned.get("segment_id") == target_id
     ]
+    if len(selected) != 1:
+        raise UnhandledPromptError("shooting target must identify exactly one locked shot")
     shots = []
     for shot_index, (planned, assigned_facts) in enumerate(selected, 1):
         start_ms = planned.get("start_ms")

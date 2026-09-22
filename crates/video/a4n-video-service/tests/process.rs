@@ -14,6 +14,63 @@ use axum::http::StatusCode;
 use tokio::time::{Duration, timeout};
 
 #[tokio::test]
+async fn video_media_requests_above_json_limit_reach_the_provider() {
+    let addr = unused_local_addr();
+    let (manager, _temp_dir) = sidecar_manager(
+        "video",
+        env!("CARGO_BIN_EXE_a4n-video-service"),
+        addr,
+        "A4N_VIDEO_SERVICE_ADDR",
+        [],
+    );
+    let process = start_sidecar(&manager, VIDEO_SERVICE_NAME).await;
+    let provider = FakeJsonProvider::start(serde_json::json!({
+        "id": "large-media-video-job", "status": "queued"
+    }))
+    .await;
+    let client =
+        HttpVideoClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
+    let mut request = video_generation_request(
+        "video-large-media",
+        "video-large-media-trace",
+        VIDEO_PROVIDER_CAPABILITY_VERSION,
+        "cliproxy-openai-video",
+        format!("{}/openai/v1", provider.base_url()),
+        "process-provider-secret",
+        "first-frame video",
+    );
+    // Media is opaque to the transport; this matches a 6 MiB inline image.
+    let image = format!("data:image/png;base64,{}", "A".repeat(8 * 1024 * 1024));
+    request.payload.request.duration_secs = 7;
+    request.payload.request.media = VideoMediaInput::Frames {
+        first: image.clone(),
+        last: None,
+        references: Vec::new(),
+    };
+    let preview = client
+        .preview_request(request.clone())
+        .await
+        .expect("media preview must accept an inline image above the ordinary JSON limit");
+    assert_eq!(preview.status, ServiceStatus::Ok);
+    assert_eq!(
+        preview.payload.expect("video preview payload")["input_reference"]["image_url"].as_str(),
+        Some(image.as_str())
+    );
+    let events = video_generation_events(&client, request).await;
+    let completed = events.last().expect("video terminal event");
+    assert_eq!(
+        completed.event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Completed
+    );
+    assert_eq!(
+        completed.payload.as_ref().expect("video payload")["provider_job_id"],
+        "large-media-video-job"
+    );
+    provider.stop().await;
+    finish_sidecar(process, &manager, VIDEO_SERVICE_NAME, addr).await;
+}
+
+#[tokio::test]
 async fn video_service_process_calls_local_fake_provider_and_stops() {
     let addr = unused_local_addr();
     let (manager, _temp_dir) = sidecar_manager(
@@ -33,7 +90,12 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/request_preview").await;
     assert_route_rejects_malformed_json(&base_url, "/video/generate/events").await;
     assert_route_rejects_oversized_json(&base_url, "/video/models", 8 * 1024 * 1024).await;
-    assert_route_rejects_oversized_json(&base_url, "/video/generate/events", 8 * 1024 * 1024).await;
+    let media_limit = a4n_service_protocol::sidecar_resource_policy(VIDEO_SERVICE_NAME)
+        .expect("video resource policy")
+        .body_limit(a4n_service_protocol::BodyLimitKind::Media);
+    for path in ["/video/generate/events", "/video/request_preview"] {
+        assert_route_rejects_oversized_json(&base_url, path, media_limit).await;
+    }
     let client = HttpVideoClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);
     let cancel_client = HttpVideoClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let contract_request = video_generation_request(
