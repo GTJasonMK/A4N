@@ -1057,25 +1057,25 @@ async fn segment_plan_metadata_update_uses_updated_at_cas() {
     let project_id = insert_project(&db).await;
     let chapter = insert_chapter(&db, project_id).await;
     let prompt = insert_prompt(&db, project_id, chapter.id).await;
+    let mut metadata = prompt.metadata_json.clone().unwrap();
+    metadata["segments"] = json!([{"title": "已编辑"}]);
 
     let updated = update_chapter_video_segment_plan_metadata(
         &db,
         prompt.id,
         prompt.updated_at,
-        json!({"segments": [{"title": "已编辑"}]}),
+        metadata.clone(),
     )
     .await
     .unwrap();
-    assert_eq!(
-        updated.metadata_json,
-        Some(json!({"segments": [{"title": "已编辑"}]}))
-    );
+    assert_eq!(updated.metadata_json, Some(metadata.clone()));
 
+    metadata["segments"] = json!([{"title": "过期编辑"}]);
     let error = update_chapter_video_segment_plan_metadata(
         &db,
         prompt.id,
         prompt.updated_at - chrono::Duration::seconds(1),
-        json!({"segments": [{"title": "过期编辑"}]}),
+        metadata,
     )
     .await
     .unwrap_err();
@@ -1084,6 +1084,15 @@ async fn segment_plan_metadata_update_uses_updated_at_cas() {
         VideoDbError::InvalidArgument(message)
             if message == "片段规划已被其他操作修改，请刷新后重试"
     ));
+    assert_eq!(
+        chapter_video_prompt::Entity::find_by_id(prompt.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .metadata_json,
+        updated.metadata_json
+    );
 }
 
 #[tokio::test]

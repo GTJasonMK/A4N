@@ -1,11 +1,20 @@
-use std::{path::Path, time::Duration};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use a4n_config::app_config::{AppConfig, SecurityConfig};
+use a4n_config_read_worker::ConfigReadWorker;
+use a4n_config_read_worker_client::ConfigReadWorkerClient;
+use a4n_config_read_worker_contract::CONFIG_READ_WORKER_ID;
 use a4n_db_models::models::{
     ai::generated_image, media::image_publication, project::project_member,
 };
 use a4n_error::AppError;
 use a4n_image_host_contract::PreparedImportedImageUpload;
+use a4n_project_access_worker::ProjectAccessWorker;
+use a4n_project_access_worker_client::ProjectAccessWorkerClient;
+use a4n_project_access_worker_contract::PROJECT_ACCESS_WORKER_ID;
+use a4n_theme_read_worker::ThemeReadWorker;
+use a4n_theme_read_worker_client::ThemeReadWorkerClient;
+use a4n_theme_read_worker_contract::THEME_READ_WORKER_ID;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 
@@ -13,14 +22,49 @@ use a4n_runtime::{
     AppState, RuntimeProfile, RuntimeRole, host_api::auth_records::authorize_media_file_for_user,
 };
 
+struct MediaTestResources {
+    _workers: tokio::task::JoinSet<()>,
+    _directory: tempfile::TempDir,
+}
+
 async fn state() -> (
-    tempfile::TempDir,
+    MediaTestResources,
     AppState,
     sea_orm::DatabaseConnection,
     i64,
     i64,
 ) {
     let (db, database_url) = a4n_migration::test_support::connect_test_database_with_url().await;
+    let token = uuid::Uuid::new_v4().to_string();
+    let router = axum::Router::new()
+        .nest(
+            "/config",
+            ConfigReadWorker::new(db.clone(), CONFIG_READ_WORKER_ID, &token).router(),
+        )
+        .nest(
+            "/project-access",
+            ProjectAccessWorker::new(db.clone(), PROJECT_ACCESS_WORKER_ID, &token).router(),
+        )
+        .nest(
+            "/theme",
+            ThemeReadWorker::new(db.clone(), THEME_READ_WORKER_ID, &token).router(),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let mut workers = tokio::task::JoinSet::new();
+    workers.spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let config_worker = Arc::new(ConfigReadWorkerClient::new(
+        format!("{url}/config"),
+        Some(token.clone()),
+    ));
+    let access_worker = Arc::new(ProjectAccessWorkerClient::new(
+        format!("{url}/project-access"),
+        Some(token.clone()),
+    ));
+    let theme_worker = Arc::new(ThemeReadWorkerClient::new(
+        format!("{url}/theme"),
+        Some(token),
+    ));
     // A real bundled prompt registry is available beside this isolated data directory.
     let directory = tempfile::Builder::new()
         .prefix(".a4n-media-test-")
@@ -38,9 +82,22 @@ async fn state() -> (
         },
         ..Default::default()
     };
-    let state = crate::initialize_runtime(config, RuntimeProfile::Minimal, RuntimeRole::Host)
-        .await
-        .unwrap();
+    let state = a4n_host_assembly::initialize_runtime_with_ports(
+        config,
+        RuntimeProfile::Minimal,
+        RuntimeRole::Host,
+        |ports| {
+            ports.config_read_application = config_worker.clone();
+            ports.config_mutation_application = config_worker.clone();
+            ports.settings_export_application = config_worker.clone();
+            ports.settings_import_application = config_worker;
+            ports.project_access_application = access_worker;
+            ports.theme_read_application = theme_worker.clone();
+            ports.theme_mutation_application = theme_worker;
+        },
+    )
+    .await
+    .unwrap();
     let owner = a4n_db::auth::create_user(
         &db,
         "media-owner",
@@ -61,7 +118,16 @@ async fn state() -> (
     )
     .await
     .unwrap();
-    (directory, state, db, owner.id, project.id)
+    (
+        MediaTestResources {
+            _workers: workers,
+            _directory: directory,
+        },
+        state,
+        db,
+        owner.id,
+        project.id,
+    )
 }
 
 fn prepared_image_upload(project_id: i64) -> PreparedImportedImageUpload {
@@ -89,7 +155,7 @@ const TEST_IMAGE_BASE64: &str =
 
 #[tokio::test]
 async fn media_access_checks_membership_and_the_resolved_project_or_theme() {
-    let (_directory, state, db, owner_id, project_id) = state().await;
+    let (_resources, state, db, owner_id, project_id) = state().await;
     let other = a4n_db::auth::create_user(
         &db,
         "media-other",
@@ -196,7 +262,7 @@ async fn media_access_checks_membership_and_the_resolved_project_or_theme() {
 
 #[tokio::test]
 async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() {
-    let (_directory, state, _db, user_id, project_id) = state().await;
+    let (_resources, state, _db, user_id, project_id) = state().await;
     let prepared = prepared_image_upload(project_id);
     let bytes = prepared.decoded.bytes.clone();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
@@ -295,7 +361,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
 
 #[tokio::test]
 async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
-    let (_directory, state, _db, user_id, project_id) = state().await;
+    let (_resources, state, _db, user_id, project_id) = state().await;
     let prepared = prepared_image_upload(project_id);
     let bytes = prepared.decoded.bytes.clone();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
@@ -354,7 +420,7 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
 
 #[tokio::test]
 async fn media_recovery_reclaims_legacy_published_orphan_without_file_or_record() {
-    let (_directory, state, db, user_id, project_id) = state().await;
+    let (_resources, state, db, user_id, project_id) = state().await;
     let prepared = prepared_image_upload(project_id);
     let bytes = prepared.decoded.bytes.clone();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));
@@ -413,7 +479,7 @@ async fn media_recovery_reclaims_legacy_published_orphan_without_file_or_record(
 
 #[tokio::test]
 async fn media_recovery_reclaims_published_publication_without_image_id() {
-    let (_directory, state, db, user_id, project_id) = state().await;
+    let (_resources, state, db, user_id, project_id) = state().await;
     let prepared = prepared_image_upload(project_id);
     let bytes = prepared.decoded.bytes.clone();
     let sha256 = format!("{:x}", Sha256::digest(&bytes));

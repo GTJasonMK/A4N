@@ -33,16 +33,18 @@ pub async fn generation_owner<C: ConnectionTrait>(
             "Generation 存在多个 Agent owner".into(),
         ));
     }
-    if !rows.is_empty() {
-        let task = generation_task_checkpoint::Entity::find_by_id(task_id)
-            .one(db)
-            .await?
-            .ok_or_else(|| AgentDbError::NotFound("Generation task 不存在".into()))?;
+    // Validate the attempt even when it has no matching owner association.
+    if let Some(task) = generation_task_checkpoint::Entity::find_by_id(task_id)
+        .one(db)
+        .await?
+    {
         if u32::try_from(task.attempt).ok() != Some(attempt) {
             return Err(AgentDbError::Conflict(
                 "Generation attempt 已变化，不能脱离原 Agent 预算执行".into(),
             ));
         }
+    } else if !rows.is_empty() {
+        return Err(AgentDbError::NotFound("Generation task 不存在".into()));
     }
     Ok(rows.into_iter().next())
 }

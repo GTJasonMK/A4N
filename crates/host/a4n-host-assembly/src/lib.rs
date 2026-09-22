@@ -15,6 +15,16 @@ pub async fn initialize_runtime(
     runtime_profile: RuntimeProfile,
     runtime_role: RuntimeRole,
 ) -> Result<AppState, AppError> {
+    initialize_runtime_with_ports(config, runtime_profile, runtime_role, |_| {}).await
+}
+
+/// Binds Runtime application adapters before startup uses them.
+pub async fn initialize_runtime_with_ports(
+    config: a4n_config::app_config::AppConfig,
+    runtime_profile: RuntimeProfile,
+    runtime_role: RuntimeRole,
+    configure_ports: impl FnOnce(&mut ApplicationPorts),
+) -> Result<AppState, AppError> {
     let bootstrap = RuntimeBootstrap::prepare(config, runtime_profile, runtime_role).await?;
     let novel_planning_worker =
         Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
@@ -147,7 +157,7 @@ pub async fn initialize_runtime(
     };
     let artifact_media_reference_application = artifact_media_worker
         .map(|client| client as Arc<dyn a4n_artifact_media_contract::ArtifactMediaReferencePort>);
-    let application_ports = ApplicationPorts {
+    let mut application_ports = ApplicationPorts {
         generation_task_read_application: orchestrator.clone(),
         generation_task_mutation_application: orchestrator.clone(),
         generation_lifecycle_application: orchestrator.clone(),
@@ -370,6 +380,7 @@ pub async fn initialize_runtime(
         inspiration_generation_application: orchestrator.clone(),
         inspiration_request_application: orchestrator.clone(),
     };
+    configure_ports(&mut application_ports);
     let provider_runtime = provider_runtime.ok_or_else(|| AppError::InvalidState {
         current: "provider runtime port 未初始化".to_string(),
         operation: "构造 Runtime provider".to_string(),
