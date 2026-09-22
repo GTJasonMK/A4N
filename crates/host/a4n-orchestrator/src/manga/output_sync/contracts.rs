@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::super::pipeline_prompt::MangaPromptGenerationTrace;
+use super::super::pipeline::prompt::MangaPromptGenerationTrace;
 
 #[derive(Debug)]
 pub(in crate::manga) struct MangaPagePromptDraft {

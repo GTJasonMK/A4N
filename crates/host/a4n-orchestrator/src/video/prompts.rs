@@ -1,3 +1,14 @@
+pub(super) mod application;
+pub(super) mod chain_rules;
+pub(super) mod context;
+pub(super) mod generation;
+pub(super) mod json;
+pub(super) mod optimization;
+
+pub(super) mod ports;
+pub(super) mod records;
+pub(super) mod store;
+pub(super) mod workflow;
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
 

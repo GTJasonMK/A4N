@@ -52,7 +52,7 @@ pub(crate) use export_assembly::{
 };
 pub(crate) use validation::{validate_media_manifest, validate_package_manifest};
 
-use a4n_db::project_family_import::ProjectFamilyImportPackage;
+use a4n_db::project::family::import::ProjectFamilyImportPackage;
 
 impl ProjectFamilyPackage {
     /// 转为 DB 导入包（不含 media_files 索引）。

@@ -12,6 +12,16 @@ pub fn append_secondary_message(primary: String, secondary: Option<String>) -> S
     }
 }
 
+pub fn combine_optional_errors(
+    primary: Option<String>,
+    secondary: Option<String>,
+) -> Option<String> {
+    match primary {
+        Some(primary) => Some(append_secondary_message(primary, secondary)),
+        None => secondary,
+    }
+}
+
 /// Unified application error used at host and adapter boundaries.
 #[derive(Debug, Error)]
 pub enum AppError {

@@ -1,5 +1,6 @@
 mod contracts;
 mod decision;
+pub(super) mod executor;
 mod observations;
 mod request;
 

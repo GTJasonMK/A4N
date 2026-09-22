@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from mock_openai_provider import PNG_1X1_BASE64
+from mock_openai.protocol import PNG_1X1_BASE64
 from run_agent_cli_e2e import data, thread_snapshot, wait_for_run
 from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json, start_provider
 from specialized_agent_fixture import MARKER

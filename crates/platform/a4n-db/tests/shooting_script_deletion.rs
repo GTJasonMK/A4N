@@ -1,12 +1,16 @@
 use a4n_db::shooting_script::{
-    DeleteStoredChapterShootingScriptInput, delete_chapter_shooting_script_and_invalidate,
+    DeleteStoredChapterShootingScriptInput, ShootingScriptDbError,
+    delete_chapter_shooting_script_and_invalidate,
 };
-use a4n_db_models::models::{chapter::chapter_shooting_script, task::cleanup_outbox};
+use a4n_db_models::models::{
+    ai::generated_image, chapter::chapter_shooting_script, project::novel_project,
+    task::cleanup_outbox,
+};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, QueryFilter, QueryOrder, Set};
 
 #[tokio::test]
-async fn deleting_script_removes_record_and_queues_downstream_reset() {
+async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let root = a4n_db::project::create_project_record(
         &db,
@@ -48,6 +52,35 @@ async fn deleting_script_removes_record_and_queues_downstream_reset() {
     .await
     .unwrap();
     let now = Utc::now().naive_utc();
+    let image = a4n_db::video::create_generated_image_record(
+        &db,
+        a4n_domain::media::CreateGeneratedImageRecordDraftInput {
+            project_id: downstream.id,
+            image_type: "imported".into(),
+            file_path: format!("projects/{}/images/retained.png", downstream.id),
+            prompt: "保留下游素材".into(),
+            model: "test".into(),
+            width: 1,
+            height: 1,
+            file_size: Some(1),
+            chapter_id: None,
+            panel_id: None,
+            metadata_json: None,
+            created_at: None,
+        },
+    )
+    .await
+    .unwrap();
+    let downstream_before = novel_project::Entity::find_by_id(downstream.id)
+        .one(&db)
+        .await
+        .unwrap();
+    let cleanup_before = cleanup_outbox::Entity::find()
+        .filter(cleanup_outbox::Column::ProjectId.eq(downstream.id))
+        .order_by_asc(cleanup_outbox::Column::Id)
+        .all(&db)
+        .await
+        .unwrap();
     let record = chapter_shooting_script::ActiveModel {
         id: NotSet,
         root_project_id: Set(root.id),
@@ -72,6 +105,27 @@ async fn deleting_script_removes_record_and_queues_downstream_reset() {
     .await
     .unwrap();
 
+    let stale = delete_chapter_shooting_script_and_invalidate(
+        &db,
+        DeleteStoredChapterShootingScriptInput {
+            record_id: record.id,
+            expected_revision: 1,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        stale,
+        ShootingScriptDbError::RevisionConflict { .. }
+    ));
+    assert_eq!(
+        chapter_shooting_script::Entity::find_by_id(record.id)
+            .one(&db)
+            .await
+            .unwrap(),
+        Some(record.clone())
+    );
+
     delete_chapter_shooting_script_and_invalidate(
         &db,
         DeleteStoredChapterShootingScriptInput {
@@ -89,14 +143,25 @@ async fn deleting_script_removes_record_and_queues_downstream_reset() {
             .unwrap()
             .is_none()
     );
-    let reset = cleanup_outbox::Entity::find()
-        .filter(cleanup_outbox::Column::DedupeKey.eq(format!(
-            "shooting-script-delete:{}:revision:2:project:{}",
-            record.id, downstream.id
-        )))
-        .one(&db)
+    assert_eq!(
+        novel_project::Entity::find_by_id(downstream.id)
+            .one(&db)
+            .await
+            .unwrap(),
+        downstream_before
+    );
+    assert_eq!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap(),
+        Some(image)
+    );
+    let cleanup_after = cleanup_outbox::Entity::find()
+        .filter(cleanup_outbox::Column::ProjectId.eq(downstream.id))
+        .order_by_asc(cleanup_outbox::Column::Id)
+        .all(&db)
         .await
-        .unwrap()
-        .expect("delete should queue a downstream reset");
-    assert_eq!(reset.project_id, Some(downstream.id));
+        .unwrap();
+    assert_eq!(cleanup_after, cleanup_before);
 }

@@ -16,7 +16,7 @@ use super::{
         PreparedImplicitUpdateRequest,
     },
 };
-use crate::character::implicit_review_workflow_rules::implicit_update_call_key;
+use crate::character::implicit_review::workflow::implicit_update_call_key;
 
 pub(super) async fn build_implicit_update_request(
     prompt_renderer: &dyn PromptRenderer,

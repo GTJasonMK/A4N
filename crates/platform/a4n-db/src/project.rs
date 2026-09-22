@@ -1,15 +1,16 @@
 mod basic_record;
 mod blueprint_restore;
 mod blueprint_sync;
-mod chapter_context;
-#[path = "project/chapter_scene.rs"]
-mod chapter_scene_records;
-mod chapter_source;
+pub mod bundle;
+mod chapter;
+pub mod delete;
+pub mod dependency_graph;
+pub mod family;
+pub mod reset;
+
 mod cleanup;
 mod duplicate;
-mod family_context;
-mod family_export;
-mod family_metadata;
+
 mod foreshadowing;
 mod freeform_reset;
 mod material_refs;
@@ -36,7 +37,7 @@ pub use blueprint_sync::{
     blueprint_versions_by_project, merge_blueprint_characters, merge_blueprint_relationships,
     novel_blueprint_for_project,
 };
-pub use chapter_context::{
+pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
     ChapterSceneProfileContext, ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate,
     chapter_by_id, chapter_generation_reference_context_rows, chapters_before_number,
@@ -47,14 +48,14 @@ pub use chapter_context::{
     snapshot_profile_ids_for_chapter, snapshot_references_for_profiles_chapter,
     update_protagonist_profile_current_state,
 };
-pub use chapter_scene_records::{
+pub use chapter::scene::{
     ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput, ProjectChapterSceneWriteError,
     ProjectGeneratedChapterSceneSaveInput, chapter_by_project_number, chapter_scene_by_id,
     chapter_scene_reorder_project_id, chapter_scenes_by_chapter, delete_chapter_scene_record,
     reorder_chapter_scene_records, save_generated_chapter_scene_record,
     update_chapter_scene_record,
 };
-pub use chapter_source::{
+pub use chapter::source::{
     ResolveChapterSourceError, ResolvedChapterSource, resolve_chapter_source,
     resolve_snapshot_sources,
 };
@@ -74,22 +75,22 @@ pub use duplicate::{
     ProjectDuplicateError, duplicate_derived_project_record, duplicate_freeform_project_record,
     duplicate_text_project_record,
 };
-pub use family_context::{
+pub use family::context::{
     ChapterMangaSourceSummary, MangaCharacterPortraitRefSummary, ProjectFamilyContext,
     ProjectFamilyDbError, chapter_manga_source_by_id, chapter_manga_source_by_number,
     chapter_manga_sources_by_ids, derived_project_family_access_ids,
     derived_project_family_context, manga_character_portrait_refs,
     project_or_derived_family_access_ids,
 };
-pub(crate) use family_context::{
+pub(crate) use family::context::{
     validate_project_family_snapshot_chapter, validate_project_family_source_context,
 };
-pub use family_export::{
+pub use family::export::{
     ProjectFamilyExportError, ProjectFamilyExportRows, ProjectFamilyExportSelection,
     ProjectFamilyTextCoreRows, derived_project_export_selection, project_family_export_rows,
     project_family_export_selection,
 };
-pub use family_metadata::{
+pub use family::metadata::{
     ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError,
     project_family_metadata, project_family_metadata_batch,
 };

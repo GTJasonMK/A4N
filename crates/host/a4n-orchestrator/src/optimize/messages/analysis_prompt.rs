@@ -2,13 +2,13 @@ use a4n_error::AppError;
 use a4n_prompt::request::{build_json_task_user_message, json_user_message_payload};
 use serde_json::{Value, json};
 
-use crate::optimize::OptimizeAgentPermissions;
+use crate::optimize::OptimizationAgentPermissions;
 use crate::optimize::permissions::optimization_agent_capabilities;
 
 pub(in crate::optimize) fn build_content_optimization_user_message(
     chapter_content: &str,
     context_manifest: Option<&Value>,
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
     agent_instruction: Option<&str>,
 ) -> Result<String, AppError> {
     let chapter_content = chapter_content.trim();

@@ -1,7 +1,7 @@
+use a4n_db::project::reset::ProjectResetDbError;
 use a4n_db::project::{
     ProjectDuplicateError, ProjectMutationError, ProjectStatusReadError, ProjectStatusWriteError,
 };
-use a4n_db::project_reset::ProjectResetDbError;
 use a4n_error::AppError;
 
 pub(crate) fn project_mutation_error_to_app_error(error: ProjectMutationError) -> AppError {

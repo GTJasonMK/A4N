@@ -5,10 +5,7 @@ mod progress;
 mod scope;
 #[cfg(test)]
 mod state_projection;
-mod sync_batch;
-mod sync_profile;
-mod sync_trace;
-mod sync_types;
+mod sync;
 
 pub(crate) use character_discovery_flow::character_discovery_preview_step;
 pub use character_discovery_flow::discover_character_profiles;
@@ -25,11 +22,11 @@ pub use scope::{
     character_discovery_task_scope, character_profile_sync_all_task_scope,
     character_profile_sync_task_scope,
 };
-pub(crate) use sync_batch::sync_all_character_profiles_preview_steps;
-pub use sync_batch::sync_all_character_profiles_to_chapter;
-pub(crate) use sync_profile::character_sync_preview_step;
-pub use sync_profile::sync_character_profile_from_chapters;
-pub(crate) use sync_trace::RuntimeCharacterProfileSyncStageTracePort;
+pub(crate) use sync::batch::sync_all_character_profiles_preview_steps;
+pub use sync::batch::sync_all_character_profiles_to_chapter;
+pub(crate) use sync::profile::character_sync_preview_step;
+pub use sync::profile::sync_character_profile_from_chapters;
+pub(crate) use sync::trace::RuntimeCharacterProfileSyncStageTracePort;
 
 #[cfg(test)]
 mod tests;

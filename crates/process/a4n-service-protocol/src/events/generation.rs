@@ -1,3 +1,4 @@
+pub(super) mod error_codes;
 pub const GENERATION_EVENT_SCHEMA_VERSION: u16 = 1;
 pub const JS_SAFE_INTEGER_U64: u64 = 9_007_199_254_740_991;
 pub const JS_SAFE_INTEGER_I64: i64 = 9_007_199_254_740_991;

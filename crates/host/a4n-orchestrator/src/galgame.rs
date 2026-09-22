@@ -1,5 +1,7 @@
 //! Galgame 剧本、资产规划与生成流水线编排。
 
+mod pipeline;
+
 use crate::OrchestratorContext;
 
 mod application;
@@ -11,12 +13,7 @@ mod errors;
 mod media_application;
 mod mutations;
 mod persistence;
-mod pipeline_json;
-mod pipeline_persist;
-mod pipeline_prompt;
-mod pipeline_run;
-mod pipeline_state;
-mod pipeline_workflow_rules;
+
 mod preview_application;
 mod read_models;
 mod rules;
@@ -28,9 +25,7 @@ mod webgal_export_rules;
 use asset_plan::{GalgamePortraitAssetDraft, portrait_variant};
 use contracts::SCRIPT_STATUS_READY;
 
-use pipeline_workflow_rules::{
-    GALGAME_PIPELINE_WORKFLOW_KIND, galgame_pipeline_workflow_run_input,
-};
+use pipeline::workflow::{GALGAME_PIPELINE_WORKFLOW_KIND, galgame_pipeline_workflow_run_input};
 
 pub(crate) use contracts::{
     BindGalgameMediaInput, GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE,
@@ -57,8 +52,8 @@ pub(crate) use errors::{
 };
 #[cfg(test)]
 use persistence::GalgamePersistValidationScope;
-pub(in crate::galgame) use pipeline_json::validate_staged_presentation;
-pub(crate) use pipeline_json::{
+pub(in crate::galgame) use pipeline::json::validate_staged_presentation;
+pub(crate) use pipeline::json::{
     GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelineBackgroundPlan,
     GalgamePipelineBranchSceneLineStaged, GalgamePipelineChoicePlan, GalgamePipelineEventCgPlan,
     GalgamePipelineLineStaged, GalgamePipelineScene, GalgamePipelineShootingBeat,
@@ -67,30 +62,30 @@ pub(crate) use pipeline_json::{
     shooting_script_projection_from_value, visual_plan_from_value,
 };
 #[cfg(test)]
-use pipeline_json::{
+use pipeline::json::{
     GalgamePipelineLineDraft, GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged,
 };
-pub(crate) use pipeline_persist::{
+pub(crate) use pipeline::persist::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
     GalgameScriptPersistPlan, build_galgame_script_persist_plan,
 };
-pub(crate) use pipeline_prompt::{
+pub(crate) use pipeline::prompt::{
     GalgamePipelinePromptChapter, GalgamePipelinePromptSourceSpan,
     galgame_branch_design_user_message, galgame_character_staging_user_message,
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
     galgame_script_adaptation_user_message, galgame_speaker_profiles_from_prompt_records,
     galgame_visual_planning_user_message,
 };
-pub(in crate::galgame) use pipeline_prompt::{
+pub(in crate::galgame) use pipeline::prompt::{
     galgame_branch_design_session_user_message, galgame_script_adaptation_session_user_message,
     galgame_visual_planning_session_user_message,
 };
-pub(crate) use pipeline_run::validate_source_sync_scene_regeneration_stage_outputs;
-pub(crate) use pipeline_run::{
+pub(crate) use pipeline::run::validate_source_sync_scene_regeneration_stage_outputs;
+pub(crate) use pipeline::run::{
     GalgamePipelineRunOptions, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
     galgame_shooting_script_projection,
 };
-pub(crate) use pipeline_state::should_restore_galgame_stage_checkpoint;
+pub(crate) use pipeline::state::should_restore_galgame_stage_checkpoint;
 pub use preview_application::GalgamePipelinePreviewRequest;
 pub(crate) use read_models::galgame_line_from_model;
 #[cfg(test)]

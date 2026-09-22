@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::*;
-use crate::manga::pipeline_prompt::{MangaLlmCallInput, prepare_manga_llm_call};
+use crate::manga::pipeline::prompt::{MangaLlmCallInput, prepare_manga_llm_call};
 use a4n_llm_context::{
     LlmContextManifest, context_aware_system_user_request, preview_context_aware_chat_request,
 };

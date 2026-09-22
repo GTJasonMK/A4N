@@ -50,7 +50,7 @@ async fn discarding_pending_patch_sets_updates_patches_and_records_one_event() {
     .insert(database.as_ref())
     .await
     .unwrap();
-    let permissions = OptimizeAgentPermissions {
+    let permissions = OptimizationAgentPermissions {
         read_project_detail: true,
         read_blueprint: true,
         read_outlines: true,

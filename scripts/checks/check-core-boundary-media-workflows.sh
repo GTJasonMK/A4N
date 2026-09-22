@@ -295,13 +295,13 @@ if ! rg -n 'pub trait CanvasImageNodeApplicationPort' \
 fi
 
 if rg -n 'a4n_db|a4n_db_models|CanvasGraphRecordDocument|canvas_node::Model|CanvasPreviewApplicationPort|OrchestratorContext|state\.orchestrator\(\)' \
-    crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/video; then
+    crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/video.rs; then
     printf 'Canvas video action must not carry Canvas ORM records or the mixed execution port\n' >&2
     exit 1
 fi
 
 if ! rg -n 'canvas_video_application\(\)' \
-    crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/video; then
+    crates/host/a4n-runtime/src/actions/canvas_workflow/media_nodes/video.rs; then
     printf 'Canvas video action must route through CanvasVideoNodeApplicationPort\n' >&2
     exit 1
 fi
@@ -475,7 +475,7 @@ if ! rg -n 'pub trait Settings(Export|Import)ApplicationPort|pub trait SettingsA
     exit 1
 fi
 if rg -n 'pub trait Settings(Export|Import)ApplicationPort|pub trait SettingsAllApplicationPort|pub struct PromptRow' \
-    crates/host/a4n-orchestrator/src/config; then
+    crates/host/a4n-orchestrator/src; then
     printf 'settings import/export contracts must not be redefined in the orchestrator\n' >&2
     exit 1
 fi
@@ -685,7 +685,7 @@ fi
 if ! rg -n 'video_record_read_application\(\)' \
     crates/host/a4n-runtime/src/actions/video_records/records.rs \
     crates/host/a4n-runtime/src/actions/video_records/playback.rs \
-    crates/host/a4n-runtime/src/actions/video_generation/reference_media/api.rs \
+    crates/host/a4n-runtime/src/actions/video_generation/reference_media.rs \
     crates/host/a4n-runtime/src/actions/video_generation/media/reference_images; then
     printf 'video record reads must route through VideoRecordReadApplicationPort\n' >&2
     exit 1
@@ -716,7 +716,7 @@ if ! rg -n 'video_assembly_push_application\(\)' \
     crates/host/a4n-runtime/src/actions/video_records/assembly/actions/push.rs \
     crates/host/a4n-runtime/src/actions/video_records/assembly/actions/status.rs || \
    ! rg -n 'video_assembly_planning_application\(\)' \
-    crates/host/a4n-runtime/src/actions/video_records/assembly/push/context.rs || \
+    crates/host/a4n-runtime/src/actions/video_records/assembly/push.rs || \
    ! rg -n 'video_assembly_postprocess_application\(\)' \
     crates/host/a4n-runtime/src/actions/video_records/assembly/postprocess/source.rs \
     crates/host/a4n-runtime/src/actions/video_records/assembly/actions/edit.rs; then

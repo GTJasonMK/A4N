@@ -315,7 +315,7 @@ fi
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     crates/host/a4n-runtime/src/actions/profile_materials/list.rs \
     crates/host/a4n-runtime/src/actions/profile_materials/primary.rs \
-    crates/host/a4n-runtime/src/actions/profile_materials/upload/api.rs; then
+    crates/host/a4n-runtime/src/actions/profile_materials/upload.rs; then
     printf 'Runtime profile-material actions must consume split profile-material ports\n' >&2
     exit 1
 fi
@@ -330,7 +330,7 @@ if ! rg -n 'profile_material_read_application\(\)' \
 fi
 
 if ! rg -n 'profile_material_upload_application\(\)' \
-    crates/host/a4n-runtime/src/actions/profile_materials/upload/api.rs; then
+    crates/host/a4n-runtime/src/actions/profile_materials/upload.rs; then
     printf 'Runtime profile-material upload must route through ProfileMaterialUploadApplicationPort\n' >&2
     exit 1
 fi

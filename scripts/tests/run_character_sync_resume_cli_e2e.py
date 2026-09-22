@@ -11,8 +11,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from mock_openai_fixture_reverse import message_text
-from mock_openai_fixture_story import chapter_body_response
+from mock_openai.fixtures.reverse import message_text
+from mock_openai.fixtures.story import chapter_body_response
 from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json
 
 

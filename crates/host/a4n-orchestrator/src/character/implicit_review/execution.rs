@@ -9,11 +9,13 @@ use crate::{
     character::{
         AppliedCharacterImplicitDecisionRecord, CharacterAttributeLifecycleError,
         category_attributes,
-        implicit_review_rules::{
-            AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT, AUTO_IMPLICIT_REVIEW_THRESHOLD,
-            AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS, validate_implicit_review_params,
+        implicit_review::{
+            rules::{
+                AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT, AUTO_IMPLICIT_REVIEW_THRESHOLD,
+                AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS, validate_implicit_review_params,
+            },
+            workflow::implicit_update_review_workflow_run_input,
         },
-        implicit_review_workflow_rules::implicit_update_review_workflow_run_input,
     },
     workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };

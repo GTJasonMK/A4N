@@ -3,15 +3,17 @@
 //! 对应文档 05-章节生成系统
 
 pub(in crate::chapter_generation) mod generation {
+    pub(super) mod lifecycle;
+
     pub(in crate::chapter_generation) mod checkpoint;
 }
-mod generation_lifecycle;
+
 mod response_json;
 
 #[cfg(test)]
 mod tests;
 
-pub(in crate::chapter_generation) use generation_lifecycle::{
+pub(in crate::chapter_generation) use generation::lifecycle::{
     ChapterGenerationSession, ChapterGenerationTrace,
 };
 

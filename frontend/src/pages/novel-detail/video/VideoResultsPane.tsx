@@ -34,11 +34,9 @@ import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { formatNumber, useI18n, type Locale } from "../../../i18n";
 import type { MessageTranslator } from "../../../i18n";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
-import {
-  formatVideoCreatedAt,
-  promptCharCount,
-  videoProviderRequestPreviewBlockedReason,
-} from "./videoTabUtils";
+import { formatVideoCreatedAt } from "./videoImageUtils";
+import { promptCharCount } from "./videoOptionUtils";
+import { videoProviderRequestPreviewBlockedReason } from "./videoAssemblyUtils";
 
 interface VideoResultsPaneProps {
   selectedVideo: GeneratedVideo | null;

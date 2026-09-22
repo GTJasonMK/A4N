@@ -33,7 +33,7 @@ use crate::{GenerationTaskAccessError, GenerationTaskStart};
 use a4n_domain::collaboration::ProjectAccessRole;
 
 use super::{
-    OptimizationPatch, OptimizeAgentPermissions, OptimizeChatGenerationApplicationContext,
+    OptimizationAgentPermissions, OptimizationPatch, OptimizeChatGenerationApplicationContext,
     OptimizePatchGenerationApplicationContext, apply_optimization_patches_to_content,
     optimization_agent_variables, optimization_analysis_variables, optimization_content_hash,
 };
@@ -190,7 +190,7 @@ impl OrchestratorContext {
         user_id: i64,
         session_id: i64,
         message: &str,
-        permissions: &OptimizeAgentPermissions,
+        permissions: &OptimizationAgentPermissions,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
@@ -631,8 +631,8 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
     }
 }
 
-fn default_agent_permissions() -> crate::optimize::permissions::OptimizeAgentPermissions {
-    crate::optimize::permissions::OptimizeAgentPermissions {
+fn default_agent_permissions() -> a4n_api_contract::optimize::OptimizationAgentPermissions {
+    a4n_api_contract::optimize::OptimizationAgentPermissions {
         read_project_detail: true,
         read_blueprint: true,
         read_outlines: true,
@@ -1109,7 +1109,7 @@ fn format_utc_timestamp(value: chrono::NaiveDateTime) -> String {
 fn required_permissions(
     value: Option<&serde_json::Value>,
     field: &str,
-) -> Result<OptimizeAgentPermissions, AppError> {
+) -> Result<OptimizationAgentPermissions, AppError> {
     serde_json::from_value(value.cloned().ok_or_else(|| AppError::InvalidState {
         current: format!("{field}_missing"),
         operation: format!("读取 {field}"),

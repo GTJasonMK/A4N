@@ -1,11 +1,11 @@
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::video_generation::GeneratedVideoSummary;
-use crate::actions::video_generation::media::append_secondary_error;
 use crate::actions::video_records::assembly::{
     AssemblyClip, build_assembly_cache_manifest, run_ffmpeg_assemble_videos,
 };
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use a4n_error::append_secondary_message;
 use a4n_storage::{
     canonicalize_data_file_path, data_file_record_facts, remove_created_file_on_error,
 };
@@ -140,7 +140,7 @@ where
                 .await
                 .map_err(crate::actions::app_error_message)
                 .err();
-            Err(append_secondary_error(error, mark_failed_error))
+            Err(append_secondary_message(error, mark_failed_error))
         }
     }
 }

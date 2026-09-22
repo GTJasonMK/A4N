@@ -1,5 +1,5 @@
 use super::*;
-use crate::manga::pipeline_state::MangaPipelineStage;
+use crate::manga::pipeline::state::MangaPipelineStage;
 use a4n_db::project::MangaCharacterPortraitRefSummary;
 
 #[test]

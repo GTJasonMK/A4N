@@ -30,7 +30,6 @@ use crate::sidecar_clients::{
 };
 
 mod agent;
-mod agent_canvas_accessors;
 mod application_accessors;
 mod bootstrap;
 mod generation_accessors;

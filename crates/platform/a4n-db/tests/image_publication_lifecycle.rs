@@ -10,8 +10,8 @@ use a4n_db::cleanup_outbox::{
 };
 use a4n_db::media::filter_unreferenced_media_paths;
 use a4n_db::profile_material::upsert_profile_primary_material;
+use a4n_db::project::delete::delete_project_cascade_record;
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
-use a4n_db::project_delete::delete_project_cascade_record;
 use a4n_db::video::{
     create_image_publication_intent, delete_generated_image_record_with_cleanup,
     image_publications_for_recovery, mark_image_publication_reclaimed,
@@ -217,6 +217,18 @@ async fn publication_intent_replay_is_idempotent_and_conflicting_payload_is_reje
 #[tokio::test]
 async fn image_generation_retry_replaces_only_a_pending_intent() {
     let fixture = fixture().await;
+    let chapter = a4n_db::chapter_content::import_chapter_content_record(
+        &fixture.db,
+        a4n_domain::chapter::ImportChapterContentInput {
+            project_id: fixture.project_id,
+            chapter_number: 9,
+            content: "图片生成重试章节".into(),
+            title: None,
+        },
+        "image publication retry test",
+    )
+    .await
+    .unwrap();
     create_image_publication_intent(&fixture.db, fixture.intent_input())
         .await
         .expect("首次图片生成发布意图必须成功");
@@ -230,7 +242,7 @@ async fn image_generation_retry_replaces_only_a_pending_intent() {
     retry.image.width = 2;
     retry.image.height = 2;
     retry.image.prompt = "retry prompt".to_string();
-    retry.image.chapter_id = Some(9);
+    retry.image.chapter_id = Some(chapter.id);
     retry.image.panel_id = Some("panel-2".to_string());
     retry.image.file_size = Some(5);
     retry.image.metadata_json = Some(json!({"generation": {"attempt": 2}}));
@@ -246,7 +258,7 @@ async fn image_generation_retry_replaces_only_a_pending_intent() {
     assert_eq!(replaced.expected_file_size, 5);
     assert_eq!(replaced.expected_sha256, "b".repeat(64));
     assert_eq!(replaced.prompt, "retry prompt");
-    assert_eq!(replaced.chapter_id, Some(9));
+    assert_eq!(replaced.chapter_id, Some(chapter.id));
     assert_eq!(replaced.panel_id.as_deref(), Some("panel-2"));
     assert_eq!(
         replaced.final_path,

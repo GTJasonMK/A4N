@@ -2,7 +2,7 @@ use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_error::AppError;
 
 use super::super::super::OrchestratorContext;
-use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
+use super::super::super::pipeline::prompt::MangaPromptGenerationTrace;
 use super::contracts::MangaPageGenerationTraceRecord;
 use super::payload::build_manga_page_generation_trace_record;
 

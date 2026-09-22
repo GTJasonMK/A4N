@@ -7,6 +7,9 @@ async fn matching_prompt_rows_finds_first_frame_video_prompt_by_workflow_contrac
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
     let source_metadata = json!({"content_sha256": "first-frame-source"});
+    let expected_identity =
+        video_execution_identity_fixture(source_metadata["content_sha256"].as_str().unwrap(), 8, 1);
+
     let asset_fingerprint = test_generation_asset_fingerprint();
     let old_time = fixed_time(5);
     let first_frame_video_prompt = chapter_video_prompt::ActiveModel {
@@ -23,7 +26,8 @@ async fn matching_prompt_rows_finds_first_frame_video_prompt_by_workflow_contrac
         status: Set("pending".to_string()),
         metadata_json: Set(Some(stable_prompt_metadata(
             json!({
-                "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
+                "video_execution_identity": expected_identity.clone(),
+            "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
                 "source_prompt_type": "frame_segment_plan",
                 "generation_asset_fingerprint": asset_fingerprint.clone(),
                 "source": source_metadata.clone()
@@ -52,7 +56,7 @@ async fn matching_prompt_rows_finds_first_frame_video_prompt_by_workflow_contrac
                 reference_ids: &json!([]),
                 generation_asset_fingerprint: Some(&asset_fingerprint),
                 source_prompt_type: Some("frame_segment_plan"),
-                video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+                video_execution_identity: &expected_identity,
             },
             PromptOutputLanguage::ZhCn,
         )
@@ -71,6 +75,9 @@ async fn matching_prompt_rows_rejects_different_duration() {
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
     let source_metadata = json!({"content_sha256": "same-duration-source"});
+    let expected_identity =
+        video_execution_identity_fixture(source_metadata["content_sha256"].as_str().unwrap(), 8, 1);
+
     let asset_fingerprint = test_generation_asset_fingerprint();
     let old_time = fixed_time(5);
     let video_prompt = chapter_video_prompt::ActiveModel {
@@ -87,7 +94,8 @@ async fn matching_prompt_rows_rejects_different_duration() {
         status: Set("pending".to_string()),
         metadata_json: Set(Some(stable_prompt_metadata(
             json!({
-                "contract_version": CHAT_VIDEO_CONTRACT_VERSION,
+                "video_execution_identity": expected_identity.clone(),
+            "contract_version": CHAT_VIDEO_CONTRACT_VERSION,
                 "source_prompt_type": "frame_segment_plan",
                 "generation_reference_image_ids": [],
                 "generation_asset_fingerprint": asset_fingerprint.clone(),
@@ -117,7 +125,7 @@ async fn matching_prompt_rows_rejects_different_duration() {
                 reference_ids: &json!([]),
                 generation_asset_fingerprint: Some(&asset_fingerprint),
                 source_prompt_type: Some("frame_segment_plan"),
-                video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+                video_execution_identity: &expected_identity,
             },
             PromptOutputLanguage::ZhCn,
         )
@@ -142,7 +150,7 @@ async fn matching_prompt_rows_rejects_different_duration() {
                 reference_ids: &json!([]),
                 generation_asset_fingerprint: Some(&asset_fingerprint),
                 source_prompt_type: Some("frame_segment_plan"),
-                video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+                video_execution_identity: &expected_identity,
             },
             PromptOutputLanguage::ZhCn,
         )
@@ -160,6 +168,9 @@ async fn matching_prompt_rows_is_scoped_to_project() {
     let second_project = insert_video_project(db.as_ref(), "视频项目二").await;
     let first_chapter = insert_video_chapter(db.as_ref(), first_project.id, 1).await;
     let source_metadata = json!({"content_sha256": "same-root-chapter"});
+    let expected_identity =
+        video_execution_identity_fixture(source_metadata["content_sha256"].as_str().unwrap(), 8, 1);
+
     let asset_fingerprint = test_generation_asset_fingerprint();
     let old_time = fixed_time(6);
     chapter_video_prompt::ActiveModel {
@@ -176,7 +187,8 @@ async fn matching_prompt_rows_is_scoped_to_project() {
         status: Set("pending".to_string()),
         metadata_json: Set(Some(stable_prompt_metadata(
             json!({
-                "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
+                "video_execution_identity": expected_identity.clone(),
+            "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
                 "source_prompt_type": "frame_segment_plan",
                 "generation_asset_fingerprint": asset_fingerprint.clone(),
                 "source": source_metadata.clone()
@@ -205,7 +217,7 @@ async fn matching_prompt_rows_is_scoped_to_project() {
                 reference_ids: &json!([]),
                 generation_asset_fingerprint: Some(&asset_fingerprint),
                 source_prompt_type: Some("frame_segment_plan"),
-                video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+                video_execution_identity: &expected_identity,
             },
             PromptOutputLanguage::ZhCn,
         )
@@ -228,7 +240,7 @@ async fn matching_prompt_rows_is_scoped_to_project() {
                 reference_ids: &json!([]),
                 generation_asset_fingerprint: Some(&asset_fingerprint),
                 source_prompt_type: Some("frame_segment_plan"),
-                video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+                video_execution_identity: &expected_identity,
             },
             PromptOutputLanguage::ZhCn,
         )
@@ -247,6 +259,9 @@ async fn matching_prompt_rows_rejects_metadata_that_conflicts_with_workflow_mode
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
     let source_metadata = json!({"content_sha256": "same-source"});
+    let expected_identity =
+        video_execution_identity_fixture(source_metadata["content_sha256"].as_str().unwrap(), 8, 1);
+
     let asset_fingerprint = test_generation_asset_fingerprint();
     let old_time = fixed_time(6);
     chapter_video_prompt::ActiveModel {
@@ -263,7 +278,8 @@ async fn matching_prompt_rows_rejects_metadata_that_conflicts_with_workflow_mode
         status: Set("pending".to_string()),
         metadata_json: Set(Some(stable_prompt_metadata(
             json!({
-                "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
+                "video_execution_identity": expected_identity.clone(),
+            "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
                 "source_prompt_type": "frame_segment_plan",
                 "generation_asset_fingerprint": asset_fingerprint.clone(),
                 "source": source_metadata.clone()
@@ -292,7 +308,7 @@ async fn matching_prompt_rows_rejects_metadata_that_conflicts_with_workflow_mode
                 reference_ids: &json!([]),
                 generation_asset_fingerprint: Some(&asset_fingerprint),
                 source_prompt_type: Some("frame_segment_plan"),
-                video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+                video_execution_identity: &expected_identity,
             },
             PromptOutputLanguage::ZhCn,
         )

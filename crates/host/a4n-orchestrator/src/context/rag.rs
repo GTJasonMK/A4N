@@ -1,7 +1,11 @@
 //! RAG 领域私有 owner。
 //!
 //! 持有 `DbHandle`，封装 ingest 读模型与 foreshadowing 查询的数据库行为。
-//! 向量库读写仍经 `context/rag_store`；搜索/同步编排仍在 `rag/` 模块。
+//! 向量库读写仍经 `context/rag/store`；搜索/同步编排仍在 `rag/` 模块。
+
+pub(super) mod ingest;
+pub(super) mod search;
+pub(super) mod store;
 
 use a4n_db::DbHandle;
 use a4n_db_models::models::{

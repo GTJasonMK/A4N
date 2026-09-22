@@ -1,4 +1,4 @@
-use a4n_db::project_family_import::normalize_profile_evidence_role;
+use a4n_db::project::family::import::normalize_profile_evidence_role;
 use a4n_db_models::models::project::profile_evidence;
 use std::collections::HashSet;
 

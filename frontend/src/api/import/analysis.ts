@@ -3,7 +3,7 @@ import type { ModelRequestPreview } from "../requestPreview";
 import type {
   ImportProjectAnalysisSummary,
   ProjectImportAnalysisProgress,
-} from "./types";
+} from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function getProjectImportAnalysisProgress(

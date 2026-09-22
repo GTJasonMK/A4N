@@ -1,15 +1,15 @@
 use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
 use a4n_llm_provider_contract::provider::ChatRequest;
 
-use super::OptimizeAgentPermissions;
+use super::OptimizationAgentPermissions;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::agent_loop_executor::AgentLoopGenerationContext;
+use super::agent_loop::executor::AgentLoopGenerationContext;
 
 pub(in crate::optimize) struct OptimizeSendUserMessageInput<'a, 'generation> {
     pub session_id: i64,
     pub message: &'a str,
-    pub permissions: &'a OptimizeAgentPermissions,
+    pub permissions: &'a OptimizationAgentPermissions,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub workflow_run_id: i64,
     pub generation: &'generation AgentLoopGenerationContext<'generation>,
@@ -41,5 +41,5 @@ pub(in crate::optimize) struct PatchPromptBundle {
     pub(in crate::optimize) user_message: String,
     pub(in crate::optimize) base_content_hash: String,
     pub(in crate::optimize) issue_count: usize,
-    pub(in crate::optimize) permissions: OptimizeAgentPermissions,
+    pub(in crate::optimize) permissions: OptimizationAgentPermissions,
 }

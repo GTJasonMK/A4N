@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn cleanup_kinds_rotate_before_repeating() {
         let mut index = 0;
-        let order = (0..8)
+        let order = (0..cleanup_kinds_for(false).len() * 2)
             .map(|_| next_cleanup_kind(&mut index, false))
             .collect::<Vec<_>>();
         assert_eq!(

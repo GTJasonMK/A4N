@@ -146,8 +146,8 @@ if ! rg -n 'pub struct GenerateCanvasImageInput' crates/canvas/a4n-canvas-contra
    ! rg -n 'a4n_canvas_contract::GenerateCanvasImageInput|a4n_api_contract::canvas::GenerateCanvasVideoInput|GenerateCanvas(Image|Video)Input' \
     crates/host/a4n-orchestrator/src/canvas/video_generation.rs \
     crates/host/a4n-orchestrator/src/context/canvas.rs \
-    crates/host/a4n-orchestrator/src/media/image_generation/contracts.rs \
-    crates/host/a4n-orchestrator/src/media/image_generation/generation.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation/contracts.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     crates/host/a4n-orchestrator/src/video/generation.rs \
     crates/host/a4n-runtime/src/actions/video_generation.rs \
     crates/host/a4n-runtime/src/actions/image_generation/mod.rs; then
@@ -222,21 +222,21 @@ if rg -n 'a4n_orchestrator::generation::GeneratedMediaArtifactFile|pub use artif
 fi
 
 if ! rg -n 'a4n_domain::media::GeneratedMediaArtifactFile' \
-    crates/host/a4n-runtime/src/file_utils/artifacts.rs \
+    crates/host/a4n-runtime/src/file_utils.rs \
     crates/host/a4n-orchestrator/src/generation/artifacts.rs; then
     printf 'Media artifact inspection and event coordination must consume the domain artifact fact\n' >&2
     exit 1
 fi
 
 if rg -n 'a4n_db_models|a4n_db::' \
-    crates/host/a4n-runtime/src/actions/video_generation/provider_request/snapshot/record.rs; then
+    crates/host/a4n-runtime/src/actions/video_generation/provider_request/record.rs; then
     printf 'Runtime video provider-request snapshots must consume domain video constants instead of DB models\n' >&2
     exit 1
 fi
 
 if ! rg -n 'VideoProviderConfig' \
     crates/provider/a4n-provider-contract/src/lib.rs \
-    crates/host/a4n-orchestrator/src/video/provider_execution.rs \
+    crates/host/a4n-orchestrator/src/video/provider/execution.rs \
     crates/host/a4n-runtime/src/sidecar_clients/video \
     crates/host/a4n-runtime/src/actions/video_generation/provider_host.rs; then
     printf 'VideoProviderConfig must remain the provider execution boundary\n' >&2
@@ -429,7 +429,7 @@ fi
 for video_contract_consumer in \
     crates/host/a4n-orchestrator/src/video/chapter_video_generation \
     crates/host/a4n-orchestrator/src/video/reference_media_generation.rs \
-    crates/host/a4n-orchestrator/src/video/provider_execution.rs \
+    crates/host/a4n-orchestrator/src/video/provider/execution.rs \
     crates/host/a4n-runtime/src/actions/video_generation/provider_host.rs \
     crates/host/a4n-runtime/src/actions/video_generation/job_lifecycle/completion/video.rs \
     crates/host/a4n-runtime/src/actions/video_generation/media/tail_frames/capture.rs \

@@ -9,17 +9,17 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    character::{
-        conflict_context_rules::{
+    character::conflict::{
+        context_rules::{
             CharacterConflictChapterScope, attribute_event_context,
             character_conflict_allowed_source_ids, character_conflict_chapter_context,
             character_state_context, ensure_character_conflict_context_size,
             ensure_character_conflict_has_comparison_context,
         },
-        conflict_output_rules::{
+        output_rules::{
             parse_conflict_output_with_source_ids, restored_character_conflict_checkpoint,
         },
-        conflict_rules::character_conflict_call_fingerprint_json,
+        workflow::character_conflict_call_fingerprint_json,
     },
     workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };

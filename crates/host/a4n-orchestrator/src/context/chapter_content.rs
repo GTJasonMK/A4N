@@ -1,3 +1,5 @@
+use super::OrchestratorContext;
+use crate::chapter_content_edit_error_to_app_error;
 use a4n_api_contract::{chapter::ChapterSummary, collaboration::ProjectAccessRole};
 use a4n_db::DbHandle;
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
@@ -8,9 +10,6 @@ use regex::Regex;
 use sea_orm::{DatabaseTransaction, TransactionTrait};
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
-
-use super::OrchestratorContext;
-use crate::chapter_content_edit_error_to_app_error;
 
 /// 章节内容领域私有 owner；生成服务可持有克隆以执行生命周期写路径。
 #[derive(Clone)]
@@ -178,7 +177,7 @@ impl OrchestratorContext {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         let chapters = self.chapters_for_project(project_id).await?;
-        super::chapter_content_projection::chapter_summaries_with_sync_state(self, &chapters).await
+        self::chapter_summaries_with_sync_state(self, &chapters).await
     }
 
     pub(crate) async fn chapter_summary_for_user(
@@ -192,7 +191,7 @@ impl OrchestratorContext {
             .ok_or_else(|| AppError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
         self.verify_project_permission(chapter.project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
-        super::chapter_content_projection::chapter_summary_with_sync_state(self, &chapter).await
+        self::chapter_summary_with_sync_state(self, &chapter).await
     }
 
     pub(crate) async fn process_chapter(&self, chapter: chapter::Model) -> Result<(), AppError> {
@@ -271,4 +270,53 @@ mod post_process_tests {
     fn analyzes_style_tags() {
         assert!(analyze_style_tags("纯叙事正文").contains(&"叙事为主".to_string()));
     }
+}
+
+pub(crate) fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
+    a4n_chapter_content_core::chapter_summary(chapter)
+}
+
+pub(crate) async fn chapter_summaries_with_sync_state(
+    state: &OrchestratorContext,
+    chapters: &[chapter::Model],
+) -> Result<Vec<ChapterSummary>, AppError> {
+    let Some(project_id) = chapters.first().map(|chapter| chapter.project_id) else {
+        return Ok(Vec::new());
+    };
+    let (analysis_runs_result, content_runs_result) = futures::join!(
+        state.workflow_runs_by_project_kind(project_id, "chapter_analysis"),
+        state.workflow_runs_by_project_kind(
+            project_id,
+            a4n_chapter_content_core::CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
+        ),
+    );
+    let analysis_runs = analysis_runs_result?;
+    let content_runs = content_runs_result?;
+    let run_ids = analysis_runs
+        .iter()
+        .chain(&content_runs)
+        .map(|run| run.id)
+        .collect::<Vec<_>>();
+    let checkpoints = state.workflow_checkpoint_models_for_runs(&run_ids).await?;
+    let mut summaries = chapters.iter().map(chapter_summary).collect::<Vec<_>>();
+    a4n_chapter_content_core::attach_chapter_sync_state(
+        chapters,
+        &mut summaries,
+        &analysis_runs,
+        &content_runs,
+        &checkpoints,
+    )?;
+    Ok(summaries)
+}
+
+pub(crate) async fn chapter_summary_with_sync_state(
+    state: &OrchestratorContext,
+    chapter: &chapter::Model,
+) -> Result<ChapterSummary, AppError> {
+    let mut summaries =
+        chapter_summaries_with_sync_state(state, std::slice::from_ref(chapter)).await?;
+    summaries.pop().ok_or_else(|| AppError::InvalidState {
+        current: "empty_chapter_summary_projection".to_string(),
+        operation: "读取章节摘要".to_string(),
+    })
 }

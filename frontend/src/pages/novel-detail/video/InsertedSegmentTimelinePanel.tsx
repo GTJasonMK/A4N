@@ -14,10 +14,7 @@ import type {
   VideoTimelineSummary,
 } from "../../../api/video";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import {
-  MAX_REFERENCE_IMAGES,
-  type VideoAspectRatio,
-} from "./videoTabUtils";
+import { MAX_REFERENCE_IMAGES, type VideoAspectRatio } from "./videoTabConstants";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
 export interface InsertedSegmentGap {

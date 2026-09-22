@@ -2,7 +2,7 @@ import { apiInvoke } from "../index";
 import type {
   ImportProjectTextUploadInput,
   ImportReviewSummary,
-} from "./types";
+} from "../generated/host";
 
 export async function importProjectTextUpload(
   input: ImportProjectTextUploadInput,

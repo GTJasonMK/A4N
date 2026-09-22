@@ -9,9 +9,9 @@ pub(crate) fn app_error_with_secondary(
 }
 
 pub(crate) fn project_delete_error_to_app_error(
-    error: a4n_db::project_delete::ProjectDeleteDbError,
+    error: a4n_db::project::delete::ProjectDeleteDbError,
 ) -> a4n_error::AppError {
-    use a4n_db::project_delete::ProjectDeleteDbError;
+    use a4n_db::project::delete::ProjectDeleteDbError;
     use a4n_error::AppError;
 
     match error {

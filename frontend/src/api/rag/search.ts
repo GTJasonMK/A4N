@@ -10,7 +10,7 @@ import type {
   EnhancedSearchInput,
   RagEnhancedSearchOutput,
   RagPreparedEnhancedSearchOutput,
-} from "./types";
+} from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function ragEnhancedSearch(

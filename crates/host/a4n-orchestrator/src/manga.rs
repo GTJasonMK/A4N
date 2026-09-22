@@ -1,5 +1,7 @@
 //! 漫画导演计划驱动的七阶段生成流水线与漫画提示词账本。
 
+mod pipeline;
+
 use a4n_db::project::MangaCharacterPortraitRefSummary;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -8,26 +10,7 @@ use crate::OrchestratorContext;
 mod application;
 mod layout_rules;
 mod output_sync;
-mod pipeline_json;
-mod pipeline_persist;
-mod pipeline_preview;
-mod pipeline_prompt;
-mod pipeline_run {
-    mod checkpoint {
-        mod llm;
-    }
-    mod completion;
-    mod contracts;
-    mod drawing_prompt;
-    mod early_extraction;
-    mod late_extraction;
-    mod pipeline {
-        mod execution;
-    }
-    mod planning;
-    mod progress;
-}
-mod pipeline_state;
+
 mod prompt_optimization;
 mod record_errors;
 mod reference_assets;
@@ -36,8 +19,8 @@ mod source;
 mod workflow;
 
 pub(crate) use layout_rules::manga_page_generation_layout;
-pub(in crate::manga) use pipeline_preview::MangaPipelineRequestPreviewStep;
-pub(in crate::manga) use pipeline_state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipelineStage};
+pub(in crate::manga) use pipeline::preview::MangaPipelineRequestPreviewStep;
+pub(in crate::manga) use pipeline::state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipelineStage};
 pub(in crate::manga) use prompt_optimization::MangaPromptOptimizationInput;
 pub(crate) use record_errors::manga_prompt_record_error;
 pub use source::ensure_manga_source_can_write;

@@ -1,9 +1,7 @@
 mod image;
 mod manga;
 mod profile;
-mod video_generation;
-mod video_prompt;
-mod video_records;
+mod video;
 
 pub(super) use image::{
     delete_image, list_images_by_chapter, list_images_by_project, list_images_by_projects,
@@ -25,18 +23,18 @@ pub(super) use profile::{
     list_scene_profiles, preview_object_profile_image_request, sync_scene_profiles,
     update_foreshadowing, update_object_profile, update_scene_profile,
 };
-pub(super) use video_generation::{
+pub(super) use video::generation::{
     poll_video_job, preview_chapter_video_request, preview_reference_media_video_request,
     preview_video_provider_request_by_video_id,
 };
-pub(super) use video_prompt::{
+pub(super) use video::prompt::{
     commit_inserted_segment_draft, delete_chapter_video_prompt, delete_inserted_segment,
     get_chapter_video_timeline, list_chapter_video_prompts, load_video_segment_plan_draft,
     move_inserted_segment, optimize_chapter_video_prompt, update_chapter_video_prompt,
     update_chapter_video_segment_plan, update_chapter_video_segment_recipe,
     update_video_segment_plan_draft_recipe,
 };
-pub(super) use video_records::{
+pub(super) use video::records::{
     apply_assembly_postprocess_edit, assemble_chapter_videos, delete_video, list_videos_by_chapter,
     load_cached_assembled_chapter_video_preview, load_video_playback_data,
     load_video_scrub_playback_data, push_assembled_chapter_video, select_segment_video, trim_video,

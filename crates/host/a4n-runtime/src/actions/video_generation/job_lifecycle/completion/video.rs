@@ -2,9 +2,9 @@ use a4n_video::VideoGenerationResult;
 
 use crate::AppState;
 use crate::actions::video_generation::media::{
-    append_secondary_error, best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
-    save_video_bytes,
+    best_effort_video_thumbnail_path, capture_video_tail_frame_asset, save_video_bytes,
 };
+use a4n_error::append_secondary_message;
 use a4n_storage::{data_dir_relative_file_path, remove_created_file_on_error};
 use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow, required_video_chapter_id,
@@ -59,7 +59,7 @@ pub(in crate::actions::video_generation) async fn persist_video_result(
                         thumbnail_path.as_deref(),
                     )
                     .await;
-                    return Err(append_secondary_error(message, cleanup));
+                    return Err(append_secondary_message(message, cleanup));
                 }
                 tail_frame_capture_error = Some(msg);
                 None

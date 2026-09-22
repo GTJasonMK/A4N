@@ -4,7 +4,7 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 
-use crate::character::conflict_context_rules::CharacterConflictChapterScope;
+use crate::character::conflict::context_rules::CharacterConflictChapterScope;
 use a4n_api_contract::character::CharacterConflictSeverity;
 
 use super::CHARACTER_CONFLICT_KIND;

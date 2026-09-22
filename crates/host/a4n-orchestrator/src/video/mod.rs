@@ -1,9 +1,9 @@
+mod assembly;
+mod provider;
 // 视频生成域：章节视频提示词与视频产物管理。
 
 mod access;
-mod assembly_clip_rules;
-mod assembly_postprocess_rules;
-mod assembly_push_rules;
+
 mod boundary_frame_rules;
 mod chapter_video_generation;
 mod chapter_video_request_rules;
@@ -12,27 +12,12 @@ mod contracts;
 mod errors;
 mod first_frame_chain_rules;
 mod generation;
-mod generation_run_rules;
+
 mod job_status_rules;
 mod library;
-mod prompt_application;
-mod prompt_chain_rules;
-mod prompt_context;
-mod prompt_generation;
-mod prompt_generation_task;
-mod prompt_json;
-mod prompt_optimization;
-mod prompt_optimization_checkpoint;
-mod prompt_optimization_rules;
-mod prompt_ports;
-mod prompt_records;
-mod prompt_store;
-mod prompt_workflow_rules;
+
 mod prompts;
-mod provider_execution;
-mod provider_prompt_text_rules;
-mod provider_request_rules;
-mod provider_workflow_rules;
+
 mod records;
 mod reference_media_generation;
 mod reference_media_rules;
@@ -56,17 +41,17 @@ pub(crate) use a4n_domain::video_prompt::VideoPromptDownstreamDependencies;
 pub(in crate::video) use a4n_error::AppError;
 
 pub(crate) use a4n_video::ensure_provider_generation_run_updated;
-pub(in crate::video) use assembly_clip_rules::{
+pub(in crate::video) use assembly::clip_rules::{
     AssemblyClipOrderAnchor, assembly_clip_display_shot_number,
     assembly_clip_insert_after_video_id, assembly_clip_sort_order,
     assembly_insert_metadata_with_position, is_assembly_clip_video_type,
     next_assembly_insert_sort_order,
 };
-pub(in crate::video) use assembly_postprocess_rules::{
+pub(in crate::video) use assembly::postprocess_rules::{
     parse_postprocess_edit_metadata, postprocess_edit_timing,
 };
-pub(in crate::video) use assembly_push_rules::ASSEMBLY_PUSH_STATUS_PENDING;
-pub(in crate::video) use assembly_push_rules::{
+pub(in crate::video) use assembly::push_rules::ASSEMBLY_PUSH_STATUS_PENDING;
+pub(in crate::video) use assembly::push_rules::{
     ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_REJECTED, active_assembly_push_source_ids,
     assembly_push_metadata_with_status, assembly_push_records,
     ensure_active_pushes_match_clip_prefix, ensure_insert_position_not_inside_pushed_prefix,
@@ -88,7 +73,7 @@ pub(in crate::video) use contracts::{
 };
 pub(crate) use contracts::{ChapterVideoPromptOptions, ChapterVideoSource};
 pub(in crate::video) use first_frame_chain_rules::first_frame_prompt_matches_video_prompt;
-pub(in crate::video) use generation_run_rules::started_video_generation_run_input;
+pub(in crate::video) use generation::started_video_generation_run_input;
 pub(in crate::video) use job_status_rules::{
     active_provider_job_id, canvas_video_workflow_context, has_active_provider_job,
     is_canvas_video_record,
@@ -103,34 +88,34 @@ pub(crate) use library::{
     image_type_rank, is_video_reference_image_candidate, resolve_video_reference_image_project_ids,
     video_reference_scope_rank,
 };
-pub(in crate::video) use prompt_application::{
+pub(in crate::video) use prompts::application::{
     GenerateChapterVideoPromptInput, VideoPromptApplicationContext,
 };
-pub(crate) use prompt_application::{
+pub(crate) use prompts::application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
     validate_video_segment_plan_generation_options,
 };
-pub(in crate::video) use prompt_chain_rules::{
+pub(in crate::video) use prompts::chain_rules::{
     PromptChainFields, prompt_chain_matches, prompt_chain_matches_for_initial_frame_image,
     prompt_source_type_matches,
 };
-pub(crate) use prompt_generation::validate_video_inserted_segment_generation_options;
-pub(in crate::video) use prompt_generation::{
+pub(crate) use prompts::generation::validate_video_inserted_segment_generation_options;
+pub(in crate::video) use prompts::generation::{
     generate_inserted_segment_draft, load_video_segment_plan_draft_checkpoints,
     load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
 };
-pub(crate) use prompt_workflow_rules::{
+pub(crate) use prompts::workflow::{
     video_prompt_optimization_workflow_run_input, video_prompt_workflow_run_input,
 };
-pub(in crate::video) use provider_execution::VideoGenerationCheckpointContext;
-pub(in crate::video) use provider_execution::{
+pub(in crate::video) use provider::execution::VideoGenerationCheckpointContext;
+pub(in crate::video) use provider::execution::{
     VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoProviderExecutionInput,
 };
-pub(in crate::video) use provider_prompt_text_rules::{
+pub(in crate::video) use provider::prompt_text_rules::{
     MIN_PROVIDER_MOTION_PROMPT_CHARS, validate_provider_model_text,
 };
-pub(in crate::video) use provider_request_rules::prompt_provider_workflow_for_recipe;
-pub(in crate::video) use provider_request_rules::{
+pub(in crate::video) use provider::request_rules::prompt_provider_workflow_for_recipe;
+pub(in crate::video) use provider::request_rules::{
     MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, ProviderGenerationWorkflow,
     boundary_frame_missing_image_message, cliproxy_prompt_length_violation_message,
     ensure_newapi_first_frame_image_supported, ensure_provider_generation_workflow,
@@ -139,7 +124,7 @@ pub(in crate::video) use provider_request_rules::{
     required_prompt_source_prompt_type, required_video_execution_identity,
     storyboard_missing_image_message,
 };
-pub(crate) use provider_workflow_rules::{
+pub(crate) use provider::workflow_rules::{
     video_provider_progress_workflow_run_input, video_provider_workflow_business_key,
     video_provider_workflow_fingerprint,
 };

@@ -48,9 +48,4 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 uuid = { workspace = true }
 
 [dev-dependencies]
-a4n-db = { workspace = true }
-a4n-db-models = { workspace = true }
-a4n-image-host-contract = { workspace = true }
-a4n-migration = { workspace = true }
-sea-orm = { workspace = true }
 tempfile = { workspace = true }

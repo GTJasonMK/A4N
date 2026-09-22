@@ -5,7 +5,7 @@ import type {
   GetReverseEngineeringCandidateInput,
   ReverseEngineerInput,
   ReverseEngineeringCandidate,
-} from "./types";
+} from "../generated/host";
 
 export async function reverseEngineer(
   input: ReverseEngineerInput,

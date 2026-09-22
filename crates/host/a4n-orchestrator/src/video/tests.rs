@@ -17,9 +17,9 @@ use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
 
-use super::prompt_context::{video_context_character_names, video_profile_context};
-use super::prompt_records::{PromptWorkflowRowsContext, VideoExecutionIdentityMatch};
-use super::prompt_store::{NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft};
+use super::prompts::context::{video_context_character_names, video_profile_context};
+use super::prompts::records::PromptWorkflowRowsContext;
+use super::prompts::store::{NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft};
 use super::*;
 use a4n_db::generation::RecordStartedGenerationRunInput;
 use a4n_db::project::{
@@ -45,6 +45,25 @@ async fn setup_db() -> DatabaseConnection {
     let db = a4n_migration::test_support::connect_test_database().await;
     crate::test_support::create_test_user(&db).await;
     db
+}
+
+pub(in crate::video) fn video_execution_identity_fixture(
+    source_hash: &str,
+    duration_secs: i32,
+    shot_number: i32,
+) -> Value {
+    json!({
+        "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
+        "source_content_sha256": source_hash,
+        "style_sha256": "test-style",
+        "duration_secs": duration_secs,
+        "aspect_ratio": "16:9",
+        "segment_plan_prompt_id": 100,
+        "source_shot_id": format!("shot-{shot_number}"),
+        "segment_index_in_shot": 1,
+        "segment_sha256": format!("segment-{shot_number}"),
+        "segment_recipe_fingerprint": format!("recipe-{shot_number}"),
+    })
 }
 
 fn prompts_dir() -> std::path::PathBuf {

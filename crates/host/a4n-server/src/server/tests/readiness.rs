@@ -1,4 +1,4 @@
-    fn live_child() -> Child {
+fn live_child() -> Child {
         Command::new("sh")
             .args(["-c", "sleep 5"])
             .spawn()

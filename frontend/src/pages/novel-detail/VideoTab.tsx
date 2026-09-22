@@ -34,7 +34,7 @@ import {
   MAX_REFERENCE_IMAGES,
   videoAspectRatiosForImageSizes,
   videoWorkflowModeLabel,
-} from "./video/videoTabUtils";
+} from "./video/videoTabConstants";
 import { useChapterContentHash } from "./video/useChapterContentHash";
 import { useVideoImageActions } from "./video/useVideoImageActions";
 import { useVideoPromptGenerationActions } from "./video/useVideoPromptGenerationActions";

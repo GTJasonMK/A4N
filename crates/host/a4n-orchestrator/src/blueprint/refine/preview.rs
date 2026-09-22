@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db::blueprint_context::blueprint_llm_context;
+use a4n_db::blueprint::context::blueprint_llm_context;
 use a4n_db::inspiration::{INSPIRATION_HISTORY_LIMIT, inspiration_messages_llm_context};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;

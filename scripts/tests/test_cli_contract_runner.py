@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mock_openai_provider import chapter_body_response
+from mock_openai.fixtures.story import chapter_body_response
 from run_cli_contract_e2e import (
     classify,
     completion_flags,

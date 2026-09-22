@@ -619,7 +619,7 @@ async fn insert_ready_video_prompt(
         .metadata_json
         .and_then(|metadata| metadata.get("video_execution_identity").cloned())
         .expect("可用视频片段规划应包含执行身份");
-    let execution_identity = crate::video::prompt_generation::video_segment_execution_identity(
+    let execution_identity = crate::video::prompts::generation::video_segment_execution_identity(
         plan_identity,
         Some(segment_plan_prompt_id),
         Some(&recipe),

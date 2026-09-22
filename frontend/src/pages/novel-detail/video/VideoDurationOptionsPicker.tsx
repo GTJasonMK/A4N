@@ -3,12 +3,14 @@ import { Plus, X } from "lucide-react";
 import {
   durationChoicesForLimits,
   isDurationAllowed,
-  MAX_VIDEO_DURATION_OPTION_COUNT,
   mergeDurationOptions,
   parseNumberInput,
+} from "./videoOptionUtils";
+import {
+  MAX_VIDEO_DURATION_OPTION_COUNT,
   type VideoDurationLimits,
   type VideoGenOptions,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
 import { useI18n } from "../../../i18n";
 
 interface VideoDurationOptionsPickerProps {

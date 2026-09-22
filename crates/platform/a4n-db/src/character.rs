@@ -4,7 +4,7 @@ mod blueprint_seed;
 mod portrait;
 mod profile;
 mod snapshot;
-mod snapshot_store;
+
 mod sync_persistence;
 mod timeline;
 
@@ -35,10 +35,10 @@ pub use profile::{
     profile_by_project_name, profile_current_state_fields, profiles_by_project,
     profiles_with_timeline_state, update_initial_profile,
 };
+pub use snapshot::store::Sha256SnapshotStore;
 pub use snapshot::{
     snapshot_attributes_from_data, snapshot_reference_by_chapter, snapshot_references_by_profile,
 };
-pub use snapshot_store::Sha256SnapshotStore;
 pub use sync_persistence::{
     AppliedCharacterSyncPersistenceRecord, CharacterSyncAttributeEventRecordInput,
     CharacterSyncPersistenceInput, CharacterSyncProtectedAttribute,
@@ -106,9 +106,7 @@ fn validate_chapter_number(chapter_number: i32) -> Result<(), CharacterDbError> 
     }
 }
 
-pub(in crate::character) fn validate_timeline_source_kind(
-    source_kind: &str,
-) -> Result<String, CharacterDbError> {
+pub(self) fn validate_timeline_source_kind(source_kind: &str) -> Result<String, CharacterDbError> {
     let source_kind = source_kind.trim();
     if matches!(
         source_kind,

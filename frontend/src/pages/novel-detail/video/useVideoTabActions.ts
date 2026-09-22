@@ -29,29 +29,29 @@ import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgr
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { isCancelledOperation } from "../../../utils/cancellation";
-import {
-  pickVideoUploadFile,
-  type VideoUploadFile,
-} from "../../../utils/videoUpload";
+import { pickVideoUploadFile, type VideoUploadFile } from "../../../utils/videoUpload";
 import type { MessageTranslator } from "../../../i18n";
 import {
   buildVideoFrameImageTraceMetadata,
   buildVideoFrameImageRequest,
   boundaryFramePromptChainTo,
   frameImageReferencesForPrompt,
-  guidanceModeForWorkflowChange,
   isBoundaryFramePrompt,
-  isDurationAllowed,
   latestVideoFrameImageForPrompt,
-  promptLengthError,
   referenceLabelOrderError,
   shiftReferenceLabels,
+} from "./videoFramePromptUtils";
+import {
+  guidanceModeForWorkflowChange,
   VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
+  videoFrameImageContractForPromptType,
+} from "./videoTabConstants";
+import { isDurationAllowed, promptLengthError } from "./videoOptionUtils";
+import {
   videoExecutionSegmentIdentityMatchesVideo,
   videoExecutionIdentityOfVideo,
   videoExecutionSegmentNumberInPlanByLineage,
-  videoFrameImageContractForPromptType,
-} from "./videoTabUtils";
+} from "./videoExecutionIdentity";
 import {
   normalizeReferenceMediaRows,
   referenceMediaDraftError,

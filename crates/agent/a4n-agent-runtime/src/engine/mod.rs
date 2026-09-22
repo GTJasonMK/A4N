@@ -56,7 +56,7 @@ pub(super) const MAX_OBSERVATION_BYTES: usize = 16 * 1024;
 mod agent_loop;
 mod binding;
 mod context;
-mod context_runtime;
+
 mod editor;
 mod history;
 mod model;
@@ -84,7 +84,7 @@ pub use tools::{
 pub use wire::agent_worker_run_from_wire;
 
 pub(super) use agent_loop::RunProgress;
-pub(super) use context_runtime::{
+pub(super) use context::{
     compact_context, execution_input_message_id, execution_total_tokens, recover_model_messages,
 };
 pub(super) use model::{model_execution_request, model_response, stream_client_message_id};

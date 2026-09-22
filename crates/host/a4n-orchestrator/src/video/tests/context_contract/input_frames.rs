@@ -11,7 +11,7 @@ fn chat_video_prompt_builder_leaves_input_frames_empty_when_absent() {
     let engine = prompt_engine();
 
     let chat_prompt =
-        super::super::prompt_context::build_chat_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_chat_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &json!({"frames": []}),
@@ -67,7 +67,7 @@ fn chat_video_prompt_builder_uses_input_frames_when_present() {
     let engine = prompt_engine();
 
     let chat_prompt =
-        super::super::prompt_context::build_chat_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_chat_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &frame_prompts,
@@ -116,7 +116,7 @@ fn first_frame_video_prompt_builder_uses_only_present_input_frames() {
     let engine = prompt_engine();
 
     let first_frame_prompt =
-        super::super::prompt_context::build_first_frame_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_first_frame_video_prompt_user(final_video_context!(
             &engine,
             &segment_plan,
             &frame_prompts,
@@ -155,7 +155,7 @@ fn first_frame_video_prompt_builder_uses_only_present_input_frames() {
         ]
     });
     let second_prompt =
-        super::super::prompt_context::build_first_frame_video_prompt_user(final_video_context!(
+        super::super::prompts::context::build_first_frame_video_prompt_user(final_video_context!(
             &engine,
             &two_segment_plan,
             &first_frame_only,

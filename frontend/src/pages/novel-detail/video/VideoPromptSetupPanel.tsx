@@ -18,13 +18,13 @@ import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
 import { useI18n } from "../../../i18n";
+import { promptOutputLanguageOfPrompt } from "./videoImageUtils";
 import {
-  promptOutputLanguageOfPrompt,
   promptOutputLanguageLabel,
   videoGuidanceConfigurationError,
   videoWorkflowModeLabel,
-  type VideoSegmentCardPlan,
-} from "./videoTabUtils";
+} from "./videoTabConstants";
+import { type VideoSegmentCardPlan } from "./videoSegmentPlan";
 import { promptTitle } from "./videoGenerationDisplay";
 import {
   insertedSegmentGapKey,

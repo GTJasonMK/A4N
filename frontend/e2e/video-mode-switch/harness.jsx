@@ -10,10 +10,7 @@ import { PromptDialogHost } from "../../src/components/feedback/PromptDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
 import { ProgressTaskProvider } from "../../src/hooks/useProgressTask";
 import { VideoTab } from "../../src/pages/novel-detail/VideoTab";
-import {
-  videoSegmentRecipeFrameFingerprintJson,
-  videoSegmentRecipeGenerationFingerprintJson,
-} from "../../src/pages/novel-detail/video/videoTabUtils";
+import { videoSegmentRecipeFrameFingerprintJson, videoSegmentRecipeGenerationFingerprintJson } from "../../src/pages/novel-detail/video/videoSegmentPlan";
 import { sha256Hex } from "../../src/utils/contentHash";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
 import "../../src/index.css";

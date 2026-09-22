@@ -451,4 +451,84 @@ impl AppState {
     ) -> &dyn a4n_inspiration_host_contract::InspirationRequestPreviewApplicationPort {
         self.inspiration_request_application.as_ref()
     }
+
+    pub(crate) fn package_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::package::PackageReadApplicationPort {
+        self.package_read_application.as_ref()
+    }
+
+    pub(crate) fn package_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::package::PackageMutationApplicationPort {
+        self.package_mutation_application.as_ref()
+    }
+
+    pub(crate) fn import_analysis_generation_application(
+        &self,
+    ) -> &dyn a4n_import_analysis_host_contract::ImportAnalysisGenerationApplicationPort {
+        self.import_analysis_generation_application.as_ref()
+    }
+
+    pub(crate) fn import_analysis_cancellation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import::ImportAnalysisCancellationApplicationPort {
+        self.import_analysis_cancellation_application.as_ref()
+    }
+
+    pub(crate) fn import_analysis_progress_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import::ImportAnalysisProgressApplicationPort {
+        self.import_analysis_progress_application.as_ref()
+    }
+
+    pub(crate) fn import_analysis_preview_application(
+        &self,
+    ) -> &dyn a4n_import_analysis_host_contract::ImportAnalysisPreviewApplicationPort {
+        self.import_analysis_preview_application.as_ref()
+    }
+
+    pub(crate) fn import_reverse_preview_application(
+        &self,
+    ) -> &dyn a4n_novel_host_contract::ImportReversePreviewApplicationPort {
+        self.import_reverse_preview_application.as_ref()
+    }
+
+    pub(crate) fn import_reverse_generation_application(
+        &self,
+    ) -> &dyn a4n_novel_host_contract::ImportReverseGenerationApplicationPort {
+        self.import_reverse_generation_application.as_ref()
+    }
+
+    pub(crate) fn import_reverse_confirmation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_reverse::ImportReverseConfirmationApplicationPort {
+        self.import_reverse_confirmation_application.as_ref()
+    }
+
+    pub(crate) fn import_reverse_read_application(
+        &self,
+    ) -> &dyn a4n_api_contract::import_reverse::ImportReverseReadApplicationPort {
+        self.import_reverse_read_application.as_ref()
+    }
+
+    pub(crate) fn chapter_analysis_generation_application(
+        &self,
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort {
+        self.chapter_analysis_generation_application.as_ref()
+    }
+
+    pub(crate) fn chapter_analysis_resume_application(
+        &self,
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort {
+        self.chapter_analysis_resume_application.as_ref()
+    }
+
+    pub(crate) fn chapter_analysis_generation_preview_application(
+        &self,
+    ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationPreviewApplicationPort
+    {
+        self.chapter_analysis_generation_preview_application
+            .as_ref()
+    }
 }

@@ -5,7 +5,7 @@ use a4n_db_models::models::ai::{optimization_turn, optimization_turn_event};
 use a4n_error::AppError;
 use serde_json::Value;
 
-use super::{OptimizeAgentPermissions, OrchestratorContext, optimize_db_error};
+use super::{OptimizationAgentPermissions, OrchestratorContext, optimize_db_error};
 
 const TURN_STATUS_RUNNING: &str = "running";
 pub(super) const TURN_STATUS_FAILED: &str = "failed";
@@ -25,7 +25,7 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
         user_text: &str,
-        permissions: &OptimizeAgentPermissions,
+        permissions: &OptimizationAgentPermissions,
         agent_turn_id: Option<i64>,
     ) -> Result<optimization_turn::Model, AppError> {
         let text = user_text.trim();

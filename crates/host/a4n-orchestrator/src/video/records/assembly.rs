@@ -101,7 +101,7 @@ impl crate::OrchestratorContext {
                     ))
                 })?;
             let expected_identity =
-                crate::video::prompt_generation::video_segment_execution_identity(
+                crate::video::prompts::generation::video_segment_execution_identity(
                     plan_identity.clone(),
                     Some(plan.id),
                     Some(recipe),
@@ -119,7 +119,7 @@ impl crate::OrchestratorContext {
                     .map(str::trim)
                     .is_some_and(|path| !path.is_empty())
                 && video.workflow_mode.as_deref() == Some(recipe.workflow_mode.as_str())
-                && crate::video::prompt_records::video_execution_segment_lineage_matches(
+                && crate::video::prompts::records::video_execution_segment_lineage_matches(
                     video.metadata_json.as_ref(),
                     &expected_identity,
                 )

@@ -130,12 +130,6 @@ async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
     let (_, owner) = create_test_run(&db, thread.id, "user").await;
     let claimed = claim_runnable_run(&db, "owner").await.unwrap().unwrap();
     let request_id = Uuid::new_v4().to_string();
-    let mut start = budget_execution(owner.id, "tool-call:optimization-start", false);
-    start.tool_name = Some("send_content_optimization_message".into());
-    start.resource_preconditions_json = Some(json!({"generation_start_request_id": request_id}));
-    create_execution_for_run_lease(&db, start, claimed.lease_token.as_deref().unwrap())
-        .await
-        .unwrap();
     let reservation = ReserveGenerationTaskInput {
         requested_by_user_id: 1,
         start_request_id: request_id,
@@ -163,6 +157,28 @@ async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
         .task;
     let attempt = task.checkpoint.attempt as u32;
     let task_id = task.checkpoint.task_id.clone();
+    for unowned_task_id in [task_id.as_str(), "unknown-task"] {
+        assert!(
+            generation_owner(&db, unowned_task_id, attempt)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+    assert!(matches!(
+        generation_owner(&db, &task_id, attempt + 1).await,
+        Err(AgentDbError::Conflict(_))
+    ));
+    let owned_task = AgentOwnedTask::Generation {
+        task_id: task_id.clone(),
+        attempt,
+    };
+    let mut start = budget_execution(owner.id, "tool-call:optimization-start", false);
+    start.tool_name = Some("send_content_optimization_message".into());
+    start.resource_preconditions_json = Some(owned_task.preconditions());
+    create_execution_for_run_lease(&db, start, claimed.lease_token.as_deref().unwrap())
+        .await
+        .unwrap();
     let mut running_snapshot = task.public_snapshot.clone().unwrap();
     running_snapshot.covers_through_sequence += 1;
     running_snapshot.status = GenerationTaskStatus::Running;
@@ -195,7 +211,10 @@ async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
             .id,
         owner.id
     );
-    assert!(generation_owner(&db, &task_id, attempt + 1).await.is_err());
+    assert!(matches!(
+        generation_owner(&db, &task_id, attempt + 1).await,
+        Err(AgentDbError::Conflict(_))
+    ));
 
     let alias_thread = create_test_thread(&db, "content_optimization").await;
     let (_, alias_run) = create_test_run(&db, alias_thread.id, "user").await;
@@ -231,10 +250,6 @@ async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
         owner.id
     );
 
-    let owned_task = AgentOwnedTask::Generation {
-        task_id: task_id.clone(),
-        attempt,
-    };
     let input = || AgentTaskExecutionInput {
         task: owned_task.clone(),
         execution_key: "decision:1".into(),

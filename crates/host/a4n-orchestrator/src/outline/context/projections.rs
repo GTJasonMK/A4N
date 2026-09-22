@@ -1,4 +1,4 @@
-use a4n_db::blueprint_context::{
+use a4n_db::blueprint::context::{
     blueprint_character_llm_context, blueprint_model_llm_context,
     blueprint_relationship_llm_context,
 };

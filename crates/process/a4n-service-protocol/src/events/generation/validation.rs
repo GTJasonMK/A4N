@@ -4,7 +4,7 @@ use a4n_generation_artifact_contract::GenerationArtifactRef;
 use sha2::{Digest, Sha256};
 use uuid::{Uuid, Version};
 
-use super::super::generation_error_codes::is_registered_generation_error_code;
+use super::error_codes::is_registered_generation_error_code;
 use super::*;
 use super::{
     JS_SAFE_INTEGER_I64, JS_SAFE_INTEGER_U64, MAX_ERROR_MESSAGE_BYTES, MAX_FAILED_ITEM_KEYS,

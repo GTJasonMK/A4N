@@ -9,11 +9,11 @@ use crate::optimize::messages::{
     build_content_optimization_chat_user_message, optimization_chat_history,
 };
 use crate::optimize::runtime_tools::optimization_runtime_tool_specs_for_prompt;
-use crate::optimize::{OptimizeAgentPermissions, OrchestratorContext};
+use crate::optimize::{OptimizationAgentPermissions, OrchestratorContext};
 use a4n_prompt::rendering::PromptRenderer;
 
 pub(super) struct ChatAgentContext {
-    pub(super) permissions: OptimizeAgentPermissions,
+    pub(super) permissions: OptimizationAgentPermissions,
     pub(super) chat_context: Value,
     context_manifest: Value,
     conversation_history: Value,
@@ -23,7 +23,7 @@ impl OrchestratorContext {
     pub(super) async fn build_chat_agent_context(
         &self,
         session: &optimization_session::Model,
-        permissions: &OptimizeAgentPermissions,
+        permissions: &OptimizationAgentPermissions,
     ) -> Result<ChatAgentContext, AppError> {
         let (previous_turns_result, analysis_context_result) = futures::join!(
             self.list_turns(session.id),

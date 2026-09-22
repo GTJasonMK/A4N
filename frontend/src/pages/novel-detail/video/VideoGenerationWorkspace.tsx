@@ -29,12 +29,9 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import {
-  indexVideoFrameImages,
-  type PromptDraft,
-  type VideoDurationLimits,
-  type VideoSegmentCardPlan,
-} from "./videoTabUtils";
+import { indexVideoFrameImages } from "./videoImageUtils";
+import { type PromptDraft, type VideoDurationLimits } from "./videoTabConstants";
+import { type VideoSegmentCardPlan } from "./videoSegmentPlan";
 import { VideoPromptSetupPanel } from "./VideoPromptSetupPanel";
 import type { InsertedSegmentGap } from "./InsertedSegmentTimelinePanel";
 import { VideoResultsPane } from "./VideoResultsPane";

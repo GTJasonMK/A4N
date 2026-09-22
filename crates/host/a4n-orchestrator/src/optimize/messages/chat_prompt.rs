@@ -4,13 +4,13 @@ use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 
 use crate::optimize::{
-    OPTIMIZATION_CHAT_CONTENT_LIMIT, OPTIMIZATION_CHAT_HISTORY_LIMIT, OptimizeAgentPermissions,
+    OPTIMIZATION_CHAT_CONTENT_LIMIT, OPTIMIZATION_CHAT_HISTORY_LIMIT, OptimizationAgentPermissions,
 };
 
 pub(in crate::optimize) fn build_content_optimization_chat_user_message(
     user_message: &str,
     session: &optimization_session::Model,
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
     conversation_history: &Value,
     context_manifest: &Value,
 ) -> Result<String, AppError> {

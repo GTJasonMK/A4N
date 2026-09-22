@@ -1,6 +1,18 @@
 //! worker execution 与 child run。
 
+use super::super::WorkerUsage;
+use super::super::{
+    AgentApplication, AgentExecutionSnapshot, WorkerExecutionInput, WorkerExecutionUpdate,
+};
 use super::*;
+use a4n_agent_runtime_contract::AgentWorkerExecutionApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerUsageApplicationPort;
+use a4n_error::AppError;
+use a4n_worker_contract::AgentWorkerUsageRequest;
+use a4n_worker_contract::{
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionUpdateRequest,
+};
 
 impl AgentApplication {
     pub(crate) async fn create_prepared_execution(
@@ -418,5 +430,67 @@ impl AgentApplication {
         .await
         .map(|_| ())
         .map_err(agent_db_error_to_app)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerExecutionApplicationPort for AgentApplication {
+    async fn worker_execution_by_key(
+        &self,
+        run_id: i64,
+        key: &str,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        AgentApplication::worker_execution_by_key(self, run_id, key).await
+    }
+
+    async fn create_prepared_execution(
+        &self,
+        input: WorkerExecutionInput,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        AgentApplication::create_prepared_execution(self, input).await
+    }
+
+    async fn update_worker_execution(
+        &self,
+        input: WorkerExecutionUpdate,
+    ) -> Result<AgentExecutionSnapshot, AppError> {
+        AgentApplication::update_worker_execution(self, input).await
+    }
+
+    async fn worker_execution_by_key_request(
+        &self,
+        request: &AgentWorkerExecutionLookupRequest,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        AgentApplication::worker_execution_by_key_request(self, request).await
+    }
+
+    async fn create_prepared_execution_request(
+        &self,
+        request: &AgentWorkerExecutionCreateRequest,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        AgentApplication::create_prepared_execution_request(self, request).await
+    }
+
+    async fn update_worker_execution_request(
+        &self,
+        request: &AgentWorkerExecutionUpdateRequest,
+    ) -> Result<AgentExecutionSnapshot, AppError> {
+        AgentApplication::update_worker_execution_request(self, request).await
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerUsageApplicationPort for AgentApplication {
+    async fn update_run_usage(&self, input: WorkerUsage) -> Result<(), AppError> {
+        AgentApplication::update_run_usage(self, input)
+            .await
+            .map(|_| ())
+    }
+
+    async fn update_run_usage_request(
+        &self,
+        request: &AgentWorkerUsageRequest,
+    ) -> Result<(), AppError> {
+        AgentApplication::update_run_usage_request(self, request).await
     }
 }

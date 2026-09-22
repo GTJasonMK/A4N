@@ -1,6 +1,5 @@
 mod delete;
 mod edit;
-mod edit_progress;
 mod generation;
 mod read;
 
@@ -11,8 +10,7 @@ pub use a4n_api_contract::shooting_script::{
     EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
 };
 pub use delete::delete_chapter_shooting_script;
-pub use edit::edit_chapter_shooting_script;
-pub use edit_progress::edit_chapter_shooting_script_progress;
+pub use edit::{edit_chapter_shooting_script, edit_chapter_shooting_script_progress};
 pub use generation::{
     generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit,
 };

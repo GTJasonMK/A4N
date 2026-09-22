@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::response::ServiceError;
 
-use super::super::generation_error_codes::is_registered_generation_error_code;
+use super::error_codes::is_registered_generation_error_code;
 use super::validation::{
     GenerationContractError, invalid, validate_generation_task_event,
     validate_generation_task_snapshot,

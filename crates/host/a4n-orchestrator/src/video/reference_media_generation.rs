@@ -322,15 +322,16 @@ impl OrchestratorContext {
             .and_then(|metadata| metadata.get("video_execution_identity"))
             .cloned()
             .ok_or_else(|| AppError::InvalidArgument("当前片段规划缺少执行身份".to_string()))?;
-        let video_execution_identity = super::prompt_generation::video_segment_execution_identity(
-            plan_identity,
-            Some(plan.id),
-            Some(&recipe),
-            (
-                &input.target_segment.source_shot_id,
-                input.target_segment.segment_index_in_shot,
-            ),
-        )?;
+        let video_execution_identity =
+            super::prompts::generation::video_segment_execution_identity(
+                plan_identity,
+                Some(plan.id),
+                Some(&recipe),
+                (
+                    &input.target_segment.source_shot_id,
+                    input.target_segment.segment_index_in_shot,
+                ),
+            )?;
         let config = host_port
             .resolve_video_config_for_preview(input.config_id)
             .await?;

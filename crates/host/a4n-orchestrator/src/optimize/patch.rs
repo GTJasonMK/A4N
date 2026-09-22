@@ -1,6 +1,9 @@
 mod apply;
 mod contracts;
+pub(super) mod generation;
+pub(super) mod request;
 mod response;
+pub(super) mod sets;
 mod validation;
 
 pub use apply::{apply_optimization_patches_to_content, optimization_content_hash};

@@ -1,7 +1,4 @@
-use super::super::prompt_json::{
-    VideoFramePrompt, VideoFramePromptDefaults, parse_storyboard_frame_prompts_with_defaults,
-    parse_video_frame_prompts_with_defaults, parse_video_segment_plan_input_values,
-};
+use super::super::prompts::json::{VideoFramePrompt, VideoFramePromptDefaults, parse_storyboard_frame_prompts_with_defaults, parse_video_frame_prompts_with_defaults, parse_video_segment_plan_input_values};
 use a4n_error::AppError;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 
