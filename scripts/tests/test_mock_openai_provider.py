@@ -572,6 +572,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                             "performance_facts": [
                                 {
                                     "fact_index": 1,
+                                    "shot_id": "shot_2",
                                     "source_span_ids": ["ch1:s2:f1"],
                                     "user_addition_ids": ["director:shot_2"],
                                     "actor": "林岚",
@@ -607,6 +608,12 @@ class MockOpenAIProviderTest(unittest.TestCase):
             ["ch1:s2:f1"],
         )
         self.assertEqual(response["shots"][1]["performance_beats"][0]["actor"], "林岚")
+        targeted = shooting_design_response(f"{prompt}\ntarget_shot_id=shot_2")
+        self.assertEqual([shot["shot_id"] for shot in targeted["shots"]], ["shot_2"])
+        self.assertEqual(
+            targeted["shots"][0]["performance_beats"][0]["source_span_ids"],
+            ["ch1:s2:f1"],
+        )
 
     def test_shooting_span_ids_requires_structured_source_spans(self) -> None:
         with self.assertRaisesRegex(ValueError, "shooting script prompt contains no source spans"):

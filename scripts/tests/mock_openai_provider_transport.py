@@ -77,24 +77,13 @@ class ProviderHandler(BaseHTTPRequestHandler):
         if normalized_path == "/fixtures/video.mp4":
             self._bytes(200, "video/mp4", base64.b64decode(self.server.video_base64))
             return
-        video_match = re.fullmatch(r"/(?:v1/)?videos/generations/([^/]+)", normalized_path)
+        video_content_match = re.fullmatch(r"/(?:v1/)?videos/([^/]+)/content", normalized_path)
+        if video_content_match:
+            self._bytes(200, "video/mp4", base64.b64decode(self.server.video_base64))
+            return
+        video_match = re.fullmatch(r"/(?:v1/)?videos/(?:generations/)?([^/]+)", normalized_path)
         if video_match:
             self._get_video_generation(video_match.group(1))
-            return
-        if normalized_path.startswith("/task/"):
-            task_id = normalized_path.removeprefix("/task/").strip()
-            if not task_id:
-                self._json(404, {"error": {"message": "task not found"}})
-                return
-            host, port = self.server.server_address
-            self._json(
-                200,
-                {
-                    "status": "completed",
-                    "task_id": task_id,
-                    "result": {"video_url": f"http://{host}:{port}/fixtures/video.mp4"},
-                },
-            )
             return
         self._json(404, {"error": {"message": "not found"}})
 
@@ -256,7 +245,20 @@ class ProviderHandler(BaseHTTPRequestHandler):
         if normalized_path in {"/images/generations", "/v1/images/generations"}:
             self._json(200, {"created": 0, "data": [{"b64_json": self.server.image_base64}]})
             return
-        if normalized_path in {"/videos/generations", "/v1/videos/generations"}:
+        if normalized_path in {
+            "/videos/generations",
+            "/v1/videos/generations",
+            "/videos",
+            "/v1/videos",
+        }:
+            if normalized_path in {"/videos", "/v1/videos"} and (
+                not isinstance(body.get("model"), str)
+                or not isinstance(body.get("prompt"), str)
+                or not isinstance(body.get("seconds"), str)
+                or not isinstance(body.get("size"), str)
+            ):
+                self._json(400, {"error": {"message": "invalid Seedance video request"}})
+                return
             idempotency_key = self.headers.get("Idempotency-Key", "").strip() or None
             try:
                 response = self.server.create_video_job(body, idempotency_key)
@@ -264,25 +266,6 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 self._json(409, {"error": {"message": str(error)}})
                 return
             self._json(200, response)
-            return
-        if normalized_path == "/task/submit":
-            parameters = body.get("parameters")
-            media_urls = []
-            if isinstance(parameters, dict):
-                for field in ("image_files", "video_files", "audio_files"):
-                    value = parameters.get(field, [])
-                    if isinstance(value, list):
-                        media_urls.extend(value)
-            if (
-                not isinstance(body.get("model_id"), str)
-                or not isinstance(parameters, dict)
-                or parameters.get("functionMode") != "omni_reference"
-                or not media_urls
-                or not all(isinstance(url, str) and url.startswith("https://") for url in media_urls)
-            ):
-                self._json(400, {"error": {"message": "invalid Seedance omni_reference request"}})
-                return
-            self._json(200, {"status": "submitted", "task_id": "a4n-e2e-seedance-job"})
             return
         if normalized_path not in {"/chat/completions", "/v1/chat/completions"}:
             self._json(404, {"error": {"message": "not found"}})

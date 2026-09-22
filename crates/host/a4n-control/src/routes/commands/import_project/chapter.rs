@@ -20,7 +20,8 @@ pub(in crate::routes::commands) use scenes::{
     preview_chapter_scene_request, reorder_chapter_scenes, update_chapter_scene,
 };
 pub(in crate::routes::commands) use shooting_script::{
-    delete_chapter_shooting_script, edit_chapter_shooting_script, generate_chapter_shooting_script,
+    delete_chapter_shooting_script, edit_chapter_shooting_script,
+    edit_chapter_shooting_script_progress, generate_chapter_shooting_script,
     generate_next_chapter_shooting_script_unit, get_chapter_shooting_script,
     get_chapter_shooting_script_unit_progress,
 };

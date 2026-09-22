@@ -2,14 +2,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use a4n_domain::shooting_script::{
-    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingBlockingV1,
-    ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
-    ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
-    ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
-    ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
-    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
-    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV3,
-    ShootingVisualPlanSourceV1,
+    ChapterShootingScriptRecordSummary, ChapterShootingScriptSchemaVersion,
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
+    ChapterShootingScriptV1, EditChapterShootingScriptProgressInput,
+    EditedChapterShootingScriptProgressView, ShootingBlockingV1, ShootingCameraAngleV1,
+    ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
+    ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
+    ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1,
+    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
+    ShootingTransitionTypeV1, ShootingViewpointModeV1, ShootingViewpointV1,
+    ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -82,39 +84,10 @@ pub struct DeleteChapterShootingScriptInput {
     pub expected_revision: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct ChapterShootingScriptRecordSummary {
-    pub id: i64,
-    pub revision: i32,
-    pub visual_plan_id: Option<i64>,
-    pub visual_plan_version: Option<i32>,
-    pub visual_plan_sha256: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterShootingScriptView {
     pub record: ChapterShootingScriptRecordSummary,
     pub script: ChapterShootingScriptV1,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ChapterShootingScriptUnitProgressView {
-    pub workflow_run_id: i64,
-    pub script: ChapterShootingScriptV1,
-    pub completed_unit_count: usize,
-    pub total_unit_count: usize,
-    pub completed_record: Option<ChapterShootingScriptRecordSummary>,
-}
-
-/// Durable snapshot written when scene-level generation pauses at a unit
-/// boundary. The Worker reads this instead of reconstructing LLM checkpoints.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ChapterShootingScriptUnitProgressCheckpoint {
-    pub version: u32,
-    #[schemars(length(min = 64, max = 64))]
-    pub source_content_sha256: String,
-    pub progress: ChapterShootingScriptUnitProgressView,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -152,6 +125,12 @@ pub trait ShootingScriptUnitProgressReadApplicationPort: Send + Sync {
 /// Host-facing mutation boundary for persisted shooting-script records.
 #[async_trait::async_trait]
 pub trait ShootingScriptRecordMutationApplicationPort: Send + Sync {
+    async fn edit_progress(
+        &self,
+        user_id: i64,
+        input: EditChapterShootingScriptProgressInput,
+    ) -> Result<EditedChapterShootingScriptProgressView, a4n_error::AppError>;
+
     async fn publish(
         &self,
         user_id: i64,

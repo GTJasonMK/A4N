@@ -180,7 +180,7 @@ fn validate_visual_plan_identity(
     validate_sha256(&identity.sha256, "visual_plan_sha256")
 }
 
-async fn validate_director_constraints<C: ConnectionTrait>(
+pub(super) async fn validate_director_constraints<C: ConnectionTrait>(
     db: &C,
     source: (i64, i64, Option<i64>, Option<i64>),
     identity: &super::contracts::ChapterVisualPlanIdentity,

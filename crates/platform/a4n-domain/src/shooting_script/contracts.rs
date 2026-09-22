@@ -28,8 +28,55 @@ pub struct ChapterShootingScriptV1 {
     pub visual_plan_source: Option<ShootingVisualPlanSourceV1>,
     #[serde(default)]
     pub user_additions: Vec<VisualUserAdditionV1>,
-    pub directing_statement: ShootingDirectingStatementV1,
+    pub directing_statement: Option<ShootingDirectingStatementV1>,
     pub scenes: Vec<ShootingSceneV1>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ChapterShootingScriptRecordSummary {
+    pub id: i64,
+    pub revision: i32,
+    pub visual_plan_id: Option<i64>,
+    pub visual_plan_version: Option<i32>,
+    pub visual_plan_sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterShootingScriptUnitProgressView {
+    pub workflow_run_id: i64,
+    pub script: ChapterShootingScriptV1,
+    /// 已处理的生成单元数；手工删除场景不会让生成游标倒退。
+    pub completed_unit_count: usize,
+    pub total_unit_count: usize,
+    pub completed_record: Option<ChapterShootingScriptRecordSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ChapterShootingScriptUnitProgressCheckpoint {
+    pub version: u32,
+    #[schemars(length(min = 64, max = 64))]
+    pub source_content_sha256: String,
+    pub progress: ChapterShootingScriptUnitProgressView,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EditChapterShootingScriptProgressInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub workflow_run_id: i64,
+    pub expected_script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct EditedChapterShootingScriptProgressView {
+    pub progress: ChapterShootingScriptUnitProgressView,
+    pub invalidated_project_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

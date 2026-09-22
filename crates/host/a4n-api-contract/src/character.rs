@@ -384,7 +384,7 @@ pub struct ExistingCharacterProfileDiscovery {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CharacterProfileSyncSkipReason {
     AlreadySyncedToTarget,
@@ -408,13 +408,13 @@ impl fmt::Display for CharacterProfileSyncSkipReason {
     }
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct CharacterProfileSyncRange {
     pub from: i32,
     pub to: i32,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct CharacterProfileProtectedAttribute {
     pub chapter_number: i32,
     pub category: String,
@@ -422,7 +422,7 @@ pub struct CharacterProfileProtectedAttribute {
     pub operation: String,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct CharacterProfileSyncedResult {
     pub name: String,
     pub chapters_analyzed: usize,
@@ -458,7 +458,7 @@ pub struct CharacterProfileSyncedResult {
     pub llm_trace_paths: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct CharacterProfileSkippedResult {
     pub name: String,
     pub synced_chapter: i32,
@@ -467,7 +467,7 @@ pub struct CharacterProfileSkippedResult {
     pub reason: CharacterProfileSyncSkipReason,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum SyncCharacterProfileResult {
     Synced(CharacterProfileSyncedResult),

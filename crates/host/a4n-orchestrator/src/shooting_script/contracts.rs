@@ -115,6 +115,8 @@ pub(super) struct ScreenplayPlanUnit {
 #[serde(deny_unknown_fields)]
 pub(super) struct ScreenplayPerformanceFactV1 {
     pub(super) fact_index: u32,
+    /// 将表演事实绑定到 confirmed visual plan 的唯一镜头，供镜头级生成和校验使用。
+    pub(super) shot_id: String,
     pub(super) source_span_ids: Vec<String>,
     #[serde(default)]
     pub(super) user_addition_ids: Vec<String>,

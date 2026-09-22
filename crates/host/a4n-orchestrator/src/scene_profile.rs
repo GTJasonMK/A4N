@@ -66,8 +66,29 @@ impl SceneProfileSyncApplicationPort for OrchestratorContext {
             prompt_renderer,
             host_port,
             progress,
+            None,
         )
         .await
+    }
+
+    async fn resume_workflow_run(
+        &self,
+        user_id: i64,
+        workflow_run_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn SceneProfileSyncHostPort,
+    ) -> Result<(), AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        self.verify_project_permission(
+            run.project_id.ok_or_else(|| {
+                AppError::InvalidArgument("场景档案同步工作流缺少 project_id".to_string())
+            })?,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.resume_scene_profile_sync_workflow_run_validated(&run, prompt_renderer, host_port)
+            .await
     }
 }
 
@@ -76,7 +97,7 @@ use a4n_db_models::models::chapter::chapter;
 use a4n_db_models::models::generation::workflow_run;
 
 impl OrchestratorContext {
-    /// 场景档案同步：校验后创建 workflow_run（RUNNING）。
+    /// 场景档案同步：校验后创建或恢复 workflow_run（RUNNING）。
     pub(crate) async fn begin_scene_profile_sync_workflow_validated(
         &self,
         project_id: i64,
@@ -90,7 +111,7 @@ impl OrchestratorContext {
         let mode = chapter_number
             .map(|value| format!("chapter:{value}"))
             .unwrap_or_else(|| "all".to_string());
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
+        self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
             business_key: scene_profile_sync_business_key(project_id, chapter_number),
             workflow_kind: "scene_profile_sync".to_string(),
             project_id: Some(project_id),
@@ -108,7 +129,7 @@ impl OrchestratorContext {
             status: WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: Some("scene_profile_sync.prepare".to_string()),
             active_task_id: active_task_id.map(str::to_string),
-            can_resume: false,
+            can_resume: true,
             resume_block_reason: None,
             error_message: None,
         })

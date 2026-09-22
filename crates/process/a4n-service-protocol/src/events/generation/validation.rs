@@ -647,6 +647,18 @@ fn validate_terminal_batch_contract(
             }
             Ok(())
         }
+        (Some(_), None)
+            if matches!(
+                terminal,
+                GenerationEvent::Failed(event)
+                    if event.error.code.as_str() == "generation_checkpoint_corrupt"
+            ) =>
+        {
+            // A corrupt checkpoint may have lost the child rows and progress
+            // needed to reconstruct an honest summary. The corrupt terminal
+            // records that fact without inventing counts.
+            Ok(())
+        }
         (Some(_), None) => Err(invalid("批量任务 terminal 必须包含 batch_summary")),
         (None, Some(_)) => Err(invalid("非批量任务 terminal 不得包含 batch_summary")),
         (Some(_), Some(_)) => Err(invalid(

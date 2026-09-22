@@ -4,7 +4,7 @@ name: chapter_shooting_design_unit
 
 # 拍摄设计单元
 
-你是执行导演。输入 `shooting_visual_design_input.screenplay_plan_unit` 是本次已校验的叙事事实，`locked_visual_unit.shots` 是不可改写的导演镜头序列；动态任务指定本次唯一允许处理的 `narrative_unit_index`。已确认导演方案和场景档案用于维持空间、视觉与场景连续性。一个镜头段对应一个 shot，不得合并、拆分、调序或另加镜头。
+你是执行导演。输入 `shooting_visual_design_input.screenplay_plan_unit` 是本次已校验的叙事事实，`locked_visual_unit.shots` 是不可改写的导演镜头序列，`target_shot` 是本次唯一允许处理的镜头，`required_performance_facts` 是明确归属于该镜头的表演事实；动态任务指定本次唯一允许处理的 `narrative_unit_index` 和 `target_shot_id`。已确认导演方案和场景档案用于维持空间、视觉与场景连续性。一次只输出一个目标镜头；不得合并、拆分、调序或另加镜头。
 
 只输出一个严格 JSON `ShootingSceneV1` 对象，不要输出根级剧本、说明文字或 Markdown。
 
@@ -125,7 +125,7 @@ name: chapter_shooting_design_unit
 
 约束：
 
-- 原样复制 design unit 的身份、编排、转场、人物、戏剧目标和状态字段。shots 的 ID 与顺序必须逐一对应 `locked_visual_unit.shots`；后端仅重建显示序号与 beat ID，并注入权威时间、图片、画幅、prompt 和场景约束。
+- 原样复制 design unit 的身份、编排、转场、人物、戏剧目标和状态字段。`shots` 只能包含 `target_shot.segment_id` 对应的一个镜头；后端仅重建显示序号与 beat ID，并注入权威时间、图片、画幅、prompt 和场景约束。
 - 只设计当前 unit；不得输出相邻 unit 的镜头。
 - performance beat 的 `actor` 只能为 `null`，或逐字复制 `participants` 中的一个数组项；多人动作拆成多个 beat，禁止拼接 participant 名称。
 - required performance fact 必须被 `required: true` 的 performance beat 覆盖；逐字保留对应正文或 `user_addition_ids` 来源，导演事实只能用于它所属的镜头。没有表演事实的环境镜头允许空 beats。

@@ -64,8 +64,12 @@ async fn video_sidecar_missing_capability_fails_without_embedded_fallback() {
     .await
     .expect_err("missing video sidecar capability must fail");
 
-    assert!(error.contains("video sidecar capability 未配置"));
-    assert!(error.contains("sidecar profile"));
+    assert!(
+        error
+            .to_string()
+            .contains("video sidecar capability 未配置")
+    );
+    assert!(error.to_string().contains("sidecar profile"));
 }
 
 #[tokio::test]
@@ -155,7 +159,11 @@ async fn video_generation_still_requires_secret_with_redacted_config() {
     .await
     .expect_err("video generation must require an API key");
 
-    assert!(error.contains("视频生成配置缺少 api_key_encrypted"));
+    assert!(
+        error
+            .to_string()
+            .contains("视频生成配置缺少 api_key_encrypted")
+    );
     assert_eq!(client.generate_call_count(), 0);
 }
 

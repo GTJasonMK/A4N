@@ -8,17 +8,21 @@ use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 
-use crate::OrchestratorContext;
+use crate::{
+    OrchestratorContext,
+    workflow::{CompletedWorkflowCheckpointInput, required_checkpoint_json},
+};
 
 use super::profile_sync::CharacterProfileSyncAnchorCache;
+use super::sync_rules::profile_sync_skip_reason;
 use super::{
     CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileSyncAnchorMode,
     CharacterProfileSyncApplicationInput, CharacterProfileSyncPreviewStep,
     CharacterProfileSyncProgress, CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject,
-    CharacterSyncRangeMode, character_identity_key, profile_character_keys,
-    validate_character_sync_target_chapter,
+    CharacterSyncRangeMode, character_identity_key, character_profile_skipped_result,
+    profile_character_keys, profile_first_seen_chapter, validate_character_sync_target_chapter,
 };
 
 impl OrchestratorContext {
@@ -63,6 +67,7 @@ impl OrchestratorContext {
                 progress,
                 trace_port,
                 &mut anchor_cache,
+                None,
             )
             .await?;
         Ok(character_profile_sync_batch_result(
@@ -126,6 +131,8 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterProfileSyncProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+        chapter_analysis_workflow_run_id: i64,
+        chapter_analysis_checkpoint_fingerprint: Value,
     ) -> Result<AnalysisCharacterProfileSyncResult, AppError> {
         progress.report_with_total(0, 1, "正在按章节分析结果选择待同步角色")?;
         let chapters = self.character_sync_chapters(project_id).await?;
@@ -212,6 +219,10 @@ impl OrchestratorContext {
                 progress,
                 trace_port,
                 &mut anchor_cache,
+                Some(&CharacterProfileSyncBatchCheckpoint {
+                    workflow_run_id: chapter_analysis_workflow_run_id,
+                    source_fingerprint: chapter_analysis_checkpoint_fingerprint,
+                }),
             )
             .await?;
         Ok(analysis_sync_result(
@@ -239,6 +250,7 @@ impl OrchestratorContext {
         progress: CharacterProfileSyncProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
         anchor_cache: &mut CharacterProfileSyncAnchorCache,
+        resume_checkpoint: Option<&CharacterProfileSyncBatchCheckpoint>,
     ) -> Result<
         (
             Vec<CharacterProfileSyncedResult>,
@@ -247,6 +259,13 @@ impl OrchestratorContext {
         ),
         AppError,
     > {
+        let mut profiles = profiles;
+        if range_mode == CharacterSyncRangeMode::Incremental && resume_checkpoint.is_none() {
+            profiles.sort_by_key(|profile| {
+                profile_sync_skip_reason(profile, target_chapter, None).is_some()
+            });
+        }
+
         let mut synced = Vec::new();
         let mut skipped = Vec::new();
         let mut failed = Vec::new();
@@ -254,7 +273,27 @@ impl OrchestratorContext {
 
         for (index, profile) in profiles.into_iter().enumerate() {
             let base = batch_progress_base(index)?;
+            let profile_id = profile.id;
             let name = profile.name.clone();
+
+            if resume_checkpoint.is_none()
+                && range_mode == CharacterSyncRangeMode::Incremental
+                && let Some(reason) = profile_sync_skip_reason(&profile, target_chapter, None)
+            {
+                skipped.push(character_profile_skipped_result(
+                    &profile,
+                    target_chapter,
+                    reason,
+                    profile_first_seen_chapter(&profile),
+                ));
+                progress.report_with_total(
+                    base + CHARACTER_PROFILE_SYNC_STEPS,
+                    total,
+                    &format!("角色 {} · {name}：已同步到目标章，跳过", index + 1),
+                )?;
+                continue;
+            }
+
             progress.report_with_total(
                 base,
                 total,
@@ -264,6 +303,26 @@ impl OrchestratorContext {
                     total / CHARACTER_PROFILE_SYNC_STEPS
                 ),
             )?;
+
+            if let Some(result) = self
+                .load_character_profile_sync_batch_checkpoint(
+                    resume_checkpoint,
+                    profile.id,
+                    target_chapter,
+                )
+                .await?
+            {
+                match result {
+                    SyncCharacterProfileResult::Synced(result) => synced.push(result),
+                    SyncCharacterProfileResult::Skipped(result) => skipped.push(result),
+                }
+                progress.report_with_total(
+                    base + CHARACTER_PROFILE_SYNC_STEPS,
+                    total,
+                    &format!("角色 {} · {name}：已从章节分析断点恢复", index + 1),
+                )?;
+                continue;
+            }
 
             // 跳过判定统一由 run_character_profile_sync_validated 在 prepare 之后做：
             // 只有那里才拿得到正文证据 first_seen，批量层预判会漏掉它。
@@ -304,8 +363,22 @@ impl OrchestratorContext {
             }
             .await;
             match result {
-                Ok(SyncCharacterProfileResult::Synced(result)) => synced.push(result),
-                Ok(SyncCharacterProfileResult::Skipped(result)) => skipped.push(result),
+                Ok(result) => {
+                    if let Some(resume_checkpoint) = resume_checkpoint {
+                        self.save_character_profile_sync_batch_checkpoint(
+                            resume_checkpoint,
+                            profile_id,
+                            target_chapter,
+                            index,
+                            &result,
+                        )
+                        .await?;
+                    }
+                    match result {
+                        SyncCharacterProfileResult::Synced(result) => synced.push(result),
+                        SyncCharacterProfileResult::Skipped(result) => skipped.push(result),
+                    }
+                }
                 Err(AppError::Cancelled) => return Err(AppError::Cancelled),
                 Err(error) => failed.push(CharacterProfileSyncFailure {
                     name: name.clone(),
@@ -319,6 +392,163 @@ impl OrchestratorContext {
             )?;
         }
         Ok((synced, skipped, failed))
+    }
+}
+
+struct CharacterProfileSyncBatchCheckpoint {
+    workflow_run_id: i64,
+    source_fingerprint: Value,
+}
+
+impl OrchestratorContext {
+    async fn load_character_profile_sync_batch_checkpoint(
+        &self,
+        checkpoint: Option<&CharacterProfileSyncBatchCheckpoint>,
+        profile_id: i64,
+        target_chapter: i32,
+    ) -> Result<Option<SyncCharacterProfileResult>, AppError> {
+        let Some(checkpoint) = checkpoint else {
+            return Ok(None);
+        };
+        let step_key = character_profile_sync_batch_checkpoint_key(profile_id);
+        let fingerprint = character_profile_sync_batch_checkpoint_fingerprint(
+            &checkpoint.source_fingerprint,
+            profile_id,
+            target_chapter,
+        );
+        let Some(checkpoint) = self
+            .load_completed_workflow_checkpoint(
+                Some(checkpoint.workflow_run_id),
+                &step_key,
+                &fingerprint,
+            )
+            .await?
+        else {
+            return Ok(None);
+        };
+        let checkpoint_json =
+            required_checkpoint_json(&checkpoint, &step_key).map_err(|error| {
+                AppError::InvalidState {
+                    current: "chapter_analysis_character_sync_checkpoint".to_string(),
+                    operation: error.to_string(),
+                }
+            })?;
+        if checkpoint_json.get("completed") != Some(&Value::Bool(true)) {
+            return Err(AppError::InvalidState {
+                current: "chapter_analysis_character_sync_checkpoint".to_string(),
+                operation: format!("{step_key} checkpoint 缺少 completed=true"),
+            });
+        }
+        let result =
+            checkpoint_json
+                .get("result")
+                .cloned()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "chapter_analysis_character_sync_checkpoint".to_string(),
+                    operation: format!("{step_key} checkpoint 缺少 result"),
+                })?;
+        serde_json::from_value(result)
+            .map(Some)
+            .map_err(|error| AppError::InvalidState {
+                current: "chapter_analysis_character_sync_checkpoint".to_string(),
+                operation: format!("{step_key} checkpoint result 无效: {error}"),
+            })
+    }
+
+    async fn save_character_profile_sync_batch_checkpoint(
+        &self,
+        checkpoint: &CharacterProfileSyncBatchCheckpoint,
+        profile_id: i64,
+        target_chapter: i32,
+        profile_index: usize,
+        result: &SyncCharacterProfileResult,
+    ) -> Result<(), AppError> {
+        let step_key = character_profile_sync_batch_checkpoint_key(profile_id);
+        let step_order = i32::try_from(profile_index)
+            .map_err(|_| AppError::InvalidArgument("角色序号超出 i32 范围".to_string()))?
+            .checked_add(1)
+            .ok_or_else(|| {
+                AppError::InvalidArgument("角色 checkpoint 顺序超出 i32 范围".to_string())
+            })?;
+        self.save_completed_workflow_checkpoint(CompletedWorkflowCheckpointInput {
+            workflow_run_id: Some(checkpoint.workflow_run_id),
+            step_key,
+            step_order,
+            input_fingerprint_json: character_profile_sync_batch_checkpoint_fingerprint(
+                &checkpoint.source_fingerprint,
+                profile_id,
+                target_chapter,
+            ),
+            checkpoint_json: Some(json!({
+                "completed": true,
+                "result": result,
+            })),
+        })
+        .await
+    }
+}
+
+fn character_profile_sync_batch_checkpoint_key(profile_id: i64) -> String {
+    format!("chapter_analysis.character_sync.profile.{profile_id}")
+}
+
+fn character_profile_sync_batch_checkpoint_fingerprint(
+    source_fingerprint: &Value,
+    profile_id: i64,
+    target_chapter: i32,
+) -> Value {
+    json!({
+        "schema_version": 1,
+        "workflow": "chapter_analysis.character_sync.profile",
+        "profile_id": profile_id,
+        "target_chapter": target_chapter,
+        "source": source_fingerprint,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_api_contract::character::{
+        CharacterProfileSkippedResult, CharacterProfileSyncSkipReason,
+    };
+
+    #[test]
+    fn profile_checkpoint_is_stable_and_scoped_to_input() {
+        let source = json!({"chapter": "v1"});
+        let fingerprint = character_profile_sync_batch_checkpoint_fingerprint(&source, 7, 3);
+
+        assert_eq!(
+            fingerprint,
+            character_profile_sync_batch_checkpoint_fingerprint(&source, 7, 3)
+        );
+        assert_ne!(
+            fingerprint,
+            character_profile_sync_batch_checkpoint_fingerprint(&source, 8, 3)
+        );
+        assert_ne!(
+            fingerprint,
+            character_profile_sync_batch_checkpoint_fingerprint(&json!({"chapter": "v2"}), 7, 3)
+        );
+        assert_eq!(
+            character_profile_sync_batch_checkpoint_key(7),
+            "chapter_analysis.character_sync.profile.7"
+        );
+    }
+
+    #[test]
+    fn profile_checkpoint_result_round_trips() {
+        let result = SyncCharacterProfileResult::Skipped(CharacterProfileSkippedResult {
+            name: "林岚".to_string(),
+            synced_chapter: 3,
+            target_chapter: 3,
+            first_seen_chapter: Some(1),
+            reason: CharacterProfileSyncSkipReason::AlreadySyncedToTarget,
+        });
+        let restored: SyncCharacterProfileResult =
+            serde_json::from_value(serde_json::to_value(&result).unwrap()).unwrap();
+
+        assert_eq!(restored, result);
     }
 }
 

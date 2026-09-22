@@ -4,7 +4,7 @@ use super::VideoGenerationRequest;
 
 pub fn video_request_prompt_length_context(request: &VideoGenerationRequest) -> String {
     format!(
-        "实际发送 prompt：{} 字符 / {} UTF-8 字节",
+        "实际发送 prompt（不含图片/媒体请求体）：{} 字符 / {} UTF-8 字节",
         request.prompt.chars().count(),
         request.prompt.len()
     )
@@ -36,7 +36,10 @@ mod tests {
             media: VideoMediaInput::None,
         };
         let context = video_request_prompt_length_context(&request);
-        assert_eq!(context, "实际发送 prompt：5 字符 / 9 UTF-8 字节");
+        assert_eq!(
+            context,
+            "实际发送 prompt（不含图片/媒体请求体）：5 字符 / 9 UTF-8 字节"
+        );
         assert_eq!(
             append_video_request_prompt_length_context("provider failed".into(), &context),
             format!("provider failed；{context}")

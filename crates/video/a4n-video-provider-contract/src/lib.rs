@@ -89,7 +89,7 @@ pub const VIDEO_PROVIDER_CAPABILITIES: &[VideoProviderCapabilities] = &[
     async_video_provider(OPENAI_COMPATIBLE_VIDEO_BACKEND, "OpenAI 兼容视频", 1, 60),
     async_video_provider(NEWAPI_VIDEO_BACKEND, "New API 视频", 1, 60),
     async_video_provider(GEMINI_VEO_VIDEO_BACKEND, "Gemini Veo 视频", 1, 60),
-    async_video_provider(SEEDANCE2_VIDEO_BACKEND, "Seedance 2.0 参考媒体", 4, 15),
+    async_video_provider(SEEDANCE2_VIDEO_BACKEND, "Seedance 2.0 视频", 4, 15),
     VideoProviderCapabilities {
         delete: true,
         ..async_video_provider(CLIPROXY_OPENAI_VIDEO_BACKEND, "CLIProxy / Grok 视频", 1, 15)

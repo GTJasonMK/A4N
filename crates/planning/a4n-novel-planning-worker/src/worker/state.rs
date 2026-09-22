@@ -82,7 +82,6 @@ impl WorkerState {
         }
         if checkpoint.progress.workflow_run_id != run.id
             || checkpoint.progress.completed_unit_count == 0
-            || checkpoint.progress.completed_unit_count != checkpoint.progress.script.scenes.len()
             || checkpoint.progress.completed_unit_count > checkpoint.progress.total_unit_count
         {
             return Err(WorkerFailure::invalid_request(
@@ -96,6 +95,14 @@ impl WorkerState {
         .await
         .map_err(visual_plan_error)?
         .ok_or_else(|| WorkerFailure::not_found("当前正文缺少 confirmed 导演编排方案"))?;
+        checkpoint
+            .progress
+            .script
+            .validate_partial(
+                checkpoint.progress.completed_unit_count,
+                checkpoint.progress.total_unit_count,
+            )
+            .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
         let Some(identity) = checkpoint.progress.script.visual_plan_source.as_mut() else {
             return Err(WorkerFailure::invalid_request(
                 "章节拍摄剧本进度 snapshot 缺少视觉编排身份",
@@ -160,6 +167,28 @@ impl WorkerState {
             },
             invalidated_project_ids: outcome.invalidated_project_ids,
         })
+    }
+
+    async fn edit_progress(
+        &self,
+        request: WorkerEnvelope<EditChapterShootingScriptProgressInput>,
+    ) -> Result<EditedChapterShootingScriptProgressView, WorkerFailure> {
+        validate_request(&request, EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = user_id(&request)?;
+        verify_family_permission(
+            self.database.connection(),
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        a4n_db::shooting_script::edit_chapter_shooting_script_progress(
+            self.database.connection(),
+            request.payload,
+        )
+        .await
+        .map_err(shooting_script_error)
     }
 
     async fn publish(

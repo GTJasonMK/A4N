@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{
     VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
@@ -51,9 +52,10 @@ pub(crate) async fn generate_video(
     root_project_id: Option<i64>,
     workflow_run_id: Option<i64>,
     progress_tx: Option<UnboundedSender<String>>,
-) -> Result<VideoGenerationResult, String> {
+) -> Result<VideoGenerationResult, AppError> {
     if profile.uses_sidecars() {
-        let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
+        let client = client
+            .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("video")))?;
         return generate_video_via_sidecar(
             client,
             config,
@@ -67,11 +69,11 @@ pub(crate) async fn generate_video(
         .await;
     }
 
-    let provider = pick_provider_for_config(config)?;
+    let provider = pick_provider_for_config(config).map_err(AppError::ConfigError)?;
     provider
         .generate(request, provider_idempotency_key_sha256.as_deref())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(AppError::from)
 }
 
 pub(crate) async fn poll_video(

@@ -29,6 +29,16 @@ pub(crate) async fn download_video_url_with_api_key(
     download_video_request(request, url, hint_format).await
 }
 
+pub(crate) async fn download_video_url_with_bearer(
+    client: &reqwest::Client,
+    url: &str,
+    hint_format: Option<&str>,
+    api_key: &str,
+) -> Result<(Vec<u8>, String), AppError> {
+    let request = transport::apply_api_key(client.get(url), api_key, ApiKeyAuth::TrimmedBearer);
+    download_video_request(request, url, hint_format).await
+}
+
 async fn download_video_request(
     request: reqwest::RequestBuilder,
     url: &str,
@@ -44,10 +54,15 @@ async fn download_video_request(
             .text()
             .await
             .map_err(|e| AppError::Internal(format!("读取视频下载错误响应失败：{e}")))?;
-        return Err(AppError::Internal(format!(
+        let message = format!(
             "下载视频返回 {status}：{}",
             text.chars().take(500).collect::<String>()
-        )));
+        );
+        return Err(if status.is_client_error() {
+            AppError::InvalidArgument(message)
+        } else {
+            AppError::Internal(message)
+        });
     }
 
     let content_type = resp

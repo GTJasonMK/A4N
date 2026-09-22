@@ -83,3 +83,21 @@ pub(super) fn design_unit_stream_progress(
         span: DESIGN_STREAM_SPAN.split(unit_offset, unit_count),
     }
 }
+
+pub(super) fn design_shot_stream_progress(
+    unit_offset: usize,
+    unit_count: usize,
+    shot_offset: usize,
+    shot_count: usize,
+) -> StructuredLlmProgress {
+    let unit_span = DESIGN_STREAM_SPAN.split(unit_offset, unit_count);
+    StructuredLlmProgress {
+        spec: StructuredJsonProgressSpec {
+            root_array_key: "shots",
+            item_label: "镜头",
+            expected_items: Some(1),
+            milestones: DESIGN_SHOT_FIELDS,
+        },
+        span: unit_span.split(shot_offset, shot_count),
+    }
+}

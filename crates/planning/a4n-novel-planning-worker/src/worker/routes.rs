@@ -47,6 +47,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 enabled: true,
             },
             WorkerCapability {
+                name: SHOOTING_SCRIPT_EDIT_PROGRESS_CAPABILITY.into(),
+                version: NOVEL_PLANNING_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
                 name: SHOOTING_SCRIPT_DELETE_CAPABILITY.into(),
                 version: NOVEL_PLANNING_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
@@ -75,7 +80,7 @@ async fn current(
         return unauthorized();
     }
     let response = match state.current(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
+        Ok(payload) => completed(&request, OptionalWorkerPayload { value: payload }),
         Err(error) => failed(&request, error),
     };
     Json(response).into_response()
@@ -90,7 +95,7 @@ async fn unit_progress(
         return unauthorized();
     }
     let response = match state.unit_progress(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
+        Ok(payload) => completed(&request, OptionalWorkerPayload { value: payload }),
         Err(error) => failed(&request, error),
     };
     Json(response).into_response()
@@ -105,6 +110,21 @@ async fn edit(
         return unauthorized();
     }
     let response = match state.edit(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn edit_progress(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<EditChapterShootingScriptProgressInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.edit_progress(request.clone()).await {
         Ok(payload) => completed(&request, payload),
         Err(error) => failed(&request, error),
     };

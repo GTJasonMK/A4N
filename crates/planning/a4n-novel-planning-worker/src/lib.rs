@@ -13,21 +13,22 @@ use a4n_api_contract::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSourceInput,
     ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
     ChapterShootingScriptView, DeleteChapterShootingScriptInput, EditChapterShootingScriptInput,
+    EditChapterShootingScriptProgressInput, EditedChapterShootingScriptProgressView,
     EditedChapterShootingScriptView, PublishChapterShootingScriptInput,
 };
 use a4n_db::{DbHandle, chapter_visual_plan::ChapterVisualPlanDbError};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_novel_planning_worker_contract::{
     CONFIRM_VISUAL_PLAN_OPERATION, DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION,
-    EDIT_SHOOTING_SCRIPT_OPERATION, GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
-    GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION, GET_VISUAL_PLAN_OPERATION,
-    NOVEL_PLANNING_WORKER_CONTRACT_VERSION, NOVEL_PLANNING_WORKER_ID,
-    PUBLISH_SHOOTING_SCRIPT_OPERATION, READ_VISUAL_PLAN_OPERATION,
+    EDIT_SHOOTING_SCRIPT_OPERATION, EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION,
+    GET_CURRENT_SHOOTING_SCRIPT_OPERATION, GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION,
+    GET_VISUAL_PLAN_OPERATION, NOVEL_PLANNING_WORKER_CONTRACT_VERSION, NOVEL_PLANNING_WORKER_ID,
+    OptionalWorkerPayload, PUBLISH_SHOOTING_SCRIPT_OPERATION, READ_VISUAL_PLAN_OPERATION,
     SAVE_VISUAL_PLAN_DRAFT_OPERATION, SHOOTING_SCRIPT_CURRENT_CAPABILITY,
     SHOOTING_SCRIPT_DELETE_CAPABILITY, SHOOTING_SCRIPT_EDIT_CAPABILITY,
-    SHOOTING_SCRIPT_PUBLISH_CAPABILITY, SHOOTING_SCRIPT_UNIT_PROGRESS_CAPABILITY,
-    SHOOTING_SCRIPT_WORKFLOW_KIND, VALIDATE_VISUAL_PLAN_OPERATION,
-    VISUAL_PLAN_PERSISTENCE_CAPABILITY,
+    SHOOTING_SCRIPT_EDIT_PROGRESS_CAPABILITY, SHOOTING_SCRIPT_PUBLISH_CAPABILITY,
+    SHOOTING_SCRIPT_UNIT_PROGRESS_CAPABILITY, SHOOTING_SCRIPT_WORKFLOW_KIND,
+    VALIDATE_VISUAL_PLAN_OPERATION, VISUAL_PLAN_PERSISTENCE_CAPABILITY,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -99,6 +100,10 @@ impl NovelPlanningWorker {
             .route(
                 "/v1/commands/novel_planning.shooting_script.edit",
                 post(edit),
+            )
+            .route(
+                "/v1/commands/novel_planning.shooting_script.edit_progress",
+                post(edit_progress),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.delete",

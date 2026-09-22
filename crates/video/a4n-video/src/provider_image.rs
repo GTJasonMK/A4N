@@ -2,15 +2,15 @@
 
 use a4n_video_provider_contract::ProviderImageInputTransport;
 
-pub fn provider_image_input_transport_with_override(
+pub fn provider_image_input_transport_override(
     override_value: Option<&str>,
-) -> Result<ProviderImageInputTransport, String> {
+) -> Result<Option<ProviderImageInputTransport>, String> {
     let override_value = override_value
         .map(|value| {
             let value = value.trim();
             if value.is_empty() {
                 return Err(
-                    "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 不能为空；允许值为 inline_data_url、public_url 或 remote_temp_upload"
+                    "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 不能为空；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
                         .to_string(),
                 );
             }
@@ -18,11 +18,10 @@ pub fn provider_image_input_transport_with_override(
         })
         .transpose()?;
     match override_value.as_deref() {
-        Some("public_url") => Ok(ProviderImageInputTransport::PublicUrl),
-        Some("remote_temp_upload") => Ok(ProviderImageInputTransport::RemoteTempUpload),
-        Some("auto") | Some("inline_data_url") | None => {
-            Ok(ProviderImageInputTransport::InlineDataUrl)
-        }
+        Some("public_url") => Ok(Some(ProviderImageInputTransport::PublicUrl)),
+        Some("remote_temp_upload") => Ok(Some(ProviderImageInputTransport::RemoteTempUpload)),
+        Some("inline_data_url") => Ok(Some(ProviderImageInputTransport::InlineDataUrl)),
+        Some("auto") | None => Ok(None),
         Some(other) => Err(format!(
             "A4N_VIDEO_IMAGE_INPUT_TRANSPORT 无效：{other}；允许值为 auto、inline_data_url、public_url 或 remote_temp_upload"
         )),
@@ -95,18 +94,19 @@ mod tests {
 
     #[test]
     fn transport_defaults_and_invalid_values_are_explicit() {
+        assert_eq!(provider_image_input_transport_override(None).unwrap(), None);
         assert_eq!(
-            provider_image_input_transport_with_override(None).unwrap(),
-            ProviderImageInputTransport::InlineDataUrl
+            provider_image_input_transport_override(Some("remote_temp_upload")).unwrap(),
+            Some(ProviderImageInputTransport::RemoteTempUpload)
         );
         assert_eq!(
-            provider_image_input_transport_with_override(Some("remote_temp_upload")).unwrap(),
-            ProviderImageInputTransport::RemoteTempUpload
+            provider_image_input_transport_override(Some("auto")).unwrap(),
+            None
         );
         assert_eq!(
-            provider_image_input_transport_with_override(Some("auto")).unwrap(),
-            ProviderImageInputTransport::InlineDataUrl
+            provider_image_input_transport_override(Some("inline_data_url")).unwrap(),
+            Some(ProviderImageInputTransport::InlineDataUrl)
         );
-        assert!(provider_image_input_transport_with_override(Some("bad")).is_err());
+        assert!(provider_image_input_transport_override(Some("bad")).is_err());
     }
 }

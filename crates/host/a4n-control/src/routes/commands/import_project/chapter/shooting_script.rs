@@ -164,3 +164,21 @@ pub(in crate::routes::commands) async fn edit_chapter_shooting_script(
         false,
     )?))
 }
+
+pub(in crate::routes::commands) async fn edit_chapter_shooting_script_progress(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: shooting_script_records_actions::EditChapterShootingScriptProgressInput =
+        strict_command_input(args, "edit_chapter_shooting_script_progress")?;
+    Ok(json!(string_action_result(
+        shooting_script_records_actions::edit_chapter_shooting_script_progress(
+            state.runtime(),
+            user_id,
+            input,
+        )
+        .await,
+        false,
+    )?))
+}

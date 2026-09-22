@@ -206,6 +206,19 @@ fn adaptation_accepts_director_facts_without_fabricating_source_spans() {
 }
 
 #[test]
+fn adaptation_requires_each_fact_to_name_its_carrier_shot() {
+    let prepared = prepared();
+    let visual_unit = &prepared.visual_plan_projection.narrative_units[0];
+    let mut output = adaptation(1);
+    output.performance_facts[0].shot_id.clear();
+
+    let error = validate_unit_adaptation(&output, &layout_unit(), visual_unit)
+        .expect_err("a fact without a carrier shot must be rejected");
+
+    assert!(error.to_string().contains("不存在的承载镜头"));
+}
+
+#[test]
 fn layout_detail_parser_rejects_string_for_preserved_knowledge_array() {
     let raw = r#"
     {
@@ -263,6 +276,7 @@ fn adaptation(fact_index: u32) -> ScreenplayUnitAdaptationV1 {
         narrative_unit_index: 1,
         performance_facts: vec![ScreenplayPerformanceFactV1 {
             fact_index,
+            shot_id: "shot-1".into(),
             source_span_ids: vec!["span-1".into()],
             user_addition_ids: Vec::new(),
             actor: Some("甲".into()),

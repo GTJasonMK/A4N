@@ -536,10 +536,13 @@ ORDER BY item_key, task_id
         ))
         .await?;
     if rows.is_empty() {
-        return Err(GenerationTaskLifecycleError::Corrupt(format!(
-            "batch generation task {} checkpoint 损坏且没有 child task，无法重建精确 summary",
-            checkpoint.task_id
-        )));
+        // The checkpoint is already being quarantined as corrupt. Keeping the
+        // summary absent is more accurate than manufacturing a child count.
+        return Ok(None);
     }
-    Ok(Some(batch_summary_from_child_rows(policy, rows)?))
+    match batch_summary_from_child_rows(policy, rows) {
+        Ok(summary) => Ok(Some(summary)),
+        Err(GenerationTaskLifecycleError::Corrupt(_)) => Ok(None),
+        Err(error) => Err(error),
+    }
 }

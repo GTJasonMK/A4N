@@ -63,8 +63,8 @@
     "name": "novel-planning-worker",
     "kind": "stateful_worker",
     "binary": "a4n-novel-planning-worker",
-    "contract_version": "novel-planning-shooting-script-v1",
-    "capability_version": "novel-planning-shooting-script-v1",
+    "contract_version": "novel-planning-shooting-script-v2",
+    "capability_version": "novel-planning-shooting-script-v2",
     "addr_env": "A4N_NOVEL_PLANNING_WORKER_ADDR",
     "url_env": "A4N_NOVEL_PLANNING_WORKER_URL",
     "default_addr": "127.0.0.1:47651",
@@ -78,6 +78,7 @@
       "shooting_script.current",
       "shooting_script.unit_progress",
       "shooting_script.edit",
+      "shooting_script.edit_progress",
       "shooting_script.delete",
       "shooting_script.publish",
       "visual_plan.persistence"

@@ -14,6 +14,7 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 
 import type {
   ChapterShootingScriptV1,
+  ShootingDirectingStatementV1,
   ShootingDialogueCueV1,
   ShootingPerformanceBeatV1,
   ShootingSceneV1,
@@ -28,6 +29,7 @@ import {
 } from "../../../utils/shootingScriptPresentation";
 import { useI18n, type MessageKey } from "../../../i18n";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 
 const EDITING_MODE_OPTIONS: ReadonlyArray<readonly [string, MessageKey]> = [
   ["continuity", "shootingScript.editor.editingContinuity"],
@@ -169,6 +171,17 @@ const newDialogueCue = (
   listener_reaction: null,
 });
 
+const emptyDirectingStatement = (): ShootingDirectingStatementV1 => ({
+  central_dramatic_question: "",
+  protagonist_throughline: "",
+  audience_experience: "",
+  viewpoint_strategy: "",
+  visual_strategy: "",
+  spatial_strategy: "",
+  sound_strategy: "",
+  rhythm_strategy: "",
+});
+
 export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
   script,
   onChange,
@@ -193,6 +206,45 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
   };
 
   const directing = script.directing_statement;
+  const deleteDirecting = async () => {
+    if (
+      !(await confirmDialog({
+        title: t("shootingScript.editor.deleteDirectingIntentTitle"),
+        message: t("shootingScript.editor.deleteDirectingIntentMessage"),
+        confirmText: t("shootingScript.editor.deleteDirectingIntent"),
+        dialogType: "danger",
+      }))
+    )
+      return;
+    onChange({ ...structuredClone(script), directing_statement: null });
+  };
+  const deleteScene = async (sceneOffset: number) => {
+    const removed = script.scenes[sceneOffset];
+    if (
+      !removed ||
+      !(await confirmDialog({
+        title: t("shootingScript.editor.deleteSceneTitle"),
+        message: t("shootingScript.editor.deleteSceneMessage"),
+        confirmText: t("shootingScript.editor.deleteScene"),
+        dialogType: "danger",
+      }))
+    )
+      return;
+    const next = structuredClone(script);
+    next.scenes = next.scenes
+      .filter((_, index) => index !== sceneOffset)
+      .map((scene, index) => ({
+        ...scene,
+        scene_index: index + 1,
+        sequence_index: index + 1,
+        timeline_position: index + 1,
+        transition_contracts: scene.transition_contracts.filter(
+          (transition) =>
+            transition.to_narrative_unit_index !== removed.narrative_unit_index,
+        ),
+      }));
+    onChange(next);
+  };
 
   return (
     <fieldset
@@ -206,65 +258,96 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
             size={15}
             className="shrink-0 text-book-text-muted transition-transform group-open:rotate-90"
           />
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-book-text-main">
               {t("shootingScript.editor.directingIntent")}
             </span>
             <span className="mt-0.5 block text-small text-book-text-muted">
-            {t("shootingScript.editor.directingIntentHint")}
+              {t("shootingScript.editor.directingIntentHint")}
             </span>
           </span>
+          {directing ? (
+            <BookIconButton
+              label={t("shootingScript.editor.deleteDirectingIntent")}
+              onClick={(event) => {
+                event.preventDefault();
+                void deleteDirecting();
+              }}
+              className="text-error hover:bg-error-bg"
+            >
+              <Trash2 size={14} />
+            </BookIconButton>
+          ) : null}
         </summary>
-        <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
-          <TextField
-            label={t("shootingScript.editor.centralDramaticQuestion")}
-            value={directing.central_dramatic_question}
-            path={["directing_statement", "central_dramatic_question"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.protagonistThroughline")}
-            value={directing.protagonist_throughline}
-            path={["directing_statement", "protagonist_throughline"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.audienceExperience")}
-            value={directing.audience_experience}
-            path={["directing_statement", "audience_experience"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.viewpointStrategy")}
-            value={directing.viewpoint_strategy}
-            path={["directing_statement", "viewpoint_strategy"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.visualStrategy")}
-            value={directing.visual_strategy}
-            path={["directing_statement", "visual_strategy"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.spatialStrategy")}
-            value={directing.spatial_strategy}
-            path={["directing_statement", "spatial_strategy"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.soundStrategy")}
-            value={directing.sound_strategy}
-            path={["directing_statement", "sound_strategy"]}
-            onChange={update}
-          />
-          <TextField
-            label={t("shootingScript.editor.rhythmStrategy")}
-            value={directing.rhythm_strategy}
-            path={["directing_statement", "rhythm_strategy"]}
-            onChange={update}
-          />
-        </div>
+        {directing ? (
+          <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
+            <TextField
+              label={t("shootingScript.editor.centralDramaticQuestion")}
+              value={directing.central_dramatic_question}
+              path={["directing_statement", "central_dramatic_question"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.protagonistThroughline")}
+              value={directing.protagonist_throughline}
+              path={["directing_statement", "protagonist_throughline"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.audienceExperience")}
+              value={directing.audience_experience}
+              path={["directing_statement", "audience_experience"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.viewpointStrategy")}
+              value={directing.viewpoint_strategy}
+              path={["directing_statement", "viewpoint_strategy"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.visualStrategy")}
+              value={directing.visual_strategy}
+              path={["directing_statement", "visual_strategy"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.spatialStrategy")}
+              value={directing.spatial_strategy}
+              path={["directing_statement", "spatial_strategy"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.soundStrategy")}
+              value={directing.sound_strategy}
+              path={["directing_statement", "sound_strategy"]}
+              onChange={update}
+            />
+            <TextField
+              label={t("shootingScript.editor.rhythmStrategy")}
+              value={directing.rhythm_strategy}
+              path={["directing_statement", "rhythm_strategy"]}
+              onChange={update}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 text-small text-book-text-muted sm:p-4">
+            <span>{t("shootingScript.editor.directingIntentEmpty")}</span>
+            <BookButton
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                onChange({
+                  ...structuredClone(script),
+                  directing_statement: emptyDirectingStatement(),
+                })
+              }
+            >
+              <Plus size={13} />
+              {t("shootingScript.editor.addDirectingIntent")}
+            </BookButton>
+          </div>
+        )}
         <DiagnosticDetails
           rows={[
             [t("shootingScript.editor.schemaVersion"), script.schema_version],
@@ -275,12 +358,13 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
       {script.scenes.map((scene, sceneOffset) => (
         <SceneEditor
           key={`${scene.scene_index}-${scene.scene_identity}`}
-        scene={scene}
-        sceneOffset={sceneOffset}
+          scene={scene}
+          sceneOffset={sceneOffset}
           narrativeUnitIndexes={script.scenes.map(
             ({ narrative_unit_index }) => narrative_unit_index,
           )}
-        onChange={update}
+          onChange={update}
+          onDelete={() => void deleteScene(sceneOffset)}
         />
       ))}
     </fieldset>
@@ -292,7 +376,8 @@ const SceneEditor: React.FC<{
   sceneOffset: number;
   narrativeUnitIndexes: number[];
   onChange: UpdateValue;
-}> = ({ scene, sceneOffset, narrativeUnitIndexes, onChange }) => {
+  onDelete: () => void;
+}> = ({ scene, sceneOffset, narrativeUnitIndexes, onChange, onDelete }) => {
   const { t } = useI18n();
   const base: ValuePath = ["scenes", sceneOffset];
 
@@ -303,15 +388,27 @@ const SceneEditor: React.FC<{
           size={15}
           className="shrink-0 text-book-text-muted transition-transform group-open/scene:rotate-90"
         />
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h3 className="text-sm font-semibold text-book-text-main">
-          {t("shootingScript.editor.scene", { index: scene.scene_index })} ·{" "}
-          {scene.title}
-        </h3>
-        <span className="text-small text-book-text-muted">
-          {t("shootingScript.editor.shotsCount", { count: scene.shots.length })}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h3 className="text-sm font-semibold text-book-text-main">
+            {t("shootingScript.editor.scene", { index: scene.scene_index })} ·{" "}
+            {scene.title}
+          </h3>
+          <span className="text-small text-book-text-muted">
+            {t("shootingScript.editor.shotsCount", {
+              count: scene.shots.length,
+            })}
+          </span>
         </div>
+        <BookIconButton
+          label={t("shootingScript.editor.deleteScene")}
+          onClick={(event) => {
+            event.preventDefault();
+            onDelete();
+          }}
+          className="text-error hover:bg-error-bg"
+        >
+          <Trash2 size={14} />
+        </BookIconButton>
       </summary>
 
       <div className="space-y-4 p-3 sm:p-4">
@@ -513,8 +610,8 @@ const SceneEditor: React.FC<{
             <div className="mt-4 border-t border-book-border/40 pt-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h5 className="text-xs font-semibold text-book-text-main">
-                {t("shootingScript.editor.transitionContracts")}
-              </h5>
+                  {t("shootingScript.editor.transitionContracts")}
+                </h5>
                 <BookButton
                   size="sm"
                   variant="ghost"
@@ -741,121 +838,121 @@ const ShotEditor: React.FC<{
     });
   };
   return (
-  <details className="group">
-    <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
-      <div className="min-w-0">
-        <div className="truncate text-xs font-semibold text-book-text-main">
-          {t("shootingScript.editor.shot")} {shot.shot_index} · {shot.title}
-        </div>
-        <div className="mt-0.5 flex flex-wrap gap-x-2 text-caption text-book-text-muted">
-          <span>{shootingShotSizeLabel(shot.shot_size, t)}</span>
-          <span>{shootingCameraMovementLabel(shot.camera_movement, t)}</span>
+    <details className="group">
+      <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-semibold text-book-text-main">
+            {t("shootingScript.editor.shot")} {shot.shot_index} · {shot.title}
+          </div>
+          <div className="mt-0.5 flex flex-wrap gap-x-2 text-caption text-book-text-muted">
+            <span>{shootingShotSizeLabel(shot.shot_size, t)}</span>
+            <span>{shootingCameraMovementLabel(shot.camera_movement, t)}</span>
             <span>
               {t("shootingScript.editor.beatCount", {
                 count: shot.performance_beats.length,
               })}
             </span>
+          </div>
         </div>
-      </div>
-      <ChevronRight
-        size={14}
-        className="text-book-text-muted transition-transform group-open:rotate-90"
-      />
-    </summary>
+        <ChevronRight
+          size={14}
+          className="text-book-text-muted transition-transform group-open:rotate-90"
+        />
+      </summary>
 
-    <div className="space-y-4 pb-4 pl-2 sm:pl-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <TextField
-          label={t("shootingScript.editor.shotTitle")}
-          value={shot.title}
-          path={[...path, "title"]}
-          onChange={onChange}
-        />
-        <TextField
-          label={t("shootingScript.editor.narrativePurpose")}
-          value={shot.narrative_purpose}
-          path={[...path, "narrative_purpose"]}
-          onChange={onChange}
-        />
-        <TextField
-          label={t("shootingScript.editor.subject")}
-          value={shot.subject}
-          path={[...path, "subject"]}
-          onChange={onChange}
-        />
-        <TextField
-          label={t("shootingScript.editor.composition")}
-          value={shot.composition}
-          path={[...path, "composition"]}
-          onChange={onChange}
-        />
-        <TextField
-          label={t("shootingScript.editor.lensIntent")}
-          value={shot.lens_intent}
-          path={[...path, "lens_intent"]}
-          onChange={onChange}
-        />
-        <NumberField
-          label={t("shootingScript.editor.naturalDuration")}
-          value={shot.estimated_natural_seconds}
-          path={[...path, "estimated_natural_seconds"]}
-          onChange={onChange}
-        />
-      </div>
+      <div className="space-y-4 pb-4 pl-2 sm:pl-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextField
+            label={t("shootingScript.editor.shotTitle")}
+            value={shot.title}
+            path={[...path, "title"]}
+            onChange={onChange}
+          />
+          <TextField
+            label={t("shootingScript.editor.narrativePurpose")}
+            value={shot.narrative_purpose}
+            path={[...path, "narrative_purpose"]}
+            onChange={onChange}
+          />
+          <TextField
+            label={t("shootingScript.editor.subject")}
+            value={shot.subject}
+            path={[...path, "subject"]}
+            onChange={onChange}
+          />
+          <TextField
+            label={t("shootingScript.editor.composition")}
+            value={shot.composition}
+            path={[...path, "composition"]}
+            onChange={onChange}
+          />
+          <TextField
+            label={t("shootingScript.editor.lensIntent")}
+            value={shot.lens_intent}
+            path={[...path, "lens_intent"]}
+            onChange={onChange}
+          />
+          <NumberField
+            label={t("shootingScript.editor.naturalDuration")}
+            value={shot.estimated_natural_seconds}
+            path={[...path, "estimated_natural_seconds"]}
+            onChange={onChange}
+          />
+        </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <SelectField
-          label={t("shootingScript.editor.shotSize")}
-          value={shot.shot_size}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <SelectField
+            label={t("shootingScript.editor.shotSize")}
+            value={shot.shot_size}
             options={SHOT_SIZE_OPTIONS.map(
               (value) => [value, shootingShotSizeLabel(value, t)] as const,
             )}
-          path={[...path, "shot_size"]}
-          onChange={onChange}
-        />
-        <SelectField
-          label={t("shootingScript.editor.angle")}
-          value={shot.camera_angle}
+            path={[...path, "shot_size"]}
+            onChange={onChange}
+          />
+          <SelectField
+            label={t("shootingScript.editor.angle")}
+            value={shot.camera_angle}
             options={CAMERA_ANGLE_OPTIONS.map(
               (value) => [value, shootingCameraAngleLabel(value, t)] as const,
             )}
-          path={[...path, "camera_angle"]}
-          onChange={onChange}
-        />
-        <SelectField
-          label={t("shootingScript.editor.cameraHeight")}
-          value={shot.camera_height}
+            path={[...path, "camera_angle"]}
+            onChange={onChange}
+          />
+          <SelectField
+            label={t("shootingScript.editor.cameraHeight")}
+            value={shot.camera_height}
             options={CAMERA_HEIGHT_OPTIONS.map(
               ([value, key]) => [value, t(key)] as const,
             )}
-          path={[...path, "camera_height"]}
-          onChange={onChange}
-        />
-        <SelectField
-          label={t("shootingScript.editor.movement")}
-          value={shot.camera_movement}
+            path={[...path, "camera_height"]}
+            onChange={onChange}
+          />
+          <SelectField
+            label={t("shootingScript.editor.movement")}
+            value={shot.camera_movement}
             options={CAMERA_MOVEMENT_OPTIONS.map(
               (value) =>
                 [value, shootingCameraMovementLabel(value, t)] as const,
             )}
-          path={[...path, "camera_movement"]}
-          onChange={onChange}
-        />
-        <SelectField
-          label={t("shootingScript.editor.coverage")}
-          value={shot.coverage}
+            path={[...path, "camera_movement"]}
+            onChange={onChange}
+          />
+          <SelectField
+            label={t("shootingScript.editor.coverage")}
+            value={shot.coverage}
             options={COVERAGE_OPTIONS.map(
               (value) => [value, shootingCoverageLabel(value, t)] as const,
             )}
-          path={[...path, "coverage"]}
-          onChange={onChange}
-        />
-      </div>
+            path={[...path, "coverage"]}
+            onChange={onChange}
+          />
+        </div>
 
         <AdvancedDetails
           title={t("shootingScript.editor.blockingSoundContinuity")}
         >
-        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3">
             <TextField
               label={t("shootingScript.editor.blockingStart")}
               value={shot.blocking.start}
@@ -874,8 +971,8 @@ const ShotEditor: React.FC<{
               path={[...path, "blocking", "end"]}
               onChange={onChange}
             />
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <StringListField
               label={t("shootingScript.editor.spatialAnchors")}
               value={shot.spatial_anchors}
@@ -954,10 +1051,10 @@ const ShotEditor: React.FC<{
               path={[...path, "sound", "silence"]}
               onChange={onChange}
             />
-        </div>
-      </AdvancedDetails>
+          </div>
+        </AdvancedDetails>
 
-      <section className="border-t border-book-border/40 pt-3">
+        <section className="border-t border-book-border/40 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h5 className="text-xs font-semibold text-book-text-main">
               {t("shootingScript.editor.performanceBeats")}
@@ -967,18 +1064,18 @@ const ShotEditor: React.FC<{
               {t("shootingScript.editor.addBeat")}
             </BookButton>
           </div>
-        <div className="mt-1 divide-y divide-book-border/40 border-b border-book-border/40">
-          {shot.performance_beats.map((beat, beatOffset) => (
-            <BeatEditor
-              key={beat.beat_id}
-              beat={beat}
-              path={[...path, "performance_beats", beatOffset]}
-              onChange={onChange}
+          <div className="mt-1 divide-y divide-book-border/40 border-b border-book-border/40">
+            {shot.performance_beats.map((beat, beatOffset) => (
+              <BeatEditor
+                key={beat.beat_id}
+                beat={beat}
+                path={[...path, "performance_beats", beatOffset]}
+                onChange={onChange}
                 onRemove={() => removeBeat(beatOffset)}
-            />
-          ))}
-        </div>
-      </section>
+              />
+            ))}
+          </div>
+        </section>
 
         <AdvancedDetails
           title={t("shootingScript.editor.dialogueCues")}
@@ -994,11 +1091,11 @@ const ShotEditor: React.FC<{
             </BookButton>
           }
         >
-      {shot.dialogue_cues.length > 0 ? (
-          <div className="divide-y divide-book-border/40">
-            {shot.dialogue_cues.map((cue, offset) => {
-              const cuePath = [...path, "dialogue_cues", offset];
-              return (
+          {shot.dialogue_cues.length > 0 ? (
+            <div className="divide-y divide-book-border/40">
+              {shot.dialogue_cues.map((cue, offset) => {
+                const cuePath = [...path, "dialogue_cues", offset];
+                return (
                   <div
                     key={`${cue.beat_id}-${offset}`}
                     className="grid gap-3 py-3 sm:grid-cols-2"
@@ -1046,10 +1143,10 @@ const ShotEditor: React.FC<{
                         <Trash2 size={14} />
                       </BookIconButton>
                     </div>
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <p className="py-3 text-small text-book-text-muted">
               {t("shootingScript.editor.noDialogueCues")}
@@ -1057,17 +1154,17 @@ const ShotEditor: React.FC<{
           )}
         </AdvancedDetails>
 
-      <DiagnosticDetails
-        nested
-        rows={[
-          [t("shootingScript.editor.shotId"), shot.shot_id],
+        <DiagnosticDetails
+          nested
+          rows={[
+            [t("shootingScript.editor.shotId"), shot.shot_id],
             [
               t("shootingScript.editor.sceneSourceLocation"),
               shot.source_span_ids.join("、"),
             ],
-        ]}
-      />
-    </div>
-  </details>
+          ]}
+        />
+      </div>
+    </details>
   );
 };

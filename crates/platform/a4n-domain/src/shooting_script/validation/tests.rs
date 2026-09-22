@@ -5,7 +5,7 @@ fn valid_script() -> ChapterShootingScriptV1 {
         schema_version: ChapterShootingScriptSchemaVersion::V1,
         visual_plan_source: None,
         user_additions: Vec::new(),
-        directing_statement: ShootingDirectingStatementV1 {
+        directing_statement: Some(ShootingDirectingStatementV1 {
             central_dramatic_question: "主角能否确认异常".to_string(),
             protagonist_throughline: "克制恐惧并继续调查".to_string(),
             audience_experience: "逐步感到紧张".to_string(),
@@ -14,7 +14,7 @@ fn valid_script() -> ChapterShootingScriptV1 {
             spatial_strategy: "由门口移动到暗廊".to_string(),
             sound_strategy: "用脚步和停顿制造悬念".to_string(),
             rhythm_strategy: "进入、停顿、观察".to_string(),
-        },
+        }),
         scenes: vec![ShootingSceneV1 {
             scene_index: 1,
             scene_identity: "hall".to_string(),
@@ -128,6 +128,17 @@ fn valid_script() -> ChapterShootingScriptV1 {
 #[test]
 fn valid_shooting_script_satisfies_full_contract() {
     valid_script().validate().expect("valid shooting script");
+}
+
+#[test]
+fn partial_script_can_delete_directing_intent_and_completed_scenes() {
+    let mut script = valid_script();
+    script.directing_statement = None;
+    script.scenes.clear();
+
+    script
+        .validate_partial(2, 3)
+        .expect("deleted completed scenes remain a valid resumable draft");
 }
 
 #[test]

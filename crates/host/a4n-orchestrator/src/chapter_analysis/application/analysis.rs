@@ -652,6 +652,7 @@ impl OrchestratorContext {
             prompt_renderer,
             host_port.scene_profile_sync_host_port(),
             Some(&scene_progress),
+            Some(workflow_run_id),
         )
         .await?;
         self.save_chapter_analysis_phase(
@@ -704,6 +705,8 @@ impl OrchestratorContext {
                     active_task_id: progress.active_task_id,
                 },
                 trace_port,
+                workflow_run_id,
+                chapter_analysis_phase_fingerprint(chapter, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC),
             )
             .await?;
         ensure_chapter_analysis_character_sync_completed(&sync_result.batch.failed)

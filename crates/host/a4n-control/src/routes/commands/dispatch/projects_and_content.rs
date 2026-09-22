@@ -5,9 +5,10 @@ use super::super::{
     delete_latest_chapter_outlines, delete_optimize_session, delete_project,
     detach_derived_project, diff_blueprint_versions, diff_profile_chapters,
     discard_optimization_patch_set, discard_pending_optimize_patch_sets, duplicate_project,
-    edit_chapter_shooting_script, export_derived_project_data, export_outline_json_data,
-    export_project_bundle_data, export_project_family_data, forward_project_status,
-    generate_chapter_analysis, generate_chapter_scene, generate_chapter_shooting_script,
+    edit_chapter_shooting_script, edit_chapter_shooting_script_progress,
+    export_derived_project_data, export_outline_json_data, export_project_bundle_data,
+    export_project_family_data, forward_project_status, generate_chapter_analysis,
+    generate_chapter_scene, generate_chapter_shooting_script,
     generate_next_chapter_shooting_script_unit, get_blueprint, get_chapter_outlines_pacing,
     get_chapter_shooting_script, get_chapter_shooting_script_unit_progress,
     get_generation_progress, get_inspiration_history, get_optimize_session,
@@ -169,6 +170,9 @@ async fn try_dispatch_content(
         }
         "edit_chapter_shooting_script" => {
             edit_chapter_shooting_script(state, user_id, args).await?
+        }
+        "edit_chapter_shooting_script_progress" => {
+            edit_chapter_shooting_script_progress(state, user_id, args).await?
         }
         "delete_chapter_shooting_script" => {
             delete_chapter_shooting_script(state, user_id, args).await?

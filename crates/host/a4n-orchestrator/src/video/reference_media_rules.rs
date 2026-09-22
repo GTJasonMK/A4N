@@ -143,7 +143,7 @@ fn reference_media_prompt(value: &str) -> Result<String, String> {
         return Ok(prompt.to_string());
     }
     Err(format!(
-        "参考媒体视频 prompt 过短，至少需要 {} 个字符，并明确写出每个 @image_file_N / @video_file_N / @audio_file_N 的用途",
+        "参考媒体视频 prompt 过短，至少需要 {} 个字符，并明确写出每个参考媒体的用途",
         MIN_PROVIDER_VISUAL_PROMPT_CHARS
     ))
 }
@@ -363,7 +363,7 @@ pub(crate) fn reference_media_provider_request_note(
     };
     match config.backend.as_str() {
         SEEDANCE2_VIDEO_BACKEND => Ok(format!(
-            "{source_label}；config_id={}，backend={}；Seedance 2.0 参考媒体模式使用 functionMode=omni_reference；image_files={}，video_files={}，audio_files={}；prompt 必须用 @image_file_N / @video_file_N / @audio_file_N 明确绑定每个媒体用途。",
+            "{source_label}；config_id={}，backend={}；Seedance 2.0 使用 /videos 的 input_reference；image_files={}，video_files={}，audio_files={}；参考媒体按输入顺序发送，并在 prompt 中明确每个媒体用途。",
             config.id,
             config.backend,
             images.len(),
@@ -515,6 +515,7 @@ mod tests {
         .unwrap();
         assert!(note.contains("config_id=9"));
         assert!(note.contains("image_files=1"));
+        assert!(note.contains("input_reference"));
     }
 
     #[test]

@@ -111,6 +111,8 @@ pub struct CreateImagePublicationIntentInput {
     pub image: CreateGeneratedImageRecordDraftInput,
     pub expected_file_size: i64,
     pub expected_sha256: String,
+    /// 生成重试可以替换仍处于 pending 的完整输出意图；导入和普通发布意图必须保持严格幂等。
+    pub allow_pending_replacement: bool,
 }
 
 /// File facts recorded by the media adapter during image publication.

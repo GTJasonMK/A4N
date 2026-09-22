@@ -47,3 +47,17 @@ pub async fn sync_scene_profiles(
         .sync(user_id, input, prompt_renderer, &host_port, progress)
         .await
 }
+
+pub async fn resume_scene_profile_sync_workflow_run(
+    state: &AppState,
+    user_id: i64,
+    workflow_run_id: i64,
+) -> Result<(), String> {
+    let prompt_renderer = state;
+    let host_port = RuntimeSceneProfileSyncHostPort::new(state);
+    state
+        .scene_profile_sync_application()
+        .resume_workflow_run(user_id, workflow_run_id, prompt_renderer, &host_port)
+        .await
+        .map_err(|error| error.to_string())
+}

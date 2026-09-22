@@ -305,6 +305,18 @@ struct TestShootingScriptPublication {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublication {
+    async fn edit_progress(
+        &self,
+        _user_id: i64,
+        _input: a4n_api_contract::shooting_script::EditChapterShootingScriptProgressInput,
+    ) -> Result<a4n_api_contract::shooting_script::EditedChapterShootingScriptProgressView, AppError>
+    {
+        Err(AppError::InvalidState {
+            current: "测试 publication 只支持生成发布".into(),
+            operation: "编辑测试拍摄剧本进度".into(),
+        })
+    }
+
     async fn publish(
         &self,
         _user_id: i64,

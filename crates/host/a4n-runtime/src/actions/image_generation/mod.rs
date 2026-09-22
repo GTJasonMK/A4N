@@ -13,7 +13,7 @@ use crate::actions::request_preview::{ModelRequestPreview, model_request_preview
 
 pub(crate) use generation_io::{
     persist_reserved_generated_image_file, prepare_generated_image_file,
-    run_queued_request_with_cancel, run_queued_request_with_cancel_and_workflow,
+    run_queued_request_with_cancel_and_workflow,
 };
 pub(in crate::actions) use host_port::RuntimeImageGenerationHostPort;
 

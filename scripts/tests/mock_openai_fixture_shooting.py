@@ -48,6 +48,7 @@ def shooting_adaptation_response(combined: str) -> dict[str, Any]:
         "performance_facts": [
             {
                 "fact_index": index,
+                "shot_id": shot["segment_id"],
                 "source_span_ids": [],
                 "user_addition_ids": ["director:" + shot["segment_id"]],
                 "actor": next(iter(unit["participants"]), None),
@@ -189,22 +190,26 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
     if not isinstance(facts, list):
         raise UnhandledPromptError("screenplay plan unit contains no performance facts")
 
-    facts_by_shot: list[list[tuple[dict[str, Any], list[str]]]] = [
-        [] for _ in planned_shots
-    ]
+    facts_by_shot: list[list[tuple[dict[str, Any], list[str]]]] = [[] for _ in planned_shots]
     for fact in facts:
         if not isinstance(fact, dict) or not isinstance(fact.get("source_span_ids"), list):
             raise UnhandledPromptError("shooting performance fact is invalid")
-        for shot_index, planned in enumerate(planned_shots):
-            if not isinstance(planned, dict) or not isinstance(planned.get("segment_id"), str):
-                raise UnhandledPromptError("locked visual shot is invalid")
-            if "director:" + planned["segment_id"] in fact.get("user_addition_ids", []):
-                facts_by_shot[shot_index].append((fact, fact["source_span_ids"]))
-                break
-        else:
+        fact_shot_id = fact.get("shot_id")
+        if not isinstance(fact_shot_id, str):
+            raise UnhandledPromptError("shooting performance fact has no shot_id")
+        shot_index = next(
+            (
+                index
+                for index, planned in enumerate(planned_shots)
+                if isinstance(planned, dict) and planned.get("segment_id") == fact_shot_id
+            ),
+            None,
+        )
+        if shot_index is None:
             raise UnhandledPromptError(
                 f"shooting performance fact {fact.get('fact_index')} has no locked shot"
             )
+        facts_by_shot[shot_index].append((fact, fact["source_span_ids"]))
 
     response = shooting_design_scene_template(combined)
     template_shot = response["shots"][0]
@@ -213,10 +218,15 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
     if not isinstance(participants, list):
         raise UnhandledPromptError("screenplay plan unit participants are invalid")
 
+    target_ids = re.findall(r"target_shot_id=([^\s\n]+)", combined)
+    target_id = target_ids[-1] if target_ids else None
+    selected = [
+        (planned, assigned_facts)
+        for planned, assigned_facts in zip(planned_shots, facts_by_shot)
+        if target_id is None or planned.get("segment_id") == target_id
+    ]
     shots = []
-    for shot_index, (planned, assigned_facts) in enumerate(
-        zip(planned_shots, facts_by_shot), 1
-    ):
+    for shot_index, (planned, assigned_facts) in enumerate(selected, 1):
         start_ms = planned.get("start_ms")
         end_ms = planned.get("end_ms")
         if not isinstance(start_ms, int) or not isinstance(end_ms, int) or start_ms >= end_ms:

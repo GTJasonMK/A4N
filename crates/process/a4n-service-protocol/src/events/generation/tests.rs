@@ -166,6 +166,58 @@ fn snapshot_rejects_text_hash_offset_and_terminal_status_mismatch() {
 }
 
 #[test]
+fn corrupt_batch_failure_can_omit_unrecoverable_summary() {
+    let mut batch_started = started(TASK_ID);
+    batch_started.batch_policy = Some(BatchCommitPolicy::BestEffort);
+    let terminal = GenerationTaskEvent {
+        schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+        task_id: TASK_ID.to_string(),
+        attempt: 1,
+        sequence: 2,
+        emitted_at_ms: 0,
+        event: GenerationEvent::Failed(FailedEvent {
+            error: GenerationError {
+                code: GenerationErrorCode::registered("generation_checkpoint_corrupt").unwrap(),
+                message: "checkpoint 损坏".to_string(),
+                retryable: false,
+                stage_code: "recovery".to_string(),
+                trace_id: None,
+                source_error: None,
+            },
+            draft_disposition: DraftDisposition::RetainedUntilExpiry,
+            batch_summary: None,
+        }),
+    };
+    let snapshot = GenerationTaskSnapshot {
+        schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+        task_id: TASK_ID.to_string(),
+        attempt: 1,
+        covers_through_sequence: 2,
+        status: GenerationTaskStatus::Failed,
+        started: batch_started.clone(),
+        cancel_reason: None,
+        progress: None,
+        streams: Vec::new(),
+        artifacts: Vec::new(),
+        usage: None,
+        latest_checkpoint: None,
+        terminal_event: Some(terminal),
+        updated_at_ms: 0,
+    };
+    snapshot
+        .validate()
+        .expect("corrupt batch recovery does not invent a summary");
+
+    let mut ordinary_terminal = snapshot.terminal_event.clone().unwrap();
+    if let GenerationEvent::Failed(event) = &mut ordinary_terminal.event {
+        event.error.code = GenerationErrorCode::registered("generation_event_invalid").unwrap();
+    }
+    let mut ordinary_snapshot = snapshot;
+    ordinary_snapshot.terminal_event = Some(ordinary_terminal);
+    assert!(ordinary_snapshot.validate().is_err());
+}
+
+#[test]
 fn unknown_error_codes_are_rejected_at_deserialization() {
     let error = serde_json::from_value::<GenerationErrorCode>(json!("temporary_unknown"))
         .expect_err("unregistered codes must not enter the wire contract");

@@ -34,6 +34,8 @@ pub(super) fn apply_common_sidecar_env(
         "LD_LIBRARY_PATH",
         "DYLD_LIBRARY_PATH",
         "A4N_ONNXRUNTIME_ROOT",
+        "ORT_LIB_PATH",
+        "ORT_PREFER_DYNAMIC_LINK",
         "ORT_DYLIB_PATH",
         "A4N_QDRANT_URL",
         "A4N_QDRANT_COLLECTION",

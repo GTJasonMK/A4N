@@ -14,6 +14,7 @@ pub enum UnifiedResumeDispatch {
     VideoCanvasGraph,
     ChapterAnalysis,
     ChapterContentSync { chapter_id: i64 },
+    SceneProfileSync,
     BlueprintGeneration,
     BlueprintRefinement,
 }
@@ -107,6 +108,15 @@ pub fn resolve_unified_resume_dispatch(
                 .filter(|id| *id > 0 && scope_table == Some("chapter"))
                 .ok_or_else(|| "章节资料同步工作流缺少 chapter 目标".to_string())?,
         }),
+        "scene_profile_sync" => {
+            if scope_id
+                .filter(|id| *id > 0 && scope_table == Some("novel_project"))
+                .is_none()
+            {
+                return Err("场景档案同步工作流缺少 novel_project 目标".to_string());
+            }
+            Ok(UnifiedResumeDispatch::SceneProfileSync)
+        }
         "blueprint_generation" => {
             if scope_id
                 .filter(|id| *id > 0 && scope_table == Some("project"))
@@ -171,5 +181,18 @@ mod tests {
         assert!(is_video_status_final_for_cancel_interrupt("interrupted"));
         assert!(!is_video_status_final_for_cancel_interrupt("running"));
         assert!(!is_video_status_final_for_cancel_interrupt("pending"));
+    }
+
+    #[test]
+    fn scene_profile_sync_resume_requires_project_scope() {
+        assert_eq!(
+            resolve_unified_resume_dispatch("scene_profile_sync", Some("novel_project"), Some(7))
+                .unwrap(),
+            UnifiedResumeDispatch::SceneProfileSync
+        );
+        assert!(
+            resolve_unified_resume_dispatch("scene_profile_sync", Some("chapter"), Some(7))
+                .is_err()
+        );
     }
 }

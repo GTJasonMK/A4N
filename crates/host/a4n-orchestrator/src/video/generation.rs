@@ -535,7 +535,8 @@ fn video_app_error(error: AppError, stage_code: &str) -> GenerationError {
         AppError::InvalidArgument(_) | AppError::Forbidden(_) | AppError::Unauthorized(_) => {
             "generation_request_invalid"
         }
-        AppError::LlmError(_) | AppError::Timeout(_) | AppError::ConfigError(_) => {
+        AppError::ConfigError(_) => "generation_request_invalid",
+        AppError::LlmError(_) | AppError::Internal(_) | AppError::Timeout(_) => {
             "provider_job_failed"
         }
         _ => "generation_persist_failed",
@@ -883,6 +884,26 @@ mod unit_tests {
         assert!(failure.message.contains("上游拒绝"));
         assert!(result.result_ref.is_none());
         assert!(result.artifacts.is_empty());
+    }
+
+    #[test]
+    fn provider_input_errors_are_not_marked_retryable() {
+        let error = video_app_error(
+            AppError::ConfigError("413 Payload Too Large".to_string()),
+            "video_generation",
+        );
+        assert_eq!(error.code.as_str(), "generation_request_invalid");
+        assert!(!error.retryable);
+    }
+
+    #[test]
+    fn transient_provider_errors_remain_retryable() {
+        let error = video_app_error(
+            AppError::Timeout("provider timeout".to_string()),
+            "video_generation",
+        );
+        assert_eq!(error.code.as_str(), "provider_job_failed");
+        assert!(error.retryable);
     }
 
     #[test]

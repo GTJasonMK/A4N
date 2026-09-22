@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 use super::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, MIN_PROVIDER_MOTION_PROMPT_CHARS,
     MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
-    OPENAI_COMPATIBLE_VIDEO_BACKEND, ProviderGenerationWorkflow,
+    OPENAI_COMPATIBLE_VIDEO_BACKEND, ProviderGenerationWorkflow, SEEDANCE2_VIDEO_BACKEND,
     cliproxy_prompt_length_violation_message, provider_image_binding_violation_messages,
     validate_provider_model_text,
 };
@@ -354,7 +354,7 @@ pub(crate) fn chapter_video_provider_descriptor(
             request_kind: "video_generation_openai_compatible",
             request_title: "OpenAI 兼容 /videos/generations 请求",
             note: format!(
-                "{source}OpenAI 兼容视频 `/videos/generations` 请求；provider 参考图：{}；提示词参考图：{}；首尾帧媒体输入：{} / {}；预览省略真实媒体输入，生成时默认发送图片 data URL；如设置 A4N_VIDEO_IMAGE_INPUT_TRANSPORT=public_url，则发送公网 URL；如设置为 remote_temp_upload，则先上传到远端临时媒体接口再发送返回 URL。{input_note}；{prompt_length}",
+                "{source}OpenAI 兼容视频 `/videos/generations` 请求；provider 参考图：{}；提示词参考图：{}；首尾帧媒体输入：{} / {}；预览省略真实媒体输入，生成时按 A4N_VIDEO_IMAGE_INPUT_TRANSPORT 发送；auto 优先远端临时上传，其次公网 URL，均未配置时才使用 data URL。{input_note}；{prompt_length}",
                 context.provider_reference_image_count,
                 context.prompt_reference_image_count,
                 context.first_frame_image_url_available,
@@ -365,11 +365,22 @@ pub(crate) fn chapter_video_provider_descriptor(
             request_kind: "video_generation_chat_completions",
             request_title: "OpenAI Chat-Completions 视频请求",
             note: format!(
-                "{source}OpenAI Chat-Completions 视频请求；provider 参考图：{}；提示词参考图：{}；首尾帧媒体输入：{} / {}；预览省略真实媒体输入，生成时默认发送图片 data URL；如设置 A4N_VIDEO_IMAGE_INPUT_TRANSPORT=public_url，则发送公网 URL；如设置为 remote_temp_upload，则先上传到远端临时媒体接口再发送返回 URL。{input_note}；{prompt_length}",
+                "{source}OpenAI Chat-Completions 视频请求；provider 参考图：{}；提示词参考图：{}；首尾帧媒体输入：{} / {}；预览省略真实媒体输入，生成时按 A4N_VIDEO_IMAGE_INPUT_TRANSPORT 发送；auto 优先远端临时上传，其次公网 URL，均未配置时才使用 data URL。{input_note}；{prompt_length}",
                 context.provider_reference_image_count,
                 context.prompt_reference_image_count,
                 context.first_frame_image_url_available,
                 context.last_frame_image_url_available
+            ),
+        },
+        SEEDANCE2_VIDEO_BACKEND => ChapterVideoProviderDescriptor {
+            request_kind: "video_generation_seedance2",
+            request_title: "Seedance 2.0 /videos 请求",
+            note: format!(
+                "{source}Seedance 2.0 `/videos` 请求；支持纯文本、首帧 `first_frame_image`、首尾帧 `first_frame_image` + `last_frame_image`，以及按顺序发送的 `input_reference`。当前首尾帧媒体输入：{} / {}；provider 参考图：{}；提示词参考图：{}；生成时按 A4N_VIDEO_IMAGE_INPUT_TRANSPORT 传递图片，预览省略真实媒体数据。{input_note}；{prompt_length}",
+                context.first_frame_image_url_available,
+                context.last_frame_image_url_available,
+                context.provider_reference_image_count,
+                context.prompt_reference_image_count,
             ),
         },
         GEMINI_VEO_VIDEO_BACKEND => ChapterVideoProviderDescriptor {
@@ -387,7 +398,7 @@ pub(crate) fn chapter_video_provider_descriptor(
             request_kind: "video_generation_cliproxy_openai",
             request_title: "CLIProxy / Grok 视频请求",
             note: format!(
-                "{source}CLIProxy / Grok 请求形态由当前片段素材决定：无图片时纯文本生成，首帧通过 image 发送，参考素材通过 reference_images 发送；首帧与参考图不可混用，端点不支持尾帧。Base URL 为 `/v1` 时创建路由是 `/videos/generations`，为 `/openai/v1` 时是包装路由 `/videos`。当前首帧/尾帧：{} / {}；provider 参考图：{}；提示词参考图：{}；默认直接发送图片 data URL。{input_note}；{prompt_length}",
+                "{source}CLIProxy / Grok 请求形态由当前片段素材决定：无图片时纯文本生成，首帧通过 image 发送，参考素材通过 reference_images 发送；首帧与参考图不可混用，端点不支持尾帧。Base URL 为 `/v1` 时创建路由是 `/videos/generations`，为 `/openai/v1` 时是包装路由 `/videos`。当前首帧/尾帧：{} / {}；provider 参考图：{}；提示词参考图：{}；媒体输入按 A4N_VIDEO_IMAGE_INPUT_TRANSPORT 发送。{input_note}；{prompt_length}",
                 context.first_frame_image_url_available,
                 context.last_frame_image_url_available,
                 context.request.media.reference_images().len(),

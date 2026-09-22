@@ -4,30 +4,6 @@ use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use std::future::Future;
 use tokio_util::sync::CancellationToken;
 
-pub(crate) async fn run_queued_request_with_cancel<F, Fut, T>(
-    state: &AppState,
-    task_type: QueueTaskKind,
-    priority: TaskPriority,
-    project_id: Option<i64>,
-    cancel_token: CancellationToken,
-    operation: F,
-) -> Result<T, String>
-where
-    F: FnOnce() -> Fut,
-    Fut: Future<Output = Result<T, String>>,
-{
-    run_queued_request_with_cancel_and_workflow(
-        state,
-        task_type,
-        priority,
-        project_id,
-        None,
-        cancel_token,
-        operation,
-    )
-    .await
-}
-
 pub(crate) async fn run_queued_request_with_cancel_and_workflow<F, Fut, T>(
     state: &AppState,
     task_type: QueueTaskKind,

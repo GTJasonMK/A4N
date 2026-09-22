@@ -9,6 +9,7 @@ use crate::shooting_script::{
 
 pub(super) fn validate_script(
     script: &ChapterShootingScriptV1,
+    pending_units: Option<(usize, usize)>,
 ) -> Result<(), ShootingScriptValidationError> {
     if let Some(source) = &script.visual_plan_source {
         if source.plan_id <= 0 || source.plan_version <= 0 {
@@ -41,9 +42,8 @@ pub(super) fn validate_script(
             return invalid(format!("user_additions[{offset}].id"), "全章必须唯一");
         }
     }
-    validate_statement(&script.directing_statement)?;
-    if script.scenes.is_empty() {
-        return invalid("scenes", "至少包含一个场景");
+    if let Some(statement) = &script.directing_statement {
+        validate_statement(statement)?;
     }
     let mut shot_ids = HashSet::new();
     let mut beat_ids = HashSet::new();
@@ -102,7 +102,11 @@ pub(super) fn validate_script(
     }
     for (scene_offset, scene) in script.scenes.iter().enumerate() {
         for (transition_offset, transition) in scene.transition_contracts.iter().enumerate() {
-            if !narrative_units.contains(&transition.to_narrative_unit_index) {
+            let target = transition.to_narrative_unit_index as usize;
+            if !narrative_units.contains(&transition.to_narrative_unit_index)
+                && !pending_units
+                    .is_some_and(|(completed, total)| target > completed && target <= total)
+            {
                 return invalid(
                     format!(
                         "scenes[{scene_offset}].transition_contracts[{transition_offset}].to_narrative_unit_index"

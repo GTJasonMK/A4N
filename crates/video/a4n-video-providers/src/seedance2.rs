@@ -13,14 +13,14 @@ use a4n_video_provider_contract::{
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 
 use self::response::{extract_status, extract_task_id, failure_message, result_video_url};
-use crate::download::download_video_url;
+use crate::download::{download_video_url, download_video_url_with_bearer};
 use crate::transport::{self, ApiKeyAuth};
 
-/// Seedance 2.0 provider for the documented `/task/submit` task API.
+/// Seedance 2.0 provider for the `/v1/videos` task API.
 ///
-/// Reference media mode uses `functionMode = "omni_reference"` with
-/// `image_files` / `video_files` / `audio_files`, referenced from the prompt as
-/// `@image_file_N`, `@video_file_N`, and `@audio_file_N`.
+/// The request supports text-only, first-frame, first/last-frame and
+/// `input_reference` modes. Media URLs stay in the configured provider base
+/// URL contract; this adapter does not select or rewrite a provider host.
 pub(crate) struct Seedance2VideoProvider {
     base_url: String,
     api_key: String,
@@ -36,22 +36,30 @@ impl Seedance2VideoProvider {
         }
     }
 
-    fn submit_url(&self) -> String {
-        if self.base_url.ends_with("/task/submit") {
+    fn generation_url(&self) -> String {
+        if self.base_url.ends_with("/videos") {
             self.base_url.clone()
         } else {
-            format!("{}/task/submit", self.base_url)
+            format!("{}/videos", self.base_url)
         }
     }
 
     fn task_url(&self, task_id: &str) -> String {
+        if self.base_url.contains("{video_id}") {
+            return self.base_url.replace("{video_id}", task_id);
+        }
         if self.base_url.contains("{task_id}") {
             return self.base_url.replace("{task_id}", task_id);
         }
-        if let Some(root) = self.base_url.strip_suffix("/task/submit") {
-            return format!("{root}/task/{task_id}");
+        if self.base_url.ends_with("/videos") {
+            format!("{}/{}", self.base_url, task_id)
+        } else {
+            format!("{}/videos/{}", self.base_url, task_id)
         }
-        format!("{}/task/{task_id}", self.base_url)
+    }
+
+    fn content_url(&self, task_id: &str) -> String {
+        format!("{}/content", self.task_url(task_id))
     }
 }
 impl Seedance2VideoProvider {
@@ -60,10 +68,16 @@ impl Seedance2VideoProvider {
         v: &Value,
         provider_job_id: Option<String>,
     ) -> Result<VideoGenerationResult, AppError> {
-        let url = result_video_url(v).ok_or_else(|| {
-            AppError::Internal("Seedance 2.0 完成响应缺少 result.video_url".to_string())
-        })?;
-        let (bytes, format) = download_video_url(&self.client, url, None).await?;
+        let (bytes, format) = if let Some(url) = result_video_url(v) {
+            download_video_url(&self.client, url, None).await?
+        } else if let Some(job_id) = provider_job_id.as_deref() {
+            let url = self.content_url(job_id);
+            download_video_url_with_bearer(&self.client, &url, None, &self.api_key).await?
+        } else {
+            return Err(AppError::Internal(
+                "Seedance 2.0 完成响应缺少视频资源 ID".to_string(),
+            ));
+        };
         Ok(VideoGenerationResult {
             bytes,
             format,
@@ -83,7 +97,7 @@ impl VideoProvider for Seedance2VideoProvider {
         if self.base_url.is_empty() {
             return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
-        let url = self.submit_url();
+        let url = self.generation_url();
         let body = Self::request_body(&req)?;
         tracing::debug!("seedance2 video submit POST {url} model={}", req.model);
         let v = transport::post_json(
@@ -103,7 +117,7 @@ impl VideoProvider for Seedance2VideoProvider {
             return self.decode_completed(&v, extract_task_id(&v)).await;
         }
         let task_id = extract_task_id(&v).ok_or_else(|| {
-            AppError::Internal("Seedance 2.0 视频生成响应缺少 task_id".to_string())
+            AppError::Internal("Seedance 2.0 视频生成响应缺少 video_id/id".to_string())
         })?;
         Ok(VideoGenerationResult {
             bytes: Vec::new(),
@@ -132,7 +146,7 @@ impl VideoProvider for Seedance2VideoProvider {
         match status.as_str() {
             "pending" | "queued" | "submitted" => Ok(VideoJobState::Pending),
             "processing" | "running" | "in_progress" => Ok(VideoJobState::Running),
-            "completed" | "succeeded" | "success" => self
+            "completed" | "succeeded" | "success" | "done" => self
                 .decode_completed(&v, Some(job_id.to_string()))
                 .await
                 .map(VideoJobState::Completed),

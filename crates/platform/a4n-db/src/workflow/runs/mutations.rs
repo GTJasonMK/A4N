@@ -167,7 +167,6 @@ pub(super) async fn resume_workflow_run_model_in_transaction(
     let mut active: workflow_run::ActiveModel = existing.into();
     active.status = Set(input.status);
     active.current_step_key = Set(normalize_optional_text(input.current_step_key));
-    active.progress_json = Set(None);
     active.active_task_id = Set(normalize_optional_text(input.active_task_id));
     active.can_resume = Set(input.can_resume);
     active.resume_block_reason = Set(None);

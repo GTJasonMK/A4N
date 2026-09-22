@@ -99,4 +99,12 @@ pub trait SceneProfileSyncApplicationPort: Send + Sync {
         host_port: &dyn SceneProfileSyncHostPort,
         progress: Option<&SceneProfileSyncProgress<'_>>,
     ) -> Result<(), AppError>;
+
+    async fn resume_workflow_run(
+        &self,
+        user_id: i64,
+        workflow_run_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn SceneProfileSyncHostPort,
+    ) -> Result<(), AppError>;
 }

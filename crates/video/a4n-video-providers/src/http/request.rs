@@ -20,11 +20,9 @@ impl HttpVideoProvider {
         );
         if let Some(image) = req.media.first_frame() {
             body.insert("image".into(), json!({ "url": image }));
-            body.insert("first_frame_image_url".into(), json!(image));
         }
         if let Some(image) = req.media.last_frame() {
             body.insert("last_frame".into(), json!({ "url": image }));
-            body.insert("last_frame_image_url".into(), json!(image));
         }
         body.insert("response_format".into(), json!("b64_json"));
         Value::Object(body)

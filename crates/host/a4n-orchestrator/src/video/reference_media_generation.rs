@@ -132,7 +132,7 @@ impl OrchestratorContext {
             ));
         };
         let provider_reference_mode = match prepared.config.backend.as_str() {
-            SEEDANCE2_VIDEO_BACKEND => "omni_reference",
+            SEEDANCE2_VIDEO_BACKEND => "input_reference",
             CLIPROXY_OPENAI_VIDEO_BACKEND => "image_reference",
             backend => {
                 return Err(AppError::InvalidArgument(format!(
@@ -147,7 +147,7 @@ impl OrchestratorContext {
             "config_id": prepared.config.id,
             "provider_backend": prepared.config.backend,
             "reference_media": {
-                "functionMode": provider_reference_mode,
+                "mode": provider_reference_mode,
                 "image_file_count": images.len(),
                 "video_file_count": videos.len(),
                 "audio_file_count": audio.len(),

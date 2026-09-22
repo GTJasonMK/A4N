@@ -58,7 +58,7 @@ pub use lifecycle::ensure_provider_generation_run_updated;
 pub use prompt::{append_video_request_prompt_length_context, video_request_prompt_length_context};
 pub use provider_image::{
     encode_query_component, is_provider_supported_image_content_type,
-    provider_image_input_transport_with_override, truncate_error_body, truncate_url_for_error,
+    provider_image_input_transport_override, truncate_error_body, truncate_url_for_error,
 };
 pub use snapshot::provider_request_snapshot_value;
 pub use tail_frame::{

@@ -41,10 +41,31 @@ pub(crate) async fn post_json(
     provider_idempotency_key_sha256: Option<&str>,
     label: &str,
 ) -> Result<Value, AppError> {
+    let request_body_bytes = serde_json::to_vec(body)
+        .map_err(|error| AppError::Internal(format!("{label}请求体序列化失败：{error}")))?
+        .len();
+    tracing::debug!(
+        request_body_bytes,
+        provider_label = label,
+        "视频 provider 请求体已准备"
+    );
     let request = apply_api_key(client.post(url).json(body), api_key, auth);
     let request = with_provider_idempotency_key(request, provider_idempotency_key_sha256)?;
     let response = send(request, label).await?;
-    parse_json_response(response, label).await
+    parse_json_response(response, label)
+        .await
+        .map_err(|error| append_request_body_size(error, request_body_bytes))
+}
+
+fn append_request_body_size(error: AppError, request_body_bytes: usize) -> AppError {
+    match error {
+        AppError::InvalidArgument(message) if message.contains("413 Payload Too Large") => {
+            AppError::InvalidArgument(format!(
+                "{message}；实际 JSON 请求体约 {request_body_bytes} 字节"
+            ))
+        }
+        error => error,
+    }
 }
 
 pub(crate) async fn get_json(
@@ -113,5 +134,14 @@ mod tests {
         .build()
         .unwrap();
         assert_eq!(google.headers()["x-goog-api-key"], "google-key");
+    }
+
+    #[test]
+    fn payload_too_large_error_reports_serialized_request_size() {
+        let error = append_request_body_size(
+            AppError::InvalidArgument("请求返回 413 Payload Too Large".to_string()),
+            4_096,
+        );
+        assert!(error.to_string().contains("4096"));
     }
 }

@@ -251,6 +251,7 @@ async fn publish_portrait_image(
                 },
                 expected_file_size: file_size,
                 expected_sha256: expected_sha256.clone(),
+                allow_pending_replacement: false,
             },
         )
         .await?;

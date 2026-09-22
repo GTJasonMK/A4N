@@ -9,20 +9,25 @@ use a4n_api_contract::chapter_visual_plan::{
 };
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
-    EditChapterShootingScriptInput, EditedChapterShootingScriptView,
+    EditChapterShootingScriptInput, EditChapterShootingScriptProgressInput,
+    EditedChapterShootingScriptProgressView, EditedChapterShootingScriptView,
     PublishChapterShootingScriptInput, ShootingScriptCurrentReadApplicationPort,
     ShootingScriptRecordMutationApplicationPort, ShootingScriptUnitProgressReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_novel_planning_worker_contract::{
     CONFIRM_VISUAL_PLAN_OPERATION, ConfirmVisualPlanPayload, CurrentShootingScriptPayload,
-    DELETE_SHOOTING_SCRIPT_OPERATION, DISCARD_VISUAL_PLAN_OPERATION, DeleteShootingScriptPayload,
-    DiscardVisualPlanPayload, EDIT_SHOOTING_SCRIPT_OPERATION, EditShootingScriptPayload,
-    GET_CURRENT_SHOOTING_SCRIPT_OPERATION, GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION,
-    GET_VISUAL_PLAN_OPERATION, GetVisualPlanPayload, NOVEL_PLANNING_WORKER_ID,
-    PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload, READ_VISUAL_PLAN_OPERATION,
-    ReadVisualPlanPayload, SAVE_VISUAL_PLAN_DRAFT_OPERATION, SaveVisualPlanDraftPayload,
-    ShootingScriptUnitProgressPayload, VALIDATE_VISUAL_PLAN_OPERATION, ValidateVisualPlanPayload,
+    CurrentShootingScriptResultPayload, DELETE_SHOOTING_SCRIPT_OPERATION,
+    DISCARD_VISUAL_PLAN_OPERATION, DeleteShootingScriptPayload, DiscardVisualPlanPayload,
+    EDIT_SHOOTING_SCRIPT_OPERATION, EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION,
+    EditShootingScriptPayload, EditShootingScriptProgressPayload,
+    EditShootingScriptProgressResultPayload, GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
+    GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION, GET_VISUAL_PLAN_OPERATION, GetVisualPlanPayload,
+    NOVEL_PLANNING_WORKER_ID, PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
+    READ_VISUAL_PLAN_OPERATION, ReadVisualPlanPayload, SAVE_VISUAL_PLAN_DRAFT_OPERATION,
+    SaveVisualPlanDraftPayload, ShootingScriptUnitProgressPayload,
+    ShootingScriptUnitProgressResultPayload, VALIDATE_VISUAL_PLAN_OPERATION,
+    ValidateVisualPlanPayload,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -143,7 +148,7 @@ impl ShootingScriptCurrentReadApplicationPort for NovelPlanningWorkerClient {
         user_id: i64,
         input: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptView>, AppError> {
-        self.command::<CurrentShootingScriptPayload, Option<ChapterShootingScriptView>>(
+        self.command::<CurrentShootingScriptPayload, CurrentShootingScriptResultPayload>(
             user_id,
             input.project_id,
             None,
@@ -151,6 +156,7 @@ impl ShootingScriptCurrentReadApplicationPort for NovelPlanningWorkerClient {
             input,
         )
         .await
+        .map(|payload| payload.value)
     }
 }
 
@@ -164,10 +170,7 @@ impl ShootingScriptUnitProgressReadApplicationPort for NovelPlanningWorkerClient
         Option<a4n_api_contract::shooting_script::ChapterShootingScriptUnitProgressView>,
         AppError,
     > {
-        self.command::<
-            ShootingScriptUnitProgressPayload,
-            Option<a4n_api_contract::shooting_script::ChapterShootingScriptUnitProgressView>,
-        >(
+        self.command::<ShootingScriptUnitProgressPayload, ShootingScriptUnitProgressResultPayload>(
             user_id,
             input.project_id,
             None,
@@ -175,11 +178,27 @@ impl ShootingScriptUnitProgressReadApplicationPort for NovelPlanningWorkerClient
             input,
         )
         .await
+        .map(|payload| payload.value)
     }
 }
 
 #[async_trait::async_trait]
 impl ShootingScriptRecordMutationApplicationPort for NovelPlanningWorkerClient {
+    async fn edit_progress(
+        &self,
+        user_id: i64,
+        input: EditChapterShootingScriptProgressInput,
+    ) -> Result<EditedChapterShootingScriptProgressView, AppError> {
+        self.command::<EditShootingScriptProgressPayload, EditShootingScriptProgressResultPayload>(
+            user_id,
+            input.project_id,
+            None,
+            EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION,
+            input,
+        )
+        .await
+    }
+
     async fn publish(
         &self,
         user_id: i64,

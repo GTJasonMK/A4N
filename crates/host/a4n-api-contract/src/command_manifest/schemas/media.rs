@@ -89,6 +89,9 @@ pub(crate) fn args_poll_video_job() -> Value {
 pub(crate) fn args_edit_chapter_shooting_script() -> Value {
     strict_typed_input_schema::<crate::shooting_script::EditChapterShootingScriptInput>()
 }
+pub(crate) fn args_edit_chapter_shooting_script_progress() -> Value {
+    strict_typed_input_schema::<crate::shooting_script::EditChapterShootingScriptProgressInput>()
+}
 pub(crate) fn args_chapter_visual_plan_source() -> Value {
     strict_typed_input_schema::<crate::chapter_visual_plan::ChapterVisualPlanSourceInput>()
 }
@@ -567,6 +570,9 @@ pub(crate) fn result_cancel_manga_pipeline() -> Value {
 }
 pub(crate) fn result_edit_chapter_shooting_script() -> Value {
     typed_schema::<crate::shooting_script::EditedChapterShootingScriptView>()
+}
+pub(crate) fn result_edit_chapter_shooting_script_progress() -> Value {
+    typed_schema::<crate::shooting_script::EditedChapterShootingScriptProgressView>()
 }
 pub(crate) fn result_chapter_visual_plan() -> Value {
     typed_schema::<crate::chapter_visual_plan::ChapterVisualPlanView>()

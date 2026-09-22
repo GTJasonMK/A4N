@@ -138,6 +138,11 @@ pub(super) fn validate_unit_adaptation(
         .iter()
         .map(|shot| crate::chapter_visual_plan::segment_addition_id(&shot.segment_id))
         .collect::<HashSet<_>>();
+    let allowed_shot_ids = visual_unit
+        .shots
+        .iter()
+        .map(|shot| shot.segment_id.as_str())
+        .collect::<HashSet<_>>();
     for (offset, fact) in output.performance_facts.iter().enumerate() {
         let expected_fact_index = u32::try_from(offset + 1)
             .map_err(|_| AppError::InvalidArgument("表演事实数量超出 u32 范围".into()))?;
@@ -147,15 +152,28 @@ pub(super) fn validate_unit_adaptation(
                 unit.narrative_unit_index, fact.fact_index
             )));
         }
-        if (fact.source_span_ids.is_empty() && fact.user_addition_ids.is_empty())
-            || fact
-                .user_addition_ids
-                .iter()
-                .any(|id| !allowed_additions.contains(id))
-        {
+        if !allowed_shot_ids.contains(fact.shot_id.as_str()) {
             return Err(AppError::InvalidArgument(format!(
-                "叙事单元 {} fact {} 缺少有效正文或导演事实来源",
-                unit.narrative_unit_index, fact.fact_index
+                "叙事单元 {} fact {} 引用了不存在的承载镜头 {}，允许值为 {:?}",
+                unit.narrative_unit_index, fact.fact_index, fact.shot_id, allowed_shot_ids
+            )));
+        }
+        let invalid_additions = fact
+            .user_addition_ids
+            .iter()
+            .filter(|id| !allowed_additions.contains(id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !invalid_additions.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事单元 {} fact {} 包含非法导演事实来源 {:?}，允许值为 {:?}",
+                unit.narrative_unit_index, fact.fact_index, invalid_additions, allowed_additions
+            )));
+        }
+        if fact.source_span_ids.is_empty() && fact.user_addition_ids.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事单元 {} fact {} 缺少有效正文或导演事实来源；正文来源只能使用 {:?}，导演事实来源只能使用 {:?}",
+                unit.narrative_unit_index, fact.fact_index, allowed_sources, allowed_additions
             )));
         }
         if fact

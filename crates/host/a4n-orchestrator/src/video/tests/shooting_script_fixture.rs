@@ -90,7 +90,7 @@ pub(in crate::video) fn test_chapter_shooting_script(
         schema_version: ChapterShootingScriptSchemaVersion::V1,
         visual_plan_source: None,
         user_additions: Vec::new(),
-        directing_statement: ShootingDirectingStatementV1 {
+        directing_statement: Some(ShootingDirectingStatementV1 {
             central_dramatic_question: "小宦官能否确认暗处异常".to_string(),
             protagonist_throughline: "进入殿内并克制恐惧".to_string(),
             audience_experience: "逐步感到悬疑和压迫".to_string(),
@@ -99,7 +99,7 @@ pub(in crate::video) fn test_chapter_shooting_script(
             spatial_strategy: "人物从左前方向右后方暗廊移动".to_string(),
             sound_strategy: "用推门声和停顿制造紧张".to_string(),
             rhythm_strategy: "缓慢进入，停顿，回望".to_string(),
-        },
+        }),
         scenes: vec![ShootingSceneV1 {
             scene_index: 1,
             scene_identity: "palace_hall".to_string(),

@@ -2,9 +2,13 @@ use serde_json::Value;
 
 pub(super) fn extract_task_id(v: &Value) -> Option<String> {
     text_at(v, &["task_id"])
+        .or_else(|| text_at(v, &["video_id"]))
         .or_else(|| text_at(v, &["id"]))
+        .or_else(|| text_at(v, &["request_id"]))
         .or_else(|| text_at(v, &["data", "task_id"]))
+        .or_else(|| text_at(v, &["data", "video_id"]))
         .or_else(|| text_at(v, &["data", "id"]))
+        .or_else(|| text_at(v, &["data", "request_id"]))
         .map(str::to_string)
 }
 

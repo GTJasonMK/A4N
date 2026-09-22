@@ -588,17 +588,7 @@ impl GenerationTerminalCoordinator {
         let loaded = match load_generation_task(self.database.connection(), task_id).await {
             Ok(loaded) => loaded,
             Err(GenerationTaskPersistenceError::Corrupt(details)) => {
-                tracing::error!(task_id, attempt, details = %details, "恢复损坏 generation checkpoint 为 failed terminal");
-                let recovery =
-                    load_generation_corrupt_recovery_state(self.database.connection(), task_id)
-                        .await?;
-                let input = corrupt_failure_input(recovery, attempt)?;
-                persist_generation_corrupt_terminal(self.database.connection(), input).await?;
-                let loaded = load_generation_task(self.database.connection(), task_id)
-                    .await
-                    .map_err(GenerationTaskLifecycleError::from)?;
-                let _ = self.restore_snapshot_only_session(&loaded)?;
-                return Ok(GenerationTerminalWriteOutcome::Persisted);
+                return self.persist_corrupt_task(task_id, attempt, details).await;
             }
             Err(error) => return Err(GenerationTaskLifecycleError::from(error).into()),
         };
@@ -622,11 +612,18 @@ impl GenerationTerminalCoordinator {
             return Ok(GenerationTerminalWriteOutcome::AlreadyTerminal);
         }
         if snapshot.started.batch_policy.is_some() && batch_summary.is_none() {
-            batch_summary = generation_interruption_batch_summary(
+            match generation_interruption_batch_summary(
                 self.database.connection(),
                 &snapshot.task_id,
             )
-            .await?;
+            .await
+            {
+                Ok(summary) => batch_summary = summary,
+                Err(GenerationTaskLifecycleError::Corrupt(details)) => {
+                    return self.persist_corrupt_task(task_id, attempt, details).await;
+                }
+                Err(error) => return Err(error.into()),
+            }
         }
         validate_batch_summary_presence(&snapshot, batch_summary.as_ref())?;
         let sequence = u64::try_from(loaded.checkpoint.reserved_through_sequence)
@@ -677,6 +674,24 @@ impl GenerationTerminalCoordinator {
             loaded.checkpoint.checkpoint_revision,
             persisted.checkpoint_revision
         );
+        let _ = self.restore_snapshot_only_session(&loaded)?;
+        Ok(GenerationTerminalWriteOutcome::Persisted)
+    }
+
+    async fn persist_corrupt_task(
+        &self,
+        task_id: &str,
+        attempt: u32,
+        details: String,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        tracing::error!(task_id, attempt, details = %details, "恢复损坏 generation checkpoint 为 failed terminal");
+        let recovery =
+            load_generation_corrupt_recovery_state(self.database.connection(), task_id).await?;
+        let input = corrupt_failure_input(recovery, attempt)?;
+        persist_generation_corrupt_terminal(self.database.connection(), input).await?;
+        let loaded = load_generation_task(self.database.connection(), task_id)
+            .await
+            .map_err(GenerationTaskLifecycleError::from)?;
         let _ = self.restore_snapshot_only_session(&loaded)?;
         Ok(GenerationTerminalWriteOutcome::Persisted)
     }

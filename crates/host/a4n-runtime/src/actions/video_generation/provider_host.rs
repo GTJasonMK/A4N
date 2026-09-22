@@ -9,14 +9,16 @@ use a4n_domain::cost::{
 use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
-use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
+use a4n_queue::{
+    TaskWorkflowContext,
+    priority::{TaskKind as QueueTaskKind, TaskPriority},
+};
 use a4n_service_protocol::GenerationArtifactRef;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_video::video_provider_capabilities;
 use a4n_video::{
     ProviderImageInputTransport, VideoGenerationResult, VideoJobState,
-    append_video_request_prompt_length_context, is_canvas_video_record_fields,
-    provider_image_input_transport_with_override, video_request_prompt_length_context,
+    is_canvas_video_record_fields, provider_image_input_transport_override,
 };
 use a4n_video_host_contract::{
     CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoResolvedImages,
@@ -34,19 +36,18 @@ use tokio_util::sync::CancellationToken;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_video_providers::video_provider_request_body_preview;
 
-use crate::actions::image_generation::run_queued_request_with_cancel_and_workflow;
 use crate::{
     AppState,
     actions::video_generation::{
+        common::relay_video_sidecar_progress,
         job_lifecycle::poll_provider_job,
         media::{
             delete_video_tail_frame_assets, media_bytes_to_remote_temp_media_url,
             persist_canvas_video_bytes, reference_image_provider_input_by_id,
             reference_image_provider_inputs_by_ids, reference_image_request_preview_url_by_id,
-            reference_image_request_preview_urls_by_ids,
+            reference_image_request_preview_urls_by_ids, remote_temp_upload_config,
         },
-        relay_video_sidecar_progress, resolve_video_config, run_queued_request_with_cancel,
-        video_sidecar_root_project_id,
+        resolve_video_config, video_sidecar_root_project_id,
     },
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::inspect_generated_media_file,
@@ -68,6 +69,35 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         resolve_video_config(self.state.video_provider_config(), config_id)
             .await
             .map_err(host_error)
+    }
+
+    fn resolve_image_transport_setting(&self) -> Result<ProviderImageInputTransport, AppError> {
+        let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
+        if let Some(transport) = provider_image_input_transport_override(override_value.as_deref())
+            .map_err(host_error)?
+        {
+            return Ok(transport);
+        }
+
+        let remote_url = optional_non_empty_env_string("A4N_VIDEO_REMOTE_TEMP_UPLOAD_URL")?;
+        let remote_token = optional_non_empty_env_string("A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN")?;
+        match (remote_url, remote_token) {
+            (Some(_), Some(_)) => {
+                remote_temp_upload_config().map_err(host_error)?;
+                return Ok(ProviderImageInputTransport::RemoteTempUpload);
+            }
+            (Some(_), None) | (None, Some(_)) => {
+                return Err(host_error(
+                    "auto 传输已检测到不完整的远端临时媒体配置；A4N_VIDEO_REMOTE_TEMP_UPLOAD_URL 和 A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN 必须同时配置".to_string(),
+                ));
+            }
+            (None, None) => {}
+        }
+
+        if optional_non_empty_env_string("A4N_PUBLIC_APP_URL")?.is_some() {
+            return Ok(ProviderImageInputTransport::PublicUrl);
+        }
+        Ok(ProviderImageInputTransport::InlineDataUrl)
     }
 
     async fn provider_request_body(
@@ -144,7 +174,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         )
         .await
         .map_err(host_error)?;
-        let prompt_length_context = video_request_prompt_length_context(&input.request);
         let cost_config = input.config.clone();
         let duration_seconds = input.request.duration_secs.to_string();
         let cost_record = self
@@ -173,8 +202,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         let provider_cancel = CancellationToken::new();
         let cancellation = progress.cancellation_handle();
         let request_future = async move {
-            let request = run_queued_request_with_cancel(
-                self.state,
+            let request = self.state.provider_runtime().queue_run_tracked_with_cancel(
                 QueueTaskKind::VideoGeneration,
                 TaskPriority::Medium,
                 Some(input.project_id),
@@ -206,14 +234,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 }
             }
         };
-        let result = relay_video_sidecar_progress(progress, sidecar_progress_rx, request_future)
-            .await
-            .map_err(|error| {
-                host_error(append_video_request_prompt_length_context(
-                    error,
-                    &prompt_length_context,
-                ))
-            });
+        let result =
+            relay_video_sidecar_progress(progress, sidecar_progress_rx, request_future).await;
         let status = if result.is_ok() {
             "completed"
         } else {
@@ -635,10 +657,7 @@ impl CanvasVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         input: CanvasVideoImageInput,
     ) -> Result<CanvasVideoResolvedImages, AppError> {
-        let transport = provider_image_input_transport_with_override(
-            optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?.as_deref(),
-        )
-        .map_err(host_error)?;
+        let transport = self.resolve_image_transport_setting()?;
         let resolved = self
             .resolve_video_image_inputs(ChapterVideoImageInput {
                 user_id: input.user_id,
@@ -710,30 +729,32 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             })
             .await
             .map_err(|error| host_error(error.to_string()))?;
-        let result = run_queued_request_with_cancel_and_workflow(
-            self.state,
-            QueueTaskKind::VideoGeneration,
-            TaskPriority::Medium,
-            Some(input.project_id),
-            Some(input.workflow_run_id),
-            CancellationToken::new(),
-            || async move {
-                crate::sidecar_clients::generate_video(
-                    self.state.runtime_profile(),
-                    self.state.capabilities().video.clone(),
-                    &input.config,
-                    input.request,
-                    None,
-                    Some(input.project_id),
-                    root_project_id,
-                    Some(input.workflow_run_id),
-                    None,
-                )
-                .await
-            },
-        )
-        .await
-        .map_err(host_error);
+        let workflow = TaskWorkflowContext::new(input.workflow_run_id)?;
+        let result = self
+            .state
+            .provider_runtime()
+            .queue_run_tracked_with_workflow_context_and_cancel(
+                QueueTaskKind::VideoGeneration,
+                TaskPriority::Medium,
+                Some(input.project_id),
+                Some(workflow),
+                CancellationToken::new(),
+                || async move {
+                    crate::sidecar_clients::generate_video(
+                        self.state.runtime_profile(),
+                        self.state.capabilities().video.clone(),
+                        &input.config,
+                        input.request,
+                        None,
+                        Some(input.project_id),
+                        root_project_id,
+                        Some(input.workflow_run_id),
+                        None,
+                    )
+                    .await
+                },
+            )
+            .await;
         let status = if result.is_ok() {
             "completed"
         } else {
@@ -848,8 +869,7 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
     }
 
     fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError> {
-        let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
-        provider_image_input_transport_with_override(override_value.as_deref()).map_err(host_error)
+        self.resolve_image_transport_setting()
     }
 
     async fn resolve_chapter_video_image_inputs(
@@ -890,8 +910,5 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
 }
 
 fn host_error(message: String) -> AppError {
-    AppError::InvalidState {
-        current: "video_provider_host".to_string(),
-        operation: message,
-    }
+    AppError::ConfigError(message)
 }

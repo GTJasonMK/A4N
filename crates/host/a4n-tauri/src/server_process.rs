@@ -157,7 +157,6 @@ impl LocalServerProcess {
         if let Some(sidecar_dir) = bundled_sidecar_dir(app, &server) {
             command.env("A4N_SIDECAR_BIN_DIR", sidecar_dir);
         }
-        configure_onnxruntime(&mut command, app)?;
 
         let child = command
             .spawn()
@@ -403,92 +402,6 @@ fn server_portable_home() -> PathBuf {
         return root.to_path_buf();
     }
     portable_home_dir()
-}
-
-fn configure_onnxruntime(
-    command: &mut Command,
-    app: &AppHandle,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let root = std::env::var_os("A4N_ONNXRUNTIME_ROOT")
-        .map(PathBuf::from)
-        .or_else(|| {
-            app.path()
-                .resource_dir()
-                .ok()
-                .filter(|path| path.join(onnxruntime_library_name()).is_file())
-                .and_then(|path| path.parent().map(Path::to_path_buf))
-        })
-        .or_else(|| {
-            std::env::var_os("HOME").map(PathBuf::from).map(|home| {
-                home.join(".local/share/a4n/onnxruntime")
-                    .join(onnxruntime_version())
-            })
-        })
-        .ok_or("无法确定 ONNX Runtime 目录；请设置 A4N_ONNXRUNTIME_ROOT")?;
-    let mut library_dir = root.join("lib");
-    if !library_dir.join(onnxruntime_library_name()).is_file()
-        && root.join(onnxruntime_library_name()).is_file()
-    {
-        library_dir = root.clone();
-    }
-    if !library_dir.join(onnxruntime_library_name()).is_file() {
-        return Err(format!(
-            "缺少 ONNX Runtime 动态库: {}",
-            library_dir.join(onnxruntime_library_name()).display()
-        )
-        .into());
-    }
-
-    let loader_path = prepend_env_path(runtime_loader_path_var(), &library_dir)?;
-    command
-        .env("A4N_ONNXRUNTIME_ROOT", &root)
-        .env("ORT_LIB_PATH", &library_dir)
-        .env("ORT_PREFER_DYNAMIC_LINK", "1")
-        .env(runtime_loader_path_var(), loader_path);
-    Ok(())
-}
-
-fn prepend_env_path(name: &str, directory: &Path) -> Result<std::ffi::OsString, std::io::Error> {
-    let mut paths = vec![directory.to_path_buf()];
-    if let Some(current) = std::env::var_os(name) {
-        paths.extend(std::env::split_paths(&current));
-    }
-    std::env::join_paths(paths)
-        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))
-}
-
-fn onnxruntime_version() -> &'static str {
-    include_str!("../../../../tools/onnxruntime/VERSION").trim()
-}
-
-#[cfg(target_os = "linux")]
-fn onnxruntime_library_name() -> &'static str {
-    "libonnxruntime.so.1"
-}
-
-#[cfg(target_os = "macos")]
-fn onnxruntime_library_name() -> &'static str {
-    "libonnxruntime.dylib"
-}
-
-#[cfg(windows)]
-fn onnxruntime_library_name() -> &'static str {
-    "onnxruntime.dll"
-}
-
-#[cfg(target_os = "linux")]
-fn runtime_loader_path_var() -> &'static str {
-    "LD_LIBRARY_PATH"
-}
-
-#[cfg(target_os = "macos")]
-fn runtime_loader_path_var() -> &'static str {
-    "DYLD_LIBRARY_PATH"
-}
-
-#[cfg(windows)]
-fn runtime_loader_path_var() -> &'static str {
-    "PATH"
 }
 
 #[cfg(test)]

@@ -336,7 +336,7 @@ mod tests {
             .expect("novel planning worker entry");
         assert_eq!(novel.kind, ProcessKind::StatefulWorker);
         assert_eq!(novel.binary, "a4n-novel-planning-worker");
-        assert_eq!(novel.contract_version, "novel-planning-shooting-script-v1");
+        assert_eq!(novel.contract_version, "novel-planning-shooting-script-v2");
         assert_eq!(novel.addr_env, "A4N_NOVEL_PLANNING_WORKER_ADDR");
         assert_eq!(
             novel.url_env.as_deref(),
@@ -349,6 +349,7 @@ mod tests {
                 "shooting_script.current".to_string(),
                 "shooting_script.unit_progress".to_string(),
                 "shooting_script.edit".to_string(),
+                "shooting_script.edit_progress".to_string(),
                 "shooting_script.delete".to_string(),
                 "shooting_script.publish".to_string(),
                 "visual_plan.persistence".to_string()

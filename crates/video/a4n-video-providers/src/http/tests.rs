@@ -36,6 +36,8 @@ fn request_body_keeps_reference_images_with_boundary_frames() {
         body["reference_image_urls"][0],
         "https://example.test/ref.png"
     );
+    assert!(body.get("first_frame_image_url").is_none());
+    assert!(body.get("last_frame_image_url").is_none());
 }
 
 #[tokio::test]

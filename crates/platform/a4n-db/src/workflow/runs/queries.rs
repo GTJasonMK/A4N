@@ -333,7 +333,7 @@ pub(in crate::workflow) async fn workflow_run_by_id(
         .ok_or_else(|| WorkflowReadError::NotFound(format!("工作流不存在: {workflow_run_id}")))
 }
 
-pub(in crate::workflow) async fn locked_workflow_run_by_id(
+pub(crate) async fn locked_workflow_run_by_id(
     db: &sea_orm::DatabaseTransaction,
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowReadError> {

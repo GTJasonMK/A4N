@@ -29,7 +29,7 @@ pub struct VideoExecutionProjectionV2 {
     pub schema_version: String,
     pub contract_epoch: u32,
     pub shooting_script_identity: VideoShootingScriptIdentityV1,
-    pub directing_statement: ShootingDirectingStatementV1,
+    pub directing_statement: Option<ShootingDirectingStatementV1>,
     pub scenes: Vec<VideoExecutionSceneV2>,
     pub planning_quality: VideoExecutionQualityV2,
 }

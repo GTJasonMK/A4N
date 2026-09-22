@@ -48,6 +48,8 @@ pub(in crate::workflow) use validation::{
 };
 
 mod runs;
+pub(crate) use runs::locked_workflow_run_by_id;
+pub(in crate::workflow) use runs::trim_workflow_progress_events;
 pub use runs::{
     claim_exclusive_workflow_run, completed_workflow_checkpoint_by_fingerprint,
     delete_workflow_checkpoints_by_keys, invalidate_chapter_analysis_after_source_change,
@@ -73,7 +75,6 @@ pub(in crate::workflow) use runs::{
     validate_workflow_progress_range, validate_workflow_run_input, workflow_fingerprint_matches,
     workflow_run_progress_summary, workflow_run_summary,
 };
-pub(in crate::workflow) use runs::{locked_workflow_run_by_id, trim_workflow_progress_events};
 
 mod tasks;
 pub(crate) use tasks::task_info_from_row;

@@ -22,26 +22,27 @@ impl ChapterShootingScriptV1 {
         &self,
         plan: &crate::chapter_visual_plan::ChapterVisualPlanV3,
     ) -> Result<(), ShootingScriptValidationError> {
-        let expected = plan
+        let mut expected = plan
             .project()
             .map_err(|error| ShootingScriptValidationError {
                 path: error.path,
                 message: error.message,
-            })?;
+            })?
+            .into_iter();
         let actual = self
             .scenes
             .iter()
             .flat_map(|scene| &scene.shots)
             .collect::<Vec<_>>();
-        if actual.len() != expected.len() {
-            return Err(ShootingScriptValidationError {
-                path: "scenes".into(),
-                message: "拍摄剧本镜头数量必须与导演时间线一致".into(),
-            });
-        }
-        for (shot, director) in actual.into_iter().zip(expected) {
-            if shot.shot_id != director.segment_id
-                || shot.visual_shot_id.as_deref() != Some(director.segment_id.as_str())
+        // 作者可以删去场景；保留的镜头仍必须按导演时间线顺序出现并保持约束。
+        for shot in actual {
+            let director = expected
+                .find(|director| director.segment_id == shot.shot_id)
+                .ok_or_else(|| ShootingScriptValidationError {
+                    path: format!("shots[{}]", shot.shot_id),
+                    message: "镜头必须来自导演时间线，且不能重复或改变顺序".into(),
+                })?;
+            if shot.visual_shot_id.as_deref() != Some(director.segment_id.as_str())
                 || shot.planned_start_ms != Some(director.start_ms)
                 || shot.planned_end_ms != Some(director.end_ms)
                 || shot.visual_constraints.as_ref() != Some(&director)
@@ -65,6 +66,27 @@ impl ChapterShootingScriptV1 {
         Ok(())
     }
     pub fn validate(&self) -> Result<(), ShootingScriptValidationError> {
-        script::validate_script(self)
+        script::validate_script(self, None)
+    }
+
+    pub fn validate_partial(
+        &self,
+        completed_unit_count: usize,
+        total_unit_count: usize,
+    ) -> Result<(), ShootingScriptValidationError> {
+        if completed_unit_count == 0
+            || completed_unit_count > total_unit_count
+            || self.scenes.len() > completed_unit_count
+            || self
+                .scenes
+                .iter()
+                .any(|scene| scene.narrative_unit_index as usize > completed_unit_count)
+        {
+            return Err(ShootingScriptValidationError {
+                path: "progress.completed_unit_count".into(),
+                message: "生成游标、场景范围或总单元数不一致".into(),
+            });
+        }
+        script::validate_script(self, Some((completed_unit_count, total_unit_count)))
     }
 }

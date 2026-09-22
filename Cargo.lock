@@ -1642,6 +1642,8 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-worker-contract",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

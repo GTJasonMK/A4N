@@ -7,8 +7,11 @@ mod contracts;
 mod validation;
 
 pub use contracts::{
-    CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1,
-    EditStoredChapterShootingScriptInput, ShootingBlockingV1, ShootingCameraAngleV1,
+    CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptRecordSummary,
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptUnitProgressCheckpoint,
+    ChapterShootingScriptUnitProgressView, ChapterShootingScriptV1,
+    EditChapterShootingScriptProgressInput, EditStoredChapterShootingScriptInput,
+    EditedChapterShootingScriptProgressView, ShootingBlockingV1, ShootingCameraAngleV1,
     ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
     ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
     ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1,

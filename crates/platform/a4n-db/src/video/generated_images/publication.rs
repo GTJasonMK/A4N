@@ -149,6 +149,27 @@ where
             current: input.publication_id.clone(),
             operation: "读取图片发布意图".to_string(),
         })?;
+    if input.allow_pending_replacement {
+        if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
+            ensure_same_logical_intent(&publication, &input, &image_input)?;
+            txn.commit().await.map_err(VideoDbError::Database)?;
+            return Ok(publication);
+        }
+        if publication.status == IMAGE_PUBLICATION_STATUS_PENDING
+            && same_logical_intent(&publication, &input, &image_input)
+            && same_output_intent(&publication, &input, &image_input)
+        {
+            txn.commit().await.map_err(VideoDbError::Database)?;
+            return Ok(publication);
+        }
+        if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
+            let publication =
+                replace_pending_image_publication_intent(&txn, publication, &input, &image_input)
+                    .await?;
+            txn.commit().await.map_err(VideoDbError::Database)?;
+            return Ok(publication);
+        }
+    }
     ensure_same_intent(&publication, &input, &image_input)?;
     txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(publication)
@@ -659,30 +680,121 @@ fn ensure_same_intent(
     input: &CreateImagePublicationIntentInput,
     image: &super::CreateGeneratedImageRecordInput,
 ) -> Result<(), VideoDbError> {
-    if publication.project_id != input.project_id
-        || publication.requested_by_user_id != input.requested_by_user_id
-        || publication.staging_path != input.staging_path
-        || publication.final_path != input.final_path
-        || publication.image_type != image.image_type
-        || publication.prompt != image.prompt
-        || publication.model != image.model
-        || publication.width != image.width
-        || publication.height != image.height
-        || publication.expected_file_size != input.expected_file_size
-        || publication.expected_sha256 != input.expected_sha256
-        || publication.chapter_id != image.chapter_id
-        || publication.panel_id != image.panel_id
-        || !metadata_matches_replayed_portrait(
-            &publication.image_type,
-            publication.metadata_json.as_ref(),
-            image.metadata_json.as_ref(),
-        )
-    {
+    ensure_same_logical_intent(publication, input, image)?;
+    if !same_output_intent(publication, input, image) {
         return Err(VideoDbError::InvalidArgument(
             "publication_id 已绑定到不同的图片发布意图".to_string(),
         ));
     }
     Ok(())
+}
+
+fn same_output_intent(
+    publication: &image_publication::Model,
+    input: &CreateImagePublicationIntentInput,
+    image: &super::CreateGeneratedImageRecordInput,
+) -> bool {
+    publication.staging_path == input.staging_path
+        && publication.final_path == input.final_path
+        && publication.model == image.model
+        && publication.width == image.width
+        && publication.height == image.height
+        && publication.expected_file_size == input.expected_file_size
+        && publication.expected_sha256 == input.expected_sha256
+        && metadata_matches_replayed_portrait(
+            &publication.image_type,
+            publication.metadata_json.as_ref(),
+            image.metadata_json.as_ref(),
+        )
+}
+
+fn ensure_same_logical_intent(
+    publication: &image_publication::Model,
+    input: &CreateImagePublicationIntentInput,
+    image: &super::CreateGeneratedImageRecordInput,
+) -> Result<(), VideoDbError> {
+    if !same_logical_intent(publication, input, image) {
+        return Err(VideoDbError::InvalidArgument(
+            "publication_id 已绑定到不同的图片发布意图".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn same_logical_intent(
+    publication: &image_publication::Model,
+    input: &CreateImagePublicationIntentInput,
+    image: &super::CreateGeneratedImageRecordInput,
+) -> bool {
+    publication.project_id == input.project_id
+        && publication.requested_by_user_id == input.requested_by_user_id
+        && publication.image_type == image.image_type
+        && publication.prompt == image.prompt
+        && publication.chapter_id == image.chapter_id
+        && publication.panel_id == image.panel_id
+}
+
+async fn replace_pending_image_publication_intent<C>(
+    db: &C,
+    publication: image_publication::Model,
+    input: &CreateImagePublicationIntentInput,
+    image: &super::CreateGeneratedImageRecordInput,
+) -> Result<image_publication::Model, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    let mut stale_paths = Vec::new();
+    if publication.staging_path != input.staging_path {
+        stale_paths.push(publication.staging_path.clone());
+    }
+    if publication.final_path != input.final_path {
+        stale_paths.push(publication.final_path.clone());
+    }
+    if !stale_paths.is_empty() {
+        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
+            db,
+            format!(
+                "image-publication-retry:{}:{}",
+                publication.publication_id, publication.version
+            ),
+            crate::cleanup_outbox::FileArtifactCleanupPayload::new(
+                publication.project_id,
+                stale_paths,
+            ),
+        )
+        .await
+        .map_err(VideoDbError::Database)?;
+    }
+    let next_version =
+        publication
+            .version
+            .checked_add(1)
+            .ok_or_else(|| VideoDbError::InvalidState {
+                current: publication.version.to_string(),
+                operation: "更新图片发布版本".to_string(),
+            })?;
+    let now = Utc::now().naive_utc();
+    let mut active: image_publication::ActiveModel = publication.into();
+    active.staging_path = Set(input.staging_path.clone());
+    active.final_path = Set(input.final_path.clone());
+    active.image_type = Set(image.image_type.clone());
+    active.prompt = Set(image.prompt.clone());
+    active.model = Set(image.model.clone());
+    active.width = Set(image.width);
+    active.height = Set(image.height);
+    active.chapter_id = Set(image.chapter_id);
+    active.panel_id = Set(image.panel_id.clone());
+    active.expected_file_size = Set(input.expected_file_size);
+    active.expected_sha256 = Set(input.expected_sha256.clone());
+    active.file_size = Set(None);
+    active.file_sha256 = Set(None);
+    active.image_id = Set(None);
+    active.metadata_json = Set(image.metadata_json.clone());
+    active.status = Set(IMAGE_PUBLICATION_STATUS_PENDING.to_string());
+    active.version = Set(next_version);
+    active.last_error = Set(None);
+    active.updated_at = Set(now);
+    active.update(db).await.map_err(VideoDbError::Database)
 }
 
 fn publication_image_input(
@@ -978,6 +1090,7 @@ mod tests {
                 },
                 expected_file_size: 4,
                 expected_sha256: expected_sha256.clone(),
+                allow_pending_replacement: false,
             },
         )
         .await
@@ -1116,6 +1229,7 @@ mod tests {
                 },
                 expected_file_size: 4,
                 expected_sha256: expected_sha256.to_string(),
+                allow_pending_replacement: false,
             },
         )
         .await

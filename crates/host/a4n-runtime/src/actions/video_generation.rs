@@ -1,5 +1,4 @@
 use crate::AppState;
-use crate::actions::image_generation::run_queued_request_with_cancel;
 use crate::actions::request_preview::ModelRequestPreview;
 use crate::actions::request_preview::{model_request_preview, provider_request_step};
 mod canvas;
@@ -31,8 +30,6 @@ pub use a4n_api_contract::video::{
 pub use a4n_canvas_contract::GenerateCanvasVideoInput;
 pub use generation_task::start_video_generation_typed;
 pub(in crate::actions) use job_lifecycle::cleanup_saved_video_outputs;
-
-use self::common::relay_video_sidecar_progress;
 
 #[cfg(test)]
 mod tests;

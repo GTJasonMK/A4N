@@ -40,11 +40,6 @@ pub(super) fn assemble_available_shooting_script(
     visual_plan_record: &ParsedChapterVisualPlan,
     visual_plan: &DirectorScriptPlan,
 ) -> Result<ChapterShootingScriptV1, AppError> {
-    if scenes.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "已完成拍摄设计单元数量无效".into(),
-        ));
-    }
     assemble_script(
         directing_statement,
         units,
@@ -69,12 +64,42 @@ fn assemble_script(
         plan.narrative_units.len(),
         allow_partial,
     )?;
-    let scenes = scenes
+    let mut scenes = scenes
         .into_iter()
-        .zip(units.iter().zip(&plan.narrative_units))
+        .zip(units)
         .enumerate()
-        .map(|(index, (scene, (unit, planned)))| assemble_scene(index, scene, unit, planned))
+        .map(|(index, (scene, unit))| {
+            let planned = plan
+                .narrative_units
+                .iter()
+                .find(|planned| planned.id == unit.scene_identity)
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(format!(
+                        "拍摄设计单元 {} 找不到对应的导演编排",
+                        unit.narrative_unit_index
+                    ))
+                })?;
+            assemble_scene(index, scene, unit, planned)
+        })
         .collect::<Result<Vec<_>, _>>()?;
+    let present_units = scenes
+        .iter()
+        .map(|scene| scene.narrative_unit_index)
+        .collect::<BTreeSet<_>>();
+    let highest_unit = present_units
+        .iter()
+        .next_back()
+        .copied()
+        .unwrap_or_default();
+    for (index, scene) in scenes.iter_mut().enumerate() {
+        if allow_partial {
+            scene.timeline_position = checked_index(index)?;
+        }
+        scene.transition_contracts.retain(|transition| {
+            transition.to_narrative_unit_index > highest_unit
+                || present_units.contains(&transition.to_narrative_unit_index)
+        });
+    }
     Ok(ChapterShootingScriptV1 {
         schema_version: ChapterShootingScriptSchemaVersion::V1,
         visual_plan_source: Some(ShootingVisualPlanSourceV1 {
@@ -83,7 +108,7 @@ fn assemble_script(
             plan_sha256: record.record.plan_sha256.clone(),
         }),
         user_additions: plan.user_additions.clone(),
-        directing_statement: directing_statement.clone(),
+        directing_statement: Some(directing_statement.clone()),
         scenes,
     })
 }

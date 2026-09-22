@@ -91,6 +91,7 @@ export const HOST_API_COMMANDS = [
   "duplicate_project",
   "edit_canvas_graph",
   "edit_chapter_shooting_script",
+  "edit_chapter_shooting_script_progress",
   "edit_chapter_visual_plan_draft",
   "execute_attribute_deletion",
   "export_all_configs_json",
@@ -5162,7 +5163,7 @@ export interface ShootingSceneV1 {
 }
 
 export interface ChapterShootingScriptV1 {
-  directing_statement: ShootingDirectingStatementV1;
+  directing_statement: ShootingDirectingStatementV1 | null;
   scenes: ShootingSceneV1[];
   schema_version: ChapterShootingScriptSchemaVersion;
   user_additions: VisualUserAdditionV1[];
@@ -5196,6 +5197,14 @@ export interface EditChapterShootingScriptInput {
   source_chapter_id: number;
 }
 
+export interface EditChapterShootingScriptProgressInput {
+  expected_script: ChapterShootingScriptV1;
+  project_id: number;
+  script: ChapterShootingScriptV1;
+  source_chapter_id: number;
+  workflow_run_id: number;
+}
+
 export interface ChapterShootingScriptRecordSummary {
   id: number;
   revision: number;
@@ -5220,6 +5229,11 @@ export interface ChapterShootingScriptUnitProgressView {
 export interface EditedChapterShootingScriptView {
   invalidated_project_ids: number[];
   shooting_script: ChapterShootingScriptView;
+}
+
+export interface EditedChapterShootingScriptProgressView {
+  invalidated_project_ids: number[];
+  progress: ChapterShootingScriptUnitProgressView;
 }
 
 export type SourceSyncRunMode = "dry_run" | "apply";

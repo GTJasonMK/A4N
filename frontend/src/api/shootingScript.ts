@@ -6,6 +6,8 @@ import type {
   ChapterShootingScriptView,
   DeleteChapterShootingScriptInput,
   EditChapterShootingScriptInput,
+  EditChapterShootingScriptProgressInput,
+  EditedChapterShootingScriptProgressView,
   EditedChapterShootingScriptView,
   GenerateChapterShootingScriptInput,
 } from "./generated/host";
@@ -17,6 +19,7 @@ export type {
   ChapterShootingScriptV1,
   ChapterShootingScriptView,
   DeleteChapterShootingScriptInput,
+  EditChapterShootingScriptProgressInput,
   ShootingBlockingV1,
   ShootingCameraAngleV1,
   ShootingCameraHeightV1,
@@ -56,7 +59,10 @@ const generationInput = (
   visual_plan_id: visualPlanId,
 });
 
-export const getChapterShootingScript = (projectId: number, sourceChapterId: number) =>
+export const getChapterShootingScript = (
+  projectId: number,
+  sourceChapterId: number,
+) =>
   apiInvoke<ChapterShootingScriptView | null>("get_chapter_shooting_script", {
     input: sourceInput(projectId, sourceChapterId),
   });
@@ -64,12 +70,13 @@ export const getChapterShootingScript = (projectId: number, sourceChapterId: num
 export const getChapterShootingScriptUnitProgress = (
   projectId: number,
   sourceChapterId: number,
-) => apiInvoke<ChapterShootingScriptUnitProgressView | null>(
-  "get_chapter_shooting_script_unit_progress",
-  {
-    input: sourceInput(projectId, sourceChapterId),
-  },
-);
+) =>
+  apiInvoke<ChapterShootingScriptUnitProgressView | null>(
+    "get_chapter_shooting_script_unit_progress",
+    {
+      input: sourceInput(projectId, sourceChapterId),
+    },
+  );
 
 export const generateChapterShootingScript = (
   projectId: number,
@@ -87,39 +94,58 @@ export const generateNextChapterShootingScriptUnit = (
   sourceChapterId: number,
   taskId: string,
   visualPlanId: number,
-) => apiInvoke<ChapterShootingScriptUnitProgressView>(
-  "generate_next_chapter_shooting_script_unit",
-  {
-    input: generationInput(projectId, sourceChapterId, visualPlanId),
-    taskId,
-  },
-);
+) =>
+  apiInvoke<ChapterShootingScriptUnitProgressView>(
+    "generate_next_chapter_shooting_script_unit",
+    {
+      input: generationInput(projectId, sourceChapterId, visualPlanId),
+      taskId,
+    },
+  );
 
 export const editChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
   view: ChapterShootingScriptView,
   script: ChapterShootingScriptV1,
-) => apiInvoke<EditedChapterShootingScriptView>(
-  "edit_chapter_shooting_script",
-  {
+) =>
+  apiInvoke<EditedChapterShootingScriptView>("edit_chapter_shooting_script", {
     input: {
       ...sourceInput(projectId, sourceChapterId),
       record_id: view.record.id,
       expected_revision: view.record.revision,
       script,
     } satisfies EditChapterShootingScriptInput,
-  },
-);
+  });
+
+export const editChapterShootingScriptProgress = (
+  projectId: number,
+  sourceChapterId: number,
+  progress: ChapterShootingScriptUnitProgressView,
+  script: ChapterShootingScriptV1,
+) =>
+  apiInvoke<EditedChapterShootingScriptProgressView>(
+    "edit_chapter_shooting_script_progress",
+    {
+      input: {
+        project_id: projectId,
+        source_chapter_id: sourceChapterId,
+        workflow_run_id: progress.workflow_run_id,
+        expected_script: progress.script,
+        script,
+      } satisfies EditChapterShootingScriptProgressInput,
+    },
+  );
 
 export const deleteChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
   view: ChapterShootingScriptView,
-) => apiInvoke<void>("delete_chapter_shooting_script", {
-  input: {
-    ...sourceInput(projectId, sourceChapterId),
-    record_id: view.record.id,
-    expected_revision: view.record.revision,
-  } satisfies DeleteChapterShootingScriptInput,
-});
+) =>
+  apiInvoke<void>("delete_chapter_shooting_script", {
+    input: {
+      ...sourceInput(projectId, sourceChapterId),
+      record_id: view.record.id,
+      expected_revision: view.record.revision,
+    } satisfies DeleteChapterShootingScriptInput,
+  });

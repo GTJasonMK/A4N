@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use a4n_domain::shooting_script::{ShootingSceneV1, ShootingShotV1};
+use a4n_domain::{
+    chapter_visual_plan::VisualSegmentProjectionV3,
+    shooting_script::{ShootingSceneV1, ShootingShotV1},
+};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use tokio_util::sync::CancellationToken;
@@ -11,10 +14,10 @@ use super::super::{
     context::shooting_context_request,
     contracts::{
         CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT, CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
-        PreparedChapterShootingScriptRequest, ScreenplayPlanUnit, ShootingScriptProgressReporter,
-        ShootingScriptStreamReporter,
+        PreparedChapterShootingScriptRequest, ScreenplayPerformanceFactV1, ScreenplayPlanUnit,
+        ShootingScriptProgressReporter, ShootingScriptStreamReporter,
     },
-    progress::design_unit_stream_progress,
+    progress::{design_shot_stream_progress, design_unit_stream_progress},
 };
 
 pub(super) async fn generate_shooting_scene(
@@ -28,29 +31,87 @@ pub(super) async fn generate_shooting_scene(
     stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
     cancel_token: Option<&CancellationToken>,
 ) -> Result<super::super::contracts::ShootingScriptStageResult<ShootingSceneV1>, AppError> {
-    let step_key = format!("shooting_design_unit:{}", unit.narrative_unit_index);
-    let request = design_unit_request(prepared, workflow_run_id, unit)?;
+    let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     let unit_progress = design_unit_stream_progress(unit_offset, total_unit_count);
     progress(
         unit_progress.span.start(),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         &format!("正在设计拍摄单元 {}/{}", unit_offset + 1, total_unit_count),
     )?;
-    let stage = orchestrator
-        .run_shooting_script_stage::<ShootingSceneV1>(
-            workflow_run_id,
-            &step_key,
-            shooting_design_call_order(unit_offset)?,
-            request,
-            "拍摄设计单元",
-            unit_progress,
+    let mut scene = None;
+    let mut shots = Vec::with_capacity(planned_unit.shots.len());
+    let mut restored = true;
+    let preceding_shot_count = prepared
+        .visual_plan_projection
+        .narrative_units
+        .iter()
+        .take(unit_offset)
+        .try_fold(0usize, |count, unit| count.checked_add(unit.shots.len()))
+        .ok_or_else(|| AppError::InvalidArgument("拍摄镜头数量超出 usize 范围".into()))?;
+    for (shot_offset, planned_shot) in planned_unit.shots.iter().enumerate() {
+        let facts = unit
+            .performance_facts
+            .iter()
+            .filter(|fact| fact.shot_id == planned_shot.segment_id)
+            .collect::<Vec<_>>();
+        let shot_progress = design_shot_stream_progress(
+            unit_offset,
+            total_unit_count,
+            shot_offset,
+            planned_unit.shots.len(),
+        );
+        let step_key = format!(
+            "shooting_design_shot:{}:{}",
+            unit.narrative_unit_index, planned_shot.segment_id
+        );
+        let request = design_shot_request(prepared, workflow_run_id, unit, planned_shot, &facts)?;
+        let stage = orchestrator
+            .run_shooting_script_stage::<ShootingSceneV1>(
+                workflow_run_id,
+                &step_key,
+                shooting_design_call_order(total_unit_count, preceding_shot_count, shot_offset)?,
+                request,
+                "拍摄设计镜头",
+                shot_progress,
+                CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
+                progress,
+                stream_reporter,
+                cancel_token,
+                |output| validate_design_shot(output, unit, planned_shot, &facts),
+            )
+            .await?;
+        restored &= stage.restored;
+        if scene.is_none() {
+            scene = Some(stage.output.clone());
+        }
+        shots.push(
+            stage
+                .output
+                .shots
+                .into_iter()
+                .next()
+                .ok_or_else(|| AppError::InvalidArgument("拍摄设计镜头为空".into()))?,
+        );
+        progress(
+            shot_progress.span.end(),
             CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
-            progress,
-            stream_reporter,
-            cancel_token,
-            |output| validate_design_unit(output, unit, prepared),
-        )
-        .await?;
+            &format!(
+                "拍摄单元 {}/{} 的镜头 {}/{} {}，已校验并保存断点",
+                unit_offset + 1,
+                total_unit_count,
+                shot_offset + 1,
+                planned_unit.shots.len(),
+                if stage.restored {
+                    "已从断点恢复"
+                } else {
+                    "已生成"
+                }
+            ),
+        )?;
+    }
+    let mut scene = scene.ok_or_else(|| AppError::InvalidArgument("拍摄设计单元无镜头".into()))?;
+    scene.shots = shots;
+    validate_design_unit(&scene, unit, prepared)?;
     progress(
         unit_progress.span.end(),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
@@ -58,40 +119,98 @@ pub(super) async fn generate_shooting_scene(
             "拍摄单元 {}/{} {}，正在校验",
             unit_offset + 1,
             total_unit_count,
-            if stage.restored {
+            if restored {
                 "已从断点恢复"
             } else {
                 "已生成"
             }
         ),
     )?;
-    Ok(stage)
+    Ok(super::super::contracts::ShootingScriptStageResult {
+        output: scene,
+        restored,
+    })
 }
 
-fn design_unit_request(
+fn design_shot_request(
     prepared: &PreparedChapterShootingScriptRequest,
     workflow_run_id: i64,
     unit: &ScreenplayPlanUnit,
+    planned_shot: &VisualSegmentProjectionV3,
+    facts: &[&ScreenplayPerformanceFactV1],
 ) -> Result<ChatRequest, AppError> {
     let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     shooting_context_request(
         prepared,
         workflow_run_id,
         CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
-        format!("shooting_design_unit:{}", unit.narrative_unit_index),
+        format!(
+            "shooting_design_shot:{}:{}",
+            unit.narrative_unit_index, planned_shot.segment_id
+        ),
         prepared.design_unit_system_prompt.clone(),
         Some((
             "shooting_visual_design_input",
             &serde_json::json!({
                 "screenplay_plan_unit": unit,
                 "locked_visual_unit": planned_unit,
+                "target_shot": planned_shot,
+                "required_performance_facts": facts,
             }),
         )),
         format!(
-            "只设计 narrative_unit_index={} 的 ShootingSceneV1。shots 必须与 locked_visual_unit.shots 数量和顺序一致；不得改变镜头段 ID、时间范围、图片关键帧或场景绑定。source_span_ids 只填写实际引用的正文片段；仅来源于用户导演描述的内容允许为空。",
-            unit.narrative_unit_index,
+            "只设计 narrative_unit_index={} 的 target_shot_id={}。响应仍为 ShootingSceneV1，但 shots 必须只包含 target_shot_id 对应的一个镜头；不得输出其他镜头。不得改变镜头段 ID、时间范围、图片关键帧或场景绑定。required_performance_facts 中的 required fact 必须由本镜头的 required performance beat 覆盖，并逐字保留对应 source_span_ids 或 user_addition_ids。source_span_ids 只填写实际引用的正文片段；仅来源于用户导演描述的内容允许为空。",
+            unit.narrative_unit_index, planned_shot.segment_id,
         ),
     )
+}
+
+fn validate_design_shot(
+    scene: &ShootingSceneV1,
+    unit: &ScreenplayPlanUnit,
+    planned_shot: &VisualSegmentProjectionV3,
+    facts: &[&ScreenplayPerformanceFactV1],
+) -> Result<(), AppError> {
+    if scene.narrative_unit_index != unit.narrative_unit_index || scene.shots.len() != 1 {
+        return Err(AppError::InvalidArgument(format!(
+            "拍摄设计 unit {} 必须只生成一个目标镜头",
+            unit.narrative_unit_index
+        )));
+    }
+    let shot = &scene.shots[0];
+    if shot.shot_id != planned_shot.segment_id {
+        return Err(AppError::InvalidArgument(format!(
+            "拍摄设计镜头 ID 偏离导演编排：期望 {}，实际 {}",
+            planned_shot.segment_id, shot.shot_id
+        )));
+    }
+    let allowed_sources = unit
+        .source_span_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let participants = unit
+        .participants
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    validate_scene_actors(scene, &participants)?;
+    validate_shot_sources(
+        scene.narrative_unit_index,
+        shot,
+        &allowed_sources,
+        &participants,
+    )?;
+    for fact in facts {
+        if fact.shot_id != shot.shot_id {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事单元 {} fact {} 未绑定到当前镜头 {}",
+                unit.narrative_unit_index, fact.fact_index, shot.shot_id
+            )));
+        }
+    }
+    validate_required_fact_coverage(scene, facts.iter().copied())?;
+    Ok(())
 }
 
 fn validate_design_unit(
@@ -149,6 +268,22 @@ fn validate_design_scene_content_against_plan_unit(
         .iter()
         .map(String::as_str)
         .collect::<HashSet<_>>();
+    validate_scene_actors(scene, &participants)?;
+    for shot in &scene.shots {
+        validate_shot_sources(
+            scene.narrative_unit_index,
+            shot,
+            &allowed_sources,
+            &participants,
+        )?;
+    }
+    validate_required_fact_coverage(scene, planned_unit.performance_facts.iter())
+}
+
+fn validate_scene_actors(
+    scene: &ShootingSceneV1,
+    participants: &HashSet<&str>,
+) -> Result<(), AppError> {
     if !optional_actor_is_allowed(scene.focal_character.as_deref(), &participants) {
         return Err(AppError::InvalidArgument(format!(
             "镜头设计 unit {} 的 focal_character 不属于 participants",
@@ -161,14 +296,13 @@ fn validate_design_scene_content_against_plan_unit(
             scene.narrative_unit_index
         )));
     }
-    for shot in &scene.shots {
-        validate_shot_sources(
-            scene.narrative_unit_index,
-            shot,
-            &allowed_sources,
-            &participants,
-        )?;
-    }
+    Ok(())
+}
+
+fn validate_required_fact_coverage<'a>(
+    scene: &ShootingSceneV1,
+    facts: impl IntoIterator<Item = &'a ScreenplayPerformanceFactV1>,
+) -> Result<(), AppError> {
     let required_beats = scene
         .shots
         .iter()
@@ -185,11 +319,7 @@ fn validate_design_scene_content_against_plan_unit(
             .iter()
             .map(|beat| beat.user_addition_ids.as_slice()),
     );
-    for fact in planned_unit
-        .performance_facts
-        .iter()
-        .filter(|fact| fact.required)
-    {
+    for fact in facts.into_iter().filter(|fact| fact.required) {
         if !fact
             .source_span_ids
             .iter()
@@ -271,11 +401,17 @@ fn optional_actor_is_allowed(actor: Option<&str>, participants: &HashSet<&str>) 
     actor.is_none_or(|actor| participants.contains(actor))
 }
 
-fn shooting_design_call_order(unit_offset: usize) -> Result<i32, AppError> {
-    let order = unit_offset
+fn shooting_design_call_order(
+    total_unit_count: usize,
+    preceding_shot_count: usize,
+    shot_offset: usize,
+) -> Result<i32, AppError> {
+    let order = total_unit_count
         .checked_mul(3)
         .and_then(|value| value.checked_add(4))
-        .ok_or_else(|| AppError::InvalidArgument("拍摄设计单元数量超出 usize 范围".into()))?;
+        .and_then(|value| value.checked_add(preceding_shot_count))
+        .and_then(|value| value.checked_add(shot_offset))
+        .ok_or_else(|| AppError::InvalidArgument("拍摄镜头数量超出 usize 范围".into()))?;
     i32::try_from(order)
         .map_err(|_| AppError::InvalidArgument("拍摄设计单元数量超出 i32 范围".into()))
 }
@@ -287,14 +423,14 @@ mod tests {
     use super::{optional_actor_is_allowed, required_source_ids, shooting_design_call_order};
 
     #[test]
-    fn design_call_order_follows_layout_and_adaptation_for_each_unit() {
+    fn design_call_order_starts_after_unit_stages_and_is_unique() {
         assert_eq!(
-            shooting_design_call_order(0).expect("first design order"),
-            4
+            shooting_design_call_order(2, 0, 0).expect("first design order"),
+            10
         );
         assert_eq!(
-            shooting_design_call_order(2).expect("last design order"),
-            10
+            shooting_design_call_order(2, 1, 0).expect("second design order"),
+            11
         );
     }
 

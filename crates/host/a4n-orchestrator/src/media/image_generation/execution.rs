@@ -231,6 +231,7 @@ impl OrchestratorContext {
                     },
                     expected_file_size,
                     expected_sha256: expected_sha256.clone(),
+                    allow_pending_replacement: true,
                 },
             )
             .await?;

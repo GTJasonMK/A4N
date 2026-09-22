@@ -102,6 +102,7 @@ command_specs! {
     "duplicate_project" => args_duplicate_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "edit_canvas_graph" => args_edit_canvas_graph, result_edit_canvas_graph, "canvas", context(NO_CONTEXT);
     "edit_chapter_shooting_script" => args_edit_chapter_shooting_script, result_edit_chapter_shooting_script, "chapter", references(REFERENCES_PROJECT_IDS);
+    "edit_chapter_shooting_script_progress" => args_edit_chapter_shooting_script_progress, result_edit_chapter_shooting_script_progress, "chapter", references(REFERENCES_PROJECT_IDS);
     "edit_chapter_visual_plan_draft" => args_edit_chapter_visual_plan_draft, result_edit_chapter_visual_plan_draft, "chapter";
     "execute_attribute_deletion" => args_execute_attribute_deletion, result_unit, "profile", effect(DESTRUCTIVE_EFFECT);
     "export_all_configs_json" => args_export_all_configs_json, result_string, "export", identity(ADMIN_IDENTITY), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS);

@@ -30,6 +30,7 @@ use a4n_migration::test_support::connect_test_database;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
+use serde_json::json;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -67,6 +68,7 @@ impl Fixture {
             },
             expected_file_size: 4,
             expected_sha256: self.sha256.clone(),
+            allow_pending_replacement: false,
         }
     }
 
@@ -210,6 +212,52 @@ async fn publication_intent_replay_is_idempotent_and_conflicting_payload_is_reje
             .expect("图片记录查询必须成功")
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn image_generation_retry_replaces_only_a_pending_intent() {
+    let fixture = fixture().await;
+    create_image_publication_intent(&fixture.db, fixture.intent_input())
+        .await
+        .expect("首次图片生成发布意图必须成功");
+
+    let mut retry = fixture.intent_input();
+    retry.allow_pending_replacement = true;
+    retry.staging_path = format!("projects/{}/images/.staging/retry.part", fixture.project_id);
+    retry.final_path = format!("projects/{}/images/retry.webp", fixture.project_id);
+    retry.image.file_path = retry.final_path.clone();
+    retry.image.model = "provider-retry".to_string();
+    retry.image.width = 2;
+    retry.image.height = 2;
+    retry.image.prompt = "retry prompt".to_string();
+    retry.image.chapter_id = Some(9);
+    retry.image.panel_id = Some("panel-2".to_string());
+    retry.image.file_size = Some(5);
+    retry.image.metadata_json = Some(json!({"generation": {"attempt": 2}}));
+    retry.expected_file_size = 5;
+    retry.expected_sha256 = "b".repeat(64);
+
+    let replaced = create_image_publication_intent(&fixture.db, retry)
+        .await
+        .expect("pending 图片生成意图应允许替换本次输出事实");
+
+    assert_eq!(replaced.publication_id, fixture.publication_id);
+    assert_eq!(replaced.version, 2);
+    assert_eq!(replaced.expected_file_size, 5);
+    assert_eq!(replaced.expected_sha256, "b".repeat(64));
+    assert_eq!(replaced.prompt, "retry prompt");
+    assert_eq!(replaced.chapter_id, Some(9));
+    assert_eq!(replaced.panel_id.as_deref(), Some("panel-2"));
+    assert_eq!(
+        replaced.final_path,
+        format!("projects/{}/images/retry.webp", fixture.project_id)
+    );
+    assert_eq!(replaced.status, IMAGE_PUBLICATION_STATUS_PENDING);
+
+    let strict_replay = create_image_publication_intent(&fixture.db, fixture.intent_input())
+        .await
+        .expect_err("普通发布意图仍必须拒绝不同输出事实");
+    assert!(strict_replay.to_string().contains("不同的图片发布意图"));
 }
 
 #[tokio::test]

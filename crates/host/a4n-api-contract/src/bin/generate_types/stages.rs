@@ -851,6 +851,9 @@ pub(super) fn run() {
             "DeleteChapterShootingScriptInput",
         ),
         &typescript_interface::<EditChapterShootingScriptInput>("EditChapterShootingScriptInput"),
+        &typescript_interface::<EditChapterShootingScriptProgressInput>(
+            "EditChapterShootingScriptProgressInput",
+        ),
         &typescript_interface::<ChapterShootingScriptRecordSummary>(
             "ChapterShootingScriptRecordSummary",
         ),
@@ -859,6 +862,9 @@ pub(super) fn run() {
             "ChapterShootingScriptUnitProgressView",
         ),
         &typescript_interface::<EditedChapterShootingScriptView>("EditedChapterShootingScriptView"),
+        &typescript_interface::<EditedChapterShootingScriptProgressView>(
+            "EditedChapterShootingScriptProgressView",
+        ),
         &typescript_enum::<SourceSyncRunMode>("SourceSyncRunMode"),
         &typescript_enum::<SourceSyncRunStatus>("SourceSyncRunStatus"),
         &typescript_enum::<SourceSyncChangeKind>("SourceSyncChangeKind"),

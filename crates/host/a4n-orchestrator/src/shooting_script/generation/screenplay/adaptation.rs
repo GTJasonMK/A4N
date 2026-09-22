@@ -83,6 +83,12 @@ fn unit_adaptation_request(
     workflow_run_id: i64,
     unit: &ScreenplayLayoutUnitV1,
 ) -> Result<ChatRequest, AppError> {
+    let visual_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
+    let allowed_addition_ids = visual_unit
+        .shots
+        .iter()
+        .map(|shot| crate::chapter_visual_plan::segment_addition_id(&shot.segment_id))
+        .collect::<Vec<_>>();
     shooting_context_request(
         prepared,
         workflow_run_id,
@@ -93,11 +99,13 @@ fn unit_adaptation_request(
             "shooting_screenplay_layout_unit",
             &serde_json::json!({
                 "unit": unit,
-                "locked_visual_unit": prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?,
+                "locked_visual_unit": visual_unit,
+                "allowed_source_span_ids": unit.source_span_ids,
+                "allowed_user_addition_ids": allowed_addition_ids,
             }),
         )),
         format!(
-            "只改编以下目标 unit 的 performance_facts，以 locked_visual_unit 的镜头 prompt 为导演事实来源，引用 ID 为 director:{{segment_id}}；正文只作为相关上下文，不得把整章动作重复塞入每个单元：\n{}",
+            "只改编以下目标 unit 的 performance_facts。每个 fact 必须填写 shot_id，并逐字复制承载该事实的 locked_visual_unit.shots[].segment_id；每个 fact 只能归属一个镜头。每个 fact 至少填写一种来源：正文 fact 使用 allowed_source_span_ids 中的 ID，导演事实使用 allowed_user_addition_ids 中完整的 director:<segment_id> ID；禁止填写数组外的 ID，禁止两个来源数组同时为空。正文只作为相关上下文，不得把整章动作重复塞入每个单元：\n{}",
             serde_json::to_string(unit)?
         ),
     )
