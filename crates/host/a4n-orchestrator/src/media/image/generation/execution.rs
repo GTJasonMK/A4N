@@ -135,10 +135,66 @@ impl OrchestratorContext {
         workflow: &ImageGenerationWorkflowScope,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<ImageGenerationExecutionOutcome, AppError> {
-        if let Some(image) = self
+        let metadata = match input.metadata_json.clone() {
+            Some(Value::Object(map)) => map,
+            None => serde_json::Map::new(),
+            Some(_) => {
+                return Err(AppError::InvalidArgument(
+                    "图片生成 metadata_json 必须是对象".into(),
+                ));
+            }
+        };
+        self.verify_project_permission(
+            input.project_id,
+            input.requested_by_user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        if let Some(chapter_id) = input.chapter_id {
+            a4n_db::video::ensure_image_chapter_belongs_to_project_record(
+                self.database.connection(),
+                input.project_id,
+                chapter_id,
+            )
+            .await
+            .map_err(crate::video::video_db_error)?;
+        }
+        // 相同请求可以独立生成多次；发布身份属于工作流中的这一次调用。
+        let publication_id = format!(
+            "image-publication-generation-{}",
+            generation_checkpoint_fingerprint_sha256(&json!({
+                "workflow_run_id": workflow.workflow_run_id,
+                "step_key": workflow.step_key,
+                "input_fingerprint": workflow.fingerprint_json,
+            }))
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?
+        );
+        let mut image = self
             .load_image_generation_checkpoint(host_port, workflow, input.project_id)
-            .await?
-        {
+            .await?;
+        if image.is_none() {
+            progress
+                .check_cancelled()
+                .map_err(|_| AppError::Cancelled)?;
+            let run = self
+                .workflow_run_model_by_id(workflow.workflow_run_id)
+                .await?;
+            if run.project_id != Some(input.project_id) {
+                return Err(AppError::InvalidArgument(
+                    "图片生成工作流不属于当前项目".into(),
+                ));
+            }
+            self.mark_workflow_current_step(workflow.workflow_run_id, &workflow.step_key)
+                .await?;
+            image = self
+                .preflight_image_publication(host_port, &input, &publication_id)
+                .await?;
+            if let Some(image) = &image {
+                self.persist_image_generation_checkpoint(workflow, image)
+                    .await?;
+            }
+        }
+        if let Some(image) = image {
             let outcome = ImageGenerationExecutionOutcome {
                 summary: generated_image_summary(&image),
                 restored: true,
@@ -171,7 +227,7 @@ impl OrchestratorContext {
 
         let created_at = chrono::Utc::now().naive_utc();
         let metadata_json = attach_image_generation_trace(
-            input.metadata_json.clone(),
+            metadata,
             ImageGenerationTrace {
                 command: &input.command,
                 config: &input.config,
@@ -185,21 +241,11 @@ impl OrchestratorContext {
                 generated_at: created_at,
                 runtime_config_snapshot: input.runtime_config_snapshot.clone(),
             },
-        )?;
-        let media_refs_json = metadata_json.as_ref().and_then(image_generation_media_refs);
+        );
+        let media_refs_json = image_generation_media_refs(&metadata_json);
         let expected_file_size = i64::try_from(provider_output.bytes.len())
             .map_err(|_| AppError::InvalidArgument("图片过大，无法记录文件大小".to_string()))?;
         let expected_sha256 = format!("{:x}", Sha256::digest(&provider_output.bytes));
-        // 相同请求可以独立生成多次；发布身份属于工作流中的这一次调用。
-        let publication_id = format!(
-            "image-publication-generation-{}",
-            generation_checkpoint_fingerprint_sha256(&json!({
-                "workflow_run_id": workflow.workflow_run_id,
-                "step_key": workflow.step_key,
-                "input_fingerprint": workflow.fingerprint_json,
-            }))
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?
-        );
         let prepared_file = host_port.prepare_generated_image_file(
             super::contracts::PrepareGeneratedImageFileInput {
                 project_id: input.project_id,
@@ -231,7 +277,7 @@ impl OrchestratorContext {
                         file_size: Some(expected_file_size),
                         chapter_id: input.chapter_id,
                         panel_id: input.panel_id.clone(),
-                        metadata_json: metadata_json.clone(),
+                        metadata_json: Some(metadata_json),
                         created_at: Some(created_at),
                     },
                     expected_file_size,
@@ -241,17 +287,11 @@ impl OrchestratorContext {
             )
             .await?;
         let (image, restored) = if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
-            let image_id = publication.image_id.ok_or_else(|| AppError::InvalidState {
-                current: publication.status.clone(),
-                operation: "读取图片发布结果".to_string(),
-            })?;
-            let image = self.generated_image_by_id(image_id).await?.ok_or_else(|| {
-                AppError::InvalidState {
-                    current: format!("published:image_id={image_id}"),
-                    operation: "读取图片发布结果".to_string(),
-                }
-            })?;
-            (image, true)
+            (
+                self.restore_published_image(host_port, &input, &publication)
+                    .await?,
+                true,
+            )
         } else if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
             let persisted = match host_port.persist_generated_image_file(
                 PersistGeneratedImageFileInput {
@@ -325,18 +365,8 @@ impl OrchestratorContext {
             });
         };
         let summary = generated_image_summary(&image);
-        self.save_completed_workflow_checkpoint(CompletedWorkflowCheckpointInput {
-            workflow_run_id: Some(workflow.workflow_run_id),
-            step_key: workflow.step_key.clone(),
-            step_order: workflow.step_order,
-            input_fingerprint_json: workflow.fingerprint_json.clone(),
-            checkpoint_json: Some(json!({
-                "generated_image_id": image.id,
-                "file_path": image.file_path,
-                "summary": summary,
-            })),
-        })
-        .await?;
+        self.persist_image_generation_checkpoint(workflow, &image)
+            .await?;
         let outcome = ImageGenerationExecutionOutcome {
             summary,
             restored,
@@ -349,6 +379,85 @@ impl OrchestratorContext {
         self.complete_image_generation_post_commit(host_port, &input, &outcome)
             .await?;
         Ok(outcome)
+    }
+
+    async fn preflight_image_publication(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        input: &ImageGenerationExecutionInput,
+        publication_id: &str,
+    ) -> Result<Option<generated_image::Model>, AppError> {
+        // 读取与恢复使用既有发布锁；Provider 请求期间不占用全局发布锁。
+        let _guard = self.lock_image_publications().await;
+        let Some(publication) = self.image_publication_by_id(publication_id).await? else {
+            return Ok(None);
+        };
+        a4n_db::video::validate_image_publication_request(
+            &publication,
+            a4n_db::video::ImagePublicationRequest {
+                project_id: input.project_id,
+                requested_by_user_id: input.requested_by_user_id,
+                image_type: &input.image_type,
+                prompt: &input.request.prompt,
+                chapter_id: input.chapter_id,
+                panel_id: input.panel_id.as_deref(),
+            },
+        )
+        .map_err(crate::video::video_db_error)?;
+        match publication.status.as_str() {
+            IMAGE_PUBLICATION_STATUS_PENDING => Ok(None),
+            IMAGE_PUBLICATION_STATUS_PUBLISHED => self
+                .restore_published_image(host_port, input, &publication)
+                .await
+                .map(Some),
+            _ => Err(AppError::InvalidState {
+                current: publication.status,
+                operation: "恢复图片生成发布意图".into(),
+            }),
+        }
+    }
+
+    async fn restore_published_image(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        input: &ImageGenerationExecutionInput,
+        publication: &a4n_db_models::models::media::image_publication::Model,
+    ) -> Result<generated_image::Model, AppError> {
+        host_port.validate_generated_image_file(&publication.final_path, "已发布图片文件")?;
+        let file =
+            host_port.inspect_generated_image_file(&publication.final_path, "已发布图片文件")?;
+        let file_size = i64::try_from(file.byte_size)
+            .map_err(|_| AppError::InvalidArgument("已发布图片文件过大".into()))?;
+        self.publish_image_publication_for_user_validated(
+            input.requested_by_user_id,
+            input.project_id,
+            &publication.publication_id,
+            ImagePublicationFileFacts {
+                file_size,
+                sha256: file.sha256,
+            },
+            None,
+        )
+        .await
+    }
+
+    async fn persist_image_generation_checkpoint(
+        &self,
+        workflow: &ImageGenerationWorkflowScope,
+        image: &generated_image::Model,
+    ) -> Result<(), AppError> {
+        self.save_completed_workflow_checkpoint(CompletedWorkflowCheckpointInput {
+            workflow_run_id: Some(workflow.workflow_run_id),
+            step_key: workflow.step_key.clone(),
+            step_order: workflow.step_order,
+            input_fingerprint_json: workflow.fingerprint_json.clone(),
+            checkpoint_json: Some(json!({
+                "generated_image_id": image.id,
+                "file_path": image.file_path,
+                "summary": generated_image_summary(image),
+            })),
+        })
+        .await
     }
 
     async fn load_image_generation_checkpoint(
@@ -483,9 +592,9 @@ struct ImageGenerationTrace<'a> {
 }
 
 fn attach_image_generation_trace(
-    metadata_json: Option<Value>,
+    mut metadata: serde_json::Map<String, Value>,
     trace: ImageGenerationTrace<'_>,
-) -> Result<Option<Value>, AppError> {
+) -> Value {
     let generation = json!({
         "command": trace.command,
         "config_id": trace.config.id,
@@ -503,20 +612,11 @@ fn attach_image_generation_trace(
         "generated_at": trace.generated_at.to_string(),
         "runtime_config_snapshot": trace.runtime_config_snapshot,
     });
-    let mut metadata = match metadata_json {
-        Some(Value::Object(map)) => map,
-        Some(_) => {
-            return Err(AppError::InvalidArgument(
-                "图片生成 metadata_json 必须是对象".to_string(),
-            ));
-        }
-        None => serde_json::Map::new(),
-    };
     metadata.insert("generation".to_string(), generation);
     metadata
         .entry("metadata_schema_version".to_string())
         .or_insert_with(|| json!(1));
-    Ok(Some(Value::Object(metadata)))
+    Value::Object(metadata)
 }
 
 fn image_generation_media_refs(metadata_json: &Value) -> Option<Value> {

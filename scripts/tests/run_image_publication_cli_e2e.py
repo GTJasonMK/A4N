@@ -46,21 +46,29 @@ def main():
             report["project_id"] = project["id"]
             item = {"prompt": "雨夜中的仓库入口，电影感构图", "image_type": "scene", "config_id": 900002, "aspect_ratio": "1:1"}
 
-            def generate():
+            def generate(requests=None, expected_error=None):
                 handle = call("start_image_generation", {"project_id": project["id"],
                     "meta": {"start_request_id": str(uuid.uuid4())},
-                    "operation": {"kind": "batch", "requests": [item, item]}})
+                    "operation": {"kind": "batch", "requests": requests if requests is not None else [item, item]}})
                 deadline = time.monotonic() + 60
                 while time.monotonic() < deadline:
                     result = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "image result")[0]["data"]
                     status = result["handle"]["status"]
                     if status in {"completed", "failed", "cancelled", "interrupted"}:
+                        if expected_error:
+                            assert status == "failed" and expected_error in json.dumps(result, ensure_ascii=False), result
+                            return
                         assert status == "completed", result
                         return call("list_images_by_project", {"project_id": project["id"]})
                     time.sleep(0.1)
                 raise AssertionError("image generation did not terminate")
 
             before = len(provider_log_entries(args.provider_log))
+            generate([{**item, "metadata_json": ["invalid"]}], "metadata_json")
+            early_calls = [entry for entry in provider_log_entries(args.provider_log)[before:]
+                           if entry["path"].endswith(("/images/generations", "/images/edits"))]
+            assert not early_calls, early_calls
+            report["checks"].append("invalid metadata fails before any image Provider request")
             first = generate()
             assert len(first) == 2 and len({image["file_path"] for image in first}) == 2, first
             report["checks"].append("identical batch items publish distinct images")

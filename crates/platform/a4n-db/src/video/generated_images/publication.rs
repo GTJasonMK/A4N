@@ -23,6 +23,37 @@ use sea_orm::{
 };
 use serde_json::Value;
 
+pub struct ImagePublicationRequest<'a> {
+    pub project_id: i64,
+    pub requested_by_user_id: i64,
+    pub image_type: &'a str,
+    pub prompt: &'a str,
+    pub chapter_id: Option<i64>,
+    pub panel_id: Option<&'a str>,
+}
+
+pub fn validate_image_publication_request(
+    publication: &image_publication::Model,
+    request: ImagePublicationRequest<'_>,
+) -> Result<(), VideoDbError> {
+    if publication.project_id != request.project_id
+        || publication.requested_by_user_id != request.requested_by_user_id
+        || publication.image_type != request.image_type.trim()
+        || publication.prompt != request.prompt.trim()
+        || publication.chapter_id != request.chapter_id
+        || publication.panel_id.as_deref()
+            != request
+                .panel_id
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+    {
+        return Err(VideoDbError::InvalidArgument(
+            "publication_id 已绑定到不同的图片发布意图".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub async fn update_image_publication_metadata<C>(
     db: &C,
     publication_id: &str,
@@ -713,12 +744,17 @@ fn ensure_same_logical_intent(
     input: &CreateImagePublicationIntentInput,
     image: &super::CreateGeneratedImageRecordInput,
 ) -> Result<(), VideoDbError> {
-    if !same_logical_intent(publication, input, image) {
-        return Err(VideoDbError::InvalidArgument(
-            "publication_id 已绑定到不同的图片发布意图".to_string(),
-        ));
-    }
-    Ok(())
+    validate_image_publication_request(
+        publication,
+        ImagePublicationRequest {
+            project_id: input.project_id,
+            requested_by_user_id: input.requested_by_user_id,
+            image_type: &image.image_type,
+            prompt: &image.prompt,
+            chapter_id: image.chapter_id,
+            panel_id: image.panel_id.as_deref(),
+        },
+    )
 }
 
 fn same_logical_intent(
@@ -726,12 +762,7 @@ fn same_logical_intent(
     input: &CreateImagePublicationIntentInput,
     image: &super::CreateGeneratedImageRecordInput,
 ) -> bool {
-    publication.project_id == input.project_id
-        && publication.requested_by_user_id == input.requested_by_user_id
-        && publication.image_type == image.image_type
-        && publication.prompt == image.prompt
-        && publication.chapter_id == image.chapter_id
-        && publication.panel_id == image.panel_id
+    ensure_same_logical_intent(publication, input, image).is_ok()
 }
 
 async fn replace_pending_image_publication_intent<C>(

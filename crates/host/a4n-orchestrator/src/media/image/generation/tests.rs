@@ -18,6 +18,7 @@ use a4n_db_models::models::{
     ai::generated_image,
     chapter::{chapter, chapter_manga_prompt},
     generation::{generation_run, workflow_checkpoint, workflow_run},
+    media::image_publication,
     project::novel_project,
 };
 use a4n_domain::{media::GeneratedMediaArtifactFile, project::ProjectKind};
@@ -262,7 +263,10 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
     ) -> Result<GeneratedMediaArtifactFile, AppError> {
         Ok(GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
-            sha256: "test-sha256".to_string(),
+            sha256: {
+                use sha2::Digest;
+                format!("{:x}", sha2::Sha256::digest(png_1x1_bytes()))
+            },
             byte_size: png_1x1_bytes().len() as u64,
         })
     }
@@ -435,6 +439,174 @@ fn image_request_trace_records_aspect_ratio_and_redacts_reference_payload() {
             .is_some_and(|value| value.len() == 64)
     );
     assert!(!serialized.contains(&request.reference_images[0].data_uri));
+}
+
+#[tokio::test]
+async fn image_generation_preflight_restores_publication_before_provider_and_repairs_checkpoint() {
+    let (database, context, input, publication) = publication_without_call_checkpoint().await;
+    let host = TestImageGenerationHost {
+        fail_generate: true,
+        ..Default::default()
+    };
+    let outcome = context
+        .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
+        .await
+        .expect("已发布图片必须在调用 Provider 前恢复");
+    assert!(outcome.restored);
+    assert_eq!(Some(outcome.summary.id), publication.image_id);
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 0);
+    let (_, checkpoint) =
+        image_workflow_and_checkpoint(database.as_ref(), publication.project_id).await;
+    assert_eq!(
+        checkpoint.checkpoint_json.unwrap()["generated_image_id"],
+        outcome.summary.id
+    );
+}
+
+#[tokio::test]
+async fn image_generation_preflight_rejects_conflicting_retired_or_damaged_publications() {
+    for case in [
+        "identity",
+        "pending_identity",
+        "reclaiming",
+        "reclaimed",
+        "file_facts",
+    ] {
+        let (database, context, mut input, publication) =
+            publication_without_call_checkpoint().await;
+        let mut active: image_publication::ActiveModel = publication.clone().into();
+        match case {
+            "identity" => input.request.prompt.push_str("changed"),
+            "pending_identity" => {
+                active.status = Set(a4n_domain::media::IMAGE_PUBLICATION_STATUS_PENDING.into());
+                input.request.prompt.push_str("changed");
+            }
+            "reclaiming" => {
+                active.status = Set(a4n_domain::media::IMAGE_PUBLICATION_STATUS_RECLAIMING.into())
+            }
+            "reclaimed" => {
+                active.status = Set(a4n_domain::media::IMAGE_PUBLICATION_STATUS_RECLAIMED.into())
+            }
+            "file_facts" => active.expected_sha256 = Set("f".repeat(64)),
+            _ => unreachable!(),
+        }
+        let stored = active.update(database.as_ref()).await.unwrap();
+        let host = TestImageGenerationHost::default();
+        let error = context
+            .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
+            .await
+            .expect_err("可提前发现的发布冲突必须阻止生成");
+        assert_eq!(
+            host.generate_calls.load(Ordering::SeqCst),
+            0,
+            "{case}: {error}"
+        );
+        assert_eq!(host.persist_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            image_publication::Entity::find_by_id(&publication.publication_id)
+                .one(database.as_ref())
+                .await
+                .unwrap()
+                .unwrap(),
+            stored
+        );
+    }
+}
+
+#[tokio::test]
+async fn image_generation_preflight_rejects_permission_and_closed_workflow_before_provider() {
+    let (database, context, mut input, _) = publication_without_call_checkpoint().await;
+    let host = TestImageGenerationHost::default();
+    let user_id = input.requested_by_user_id;
+    input.requested_by_user_id = i64::MAX;
+    assert!(
+        context
+            .run_image_generation_validated(&host, input.clone(), &ImageGenerationProgress::none())
+            .await
+            .is_err()
+    );
+    input.requested_by_user_id = user_id;
+    let ImageGenerationWorkflowBinding::ExistingItem {
+        workflow_run_id, ..
+    } = &input.workflow
+    else {
+        panic!("fixture must keep its workflow open");
+    };
+    context
+        .mark_workflow_status(
+            *workflow_run_id,
+            "cancelled",
+            false,
+            Some("test cancellation"),
+        )
+        .await
+        .unwrap();
+    assert!(
+        context
+            .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
+            .await
+            .is_err()
+    );
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        workflow_checkpoint::Entity::find()
+            .count(database.as_ref())
+            .await
+            .unwrap(),
+        0
+    );
+}
+
+async fn publication_without_call_checkpoint() -> (
+    Arc<DatabaseConnection>,
+    OrchestratorContext,
+    ImageGenerationExecutionInput,
+    image_publication::Model,
+) {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let mut input = execution_input(project_id, user_id);
+    let started = context
+        .begin_image_generation_workflow_validated(
+            project_id,
+            input.chapter_id,
+            &input.command,
+            &input.image_type,
+            input.panel_id.as_deref(),
+            &image_generation_request_trace_json(&input.config, &input.request),
+            input.metadata_json.as_ref(),
+        )
+        .await
+        .unwrap();
+    let workflow_run_id = started.workflow_run.id;
+    input.workflow = ImageGenerationWorkflowBinding::ExistingItem {
+        workflow_run_id,
+        step_key: started.step_key,
+        step_order: 1,
+        fingerprint_json: started.fingerprint_json,
+    };
+    let image = context
+        .run_image_generation_validated(
+            &TestImageGenerationHost::default(),
+            input.clone(),
+            &ImageGenerationProgress::none(),
+        )
+        .await
+        .unwrap();
+    let publication = image_publication::Entity::find()
+        .filter(image_publication::Column::ImageId.eq(image.summary.id))
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    workflow_checkpoint::Entity::delete_many()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .exec(database.as_ref())
+        .await
+        .unwrap();
+    (database, context, input, publication)
 }
 
 #[tokio::test]
@@ -863,7 +1035,7 @@ async fn image_generation_application_rejects_non_object_metadata() {
         .expect_err("非对象 metadata 必须失败");
 
     assert!(error.to_string().contains("metadata_json 必须是对象"));
-    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 0);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 0);
     let workflow = workflow_run::Entity::find()
         .filter(workflow_run::Column::ProjectId.eq(project_id))
