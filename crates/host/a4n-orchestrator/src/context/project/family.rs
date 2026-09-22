@@ -15,7 +15,7 @@ use crate::project::{
     index_import_media_payload, media_file_key, project_family_export_media_files,
     project_package_export_input, validate_family_media_manifest, validate_family_package_manifest,
 };
-use a4n_db::project_family_import::{
+use a4n_db::project::family::import::{
     ProjectFamilyMediaFileImporter, ProjectFamilyMediaImportError,
 };
 use a4n_db::{DbHandle, project::MangaCharacterPortraitRefSummary};
@@ -161,7 +161,7 @@ impl ProjectFamilyApplication {
     where
         Importer: ProjectFamilyMediaFileImporter,
     {
-        a4n_db::project_family_import::import_project_family_package_rows(
+        a4n_db::project::family::import::import_project_family_package_rows(
             self.database.connection(),
             user_id,
             package,
@@ -179,14 +179,14 @@ impl ProjectFamilyApplication {
     ) -> Result<
         (
             Vec<novel_project::Model>,
-            a4n_db::project_family_import::ProjectFamilyImportMappings,
+            a4n_db::project::family::import::ProjectFamilyImportMappings,
         ),
         AppError,
     >
     where
         Importer: ProjectFamilyMediaFileImporter,
     {
-        a4n_db::project_family_import::import_project_family_package_rows_with_mappings(
+        a4n_db::project::family::import::import_project_family_package_rows_with_mappings(
             self.database.connection(),
             user_id,
             package,
@@ -197,7 +197,7 @@ impl ProjectFamilyApplication {
     }
 
     async fn delete_project_cascade(&self, project_id: i64) -> Result<(), AppError> {
-        a4n_db::project_delete::delete_project_cascade_record(
+        a4n_db::project::delete::delete_project_cascade_record(
             self.database.connection(),
             project_id,
         )
@@ -382,7 +382,7 @@ impl ProjectFamilyApplication {
         &self,
         project_id: i64,
     ) -> Result<a4n_domain::project_reset::ProjectGeneratedDataResetOutcome, AppError> {
-        a4n_db::project_reset::reset_project_generated_data_record(
+        a4n_db::project::reset::reset_project_generated_data_record(
             self.database.connection(),
             project_id,
         )

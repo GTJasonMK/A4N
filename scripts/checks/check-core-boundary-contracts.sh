@@ -147,7 +147,7 @@ if ! rg -n 'pub struct GenerateCanvasImageInput' crates/canvas/a4n-canvas-contra
     crates/host/a4n-orchestrator/src/canvas/video_generation.rs \
     crates/host/a4n-orchestrator/src/context/canvas.rs \
     crates/host/a4n-orchestrator/src/media/image/generation/contracts.rs \
-    crates/host/a4n-orchestrator/src/media/image/generation/generation.rs \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     crates/host/a4n-orchestrator/src/video/generation.rs \
     crates/host/a4n-runtime/src/actions/video_generation.rs \
     crates/host/a4n-runtime/src/actions/image_generation/mod.rs; then

@@ -1,7 +1,7 @@
 use super::*;
 
-fn optimize_test_permissions() -> OptimizeAgentPermissions {
-    OptimizeAgentPermissions {
+fn optimize_test_permissions() -> OptimizationAgentPermissions {
+    OptimizationAgentPermissions {
         read_project_detail: true,
         read_blueprint: true,
         read_outlines: true,

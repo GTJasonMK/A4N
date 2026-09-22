@@ -8,7 +8,7 @@ use crate::optimize::agent_loop::{
 use crate::optimize::chat::loop_executor::ChatAgentLoopInput;
 use crate::optimize::turns::{TURN_STATUS_CANCELLED, TURN_STATUS_FAILED};
 use crate::optimize::{
-    AgentLoopExecutionError, OptimizeAgentPermissions, OptimizeChatTurnExecution,
+    AgentLoopExecutionError, OptimizationAgentPermissions, OptimizeChatTurnExecution,
     OptimizeSendUserMessageInput, OrchestratorContext,
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -96,7 +96,7 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
         message: &str,
-        permissions: &OptimizeAgentPermissions,
+        permissions: &OptimizationAgentPermissions,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError> {
         let user_text = required_chat_user_text(message)?;

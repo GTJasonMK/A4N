@@ -1,4 +1,4 @@
-pub(crate) mod prompts;
+pub mod prompts;
 use sea_orm::{ConnectionTrait, DbErr};
 
 pub use prompts::records::{

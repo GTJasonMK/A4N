@@ -48,9 +48,7 @@ use super::super::json::{
     validate_direct_prompt_text, validate_reference_label_text,
     validate_segment_plan_against_shooting_script_projection, video_segment_plan_input_values,
 };
-use super::super::records::{
-    PromptWorkflowRowsContext, VideoExecutionIdentityMatch, video_generation_asset_fingerprint,
-};
+use super::super::records::{PromptWorkflowRowsContext, video_generation_asset_fingerprint};
 use super::super::store::{NewChapterVideoPrompt, PromptWorkflowMode, VideoPromptGenerationTrace};
 use super::{
     FieldMilestone, ProgressSpan, RenderedVideoPromptTrace, StructuredJsonProgressSpec,

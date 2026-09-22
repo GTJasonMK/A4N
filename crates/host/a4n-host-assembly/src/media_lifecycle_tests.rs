@@ -82,7 +82,7 @@ async fn state() -> (
         },
         ..Default::default()
     };
-    let state = a4n_host_assembly::initialize_runtime_with_ports(
+    let state = super::initialize_runtime_with_ports(
         config,
         RuntimeProfile::Minimal,
         RuntimeRole::Host,

@@ -1,10 +1,10 @@
 use super::super::processing::canvas_frame_output_path;
 use crate::AppState;
 use crate::actions::access;
-use crate::actions::video_generation::media::append_secondary_error;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_domain::CanvasFrameKind;
+use a4n_error::append_secondary_message;
 use a4n_media_contract::{MediaExecuteInput, MediaExecuteOutput};
 use a4n_storage::{
     canonicalize_data_file_path, data_file_record_facts, remove_created_file_on_error,
@@ -71,7 +71,7 @@ pub(crate) async fn extract_canvas_video_frame(
             )
             .await
             .err();
-            return Err(append_secondary_error(
+            return Err(append_secondary_message(
                 format!("画布抽帧图片记录写入失败：{err}"),
                 cleanup_error,
             ));

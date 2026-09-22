@@ -60,12 +60,7 @@ pub(crate) async fn capture_video_tail_frame_asset(
             } else {
                 None
             };
-            Err(
-                crate::actions::video_generation::media::append_secondary_error(
-                    error,
-                    cleanup_error,
-                ),
-            )
+            Err(a4n_error::append_secondary_message(error, cleanup_error))
         }
     }
 }

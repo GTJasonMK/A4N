@@ -10,10 +10,10 @@ use a4n_db::canvas::{VideoStudioProjectImportMediaError, VideoStudioProjectImpor
 use a4n_db::config::{
     list_image_config_records, list_llm_config_records, list_video_config_records,
 };
-use a4n_db::project_bundle::{
+use a4n_db::project::bundle::{
     ProjectBundleEntityIdMaps, ProjectBundleHistoryImportSummary, ProjectBundleHistoryRows,
 };
-use a4n_db::project_family_import::{
+use a4n_db::project::family::import::{
     ProjectFamilyMediaFileImporter, ProjectFamilyMediaImportError,
 };
 use chrono::Utc;
@@ -146,7 +146,7 @@ impl OrchestratorContext {
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let history = a4n_db::project_bundle::export_project_bundle_history(
+        let history = a4n_db::project::bundle::export_project_bundle_history(
             self.database.connection(),
             &project_ids,
         )
@@ -421,7 +421,7 @@ impl OrchestratorContext {
 
             history_maps.project_ids = imported_project_ids.clone();
             history_maps.root_project_ids = root_project_ids;
-            let history_summary = a4n_db::project_bundle::import_project_bundle_history(
+            let history_summary = a4n_db::project::bundle::import_project_bundle_history(
                 self.database.connection(),
                 &package.history,
                 &history_maps,

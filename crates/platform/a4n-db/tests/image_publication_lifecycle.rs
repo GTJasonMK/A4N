@@ -10,8 +10,8 @@ use a4n_db::cleanup_outbox::{
 };
 use a4n_db::media::filter_unreferenced_media_paths;
 use a4n_db::profile_material::upsert_profile_primary_material;
+use a4n_db::project::delete::delete_project_cascade_record;
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
-use a4n_db::project_delete::delete_project_cascade_record;
 use a4n_db::video::{
     create_image_publication_intent, delete_generated_image_record_with_cleanup,
     image_publications_for_recovery, mark_image_publication_reclaimed,

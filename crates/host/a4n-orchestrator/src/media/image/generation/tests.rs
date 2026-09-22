@@ -3,7 +3,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use super::image_operation_key;
 use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_api_contract::image_generation::ImageGenerationOperation;
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_db::{
     DatabaseConnection,
@@ -1126,4 +1128,53 @@ fn generated_image_summary_contract_remains_json_compatible() {
     let value = serde_json::to_value(summary).expect("summary 应可序列化");
     assert_eq!(value["image_type"], "scene");
     assert_eq!(value["width"], 1024);
+}
+
+#[test]
+fn image_operation_keys_are_stable_and_unique() {
+    let operations = [
+        ImageGenerationOperation::Scene {
+            prompt: "draw".to_string(),
+            config_id: None,
+            chapter_id: None,
+            width: 1024,
+            height: 1024,
+        },
+        ImageGenerationOperation::Page {
+            chapter_number: 1,
+            page_number: 1,
+            width: 1024,
+            height: 1024,
+        },
+        ImageGenerationOperation::Batch { requests: vec![] },
+        ImageGenerationOperation::ObjectProfile {
+            object_profile_id: 1,
+            chapter_id: None,
+            style: None,
+            config_id: None,
+            style_template_id: None,
+            style_template_name: None,
+            style_template_version: None,
+            custom_style: None,
+            width: 1024,
+            height: 1024,
+        },
+        ImageGenerationOperation::SceneProfile {
+            scene_profile_id: 1,
+            chapter_id: None,
+            style: None,
+            config_id: None,
+            style_template_id: None,
+            style_template_name: None,
+            style_template_version: None,
+            custom_style: None,
+            width: 1024,
+            height: 1024,
+        },
+    ];
+    let keys = operations
+        .iter()
+        .map(image_operation_key)
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(keys.len(), operations.len());
 }

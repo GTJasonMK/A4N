@@ -213,7 +213,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         self.verify_permission(request.payload.project_id, user_id)
             .await?;
-        a4n_db::project_dependency_graph::asset_dependency_graph(
+        a4n_db::project::dependency_graph::asset_dependency_graph(
             self.database.connection(),
             request.payload.project_id,
         )
@@ -233,7 +233,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         self.verify_permission(request.payload.project_id, user_id)
             .await?;
-        a4n_db::project_dependency_graph::asset_dependency_graph_node_detail(
+        a4n_db::project::dependency_graph::asset_dependency_graph_node_detail(
             self.database.connection(),
             request.payload.project_id,
             request.payload.node_id.trim(),

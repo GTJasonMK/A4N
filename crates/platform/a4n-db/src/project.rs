@@ -5,7 +5,7 @@ pub mod bundle;
 mod chapter;
 pub mod delete;
 pub mod dependency_graph;
-pub(crate) mod family;
+pub mod family;
 pub mod reset;
 
 mod cleanup;

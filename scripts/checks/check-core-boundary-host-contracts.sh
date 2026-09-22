@@ -83,7 +83,8 @@ if rg -n 'pub use .*GeneratedImageSummary' \
 fi
 
 if ! rg -n 'a4n_api_contract::image::GeneratedImageSummary|image::GeneratedImageSummary' \
-    crates/host/a4n-orchestrator/src/media/image_generation \
+    crates/host/a4n-orchestrator/src/media/image/generation \
+    crates/host/a4n-orchestrator/src/media/image/generation.rs \
     crates/host/a4n-orchestrator/src/media/image/records.rs \
     crates/host/a4n-runtime/src/actions/image_records \
     crates/host/a4n-runtime/src/actions/video_records/imports/canvas/frame.rs; then
@@ -449,7 +450,7 @@ if ! rg -n 'pub trait ImportReviewAcceptanceApplicationPort' \
 fi
 if rg -n 'ImportReviewApplicationPort|import_review_application\(\)' \
     crates/host/a4n-api-contract/src/import_review.rs \
-    crates/host/a4n-orchestrator/src/import_review \
+    crates/host/a4n-orchestrator/src \
     crates/host/a4n-runtime/src; then
     printf 'The mixed ImportReviewApplicationPort must remain removed\n' >&2
     exit 1
@@ -460,7 +461,7 @@ if ! rg -n 'pub trait ImportReviewReadApplicationPort' \
     exit 1
 fi
 if rg -n 'pub trait ImportReviewReadApplicationPort' \
-    crates/host/a4n-orchestrator/src/import_review; then
+    crates/host/a4n-orchestrator/src; then
     printf 'ImportReviewReadApplicationPort must not be redefined in the orchestrator\n' >&2
     exit 1
 fi

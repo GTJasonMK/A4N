@@ -3,7 +3,7 @@ use super::{freeform_generated_reset_error_to_app_error, project_delete_error_to
 #[test]
 fn project_delete_error_keeps_typed_app_error_mapping() {
     let missing = project_delete_error_to_app_error(
-        a4n_db::project_delete::ProjectDeleteDbError::ProjectNotFound { project_id: 9 },
+        a4n_db::project::delete::ProjectDeleteDbError::ProjectNotFound { project_id: 9 },
     );
     assert!(matches!(
         missing,
@@ -11,10 +11,11 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
             if message == "项目不存在: project_id=9"
     ));
 
-    let database =
-        project_delete_error_to_app_error(a4n_db::project_delete::ProjectDeleteDbError::Database {
+    let database = project_delete_error_to_app_error(
+        a4n_db::project::delete::ProjectDeleteDbError::Database {
             source: sea_orm::DbErr::Custom("delete failed".to_string()),
-        });
+        },
+    );
     assert!(matches!(
         database,
         a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
@@ -22,7 +23,7 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
     ));
 
     let cleanup_database = project_delete_error_to_app_error(
-        a4n_db::project_delete::ProjectDeleteDbError::ProjectCleanup {
+        a4n_db::project::delete::ProjectDeleteDbError::ProjectCleanup {
             source: a4n_db::project::ProjectCleanupDbError::Database {
                 source: sea_orm::DbErr::Custom("cleanup failed".to_string()),
             },

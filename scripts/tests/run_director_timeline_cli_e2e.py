@@ -17,7 +17,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from mock_openai_provider import PNG_1X1_BASE64
+from mock_openai.protocol import PNG_1X1_BASE64
 from run_agent_cli_e2e import data
 from run_cli_contract_e2e import Cli, RunnerError, checked, command_error, provider_log_entries, runtime_snapshot, secure_json
 

@@ -287,57 +287,20 @@ if rg -n 'GenerateReferenceMediaVideoInput' crates/host/a4n-orchestrator/src/vid
     exit 1
 fi
 
-if ! rg -n 'pub struct GeneratePageImageInput' \
-    crates/host/a4n-api-contract/src/image_generation.rs; then
-    printf 'GeneratePageImageInput contract is missing\n' >&2
-    exit 1
-fi
-
-if rg -n 'GeneratePageImageInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image/generation.rs \
-    || rg -n 'a4n_orchestrator::media::GeneratePageImageInput' crates/host/a4n-runtime/src; then
-    printf 'Page image input must be consumed from the API contract\n' >&2
-    exit 1
-fi
-
-if ! rg -n 'pub struct GenerateBatchImagesInput' \
-    crates/host/a4n-api-contract/src/image_generation.rs; then
-    printf 'GenerateBatchImagesInput contract is missing\n' >&2
-    exit 1
-fi
-
-if rg -n 'GenerateBatchImagesInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image/generation.rs \
-    || rg -n 'a4n_orchestrator::media::GenerateBatchImagesInput' crates/host/a4n-runtime/src; then
-    printf 'Batch image input must be consumed from the API contract\n' >&2
-    exit 1
-fi
-
-if ! rg -n 'pub struct GenerateSceneImageInput' \
-    crates/host/a4n-api-contract/src/image_generation.rs; then
-    printf 'GenerateSceneImageInput contract is missing\n' >&2
-    exit 1
-fi
-
-if rg -n 'GenerateSceneImageInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image/generation.rs \
-    || rg -n 'a4n_orchestrator::media::GenerateSceneImageInput' crates/host/a4n-runtime/src; then
-    printf 'Scene image input must be consumed from the API contract\n' >&2
-    exit 1
-fi
-
-if ! rg -n 'pub struct GenerateGalgameImageInput' \
-    crates/host/a4n-api-contract/src/image_generation.rs; then
-    printf 'GenerateGalgameImageInput contract is missing\n' >&2
-    exit 1
-fi
-
-if rg -n 'GenerateGalgameImageInput' crates/host/a4n-orchestrator/src/media.rs \
-    crates/host/a4n-orchestrator/src/media/image/generation.rs \
-    || rg -n 'a4n_orchestrator::media::GenerateGalgameImageInput' crates/host/a4n-runtime/src; then
-    printf 'Galgame image input must be consumed from the API contract\n' >&2
-    exit 1
-fi
+for image_input_type in GeneratePageImageInput GenerateBatchImagesInput GenerateSceneImageInput GenerateGalgameImageInput; do
+    if ! rg -n "pub struct ${image_input_type}\\b" \
+        crates/host/a4n-api-contract/src/image_generation.rs; then
+        printf '%s contract is missing\n' "$image_input_type" >&2
+        exit 1
+    fi
+    if rg -U -n "^pub(\\([^)]*\\))? (use [^;]*\\b${image_input_type}\\b|(struct|type|enum) ${image_input_type}\\b)" \
+        crates/host/a4n-orchestrator/src/media.rs \
+        crates/host/a4n-orchestrator/src/media/image/generation.rs \
+        || rg -n "a4n_orchestrator::media::${image_input_type}\\b" crates/host/a4n-runtime/src; then
+        printf '%s must be consumed from the API contract without a facade export\n' "$image_input_type" >&2
+        exit 1
+    fi
+done
 
 if ! rg -n 'pub trait ImageProfilePromptApplicationPort' \
     crates/host/a4n-api-contract/src/image_generation.rs; then
@@ -603,7 +566,6 @@ fi
 
 if rg -n '^pub use a4n_api_contract::optimize::OptimizationAgentPermissions' \
     crates/host/a4n-orchestrator/src/optimize/permissions.rs \
-    || rg -n '^pub use permissions::\{[^}]*OptimizeAgentPermissions' \
     crates/host/a4n-orchestrator/src/optimize.rs; then
     printf 'Optimization permissions must be consumed from the API contract without an orchestrator facade\n' >&2
     exit 1

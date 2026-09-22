@@ -44,14 +44,13 @@ pub(in crate::optimize) use patch::request::{
 pub(crate) use patch::{
     OptimizationPatchProposal, apply_optimization_patches_to_content, optimization_content_hash,
 };
-pub(crate) use permissions::{
-    OptimizeAgentPermissions, optimization_agent_variables, optimization_analysis_variables,
-};
+pub(crate) use permissions::{optimization_agent_variables, optimization_analysis_variables};
 pub(crate) use service::optimize_db_error;
 pub(in crate::optimize) use session_names::required_available_session_name;
 pub(crate) use workflow_rules::optimize_session_workflow_run_input;
 
 use crate::OrchestratorContext;
+pub(crate) use a4n_api_contract::optimize::OptimizationAgentPermissions;
 
 const OPTIMIZATION_CHAT_HISTORY_LIMIT: usize = 12;
 const OPTIMIZATION_CHAT_CONTENT_LIMIT: usize = 6000;

@@ -5,10 +5,10 @@ use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 
-use super::super::contracts::{
+use super::contracts::{
     PromptGenerationContextForWorkflow, PromptWorkflowRowsContext, PromptWorkflowRowsQuery,
 };
-use super::super::matching::prompt_matches_generation_context_for_workflow;
+use super::matching::prompt_matches_generation_context_for_workflow;
 
 impl OrchestratorContext {
     pub(in crate::video) async fn reusable_prompt_rows(

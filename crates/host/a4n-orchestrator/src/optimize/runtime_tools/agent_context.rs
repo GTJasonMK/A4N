@@ -9,8 +9,8 @@ use serde_json::{Value, json};
 
 use super::super::OrchestratorContext;
 use super::super::context::build_content_optimization_context;
-use super::super::permissions::OptimizeAgentPermissions;
 use super::source_hash;
+use a4n_api_contract::optimize::OptimizationAgentPermissions;
 
 const CONTEXT_RESULT_BYTES: usize = 12 * 1024;
 const PREVIEW_CHARS: usize = 120;
@@ -209,8 +209,8 @@ impl OrchestratorContext {
     }
 }
 
-fn default_permissions() -> OptimizeAgentPermissions {
-    OptimizeAgentPermissions {
+fn default_permissions() -> OptimizationAgentPermissions {
+    OptimizationAgentPermissions {
         read_project_detail: true,
         read_blueprint: true,
         read_outlines: true,

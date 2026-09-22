@@ -7,11 +7,10 @@ use super::super::contracts::{
 };
 use super::super::push::assembly_request_context;
 use crate::AppState;
-use crate::actions::video_generation::media::{
-    append_secondary_error, combine_optional_errors, remove_partial_video_file,
-};
+use crate::actions::video_generation::media::remove_partial_video_file;
 use crate::actions::video_records::MAX_INLINE_PLAYBACK_VIDEO_BYTES;
 use a4n_domain::media::video_mime_from_path;
+use a4n_error::{append_secondary_message, combine_optional_errors};
 use a4n_storage::data_file_record_facts;
 use base64::Engine;
 use chrono::Utc;
@@ -155,7 +154,7 @@ where
 {
     match operation() {
         Ok(value) => Ok(value),
-        Err(error) => Err(append_secondary_error(
+        Err(error) => Err(append_secondary_message(
             error,
             cleanup_assembly_preview_cache(output_path, manifest_path),
         )),
@@ -172,7 +171,7 @@ where
 {
     match operation.await {
         Ok(value) => Ok(value),
-        Err(error) => Err(append_secondary_error(
+        Err(error) => Err(append_secondary_message(
             error,
             cleanup_assembly_preview_cache(output_path, manifest_path),
         )),

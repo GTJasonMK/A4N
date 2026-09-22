@@ -14,10 +14,12 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from mock_openai_provider import (
+from mock_openai.protocol import (
     MP4_1S_BASE64,
     PNG_1X1_BASE64,
-    ProviderServer,
+)
+from mock_openai.transport import ProviderServer
+from mock_openai.fixtures.entities import (
     character_discovery_response,
     character_sync_attribute_changes_response,
     character_sync_behaviors_response,
@@ -28,12 +30,14 @@ from mock_openai_provider import (
     scene_occurrence_response,
     scene_profile_candidates_response,
     scene_transition_response,
+)
+from mock_openai.fixtures.shooting import (
     shooting_span_ids,
     shooting_design_response,
-    agent_chat_fixture,
     video_segment_plan_response,
-    response_for,
 )
+from mock_openai.fixtures.reverse import agent_chat_fixture
+from mock_openai.response import response_for
 
 
 class MockOpenAIProviderTest(unittest.TestCase):

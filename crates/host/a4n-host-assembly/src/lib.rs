@@ -3,6 +3,9 @@
 //! This crate owns construction only. HTTP routing, Tauri commands, and domain
 //! behavior remain in their respective owners.
 
+#[cfg(test)]
+mod media_lifecycle_tests;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -19,7 +22,7 @@ pub async fn initialize_runtime(
 }
 
 /// Binds Runtime application adapters before startup uses them.
-pub async fn initialize_runtime_with_ports(
+async fn initialize_runtime_with_ports(
     config: a4n_config::app_config::AppConfig,
     runtime_profile: RuntimeProfile,
     runtime_role: RuntimeRole,

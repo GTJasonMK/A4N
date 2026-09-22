@@ -64,15 +64,3 @@ pub(crate) fn remove_partial_video_file(path: &Path, label: &str) -> Result<(), 
         Err(err) => Err(format!("{label}删除失败：{err}")),
     }
 }
-
-pub(crate) use a4n_error::append_secondary_message as append_secondary_error;
-
-pub(crate) fn combine_optional_errors(
-    primary: Option<String>,
-    secondary: Option<String>,
-) -> Option<String> {
-    match primary {
-        Some(primary) => Some(append_secondary_error(primary, secondary)),
-        None => secondary,
-    }
-}

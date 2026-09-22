@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::video::prompts::records::VideoExecutionIdentityMatch;
+    use crate::video::tests::video_execution_identity_fixture;
     use serde_json::json;
 
     fn prompt_row(id: i64, workflow_mode: &str, prompt_type: &str) -> chapter_video_prompt::Model {
@@ -26,6 +26,7 @@ mod tests {
             generated_video_id: None,
             timeline_item_id: None,
             metadata_json: Some(json!({
+                "video_execution_identity": video_execution_identity_fixture("same-source", 6, 1),
                 "source": {"content_sha256": "same-source"},
                 "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION
             })),
@@ -42,6 +43,7 @@ mod tests {
         generation_asset_fingerprint: Option<&'a Value>,
         source_prompt_type: Option<&'a str>,
         prompt_output_language: PromptOutputLanguage,
+        expected_identity: &'a Value,
     ) -> PromptGenerationContextForWorkflow<'a> {
         PromptGenerationContextForWorkflow {
             expected_workflow_mode,
@@ -52,30 +54,59 @@ mod tests {
             reference_ids,
             generation_asset_fingerprint,
             source_prompt_type,
-            video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
+            video_execution_identity: expected_identity,
             prompt_output_language,
         }
     }
 
-    fn test_generation_context<'a>(
-        prompt_type: &'a str,
-        source_metadata: &'a Value,
-        reference_ids: &'a Value,
-        generation_asset_fingerprint: Option<&'a Value>,
-        source_prompt_type: Option<&'a str>,
-        prompt_output_language: PromptOutputLanguage,
-    ) -> PromptGenerationContext<'a> {
-        PromptGenerationContext {
-            prompt_type,
-            source_metadata,
-            style: "测试风格",
-            aspect_ratio: "16:9",
-            reference_ids,
-            generation_asset_fingerprint,
-            source_prompt_type,
-            video_execution_identity: VideoExecutionIdentityMatch::NotApplicable,
-            prompt_output_language,
-        }
+    #[test]
+    fn prompt_context_requires_source_and_execution_identity() {
+        let source = json!({"content_sha256": "same-source"});
+        let references = json!([]);
+        let identity = video_execution_identity_fixture("same-source", 6, 1);
+        let context = test_generation_context_for_workflow(
+            "boundary_frames",
+            "frame_segment_plan",
+            &source,
+            &references,
+            None,
+            None,
+            PromptOutputLanguage::ZhCn,
+            &identity,
+        );
+        let mut row = prompt_row(1, "shared_segment_plan", "frame_segment_plan");
+        assert!(prompt_matches_generation_context_for_workflow(
+            &row, context
+        ));
+        row.metadata_json.as_mut().unwrap()["video_execution_identity"]["segment_recipe_fingerprint"] =
+            json!("different-recipe");
+        assert!(!prompt_matches_generation_context_for_workflow(
+            &row, context
+        ));
+        row.metadata_json
+            .as_mut()
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("video_execution_identity");
+        assert!(!prompt_matches_generation_context_for_workflow(
+            &row, context
+        ));
+        row.metadata_json.as_mut().unwrap()["video_execution_identity"] = identity.clone();
+        row.metadata_json
+            .as_mut()
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("source");
+        let missing_source = json!({});
+        assert!(!prompt_matches_generation_context_for_workflow(
+            &row,
+            PromptGenerationContextForWorkflow {
+                source_metadata: &missing_source,
+                ..context
+            },
+        ));
     }
 
     #[test]
@@ -96,10 +127,13 @@ mod tests {
 
     #[test]
     fn shared_segment_plan_context_does_not_depend_on_generation_reference_ids() {
+        let expected_identity = video_execution_identity_fixture("same-source", 6, 1);
+
         let source_metadata = json!({"content_sha256": "same-source"});
         let mut segment = prompt_row(1, "shared_segment_plan", "frame_segment_plan");
         segment.reference_image_ids_json = Some(json!([1]));
         segment.metadata_json = Some(json!({
+        "video_execution_identity": expected_identity.clone(),
             "source": {"content_sha256": "same-source"},
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
             "generation_reference_image_ids": [1],
@@ -116,6 +150,7 @@ mod tests {
                 None,
                 None,
                 PromptOutputLanguage::ZhCn,
+                &expected_identity,
             ),
         ));
     }
@@ -150,6 +185,8 @@ mod tests {
 
     #[test]
     fn chat_video_prompt_context_keeps_generation_reference_snapshot() {
+        let expected_identity = video_execution_identity_fixture("same-source", 6, 1);
+
         let source_metadata = json!({"content_sha256": "same-source"});
         let asset_fingerprint = json!({
             "schema_version": 1,
@@ -159,6 +196,7 @@ mod tests {
         });
         let mut chat_video_prompt = prompt_row(1, "chat_video", "video_prompt");
         chat_video_prompt.metadata_json = Some(json!({
+        "video_execution_identity": expected_identity.clone(),
             "source": {"content_sha256": "same-source"},
             "contract_version": CHAT_VIDEO_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
@@ -177,6 +215,7 @@ mod tests {
                 Some(&asset_fingerprint),
                 Some("frame_segment_plan"),
                 PromptOutputLanguage::ZhCn,
+                &expected_identity,
             ),
         ));
         assert!(!prompt_matches_generation_context_for_workflow(
@@ -189,12 +228,15 @@ mod tests {
                 Some(&asset_fingerprint),
                 Some("frame_segment_plan"),
                 PromptOutputLanguage::ZhCn,
+                &expected_identity,
             ),
         ));
     }
 
     #[test]
     fn final_prompt_context_matches_prompt_output_language() {
+        let expected_identity = video_execution_identity_fixture("same-source", 6, 1);
+
         let source_metadata = json!({"content_sha256": "same-source"});
         let asset_fingerprint = json!({
             "schema_version": 1,
@@ -204,6 +246,7 @@ mod tests {
         });
         let mut video_prompt = prompt_row(1, "first_frame_chain", "video_prompt");
         video_prompt.metadata_json = Some(json!({
+        "video_execution_identity": expected_identity.clone(),
             "source": {"content_sha256": "same-source"},
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
@@ -221,6 +264,7 @@ mod tests {
                 Some(&asset_fingerprint),
                 Some("frame_segment_plan"),
                 PromptOutputLanguage::En,
+                &expected_identity,
             ),
         ));
         assert!(!prompt_matches_generation_context_for_workflow(
@@ -233,12 +277,15 @@ mod tests {
                 Some(&asset_fingerprint),
                 Some("frame_segment_plan"),
                 PromptOutputLanguage::ZhCn,
+                &expected_identity,
             ),
         ));
     }
 
     #[test]
     fn final_prompt_context_requires_explicit_workflow_after_shared_segment_plan() {
+        let expected_identity = video_execution_identity_fixture("same-source", 6, 1);
+
         let source_metadata = json!({"content_sha256": "same-source"});
         let asset_fingerprint = json!({
             "schema_version": 1,
@@ -248,6 +295,7 @@ mod tests {
         });
         let mut video_prompt = prompt_row(1, "first_frame_chain", "video_prompt");
         video_prompt.metadata_json = Some(json!({
+        "video_execution_identity": expected_identity.clone(),
             "source": {"content_sha256": "same-source"},
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
@@ -256,15 +304,17 @@ mod tests {
         }));
 
         assert!(
-            !prompt_matches_generation_context(
+            !prompt_matches_generation_context_for_workflow(
                 &video_prompt,
-                test_generation_context(
+                test_generation_context_for_workflow(
+                    "boundary_frames",
                     "video_prompt",
                     &source_metadata,
                     &json!([]),
                     Some(&asset_fingerprint),
                     Some("frame_segment_plan"),
                     PromptOutputLanguage::ZhCn,
+                    &expected_identity,
                 ),
             ),
             "source_prompt_type=frame_segment_plan is shared and must not imply boundary_frames"
@@ -279,12 +329,15 @@ mod tests {
                 Some(&asset_fingerprint),
                 Some("frame_segment_plan"),
                 PromptOutputLanguage::ZhCn,
+                &expected_identity,
             ),
         ));
     }
 
     #[test]
     fn frame_prompt_context_rejects_changed_generation_asset_fingerprint() {
+        let expected_identity = video_execution_identity_fixture("same-source", 6, 1);
+
         let source_metadata = json!({"content_sha256": "same-source"});
         let stored_asset_fingerprint = json!({
             "schema_version": 1,
@@ -300,6 +353,7 @@ mod tests {
         });
         let mut first_frame_prompt = prompt_row(1, "first_frame_chain", "first_frame_prompt");
         first_frame_prompt.metadata_json = Some(json!({
+        "video_execution_identity": expected_identity.clone(),
             "source": {"content_sha256": "same-source"},
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
@@ -316,6 +370,7 @@ mod tests {
                 Some(&current_asset_fingerprint),
                 Some("frame_segment_plan"),
                 PromptOutputLanguage::ZhCn,
+                &expected_identity,
             ),
         ));
     }
@@ -339,16 +394,17 @@ mod tests {
             }
         });
 
-        let synced = a4n_db::video_prompt::sync_chapter_video_prompt_metadata_after_update(
-            "frame_prompt",
-            Some(metadata),
-            " 新帧提示词 ",
-            Some(" 新负面词 "),
-            6,
-            Some(&json!([2, 3])),
-        )
-        .unwrap()
-        .unwrap();
+        let synced =
+            a4n_db::video::prompts::consistency::sync_chapter_video_prompt_metadata_after_update(
+                "frame_prompt",
+                Some(metadata),
+                " 新帧提示词 ",
+                Some(" 新负面词 "),
+                6,
+                Some(&json!([2, 3])),
+            )
+            .unwrap()
+            .unwrap();
         let frame = synced
             .get("boundary_frame")
             .and_then(Value::as_object)

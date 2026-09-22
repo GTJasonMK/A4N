@@ -1,15 +1,13 @@
 use crate::routes::{agents::AgentRegistry, page_sessions::PageSessionRegistry};
 use a4n_config::app_config::AppConfig;
 use a4n_config::{
-    optional_non_empty_env_path, optional_non_empty_env_string, required_non_empty_env_string,
-    validate_postgres_database_url,
+    optional_non_empty_env_string, required_non_empty_env_string, validate_postgres_database_url,
 };
 use a4n_error::AppError;
 use a4n_runtime::host_api::auth_records;
 use a4n_runtime::{RuntimeProfile, RuntimeRole};
 use a4n_storage::paths::AppPaths;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -18,7 +16,6 @@ pub struct ServerConfig {
     pub jwt_secret: String,
     pub agent_worker_token: String,
     pub bind_addr: SocketAddr,
-    pub frontend_dist: PathBuf,
     pub bootstrap_admin: Option<BootstrapAdmin>,
 }
 
@@ -44,8 +41,6 @@ impl ServerConfig {
         let bind_addr = bind_addr_value.parse().map_err(|e| {
             AppError::ConfigError(format!("A4N_CONTROL_ADDR/A4N_WEB_ADDR 无效: {e}"))
         })?;
-        let frontend_dist = optional_non_empty_env_path("A4N_FRONTEND_DIST")?
-            .unwrap_or_else(|| PathBuf::from("frontend/dist"));
         let bootstrap_admin = bootstrap_admin_from_env()?;
 
         Ok(Self {
@@ -53,7 +48,6 @@ impl ServerConfig {
             jwt_secret,
             agent_worker_token,
             bind_addr,
-            frontend_dist,
             bootstrap_admin,
         })
     }
@@ -82,7 +76,8 @@ impl ServerState {
         .map_err(AppError::Io)?;
         let runtime_profile = runtime_profile_for_server_host()?;
         let runtime = Arc::new(
-            crate::initialize_runtime(app_config, runtime_profile, RuntimeRole::Host).await?,
+            a4n_host_assembly::initialize_runtime(app_config, runtime_profile, RuntimeRole::Host)
+                .await?,
         );
         crate::install_agent_host_dispatcher(&runtime)?;
         let bootstrap = bootstrap_admin.as_ref().map(|input| {

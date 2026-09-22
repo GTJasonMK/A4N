@@ -33,7 +33,14 @@ async fn update_prompt_rejects_frame_prompt_when_video_prompts_exist() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_prompt(frame.id, Some("新的边界帧提示词"), None, None, None, None)
+        .update_chapter_video_prompt_with_policy(
+            frame.id,
+            ChapterVideoPromptPatch {
+                visual_prompt: Some("新的边界帧提示词".to_string()),
+                ..Default::default()
+            },
+            false,
+        )
         .await
         .expect_err("video prompt must lock earlier frame prompt");
 
@@ -84,7 +91,14 @@ async fn update_prompt_rejects_frame_prompt_when_generated_frame_image_exists() 
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_prompt(frame.id, Some("新的边界帧提示词"), None, None, None, None)
+        .update_chapter_video_prompt_with_policy(
+            frame.id,
+            ChapterVideoPromptPatch {
+                visual_prompt: Some("新的边界帧提示词".to_string()),
+                ..Default::default()
+            },
+            false,
+        )
         .await
         .expect_err("generated frame image must lock its frame prompt");
 
@@ -160,7 +174,7 @@ async fn delete_prompt_rejects_segment_plan_when_frame_prompts_exist() {
         }),
     )
     .await;
-    let err = a4n_db::video_prompt::delete_chapter_video_prompts_with_policy(
+    let err = a4n_db::video::prompts::consistency::delete_chapter_video_prompts_with_policy(
         db.as_ref(),
         std::slice::from_ref(&segment.id),
         false,
@@ -213,7 +227,7 @@ async fn delete_prompt_rejects_first_frame_prompt_when_generated_first_frame_ima
         })),
     )
     .await;
-    let err = a4n_db::video_prompt::delete_chapter_video_prompts_with_policy(
+    let err = a4n_db::video::prompts::consistency::delete_chapter_video_prompts_with_policy(
         db.as_ref(),
         std::slice::from_ref(&first_frame.id),
         false,

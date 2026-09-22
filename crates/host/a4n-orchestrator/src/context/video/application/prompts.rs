@@ -65,7 +65,7 @@ impl VideoApplication {
         input: ChapterVideoPromptPatch,
         allow_downstream: bool,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video_prompt::update_chapter_video_prompt_with_policy(
+        a4n_db::video::prompts::consistency::update_chapter_video_prompt_with_policy(
             self.connection(),
             prompt_id,
             input,
@@ -81,7 +81,7 @@ impl VideoApplication {
         expected_updated_at: chrono::NaiveDateTime,
         metadata_json: Value,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video_prompt::update_chapter_video_segment_plan_metadata(
+        a4n_db::video::prompts::consistency::update_chapter_video_segment_plan_metadata(
             self.connection(),
             prompt_id,
             expected_updated_at,
@@ -96,7 +96,7 @@ impl VideoApplication {
         prompt_id: i64,
         recipe: VideoSegmentExecutionRecipeV1,
     ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
-        a4n_db::video_prompt::update_chapter_video_segment_recipe(
+        a4n_db::video::prompts::consistency::update_chapter_video_segment_recipe(
             self.connection(),
             prompt_id,
             recipe,
@@ -113,7 +113,7 @@ impl VideoApplication {
         allow_downstream: bool,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video_prompt::update_chapter_video_prompt_with_generation_run_checkpoint(
+        a4n_db::video::prompts::consistency::update_chapter_video_prompt_with_generation_run_checkpoint(
             self.connection(),
             prompt_id,
             input,
@@ -130,7 +130,7 @@ impl VideoApplication {
         prompt_ids: &[i64],
         allow_downstream: bool,
     ) -> Result<u64, AppError> {
-        a4n_db::video_prompt::delete_chapter_video_prompts_with_policy(
+        a4n_db::video::prompts::consistency::delete_chapter_video_prompts_with_policy(
             self.connection(),
             prompt_ids,
             allow_downstream,
@@ -143,9 +143,12 @@ impl VideoApplication {
         &self,
         prompt_id: i64,
     ) -> Result<VideoPromptDownstreamDependencies, AppError> {
-        a4n_db::video_prompt::prompt_downstream_dependencies(self.connection(), prompt_id)
-            .await
-            .map_err(video_db_error)
+        a4n_db::video::prompts::consistency::prompt_downstream_dependencies(
+            self.connection(),
+            prompt_id,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn ensure_frame_prompt_image_generation_allowed(
@@ -153,7 +156,7 @@ impl VideoApplication {
         prompt_id: i64,
         generation_source: &str,
     ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_frame_prompt_image_generation_allowed(
+        a4n_db::video::prompts::consistency::ensure_frame_prompt_image_generation_allowed(
             self.connection(),
             prompt_id,
             generation_source,
@@ -168,7 +171,7 @@ impl VideoApplication {
         generation_source: &str,
         requested_reference_image_ids: &[i64],
     ) -> Result<Vec<i64>, AppError> {
-        a4n_db::video_prompt::effective_frame_prompt_image_reference_ids(
+        a4n_db::video::prompts::consistency::effective_frame_prompt_image_reference_ids(
             self.connection(),
             prompt_id,
             generation_source,
@@ -183,7 +186,7 @@ impl VideoApplication {
         prompt: &chapter_video_prompt::Model,
         operation: &str,
     ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stage_mutable(
+        a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stage_mutable(
             self.connection(),
             prompt,
             operation,
@@ -198,7 +201,7 @@ impl VideoApplication {
         operation: &str,
         ignored_prompt_ids: &BTreeSet<i64>,
     ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stage_mutable_ignoring(
+        a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stage_mutable_ignoring(
             self.connection(),
             prompt,
             operation,
@@ -213,7 +216,7 @@ impl VideoApplication {
         prompts: &[chapter_video_prompt::Model],
         operation: &str,
     ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stages_mutable(
+        a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stages_mutable(
             self.connection(),
             prompts,
             operation,
@@ -228,7 +231,7 @@ impl VideoApplication {
         operation: &str,
         ignored_prompt_ids: &BTreeSet<i64>,
     ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stages_mutable_ignoring(
+        a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stages_mutable_ignoring(
             self.connection(),
             prompts,
             operation,
@@ -243,7 +246,7 @@ impl VideoApplication {
         prompts: &[chapter_video_prompt::Model],
         operation: &str,
     ) -> Result<(), AppError> {
-        a4n_db::video_prompt::ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
+        a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
             self.connection(),
             prompts,
             operation,

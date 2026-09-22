@@ -1,10 +1,11 @@
 use crate::AppState;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::{
-    append_secondary_error, best_effort_video_thumbnail_path, run_ffmpeg_trim, trimmed_video_path,
+    best_effort_video_thumbnail_path, run_ffmpeg_trim, trimmed_video_path,
 };
 use crate::actions::video_records::complete_video_record;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+use a4n_error::append_secondary_message;
 #[cfg(test)]
 use a4n_storage::remove_created_file_on_error_sync;
 use a4n_storage::{
@@ -66,7 +67,7 @@ pub async fn trim_video(
             )
             .await
             .err();
-            return Err(append_secondary_error(err.to_string(), cleanup_error));
+            return Err(append_secondary_message(err.to_string(), cleanup_error));
         }
     };
     let thumbnail_path = match source_chapter_id {

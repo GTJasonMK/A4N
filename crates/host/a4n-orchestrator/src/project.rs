@@ -1,4 +1,7 @@
 pub(crate) use a4n_db::project::PROJECT_KIND_TEXT;
+pub(crate) use a4n_db::project::family::import::{
+    ProjectFamilyImportPackage, snapshot_profile_key,
+};
 pub(crate) use a4n_db::project::{
     ChapterMangaSourceSummary, ForeshadowingAnalysisDraft, PROJECT_KIND_VIDEO,
     ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyTextCoreRows,
@@ -8,7 +11,6 @@ pub(crate) use a4n_db::project::{
 pub(crate) use a4n_db::project::{
     ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
 };
-pub(crate) use a4n_db::project_family_import::{ProjectFamilyImportPackage, snapshot_profile_key};
 pub(crate) use a4n_domain::project::{ProjectProgressSummary, ProjectSourceMode};
 use a4n_domain::project_reset::{
     FreeformVideoGeneratedDataResetResult, ProjectGeneratedDataResetOutcome,
@@ -39,6 +41,7 @@ mod duplication {
     #[cfg(test)]
     mod tests;
 }
+mod bundle;
 mod errors;
 mod family_package;
 mod family_transfer;
@@ -46,7 +49,6 @@ mod generation_params_rules;
 mod json_field_rules;
 mod package_rules;
 mod package_transfer;
-mod project_bundle;
 mod video_studio_package;
 mod video_studio_transfer;
 
@@ -93,7 +95,7 @@ pub(crate) use package_transfer::{
     import_result_with_file_rollback, index_import_media_payload, project_package_export_input,
 };
 
-pub(crate) use project_bundle::{
+pub(crate) use bundle::{
     MANIFEST_PATH as PROJECT_BUNDLE_MANIFEST_PATH, ProjectBundlePackage, ProjectBundleProviderSlot,
     add_canvas_provider_slot, assemble_project_bundle,
 };

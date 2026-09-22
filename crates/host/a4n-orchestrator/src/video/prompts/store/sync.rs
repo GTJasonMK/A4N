@@ -64,7 +64,7 @@ impl OrchestratorContext {
             .into_iter()
             .map(prepare_prompt_sync_draft)
             .collect::<Result<Vec<_>, _>>()?;
-        a4n_db::video_prompt::sync_chapter_video_prompts_with_generation_runs(
+        a4n_db::video::prompts::consistency::sync_chapter_video_prompts_with_generation_runs(
             self.database.connection(),
             chapter_id,
             drafts,

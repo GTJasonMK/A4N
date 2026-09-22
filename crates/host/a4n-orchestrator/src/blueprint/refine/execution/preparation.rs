@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db::blueprint_context::blueprint_llm_context;
+use a4n_db::blueprint::context::blueprint_llm_context;
 use a4n_db::inspiration::{INSPIRATION_HISTORY_LIMIT, inspiration_messages_llm_context};
 use a4n_db::workflow::UpsertWorkflowRunInput;
 use a4n_domain::project::{

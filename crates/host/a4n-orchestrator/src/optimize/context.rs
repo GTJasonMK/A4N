@@ -4,13 +4,13 @@ mod projection;
 #[cfg(test)]
 mod tests;
 
-use a4n_db::blueprint_context::blueprint_llm_context;
+use a4n_db::blueprint::context::blueprint_llm_context;
 use a4n_db::optimize::OptimizationContextReadInput;
 use a4n_error::AppError;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
-use super::{OptimizeAgentPermissions, optimize_db_error};
+use super::{OptimizationAgentPermissions, optimize_db_error};
 
 pub(super) use manifest::optimization_context_manifest;
 use projection::{
@@ -23,7 +23,7 @@ pub(super) async fn build_content_optimization_context<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
 ) -> Result<Value, AppError>
 where
     C: ConnectionTrait,

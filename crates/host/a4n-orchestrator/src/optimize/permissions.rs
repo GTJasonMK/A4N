@@ -4,7 +4,7 @@ use a4n_db_models::models::ai::optimization_session;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
-pub(crate) use a4n_api_contract::optimize::OptimizationAgentPermissions as OptimizeAgentPermissions;
+use a4n_api_contract::optimize::OptimizationAgentPermissions;
 
 use super::{
     OPTIMIZATION_PATCH_MAX_COUNT, OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS,
@@ -13,7 +13,7 @@ use super::{
 
 pub(super) fn optimization_permissions_from_variables(
     variables: &HashMap<String, Value>,
-) -> Result<OptimizeAgentPermissions, AppError> {
+) -> Result<OptimizationAgentPermissions, AppError> {
     let value = variables.get("agent_permissions").ok_or_else(|| {
         AppError::InvalidArgument("缺少内容优化权限 agent_permissions".to_string())
     })?;
@@ -24,7 +24,7 @@ pub(super) fn optimization_permissions_from_variables(
 
 pub(super) fn optimization_permissions_from_session(
     session: &optimization_session::Model,
-) -> Result<OptimizeAgentPermissions, AppError> {
+) -> Result<OptimizationAgentPermissions, AppError> {
     let value = session
         .agent_permissions
         .clone()
@@ -42,7 +42,7 @@ pub(super) fn optimization_permissions_from_session(
 }
 
 pub fn optimization_agent_variables(
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
 ) -> HashMap<String, Value> {
     HashMap::from([("agent_permissions".to_string(), permissions.as_value())])
 }
@@ -50,7 +50,7 @@ pub fn optimization_agent_variables(
 pub fn optimization_analysis_variables(
     mode: &str,
     scope: Option<&str>,
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
     agent_instruction: Option<&str>,
 ) -> HashMap<String, Value> {
     let mut variables = optimization_agent_variables(permissions);
@@ -70,7 +70,7 @@ pub fn optimization_analysis_variables(
     variables
 }
 
-pub(super) fn optimization_agent_capabilities(permissions: &OptimizeAgentPermissions) -> Value {
+pub(super) fn optimization_agent_capabilities(permissions: &OptimizationAgentPermissions) -> Value {
     json!({
         "readable_context": {
             "project_detail": permissions.read_project_detail,
@@ -116,7 +116,7 @@ pub(super) fn optimization_agent_capabilities(permissions: &OptimizeAgentPermiss
 
 pub(super) fn insert_optimization_agent_capability_variables(
     prompt_vars: &mut std::collections::HashMap<String, Value>,
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
 ) -> Result<(), AppError> {
     let capabilities = optimization_agent_capabilities(permissions);
     prompt_vars.insert("agent_capabilities".to_string(), capabilities.clone());
@@ -131,8 +131,8 @@ pub(super) fn insert_optimization_agent_capability_variables(
 mod tests {
     use super::*;
 
-    fn permissions() -> OptimizeAgentPermissions {
-        OptimizeAgentPermissions {
+    fn permissions() -> OptimizationAgentPermissions {
+        OptimizationAgentPermissions {
             read_project_detail: true,
             read_blueprint: true,
             read_outlines: true,

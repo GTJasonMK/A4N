@@ -475,7 +475,7 @@ if ! rg -n 'pub trait Settings(Export|Import)ApplicationPort|pub trait SettingsA
     exit 1
 fi
 if rg -n 'pub trait Settings(Export|Import)ApplicationPort|pub trait SettingsAllApplicationPort|pub struct PromptRow' \
-    crates/host/a4n-orchestrator/src/config; then
+    crates/host/a4n-orchestrator/src; then
     printf 'settings import/export contracts must not be redefined in the orchestrator\n' >&2
     exit 1
 fi

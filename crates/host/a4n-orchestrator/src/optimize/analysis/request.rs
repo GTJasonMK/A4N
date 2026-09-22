@@ -4,7 +4,7 @@ pub(in crate::optimize) struct AnalysisSessionPromptBundle {
     pub(in crate::optimize) analysis_prompt: String,
     pub(in crate::optimize) context_manifest: String,
     pub(in crate::optimize) user_message: String,
-    pub(in crate::optimize) permissions: OptimizeAgentPermissions,
+    pub(in crate::optimize) permissions: OptimizationAgentPermissions,
     pub(in crate::optimize) agent_instruction: Option<String>,
 }
 

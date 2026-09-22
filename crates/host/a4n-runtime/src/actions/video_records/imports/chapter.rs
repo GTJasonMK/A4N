@@ -6,11 +6,12 @@ use crate::AppState;
 use crate::actions::access;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::{
-    append_secondary_error, best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
+    best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
 };
 use crate::actions::video_records::{
     complete_video_record, delete_video_record_cleanup_error, video_record_output_path,
 };
+use a4n_error::append_secondary_message;
 use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow,
     should_capture_video_tail_frame_fields,
@@ -120,8 +121,8 @@ async fn create_imported_chapter_video(
                         record.id,
                     )
                     .await;
-                    return Err(append_secondary_error(
-                        append_secondary_error(
+                    return Err(append_secondary_message(
+                        append_secondary_message(
                             format!("导入视频已复制但首帧串联尾帧采集失败：{err}"),
                             cleanup_error,
                         ),

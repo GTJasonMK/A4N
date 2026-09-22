@@ -2,7 +2,7 @@ use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
 
 use super::super::contracts::ReusableFrameRowsQuery;
-use crate::video::prompts::records::{PromptWorkflowRowsContext, VideoExecutionIdentityMatch};
+use crate::video::prompts::records::PromptWorkflowRowsContext;
 
 pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame_rows_for_resume(
     query: ReusableFrameRowsQuery<'_>,
@@ -37,9 +37,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame
                 reference_ids,
                 generation_asset_fingerprint: Some(generation_asset_fingerprint),
                 source_prompt_type: Some(source_prompt_type),
-                video_execution_identity: VideoExecutionIdentityMatch::Segment(
-                    video_execution_identity,
-                ),
+                video_execution_identity,
             },
             prompt_output_language,
         )

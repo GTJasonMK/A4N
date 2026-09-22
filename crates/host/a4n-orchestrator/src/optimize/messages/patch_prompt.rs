@@ -6,13 +6,13 @@ use super::OptimizeIssue;
 use crate::optimize::permissions::optimization_agent_capabilities;
 use crate::optimize::{
     OPTIMIZATION_PATCH_MAX_COUNT, OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS,
-    OPTIMIZATION_PATCH_OLD_TEXT_MAX_CHARS, OptimizeAgentPermissions,
+    OPTIMIZATION_PATCH_OLD_TEXT_MAX_CHARS, OptimizationAgentPermissions,
 };
 
 pub(in crate::optimize) fn build_content_optimization_patch_user_message(
     base_content_hash: &str,
     issues: &[OptimizeIssue],
-    permissions: &OptimizeAgentPermissions,
+    permissions: &OptimizationAgentPermissions,
     agent_instruction: Option<&str>,
 ) -> Result<String, AppError> {
     let issue_values = issues

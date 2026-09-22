@@ -389,7 +389,7 @@ impl WorkerState {
             )));
         }
         let changed_at = chrono::Utc::now().naive_utc();
-        let outcome = a4n_db::project_reset::rollback_project_status_record(
+        let outcome = a4n_db::project::reset::rollback_project_status_record(
             self.database.connection(),
             project_id,
             from,
@@ -597,23 +597,23 @@ fn status_write_error(error: a4n_db::project::ProjectStatusWriteError) -> Worker
     }
 }
 
-fn project_reset_error(error: a4n_db::project_reset::ProjectResetDbError) -> WorkerFailure {
+fn project_reset_error(error: a4n_db::project::reset::ProjectResetDbError) -> WorkerFailure {
     match error {
-        a4n_db::project_reset::ProjectResetDbError::ProjectNotFound { project_id } => {
+        a4n_db::project::reset::ProjectResetDbError::ProjectNotFound { project_id } => {
             WorkerFailure::not_found(format!("项目不存在: {project_id}"))
         }
-        a4n_db::project_reset::ProjectResetDbError::InvalidArgument(message) => {
+        a4n_db::project::reset::ProjectResetDbError::InvalidArgument(message) => {
             WorkerFailure::invalid_request(message)
         }
-        a4n_db::project_reset::ProjectResetDbError::InvalidState { current, operation } => {
+        a4n_db::project::reset::ProjectResetDbError::InvalidState { current, operation } => {
             WorkerFailure::conflict(format!("状态 {current} 不允许{operation}"))
         }
-        a4n_db::project_reset::ProjectResetDbError::StatusChanged { expected, actual } => {
+        a4n_db::project::reset::ProjectResetDbError::StatusChanged { expected, actual } => {
             WorkerFailure::conflict(format!(
                 "项目状态已变化，请刷新后重试: expected={expected}, actual={actual}"
             ))
         }
-        a4n_db::project_reset::ProjectResetDbError::Database { source } => {
+        a4n_db::project::reset::ProjectResetDbError::Database { source } => {
             WorkerFailure::unavailable(source.to_string())
         }
         other => WorkerFailure::conflict(other.to_string()),

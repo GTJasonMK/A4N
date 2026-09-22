@@ -1,8 +1,6 @@
 use crate::AppState;
 use crate::actions::app_error_message;
-use crate::actions::video_generation::media::{
-    append_secondary_error, combine_optional_errors, delete_video_tail_frame_assets,
-};
+use crate::actions::video_generation::media::delete_video_tail_frame_assets;
 use crate::actions::video_records::{delete_video_record_cleanup_error, probe_video_properties};
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 use a4n_api_contract::video::{
@@ -10,6 +8,7 @@ use a4n_api_contract::video::{
 };
 use a4n_domain::media::{MEDIA_STATUS_CANCELLED, MEDIA_STATUS_COMPLETED, MEDIA_STATUS_FAILED};
 use a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED;
+use a4n_error::{append_secondary_message, combine_optional_errors};
 use a4n_media_contract::MediaRoot;
 use a4n_storage::canonicalize_data_file_path;
 use serde_json::Value;
@@ -99,7 +98,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                 cleanup_error,
                 delete_video_tail_frame_assets(state, record_id).await.err(),
             );
-            return Err(append_secondary_error(error, cleanup_error));
+            return Err(append_secondary_message(error, cleanup_error));
         }
     };
     match state
@@ -144,7 +143,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         }) => {
             let primary_error = format!("{failure_prefix}：{error}");
             if let Some(lookup_error) = lookup_error {
-                return Err(append_secondary_error(
+                return Err(append_secondary_message(
                     primary_error,
                     Some(format!(
                         "无法确认视频完成事务是否已提交，已保留文件等待重试：{}",
@@ -163,7 +162,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                     Some(&authoritative.summary),
                 )
                 .await;
-                return Err(append_secondary_error(primary_error, cleanup_error));
+                return Err(append_secondary_message(primary_error, cleanup_error));
             }
             let cleanup_error = enqueue_unadopted_video_file_cleanup(
                 state,
@@ -183,15 +182,15 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                     MEDIA_STATUS_FAILED | VIDEO_STATUS_INTERRUPTED | MEDIA_STATUS_CANCELLED
                 )
             }) {
-                return Err(append_secondary_error(primary_error, cleanup_error));
+                return Err(append_secondary_message(primary_error, cleanup_error));
             }
             let delete_error = delete_video_record_cleanup_error(
                 state.video_record_lifecycle_application(),
                 record_id,
             )
             .await;
-            Err(append_secondary_error(
-                append_secondary_error(primary_error, cleanup_error),
+            Err(append_secondary_message(
+                append_secondary_message(primary_error, cleanup_error),
                 delete_error,
             ))
         }

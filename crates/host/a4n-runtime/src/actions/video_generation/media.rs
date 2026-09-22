@@ -22,9 +22,9 @@ pub(crate) use self::tail_frames::{
     capture_video_tail_frame_asset, delete_video_tail_frame_assets,
 };
 pub(crate) use self::video_files::{
-    append_secondary_error, best_effort_video_thumbnail_path, combine_optional_errors,
-    ensure_chapter_videos_dir, ensure_project_videos_dir, persist_canvas_video_bytes,
-    remove_partial_video_file, run_ffmpeg_trim, save_video_bytes, trimmed_video_path,
+    best_effort_video_thumbnail_path, ensure_chapter_videos_dir, ensure_project_videos_dir,
+    persist_canvas_video_bytes, remove_partial_video_file, run_ffmpeg_trim, save_video_bytes,
+    trimmed_video_path,
 };
 
 #[cfg(test)]

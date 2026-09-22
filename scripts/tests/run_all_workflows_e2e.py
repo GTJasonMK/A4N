@@ -32,7 +32,8 @@ from run_cli_contract_e2e import (
     secure_json,
     start_provider,
 )
-from mock_openai_provider import chapter_body_response, chapter_visual_plan_fixture
+from mock_openai.fixtures.story import chapter_body_response
+from mock_openai.fixtures.media import chapter_visual_plan_fixture
 
 
 PROBE_ID = 999_999_999

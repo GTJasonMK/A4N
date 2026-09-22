@@ -501,7 +501,7 @@ impl OrchestratorContext {
             .as_ref()
             .map(|value| value.as_deref())
             .unwrap_or(prompt.negative_prompt.as_deref());
-        a4n_db::video_prompt::sync_chapter_video_prompt_metadata_after_update(
+        a4n_db::video::prompts::consistency::sync_chapter_video_prompt_metadata_after_update(
             &prompt.prompt_type,
             prompt.metadata_json.clone(),
             input

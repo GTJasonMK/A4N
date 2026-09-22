@@ -15,13 +15,9 @@ use crate::video::{
 use a4n_domain::prompt_language::PromptOutputLanguage;
 
 #[cfg(test)]
-use super::contracts::{PromptGenerationContext, PromptGenerationContextForWorkflow};
+use super::contracts::PromptGenerationContextForWorkflow;
 
-#[cfg(test)]
-pub(super) use assets::db_video_prompt_update_input;
 pub(in crate::video) use assets::video_generation_asset_fingerprint;
-#[cfg(test)]
-pub(super) use context::prompt_matches_generation_context;
 pub(super) use context::prompt_matches_generation_context_for_workflow;
 #[cfg(test)]
 use context::reference_ids_match;

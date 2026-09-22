@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use a4n_db::project_bundle::ProjectBundleHistoryRows;
+use a4n_db::project::bundle::ProjectBundleHistoryRows;
 use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use chrono::Utc;
@@ -358,7 +358,7 @@ fn hex_sha256(bytes: &[u8]) -> String {
 mod tests {
     use std::collections::BTreeMap;
 
-    use a4n_db::project_bundle::ProjectBundleHistoryRows;
+    use a4n_db::project::bundle::ProjectBundleHistoryRows;
 
     use super::{
         PROJECT_BUNDLE_PACKAGE_VERSION, ProjectBundlePackage, add_canvas_provider_slot,

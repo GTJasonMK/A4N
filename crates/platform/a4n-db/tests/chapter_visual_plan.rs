@@ -168,7 +168,7 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
         .to_string());
     deleting.update(&db).await.unwrap();
     assert!(
-        a4n_db::project_delete::delete_project_cascade_record(&db, media_project.id)
+        a4n_db::project::delete::delete_project_cascade_record(&db, media_project.id)
             .await
             .unwrap_err()
             .to_string()
