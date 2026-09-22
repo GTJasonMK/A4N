@@ -37,13 +37,25 @@ pub(super) async fn execute_agent_loop_decision_call(
         )
         .await?
     {
-        let (response, decision) = restored_agent_loop_decision(
+        let restored = restored_agent_loop_decision(
             checkpoint.parsed_output,
             checkpoint.response_content,
             checkpoint.usage,
             checkpoint.finish_reason,
             call_key,
-        )?;
+        )
+        .and_then(|(response, decision)| {
+            validate_decision(request, &decision)?;
+            Ok((response, decision))
+        });
+        let (response, decision) = context
+            .validate_llm_call_output(
+                request.workflow_run_id,
+                call_key,
+                input_fingerprint_json,
+                restored,
+            )
+            .await?;
         if let Some(execution) = &execution
             && (execution.status != "succeeded"
                 || execution.result_json.as_ref()
@@ -95,14 +107,8 @@ pub(super) async fn execute_agent_loop_decision_call(
                     .ok_or_else(|| AppError::InvalidArgument("内容优化模型缺少持久回执".into()))?,
             )
             .map_err(AppError::from)?;
-            let decision = parse_agent_loop_decision(
-                context,
-                turn_id,
-                session_id,
-                request,
-                &response.message.content,
-            )
-            .await?;
+            let decision =
+                parse_agent_loop_decision(context, turn_id, session_id, request, &response).await?;
             generation
                 .publisher
                 .text_delta("raw_json", &response.message.content)
@@ -190,27 +196,22 @@ pub(super) async fn execute_agent_loop_decision_call(
     } else {
         false
     };
+    let decision = if missing_usage {
+        Err(AppError::InvalidArgument(
+            "模型缺少 usage，无法核实 Agent token 预算".into(),
+        ))
+    } else {
+        parse_agent_loop_decision(context, turn_id, session_id, request, &response).await
+    };
     record_model_execution(
         context,
         generation,
         execution.as_ref(),
         Some(serde_json::to_value(&response).map_err(AppError::from)?),
-        missing_usage.then(|| "模型缺少 usage，无法核实 Agent token 预算".into()),
+        decision.as_ref().err().map(ToString::to_string),
     )
     .await?;
-    if missing_usage {
-        return Err(
-            AppError::InvalidArgument("模型缺少 usage，无法核实 Agent token 预算".into()).into(),
-        );
-    }
-    let decision = parse_agent_loop_decision(
-        context,
-        turn_id,
-        session_id,
-        request,
-        &response.message.content,
-    )
-    .await?;
+    let decision = decision?;
     Ok(AgentDecisionCallResult {
         response,
         decision,
@@ -223,9 +224,12 @@ async fn parse_agent_loop_decision(
     turn_id: i64,
     session_id: i64,
     request: &AgentLoopDecisionRequest<'_>,
-    raw_response: &str,
+    response: &ChatResponse,
 ) -> Result<AgentLoopDecision, AppError> {
-    let decision = parse_agent_loop_decision_response(raw_response);
+    let decision =
+        a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())
+            .and_then(|()| parse_agent_loop_decision_response(&response.message.content))
+            .and_then(|decision| validate_decision(request, &decision).map(|()| decision));
     match decision {
         Ok(decision) => Ok(decision),
         Err(err) => {
@@ -249,5 +253,19 @@ async fn parse_agent_loop_decision(
                 .await?;
             Err(err)
         }
+    }
+}
+
+fn validate_decision(
+    request: &AgentLoopDecisionRequest<'_>,
+    decision: &AgentLoopDecision,
+) -> Result<(), AppError> {
+    use crate::optimize::agent_loop::{AgentLoopAction, run_tool_arguments, thinking_observation};
+    match decision.action {
+        AgentLoopAction::Think => {
+            thinking_observation(request.step, &decision.thought, &decision.arguments).map(drop)
+        }
+        AgentLoopAction::RunTool => run_tool_arguments(&decision.arguments).map(drop),
+        AgentLoopAction::Final => (request.validate_final)(&decision.arguments),
     }
 }

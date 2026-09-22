@@ -15,6 +15,10 @@ pub(super) async fn run_branch_design_stage(
     execution: &GalgamePipelineExecution<'_>,
     scenes_json: &Value,
 ) -> Result<(Value, GalgameBranchDesign, usize), AppError> {
+    let scenes = crate::galgame::shooting_script_projection_from_value(
+        scenes_json.clone(),
+        "branch_design input",
+    )?;
     let stage = GalgamePipelineStartStage::BranchDesign;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
@@ -50,6 +54,7 @@ pub(super) async fn run_branch_design_stage(
             },
             |value| {
                 let parsed = branch_design_from_value(value, "galgame_branch_design")?;
+                crate::galgame::pipeline_persist::validate_galgame_branch_design(&parsed, &scenes)?;
                 serde_json::to_value(parsed).map_err(AppError::Serialization)
             },
         )

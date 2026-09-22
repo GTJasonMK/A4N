@@ -32,6 +32,22 @@ pub(super) async fn run_visual_anchor_stage(
             temperature: 0.3,
         })
         .await?;
+    let visual_json =
+        parse_and_validate_manga_llm_output(context.service, &visual_trace, |value| {
+            validate_manga_visual_anchor_source_span_ids(
+                value,
+                &context.source_spans,
+                &crate::manga::shooting_script_projection::manga_beat_refs(
+                    &context.shooting_script.script,
+                ),
+            )?;
+            Ok(value.clone())
+        })
+        .await?;
+    context
+        .service
+        .save_or_validate_manga_llm_checkpoint(&visual_trace, &visual_json)
+        .await?;
     context
         .service
         .report_pipeline_llm_usage(
@@ -41,14 +57,6 @@ pub(super) async fn run_visual_anchor_stage(
             context.task_id,
             &visual_trace,
         )
-        .await?;
-    let visual_json = parse_and_validate_manga_llm_output(&visual_trace, |value| {
-        validate_manga_visual_anchor_source_span_ids(value, &context.source_spans)?;
-        Ok(value.clone())
-    })?;
-    context
-        .service
-        .save_or_validate_manga_llm_checkpoint(&visual_trace, &visual_json)
         .await?;
     context
         .advance_stage(MangaPipelineStage::ItemExtraction)

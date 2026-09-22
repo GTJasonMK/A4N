@@ -33,6 +33,23 @@ pub(super) async fn run_item_extraction_stage(
             temperature: 0.3,
         })
         .await?;
+    let allowed_source_span_ids = manga_item_available_source_span_ids(speech_json, visual_json)?;
+    let items_json = parse_and_validate_manga_llm_output(context.service, &items_trace, |value| {
+        validate_manga_item_extraction_source_span_ids(
+            value,
+            &context.source_spans,
+            &allowed_source_span_ids,
+            &crate::manga::shooting_script_projection::manga_beat_refs(
+                &context.shooting_script.script,
+            ),
+        )?;
+        Ok(value.clone())
+    })
+    .await?;
+    context
+        .service
+        .save_or_validate_manga_llm_checkpoint(&items_trace, &items_json)
+        .await?;
     context
         .service
         .report_pipeline_llm_usage(
@@ -42,19 +59,6 @@ pub(super) async fn run_item_extraction_stage(
             context.task_id,
             &items_trace,
         )
-        .await?;
-    let allowed_source_span_ids = manga_item_available_source_span_ids(speech_json, visual_json)?;
-    let items_json = parse_and_validate_manga_llm_output(&items_trace, |value| {
-        validate_manga_item_extraction_source_span_ids(
-            value,
-            &context.source_spans,
-            &allowed_source_span_ids,
-        )?;
-        Ok(value.clone())
-    })?;
-    context
-        .service
-        .save_or_validate_manga_llm_checkpoint(&items_trace, &items_json)
         .await?;
     context
         .advance_stage(MangaPipelineStage::ComicSynthesis)

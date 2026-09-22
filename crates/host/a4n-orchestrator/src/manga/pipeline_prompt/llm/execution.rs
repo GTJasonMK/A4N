@@ -99,13 +99,26 @@ impl OrchestratorContext {
     }
 }
 
-pub(in crate::manga) fn parse_and_validate_manga_llm_output<F, T>(
+pub(in crate::manga) async fn parse_and_validate_manga_llm_output<F, T>(
+    service: &OrchestratorContext,
     trace: &MangaPromptGenerationTrace,
     validate: F,
 ) -> Result<T, AppError>
 where
     F: FnOnce(&Value) -> Result<T, AppError>,
 {
-    let parsed = parse_strict_json_response::<Value>(&trace.response_text, &trace.prompt_name)?;
-    validate(&parsed)
+    let output = parse_strict_json_response::<Value>(&trace.response_text, &trace.prompt_name)
+        .and_then(|parsed| validate(&parsed));
+    if trace.restored_parsed_output.is_some() {
+        service
+            .validate_llm_call_output(
+                trace.workflow_run_id,
+                &trace.call_key,
+                &trace.input_fingerprint_json,
+                output,
+            )
+            .await
+    } else {
+        output
+    }
 }

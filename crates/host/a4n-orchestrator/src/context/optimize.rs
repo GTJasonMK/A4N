@@ -4,7 +4,7 @@
 //! 分析/对话/补丁编排仍在 `optimize/` 模块，但 DB 只经本 owner。
 
 use a4n_db::DbHandle;
-use a4n_db::optimize::{OptimizationChapterPatchWriteInput, OptimizationSessionMessageInsertInput};
+use a4n_db::optimize::OptimizationSessionMessageInsertInput;
 use a4n_db_models::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_session_message,
     optimization_turn, optimization_turn_event,
@@ -91,18 +91,6 @@ impl OptimizeApplication {
         a4n_db::optimize::optimization_chapter_by_id(self.database.connection(), chapter_id)
             .await
             .map_err(optimize_db_error)
-    }
-
-    async fn write_optimization_chapter_patch_content(
-        &self,
-        input: OptimizationChapterPatchWriteInput,
-    ) -> Result<chapter::Model, AppError> {
-        a4n_db::optimize::write_optimization_chapter_patch_content(
-            self.database.connection(),
-            input,
-        )
-        .await
-        .map_err(optimize_db_error)
     }
 
     async fn optimization_patch_sets(
@@ -210,15 +198,6 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<Option<chapter::Model>, AppError> {
         self.optimize.optimization_chapter_by_id(chapter_id).await
-    }
-
-    pub(crate) async fn write_optimization_chapter_patch_content(
-        &self,
-        input: OptimizationChapterPatchWriteInput,
-    ) -> Result<chapter::Model, AppError> {
-        self.optimize
-            .write_optimization_chapter_patch_content(input)
-            .await
     }
 
     pub(crate) async fn matching_pending_optimization_patch_sets(

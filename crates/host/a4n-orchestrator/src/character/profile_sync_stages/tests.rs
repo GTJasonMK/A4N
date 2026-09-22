@@ -25,9 +25,7 @@ use super::{
         CharacterProfileSyncStage, CharacterProfileSyncStageInput,
         CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
     },
-    output::{
-        parse_character_profile_sync_stage_output, validate_character_profile_sync_extraction,
-    },
+    output::parse_character_profile_sync_stage_output,
     request::{
         CHARACTER_PROFILE_SYNC_SESSION_PROMPT, build_character_profile_sync_stage_request,
         character_profile_sync_stage_contract,
@@ -358,9 +356,9 @@ async fn preview_only_prepares_the_real_initial_request() {
 
 #[tokio::test]
 async fn application_persists_restores_and_revalidates_all_stage_checkpoints() {
-    let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(
-        canonical_stage_responses(),
-    ));
+    let mut responses = canonical_stage_responses();
+    responses.push(responses[0].clone());
+    let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(responses));
     let (database, context) = setup_context(provider.clone()).await;
     let workflow_run_id = create_workflow(&database).await;
     let trace_port = TestTracePort::default();
@@ -444,7 +442,7 @@ async fn application_persists_restores_and_revalidates_all_stage_checkpoints() {
         .expect("checkpoint tamper setup should succeed");
 
     let error = context
-        .run_character_profile_sync_stages_validated(input, &TestPromptRenderer, None, None)
+        .run_character_profile_sync_stages_validated(input.clone(), &TestPromptRenderer, None, None)
         .await
         .expect_err("mismatched parsed output must fail");
     assert!(
@@ -453,6 +451,25 @@ async fn application_persists_restores_and_revalidates_all_stage_checkpoints() {
             .contains("checkpoint_parsed_output_mismatch")
     );
     assert_eq!(provider.captured_user_messages().len(), 5);
+    let rejected = workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::Status.eq("failed"))
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .expect("invalid checkpoint must no longer be completed");
+    assert!(
+        rejected
+            .error_message
+            .unwrap()
+            .contains("checkpoint_parsed_output_mismatch")
+    );
+    assert!(rejected.checkpoint_json.unwrap()["response_content"].is_string());
+    context
+        .run_character_profile_sync_stages_validated(input, &TestPromptRenderer, None, None)
+        .await
+        .expect("retry must regenerate only the rejected call");
+    assert_eq!(provider.captured_user_messages().len(), 6);
 }
 
 #[tokio::test]
@@ -522,31 +539,63 @@ fn output_rejects_unknown_fields_and_invalid_anchor_contracts() {
 }
 
 #[test]
-fn extraction_materializes_anchor_evidence_and_validates_projection() {
+fn stage_materializes_evidence_without_changing_checkpoint_contract() {
     let input = stage_input(Some(1));
-    let extraction = validate_character_profile_sync_extraction(
-        super::contracts::CharacterProfileSyncExtraction {
-            changes: vec![json!({
-                "chapter_number": 1,
-                "category": "explicit",
-                "key": "位置",
-                "operation": "modify",
-                "new_value": "巷口",
-                "change_description": "移动",
-                "event_cause": "保护少女",
-                "evidence_anchor_id": 11
-            })],
-            behaviors: Vec::new(),
-            deletion_candidates: Vec::new(),
-            chapter_states: Vec::new(),
-        },
+    let mut outputs = super::contracts::CharacterProfileSyncStageOutputs::default();
+    let saved = parse_character_profile_sync_stage_output(
+        CharacterProfileSyncStage::AttributeChanges,
+        &canonical_stage_responses()[1],
         &input,
+        &mut outputs,
     )
-    .expect("canonical extraction should materialize evidence");
+    .expect("validated call should materialize evidence");
+    assert_eq!(saved["attribute_changes"][0]["evidence_anchor_id"], 11);
     assert_eq!(
-        extraction.changes[0]["evidence"],
+        outputs.changes[0]["evidence"],
         json!("林夏停在巷口观察后，快步挡在少女身前。")
     );
+}
+
+#[tokio::test]
+async fn invalid_stage_stops_calls_and_retry_reuses_completed_calls() {
+    for (stage_index, root_field, invalid_field, invalid_value) in [
+        (1, "attribute_changes", "evidence_anchor_id", json!(999)),
+        (3, "behaviors", "original_text_anchor_id", json!(999)),
+    ] {
+        let canonical = canonical_stage_responses();
+        let mut responses = canonical[..=stage_index].to_vec();
+        let mut invalid: Value = serde_json::from_str(&responses[stage_index]).unwrap();
+        invalid[root_field][0][invalid_field] = invalid_value;
+        responses[stage_index] = invalid.to_string();
+        responses.extend_from_slice(&canonical[stage_index..]);
+        let provider = Arc::new(CapturingSequenceLlmProvider::new_owned(responses));
+        let (database, context) = setup_context(provider.clone()).await;
+        let workflow_run_id = create_workflow(&database).await;
+        let input = stage_input(Some(workflow_run_id));
+
+        context
+            .run_character_profile_sync_stages_validated(
+                input.clone(),
+                &TestPromptRenderer,
+                None,
+                None,
+            )
+            .await
+            .expect_err("invalid call must stop the pipeline");
+        assert_eq!(provider.captured_user_messages().len(), stage_index + 1);
+        let checkpoints = workflow_checkpoint::Entity::find()
+            .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+            .all(database.as_ref())
+            .await
+            .unwrap();
+        assert_eq!(checkpoints.len(), stage_index);
+
+        context
+            .run_character_profile_sync_stages_validated(input, &TestPromptRenderer, None, None)
+            .await
+            .expect("retry must reuse valid calls and regenerate the failed call");
+        assert_eq!(provider.captured_user_messages().len(), 6);
+    }
 }
 
 #[test]

@@ -65,6 +65,7 @@ pub(in crate::optimize) struct AgentLoopDecisionRequest<'a> {
     pub(in crate::optimize) build_error_label: &'a str,
     pub(in crate::optimize) request_event_label: &'a str,
     pub(in crate::optimize) parse_error_label: &'a str,
+    pub(in crate::optimize) validate_final: &'a (dyn Fn(&Value) -> Result<(), AppError> + Sync),
     pub(in crate::optimize) workflow_run_id: i64,
     pub(in crate::optimize) generation: &'a AgentLoopGenerationContext<'a>,
 }

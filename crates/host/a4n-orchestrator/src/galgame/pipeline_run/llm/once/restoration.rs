@@ -31,6 +31,14 @@ where
         &input.step_key,
         input.prompt_name,
         validate,
-    )?;
+    );
+    let restored = service
+        .validate_llm_call_output(
+            input.workflow_run_id,
+            &input.step_key,
+            &prepared.fingerprint_json,
+            restored,
+        )
+        .await?;
     Ok(Some(restored))
 }

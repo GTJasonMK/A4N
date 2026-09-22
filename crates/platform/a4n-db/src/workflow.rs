@@ -93,8 +93,8 @@ pub(in crate::workflow) use llm_checkpoint::validate_completed_llm_call_checkpoi
 pub use llm_checkpoint::{
     CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
     completed_llm_call_checkpoint_from_model, llm_call_checkpoint_fingerprint_sha256,
-    load_completed_llm_call_checkpoint, required_llm_call_workflow_run_id,
-    save_completed_llm_call_checkpoint,
+    load_completed_llm_call_checkpoint, reject_completed_llm_call_checkpoint,
+    required_llm_call_workflow_run_id, save_completed_llm_call_checkpoint,
 };
 
 // ── LLM call level checkpoint 合同（阶段 11 收口） ──────────────────────────

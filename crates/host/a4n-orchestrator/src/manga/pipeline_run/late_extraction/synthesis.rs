@@ -49,6 +49,16 @@ pub(super) async fn run_comic_synthesis_stage(
             temperature: 0.3,
         })
         .await?;
+    let synthesis_json =
+        parse_and_validate_manga_llm_output(context.service, &comic_synthesis_trace, |value| {
+            validate_manga_chapter_comic_synthesis(value)?;
+            Ok(value.clone())
+        })
+        .await?;
+    context
+        .service
+        .save_or_validate_manga_llm_checkpoint(&comic_synthesis_trace, &synthesis_json)
+        .await?;
     context
         .service
         .report_pipeline_llm_usage(
@@ -58,14 +68,6 @@ pub(super) async fn run_comic_synthesis_stage(
             context.task_id,
             &comic_synthesis_trace,
         )
-        .await?;
-    let synthesis_json = parse_and_validate_manga_llm_output(&comic_synthesis_trace, |value| {
-        validate_manga_chapter_comic_synthesis(value)?;
-        Ok(value.clone())
-    })?;
-    context
-        .service
-        .save_or_validate_manga_llm_checkpoint(&comic_synthesis_trace, &synthesis_json)
         .await?;
     context
         .advance_stage(MangaPipelineStage::PagePlanning)

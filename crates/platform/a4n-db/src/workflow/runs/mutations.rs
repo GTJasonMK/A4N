@@ -127,32 +127,19 @@ pub async fn resume_or_upsert_workflow_run(
             operation: "重复启动同一工作流".to_string(),
         });
     }
-    let checkpoint_source = match existing.filter(|existing| {
+    if let Some(existing) = existing.filter(|existing| {
         existing.workflow_kind == input.workflow_kind
             && workflow_fingerprint_matches(
                 existing.input_fingerprint_json.as_ref(),
                 input.input_fingerprint_json.as_ref(),
             )
+            && should_resume_existing_run(existing, &input.status)
     }) {
-        Some(existing) if should_resume_existing_run(&existing, &input.status) => {
-            let run = resume_workflow_run_model_in_transaction(&tx, existing, input).await?;
-            tx.commit().await.map_err(WorkflowWriteError::Database)?;
-            return Ok(run);
-        }
-        Some(existing)
-            if existing.status == WORKFLOW_STATUS_CANCELLED
-                && input.status == WORKFLOW_STATUS_RUNNING
-                && input.can_resume =>
-        {
-            Some(existing.id)
-        }
-        _ => None,
-    };
-    let run = upsert_workflow_run_in_transaction(&tx, input).await?;
-    if let Some(source_id) = checkpoint_source {
-        // 旧运行保持取消，阻止晚到写入；新尝试只复用已完成、输入相同的模型调用。
-        inherit_completed_llm_call_checkpoints(&tx, source_id, run.id).await?;
+        let run = resume_workflow_run_model_in_transaction(&tx, existing, input).await?;
+        tx.commit().await.map_err(WorkflowWriteError::Database)?;
+        return Ok(run);
     }
+    let run = upsert_workflow_run_in_transaction(&tx, input).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
 }
@@ -244,6 +231,22 @@ pub async fn upsert_workflow_run_in_transaction(
             .map_err(WorkflowWriteError::Database);
     }
 
+    let checkpoint_source = existing
+        .as_ref()
+        .filter(|previous| {
+            input.status == WORKFLOW_STATUS_RUNNING
+                && input.can_resume
+                && matches!(
+                    previous.status.as_str(),
+                    WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_CANCELLED
+                )
+                && previous.workflow_kind == input.workflow_kind
+                && workflow_fingerprint_matches(
+                    previous.input_fingerprint_json.as_ref(),
+                    input.input_fingerprint_json.as_ref(),
+                )
+        })
+        .map(|previous| previous.id);
     if let Some(existing) = existing
         && !is_terminal_workflow_status(&existing.status)
     {
@@ -260,7 +263,7 @@ pub async fn upsert_workflow_run_in_transaction(
             .map_err(WorkflowWriteError::Database)?;
     }
 
-    workflow_run::ActiveModel {
+    let run = workflow_run::ActiveModel {
         id: NotSet,
         business_key: Set(input.business_key),
         workflow_kind: Set(input.workflow_kind),
@@ -285,7 +288,12 @@ pub async fn upsert_workflow_run_in_transaction(
     }
     .insert(tx)
     .await
-    .map_err(WorkflowWriteError::Database)
+    .map_err(WorkflowWriteError::Database)?;
+    if let Some(source_id) = checkpoint_source {
+        // 新尝试保留独立运行记录；恢复资源的粒度始终是已完成的模型调用。
+        inherit_completed_llm_call_checkpoints(tx, source_id, run.id).await?;
+    }
+    Ok(run)
 }
 
 pub async fn mark_workflow_status(

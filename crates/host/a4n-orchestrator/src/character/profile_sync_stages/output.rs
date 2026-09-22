@@ -5,11 +5,13 @@ mod validation;
 use a4n_domain::json_contract::reject_unknown_fields;
 use serde_json::{Value, json};
 
-use crate::character::{required_array, required_i32_at, required_string, required_string_array};
+use crate::character::{
+    project_character_attribute_changes, required_array, required_i32_at, required_string,
+    required_string_array,
+};
 
 use super::contracts::{
-    CharacterProfileSyncExtraction, CharacterProfileSyncStage, CharacterProfileSyncStageInput,
-    CharacterProfileSyncStageOutputs,
+    CharacterProfileSyncStage, CharacterProfileSyncStageInput, CharacterProfileSyncStageOutputs,
 };
 use evidence::{
     ChapterEvidenceIndex, ensure_stage_anchor_exists, validate_sync_evidence_against_chapters,
@@ -17,8 +19,7 @@ use evidence::{
 use validation::{
     chapter_state_drafts, chapter_state_drafts_json, sort_sync_items_by_chapter,
     validate_attribute_change, validate_behavior, validate_chapter_state,
-    validate_deletion_candidate, validate_materialized_character_sync_projection,
-    validate_sync_item_chapters, validate_unique_deletion_candidates,
+    validate_deletion_candidate, validate_sync_item_chapters, validate_unique_deletion_candidates,
 };
 
 pub(super) fn parse_character_profile_sync_stage_output(
@@ -39,36 +40,47 @@ pub(super) fn parse_character_profile_sync_stage_output(
             Ok(json!({ "events": outputs.evidence_events }))
         }
         CharacterProfileSyncStage::AttributeChanges => {
-            outputs.changes = parse_sync_attribute_changes(&value, input)?;
-            Ok(json!({ "attribute_changes": outputs.changes }))
+            let mut changes = parse_sync_attribute_changes(&value, input)?;
+            let stage_output = json!({ "attribute_changes": changes });
+            validate_sync_evidence_against_chapters(
+                &mut changes,
+                &mut [],
+                &mut [],
+                &input.chapter_data,
+            )?;
+            project_character_attribute_changes(input.baseline_state.clone(), &changes)?;
+            outputs.changes = changes;
+            Ok(stage_output)
         }
         CharacterProfileSyncStage::ChapterStates => {
             outputs.chapter_states = parse_sync_chapter_states(&value, input)?;
             Ok(json!({ "chapter_states": chapter_state_drafts_json(&outputs.chapter_states) }))
         }
         CharacterProfileSyncStage::BehaviorRecords => {
-            outputs.behaviors = parse_sync_behaviors(&value, input)?;
-            Ok(json!({ "behaviors": outputs.behaviors }))
+            let mut behaviors = parse_sync_behaviors(&value, input)?;
+            let stage_output = json!({ "behaviors": behaviors });
+            validate_sync_evidence_against_chapters(
+                &mut [],
+                &mut behaviors,
+                &mut [],
+                &input.chapter_data,
+            )?;
+            outputs.behaviors = behaviors;
+            Ok(stage_output)
         }
         CharacterProfileSyncStage::DeletionCandidates => {
-            outputs.deletion_candidates = parse_sync_deletion_candidates(&value, input)?;
-            Ok(json!({ "deletion_candidates": outputs.deletion_candidates }))
+            let mut candidates = parse_sync_deletion_candidates(&value, input)?;
+            let stage_output = json!({ "deletion_candidates": candidates });
+            validate_sync_evidence_against_chapters(
+                &mut [],
+                &mut [],
+                &mut candidates,
+                &input.chapter_data,
+            )?;
+            outputs.deletion_candidates = candidates;
+            Ok(stage_output)
         }
     }
-}
-
-pub(super) fn validate_character_profile_sync_extraction(
-    mut extraction: CharacterProfileSyncExtraction,
-    input: &CharacterProfileSyncStageInput,
-) -> Result<CharacterProfileSyncExtraction, String> {
-    validate_sync_evidence_against_chapters(
-        &mut extraction.changes,
-        &mut extraction.behaviors,
-        &mut extraction.deletion_candidates,
-        &input.chapter_data,
-    )?;
-    validate_materialized_character_sync_projection(&extraction, &input.baseline_state)?;
-    Ok(extraction)
 }
 
 fn parse_sync_evidence_events(

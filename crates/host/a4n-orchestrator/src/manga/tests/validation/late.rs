@@ -27,6 +27,7 @@ fn validate_manga_visual_anchor_source_span_ids_accepts_known_ids() {
             }]
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect("known source span ids should pass");
 }
@@ -50,6 +51,7 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_missing_or_unknown_id() 
             }]
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("missing source span ids must fail");
     assert!(missing.to_string().contains("source_span_ids"));
@@ -71,6 +73,7 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_missing_or_unknown_id() 
             }]
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("unknown source span ids must fail");
     assert!(unknown.to_string().contains("source_span_ids"));
@@ -104,6 +107,7 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_invalid_beat_refs() {
             }]
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("beat_refs must contain typed refs");
     assert!(
@@ -133,6 +137,7 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_invalid_beat_refs() {
             }]
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("duplicate beat_refs must fail");
     assert!(duplicate.to_string().contains("重复拍摄节拍引用"));
@@ -163,6 +168,7 @@ fn validate_manga_item_extraction_source_span_ids_accepts_known_allowed_ids() {
         }),
         &source_spans,
         &allowed_source_span_ids,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect("known allowed source span ids should pass");
 }
@@ -196,6 +202,7 @@ fn validate_manga_item_extraction_source_span_ids_rejects_missing_unknown_or_dis
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("missing source span ids must fail");
     assert!(missing.to_string().contains("source_span_ids"));
@@ -214,6 +221,7 @@ fn validate_manga_item_extraction_source_span_ids_rejects_missing_unknown_or_dis
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("unknown source span ids must fail");
     assert!(unknown.to_string().contains("source_span_ids"));
@@ -233,6 +241,7 @@ fn validate_manga_item_extraction_source_span_ids_rejects_missing_unknown_or_dis
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("source span ids outside available candidates must fail");
     assert!(disallowed.to_string().contains("available_source_span_ids"));
@@ -262,6 +271,7 @@ fn validate_manga_item_extraction_source_span_ids_rejects_invalid_first_appearan
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("first_appearance_beat_ref must be typed");
 

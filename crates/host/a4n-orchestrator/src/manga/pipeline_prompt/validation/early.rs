@@ -31,6 +31,7 @@ pub(in crate::manga) fn validate_manga_character_binding_source_span_ids(
 pub(in crate::manga) fn validate_manga_speech_selection_source_span_ids(
     speech_json: &Value,
     source_spans: &[SourceSpan],
+    known_beats: &std::collections::HashSet<(i64, i64, i64)>,
 ) -> Result<(), AppError> {
     reject_manga_unknown_fields(
         speech_json,
@@ -38,8 +39,8 @@ pub(in crate::manga) fn validate_manga_speech_selection_source_span_ids(
         "manga_speech_selection",
     )?;
     let source_spans = SourceSpanIndex::new(source_spans);
-    validate_speech_array(speech_json, &source_spans, "dialogues")?;
-    validate_speech_array(speech_json, &source_spans, "narrations")?;
+    validate_speech_array(speech_json, &source_spans, "dialogues", known_beats)?;
+    validate_speech_array(speech_json, &source_spans, "narrations", known_beats)?;
     Ok(())
 }
 
@@ -47,6 +48,7 @@ fn validate_speech_array(
     speech_json: &Value,
     source_spans: &SourceSpanIndex<'_>,
     field: &str,
+    known_beats: &std::collections::HashSet<(i64, i64, i64)>,
 ) -> Result<(), AppError> {
     let context = "manga_speech_selection";
     let items = speech_json
@@ -121,6 +123,7 @@ fn validate_speech_array(
         validate_manga_beat_ref(
             item.get("beat_ref"),
             &format!("{context}.{field}[{index}].beat_ref"),
+            known_beats,
         )?;
     }
     Ok(())

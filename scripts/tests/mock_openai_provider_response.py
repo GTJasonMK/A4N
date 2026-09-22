@@ -23,6 +23,7 @@ from mock_openai_fixture_adaptations import (
     manga_visual_anchor_response,
 )
 from mock_openai_fixture_entities import (
+    source_span_id,
     character_discovery_response,
     character_sync_attribute_changes_response,
     character_sync_behaviors_response,
@@ -70,6 +71,55 @@ from mock_openai_fixture_reverse import agent_chat_fixture
 from mock_openai_prompt_parsing import current_task_prompt_name
 from mock_openai_provider_protocol import UnhandledPromptError
 def response_for(body: dict[str, Any]) -> str:
+    model = str(body.get("model", ""))
+    if model.startswith("a4n-checkpoint-"):
+        raw = response_for({**body, "model": "a4n-virtual-text"})
+        value = json.loads(raw)
+        fault = model.removeprefix("a4n-checkpoint-fail-")
+        combined = "\n".join(message_text(message.get("content", "")) for message in body["messages"])
+        if value.get("schema_version") == "screenplay_unit_adaptation_v1":
+            for fact in value["performance_facts"]:
+                fact["source_span_ids"] = [source_span_id(combined, "进入地下机房", 0)]
+        if "patches" in value:
+            from mock_openai_fixture_reverse import embedded_json_objects
+            content = next((item.get("content") for item in embedded_json_objects(combined)
+                            if item.get("kind") == "chapter_content"), None)
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("checkpoint patch fixture requires the actual chapter content")
+            old_text = next(line for line in content.splitlines() if line.strip())
+            if content.count(old_text) != 1:
+                raise ValueError("checkpoint patch fixture requires unique original text")
+            value["patches"][0]["old_text"] = old_text
+            value["patches"][0]["new_text"] = old_text + "林岚把信封攥得更紧。"
+        if fault == "shooting-layout" and value.get("schema_version") == "screenplay_layout_unit_detail_v1":
+            value["slugline"] = " "
+        elif fault == "shooting-adaptation" and value.get("schema_version") == "screenplay_unit_adaptation_v1":
+            value["performance_facts"][0]["actor"] = "不在参与者中的角色"
+        elif fault == "shooting-design" and "shots" in value:
+            value["shots"][0]["lens_intent"] = " "
+        elif fault == "blueprint-characters" and isinstance(value.get("characters"), list):
+            value["characters"].append(value["characters"][0].copy())
+        elif fault == "galgame-branch" and "choices" in value:
+            value["choices"][0]["after_beat_ref"]["beat_index"] = 999
+        elif fault == "galgame-script" and "scene_lines" in value and "presentation" not in value["scene_lines"][0]["lines"][0]:
+            value["scene_lines"][0]["lines"][0]["beat_ref"]["beat_index"] = 999
+        elif fault == "galgame-staging" and "scene_lines" in value and "presentation" in value["scene_lines"][0]["lines"][0]:
+            value["scene_lines"][0]["lines"][0]["text"] = "未经允许改写的剧情"
+        elif fault == "galgame-visual" and "backgrounds" in value:
+            value["backgrounds"][0]["scene_index"] = 999
+        elif fault == "manga-speech" and "dialogues" in value:
+            (value["dialogues"] or value["narrations"])[0]["beat_ref"]["beat_index"] = 999
+        elif fault == "manga-visual" and "scenes" in value:
+            value["scenes"][0]["beat_refs"][0]["beat_index"] = 999
+        elif fault == "manga-items" and "items" in value:
+            value["items"][0]["first_appearance_beat_ref"]["beat_index"] = 999
+        elif fault == "manga-optimization" and "image_prompt" in value:
+            value["image_prompt"] = " "
+        elif fault == "optimization-final" and value.get("action") == "final" and "issues" in value.get("arguments", {}):
+            value["arguments"]["issues"][0]["arguments"]["evidence_span_id"] = "missing-span"
+        elif fault == "optimization-patch" and "patches" in value:
+            value["patches"][0]["old_text"] = "该文本并不存在于输入章节"
+        return json.dumps(value, ensure_ascii=False)
     messages = body.get("messages") or []
     combined = "\n".join(message_text(message.get("content", "")) for message in messages)
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):

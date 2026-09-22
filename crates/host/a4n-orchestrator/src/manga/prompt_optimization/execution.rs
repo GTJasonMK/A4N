@@ -5,10 +5,16 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, is_truncated_finish_reason};
 use a4n_prompt::rendering::PromptRenderer;
 use serde::Deserialize;
+use serde_json::Value;
 
 use crate::{
-    OrchestratorContext, manga::ensure_manga_source_can_write,
-    structured_llm::parse_strict_json_response,
+    OrchestratorContext,
+    manga::ensure_manga_source_can_write,
+    structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response},
+    workflow::{
+        CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, UpsertWorkflowRunInput,
+        WORKFLOW_STATUS_RUNNING,
+    },
 };
 
 use super::{
@@ -16,7 +22,7 @@ use super::{
         MangaPromptOptimizationInput, PreparedMangaPromptOptimization,
         RequiredMangaPromptOptimizationInput,
     },
-    request::build_manga_prompt_optimization_request,
+    request::{build_manga_prompt_optimization_request, manga_prompt_optimization_call_key},
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -35,7 +41,32 @@ impl OrchestratorContext {
         let prepared = self
             .prepare_manga_prompt_optimization(input, prompt_renderer)
             .await?;
-        self.execute_manga_prompt_optimization(prepared, cleanup_port)
+        let fingerprint = a4n_llm_trace::context_aware_chat_request_trace_json(&prepared.request)?;
+        let call_key = manga_prompt_optimization_call_key(prepared.page_prompt.id);
+        let workflow = self
+            .begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
+                business_key: format!("manga_prompt_optimization:{}", prepared.page_prompt.id),
+                workflow_kind: "manga_prompt_optimization".into(),
+                project_id: Some(prepared.page_prompt.project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                scope_table: Some("chapter_manga_prompt".into()),
+                scope_id: Some(prepared.page_prompt.id),
+                chapter_id: Some(prepared.page_prompt.chapter_id),
+                mode: None,
+                input_fingerprint_json: Some(fingerprint.clone()),
+                status: WORKFLOW_STATUS_RUNNING.into(),
+                current_step_key: Some(call_key),
+                active_task_id: None,
+                can_resume: true,
+                resume_block_reason: None,
+                error_message: None,
+            })
+            .await?;
+        let result = self
+            .execute_manga_prompt_optimization(workflow.id, &fingerprint, prepared, cleanup_port)
+            .await;
+        self.finalize_workflow_result(workflow.id, result, "漫画提示词优化")
             .await
     }
 
@@ -68,11 +99,18 @@ impl OrchestratorContext {
 
     async fn execute_manga_prompt_optimization(
         &self,
+        workflow_run_id: i64,
+        fingerprint: &Value,
         prepared: PreparedMangaPromptOptimization,
         cleanup_port: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<chapter_manga_prompt::Model, AppError> {
         let image_prompt = self
-            .run_manga_prompt_optimization_call(prepared.request)
+            .run_manga_prompt_optimization_call(
+                workflow_run_id,
+                &manga_prompt_optimization_call_key(prepared.page_prompt.id),
+                fingerprint,
+                prepared.request,
+            )
             .await?;
         if prepared.page_prompt.image_prompt.trim() == image_prompt {
             return Ok(prepared.page_prompt);
@@ -88,10 +126,36 @@ impl OrchestratorContext {
         Ok(updated)
     }
 
-    async fn run_manga_prompt_optimization_call(
+    pub(super) async fn run_manga_prompt_optimization_call(
         &self,
-        request: ChatRequest,
+        workflow_run_id: i64,
+        call_key: &str,
+        fingerprint: &Value,
+        mut request: ChatRequest,
     ) -> Result<String, AppError> {
+        crate::workflow::attach_llm_call_checkpoint_trace(
+            &mut request,
+            workflow_run_id,
+            call_key,
+            fingerprint,
+        )?;
+        if let Some(checkpoint) = self
+            .load_completed_llm_call_checkpoint(workflow_run_id, call_key, fingerprint)
+            .await?
+        {
+            let parsed =
+                parse_optimized_manga_prompt(&checkpoint.response_content).and_then(|parsed| {
+                    ensure_checkpoint_parsed_output_matches(
+                        &checkpoint.parsed_output,
+                        &Value::String(parsed.clone()),
+                        call_key,
+                    )?;
+                    Ok(parsed)
+                });
+            return self
+                .validate_llm_call_output(workflow_run_id, call_key, fingerprint, parsed)
+                .await;
+        }
         let response = self
             .stream_complete_llm(request)
             .await
@@ -101,14 +165,30 @@ impl OrchestratorContext {
                 "优化漫画提示词输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或缩短本次提示词后重试".to_string(),
             ));
         }
-        let parsed = parse_strict_json_response::<OptimizedMangaPromptFields>(
-            &response.message.content,
-            "漫画提示词优化",
-        )?;
-        required_text(&parsed.image_prompt, "优化结果 image_prompt")
-            .map(str::to_string)
-            .map_err(AppError::InvalidArgument)
+        let prompt = parse_optimized_manga_prompt(&response.message.content)?;
+        self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
+            workflow_run_id,
+            call_key: call_key.to_string(),
+            call_order: 1,
+            input_fingerprint_json: fingerprint.clone(),
+            checkpoint: CompletedLlmCallCheckpoint {
+                parsed_output: Value::String(prompt.clone()),
+                response_content: response.message.content,
+                usage: response.usage.map(serde_json::to_value).transpose()?,
+                finish_reason: response.finish_reason,
+                artifacts_json: None,
+            },
+        })
+        .await?;
+        Ok(prompt)
     }
+}
+
+fn parse_optimized_manga_prompt(raw: &str) -> Result<String, AppError> {
+    let parsed = parse_strict_json_response::<OptimizedMangaPromptFields>(raw, "漫画提示词优化")?;
+    required_text(&parsed.image_prompt, "优化结果 image_prompt")
+        .map(str::to_string)
+        .map_err(AppError::InvalidArgument)
 }
 
 pub(super) fn manga_prompt_optimization_llm_error(error: AppError) -> AppError {

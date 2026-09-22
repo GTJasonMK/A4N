@@ -37,6 +37,16 @@ pub(super) async fn run_character_binding_stage(
             temperature: 0.3,
         })
         .await?;
+    let characters_stage_json =
+        parse_and_validate_manga_llm_output(context.service, &characters_trace, |value| {
+            validate_manga_character_binding_source_span_ids(value, &context.source_spans)?;
+            Ok(value.clone())
+        })
+        .await?;
+    context
+        .service
+        .save_or_validate_manga_llm_checkpoint(&characters_trace, &characters_stage_json)
+        .await?;
     context
         .service
         .report_pipeline_llm_usage(
@@ -46,14 +56,6 @@ pub(super) async fn run_character_binding_stage(
             context.task_id,
             &characters_trace,
         )
-        .await?;
-    let characters_stage_json = parse_and_validate_manga_llm_output(&characters_trace, |value| {
-        validate_manga_character_binding_source_span_ids(value, &context.source_spans)?;
-        Ok(value.clone())
-    })?;
-    context
-        .service
-        .save_or_validate_manga_llm_checkpoint(&characters_trace, &characters_stage_json)
         .await?;
     let characters_json = required_object_field(
         &characters_stage_json,

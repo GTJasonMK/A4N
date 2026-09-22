@@ -35,7 +35,7 @@ fn optimize_database_error_keeps_variant_and_message() {
 }
 
 #[tokio::test]
-async fn complete_chat_turn_persists_formal_exchange_once() {
+async fn turn_completion_and_analysis_retry_preserve_session_state() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let project = crate::project::create_project_record(
         &db,
@@ -135,5 +135,45 @@ async fn complete_chat_turn_persists_formal_exchange_once() {
             .unwrap()
             .len(),
         2,
+    );
+    let resumed = resume_optimization_analysis_session(&db, session.id)
+        .await
+        .unwrap();
+    assert_eq!(resumed.status, "analyzing");
+    assert!(
+        resume_optimization_analysis_session(&db, session.id)
+            .await
+            .is_err()
+    );
+    let mut cancelled: optimization_session::ActiveModel = resumed.into();
+    cancelled.status = Set("cancelled".into());
+    cancelled.update(&db).await.unwrap();
+    let resumed = resume_optimization_analysis_session(&db, session.id)
+        .await
+        .unwrap();
+    assert_eq!(resumed.status, "analyzing");
+    assert_eq!(
+        optimization_session_messages(&db, session.id)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+    let mut fixing: optimization_session::ActiveModel = resumed.into();
+    fixing.status = Set("fixing".into());
+    let fixing = fixing.update(&db).await.unwrap();
+    assert!(
+        resume_optimization_analysis_session(&db, session.id)
+            .await
+            .is_err()
+    );
+    let mut archived: optimization_session::ActiveModel = fixing.into();
+    archived.status = Set("waiting_user".into());
+    archived.archived_at = Set(Some(now));
+    archived.update(&db).await.unwrap();
+    assert!(
+        resume_optimization_analysis_session(&db, session.id)
+            .await
+            .is_err()
     );
 }

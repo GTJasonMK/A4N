@@ -36,6 +36,7 @@ pub use queries::{
 
 pub(super) use progress::trim_workflow_progress_events;
 pub(super) use queries::locked_workflow_run_by_id;
+pub(super) use validation::ensure_workflow_write_open;
 
 #[cfg(test)]
 pub(in crate::workflow) use progress::validate_workflow_progress_range;

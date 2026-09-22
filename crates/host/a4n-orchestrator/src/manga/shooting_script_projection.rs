@@ -3,6 +3,26 @@ use a4n_domain::shooting_script::{
 };
 use serde_json::{Value, json};
 
+pub(super) fn manga_beat_refs(
+    script: &ChapterShootingScriptV1,
+) -> std::collections::HashSet<(i64, i64, i64)> {
+    script
+        .scenes
+        .iter()
+        .flat_map(|scene| {
+            scene.shots.iter().flat_map(move |shot| {
+                shot.performance_beats.iter().map(move |beat| {
+                    (
+                        i64::from(scene.scene_index),
+                        i64::from(shot.shot_index),
+                        i64::from(beat.beat_index),
+                    )
+                })
+            })
+        })
+        .collect()
+}
+
 pub(super) fn manga_events_from_shooting_script(script: &ChapterShootingScriptV1) -> Value {
     Value::Array(
         script

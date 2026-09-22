@@ -51,6 +51,13 @@ pub(super) async fn run_visual_planning_stage(
             },
             |value| {
                 let parsed = visual_plan_from_value(value, "galgame_visual_planning")?;
+                crate::galgame::build_galgame_script_persist_plan(
+                    &early.scenes,
+                    &early.staging,
+                    &parsed,
+                    &early.branch_plan,
+                    &execution.prompt_context.source_spans,
+                )?;
                 serde_json::to_value(parsed).map_err(AppError::Serialization)
             },
         )

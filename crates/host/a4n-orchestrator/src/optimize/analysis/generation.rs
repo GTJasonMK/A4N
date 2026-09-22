@@ -112,7 +112,12 @@ impl OrchestratorContext {
             agent_max_output_tokens: None,
         };
         let pending = match self
-            .run_analysis_session(input.session_id, workflow.id, &generation)
+            .run_analysis_session(
+                input.session_id,
+                workflow.id,
+                input.meta.retry_of_task_id.is_some(),
+                &generation,
+            )
             .await
         {
             Ok(pending) => pending,

@@ -178,7 +178,7 @@ pub(super) async fn render_segment_plan_shots(
             .load_completed_llm_call_checkpoint(workflow_run_id, &step_key, &fingerprint_json)
             .await?
         {
-            let (response_content, segment_shot) = restore_segment_plan_shot_checkpoint(
+            let restored = restore_segment_plan_shot_checkpoint(
                 &checkpoint,
                 &shot_context,
                 &shot_source_spans,
@@ -186,7 +186,10 @@ pub(super) async fn render_segment_plan_shots(
                 &shot.source_shot_id,
                 duration_secs,
                 default_aspect_ratio,
-            )?;
+            );
+            let (response_content, segment_shot) = service
+                .validate_llm_call_output(workflow_run_id, &step_key, &fingerprint_json, restored)
+                .await?;
             completed_shots[index] = Some((
                 segment_shot,
                 json!({

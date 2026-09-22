@@ -635,6 +635,32 @@ async fn image_generation_application_restores_without_provider_or_persist() {
 }
 
 #[tokio::test]
+async fn owned_image_retry_reuses_the_call_saved_before_workflow_failure() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let input = execution_input(project_id, user_id);
+    let host = TestImageGenerationHost::default();
+    let first = context
+        .run_image_generation_validated(&host, input.clone(), &ImageGenerationProgress::none())
+        .await
+        .unwrap();
+    let (workflow, _) = image_workflow_and_checkpoint(database.as_ref(), project_id).await;
+    let mut failed: workflow_run::ActiveModel = workflow.into();
+    failed.status = Set("failed".into());
+    failed.can_resume = Set(true);
+    failed.error_message = Set(Some("failed after image call checkpoint".into()));
+    failed.update(database.as_ref()).await.unwrap();
+    let restored = context
+        .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
+        .await
+        .unwrap();
+    assert!(restored.restored);
+    assert_eq!(restored.summary.id, first.summary.id);
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn restored_checkpoint_rejects_image_from_another_project() {
     let (database, context, user_id) = setup_context().await;
     let source_project_id = insert_project(database.as_ref(), user_id).await;

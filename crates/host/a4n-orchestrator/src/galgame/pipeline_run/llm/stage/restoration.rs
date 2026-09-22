@@ -32,7 +32,15 @@ where
             input.checkpoint_key,
             input.prompt_name,
             validate,
-        )?;
+        );
+        let restored = service
+            .validate_llm_call_output(
+                input.workflow_run_id,
+                input.checkpoint_key,
+                &prepared.fingerprint_json,
+                restored,
+            )
+            .await?;
         return Ok(Some(restored));
     }
     if input.restore_required {

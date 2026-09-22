@@ -46,6 +46,9 @@ impl OrchestratorContext {
                         build_error_label: "普通对话 Agent Loop",
                         request_event_label: "普通对话 Agent Loop",
                         parse_error_label: "普通对话 Loop",
+                        validate_final: &|arguments| {
+                            crate::optimize::agent_loop::final_reply(arguments).map(drop)
+                        },
                         workflow_run_id,
                         generation,
                     },

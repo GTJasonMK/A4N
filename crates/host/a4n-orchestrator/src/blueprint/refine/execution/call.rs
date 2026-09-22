@@ -52,13 +52,21 @@ pub(super) async fn execute_blueprint_refine_call(
                     operation: "恢复蓝图优化流".to_string(),
                 })?;
         }
-        let (parsed, usage_json, finish_reason) = blueprint_refine_checkpoint_output(
+        let restored = blueprint_refine_checkpoint_output(
             &checkpoint.parsed_output,
             &checkpoint.response_content,
             checkpoint.usage,
             checkpoint.finish_reason,
             &prepared.call_key,
-        )?;
+        );
+        let (parsed, usage_json, finish_reason) = context
+            .validate_llm_call_output(
+                prepared.workflow_run_id,
+                &prepared.call_key,
+                &prepared.input_fingerprint_json,
+                restored,
+            )
+            .await?;
         let usage = usage_json
             .map(serde_json::from_value)
             .transpose()

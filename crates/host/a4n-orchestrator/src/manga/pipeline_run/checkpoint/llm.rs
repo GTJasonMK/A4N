@@ -16,12 +16,18 @@ impl OrchestratorContext {
         parsed_output: &Value,
     ) -> Result<(), AppError> {
         if let Some(restored) = trace.restored_parsed_output.as_ref() {
-            ensure_checkpoint_parsed_output_matches(
-                restored,
-                parsed_output,
-                &format!("漫画管线 {}", trace.call_key),
-            )?;
-            return Ok(());
+            return self
+                .validate_llm_call_output(
+                    trace.workflow_run_id,
+                    &trace.call_key,
+                    &trace.input_fingerprint_json,
+                    ensure_checkpoint_parsed_output_matches(
+                        restored,
+                        parsed_output,
+                        &format!("漫画管线 {}", trace.call_key),
+                    ),
+                )
+                .await;
         }
         let response_usage_json = trace
             .usage

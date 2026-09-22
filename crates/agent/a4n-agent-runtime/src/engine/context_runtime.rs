@@ -73,7 +73,6 @@ pub(crate) async fn recover_model_messages(
             continue;
         }
         let response = model_response(execution)?;
-        a4n_llm_provider_contract::validate_finish_reason(response.finish_reason.as_deref())?;
         let protocol = execution
             .arguments_json
             .as_ref()

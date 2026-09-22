@@ -35,6 +35,33 @@ where
         .map_err(OptimizeDbError::Database)
 }
 
+pub async fn resume_optimization_analysis_session(
+    db: &sea_orm::DatabaseConnection,
+    session_id: i64,
+) -> Result<optimization_session::Model, OptimizeDbError> {
+    // A generation retry reuses the prepared inputs; it must not overwrite a
+    // concurrent edit/fix or revive an archived session.
+    optimization_session::Entity::update_many()
+        .col_expr(
+            optimization_session::Column::Status,
+            sea_orm::sea_query::Expr::value("analyzing"),
+        )
+        .col_expr(
+            optimization_session::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(chrono::Utc::now().naive_utc()),
+        )
+        .filter(optimization_session::Column::Id.eq(session_id))
+        .filter(optimization_session::Column::ArchivedAt.is_null())
+        .filter(optimization_session::Column::Status.is_in(["waiting_user", "cancelled"]))
+        .exec_with_returning(db)
+        .await
+        .map_err(OptimizeDbError::Database)?
+        .pop()
+        .ok_or_else(|| {
+            OptimizeDbError::InvalidArgument("优化分析会话状态已改变，不能恢复该次分析".into())
+        })
+}
+
 pub async fn optimization_session_name_exists<C>(
     db: &C,
     project_id: i64,

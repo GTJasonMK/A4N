@@ -1,21 +1,7 @@
 use super::contracts::{BlueprintCharacterDraft, BlueprintRelationshipDraft};
 use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
 
-pub(crate) fn normalized_blueprint_identity(value: &str) -> String {
-    value
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
-}
-
-pub(in crate::project::blueprint_sync) fn blueprint_relationship_identity_from_keys(
-    relationship_type: &str,
-    character_a: &str,
-    character_b: &str,
-) -> String {
-    format!("{relationship_type}|{character_a}|{character_b}")
-}
+pub(crate) use a4n_domain::project::normalized_blueprint_identity;
 
 pub(in crate::project::blueprint_sync) fn blueprint_relationship_model_identity(
     relationship: &blueprint_relationship::Model,

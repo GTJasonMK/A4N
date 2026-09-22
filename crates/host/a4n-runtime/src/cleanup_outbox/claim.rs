@@ -268,40 +268,6 @@ async fn media_protected_paths(
         .map_err(app_error_message)
 }
 
-pub(super) async fn process_claimed_media_workflow_reset(
-    state: &AppState,
-    claim: a4n_cleanup_contract::MediaWorkflowV2ResetClaim,
-) -> Result<(), String> {
-    let id = claim.record.id;
-    let lease_token = claim
-        .record
-        .lease_token
-        .as_deref()
-        .ok_or_else(|| format!("cleanup outbox claim 缺少 lease token: id={id}"))?;
-    let project_id = claim.payload.project_id;
-    renew_cleanup_lease(state, id, lease_token).await?;
-    let result = state
-        .cleanup_outbox_application()
-        .reset_media_workflows_to_v2(project_id, id)
-        .await
-        .map_err(app_error_message);
-    match result {
-        Ok(()) => state
-            .cleanup_outbox_application()
-            .complete_claimed_cleanup(id, lease_token)
-            .await
-            .map_err(app_error_message),
-        Err(error) => {
-            let retry_after_seconds = cleanup_retry_after_seconds(claim.record.attempt_count);
-            state
-                .cleanup_outbox_application()
-                .retry_claimed_cleanup(id, lease_token, error, retry_after_seconds)
-                .await
-                .map_err(app_error_message)
-        }
-    }
-}
-
 pub(super) async fn process_claimed_generation_cleanup(
     state: &AppState,
     claim: a4n_cleanup_contract::GenerationCleanupClaim,

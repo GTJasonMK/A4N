@@ -1,14 +1,11 @@
 use super::contracts::{BlueprintRelationshipDraft, BlueprintSyncError};
-use super::identity::{
-    blueprint_relationship_identity_from_keys, blueprint_relationship_matches,
-    blueprint_relationship_model_identity, normalized_blueprint_identity,
-};
+use super::identity::{blueprint_relationship_matches, blueprint_relationship_model_identity};
 use a4n_db_models::models::project::blueprint_relationship;
-use a4n_domain::{json_contract::is_empty_json_value, project::BLUEPRINT_RELATIONSHIP_TYPES};
+use a4n_domain::json_contract::is_empty_json_value;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 pub(in crate::project) async fn sync_blueprint_relationships<C>(
     db: &C,
@@ -44,34 +41,17 @@ async fn write_blueprint_relationships<C>(
 where
     C: ConnectionTrait,
 {
-    let mut seen_keys = HashSet::new();
-    let mut incoming = Vec::with_capacity(relationships.len());
-    for relationship in relationships {
-        validate_relationship_type(&relationship.relationship_type)?;
-        let relationship_type_key = normalized_blueprint_identity(&relationship.relationship_type);
-        let character_a_key = normalized_blueprint_identity(&relationship.character_a);
-        let character_b_key = normalized_blueprint_identity(&relationship.character_b);
-        if relationship_type_key.is_empty()
-            || character_a_key.is_empty()
-            || character_b_key.is_empty()
-        {
-            return Err(BlueprintSyncError::InvalidArgument(
-                "蓝图关系的角色和类型不能为空".to_string(),
-            ));
-        }
-        let key = blueprint_relationship_identity_from_keys(
-            &relationship_type_key,
-            &character_a_key,
-            &character_b_key,
-        );
-        if !seen_keys.insert(key.clone()) {
-            return Err(BlueprintSyncError::InvalidArgument(format!(
-                "蓝图关系重复: {} / {} / {}",
-                relationship.relationship_type, relationship.character_a, relationship.character_b
-            )));
-        }
-        incoming.push((key, relationship));
-    }
+    let keys = a4n_domain::project::blueprint_relationship_identity_keys(relationships.iter().map(
+        |relationship| {
+            (
+                relationship.relationship_type.as_str(),
+                relationship.character_a.as_str(),
+                relationship.character_b.as_str(),
+            )
+        },
+    ))
+    .map_err(BlueprintSyncError::InvalidArgument)?;
+    let incoming = keys.into_iter().zip(relationships);
 
     let existing = blueprint_relationship::Entity::find()
         .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
@@ -235,17 +215,6 @@ where
     }
 
     Ok(())
-}
-
-pub(super) fn validate_relationship_type(value: &str) -> Result<(), BlueprintSyncError> {
-    if BLUEPRINT_RELATIONSHIP_TYPES.contains(&value) {
-        Ok(())
-    } else {
-        Err(BlueprintSyncError::InvalidArgument(format!(
-            "蓝图关系 relationship_type 无效：{value}；必须是以下值之一：{}",
-            BLUEPRINT_RELATIONSHIP_TYPES.join(", ")
-        )))
-    }
 }
 
 fn supplement_relationship_draft(

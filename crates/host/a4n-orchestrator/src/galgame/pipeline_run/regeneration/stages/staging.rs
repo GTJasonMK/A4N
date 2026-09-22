@@ -16,6 +16,10 @@ pub(super) async fn run_character_staging_stage(
     lines_draft_json: &Value,
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
+    let script = crate::galgame::script_adaptation_from_value(
+        lines_draft_json.clone(),
+        "character_staging input",
+    )?;
     let lines_staged_json = service
         .run_galgame_llm_once(
             GalgameLlmOnceInput {
@@ -34,11 +38,16 @@ pub(super) async fn run_character_staging_stage(
             },
             |value| {
                 let parsed = character_staging_from_value(value, "galgame_character_staging")?;
+                ensure_single_regenerated_staged_lines(&parsed)?;
+                crate::galgame::pipeline_persist::validate_galgame_staging(
+                    &parsed,
+                    &script,
+                    &input.speaker_profiles,
+                )?;
                 serde_json::to_value(parsed).map_err(AppError::Serialization)
             },
         )
         .await?;
     let staging = character_staging_from_value(lines_staged_json.clone(), "lines_staged")?;
-    ensure_single_regenerated_staged_lines(&staging)?;
     Ok((lines_staged_json, staging))
 }

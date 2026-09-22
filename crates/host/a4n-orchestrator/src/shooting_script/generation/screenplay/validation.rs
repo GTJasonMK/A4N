@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_domain::shooting_script::ShootingEditingModeV1;
+use a4n_domain::shooting_script::{ShootingEditingModeV1, ShootingTransitionContractV1};
 use a4n_error::AppError;
 
 use crate::shooting_script::contracts::{
@@ -15,6 +15,10 @@ pub(super) fn validate_skeleton(
     if skeleton.schema_version != "chapter_screenplay_skeleton_v1" || skeleton.units.is_empty() {
         return Err(AppError::InvalidArgument("章节叙事骨架无效或为空".into()));
     }
+    skeleton
+        .directing_statement
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
     let allowed = prepared
         .source_spans
         .iter()
@@ -101,9 +105,46 @@ pub(super) fn validate_layout_unit_detail(
             "叙事单元 {expected_index} 的布局细化合同无效"
         )));
     }
+    for (field, text) in [
+        ("title", &output.title),
+        ("slugline", &output.slugline),
+        ("dramatic_question", &output.dramatic_question),
+        ("scene_objective", &output.scene_objective),
+        ("scene_obstacle", &output.scene_obstacle),
+        ("entry_state", &output.entry_state),
+        ("exit_state", &output.exit_state),
+    ] {
+        a4n_domain::project::required_text(
+            text,
+            &format!("叙事布局 unit {expected_index}.{field}"),
+        )
+        .map_err(AppError::InvalidArgument)?;
+    }
+    let mut participants = HashSet::new();
+    if output
+        .participants
+        .iter()
+        .any(|name| name.trim().is_empty() || !participants.insert(name))
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "叙事布局 unit {expected_index} 的 participants 不能为空白或重复"
+        )));
+    }
+    validate_transition_contracts(
+        &output.transition_contracts,
+        expected_index,
+        total_unit_count,
+    )
+}
+
+pub(in crate::shooting_script::generation) fn validate_transition_contracts(
+    transitions: &[ShootingTransitionContractV1],
+    expected_index: u32,
+    total_unit_count: usize,
+) -> Result<(), AppError> {
     let max_index = u32::try_from(total_unit_count)
         .map_err(|_| AppError::InvalidArgument("叙事布局单元数量超出 u32 范围".into()))?;
-    if output.transition_contracts.iter().any(|transition| {
+    if transitions.iter().any(|transition| {
         transition.to_narrative_unit_index == 0
             || transition.to_narrative_unit_index == expected_index
             || transition.to_narrative_unit_index > max_index
@@ -144,6 +185,32 @@ pub(super) fn validate_unit_adaptation(
         if fact.fact_index != expected_fact_index {
             return Err(AppError::InvalidArgument(format!(
                 "叙事单元 {} fact_index={} 编号不连续",
+                unit.narrative_unit_index, fact.fact_index
+            )));
+        }
+        for (field, text) in [
+            ("objective", &fact.objective),
+            ("obstacle", &fact.obstacle),
+            ("visible_action", &fact.visible_action),
+            ("entry_state", &fact.entry_state),
+            ("exit_state", &fact.exit_state),
+        ] {
+            a4n_domain::project::required_text(
+                text,
+                &format!(
+                    "叙事单元 {} fact {}.{field}",
+                    unit.narrative_unit_index, fact.fact_index
+                ),
+            )
+            .map_err(AppError::InvalidArgument)?;
+        }
+        if fact
+            .actor
+            .as_ref()
+            .is_some_and(|actor| !unit.participants.contains(actor))
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事单元 {} fact {} 的 actor 必须属于 participants",
                 unit.narrative_unit_index, fact.fact_index
             )));
         }

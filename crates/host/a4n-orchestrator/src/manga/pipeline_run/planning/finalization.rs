@@ -13,6 +13,15 @@ pub(super) async fn finalize_planning(
     plan_trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPlanningRun, AppError> {
     let service = context.service;
+    let (plan, plan_json) = parse_and_validate_manga_llm_output(service, &plan_trace, |value| {
+        let plan = parse_manga_page_plan(value, &context.shooting_script, "manga_page_planning")?;
+        let plan_json = serde_json::to_value(&plan).map_err(AppError::Serialization)?;
+        Ok((plan, plan_json))
+    })
+    .await?;
+    service
+        .save_or_validate_manga_llm_checkpoint(&plan_trace, &plan_json)
+        .await?;
     service
         .report_pipeline_llm_usage(
             context.workflow_run_id,
@@ -21,14 +30,6 @@ pub(super) async fn finalize_planning(
             context.task_id,
             &plan_trace,
         )
-        .await?;
-    let (plan, plan_json) = parse_and_validate_manga_llm_output(&plan_trace, |value| {
-        let plan = parse_manga_page_plan(value, &context.shooting_script, "manga_page_planning")?;
-        let plan_json = serde_json::to_value(&plan).map_err(AppError::Serialization)?;
-        Ok((plan, plan_json))
-    })?;
-    service
-        .save_or_validate_manga_llm_checkpoint(&plan_trace, &plan_json)
         .await?;
     context
         .advance_stage(MangaPipelineStage::DrawingPrompt)

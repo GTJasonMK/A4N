@@ -22,9 +22,7 @@ use super::{
         CharacterProfileSyncStageOutput, CharacterProfileSyncStageOutputs,
         CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
     },
-    output::{
-        parse_character_profile_sync_stage_output, validate_character_profile_sync_extraction,
-    },
+    output::parse_character_profile_sync_stage_output,
     request::{
         PreparedCharacterProfileSyncStageCall, build_character_profile_sync_stage_request,
         prepare_character_profile_sync_stage_call,
@@ -101,14 +99,28 @@ impl OrchestratorContext {
                 &input,
                 &mut outputs,
             );
+            let parsed = self
+                .validate_llm_call_output(
+                    workflow_run_id,
+                    &call.call_key,
+                    &call.input_fingerprint_json,
+                    parsed.map_err(AppError::InvalidArgument),
+                )
+                .await;
             match parsed {
                 Ok(stage_value) => {
                     if let Some(parsed_output) = call.restored_parsed_output.as_ref() {
-                        ensure_checkpoint_parsed_output_matches(
-                            parsed_output,
-                            &stage_value,
-                            &format!("角色同步阶段 {}", call.call_key),
-                        )?;
+                        self.validate_llm_call_output(
+                            workflow_run_id,
+                            &call.call_key,
+                            &call.input_fingerprint_json,
+                            ensure_checkpoint_parsed_output_matches(
+                                parsed_output,
+                                &stage_value,
+                                &format!("角色同步阶段 {}", call.call_key),
+                            ),
+                        )
+                        .await?;
                         report_progress(
                             progress,
                             current,
@@ -167,7 +179,7 @@ impl OrchestratorContext {
                         &call.request,
                         &call.response_content,
                         stage.temperature(),
-                        Some(error.clone()),
+                        Some(error.to_string()),
                         &mut llm_trace_paths,
                     );
                     let trace_summary = if llm_trace_paths.is_empty() {
@@ -175,10 +187,13 @@ impl OrchestratorContext {
                     } else {
                         format!("；LLM 调试日志：{}", llm_trace_paths.join("，"))
                     };
-                    return Err(AppError::InvalidArgument(format!(
-                        "{}输出不符合角色同步阶段契约：{error}{trace_summary}",
-                        stage.title()
-                    )));
+                    return Err(match error {
+                        AppError::InvalidArgument(message) => AppError::InvalidArgument(format!(
+                            "{}输出不符合角色同步阶段契约：{message}{trace_summary}",
+                            stage.title()
+                        )),
+                        other => other,
+                    });
                 }
             }
         }
@@ -186,18 +201,14 @@ impl OrchestratorContext {
         report_progress(
             progress,
             6,
-            &format!("{}：正在组合并校验角色同步阶段结果", input.profile_name),
+            &format!("{}：正在组合已校验的角色同步阶段结果", input.profile_name),
         )?;
-        let extraction = validate_character_profile_sync_extraction(
-            CharacterProfileSyncExtraction {
-                changes: outputs.changes,
-                behaviors: outputs.behaviors,
-                deletion_candidates: outputs.deletion_candidates,
-                chapter_states: outputs.chapter_states,
-            },
-            &input,
-        )
-        .map_err(AppError::InvalidArgument)?;
+        let extraction = CharacterProfileSyncExtraction {
+            changes: outputs.changes,
+            behaviors: outputs.behaviors,
+            deletion_candidates: outputs.deletion_candidates,
+            chapter_states: outputs.chapter_states,
+        };
         let generation_trace = generation_trace_from_exchanges(&exchanges)?;
         Ok(CharacterProfileSyncStageOutput {
             extraction,

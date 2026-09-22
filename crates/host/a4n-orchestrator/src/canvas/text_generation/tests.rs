@@ -267,6 +267,9 @@ fn canvas_llm_error_mapping_preserves_cancellation() {
 
 #[test]
 fn restored_checkpoint_rejects_mismatch() {
+    assert!(
+        validate_restored_checkpoint_for_test(json!({"text": ""}), " ", "canvas-call").is_err()
+    );
     let mismatch = validate_restored_checkpoint_for_test(
         json!({"text": "旧文本"}),
         "新文本",

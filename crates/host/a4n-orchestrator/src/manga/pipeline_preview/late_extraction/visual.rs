@@ -54,7 +54,11 @@ pub(super) async fn preview_visual(
             return Ok(None);
         }
     };
-    validate_manga_visual_anchor_source_span_ids(&visual_json, &context.source_spans)?;
+    validate_manga_visual_anchor_source_span_ids(
+        &visual_json,
+        &context.source_spans,
+        &crate::manga::shooting_script_projection::manga_beat_refs(&context.shooting_script.script),
+    )?;
 
     Ok(Some(visual_json))
 }

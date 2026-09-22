@@ -22,9 +22,6 @@ pub(super) async fn persist_agent_loop_decision_call(
         decision,
         restored,
     } = result;
-    context
-        .record_llm_response(session_id, request.phase, &response.message.content)
-        .await?;
     if !restored {
         let usage = response
             .usage
@@ -39,7 +36,7 @@ pub(super) async fn persist_agent_loop_decision_call(
                 input_fingerprint_json,
                 checkpoint: CompletedLlmCallCheckpoint {
                     parsed_output: agent_loop_decision_json(&decision),
-                    response_content: response.message.content,
+                    response_content: response.message.content.clone(),
                     usage,
                     finish_reason: response.finish_reason,
                     artifacts_json: None,
@@ -47,6 +44,9 @@ pub(super) async fn persist_agent_loop_decision_call(
             })
             .await?;
     }
+    context
+        .record_llm_response(session_id, request.phase, &response.message.content)
+        .await?;
     if decision.action != crate::optimize::agent_loop::AgentLoopAction::Final {
         let task = request.generation.session.snapshot();
         context

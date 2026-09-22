@@ -16,6 +16,10 @@ pub(super) async fn run_character_staging_stage(
     scenes_json: &Value,
     lines_draft_json: &Value,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
+    let script = crate::galgame::script_adaptation_from_value(
+        lines_draft_json.clone(),
+        "character_staging input",
+    )?;
     let stage = GalgamePipelineStartStage::CharacterStaging;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
@@ -54,6 +58,11 @@ pub(super) async fn run_character_staging_stage(
             },
             |value| {
                 let parsed = character_staging_from_value(value, "galgame_character_staging")?;
+                crate::galgame::pipeline_persist::validate_galgame_staging(
+                    &parsed,
+                    &script,
+                    &execution.prompt_context.speaker_profiles,
+                )?;
                 serde_json::to_value(parsed).map_err(AppError::Serialization)
             },
         )

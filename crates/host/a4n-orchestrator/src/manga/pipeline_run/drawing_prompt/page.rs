@@ -52,6 +52,13 @@ impl OrchestratorContext {
                 temperature: 0.5,
             })
             .await?;
+        let page_prompt = parse_and_validate_manga_llm_output(self, &trace, |value| {
+            page_drawing_prompt_from_response(value, page_number, &page_context)
+        })
+        .await?;
+        let page_json = serde_json::to_value(&page_prompt).map_err(AppError::Serialization)?;
+        self.save_or_validate_manga_llm_checkpoint(&trace, &page_json)
+            .await?;
         self.report_pipeline_llm_usage(
             workflow_run_id,
             "drawing_prompt",
@@ -60,12 +67,6 @@ impl OrchestratorContext {
             &trace,
         )
         .await?;
-        let page_prompt = parse_and_validate_manga_llm_output(&trace, |value| {
-            page_drawing_prompt_from_response(value, page_number, &page_context)
-        })?;
-        let page_json = serde_json::to_value(&page_prompt).map_err(AppError::Serialization)?;
-        self.save_or_validate_manga_llm_checkpoint(&trace, &page_json)
-            .await?;
         let message = format!(
             "已完成第 {page_number} 页整页提示词 ({}/{total_pages})",
             page_index + 1

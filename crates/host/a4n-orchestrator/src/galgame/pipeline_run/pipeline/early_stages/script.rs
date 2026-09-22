@@ -16,6 +16,14 @@ pub(super) async fn run_script_adaptation_stage(
     scenes_json: &Value,
     branch_plan_json: &Value,
 ) -> Result<Value, AppError> {
+    let scenes = crate::galgame::shooting_script_projection_from_value(
+        scenes_json.clone(),
+        "script_adaptation input",
+    )?;
+    let branch = crate::galgame::branch_design_from_value(
+        branch_plan_json.clone(),
+        "script_adaptation branches",
+    )?;
     let stage = GalgamePipelineStartStage::ScriptAdaptation;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
@@ -58,6 +66,12 @@ pub(super) async fn run_script_adaptation_stage(
             },
             |value| {
                 let parsed = script_adaptation_from_value(value, "galgame_script_adaptation")?;
+                crate::galgame::pipeline_persist::validate_galgame_script_adaptation(
+                    &parsed,
+                    &scenes,
+                    &branch,
+                    &execution.prompt_context.source_spans,
+                )?;
                 serde_json::to_value(parsed).map_err(AppError::Serialization)
             },
         )

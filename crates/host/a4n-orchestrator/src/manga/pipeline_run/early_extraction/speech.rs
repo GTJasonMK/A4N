@@ -45,6 +45,22 @@ pub(super) async fn run_speech_selection_stage(
             temperature: 0.3,
         })
         .await?;
+    let speech_json =
+        parse_and_validate_manga_llm_output(context.service, &speech_trace, |value| {
+            validate_manga_speech_selection_source_span_ids(
+                value,
+                &context.source_spans,
+                &crate::manga::shooting_script_projection::manga_beat_refs(
+                    &context.shooting_script.script,
+                ),
+            )?;
+            Ok(value.clone())
+        })
+        .await?;
+    context
+        .service
+        .save_or_validate_manga_llm_checkpoint(&speech_trace, &speech_json)
+        .await?;
     context
         .service
         .report_pipeline_llm_usage(
@@ -54,14 +70,6 @@ pub(super) async fn run_speech_selection_stage(
             context.task_id,
             &speech_trace,
         )
-        .await?;
-    let speech_json = parse_and_validate_manga_llm_output(&speech_trace, |value| {
-        validate_manga_speech_selection_source_span_ids(value, &context.source_spans)?;
-        Ok(value.clone())
-    })?;
-    context
-        .service
-        .save_or_validate_manga_llm_checkpoint(&speech_trace, &speech_json)
         .await?;
     context
         .advance_stage(MangaPipelineStage::VisualAnchorExtraction)

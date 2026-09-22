@@ -108,7 +108,7 @@ fn validate_unit_counts(
     )))
 }
 
-fn assemble_scene(
+pub(super) fn assemble_scene(
     index: usize,
     mut scene: ShootingSceneV1,
     unit: &ScreenplayPlanUnit,
@@ -131,7 +131,7 @@ fn assemble_scene(
     scene.sequence_index = planned.sequence_index;
     scene.timeline_position = planned.timeline_position;
     scene.narrative_unit_index = unit.narrative_unit_index;
-    scene.intercut_group_id = None;
+    scene.intercut_group_id = planned.intercut_group_id.clone();
     scene.editing_mode = planned.editing_mode;
     scene.visual_narrative_unit_id = Some(planned.id.clone());
     scene.user_addition_ids = planned

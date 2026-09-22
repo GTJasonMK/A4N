@@ -18,6 +18,10 @@ pub(super) async fn run_script_adaptation_stage(
     branch_plan_json: &Value,
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<Value, AppError> {
+    let branch = crate::galgame::branch_design_from_value(
+        branch_plan_json.clone(),
+        "script_adaptation branches",
+    )?;
     let lines_draft_json = service
         .run_galgame_llm_once(
             GalgameLlmOnceInput {
@@ -37,11 +41,16 @@ pub(super) async fn run_script_adaptation_stage(
             },
             |value| {
                 let parsed = script_adaptation_from_value(value, "galgame_script_adaptation")?;
+                ensure_single_regenerated_scene_lines(&parsed)?;
+                crate::galgame::pipeline_persist::validate_galgame_script_adaptation(
+                    &parsed,
+                    &prepared.shooting_script_projection,
+                    &branch,
+                    &prepared.persist_source_spans,
+                )?;
                 serde_json::to_value(parsed).map_err(AppError::Serialization)
             },
         )
         .await?;
-    let script_adaptation = script_adaptation_from_value(lines_draft_json.clone(), "lines_draft")?;
-    ensure_single_regenerated_scene_lines(&script_adaptation)?;
     Ok(lines_draft_json)
 }

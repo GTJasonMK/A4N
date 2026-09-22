@@ -132,7 +132,21 @@ fn validate_design_unit(
             )));
         }
     }
-    validate_design_scene_content_against_plan_unit(scene, unit)
+    validate_design_scene_content_against_plan_unit(scene, unit)?;
+    super::screenplay::validate_transition_contracts(
+        &scene.transition_contracts,
+        unit.narrative_unit_index,
+        prepared.visual_plan_projection.narrative_units.len(),
+    )?;
+    let assembled = super::super::assembly::assemble_scene(
+        (unit.narrative_unit_index - 1) as usize,
+        scene.clone(),
+        unit,
+        planned,
+    )?;
+    assembled
+        .validate_content(&prepared.visual_plan_projection.user_additions, true)
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
 fn validate_design_scene_content_against_plan_unit(

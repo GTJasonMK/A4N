@@ -141,6 +141,7 @@ fn validate_manga_speech_selection_source_span_ids_accepts_known_ids() {
             }]
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1), (1, 1, 2)]),
     )
     .expect("known source spans should pass");
 }
@@ -163,6 +164,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_missing_or_unknown_id
             "narrations": []
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("missing source span id must fail");
     assert!(missing.to_string().contains("source_span_id"));
@@ -183,6 +185,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_missing_or_unknown_id
             "narrations": []
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("unknown source span id must fail");
     assert!(unknown.to_string().contains("source_span_id 无效"));
@@ -214,6 +217,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_invalid_beat_ref() {
             "narrations": []
         }),
         &source_spans,
+        &std::collections::HashSet::from([(1, 1, 1)]),
     )
     .expect_err("beat_ref must be typed");
 
