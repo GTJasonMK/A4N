@@ -11,6 +11,6 @@ pub(super) async fn run_planning(
     context: &MangaRunContext<'_>,
     extraction: MangaExtractionRun,
 ) -> Result<MangaPlanningRun, AppError> {
-    let plan_trace = generate_planning_trace(context, &extraction).await?;
-    finalize_planning(context, extraction, plan_trace).await
+    let (plan_trace, plan) = generate_planning_trace(context, &extraction).await?;
+    finalize_planning(context, extraction, plan_trace, plan).await
 }

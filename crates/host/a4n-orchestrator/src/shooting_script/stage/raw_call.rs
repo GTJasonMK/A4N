@@ -26,7 +26,7 @@ impl OrchestratorContext {
         fingerprint_json: &Value,
         request: ChatRequest,
         label: &str,
-        structured_progress: Option<StructuredLlmProgress>,
+        structured_progress: StructuredLlmProgress,
         progress_total: u32,
         progress: ShootingScriptProgressReporter<'_>,
         stream_reporter: Option<super::super::contracts::ShootingScriptStreamReporter<'_>>,
@@ -47,9 +47,6 @@ impl OrchestratorContext {
         }
 
         let truncated_message = format!("{label}输出达到 max_tokens 上限，JSON 未完整闭合");
-        let fixed_progress = structured_progress
-            .map(|value| value.span.end())
-            .unwrap_or(0);
         // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
         let mut streamed = String::new();
         let mut stream_sink = stream_reporter.map(|reporter| {
@@ -64,21 +61,12 @@ impl OrchestratorContext {
                     request,
                     prompt_name: call_key,
                     truncated_message: &truncated_message,
-                    structured_progress,
+                    structured_progress: Some(structured_progress),
                     cancel_token,
                     cancelled_message: "拍摄剧本生成已停止",
                 },
                 |current, message| {
-                    progress(
-                        if structured_progress.is_some() {
-                            current
-                        } else {
-                            fixed_progress
-                        },
-                        progress_total,
-                        message,
-                    )
-                    .map_err(|error| error.to_string())
+                    progress(current, progress_total, message).map_err(|error| error.to_string())
                 },
                 stream_sink
                     .as_mut()

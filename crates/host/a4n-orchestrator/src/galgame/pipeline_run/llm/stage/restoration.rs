@@ -6,14 +6,15 @@ use crate::galgame::OrchestratorContext;
 use super::super::super::checkpoints::restored_galgame_llm_stage_output;
 use super::{GalgameLlmStageInput, PreparedGalgameLlmStage};
 
-pub(super) async fn restore_galgame_llm_stage<F>(
+pub(super) async fn restore_galgame_llm_stage<T, F>(
     service: &OrchestratorContext,
     input: &GalgameLlmStageInput<'_>,
     prepared: &PreparedGalgameLlmStage,
     validate: &F,
-) -> Result<Option<Value>, AppError>
+) -> Result<Option<(Value, T)>, AppError>
 where
-    F: Fn(Value) -> Result<Value, AppError>,
+    T: serde::Serialize,
+    F: Fn(Value) -> Result<T, AppError>,
 {
     if !input.restore_from_checkpoint {
         return Ok(None);

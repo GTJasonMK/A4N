@@ -2,7 +2,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgamePipelineStartStage, galgame_script_adaptation_session_user_message,
+    GalgameBranchDesign, GalgamePipelineStartStage, GalgameScriptAdaptation,
+    GalgameShootingScriptProjection, galgame_script_adaptation_session_user_message,
     galgame_script_adaptation_user_message, script_adaptation_from_value,
 };
 
@@ -14,16 +15,10 @@ use super::super::contracts::GalgamePipelineExecution;
 pub(super) async fn run_script_adaptation_stage(
     execution: &GalgamePipelineExecution<'_>,
     scenes_json: &Value,
+    scenes: &GalgameShootingScriptProjection,
     branch_plan_json: &Value,
-) -> Result<Value, AppError> {
-    let scenes = crate::galgame::shooting_script_projection_from_value(
-        scenes_json.clone(),
-        "script_adaptation input",
-    )?;
-    let branch = crate::galgame::branch_design_from_value(
-        branch_plan_json.clone(),
-        "script_adaptation branches",
-    )?;
+    branch: &GalgameBranchDesign,
+) -> Result<(Value, GalgameScriptAdaptation), AppError> {
     let stage = GalgamePipelineStartStage::ScriptAdaptation;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
@@ -47,7 +42,7 @@ pub(super) async fn run_script_adaptation_stage(
         &execution.prompt_context.chapters,
         branch_plan_json,
     )?;
-    let lines_draft_json = execution
+    let output = execution
         .service
         .run_galgame_llm_stage(
             GalgameLlmStageInput {
@@ -68,11 +63,11 @@ pub(super) async fn run_script_adaptation_stage(
                 let parsed = script_adaptation_from_value(value, "galgame_script_adaptation")?;
                 crate::galgame::pipeline_persist::validate_galgame_script_adaptation(
                     &parsed,
-                    &scenes,
-                    &branch,
+                    scenes,
+                    branch,
                     &execution.prompt_context.source_spans,
                 )?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                Ok(parsed)
             },
         )
         .await?;
@@ -87,5 +82,5 @@ pub(super) async fn run_script_adaptation_stage(
             "已完成 Galgame 剧本行改编",
         )
         .await?;
-    Ok(lines_draft_json)
+    Ok(output)
 }

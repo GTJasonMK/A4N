@@ -13,9 +13,6 @@ mod pipeline_persist;
 mod pipeline_preview;
 mod pipeline_prompt;
 mod pipeline_run {
-    mod checkpoint {
-        mod llm;
-    }
     mod completion;
     mod contracts;
     mod drawing_prompt;

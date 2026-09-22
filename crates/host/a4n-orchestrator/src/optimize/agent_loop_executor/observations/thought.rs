@@ -1,7 +1,6 @@
 use super::super::{
-    AgentLoopThinkObservationInput, AppError, EVENT_KIND_ASSISTANT_UPDATE, EVENT_KIND_ERROR,
-    EVENT_STATUS_COMPLETED, EVENT_STATUS_FAILED, OrchestratorContext, Value, json,
-    thinking_observation,
+    AgentLoopThinkObservationInput, AppError, EVENT_KIND_ASSISTANT_UPDATE, EVENT_STATUS_COMPLETED,
+    OrchestratorContext, Value, json,
 };
 
 impl OrchestratorContext {
@@ -14,8 +13,8 @@ impl OrchestratorContext {
             session_id,
             step,
             decision,
+            observation,
             think_event_prefix,
-            error_context,
         } = input;
         self.append_turn_event(
             turn_id,
@@ -29,30 +28,6 @@ impl OrchestratorContext {
             })),
         )
         .await?;
-
-        let observation = match thinking_observation(step, &decision.thought, &decision.arguments) {
-            Ok(observation) => observation,
-            Err(err) => {
-                self.append_turn_event(
-                    turn_id,
-                    EVENT_KIND_ERROR,
-                    EVENT_STATUS_FAILED,
-                    &format!("思考参数无效：{err}"),
-                    Some(json!({
-                        "step": step,
-                        "action": decision.action.as_str(),
-                        "arguments": decision.arguments.clone(),
-                    })),
-                )
-                .await?;
-                self.save_agent_event(
-                    session_id,
-                    &format!("{error_context} think 参数无效：{err}"),
-                )
-                .await?;
-                return Err(err);
-            }
-        };
 
         self.save_agent_event(
             session_id,

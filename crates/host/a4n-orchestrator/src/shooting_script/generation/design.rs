@@ -55,7 +55,7 @@ pub(super) async fn generate_shooting_scene(
         unit_progress.span.end(),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         &format!(
-            "拍摄单元 {}/{} {}，正在校验",
+            "拍摄单元 {}/{} {}并通过校验",
             unit_offset + 1,
             total_unit_count,
             if stage.restored {

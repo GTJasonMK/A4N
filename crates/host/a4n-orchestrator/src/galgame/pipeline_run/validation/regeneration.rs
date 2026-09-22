@@ -35,9 +35,9 @@ pub(in crate::galgame::pipeline_run) fn ensure_single_regenerated_staged_lines(
     Ok(())
 }
 
-pub(in crate::galgame::pipeline_run) fn normalize_single_scene_visual_plan(
-    visual_plan: GalgameVisualPlan,
-) -> Result<GalgameVisualPlan, AppError> {
+pub(in crate::galgame::pipeline_run) fn ensure_single_regenerated_visual_plan(
+    visual_plan: &GalgameVisualPlan,
+) -> Result<(), AppError> {
     if visual_plan.backgrounds.len() != 1 {
         return Err(AppError::InvalidArgument(
             "Galgame source sync 局部重跑必须返回且只返回一个 scene_index=1 背景规划".to_string(),
@@ -58,5 +58,5 @@ pub(in crate::galgame::pipeline_run) fn normalize_single_scene_visual_plan(
             event_cg.scene_index
         )));
     }
-    Ok(visual_plan)
+    Ok(())
 }

@@ -98,29 +98,32 @@ impl OrchestratorContext {
                 &call.response_content,
                 &input,
                 &mut outputs,
-            );
-            let parsed = self
-                .validate_llm_call_output(
+            )
+            .map_err(AppError::InvalidArgument)
+            .and_then(|stage_value| {
+                if let Some(saved) = call.restored_parsed_output.as_ref() {
+                    ensure_checkpoint_parsed_output_matches(
+                        saved,
+                        &stage_value,
+                        &format!("角色同步阶段 {}", call.call_key),
+                    )?;
+                }
+                Ok(stage_value)
+            });
+            let parsed = if call.restored_parsed_output.is_some() {
+                self.validate_llm_call_output(
                     workflow_run_id,
                     &call.call_key,
                     &call.input_fingerprint_json,
-                    parsed.map_err(AppError::InvalidArgument),
+                    parsed,
                 )
-                .await;
+                .await
+            } else {
+                parsed
+            };
             match parsed {
                 Ok(stage_value) => {
-                    if let Some(parsed_output) = call.restored_parsed_output.as_ref() {
-                        self.validate_llm_call_output(
-                            workflow_run_id,
-                            &call.call_key,
-                            &call.input_fingerprint_json,
-                            ensure_checkpoint_parsed_output_matches(
-                                parsed_output,
-                                &stage_value,
-                                &format!("角色同步阶段 {}", call.call_key),
-                            ),
-                        )
-                        .await?;
+                    if call.restored_parsed_output.is_some() {
                         report_progress(
                             progress,
                             current,

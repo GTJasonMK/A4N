@@ -2,28 +2,24 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameSceneRegenerationInput, GalgameVisualPlan, OrchestratorContext,
-    galgame_visual_planning_user_message, visual_plan_from_value,
+    GalgameBranchDesign, GalgameCharacterStaging, GalgameSceneRegenerationInput, GalgameVisualPlan,
+    OrchestratorContext, galgame_visual_planning_user_message, visual_plan_from_value,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::llm::GalgameLlmOnceInput;
-use super::super::super::validation::normalize_single_scene_visual_plan;
+use super::super::super::validation::ensure_single_regenerated_visual_plan;
 use super::super::contracts::PreparedGalgameSceneRegeneration;
 
 pub(super) async fn run_visual_planning_stage(
     service: &OrchestratorContext,
     input: &GalgameSceneRegenerationInput,
     prepared: &PreparedGalgameSceneRegeneration,
-    lines_staged_json: &Value,
+    staging: &(Value, GalgameCharacterStaging),
+    branch: &GalgameBranchDesign,
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameVisualPlan), AppError> {
-    let staging = crate::galgame::character_staging_from_value(
-        lines_staged_json.clone(),
-        "visual_planning input",
-    )?;
-    let (_, branch) = super::branch::run_branch_design_stage()?;
-    let visual_plan_json = service
+    service
         .run_galgame_llm_once(
             GalgameLlmOnceInput {
                 prompt_renderer,
@@ -36,23 +32,21 @@ pub(super) async fn run_visual_planning_stage(
                 prompt_name: "galgame_visual_planning",
                 user_prompt: galgame_visual_planning_user_message(
                     &prepared.scenes_json,
-                    lines_staged_json,
+                    &staging.0,
                 )?,
             },
             |value| {
                 let parsed = visual_plan_from_value(value, "galgame_visual_planning")?;
-                let parsed = normalize_single_scene_visual_plan(parsed)?;
+                ensure_single_regenerated_visual_plan(&parsed)?;
                 crate::galgame::build_galgame_script_persist_plan(
                     &prepared.shooting_script_projection,
-                    &staging,
+                    &staging.1,
                     &parsed,
-                    &branch,
+                    branch,
                     &prepared.persist_source_spans,
                 )?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                Ok(parsed)
             },
         )
-        .await?;
-    let visual_plan = visual_plan_from_value(visual_plan_json.clone(), "visual_plan")?;
-    Ok((visual_plan_json, visual_plan))
+        .await
 }

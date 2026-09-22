@@ -6,10 +6,10 @@ use super::super::super::{
 
 use super::contracts::PreparedAgentDecisionCall;
 
-pub(super) async fn prepare_agent_loop_decision_call(
+pub(super) async fn prepare_agent_loop_decision_call<T>(
     context: &OrchestratorContext,
     session_id: i64,
-    request: &AgentLoopDecisionRequest<'_>,
+    request: &AgentLoopDecisionRequest<'_, T>,
 ) -> Result<PreparedAgentDecisionCall, AppError> {
     let mut chat_request = match build_agent_loop_chat_request(
         request.project_id,

@@ -35,7 +35,6 @@ pub(super) struct GalgamePipelineEarlyOutputs {
     pub(super) scenes_json: Value,
     pub(super) scenes: GalgameShootingScriptProjection,
     pub(super) branch_plan: GalgameBranchDesign,
-    pub(super) branch_choice_count: usize,
     pub(super) lines_staged_json: Value,
     pub(super) staging: GalgameCharacterStaging,
 }

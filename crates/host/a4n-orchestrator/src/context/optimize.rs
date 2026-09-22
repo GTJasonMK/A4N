@@ -114,40 +114,6 @@ impl OptimizeApplication {
         .map_err(optimize_db_error)
     }
 
-    async fn matching_pending_optimization_patch_sets(
-        &self,
-        session_id: i64,
-        base_content_hash: &str,
-        pending_status: &str,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        a4n_db::optimize::matching_pending_optimization_patch_sets(
-            self.database.connection(),
-            session_id,
-            base_content_hash,
-            pending_status,
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
-    async fn update_optimization_patch_sets_status(
-        &self,
-        patch_set_ids: &[i64],
-        patch_set_status: &str,
-        patch_decision: &str,
-        patch_apply_status: &str,
-    ) -> Result<(), AppError> {
-        a4n_db::optimize::update_optimization_patch_sets_status(
-            self.database.connection(),
-            patch_set_ids,
-            patch_set_status,
-            patch_decision,
-            patch_apply_status,
-        )
-        .await
-        .map_err(optimize_db_error)
-    }
-
     async fn optimization_turns(
         &self,
         session_id: i64,
@@ -198,34 +164,6 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<Option<chapter::Model>, AppError> {
         self.optimize.optimization_chapter_by_id(chapter_id).await
-    }
-
-    pub(crate) async fn matching_pending_optimization_patch_sets(
-        &self,
-        session_id: i64,
-        base_content_hash: &str,
-        pending_status: &str,
-    ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        self.optimize
-            .matching_pending_optimization_patch_sets(session_id, base_content_hash, pending_status)
-            .await
-    }
-
-    pub(crate) async fn update_optimization_patch_sets_status(
-        &self,
-        patch_set_ids: &[i64],
-        patch_set_status: &str,
-        patch_decision: &str,
-        patch_apply_status: &str,
-    ) -> Result<(), AppError> {
-        self.optimize
-            .update_optimization_patch_sets_status(
-                patch_set_ids,
-                patch_set_status,
-                patch_decision,
-                patch_apply_status,
-            )
-            .await
     }
 
     pub(crate) async fn optimization_turns(

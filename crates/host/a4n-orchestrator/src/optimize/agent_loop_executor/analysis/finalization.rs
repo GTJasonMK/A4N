@@ -1,7 +1,6 @@
 use super::super::{
     AppError, OptimizeAnalysisTurnExecution, OrchestratorContext, Value, final_issues,
-    final_response_from_issues, materialize_optimization_issue_evidence, optimization_session,
-    parse_content_optimization_issues, parse_optimization_issues,
+    materialize_optimization_issue_evidence, optimization_session, parse_optimization_issues,
 };
 
 impl OrchestratorContext {
@@ -9,11 +8,9 @@ impl OrchestratorContext {
         &self,
         session: optimization_session::Model,
         turn_id: i64,
-        final_arguments: Value,
-        analysis_context: &Value,
+        output: (String, Value),
     ) -> Result<OptimizeAnalysisTurnExecution, AppError> {
-        let (assistant_response, canonical_issues) =
-            parse_final_analysis_output(&final_arguments, analysis_context)?;
+        let (assistant_response, canonical_issues) = output;
         self.save_agent_event(
             session.id,
             "Agent 已返回并校验 final，等待 generation terminal 事务保存分析结果。",
@@ -31,10 +28,9 @@ pub(super) fn parse_final_analysis_output(
     arguments: &Value,
     analysis_context: &Value,
 ) -> Result<(String, Value), AppError> {
-    let assistant_response = final_response_from_issues(final_issues(arguments)?)?;
-    let issues = parse_content_optimization_issues(&assistant_response)?;
-    let issues = parse_optimization_issues(&issues)?;
+    let issues = parse_optimization_issues(&final_issues(arguments)?)?;
     let issues = materialize_optimization_issue_evidence(issues, analysis_context)?;
+    let assistant_response = serde_json::to_string_pretty(arguments)?;
     Ok((assistant_response, serde_json::to_value(issues)?))
 }
 
@@ -58,5 +54,12 @@ mod tests {
                 .to_string()
                 .contains("missing-span")
         );
+        for arguments in [
+            json!({}),
+            json!({"issues": {}}),
+            json!({"issues": [], "extra": true}),
+        ] {
+            assert!(parse_final_analysis_output(&arguments, &context).is_err());
+        }
     }
 }

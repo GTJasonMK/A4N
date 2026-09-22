@@ -97,6 +97,8 @@ def response_for(body: dict[str, Any]) -> str:
             value["performance_facts"][0]["actor"] = "不在参与者中的角色"
         elif fault == "shooting-design" and "shots" in value:
             value["shots"][0]["lens_intent"] = " "
+        elif fault == "video-json" and "segments" in value and value["segments"][0]["source_shot_id"] == "shot-2":
+            return json.dumps(value, ensure_ascii=False) + "]}"
         elif fault == "blueprint-characters" and isinstance(value.get("characters"), list):
             value["characters"].append(value["characters"][0].copy())
         elif fault == "galgame-branch" and "choices" in value:
@@ -113,6 +115,10 @@ def response_for(body: dict[str, Any]) -> str:
             value["scenes"][0]["beat_refs"][0]["beat_index"] = 999
         elif fault == "manga-items" and "items" in value:
             value["items"][0]["first_appearance_beat_ref"]["beat_index"] = 999
+        elif fault == "manga-planning" and value.get("schema_version") == "manga_page_plan_v3":
+            value["pages"][0]["beat_refs"][0]["beat_index"] = 999
+        elif fault == "manga-drawing" and value.get("schema_version") == "manga_page_drawing_prompt_v2" and value["page_number"] == 2:
+            value["image_prompt"] = " "
         elif fault == "manga-optimization" and "image_prompt" in value:
             value["image_prompt"] = " "
         elif fault == "optimization-final" and value.get("action") == "final" and "issues" in value.get("arguments", {}):

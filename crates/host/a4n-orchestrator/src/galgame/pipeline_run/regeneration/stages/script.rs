@@ -2,8 +2,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameSceneRegenerationInput, OrchestratorContext, galgame_script_adaptation_user_message,
-    script_adaptation_from_value,
+    GalgameBranchDesign, GalgameSceneRegenerationInput, GalgameScriptAdaptation,
+    OrchestratorContext, galgame_script_adaptation_user_message, script_adaptation_from_value,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -15,14 +15,10 @@ pub(super) async fn run_script_adaptation_stage(
     service: &OrchestratorContext,
     input: &GalgameSceneRegenerationInput,
     prepared: &PreparedGalgameSceneRegeneration,
-    branch_plan_json: &Value,
+    branch: &(Value, GalgameBranchDesign),
     prompt_renderer: &dyn PromptRenderer,
-) -> Result<Value, AppError> {
-    let branch = crate::galgame::branch_design_from_value(
-        branch_plan_json.clone(),
-        "script_adaptation branches",
-    )?;
-    let lines_draft_json = service
+) -> Result<(Value, GalgameScriptAdaptation), AppError> {
+    service
         .run_galgame_llm_once(
             GalgameLlmOnceInput {
                 prompt_renderer,
@@ -36,7 +32,7 @@ pub(super) async fn run_script_adaptation_stage(
                 user_prompt: galgame_script_adaptation_user_message(
                     std::slice::from_ref(&prepared.prompt_chapter),
                     &prepared.scenes_json,
-                    branch_plan_json,
+                    &branch.0,
                 )?,
             },
             |value| {
@@ -45,12 +41,11 @@ pub(super) async fn run_script_adaptation_stage(
                 crate::galgame::pipeline_persist::validate_galgame_script_adaptation(
                     &parsed,
                     &prepared.shooting_script_projection,
-                    &branch,
+                    &branch.1,
                     &prepared.persist_source_spans,
                 )?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                Ok(parsed)
             },
         )
-        .await?;
-    Ok(lines_draft_json)
+        .await
 }

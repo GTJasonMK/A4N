@@ -39,8 +39,7 @@ use super::super::prompt_json::{
     VideoPromptShot, VideoSegmentPlan, VideoShootingScriptProjection,
     parse_chat_video_prompt_shots, parse_storyboard_frame_prompts_with_defaults,
     parse_video_frame_prompts_with_defaults, parse_video_prompt_shots,
-    parse_video_segment_plan_input_values, parse_video_segment_plan_response,
-    validate_direct_prompt_text, validate_reference_label_text,
+    parse_video_segment_plan_response, validate_direct_prompt_text, validate_reference_label_text,
     validate_segment_plan_against_shooting_script_projection, video_segment_plan_input_values,
 };
 use super::super::prompt_records::{

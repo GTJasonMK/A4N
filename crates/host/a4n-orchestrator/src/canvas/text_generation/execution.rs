@@ -11,9 +11,7 @@ use a4n_db::{
 };
 use a4n_domain::CanvasNodeRefKind;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::{
-    ChatMessage, ChatRequest, ChatResponse, UsageInfo, is_truncated_finish_reason,
-};
+use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, ChatResponse, UsageInfo};
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
@@ -544,9 +542,7 @@ fn validate_canvas_llm_text_content(
     content: &str,
     finish_reason: Option<&str>,
 ) -> Result<String, AppError> {
-    if is_truncated_finish_reason(finish_reason) {
-        return Err(AppError::InvalidArgument("LlmTextNode 输出达到当前 max_tokens 上限，文本可能被截断；请提高模型配置 max_output_tokens 或减少上游文本后重试".into()));
-    }
+    a4n_llm_provider_contract::validate_finish_reason(finish_reason)?;
     let content = content.trim();
     if content.is_empty() {
         return Err(AppError::InvalidArgument("LlmTextNode 返回空文本".into()));
@@ -597,8 +593,29 @@ pub(super) fn validate_restored_checkpoint_for_test(
         &parsed_output,
         response_content,
         None,
-        None,
+        Some("stop".into()),
         call_key,
     )
     .map(|validated| validated.transformed_text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_canvas_llm_text_content;
+
+    #[test]
+    fn text_call_requires_a_successful_finish_reason() {
+        for reason in [
+            None,
+            Some("length"),
+            Some("content_filter"),
+            Some("unknown"),
+        ] {
+            assert!(validate_canvas_llm_text_content("有文本也不代表调用成功", reason).is_err());
+        }
+        assert_eq!(
+            validate_canvas_llm_text_content(" 完成 ", Some("stop")).unwrap(),
+            "完成"
+        );
+    }
 }

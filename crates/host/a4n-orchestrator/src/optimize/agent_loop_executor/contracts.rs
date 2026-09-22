@@ -54,7 +54,13 @@ impl AgentLoopExecutionError {
     }
 }
 
-pub(in crate::optimize) struct AgentLoopDecisionRequest<'a> {
+pub(in crate::optimize) enum ValidatedAgentLoopAction<T> {
+    Think(super::ThinkingObservation),
+    RunTool { tool_name: String, arguments: Value },
+    Final(T),
+}
+
+pub(in crate::optimize) struct AgentLoopDecisionRequest<'a, T> {
     pub(in crate::optimize) project_id: i64,
     pub(in crate::optimize) workflow: &'a str,
     pub(in crate::optimize) phase: &'a str,
@@ -65,7 +71,7 @@ pub(in crate::optimize) struct AgentLoopDecisionRequest<'a> {
     pub(in crate::optimize) build_error_label: &'a str,
     pub(in crate::optimize) request_event_label: &'a str,
     pub(in crate::optimize) parse_error_label: &'a str,
-    pub(in crate::optimize) validate_final: &'a (dyn Fn(&Value) -> Result<(), AppError> + Sync),
+    pub(in crate::optimize) parse_final: &'a (dyn Fn(&Value) -> Result<T, AppError> + Sync),
     pub(in crate::optimize) workflow_run_id: i64,
     pub(in crate::optimize) generation: &'a AgentLoopGenerationContext<'a>,
 }
@@ -75,8 +81,8 @@ pub(in crate::optimize) struct AgentLoopThinkObservationInput<'a> {
     pub(in crate::optimize) session_id: i64,
     pub(in crate::optimize) step: usize,
     pub(in crate::optimize) decision: &'a AgentLoopDecision,
+    pub(in crate::optimize) observation: super::ThinkingObservation,
     pub(in crate::optimize) think_event_prefix: &'a str,
-    pub(in crate::optimize) error_context: &'a str,
 }
 
 pub(in crate::optimize) struct FailedAgentLoopToolInput<'a> {

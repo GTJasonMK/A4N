@@ -8,8 +8,7 @@ mod validation;
 pub(super) use contracts::{MangaLlmCallInput, MangaPromptGenerationTrace};
 pub(super) use fingerprint::manga_pipeline_prompt_fingerprint;
 pub(super) use llm::{
-    MangaRenderTraceInput, load_manga_restored_llm_checkpoint, parse_and_validate_manga_llm_output,
-    prepare_manga_llm_call,
+    MangaRenderTraceInput, load_manga_restored_llm_checkpoint, prepare_manga_llm_call,
 };
 #[cfg(test)]
 pub(super) use messages::{

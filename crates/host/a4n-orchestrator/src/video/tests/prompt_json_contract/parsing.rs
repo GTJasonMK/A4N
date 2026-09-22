@@ -77,15 +77,3 @@ fn parses_video_frame_prompt_without_model_owned_reference_image_ids() {
 
     assert_eq!(rows[0].reference_image_ids, vec![3]);
 }
-
-#[test]
-fn repairs_only_terminal_segment_plan_delimiter_noise_before_validation() {
-    let values = parse_video_segment_plan_input_values(
-        r#"{"segments":[{"source_shot_id":"shot-2","covered_beat_ids":["beat-1"],"title":"片段","scene_summary":"场景","blocking_summary":"调度","spatial_anchors":[],"emotion_action_goals":[],"video_intent":{"hook":"钩子","audience_effect":"效果","rhythm":"节奏","visual_priority":"重点"},"emotional_arc":{"start":"开始","turn":"转折","end":"结束","function":"功能"},"performance_plan":{"movement_path":"路径","body_performance":"身体","gaze_and_hands":"视线","pause_or_reaction":"停顿","camera_relationship":"镜头","time_blocks":[],"action_script":[]},"material_coverage":{"required_entities":[],"missing_or_weak_references":[],"risk_note":"无"}]}]}]}"#,
-        "视频分段规划 镜头 #shot-2",
-    )
-    .expect("terminal delimiter noise should be normalized");
-
-    assert_eq!(values.len(), 1);
-    assert_eq!(values[0]["source_shot_id"], "shot-2");
-}

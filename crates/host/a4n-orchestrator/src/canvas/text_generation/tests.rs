@@ -467,7 +467,7 @@ async fn fresh_truncated_llm_response_marks_failed_without_artifact() {
         summary
             .error_message
             .as_deref()
-            .is_some_and(|message| message.contains("可能被截断"))
+            .is_some_and(|message| message.contains("截断"))
     );
     assert_eq!(spec.status, "failed");
     assert_eq!(artifact_count, 0);

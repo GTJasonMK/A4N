@@ -50,7 +50,7 @@ impl OrchestratorContext {
                 &fingerprint_json,
                 request,
                 label,
-                Some(structured_progress),
+                structured_progress,
                 progress_total,
                 progress,
                 stream_reporter,
@@ -70,9 +70,12 @@ impl OrchestratorContext {
                 }
                 Ok(output)
             });
-        let output = self
-            .validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
-            .await?;
+        let output = if restored {
+            self.validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
+                .await?
+        } else {
+            output?
+        };
         if !restored {
             self.persist_parsed_shooting_call(
                 workflow_run_id,

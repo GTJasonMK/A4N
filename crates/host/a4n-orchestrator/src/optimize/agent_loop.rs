@@ -8,8 +8,8 @@ pub(in crate::optimize) use contracts::{
 };
 pub(in crate::optimize) use decision::parse_agent_loop_decision_response;
 pub(in crate::optimize) use observations::{
-    failed_tool_observation, final_issues, final_reply, final_response_from_issues,
-    insert_current_chapter_content, run_tool_arguments, thinking_observation, tool_observation,
+    failed_tool_observation, final_issues, final_reply, insert_current_chapter_content,
+    run_tool_arguments, thinking_observation, tool_observation,
 };
 pub(in crate::optimize) use request::{
     agent_loop_request_payload, build_agent_loop_chat_request, build_first_agent_loop_chat_request,

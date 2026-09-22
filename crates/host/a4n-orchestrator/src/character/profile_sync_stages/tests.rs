@@ -539,6 +539,52 @@ fn output_rejects_unknown_fields_and_invalid_anchor_contracts() {
 }
 
 #[test]
+fn stage_rejects_missing_or_ambiguous_chapter_evidence() {
+    let input = stage_input(Some(1));
+    for (chapter_data, expected) in [
+        (vec![], "缺少可核对证据"),
+        (vec![json!({"chapter_number": 1})], "text_anchors"),
+        (
+            vec![input.chapter_data[0].clone(), input.chapter_data[0].clone()],
+            "重复章节",
+        ),
+        (
+            vec![json!({"chapter_number": 1, "text_anchors": [
+                {"id": 11, "quote": "甲"}, {"id": 11, "quote": "乙"}
+            ]})],
+            "重复 id",
+        ),
+        (
+            vec![json!({"chapter_number": 1, "text_anchors": [{"id": 11, "quote": " "}]})],
+            "quote",
+        ),
+    ] {
+        let input = CharacterProfileSyncStageInput {
+            chapter_data,
+            ..input.clone()
+        };
+        for stage in [
+            CharacterProfileSyncStage::EvidenceEvents,
+            CharacterProfileSyncStage::AttributeChanges,
+        ] {
+            let index = if stage == CharacterProfileSyncStage::EvidenceEvents {
+                0
+            } else {
+                1
+            };
+            let error = parse_character_profile_sync_stage_output(
+                stage,
+                &canonical_stage_responses()[index],
+                &input,
+                &mut super::contracts::CharacterProfileSyncStageOutputs::default(),
+            )
+            .expect_err("missing or ambiguous evidence must never be checkpointed");
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+}
+
+#[test]
 fn stage_materializes_evidence_without_changing_checkpoint_contract() {
     let input = stage_input(Some(1));
     let mut outputs = super::contracts::CharacterProfileSyncStageOutputs::default();

@@ -1,28 +1,4 @@
 #[test]
-fn parse_content_optimization_issues_rejects_markdown_fence() {
-    let err = parse_content_optimization_issues("```json\n{\"issues\":[]}\n```")
-        .expect_err("markdown fence must fail");
-
-    assert!(matches!(err, AppError::InvalidArgument(_)));
-}
-
-#[test]
-fn parse_content_optimization_issues_rejects_empty_response_clearly() {
-    let err =
-        parse_content_optimization_issues(" \n\t ").expect_err("empty response must fail clearly");
-
-    assert!(err.to_string().contains("模型返回空内容"));
-}
-
-#[test]
-fn parse_content_optimization_issues_requires_array() {
-    let err =
-        parse_content_optimization_issues(r#"{"issues":{}}"#).expect_err("issues must be an array");
-
-    assert!(matches!(err, AppError::InvalidArgument(_)));
-}
-
-#[test]
 fn parse_optimization_issues_accepts_canonical_array_only() {
     let issues = parse_optimization_issues(&json!([{
         "id": "issue-001",

@@ -2,8 +2,9 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameBranchDesign, GalgamePipelineStartStage, branch_design_from_value,
-    galgame_branch_design_session_user_message, galgame_branch_design_user_message,
+    GalgameBranchDesign, GalgamePipelineStartStage, GalgameShootingScriptProjection,
+    branch_design_from_value, galgame_branch_design_session_user_message,
+    galgame_branch_design_user_message,
 };
 
 use super::super::super::contracts::CHECKPOINT_BRANCH_PLAN;
@@ -14,11 +15,8 @@ use super::super::contracts::GalgamePipelineExecution;
 pub(super) async fn run_branch_design_stage(
     execution: &GalgamePipelineExecution<'_>,
     scenes_json: &Value,
-) -> Result<(Value, GalgameBranchDesign, usize), AppError> {
-    let scenes = crate::galgame::shooting_script_projection_from_value(
-        scenes_json.clone(),
-        "branch_design input",
-    )?;
+    scenes: &GalgameShootingScriptProjection,
+) -> Result<(Value, GalgameBranchDesign), AppError> {
     let stage = GalgamePipelineStartStage::BranchDesign;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
@@ -35,7 +33,7 @@ pub(super) async fn run_branch_design_stage(
         .await?;
     let user_prompt = galgame_branch_design_user_message(scenes_json)?;
     let request_user_prompt = galgame_branch_design_session_user_message()?;
-    let branch_plan_json = execution
+    let output = execution
         .service
         .run_galgame_llm_stage(
             GalgameLlmStageInput {
@@ -54,17 +52,11 @@ pub(super) async fn run_branch_design_stage(
             },
             |value| {
                 let parsed = branch_design_from_value(value, "galgame_branch_design")?;
-                crate::galgame::pipeline_persist::validate_galgame_branch_design(&parsed, &scenes)?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                crate::galgame::pipeline_persist::validate_galgame_branch_design(&parsed, scenes)?;
+                Ok(parsed)
             },
         )
         .await?;
-    let branch_choice_count = branch_plan_json
-        .get("choices")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or(0);
-    let branch_plan = branch_design_from_value(branch_plan_json.clone(), CHECKPOINT_BRANCH_PLAN)?;
     execution
         .service
         .report_pipeline_progress(
@@ -76,5 +68,5 @@ pub(super) async fn run_branch_design_stage(
             "已完成 Galgame 分支设计",
         )
         .await?;
-    Ok((branch_plan_json, branch_plan, branch_choice_count))
+    Ok(output)
 }

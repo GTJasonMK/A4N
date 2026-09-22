@@ -126,6 +126,26 @@ def main():
                 assert len(calls()) - before == 6 - prefix, (fault, len(calls()) - before)
                 report["checks"].append({"fault": fault, "error": error, "reused_calls": prefix, "retry_calls": 6 - prefix})
 
+            video_source, video_chapter_id = shooting_source("video strict JSON checkpoint", 2)
+            call("generate_chapter_shooting_script", video_source)
+            video_request = {"project_id": video_source["project_id"], "operation": {
+                "kind": "prompt_segment_plan", "chapter_id": video_chapter_id, "options": {
+                    "workflow_mode": "shared_segment_plan", "style": "电影感", "prompt_output_language": "zh_cn",
+                    "prompt_batch_size": 1, "duration_secs": 6, "duration_secs_options": [6], "aspect_ratio": "16:9",
+                    "reference_image_ids": [], "video_library_image_ids": [], "regenerate_existing": False,
+                }}}
+            model("video-json")
+            before = len(calls())
+            first = call("start_video_generation", {**video_request, "meta": {"start_request_id": str(uuid.uuid4())}})
+            task(first, "JSON")
+            assert len(calls()) - before == 2, len(calls()) - before
+            model()
+            before = len(calls())
+            task(call("start_video_generation", {**video_request, "meta": {
+                "start_request_id": str(uuid.uuid4()), "retry_of_task_id": first["task_id"]}}))
+            assert len(calls()) - before == 1, len(calls()) - before
+            report["checks"].append({"fault": "video-json", "reused_calls": 1, "retry_calls": 1})
+
             project_id = new_project("blueprint checkpoint boundary")
             task(call("start_inspiration_generation", {"meta": {"start_request_id": str(uuid.uuid4())}, "project_id": project_id,
                 "message": "写一部六章都市时间悬疑小说：暴雨夜、未来来信、旧车站与每天消失的七分钟。"}))
@@ -178,7 +198,13 @@ def main():
                     time.sleep(0.1)
                 raise RunnerError("manga fixture did not terminate")
 
-            for fault, prefix in [("manga-speech", 1), ("manga-visual", 2), ("manga-items", 3)]:
+            for fault, prefix, expected in [
+                ("manga-speech", 1, "不存在的拍摄节拍"),
+                ("manga-visual", 2, "不存在的拍摄节拍"),
+                ("manga-items", 3, "不存在的拍摄节拍"),
+                ("manga-planning", 5, "不属于所在页"),
+                ("manga-drawing", 7, "image_prompt"),
+            ]:
                 manga_source, chapter_id = shooting_source(fault, 1)
                 call("generate_chapter_shooting_script", manga_source)
                 project_id = manga_source["project_id"]
@@ -186,7 +212,7 @@ def main():
                 model(fault)
                 before = len(calls())
                 call("start_manga_pipeline", value)
-                manga_result(project_id, "不存在的拍摄节拍")
+                manga_result(project_id, expected)
                 assert len(calls()) - before == prefix + 1, (fault, len(calls()) - before)
                 model()
                 before = len(calls())

@@ -31,13 +31,14 @@ struct PreparedGalgameLlmOnce {
 }
 
 impl OrchestratorContext {
-    pub(in crate::galgame::pipeline_run) async fn run_galgame_llm_once<F>(
+    pub(in crate::galgame::pipeline_run) async fn run_galgame_llm_once<T, F>(
         &self,
         input: GalgameLlmOnceInput<'_>,
         validate: F,
-    ) -> Result<Value, AppError>
+    ) -> Result<(Value, T), AppError>
     where
-        F: Fn(Value) -> Result<Value, AppError>,
+        T: serde::Serialize,
+        F: Fn(Value) -> Result<T, AppError>,
     {
         let prepared = prepare_galgame_llm_once(&input).await?;
         self.mark_workflow_current_step(input.workflow_run_id, &input.step_key)

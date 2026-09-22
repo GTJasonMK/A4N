@@ -13,13 +13,11 @@ use crate::character::{
 use super::contracts::{
     CharacterProfileSyncStage, CharacterProfileSyncStageInput, CharacterProfileSyncStageOutputs,
 };
-use evidence::{
-    ChapterEvidenceIndex, ensure_stage_anchor_exists, validate_sync_evidence_against_chapters,
-};
+use evidence::ChapterEvidenceIndex;
 use validation::{
     chapter_state_drafts, chapter_state_drafts_json, sort_sync_items_by_chapter,
-    validate_attribute_change, validate_behavior, validate_chapter_state,
-    validate_deletion_candidate, validate_sync_item_chapters, validate_unique_deletion_candidates,
+    validate_attribute_change, validate_behavior, validate_deletion_candidate,
+    validate_sync_item_chapters, validate_unique_deletion_candidates,
 };
 
 pub(super) fn parse_character_profile_sync_stage_output(
@@ -42,28 +40,28 @@ pub(super) fn parse_character_profile_sync_stage_output(
         CharacterProfileSyncStage::AttributeChanges => {
             let mut changes = parse_sync_attribute_changes(&value, input)?;
             let stage_output = json!({ "attribute_changes": changes });
-            validate_sync_evidence_against_chapters(
+            ChapterEvidenceIndex::new(&input.chapter_data)?.materialize(
                 &mut changes,
-                &mut [],
-                &mut [],
-                &input.chapter_data,
+                "attribute_changes",
+                "evidence_anchor_id",
+                "evidence",
             )?;
             project_character_attribute_changes(input.baseline_state.clone(), &changes)?;
             outputs.changes = changes;
             Ok(stage_output)
         }
         CharacterProfileSyncStage::ChapterStates => {
-            outputs.chapter_states = parse_sync_chapter_states(&value, input)?;
+            outputs.chapter_states = chapter_state_drafts(&value, &input.selected_chapter_numbers)?;
             Ok(json!({ "chapter_states": chapter_state_drafts_json(&outputs.chapter_states) }))
         }
         CharacterProfileSyncStage::BehaviorRecords => {
             let mut behaviors = parse_sync_behaviors(&value, input)?;
             let stage_output = json!({ "behaviors": behaviors });
-            validate_sync_evidence_against_chapters(
-                &mut [],
+            ChapterEvidenceIndex::new(&input.chapter_data)?.materialize(
                 &mut behaviors,
-                &mut [],
-                &input.chapter_data,
+                "behaviors",
+                "original_text_anchor_id",
+                "original_text",
             )?;
             outputs.behaviors = behaviors;
             Ok(stage_output)
@@ -71,11 +69,11 @@ pub(super) fn parse_character_profile_sync_stage_output(
         CharacterProfileSyncStage::DeletionCandidates => {
             let mut candidates = parse_sync_deletion_candidates(&value, input)?;
             let stage_output = json!({ "deletion_candidates": candidates });
-            validate_sync_evidence_against_chapters(
-                &mut [],
-                &mut [],
+            ChapterEvidenceIndex::new(&input.chapter_data)?.materialize(
                 &mut candidates,
-                &input.chapter_data,
+                "deletion_candidates",
+                "evidence_anchor_id",
+                "evidence",
             )?;
             outputs.deletion_candidates = candidates;
             Ok(stage_output)
@@ -89,7 +87,7 @@ fn parse_sync_evidence_events(
 ) -> Result<Vec<Value>, String> {
     let events = required_array(value, "events")?.clone();
     validate_sync_item_chapters("events", &events, &input.selected_chapter_numbers)?;
-    let chapter_index = ChapterEvidenceIndex::new(&input.chapter_data);
+    let chapter_index = ChapterEvidenceIndex::new(&input.chapter_data)?;
     for (index, event) in events.iter().enumerate() {
         if !event.is_object() {
             return Err(format!("events[{index}] 必须是 JSON 对象"));
@@ -102,7 +100,7 @@ fn parse_sync_evidence_events(
         required_string(event, "event_type")?;
         required_string(event, "summary")?;
         required_string_array(event, "related_characters")?;
-        ensure_stage_anchor_exists(event, "events", index, "evidence_anchor_id", &chapter_index)?;
+        chapter_index.quote(event, &format!("events[{index}]"), "evidence_anchor_id")?;
     }
     Ok(events)
 }
@@ -122,16 +120,6 @@ fn parse_sync_attribute_changes(
     )?;
     sort_sync_items_by_chapter(&mut changes)?;
     Ok(changes)
-}
-
-fn parse_sync_chapter_states(
-    value: &Value,
-    input: &CharacterProfileSyncStageInput,
-) -> Result<Vec<super::contracts::CharacterProfileSyncChapterStateDraft>, String> {
-    for (index, state) in required_array(value, "chapter_states")?.iter().enumerate() {
-        validate_chapter_state(index, state)?;
-    }
-    chapter_state_drafts(value, &input.selected_chapter_numbers)
 }
 
 fn parse_sync_behaviors(

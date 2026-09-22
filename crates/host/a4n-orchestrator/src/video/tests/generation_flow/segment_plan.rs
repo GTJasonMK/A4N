@@ -35,7 +35,7 @@ async fn segment_plan_requires_current_shooting_script_before_llm() {
 }
 
 #[tokio::test]
-async fn segment_plan_publishes_each_completed_shot_before_the_stage_finishes() {
+async fn segment_plan_publishes_each_call_and_resumes_after_cancellation() {
     let db = Arc::new(setup_db().await);
     let llm_switch = SwitchableLlmProvider::new();
     let service =
@@ -44,6 +44,10 @@ async fn segment_plan_publishes_each_completed_shot_before_the_stage_finishes() 
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
+    let options = ChapterVideoPromptOptions {
+        workflow_run_id: Some(chapter.id * 100 + 1),
+        ..frame_generation_options()
+    };
     let cancel_token = CancellationToken::new();
     let progress_cancel = cancel_token.clone();
     let mut progress = move |update: VideoPromptProgressUpdate| -> Result<(), AppError> {
@@ -67,7 +71,7 @@ async fn segment_plan_publishes_each_completed_shot_before_the_stage_finishes() 
                     segment_plan_json_for_shot(2, None),
                 ]),
                 &engine,
-                frame_generation_options(),
+                options.clone(),
                 Some(&cancel_token),
             ),
             None,
@@ -89,4 +93,26 @@ async fn segment_plan_publishes_each_completed_shot_before_the_stage_finishes() 
     assert_eq!(metadata["segments"].as_array().unwrap().len(), 1);
     assert_eq!(metadata["segment_recipes"].as_array().unwrap().len(), 1);
     assert!(metadata["video_execution_identity"].is_object());
+
+    let resumed = service
+        .generate_chapter_segment_plan(
+            prompt_stage_input(
+                &llm_switch,
+                project.id,
+                chapter.id,
+                "shared_segment_plan",
+                &SequenceLlmProvider::new_owned(vec![segment_plan_json_for_shot(2, None)]),
+                &engine,
+                options,
+                None,
+            ),
+            None,
+            None,
+        )
+        .await
+        .expect("resume must reuse the first call and request only the remaining shot");
+    assert_eq!(resumed.len(), 1);
+    let metadata = resumed[0].metadata_json.as_ref().unwrap();
+    assert_eq!(metadata["plan_complete"], json!(true));
+    assert_eq!(metadata["segments"].as_array().unwrap().len(), 2);
 }

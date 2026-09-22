@@ -1,3 +1,5 @@
+use super::super::super::pipeline_json::parse_manga_page_plan;
+use a4n_domain::manga::MangaPagePlanV3;
 use a4n_error::AppError;
 
 use super::super::super::pipeline_prompt::{
@@ -9,7 +11,7 @@ use super::super::contracts::{MangaExtractionRun, MangaRunContext};
 pub(super) async fn generate_planning_trace(
     context: &MangaRunContext<'_>,
     extraction: &MangaExtractionRun,
-) -> Result<MangaPromptGenerationTrace, AppError> {
+) -> Result<(MangaPromptGenerationTrace, MangaPagePlanV3), AppError> {
     let extraction_summary = &extraction.extraction_summary;
     let shooting_script = manga_page_planning_source(
         context.shooting_script.record.id,
@@ -20,17 +22,20 @@ pub(super) async fn generate_planning_trace(
 
     context
         .service
-        .render_and_chat_trace(MangaRenderTraceInput {
-            prompt_renderer: context.prompt_renderer,
-            prompt_name: "manga_page_planning",
-            project_id: context.project_id,
-            workflow_run_id: context.workflow_run_id,
-            call_key: format!("manga_pipeline:{}:manga_page_planning", context.chapter_id),
-            call_order: 6,
-            restore_from_checkpoint: context.resume_from_checkpoint,
-            variables: &context.variables,
-            user_content: plan_user,
-            temperature: 0.3,
-        })
+        .render_and_validate_manga_call(
+            MangaRenderTraceInput {
+                prompt_renderer: context.prompt_renderer,
+                prompt_name: "manga_page_planning",
+                project_id: context.project_id,
+                workflow_run_id: context.workflow_run_id,
+                call_key: format!("manga_pipeline:{}:manga_page_planning", context.chapter_id),
+                call_order: 6,
+                restore_from_checkpoint: context.resume_from_checkpoint,
+                variables: &context.variables,
+                user_content: plan_user,
+                temperature: 0.3,
+            },
+            |value| parse_manga_page_plan(value, &context.shooting_script, "manga_page_planning"),
+        )
         .await
 }

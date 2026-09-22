@@ -4,22 +4,24 @@ use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInpu
 
 use super::super::super::{
     AgentLoopDecision, AgentLoopDecisionRequest, AppError, OrchestratorContext,
+    ValidatedAgentLoopAction,
 };
 use super::super::checkpoint::agent_loop_decision_json;
 use super::contracts::AgentDecisionCallResult;
 use super::rules::agent_loop_call_order;
 
-pub(super) async fn persist_agent_loop_decision_call(
+pub(super) async fn persist_agent_loop_decision_call<T>(
     context: &OrchestratorContext,
     session_id: i64,
-    request: &AgentLoopDecisionRequest<'_>,
+    request: &AgentLoopDecisionRequest<'_, T>,
     call_key: String,
     input_fingerprint_json: Value,
-    result: AgentDecisionCallResult,
-) -> Result<AgentLoopDecision, AppError> {
+    result: AgentDecisionCallResult<T>,
+) -> Result<(AgentLoopDecision, ValidatedAgentLoopAction<T>), AppError> {
     let AgentDecisionCallResult {
         response,
         decision,
+        action,
         restored,
     } = result;
     if !restored {
@@ -59,5 +61,5 @@ pub(super) async fn persist_agent_loop_decision_call(
             )
             .await?;
     }
-    Ok(decision)
+    Ok((decision, action))
 }

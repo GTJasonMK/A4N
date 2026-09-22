@@ -74,8 +74,8 @@ pub(in crate::galgame::pipeline_run::pipeline) async fn persist_galgame_pipeline
                 "script_id": detail.id,
                 "scene_count": detail.scenes.len(),
                 "line_count": line_count,
-                "branch_choice_count": early.branch_choice_count,
-                "branch_design_persisted": early.branch_choice_count > 0,
+                "branch_choice_count": early.branch_plan.choices.len(),
+                "branch_design_persisted": !early.branch_plan.choices.is_empty(),
             })),
             artifacts_json: Some(json!({
                 "galgame_script_id": detail.id,

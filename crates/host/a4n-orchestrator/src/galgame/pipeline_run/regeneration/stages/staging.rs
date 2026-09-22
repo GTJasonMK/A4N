@@ -2,8 +2,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameCharacterStaging, GalgameSceneRegenerationInput, OrchestratorContext,
-    character_staging_from_value, galgame_character_staging_user_message,
+    GalgameCharacterStaging, GalgameSceneRegenerationInput, GalgameScriptAdaptation,
+    OrchestratorContext, character_staging_from_value, galgame_character_staging_user_message,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -13,14 +13,10 @@ use super::super::super::validation::ensure_single_regenerated_staged_lines;
 pub(super) async fn run_character_staging_stage(
     service: &OrchestratorContext,
     input: &GalgameSceneRegenerationInput,
-    lines_draft_json: &Value,
+    script: &(Value, GalgameScriptAdaptation),
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
-    let script = crate::galgame::script_adaptation_from_value(
-        lines_draft_json.clone(),
-        "character_staging input",
-    )?;
-    let lines_staged_json = service
+    service
         .run_galgame_llm_once(
             GalgameLlmOnceInput {
                 prompt_renderer,
@@ -32,7 +28,7 @@ pub(super) async fn run_character_staging_stage(
                 call_order: 2,
                 prompt_name: "galgame_character_staging",
                 user_prompt: galgame_character_staging_user_message(
-                    lines_draft_json,
+                    &script.0,
                     &input.speaker_profiles,
                 )?,
             },
@@ -41,13 +37,11 @@ pub(super) async fn run_character_staging_stage(
                 ensure_single_regenerated_staged_lines(&parsed)?;
                 crate::galgame::pipeline_persist::validate_galgame_staging(
                     &parsed,
-                    &script,
+                    &script.1,
                     &input.speaker_profiles,
                 )?;
-                serde_json::to_value(parsed).map_err(AppError::Serialization)
+                Ok(parsed)
             },
         )
-        .await?;
-    let staging = character_staging_from_value(lines_staged_json.clone(), "lines_staged")?;
-    Ok((lines_staged_json, staging))
+        .await
 }

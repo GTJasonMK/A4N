@@ -1,42 +1,17 @@
 use super::super::{
-    AgentLoopDecision, AppError, EVENT_KIND_ASSISTANT_UPDATE, EVENT_KIND_ERROR,
-    EVENT_KIND_TOOL_CALL, EVENT_STATUS_COMPLETED, EVENT_STATUS_FAILED, EVENT_STATUS_RUNNING,
-    OrchestratorContext, Value, json, run_tool_arguments,
+    AgentLoopDecision, AppError, EVENT_KIND_ASSISTANT_UPDATE, EVENT_KIND_TOOL_CALL,
+    EVENT_STATUS_COMPLETED, EVENT_STATUS_RUNNING, OrchestratorContext, Value, json,
 };
 
 impl OrchestratorContext {
-    pub(in crate::optimize) async fn prepare_agent_loop_tool_call(
+    pub(in crate::optimize) async fn record_agent_loop_tool_call(
         &self,
         turn_id: i64,
-        session_id: i64,
         step: usize,
         decision: &AgentLoopDecision,
-        error_context: &str,
-    ) -> Result<(String, Value), AppError> {
-        let (tool_name, tool_arguments) = match run_tool_arguments(&decision.arguments) {
-            Ok(value) => value,
-            Err(err) => {
-                self.append_turn_event(
-                    turn_id,
-                    EVENT_KIND_ERROR,
-                    EVENT_STATUS_FAILED,
-                    &format!("工具调用参数无效：{err}"),
-                    Some(json!({
-                        "step": step,
-                        "action": decision.action.as_str(),
-                        "arguments": decision.arguments.clone(),
-                    })),
-                )
-                .await?;
-                self.save_agent_event(
-                    session_id,
-                    &format!("{error_context} run_tool 参数无效：{err}"),
-                )
-                .await?;
-                return Err(err);
-            }
-        };
-        let tool_name = tool_name.to_string();
+        tool_name: &str,
+        tool_arguments: &Value,
+    ) -> Result<(), AppError> {
         self.append_turn_event(
             turn_id,
             EVENT_KIND_ASSISTANT_UPDATE,
@@ -46,7 +21,7 @@ impl OrchestratorContext {
                 "step": step,
                 "action": decision.action.as_str(),
                 "tool": tool_name,
-                "arguments": tool_arguments.clone(),
+                "arguments": tool_arguments,
             })),
         )
         .await?;
@@ -58,10 +33,10 @@ impl OrchestratorContext {
             Some(json!({
                 "step": step,
                 "tool": tool_name,
-                "arguments": tool_arguments.clone(),
+                "arguments": tool_arguments,
             })),
         )
-        .await?;
-        Ok((tool_name, tool_arguments))
+        .await
+        .map(drop)
     }
 }
