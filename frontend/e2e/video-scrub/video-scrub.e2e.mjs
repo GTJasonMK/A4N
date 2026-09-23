@@ -36,6 +36,63 @@ const openHarness = async (query = "") => {
 };
 
 describe("video timeline scrubbing", () => {
+  it("falls back to the source video when the scrub proxy fails", async () => {
+    await openHarness("?scenario=source-fallback");
+    const result = await browser.executeAsync((done) => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+      const video = document.querySelector("video");
+      if (
+        !(timeline instanceof HTMLElement) ||
+        !(video instanceof HTMLVideoElement)
+      ) {
+        done({ error: "timeline or video missing" });
+        return;
+      }
+      const rect = timeline.getBoundingClientRect();
+      timeline.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          clientX: rect.left + rect.width * 0.4,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+      void (async () => {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const expected = video.duration * 0.4;
+          if (
+            !video.seeking &&
+            video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+            Math.abs(video.currentTime - expected) < 0.05
+          ) {
+            const beforePlay = video.currentTime;
+            video.muted = true;
+            await video.play();
+            await wait(150);
+            video.pause();
+            done({
+              currentTime: video.currentTime,
+              beforePlay,
+              advanced: video.currentTime > beforePlay,
+              sourceFallback: document.querySelector(
+                'img[data-scrub-preview-visible="true"]',
+              ) == null,
+            });
+            return;
+          }
+          await wait(20);
+        }
+        throw new Error(
+          `source fallback seek did not settle: ${video.currentTime} vs ${video.duration * 0.4}`,
+        );
+      })().catch((error) => done({ error: String(error) }));
+    });
+
+    assert.equal(result.error, undefined, result.error);
+    assert.ok(result.advanced, `source fallback did not play: ${JSON.stringify(result)}`);
+    assert.equal(result.sourceFallback, true);
+  });
+
   it("keeps the active source isolated when switching push batches", async () => {
     await openHarness("?scenario=multiple-pushes");
     const readState = () =>

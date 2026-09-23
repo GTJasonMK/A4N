@@ -17,6 +17,9 @@ window.addEventListener("unhandledrejection", (event) => {
 
 const mountHarness = async () => {
   const nativeTauriRuntime = Boolean(window.__TAURI_INTERNALS__?.metadata);
+  const sourceFallbackScenario =
+    new URLSearchParams(window.location.search).get("scenario") ===
+    "source-fallback";
   let fixtureBytes = new Uint8Array();
   let fixtureBase64 = "";
   let scrubFramesBase64 = "";
@@ -121,6 +124,9 @@ const mountHarness = async () => {
             if (args?.includeAudio !== false) {
               throw new Error("scrub playback must omit audio");
             }
+            if (sourceFallbackScenario) {
+              throw new Error("scrub proxy fixture failure");
+            }
             return {
               mime_type: "video/mp4",
               data_base64: fixtureBase64,
@@ -129,6 +135,15 @@ const mountHarness = async () => {
                 data_base64: scrubFramesBase64,
                 frames_per_second: 12,
               },
+            };
+          case "load_video_playback_data":
+            if (!sourceFallbackScenario) {
+              throw new Error("unexpected source playback request");
+            }
+            return {
+              mime_type: "video/mp4",
+              data_base64: fixtureBase64,
+              scrub_frames: null,
             };
           default:
             throw new Error(`unexpected command: ${command}`);

@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Check, RotateCcw, Scissors, Upload, X } from "lucide-react";
+import { Check, RefreshCw, RotateCcw, Scissors, Upload, X } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -137,6 +137,7 @@ export const VideoPostProcessWorkspace: React.FC<
     videoScrubFrames,
     videoLoadError,
     videoLoading,
+    retryVideoLoad,
     handleVideoLoadStart,
     handleVideoLoaded,
     handleVideoError,
@@ -539,7 +540,9 @@ export const VideoPostProcessWorkspace: React.FC<
       setMarkerValue(target);
       showScrubFrame(target);
       desiredSeekTimeRef.current = target;
-      if (!draggingScrubRef.current) schedulePendingSeek();
+      if (!draggingScrubRef.current || !videoScrubFrames) {
+        schedulePendingSeek();
+      }
     },
     [duration, schedulePendingSeek, showScrubFrame],
   );
@@ -933,6 +936,10 @@ export const VideoPostProcessWorkspace: React.FC<
                   // 必须重置，否则 seek 泵会永久死锁；desiredSeekTime 保留，
                   // 元数据就绪后恢复到原位置。
                   seekInFlightRef.current = false;
+                  scrubPreviewActiveRef.current = false;
+                  draggingScrubRef.current = false;
+                  pendingDragReleaseRef.current = false;
+                  setDraggingMarkerIndex(null);
                   cancelPresentationWait();
                   setScrubPreviewVisible(false);
                   handleVideoLoadStart();
@@ -1016,9 +1023,17 @@ export const VideoPostProcessWorkspace: React.FC<
           {videoLoadError && (
             <div
               role="alert"
-              className="mt-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error"
+              className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-error/40 bg-error-bg px-2.5 py-2 text-small text-error"
             >
-              {videoLoadError}
+              <span className="min-w-0 flex-1">{videoLoadError}</span>
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={retryVideoLoad}
+              >
+                <RefreshCw size={12} />
+                {t("video.chapter.retryVideoLoad")}
+              </BookButton>
             </div>
           )}
         </section>

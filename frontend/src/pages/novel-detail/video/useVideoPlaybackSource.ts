@@ -5,7 +5,10 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
-import { loadVideoScrubPlaybackData } from "../../../api/video";
+import {
+  loadVideoPlaybackData,
+  loadVideoScrubPlaybackData,
+} from "../../../api/video";
 import type { GeneratedVideo, VideoPlaybackData } from "../../../api/video";
 import { base64ToBytes } from "../../../utils/base64";
 import { videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
@@ -107,12 +110,21 @@ export const useVideoPlaybackSource = ({
     mediaKind: UseVideoPlaybackSourceParams["mediaKind"];
     url: string;
     scrubFrames: VideoScrubFrameSequence | null;
+    sourceFallback: boolean;
   } | null>(null);
+  const [sourceFallbackKey, setSourceFallbackKey] = useState<string | null>(
+    null,
+  );
+  const playbackKey = `${selectedVideoId ?? ""}:${selectedVideoPath ?? ""}:${mediaKind}`;
+  // Scrub proxies optimize random seeks; WebKit can still reject a specific proxy.
+  const sourceFallbackActive =
+    mediaKind === "scrub" && sourceFallbackKey === playbackKey;
   const videoPlaybackSrc =
     playbackSource &&
     playbackSource.videoId === selectedVideoId &&
     playbackSource.videoPath === selectedVideoPath &&
-    playbackSource.mediaKind === mediaKind
+    playbackSource.mediaKind === mediaKind &&
+    playbackSource.sourceFallback === sourceFallbackActive
       ? playbackSource.url
       : "";
   const videoScrubFrames = videoPlaybackSrc
@@ -138,6 +150,8 @@ export const useVideoPlaybackSource = ({
     let cancelled = false;
     let objectUrl: string | null = null;
     const generation = ++playbackGenerationRef.current;
+    const useSourceFallback =
+      mediaKind === "scrub" && sourceFallbackKey === playbackKey;
 
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
@@ -151,15 +165,21 @@ export const useVideoPlaybackSource = ({
     }
 
     setVideoLoading(true);
+    const loadPlaybackData = useSourceFallback
+      ? loadVideoPlaybackData
+      : (videoId: number) =>
+          loadVideoScrubPlaybackData(videoId, mediaKind === "preview");
     void loadPlaybackDataWithTimeout(
-      (videoId) => loadVideoScrubPlaybackData(videoId, mediaKind === "preview"),
+      loadPlaybackData,
       selectedVideoId,
-      SCRUB_PROXY_LOAD_TIMEOUT_MS,
+      useSourceFallback ? VIDEO_ELEMENT_LOAD_TIMEOUT_MS : SCRUB_PROXY_LOAD_TIMEOUT_MS,
     )
       .then((data) => {
         if (cancelled || generation !== playbackGenerationRef.current) return;
         const scrubFrames =
-          mediaKind === "scrub" ? decodeScrubFrames(data.scrub_frames, t) : null;
+          mediaKind === "scrub" && !useSourceFallback
+            ? decodeScrubFrames(data.scrub_frames, t)
+            : null;
         objectUrl = videoPlaybackDataToObjectUrl(data);
         objectUrlRef.current = objectUrl;
         setPlaybackSource({
@@ -168,10 +188,15 @@ export const useVideoPlaybackSource = ({
           mediaKind,
           url: objectUrl,
           scrubFrames,
+          sourceFallback: useSourceFallback,
         });
       })
       .catch((err) => {
         if (cancelled || generation !== playbackGenerationRef.current) return;
+        if (mediaKind === "scrub" && !useSourceFallback) {
+          setSourceFallbackKey(playbackKey);
+          return;
+        }
         if (err instanceof PlaybackLoadTimeoutError) {
           // Promise.race cannot cancel the host call; invalidate its late result.
           playbackGenerationRef.current += 1;
@@ -198,8 +223,10 @@ export const useVideoPlaybackSource = ({
     clearVideoLoadTimeout,
     mediaKind,
     playbackRequestVersion,
+    playbackKey,
     selectedVideo?.file_path,
     selectedVideo?.id,
+    sourceFallbackKey,
     t,
   ]);
 
@@ -228,6 +255,13 @@ export const useVideoPlaybackSource = ({
       const eventSource =
         event.currentTarget.currentSrc || event.currentTarget.src;
       if (eventSource !== objectUrlRef.current) return false;
+      if (mediaKind === "scrub" && !sourceFallbackActive) {
+        clearVideoLoadTimeout();
+        setVideoLoading(true);
+        setVideoLoadError(null);
+        setSourceFallbackKey(playbackKey);
+        return true;
+      }
       // WebKitGTK 在快速 seek 时可能发出 error 事件但 media error 为空。
       // 这类假错误不应清掉当前可用的视频源。
       if (!event.currentTarget.error) return false;
@@ -241,7 +275,7 @@ export const useVideoPlaybackSource = ({
       );
       return true;
     },
-    [clearVideoLoadTimeout, t],
+    [clearVideoLoadTimeout, mediaKind, playbackKey, sourceFallbackActive, t],
   );
 
   return {
