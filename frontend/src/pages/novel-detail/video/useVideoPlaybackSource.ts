@@ -5,17 +5,15 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
-import {
-  loadVideoPlaybackData,
-  loadVideoScrubPlaybackData,
-} from "../../../api/video";
+import { loadVideoScrubPlaybackData } from "../../../api/video";
 import type { GeneratedVideo, VideoPlaybackData } from "../../../api/video";
 import { base64ToBytes } from "../../../utils/base64";
 import { videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
-const PLAYBACK_LOAD_TIMEOUT_MS = 20_000;
+const VIDEO_ELEMENT_LOAD_TIMEOUT_MS = 20_000;
 const SCRUB_PROXY_LOAD_TIMEOUT_MS = 120_000;
+
 class PlaybackLoadTimeoutError extends Error {
   constructor() {
     super("Playback load timed out");
@@ -28,7 +26,6 @@ class ScrubFrameDecodeError extends Error {
     this.name = "ScrubFrameDecodeError";
   }
 }
-type PlaybackLoader = (videoId: number) => Promise<VideoPlaybackData>;
 
 export interface VideoScrubFrameSequence {
   bytes: Uint8Array;
@@ -70,7 +67,7 @@ const decodeScrubFrames = (
 };
 
 const loadPlaybackDataWithTimeout = async (
-  loader: PlaybackLoader,
+  loader: (videoId: number) => Promise<VideoPlaybackData>,
   videoId: number,
   timeoutMs: number,
 ): Promise<VideoPlaybackData> => {
@@ -94,7 +91,7 @@ interface UseVideoPlaybackSourceParams {
   selectedVideo: GeneratedVideo | null;
   // preview 保留声音用于正常播放；scrub 去掉音轨，避免 WebKitGTK
   // 在暂停状态连续 seek 时触发 GStreamer data stream error。
-  mediaKind: "source" | "preview" | "scrub";
+  mediaKind: "preview" | "scrub";
 }
 
 export const useVideoPlaybackSource = ({
@@ -154,19 +151,10 @@ export const useVideoPlaybackSource = ({
     }
 
     setVideoLoading(true);
-    const loadPlaybackData: PlaybackLoader =
-      mediaKind === "source"
-        ? loadVideoPlaybackData
-        : (videoId) =>
-            loadVideoScrubPlaybackData(videoId, mediaKind === "preview");
-    const loadTimeoutMs =
-      mediaKind === "source"
-        ? PLAYBACK_LOAD_TIMEOUT_MS
-        : SCRUB_PROXY_LOAD_TIMEOUT_MS;
     void loadPlaybackDataWithTimeout(
-      loadPlaybackData,
+      (videoId) => loadVideoScrubPlaybackData(videoId, mediaKind === "preview"),
       selectedVideoId,
-      loadTimeoutMs,
+      SCRUB_PROXY_LOAD_TIMEOUT_MS,
     )
       .then((data) => {
         if (cancelled || generation !== playbackGenerationRef.current) return;
@@ -184,6 +172,10 @@ export const useVideoPlaybackSource = ({
       })
       .catch((err) => {
         if (cancelled || generation !== playbackGenerationRef.current) return;
+        if (err instanceof PlaybackLoadTimeoutError) {
+          // Promise.race cannot cancel the host call; invalidate its late result.
+          playbackGenerationRef.current += 1;
+        }
         setVideoLoading(false);
         setVideoLoadError(
           err instanceof ScrubFrameDecodeError
@@ -223,7 +215,7 @@ export const useVideoPlaybackSource = ({
       videoLoadTimeoutRef.current = null;
       setVideoLoading(false);
       setVideoLoadError(t("video.chapter.playbackPlayerTimeout"));
-    }, PLAYBACK_LOAD_TIMEOUT_MS);
+    }, VIDEO_ELEMENT_LOAD_TIMEOUT_MS);
   }, [clearVideoLoadTimeout, t]);
 
   const handleVideoLoaded = useCallback(() => {

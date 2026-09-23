@@ -57,12 +57,6 @@ export async function selectSegmentVideo(
   });
 }
 
-export async function loadVideoPlaybackData(videoId: Id): Promise<VideoPlaybackData> {
-  return apiInvoke<VideoPlaybackData>("load_video_playback_data", {
-    videoId: idNum(videoId),
-  });
-}
-
 export async function loadVideoScrubPlaybackData(
   videoId: Id,
   includeAudio: boolean,

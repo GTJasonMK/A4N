@@ -190,6 +190,7 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                       }
                       setDraggingMarkerIndex(null);
                       draggingScrubRef.current = false;
+                      pendingDragReleaseRef.current = false;
                       finishScrub();
                     }}
                     onKeyDown={(event) => {
