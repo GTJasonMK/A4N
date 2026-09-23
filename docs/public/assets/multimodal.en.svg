@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 950" role="img" aria-labelledby="title desc">
-  <title id="title">One story, traceable creative branches</title>
+  <title id="title">Adapt a novel into comics, video or interactive stories</title>
   <desc id="desc">Images belong to the text project. Comic, video and interactive narrative projects retain source snapshots and independent work. Source changes can be compared and locally edited outputs require a decision. Video frames and clips share a segment plan and execution identity.</desc>
   <defs>
     <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
@@ -11,9 +11,9 @@
     </style>
   </defs>
   <rect width="1200" height="950" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">One story, traceable creative branches</text>
-  <text x="40" y="80" class="note">Reuse story material · Independent workflows · Review source changes</text>
-  <text x="40" y="131" class="panel">(a) Choose the creative path the story needs</text>
+  <text x="40" y="47" class="heading">Adapt a novel into comics, video or interactive stories</text>
+  <text x="40" y="80" class="note">Select chapters, work on each adaptation, then check the impact of story edits</text>
+  <text x="40" y="131" class="panel">(a) Project images and separate adaptations</text>
 
   <path d="M290 242H338V201H817" class="manual"/>
   <text x="405" y="180" class="note" style="fill:#945a24">Generate and select references as needed</text>
@@ -44,7 +44,7 @@
 
   <rect x="390" y="281" width="329" height="281" rx="5" fill="#f2f7f6" stroke="#c8dbd7"/>
   <rect x="382" y="289" width="337" height="281" rx="5" fill="#fff" stroke="#6d9b91" stroke-width="1.5"/>
-  <text x="402" y="328" class="label">Retain a source snapshot</text>
+  <text x="402" y="328" class="label">Save the version used</text>
   <path d="M402 345H698" stroke="#c8dbd7"/>
   <circle cx="409" cy="371" r="3" fill="#6d9b91"/><text x="425" y="378" class="note">Selected chapter range</text>
   <circle cx="409" cy="418" r="3" fill="#6d9b91"/><text x="425" y="425" class="note">Text, analysis and profiles</text>

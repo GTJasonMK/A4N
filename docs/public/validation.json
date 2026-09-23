@@ -1,6 +1,6 @@
 {
   "application_commit": "e2f3aa0dcdd7a0ab613e986050eae568a9850c56",
-  "verified_at_utc": "2026-09-23T14:18:47.030057+00:00",
+  "verified_at_utc": "2026-09-23T15:26:25.275576+00:00",
   "documentation": {
     "markdown_files": 10,
     "local_links_checked": 152,
@@ -186,15 +186,31 @@
     "model quality benchmarks"
   ],
   "assets_sha256": {
-    "assets/architecture.en.svg": "0dfe27b089d33dd0e5ce9a395a007eb621eefb8f3667bd5ceea9c7c3dcafbd01",
-    "assets/architecture.zh.svg": "ee77d136635735c703b4ca38b68354a5fe32f25af937b7390bb27408d4b5b694",
+    "assets/architecture.en.svg": "c3167325c24636e6f4024a7acfa118b5bff95c00a4e5780dcfcddb15cb56111a",
+    "assets/architecture.zh.svg": "1548774d496f7ece7ce02a0da1ef3e6079586928eb0b934babe1c00a5137e11f",
     "assets/demo.mp4": "e7f2674738bbb790f9836ce1d4bd4efc5cfecbe2a1d20d90fefd7d312d712e24",
     "assets/multimodal-workspace.webp": "975b86bfe2f779a75d7f83b453c2e138e77b0cf971bb8beeafcdcbebd86bab22",
-    "assets/multimodal.en.svg": "9be31c9aad210740c53c24f8b7b98bffd9448ea49ccae9adc229b42613102b74",
-    "assets/multimodal.zh.svg": "226edce49708b3ab1d3112550191a9b4f135ee7a38a85eea3a11665176ce6c69",
-    "assets/self-feedback.en.svg": "1a36a5c01b823d67458de1eaafb1bee5bb3a6b42d1718c1c42c43c98056dd98b",
-    "assets/self-feedback.zh.svg": "05b83be13bed7ec08c7f537e18f490903b0d50c5249d4645ec40d0bf41920e7c",
+    "assets/multimodal.en.svg": "ca0f2a918a8cd84642a9f27922f8da8a131de9bbcdb13903f8ab526266ef8943",
+    "assets/multimodal.zh.svg": "a7677dcbcc7213a573e97c1cbf797a000ac64a54da7b7b56d8888df2909388ef",
+    "assets/self-feedback.en.svg": "a4217f850d443d6996dd215347bac42c4027530b25bc6b777bd8bfdfd79621f0",
+    "assets/self-feedback.zh.svg": "b9ba53da8a7fab9076da669bc4a0f67466d8dbfc1c1f525128562154cb0e9a4e",
     "assets/story-reference.svg": "20baa6899fc030f4b7b1251a4457940856b63afdf4178b429217c101bbd3ff3b",
     "assets/writing-desk.webp": "783b593125598d42238c9afc52c9877bb97525151380042ab5409703824265f9"
+  },
+  "application_checks_recorded_at_utc": "2026-09-23T14:18:47.030057+00:00",
+  "latest_review_scope": {
+    "type": "README and diagram copy edit",
+    "application_workflows_rerun": false,
+    "demo_reencoded": false,
+    "writing_references": [
+      "https://www.cssn.cn/skgz/bwyc/202607/t20260703_6057355.shtml",
+      "https://learn.microsoft.com/en-us/style-guide/word-choice/use-simple-words-concise-sentences",
+      "https://developers.google.com/style/tone"
+    ],
+    "readme_links_checked": 72,
+    "independent_title_review": [
+      "self-feedback.zh.svg",
+      "multimodal.en.svg"
+    ]
   }
 }

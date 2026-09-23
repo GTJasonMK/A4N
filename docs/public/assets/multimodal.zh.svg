@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 950" role="img" aria-labelledby="title desc">
-  <title id="title">从一个故事，延展出有来源的作品</title>
+  <title id="title">把小说改编成漫画、视频或互动故事</title>
   <desc id="desc">图像资产直接关联文本项目；漫画、视频和互动叙事保留来源快照并独立推进。改稿可比较来源版本，已有本地修改交由作者决策。视频的帧与片段共用规划和执行身份。</desc>
   <defs>
     <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
@@ -11,9 +11,9 @@
     </style>
   </defs>
   <rect width="1200" height="950" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">从一个故事，延展出有来源的作品</text>
-  <text x="40" y="80" class="note">资料与素材复用 · 派生流程独立 · 来源变化可检查</text>
-  <text x="40" y="131" class="panel">(a) 一份故事，按需要选择创作路径</text>
+  <text x="40" y="47" class="heading">把小说改编成漫画、视频或互动故事</text>
+  <text x="40" y="80" class="note">先选择章节，再分别制作；改稿后可以检查受影响的内容</text>
+  <text x="40" y="131" class="panel">(a) 项目图片与派生项目</text>
 
   <path d="M290 242H338V201H817" class="manual"/>
   <text x="405" y="180" class="note" style="fill:#945a24">按需生成与选取参考</text>
@@ -43,7 +43,7 @@
 
   <rect x="390" y="281" width="329" height="281" rx="5" fill="#f2f7f6" stroke="#c8dbd7"/>
   <rect x="382" y="289" width="337" height="281" rx="5" fill="#fff" stroke="#6d9b91" stroke-width="1.5"/>
-  <text x="402" y="328" class="label">记录所用的来源快照</text>
+  <text x="402" y="328" class="label">保存制作时使用的版本</text>
   <path d="M402 345H698" stroke="#c8dbd7"/>
   <circle cx="409" cy="371" r="3" fill="#6d9b91"/><text x="425" y="378" class="note">选定的章节范围</text>
   <circle cx="409" cy="418" r="3" fill="#6d9b91"/><text x="425" y="425" class="note">正文 / 分析 / 档案</text>

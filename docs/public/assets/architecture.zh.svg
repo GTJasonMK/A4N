@@ -10,8 +10,8 @@
     </style>
   </defs>
   <rect width="1200" height="955" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">(a) 多端共用业务规则</text>
-  <text x="40" y="78" class="note">命令合同、数据一致性与能力适配各有归属</text>
+  <text x="40" y="47" class="heading">(a) 桌面、网页和 CLI 调用同一套业务代码</text>
+  <text x="40" y="78" class="note">接口、数据库读写和模型接入由各自的模块负责</text>
   <rect x="40" y="327" width="1120" height="188" rx="5" fill="#f3f7fb" stroke="#d4e2ed"/>
 
   <path d="M200 156V208" class="flow"/>

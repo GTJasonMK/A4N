@@ -4,7 +4,7 @@
 
 <h1 align="center">A4N</h1>
 
-<p align="center"><strong>A local-first workspace for novels and multimodal creation, with a structured feedback loop</strong></p>
+<p align="center"><strong>Novel writing, comics and video production</strong></p>
 
 <p align="center"><a href="README.md">中文</a> · English</p>
 
@@ -17,45 +17,43 @@
 
 <p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-34699A" alt="Apache License 2.0"></a></p>
 
-A4N organizes creation around a story: inspiration, blueprints and chapters connect to character and scene profiles, images, comics, video and interactive narratives. Chapter analysis becomes searchable material for later writing. Content optimization produces changes for the author to review.
+A4N helps you write novels, keep track of characters and scenes, and make comics, videos and interactive stories. Start with an idea and outline, or import existing chapters. The app saves chapter analysis and retrieves relevant material before generating the next chapter.
 
 [![The A4N writing desk, with an example chapter and content review side by side](docs/public/assets/writing-desk.webp)](docs/public/assets/demo.mp4)
 
-*Real application UI with the fictional project Between Mountains and Sea (山海之间). Click to watch or download the short demo. [Media and validation notes](docs/public/demo.md) distinguish prepared examples, simulated model responses and real application actions.*
+*The example project Between Mountains and Sea (山海之间). Click the screenshot for a 50-second walkthrough. The demo uses a fictional story, prepared assets and simulated model responses; see the [media notes](docs/public/demo.md).*
 
-> **Status: active development; run from source.** Initial setup requires a development environment and PostgreSQL. Configure your own models or APIs for AI features. There is currently no official Release installer.
-
-## Built for ongoing creative work
-
-- **Story memory with evidence.** Key extractions cite source text and analysis synchronizes reusable material. Later writing retrieves earlier chapters around the outline, characters and open threads, with continuity given priority.
-- **Creative branches with provenance.** Images, comics, video and interactive narratives reuse story material. Derived projects retain source snapshots, so edits can be inspected before updating downstream work.
-- **Reviewable, resumable workflows.** Optimization saves a patch for author approval. Supported workflows reuse completed stages when their input identities match.
+> A4N is still in development and currently runs from source. There is no official installer. Setup requires a development environment, PostgreSQL and your own model or API configuration.
 
 ## Core design
 
 Open any diagram to view the full-size SVG.
 
-### Story feedback: give the next chapter a foundation
+### Chapter analysis and feedback
 
 [![Story feedback: author-triggered analysis creates reusable memory for later writing; revisions require author approval](docs/public/assets/self-feedback.en.svg)](docs/public/assets/self-feedback.en.svg)
 
-Chapter analysis extracts facts, summaries, character states and foreshadowing in stages. Key results resolve source-span references to the original text. The workflow synchronizes retrospective outlines, character and object profiles, scene material and retrieval records while preserving existing author-owned outlines.
+After writing a chapter, open the **Analysis** tab and start chapter analysis to extract facts, a summary, character states and foreshadowing. Key results cite the original text so you can check them. The app then updates character, object and scene profiles, adds a retrospective outline and builds retrieval records. Existing formal outlines are kept.
 
-Before generating the next chapter, the system builds retrieval queries from the outline, writing intent, relevant characters and open threads, limited to **earlier chapters**. Context budgets organize the results into **continuity, summaries and source passages**. Optimization proposes bounded edits to text it has read; applying them requires author approval and a source-content check.
+Before generating the next chapter, A4N searches earlier chapters using the outline, writing instructions, relevant characters and unresolved threads. The retrieved context gives priority to character states and events, followed by related summaries and passages.
 
-This is **feedback through story material and context**. It does not retrain the model or guarantee that every generated passage avoids continuity errors. The author still reviews the work. The watch clue in the figure is an illustrative example.
+The writing assistant can also suggest local edits and show the original and proposed text together. It changes the chapter only after you approve. If the original text has changed, the app rejects the outdated suggestion.
 
-### Multimodal creation: one story, several forms
+*The figure uses a fictional example. This feedback prepares context for writing; it does not retrain the model. Analysis and generated text still need review.*
+
+### Images, comics, video and interactive stories
 
 [![Story sources and profiles connect shared assets to image, comic, video and interactive narrative workflows](docs/public/assets/multimodal.en.svg)](docs/public/assets/multimodal.en.svg)
 
-Images and portraits remain available in their project. Comic, video and interactive narrative projects work independently from **source snapshots** of the selected chapters. When source text, analysis or profiles change, the system can compare versions and identify affected work; locally edited outputs retain an author decision step.
+Images and portraits are saved in the novel project. To make a comic, video or interactive story, select chapters and create a separate derived project. A4N saves the versions of the text, analysis and profiles used for that work. This record is called a **source snapshot**.
 
-Video frames and clips share a **segment plan and execution identity**. Reference assets must match the relevant plan, and first-frame chains connect later clips using the preceding clip's tail frame. Intermediate artifacts can be handled stage by stage; support depends on the chosen workflow and model.
+After editing the original story, you can compare versions and see which derived content is affected. If you have also edited that content, the app asks you to choose how to handle it.
+
+Video production follows a segment plan. Frames and clips use the same plan, and the app checks that their references match. In first-frame chaining mode, a clip's final frame becomes the next clip's starting image. Supported inputs depend on the workflow and model.
 
 [![The A4N freeform video canvas, connecting prepared footage to trimming, frame extraction and outputs for the example story](docs/public/assets/multimodal-workspace.webp)](docs/public/assets/multimodal-workspace.webp)
 
-*Prepared illustrative assets in a freeform video canvas. Chapter-derived video uses the derived project's chapter workflow; canvas generation nodes currently require a freeform video project.*
+*A freeform canvas example: import a prepared clip, trim it and extract a frame. Canvas generation nodes currently require a freeform video project; generate chapter-derived video through the derived project's chapter workflow.*
 
 | What you want to create | What you need |
 | --- | --- |
@@ -64,7 +62,7 @@ Video frames and clips share a **segment plan and execution identity**. Referenc
 | Video generation and assembly | A video model/API; local media processing requires ffmpeg and the corresponding sidecars |
 | Interactive narratives | Story scripts and related assets; export requirements depend on the target workspace |
 
-Configure services in application settings; see [Configuration and local data](docs/public/configuration.en.md). Supported formats, resolutions, durations, prices and capabilities vary by provider.
+Configure models and services in application settings; see the [configuration guide](docs/public/configuration.en.md). Available formats, resolutions, durations and prices depend on the service.
 
 ## Get started
 
@@ -73,30 +71,30 @@ Configure services in application settings; see [Configuration and local data](d
 3. Create a novel project, prepare its blueprint and chapter outline, then write or import the first chapter.
 4. Start chapter analysis, inspect the synchronized profiles and threads, then continue writing or review optimization suggestions.
 
-The guide includes a fictional example and completion checks. Installation commands, initial account setup and troubleshooting are maintained there.
+The guide covers installation, the first account, sample chapter text and troubleshooting. Follow it through to writing and analyzing a chapter.
 
-## Engineering for long creative workflows
+## Backend and task recovery
 
 [![Desktop, browser and CLI entry points converge on shared business logic through Host adapters](docs/public/assets/architecture.en.svg)](docs/public/assets/architecture.en.svg)
 
-The desktop uses a local Server by default; Native mode uses the Tauri entry point. Browser and CLI requests also enter the shared Host API. Command contracts, workflow orchestration, data consistency and capability adapters have distinct owners.
+The desktop connects to a local Server by default, with Tauri Native mode as another option. The browser and CLI call the same business code through the Server. Separate modules handle API definitions, database operations and model connections.
 
-Long workflows retain stage results and input fingerprints. After interruption, supported workflows validate the inputs, reuse completed calls and continue remaining steps. If formal story material changes during chapter generation, results based on the older inputs are rejected.
+Resumable tasks save completed results and their inputs. After an interruption, they can continue the remaining steps if those inputs still match. If formal story material, such as the chapter or outline, changes during generation, the app rejects results based on the old version.
 
-| Design | Benefit | Implementation / checks |
+| Mechanism | Behavior | Code |
 | --- | --- | --- |
-| Shared Host contract | Common business command definitions across entry points | [Host API contract](crates/host/a4n-api-contract), [parity checks](frontend/package.json) |
-| Reviewable patches and conflict checks | Stale suggestions cannot directly overwrite newer text | [Patch rules and tests](crates/host/a4n-orchestrator/src/optimize/tests/patch_flow.rs) |
-| Workflow checkpoints | Reuse completed steps when recovery conditions permit | [Chapter analysis recovery](crates/host/a4n-orchestrator/src/chapter_analysis/workflow/checkpoint.rs) |
-| Project sources and snapshots | Compare source changes and preserve decisions for edited work | [Source differences](crates/platform/a4n-db/src/source_sync/snapshots), [decision guards](crates/platform/a4n-db/src/source_sync/decisions/guards.rs) |
+| Shared command definitions | Desktop, Web and CLI use the same business command catalog | [Host API contract](crates/host/a4n-api-contract), [parity checks](frontend/package.json) |
+| Edit suggestions and conflict checks | Check whether the chapter has changed before writing | [Patch rules and tests](crates/host/a4n-orchestrator/src/optimize/tests/patch_flow.rs) |
+| Task checkpoints | Reuse completed steps when the task can resume | [Chapter analysis recovery](crates/host/a4n-orchestrator/src/chapter_analysis/workflow/checkpoint.rs) |
+| Source snapshots | Compare story versions and find affected content | [Source differences](crates/platform/a4n-db/src/source_sync/snapshots), [decision guards](crates/platform/a4n-db/src/source_sync/decisions/guards.rs) |
 
-See [Design evidence](docs/public/design-evidence.md) for implementation links and scope, and [Media and validation notes](docs/public/demo.md) for the workflow exercised here. The stack uses Rust, Tauri 2, React/TypeScript, PostgreSQL/SeaORM and Qdrant. See the [contribution guide](CONTRIBUTING.md) (Chinese) for module responsibilities and development commands.
+See [Design evidence](docs/public/design-evidence.md) for implementation details and limits, and the [validation notes](docs/public/demo.md) for what the demo tested. A4N uses Rust, Tauri 2, React/TypeScript, PostgreSQL/SeaORM and Qdrant. Development commands are in the [contribution guide](CONTRIBUTING.md) (Chinese).
 
 ## Common questions
 
 **Do I pay for models?** A4N source is licensed under Apache 2.0. Third-party APIs, hosting and local inference hardware have their own costs. Check the separate licenses of models and assets.
 
-**Does local-first mean fully offline?** You configure data storage and runtime services. External models receive the text, context or media required for their requests. Offline creation depends on locally deployed services that support the required capabilities.
+**Can I use it offline?** External models receive the text, context or media needed for each request. To work offline, run the required models and services locally.
 
 **Where is my work stored?** Structured data lives in the configured PostgreSQL database; media and runtime files live in the configured data directories. Back up both the database and files. The [configuration guide](docs/public/configuration.en.md) explains these boundaries.
 

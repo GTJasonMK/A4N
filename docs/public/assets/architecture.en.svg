@@ -10,8 +10,8 @@
     </style>
   </defs>
   <rect width="1200" height="955" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">(a) Shared business rules across entry points</text>
-  <text x="40" y="78" class="note">Shared commands; explicit owners for orchestration, persistence and adapters</text>
+  <text x="40" y="47" class="heading">(a) Desktop, Web and CLI share business code</text>
+  <text x="40" y="78" class="note">Separate modules handle APIs, database access and model connections</text>
   <rect x="40" y="327" width="1120" height="188" rx="5" fill="#f3f7fb" stroke="#d4e2ed"/>
 
   <path d="M200 156V208" class="flow"/>
