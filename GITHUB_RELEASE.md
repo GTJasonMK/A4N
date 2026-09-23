@@ -22,7 +22,7 @@ git diff --stat
 
 ## 本地打包
 
-当前打包入口是 [scripts/deploy.sh](scripts/deploy.sh)，在仓库根目录运行：
+当前打包入口是 [scripts/deploy.sh](scripts/deploy.sh)，在开发工作树根目录运行；工作树要求见[贡献指南](CONTRIBUTING.md#并行工作树与集成基线)，首次环境准备见[源码运行指南](docs/public/getting-started.zh.md)：
 
 ```bash
 ./scripts/deploy.sh --help

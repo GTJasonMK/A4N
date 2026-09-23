@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 955" role="img" aria-labelledby="title desc">
+  <title id="title">一套业务规则，支撑多端与可恢复工作流</title>
+  <desc id="desc">桌面默认经本地 Server，Native 模式经 Tauri；浏览器与 CLI 经 Server 进入共享 Host API 与业务编排。支持的工作流按输入指纹保存完成检查点，满足恢复条件时复用完成阶段。箭头为运行时调用关系，不表示 Rust 包依赖。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
+    <style>
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:20px}
+      .heading{font-size:25px;font-weight:700}.label{font-size:22px;font-weight:600}.note{font-size:18px;fill:#516372}
+      .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="955" rx="8" fill="#fff"/>
+  <text x="40" y="47" class="heading">(a) 多端共用业务规则</text>
+  <text x="40" y="78" class="note">命令合同、数据一致性与能力适配各有归属</text>
+  <rect x="40" y="327" width="1120" height="188" rx="5" fill="#f3f7fb" stroke="#d4e2ed"/>
+
+  <path d="M200 156V208" class="flow"/>
+  <path d="M335 132H411V236H488" class="flow"/>
+  <path d="M633 156V208" class="flow"/>
+  <path d="M1025 156V208" class="flow"/>
+  <path d="M200 273V313H514V340" class="flow"/>
+  <path d="M832 273V340" class="flow"/>
+  <path d="M600 402V445" class="flow"/>
+  <path d="M600 503V530H208V559" class="flow"/>
+  <path d="M600 530V559" class="flow"/>
+  <path d="M600 530H995V559" class="flow"/>
+  <text x="212" y="187" class="note">Native 可选</text>
+  <text x="428" y="182" class="note">桌面默认 HTTP</text>
+  <text x="760" y="426" class="note">装配时通过端口连接</text>
+
+  <rect x="65" y="105" width="270" height="51" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="200" y="138" text-anchor="middle" class="label">桌面应用</text>
+  <rect x="498" y="105" width="270" height="51" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="633" y="138" text-anchor="middle" class="label">Web 浏览器</text>
+  <rect x="890" y="105" width="270" height="51" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="1025" y="138" text-anchor="middle" class="label">CLI / 自动化</text>
+
+  <rect x="65" y="220" width="270" height="53" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="200" y="254" text-anchor="middle" class="label">Tauri Host</text>
+  <rect x="500" y="220" width="660" height="53" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="830" y="254" text-anchor="middle" class="label">Server · HTTP 入口</text>
+
+  <text x="63" y="361" class="label">共享业务边界</text>
+  <text x="63" y="392" class="note">Host API 合同</text>
+  <text x="63" y="419" class="note">统一命令定义</text>
+  <text x="63" y="489" class="note">三端一致性检查</text>
+  <rect x="361" y="352" width="704" height="50" rx="5" fill="#fff" stroke="#91b3ce"/>
+  <text x="713" y="384" text-anchor="middle" class="label">共享分发 → Runtime Host API</text>
+  <rect x="361" y="457" width="704" height="46" rx="5" fill="#e1edf7" stroke="#91b3ce"/>
+  <text x="713" y="487" text-anchor="middle" class="label">Orchestrator · 业务用例与工作流</text>
+  <text x="614" y="430" class="note">ApplicationPorts</text>
+
+  <rect x="65" y="571" width="286" height="46" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="208" y="601" text-anchor="middle">PostgreSQL / Repository</text>
+  <rect x="457" y="571" width="286" height="46" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="600" y="601" text-anchor="middle">文件 / 索引 / 进程适配</text>
+  <rect x="852" y="571" width="286" height="46" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="995" y="601" text-anchor="middle">文本 / 图像 / 视频能力</text>
+  <text x="40" y="641" class="note">箭头为调用关系，非 Rust 包的直接依赖；业务实现按端口在 Host 装配点接线。</text>
+
+  <path d="M40 678H1160" stroke="#e2e8ee"/>
+  <text x="40" y="717" class="heading">(b) 中断后，复用已完成的阶段</text>
+  <path d="M272 810H327" class="flow"/>
+  <path d="M569 810H624" class="flow"/>
+  <path d="M866 810H921" class="flow"/>
+  <rect x="40" y="752" width="232" height="126" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/><text x="58" y="788" class="label" style="font-size:22px">保存已完成调用</text><text x="58" y="824" style="font-size:20px">结果与输入指纹</text><text x="58" y="855" class="note" style="font-size:18px">持久化到数据库</text>
+  <rect x="337" y="752" width="232" height="126" rx="5" fill="#fff7ed" stroke="#d6b18c"/><text x="355" y="788" class="label" style="font-size:22px">任务发生中断</text><text x="355" y="824" style="font-size:20px">保留完成检查点</text><text x="355" y="855" class="note" style="font-size:18px">失败原因保持可见</text>
+  <rect x="634" y="752" width="232" height="126" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="652" y="788" class="label" style="font-size:22px">继续前核对输入</text><text x="652" y="824" style="font-size:20px">正文、参数与请求</text><text x="652" y="855" class="note" style="font-size:18px">按工作流恢复条件</text>
+  <rect x="931" y="752" width="229" height="126" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/><text x="949" y="788" class="label" style="font-size:22px">继续未完成步骤</text><text x="949" y="824" style="font-size:20px">已完成调用可复用</text><text x="949" y="855" class="note" style="font-size:18px">逐步推进剩余工作</text>
+  <text x="40" y="918" class="note">输入变化时重新准备；是否可继续，以当前工作流的恢复条件与状态为准。</text>
+</svg>

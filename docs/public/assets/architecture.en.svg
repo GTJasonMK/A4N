@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 955" role="img" aria-labelledby="title desc">
+  <title id="title">Shared business rules and resumable creative workflows</title>
+  <desc id="desc">Desktop defaults to the local Server or uses Tauri in Native mode. Browser and CLI share Host API and orchestration. Supported workflows retain completed checkpoints keyed by input identity and reuse them when resume conditions hold. Arrows show runtime calls, not Rust dependencies.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
+    <style>
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:20px}
+      .heading{font-size:25px;font-weight:700}.label{font-size:22px;font-weight:600}.note{font-size:18px;fill:#516372}
+      .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="955" rx="8" fill="#fff"/>
+  <text x="40" y="47" class="heading">(a) Shared business rules across entry points</text>
+  <text x="40" y="78" class="note">Shared commands; explicit owners for orchestration, persistence and adapters</text>
+  <rect x="40" y="327" width="1120" height="188" rx="5" fill="#f3f7fb" stroke="#d4e2ed"/>
+
+  <path d="M200 156V208" class="flow"/>
+  <path d="M335 132H411V236H488" class="flow"/>
+  <path d="M633 156V208" class="flow"/>
+  <path d="M1025 156V208" class="flow"/>
+  <path d="M200 273V313H514V340" class="flow"/>
+  <path d="M832 273V340" class="flow"/>
+  <path d="M600 402V445" class="flow"/>
+  <path d="M600 503V530H208V559" class="flow"/>
+  <path d="M600 530V559" class="flow"/>
+  <path d="M600 530H995V559" class="flow"/>
+  <text x="212" y="187" class="note">Native option</text>
+  <text x="428" y="182" class="note">Desktop default: HTTP</text>
+  <text x="760" y="426" class="note">Wired during Host assembly</text>
+
+  <rect x="65" y="105" width="270" height="51" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="200" y="138" text-anchor="middle" class="label">Desktop</text>
+  <rect x="498" y="105" width="270" height="51" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="633" y="138" text-anchor="middle" class="label">Web browser</text>
+  <rect x="890" y="105" width="270" height="51" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="1025" y="138" text-anchor="middle" class="label">CLI / Automation</text>
+
+  <rect x="65" y="220" width="270" height="53" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="200" y="254" text-anchor="middle" class="label">Tauri Host</text>
+  <rect x="500" y="220" width="660" height="53" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="830" y="254" text-anchor="middle" class="label">Server · HTTP entry</text>
+
+  <text x="63" y="361" class="label">Shared boundary</text>
+  <text x="63" y="392" class="note">Host API contract</text>
+  <text x="63" y="419" class="note">Command definitions</text>
+  <text x="63" y="489" class="note">Parity checks</text>
+  <rect x="361" y="352" width="704" height="50" rx="5" fill="#fff" stroke="#91b3ce"/>
+  <text x="713" y="384" text-anchor="middle" class="label">Shared dispatch → Runtime Host API</text>
+  <rect x="361" y="457" width="704" height="46" rx="5" fill="#e1edf7" stroke="#91b3ce"/>
+  <text x="713" y="487" text-anchor="middle" class="label">Orchestrator · Use cases and workflows</text>
+  <text x="614" y="430" class="note">ApplicationPorts</text>
+
+  <rect x="65" y="571" width="286" height="46" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="208" y="601" text-anchor="middle">PostgreSQL / Repository</text>
+  <rect x="457" y="571" width="286" height="46" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="600" y="601" text-anchor="middle">Files / Index / Processes</text>
+  <rect x="852" y="571" width="286" height="46" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="995" y="601" text-anchor="middle">Text / Image / Video</text>
+  <text x="40" y="641" class="note">Arrows show runtime calls, not Rust dependencies. Host assembly wires the application ports.</text>
+
+  <path d="M40 678H1160" stroke="#e2e8ee"/>
+  <text x="40" y="717" class="heading">(b) Reuse completed stages after an interruption</text>
+  <path d="M272 810H327" class="flow"/>
+  <path d="M569 810H624" class="flow"/>
+  <path d="M866 810H921" class="flow"/>
+  <rect x="40" y="752" width="232" height="126" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/><text x="58" y="788" class="label">Completed call</text><text x="58" y="824">Result + input hash</text><text x="58" y="855" class="note">Stored in database</text>
+  <rect x="337" y="752" width="232" height="126" rx="5" fill="#fff7ed" stroke="#d6b18c"/><text x="355" y="788" class="label">Interruption</text><text x="355" y="824">Keep saved steps</text><text x="355" y="855" class="note">Failure stays visible</text>
+  <rect x="634" y="752" width="232" height="126" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="652" y="788" class="label">Validate inputs</text><text x="652" y="824">Text and request</text><text x="652" y="855" class="note">Check workflow rules</text>
+  <rect x="931" y="752" width="229" height="126" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/><text x="949" y="788" class="label">Resume work</text><text x="949" y="824">Reuse saved steps</text><text x="949" y="855" class="note">Run remaining steps</text>
+  <text x="40" y="918" class="note">Changed inputs require fresh preparation. Resuming depends on the workflow's current state and recovery rules.</text>
+</svg>

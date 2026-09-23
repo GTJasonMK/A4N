@@ -1,268 +1,109 @@
-# A4N
-
-A4N 是一个面向小说创作与多模态派生内容生产的本地应用。项目以文本项目为根，围绕灵感对话、故事蓝图、大纲、章节写作、结构化分析、人物/物体/场景档案、图片生成、漫画派生、视频派生和成片编辑等工作流组织功能。
-
-当前代码库采用双 Host 架构：Tauri 桌面端和 axum Web Server 都通过
-`a4n-runtime` 调用同一套 orchestrator 业务逻辑。内置 `a4n` CLI 连接
-`a4n-server`，因此无前端运行、桌面端和网页端不会各自复制权限、事务、校验或状态机。
-
-## 技术栈
-
-- Rust workspace：核心模型、服务层、AI 引擎、迁移和 Tauri 命令层，承担后端业务逻辑。
-- Tauri 2：桌面应用运行时与前后端桥接。
-- React 18 + TypeScript + Vite：前端页面与交互。
-- SeaORM + PostgreSQL：桌面与 Web 运行时共用的关系数据库。
-
-## 目录结构
-
-```text
-crates/
-  host/          Server、Tauri、CLI、Runtime、Orchestrator、Host 装配与 API 合同
-  platform/      领域公共值、数据库、迁移、存储、错误、事件、队列与测试支持
-  process/       通用 service/worker 协议、客户端、进程管理与发布 catalog
-  config/        配置解析与配置读取 worker
-  provider/      跨能力 Provider 合同与模型发现
-  llm/           LLM 客户端、上下文、网关与 Provider 合同
-  prompt/        Prompt 渲染、Git、客户端与服务
-  embedding/     Embedding 合同、Provider、客户端与服务
-  rag/           RAG 合同、索引、客户端与服务
-  agent/         Agent 应用、运行时、worker 与客户端
-  project/       项目读取、修改、权限、协作、状态与源快照
-  planning/      小说规划、蓝图、大纲与伏笔
-  chapter/       章节正文、分析、生成与场景
-  profiles/      人物、物体、场景、立绘与档案素材
-  inspiration/   灵感记录与应用合同
-  image/         图片合同、Provider、客户端与服务
-  video/         视频合同、Provider、客户端、服务与记录 worker
-  media/         媒体处理、渲染与生成产物
-  manga/         漫画核心与记录 worker
-  canvas/        画布合同与资产图 worker
-  galgame/       Galgame 应用合同
-  transfer/      导入、导出、归档与导入审查
-  workflow/      工作流读取、生成任务与优化应用合同
-  theme/         主题核心与读取 worker
-frontend/
-  src/           React 前端源码
-  resources/     前端资源
-prompts/         提示词模板与注册表
-work/docs/       本机文档、草稿和历史资料（不提交）
-scripts/         开发、构建、测试脚本
-```
-
-每个领域目录下保留现有 `a4n-*` crate 名称，例如 `crates/llm/a4n-llm-client`。
-同一领域的 `core`、`contract`、`client` 和 `worker` 放在一起；目录分组不改变包和进程边界。
-根 `Cargo.toml` 是唯一 workspace，本地依赖路径统一声明在 `[workspace.dependencies]`，成员通过 `workspace = true` 引用。
-
-前端 API 封装集中在 `frontend/src/api/`；Server 维护共享命令分派，Native Tauri 复用该入口。业务编排属于 `a4n-orchestrator`，SQL/Repository 属于 `a4n-db`，运行适配属于 `a4n-runtime`。Host API、通用 sidecar 协议和能力专用合同分别维护，详见各 crate 的 manifest、`command_manifest.rs` 和 `frontend/src/api/`。
+<p align="center">
+  <img src="frontend/src/assets/afn-logo.svg" alt="A4N" width="72" height="72">
+</p>
 
-## 本地开发
-
-前置依赖：
+<h1 align="center">A4N</h1>
 
-- Rust toolchain（当前 CI 固定 Rust 1.95.0）
-- Node.js 22 和 npm
-- PostgreSQL 16+，或 Docker Compose
-- Linux 桌面构建需要 WebKitGTK、GTK 和 Ayatana AppIndicator 开发库
+<p align="center"><strong>具备自反馈系统的本地优先小说与多模态创作工作台</strong></p>
 
-Linux 桌面端默认设置 `WEBKIT_GST_DISABLE_GL_SINK=1` 和
-`WEBKIT_DISABLE_DMABUF_RENDERER=1`，规避 NVIDIA/Wayland 下拖动闪黑及
-暂停后缩放丢帧。内存拷贝可能增加 CPU 开销；已有环境值保持优先。
-确认系统播放栈修复后，可把对应变量设为 `0` 恢复相应渲染路径。
+<p align="center">中文 · <a href="README.en.md">English</a></p>
 
-启动本地 PostgreSQL：
+<p align="center">
+  <a href="docs/public/getting-started.zh.md">快速开始</a> ·
+  <a href="docs/public/assets/demo.mp4">观看 / 下载演示</a> ·
+  <a href="#核心设计">核心设计</a> ·
+  <a href="https://github.com/GTJasonMK/A4N/issues">反馈问题</a>
+</p>
 
-```bash
-./scripts/dev/dev-db.sh up
-```
+<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-34699A" alt="Apache License 2.0"></a></p>
 
-数据库测试使用独立的 `a4n_test` 库，并通过 `A4N_TEST_DATABASE_URL` 指定隔离连接；具体边界以测试脚本和测试代码为准。
+A4N 围绕一个故事组织创作：从灵感、蓝图和章节写作，到人物与场景档案，再到图片、漫画、视频和互动叙事。章节分析会沉淀为可检索的资料，参与后续写作；内容优化以可审阅的修改建议交给作者决定。
 
-安装前端依赖：
+[![A4N 写作台：示例章节与内容审阅并排呈现](docs/public/assets/writing-desk.webp)](docs/public/assets/demo.mp4)
 
-```bash
-npm --prefix frontend ci
-```
+*真实应用界面，虚构演示项目《山海之间》。点击图片观看或下载短演示；[素材与验证说明](docs/public/demo.md)区分预置示例、模拟模型响应和真实应用操作。*
 
-安装本地 embedding 使用的共享 ONNX Runtime（版本由 `tools/onnxruntime/VERSION` 固定）：
+> **当前状态：活跃开发中，通过源码运行。** 首次启动需要开发环境和 PostgreSQL；AI 能力需要自行配置模型或 API。当前没有正式 Release 安装包。
 
-```bash
-./scripts/dev/setup-onnxruntime.sh
-```
+## 为持续创作而设计
 
-运行库默认安装到 `~/.local/share/a4n/onnxruntime/<version>`，独立于 Cargo 的
-`target/` 和构建缓存。项目构建脚本会动态链接该固定版本；缺失或版本不匹配时
-会明确失败，不会在 Cargo 构建阶段自动下载。
+- **有依据的故事记忆。** 关键提取回指原文，分析后自动同步资料；下一章围绕章纲、人物与伏笔检索前序内容，优先组织连续性信息。
+- **有来源的多模态派生。** 图片、漫画、视频与互动叙事复用故事资料；派生项目保留来源快照，改稿后可以检查影响，再决定如何更新。
+- **可审阅、可继续的创作流程。** 优化建议先保存为补丁，作者确认后写回；支持恢复的工作流在输入匹配时复用已完成阶段。
 
-部署目标机同样需要先运行该安装脚本，或通过 `A4N_ONNXRUNTIME_ROOT` 指向一套
-版本匹配的完整 ONNX Runtime 动态库目录。
+## 核心设计
 
-安装 RAG 使用的固定版本 Qdrant：
+点击方法图可打开原尺寸 SVG，查看细节。
 
-```bash
-./scripts/dev/setup-qdrant.sh
-```
+### 小说自反馈：让前文成为下一章的依据
 
-`scripts/run.sh` 会复用健康的本地 Qdrant；默认地址不可达时，会自动启动上述固定版本。
+[![自反馈方法图：用户发起章节分析，资料沉淀后检索进入后续写作；正文修订需要作者确认](docs/public/assets/self-feedback.zh.svg)](docs/public/assets/self-feedback.zh.svg)
 
-启动开发环境：
+你发起章节分析后，事实、摘要、人物状态与伏笔分阶段提取；关键结果通过原文片段引用落到具体出处。工作流继续同步回顾章纲、人物与物体档案、场景资料和检索索引，并保留作者已有的正式章纲。
 
-```bash
-A4N_JWT_SECRET=replace-with-a-long-random-secret \
-./scripts/run.sh
-```
+生成下一章前，系统根据章纲、写作要求、相关人物、待回收伏笔等构造多路检索查询，范围限制在**当前章之前**。取回的资料按**关键连续性、相关摘要、参考原文**分配上下文预算。内容优化则在读到的原文范围内提出局部补丁，经作者确认并检查源内容后写回。
 
-`scripts/run.sh` 会在任何 Tauri/Server Debug 构建前检查 PostgreSQL、JWT、前端依赖；热重载模式还会先检查 `VITE_PORT`（默认 `5173`）是否被占用；
-本地 managed-sidecar 模式还会检查 ONNX Runtime、Qdrant、sidecar catalog 和 Tauri
-系统库。检查失败会直接停止，不进入 Cargo 或前端构建。
-开发调试请使用该入口；直接执行 `cargo tauri dev` 不会经过这套依赖门禁。
+这是**创作资料与上下文的反馈**。模型不会因此自动训练，也不保证每次生成都能消除设定冲突；作者仍需审阅内容。图中的怀表线索是机制示意。
 
-桌面 `local-server` 模式未设置 `A4N_WEB_ADDR` 时，优先监听 `127.0.0.1:8080`；
-端口被占用则由系统分配空闲端口，实际 API 地址在窗口加载前传给前端。
-设置 `A4N_WEB_ADDR` 会固定监听地址，占用时明确失败；设置 `127.0.0.1:0` 可每次由系统分配。
-桌面本地地址必须为 loopback。HTTP 入口热重启会沿用本次启动已发布的地址。
+### 全模态创作：同一故事，多种作品
 
-构建前端并启动 Web 服务端：
+[![多模态来源图：小说与档案连接共享素材，分支派生图片、漫画、视频和互动叙事](docs/public/assets/multimodal.zh.svg)](docs/public/assets/multimodal.zh.svg)
 
-```bash
-A4N_JWT_SECRET=replace-with-a-long-random-secret \
-A4N_BOOTSTRAP_ADMIN_USERNAME=admin \
-A4N_BOOTSTRAP_ADMIN_EMAIL=admin@example.com \
-A4N_BOOTSTRAP_ADMIN_PASSWORD=replace-with-an-initial-admin-password \
-./scripts/run.sh --server
-```
+图像与立绘留在项目中供后续选用；漫画、视频和互动叙事项目基于选定章节的**来源快照**独立制作。源正文、分析或档案变化后，可以比较新旧版本并检查受影响对象；已有本地修改的产物保留作者决策环节。
 
-Web 空库首次启动必须提供 `A4N_BOOTSTRAP_ADMIN_USERNAME`、`A4N_BOOTSTRAP_ADMIN_EMAIL`、`A4N_BOOTSTRAP_ADMIN_PASSWORD` 三个变量创建首个管理员；用户表已有账号时不会再次创建。
+视频制作的帧图与片段共用**片段规划和执行身份**，参考素材需要匹配相应规划；首帧链通过前段尾帧衔接下一段。各阶段的中间产物可以按工作流继续处理，实际支持取决于所选模式和模型能力。
 
-只做 Rust 编译检查：
+[![A4N 自由视频画布：为同一示例故事编排预置视频、裁剪、抽帧与输出](docs/public/assets/multimodal-workspace.webp)](docs/public/assets/multimodal-workspace.webp)
 
-```bash
-./scripts/build.sh --backend --check
-```
+*自由视频画布中的预置示意素材。章节派生视频在派生项目的章节工作流中生成；当前画布生成节点仅支持自由视频项目。*
 
-构建前端和后端调试产物：
+| 想做什么 | 需要准备什么 |
+| --- | --- |
+| 小说写作、分析、内容优化 | 文本模型；检索反馈另需 Embedding 配置与 Qdrant |
+| 图片、立绘、漫画素材 | 已配置的图片模型/API，或对应的本地生成服务 |
+| 视频生成与成片 | 视频模型/API；本地媒体处理需要 ffmpeg 及对应 sidecar |
+| 互动叙事 | 故事脚本与相关素材；导出目标及条件以对应工作台为准 |
 
-```bash
-./scripts/build.sh
-```
+具体服务与参数在应用设置中配置，见[配置与本地数据](docs/public/configuration.zh.md)。不同模型的格式、分辨率、时长、价格及可用能力不同。
 
-构建前端：
+## 快速开始
 
-```bash
-npm --prefix frontend run build
-```
+1. 按[源码运行指南](docs/public/getting-started.zh.md)准备环境并启动桌面端或 Web 端。
+2. 在设置中配置文本模型和 Embedding；图片、视频服务按需要添加。
+3. 创建小说项目，准备蓝图和章纲，录入或导入第一章。
+4. 发起章节分析，查看档案、伏笔与资料同步结果，再继续写作或审阅优化建议。
 
-运行 Rust 测试：
+指南附有可直接录入的虚构示例及完成检查。完整安装命令、首次账号配置和排障都集中在那里。
 
-```bash
-./scripts/test.sh
-```
+## 为长流程创作提供工程支撑
 
-运行指定 crate 测试：
+[![架构图：桌面、浏览器和 CLI 通过 Host 进入共享业务核心，再连接数据与模型能力](docs/public/assets/architecture.zh.svg)](docs/public/assets/architecture.zh.svg)
 
-```bash
-timeout 60s ./scripts/test.sh --crate a4n-domain --nocapture
-```
+桌面默认通过本地 Server 访问业务；Native 模式使用 Tauri 入口。浏览器和 CLI 也进入共享 Host API。命令合同、业务编排、数据一致性和能力适配各有明确归属。
 
-## 无前端 CLI
+长流程保存阶段结果与输入指纹。发生中断后，支持恢复的工作流会先核对输入，再复用已完成调用、继续剩余步骤；生成期间正式资料发生变化时，旧输入对应的结果会被拦截。
 
-`a4n` 通过 Server 调用共享 Host API manifest 中与桌面/Web 相同的全部业务命令，并提供稳定的
-JSON/JSONL Agent 输出、危险操作授权、task/workflow 观察和本地
-Server 生命周期管理。命令参数和语义以 `a4n --help`、`crates/host/a4n-cli/src/main.rs` 及 Host manifest 为准。
+| 设计 | 对创作的意义 | 实现 / 验证入口 |
+| --- | --- | --- |
+| 共享 Host 合同 | 多种入口使用同一套业务命令定义 | [Host API 合同](crates/host/a4n-api-contract)、[一致性检查](frontend/package.json) |
+| 可审阅补丁与冲突检查 | 已编辑的正文不会被过期补丁直接覆盖 | [补丁规则与测试](crates/host/a4n-orchestrator/src/optimize/tests/patch_flow.rs) |
+| 工作流检查点 | 在满足恢复条件时复用已完成步骤 | [章节分析恢复规则](crates/host/a4n-orchestrator/src/chapter_analysis/workflow/checkpoint.rs) |
+| 项目来源与快照 | 比较源稿变化，为已编辑产物保留处理选择 | [来源差异](crates/platform/a4n-db/src/source_sync/snapshots)、[决策保护](crates/platform/a4n-db/src/source_sync/decisions/guards.rs) |
 
-本地启动：
+更多实现入口与适用范围见[设计依据](docs/public/design-evidence.md)，本次实际运行范围见[素材与验证说明](docs/public/demo.md)。技术栈为 Rust、Tauri 2、React/TypeScript、PostgreSQL/SeaORM 与 Qdrant；模块职责及开发命令见[贡献指南](CONTRIBUTING.md)。
 
-```bash
-export A4N_DATABASE_URL='postgres://USER:PASSWORD@127.0.0.1:5432/a4n'
-export A4N_JWT_SECRET='replace-with-a-long-random-secret'
+## 常见问题
 
-cargo run -p a4n-cli -- local start
-cargo run -p a4n-cli -- --output agent-json capabilities check
-```
+**需要支付模型费用吗？** A4N 源码采用 Apache 2.0。第三方 API、托管服务及本地模型的硬件成本由使用者承担；模型和素材自身的许可需分别确认。
 
-发布包中可直接使用：
+**本地优先等于完全离线吗？** 本地数据与运行方式由你配置。选择外部模型时，请求所需的正文、上下文或媒体仍会发送到对应服务；离线创作依赖已部署且支持所需能力的本地服务。
 
-```bash
-a4n local start
-a4n health
-a4n --output agent-json capabilities export
-a4n config runtime set --input @runtime-config.json
-a4n local stop
-```
+**作品保存在哪里？** 结构化数据保存在配置的 PostgreSQL，媒体与本地运行数据保存在配置的数据目录。备份时需同时考虑数据库和文件；[配置指南](docs/public/configuration.zh.md)说明路径与边界。
 
-`config runtime show/set/clear` 管理与 GUI 本机 Provider 设置相同的运行时配置。
-`a4n call` 会按 manifest 的 `full`、`without_secrets` 或 `none` 策略自动注入；预览请求
-不会携带 Provider 密钥。
+**能通过脚本或 Agent 使用吗？** 内置 `a4n` CLI 连接同一 Server，提供命令发现、任务观察和 JSON/JSONL 输出。使用方式见[CLI 指南](docs/public/configuration.zh.md#无前端-cli)。
 
-发布包默认 sidecar profile 已包含完整 AI 能力。`a4n local start --full` 专用于源码
-workspace，会重新构建带 `embedded-capabilities` feature 的 Server。
+## 开发与反馈
 
-`a4n local` 会先运行独立 migration，再启动 Server；它不会自动启动 PostgreSQL
-或 Docker。默认 profile 使用 catalog 声明的 managed sidecar；源码 workspace 可用
-`--full` 运行 embedded capabilities。
+从[贡献指南](CONTRIBUTING.md)开始；构建、打包及正式发布的边界见[发布说明](GITHUB_RELEASE.md)。问题反馈请附版本或提交、运行方式和可复现步骤，移除密钥与私人内容。安全问题按[安全策略](SECURITY.md)私下报告。
 
-## 配置与本地数据
-
-运行时日志、缓存、临时文件和生成媒体属于本地数据，不提交到 Git。默认本地目录为 `data/`，已在 `.gitignore` 中忽略。数据库不再是 `data/` 下的本地 SQLite 文件，桌面和 Web 运行时都通过 `A4N_DATABASE_URL` 连接 PostgreSQL。
-
-环境变量模板见 `.env.example`。桌面端和 Web 端启动时必须提供 PostgreSQL 连接串和 JWT secret，可通过环境变量或桌面端 `data/config.toml` 配置。真实 API Key、OAuth Client Secret、数据库连接串、日志和导出产物不要提交到仓库。
-
-必需变量：
-
-- `A4N_DATABASE_URL`
-- `A4N_JWT_SECRET`
-
-Web 运行常用变量：
-
-- `A4N_WEB_ADDR`
-- `A4N_FRONTEND_DIST`
-- `A4N_BOOTSTRAP_ADMIN_USERNAME`
-- `A4N_BOOTSTRAP_ADMIN_EMAIL`
-- `A4N_BOOTSTRAP_ADMIN_PASSWORD`
-
-其他常用变量：
-
-- `A4N_DATA_DIR`
-- `A4N_LOG_DIR`
-- `A4N_OPENAI_API_KEY`
-- `A4N_OPENAI_BASE_URL`
-- `A4N_TEST_DATABASE_URL`
-- `GITHUB_CLIENT_ID`
-- `GITHUB_CLIENT_SECRET`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `RUST_LOG`
-
-大部分 AI 服务配置也可以通过应用内设置页面管理。
-
-## Desktop / Web / CLI 一致性
-
-桌面默认 `local-server` 模式与浏览器都通过 HTTP 调用 `a4n-server`；桌面 `native`
-模式才使用 Tauri command。Server 提供显式 REST 路由和 `/api/commands/:cmd`。CLI 对 Web 专用 REST 路由使用相同映射，其余命令走
-统一 command endpoint。共享 Host API manifest 位于 `a4n-api-contract`，是 CLI
-能力发现和三端 parity 的单一命令目录。
-
-一致性检查：
-
-```bash
-npm --prefix frontend run check:web-api-parity
-```
-
-该检查会对齐前端 `apiInvoke` 命令、桌面 Tauri 注册命令、Web 路由、CLI
-专用映射、manifest 已知命令的通用 command endpoint 和 Tauri-only runtime 等价入口。页面
-导航、系统文件选择器、原生窗口和媒体协议等壳层行为仍由各 Host 适配，不进入共享
-业务命令目录。
-
-## 发布前检查
-
-```bash
-git diff --check
-npm --prefix frontend run check:web-api-parity
-npm --prefix frontend run build
-./scripts/build.sh --backend --check
-```
-
-源码检查、现有打包入口与正式发布的边界见 [发布说明](GITHUB_RELEASE.md)；当前没有自动签名 GitHub Release 流水线。参与开发前请阅读 [贡献指南](CONTRIBUTING.md)，构建空间管理以 `rust-artifacts.json` 和 `cargo artifacts inspect` 为准；安全问题按 [安全策略](SECURITY.md) 私下报告。
-
-## 许可证
-
-本项目使用 [Apache License 2.0](LICENSE)。
+[Apache License 2.0](LICENSE) · [英文版](README.en.md) · [开始第一次创作](docs/public/getting-started.zh.md)

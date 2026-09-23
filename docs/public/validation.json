@@ -1,0 +1,200 @@
+{
+  "application_commit": "e2f3aa0dcdd7a0ab613e986050eae568a9850c56",
+  "verified_at_utc": "2026-09-23T14:18:47.030057+00:00",
+  "documentation": {
+    "markdown_files": 10,
+    "local_links_checked": 152,
+    "svg_files_parsed": 7,
+    "sensitive_values_found": false
+  },
+  "readme_browser_checks": [
+    {
+      "language": "zh",
+      "theme": "light",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "zh",
+      "theme": "light",
+      "width": 1024,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "zh",
+      "theme": "light",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "zh",
+      "theme": "dark",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "zh",
+      "theme": "dark",
+      "width": 1024,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "zh",
+      "theme": "dark",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "en",
+      "theme": "light",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "en",
+      "theme": "light",
+      "width": 1024,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "en",
+      "theme": "light",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "en",
+      "theme": "dark",
+      "width": 1440,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "en",
+      "theme": "dark",
+      "width": 1024,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    },
+    {
+      "language": "en",
+      "theme": "dark",
+      "width": 390,
+      "horizontal_overflow_px": 0,
+      "loaded_images": 7,
+      "missing_anchors": []
+    }
+  ],
+  "keyboard_navigation": "quick-start link reached with Tab",
+  "diagram_navigation": "full-size SVG opened from README",
+  "narrow_tables": "horizontal scrolling exercised where content exceeds the viewport",
+  "independent_visual_review": "six diagrams and desktop/narrow README reviewed; memory-to-retrieval connector rechecked in both languages",
+  "demo": {
+    "duration_seconds": 50.0,
+    "width": 1920,
+    "height": 1080,
+    "fps": "24/1",
+    "bytes": 2988611,
+    "audio_tracks": 0,
+    "full_decode": "passed",
+    "provider": "local deterministic test provider",
+    "story_and_media": "fictional story and explicitly prepared media"
+  },
+  "application_checks": [
+    "author-triggered analysis and all five material synchronizations completed",
+    "the next chapter retrieves persisted story material through real Qdrant",
+    "persisted proposal preserves the chapter until visible author approval, then applies exactly the reviewed edit",
+    "the real canvas opens and plays its persisted video output"
+  ],
+  "retrieval_results": 10,
+  "reviewed_edit": {
+    "before_sha256": "89599cad2efe0b69b801b5aeea61f5a76ae736e16790fe1807744b6cceb98559",
+    "after_sha256": "616736eb43da50eb2ec75a74711d35385fcfea1c3611c64371962fc6cd9ecb8a",
+    "changed_only_after_visible_approval": true
+  },
+  "local_media_workflow": {
+    "completed_operations": 4,
+    "input_duration_seconds": 6,
+    "trimmed_duration_seconds": 4,
+    "extracted_frame_at_seconds": 1,
+    "output_kinds": [
+      "image",
+      "video"
+    ]
+  },
+  "application_video_playback": {
+    "width": 1920,
+    "height": 1080,
+    "time": 1.623988,
+    "duration": 4,
+    "error": null
+  },
+  "exported_demo_playback": {
+    "decoded_frames": 1200,
+    "uniform_ui_frames": 0,
+    "browser_source": "downloaded artifact blob",
+    "browser_playback": {
+      "duration": 50,
+      "width": 1920,
+      "height": 1080,
+      "time": 0.725537,
+      "error": null
+    },
+    "seek_seconds": [
+      1,
+      9,
+      21,
+      29,
+      37,
+      43,
+      49
+    ]
+  },
+  "not_passed": [
+    {
+      "workflow": "freeform_video_generation",
+      "observed_error": "chapter_id must be greater than 0",
+      "scope": "this isolated run"
+    }
+  ],
+  "not_covered": [
+    "fresh OS installation",
+    "live paid model providers",
+    "native Tauri window",
+    "all CLI commands and modality workflows",
+    "release installers",
+    "model quality benchmarks"
+  ],
+  "assets_sha256": {
+    "assets/architecture.en.svg": "0dfe27b089d33dd0e5ce9a395a007eb621eefb8f3667bd5ceea9c7c3dcafbd01",
+    "assets/architecture.zh.svg": "ee77d136635735c703b4ca38b68354a5fe32f25af937b7390bb27408d4b5b694",
+    "assets/demo.mp4": "e7f2674738bbb790f9836ce1d4bd4efc5cfecbe2a1d20d90fefd7d312d712e24",
+    "assets/multimodal-workspace.webp": "975b86bfe2f779a75d7f83b453c2e138e77b0cf971bb8beeafcdcbebd86bab22",
+    "assets/multimodal.en.svg": "9be31c9aad210740c53c24f8b7b98bffd9448ea49ccae9adc229b42613102b74",
+    "assets/multimodal.zh.svg": "226edce49708b3ab1d3112550191a9b4f135ee7a38a85eea3a11665176ce6c69",
+    "assets/self-feedback.en.svg": "1a36a5c01b823d67458de1eaafb1bee5bb3a6b42d1718c1c42c43c98056dd98b",
+    "assets/self-feedback.zh.svg": "05b83be13bed7ec08c7f537e18f490903b0d50c5249d4645ec40d0bf41920e7c",
+    "assets/story-reference.svg": "20baa6899fc030f4b7b1251a4457940856b63afdf4178b429217c101bbd3ff3b",
+    "assets/writing-desk.webp": "783b593125598d42238c9afc52c9877bb97525151380042ab5409703824265f9"
+  }
+}

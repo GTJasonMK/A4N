@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 950" role="img" aria-labelledby="title desc">
+  <title id="title">One story, traceable creative branches</title>
+  <desc id="desc">Images belong to the text project. Comic, video and interactive narrative projects retain source snapshots and independent work. Source changes can be compared and locally edited outputs require a decision. Video frames and clips share a segment plan and execution identity.</desc>
+  <defs>
+    <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
+    <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#a76524"/></marker>
+    <style>
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:20px}
+      .heading{font-size:28px;font-weight:700}.panel{font-size:24px;font-weight:700}.label{font-size:22px;font-weight:600}.note{font-size:20px;fill:#516372}
+      .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#blue)}.manual{fill:none;stroke:#a76524;stroke-width:2;marker-end:url(#amber)}
+    </style>
+  </defs>
+  <rect width="1200" height="950" rx="8" fill="#fff"/>
+  <text x="40" y="47" class="heading">One story, traceable creative branches</text>
+  <text x="40" y="80" class="note">Reuse story material · Independent workflows · Review source changes</text>
+  <text x="40" y="131" class="panel">(a) Choose the creative path the story needs</text>
+
+  <path d="M290 242H338V201H817" class="manual"/>
+  <text x="405" y="180" class="note" style="fill:#945a24">Generate and select references as needed</text>
+  <path d="M290 422H372" class="manual"/>
+  <text x="334" y="395" text-anchor="middle" style="fill:#945a24">Branch</text>
+  <path d="M719 460H768" fill="none" stroke="#34699a" stroke-width="2"/>
+  <path d="M768 333V588" fill="none" stroke="#34699a" stroke-width="2"/>
+  <path d="M768 333H817" class="flow"/>
+  <path d="M768 460H817" class="flow"/>
+  <path d="M768 588H817" class="flow"/>
+  <circle cx="768" cy="460" r="4" fill="#34699a"/>
+
+  <rect x="48" y="178" width="242" height="312" rx="5" fill="#f2f5f8" stroke="#d4dde5"/>
+  <rect x="40" y="186" width="250" height="312" rx="5" fill="#fff" stroke="#aebecb"/>
+  <rect x="60" y="210" width="208" height="69" fill="#edf3f8"/>
+  <text x="60" y="238" class="label">Text project</text>
+  <text x="60" y="266">Mountains &amp; Sea</text>
+  <text x="60" y="306" class="note">Blueprint · Outline · Text</text>
+  <text x="60" y="349" class="note">Characters · Objects</text>
+  <text x="60" y="392" class="note">Scenes · Visual assets</text>
+  <path d="M60 417H268" stroke="#d4dde5"/>
+  <text x="60" y="451" class="note">Story material</text>
+  <text x="60" y="480" class="note">kept in one project</text>
+
+  <rect x="830" y="157" width="330" height="88" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="852" y="190" class="label">Images and portraits</text>
+  <text x="852" y="226" class="note">Assets for later selection</text>
+
+  <rect x="390" y="281" width="329" height="281" rx="5" fill="#f2f7f6" stroke="#c8dbd7"/>
+  <rect x="382" y="289" width="337" height="281" rx="5" fill="#fff" stroke="#6d9b91" stroke-width="1.5"/>
+  <text x="402" y="328" class="label">Retain a source snapshot</text>
+  <path d="M402 345H698" stroke="#c8dbd7"/>
+  <circle cx="409" cy="371" r="3" fill="#6d9b91"/><text x="425" y="378" class="note">Selected chapter range</text>
+  <circle cx="409" cy="418" r="3" fill="#6d9b91"/><text x="425" y="425" class="note">Text, analysis and profiles</text>
+  <circle cx="409" cy="465" r="3" fill="#6d9b91"/><text x="425" y="472" class="note">Source and version identity</text>
+  <rect x="401" y="513" width="298" height="38" rx="3" fill="#f2f8f6"/>
+  <text x="550" y="539" text-anchor="middle">Own tasks and artifacts</text>
+
+  <rect x="830" y="286" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="324" class="label">Comic project</text><text x="852" y="359" class="note">Pages, panels and image assets</text>
+  <rect x="830" y="413" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="451" class="label">Video project</text><text x="852" y="486" class="note">Scripts, clips and final edits</text>
+  <rect x="830" y="540" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="578" class="label">Interactive narrative</text><text x="852" y="613" class="note">Scenes, dialogue and assets</text>
+  <path d="M40 662H1160" stroke="#e2e8ee"/>
+  <text x="40" y="702" class="panel">(b) Review the impact of a source edit</text>
+  <text x="607" y="702" class="panel">(c) Plan once, produce by segment</text>
+  <rect x="40" y="724" width="520" height="168" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <rect x="58" y="742" width="132" height="45" rx="4" fill="#fff" stroke="#aebecb"/>
+  <text x="124" y="772" text-anchor="middle" class="label">Source v1</text>
+  <path d="M190 765H220" class="flow"/>
+  <rect x="233" y="742" width="132" height="45" rx="4" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="299" y="772" text-anchor="middle" class="label">Source v2</text>
+  <path d="M365 765H397" class="flow"/>
+  <rect x="410" y="742" width="132" height="45" rx="4" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="476" y="772" text-anchor="middle" class="label">Compare</text>
+  <rect x="58" y="803" width="484" height="71" rx="4" fill="#fff7ed" stroke="#d6b18c"/>
+  <text x="76" y="832" style="fill:#945a24;font-size:20px">Sync safe changes; review local edits</text>
+  <text x="76" y="860" class="note">Keep / Merge / Create a replacement</text>
+
+  <rect x="607" y="724" width="553" height="168" rx="5" fill="#f7fafc" stroke="#cbd5df"/>
+  <rect x="625" y="740" width="516" height="39" rx="4" fill="#e1edf7" stroke="#afc8de"/>
+  <text x="883" y="767" text-anchor="middle" class="label">Shared segment plan + identity</text>
+  <path d="M883 779V791H740V800" class="flow"/>
+  <path d="M883 779V791H1026V800" class="flow"/>
+  <rect x="625" y="812" width="231" height="62" rx="4" fill="#fff" stroke="#afc8de"/>
+  <text x="741" y="839" text-anchor="middle" class="label" style="font-size:20px">Frames / references</text>
+  <text x="741" y="864" text-anchor="middle" class="note">Plan + asset identity</text>
+  <rect x="910" y="812" width="231" height="62" rx="4" fill="#fff" stroke="#afc8de"/>
+  <text x="1026" y="839" text-anchor="middle" class="label">Video clips</text>
+  <text x="1026" y="864" text-anchor="middle" class="note">Boundary frames</text>
+  <text x="40" y="920" class="note" style="font-size:18px">First-frame chains use the preceding tail frame; support depends on workflow and model</text>
+  <text x="1160" y="943" text-anchor="end" class="note" style="font-size:16px">Relationships and mechanisms · Not a visual-consistency guarantee</text>
+</svg>

@@ -1,6 +1,6 @@
 # 贡献指南
 
-本页统一维护 A4N 的开发、目录与协作规范。安装运行见 [README](README.md)，模块边界以各 crate 的 manifest、源码和 Host 合同为准。
+本页统一维护 A4N 的开发、目录与协作规范。安装运行见[源码运行指南](docs/public/getting-started.zh.md)，运行配置见[配置与本地数据](docs/public/configuration.zh.md)；模块边界以各 crate 的 manifest、源码和 Host 合同为准。
 
 ## 核心原则
 
@@ -17,11 +17,47 @@
 | `frontend/src/` | `pages/` 组合页面，`components/` 放共享组件，`api/` 集中有类型的后端访问，`assets/` 放静态资源；测试使用 `*.test.ts` / `*.test.tsx`。生成文件修改源合同或生成器后再生成。 |
 | `prompts/` | 运行时提示词资产；模板与注册表同步，不按普通说明文档去重。 |
 | `scripts/` | 按 `dev/`、`checks/`、`tests/`、`contracts/`、`deploy/` 归类；复用根入口和 `lib/` helper，避免复制启动、环境解析和清理逻辑。 |
+| `docs/public/` | 纳入版本控制的中英文用户指南、可编辑 SVG 和精选 README 演示素材；真实运行数据不放在这里。 |
 | `work/docs/` | 本机文档、草稿、架构图和历史记录；该目录被忽略，不作为仓库输入。 |
 | `data/` | 运行数据、用户媒体和日志等受保护内容，不提交到 Git，不当作构建缓存清理。 |
 | `target/` | 可再生构建产物与短期验证输出；临时目录有明确清理责任，长期证据移出可清理缓存范围。 |
 
 新增文件放在所属模块附近；根目录保留公共配置和入口，不堆放一次性报告。文件名表达职责，避免用 `new`、`final`、`v2` 文件复制代替正式迁移。本机文档统一放在被忽略的 `work/docs/`，不作为代码或发布输入。
+
+<details>
+<summary>Rust workspace 领域导航</summary>
+
+```text
+crates/
+  host/          Server、Tauri、CLI、Runtime、Orchestrator、Host 装配与 API 合同
+  platform/      领域公共值、数据库、迁移、存储、错误、事件、队列与测试支持
+  process/       通用 service/worker 协议、客户端、进程管理与发布 catalog
+  config/        配置解析与配置读取 worker
+  provider/      跨能力 Provider 合同与模型发现
+  llm/           LLM 客户端、上下文、网关与 Provider 合同
+  prompt/        Prompt 渲染、Git、客户端与服务
+  embedding/     Embedding 合同、Provider、客户端与服务
+  rag/           RAG 合同、索引、客户端与服务
+  agent/         Agent 应用、运行时、worker 与客户端
+  project/       项目读取、修改、权限、协作、状态与源快照
+  planning/      小说规划、蓝图、大纲与伏笔
+  chapter/       章节正文、分析、生成与场景
+  profiles/      人物、物体、场景、立绘与档案素材
+  inspiration/   灵感记录与应用合同
+  image/         图片合同、Provider、客户端与服务
+  video/         视频合同、Provider、客户端、服务与记录 worker
+  media/         媒体处理、渲染与生成产物
+  manga/         漫画核心与记录 worker
+  canvas/        画布合同与资产图 worker
+  galgame/       Galgame 应用合同
+  transfer/      导入、导出、归档与导入审查
+  workflow/      工作流读取、生成任务与优化应用合同
+  theme/         主题核心与读取 worker
+```
+
+每个领域保留原有 `a4n-*` 包名。根 `Cargo.toml` 是唯一 workspace；路径依赖在 `[workspace.dependencies]` 集中声明，成员通过 `workspace = true` 引用。目录分组本身不改变包或进程边界。
+
+</details>
 
 ## 架构边界与拆分
 
@@ -50,11 +86,11 @@ npm --prefix frontend ci
 ./scripts/run.sh --server  # Web Server 开发
 ```
 
-从仓库根目录运行这些命令，启动方式按需选择；平台依赖、ONNX/Qdrant 和环境变量以 README 为准。密钥使用被忽略的配置或环境变量，不写入源码、示例和日志。
+从自己的开发工作树根目录运行这些命令，启动方式按需选择；平台依赖、首次账号、ONNX/Qdrant 和环境变量以[源码运行指南](docs/public/getting-started.zh.md)为准。密钥使用被忽略的配置或环境变量，不写入源码、示例和日志。
 
 ## 开发流程与代码风格
 
-1. 查看 `git status --short` 和 `work/docs/work.md`，确认已有改动与共享文件负责人，保留无关改动。
+1. 查看 `git status --short`，按当前会话工作树规则在协调锁内查看并登记 `work/IN_PROGRESS.md`，确认已有改动与共享文件负责人，保留无关改动。
 2. 明确用户可见行为、验收条件和负责模块；读取实现、调用方及测试，先确认旧测试仍符合要求。
 3. 在正确 owner 修复根因，保持函数短、嵌套浅、错误清楚；注释解释意图和取舍，不复述代码。
 4. 修改接口时同步源合同、descriptor、Server 分派及受影响的 Tauri/CLI/前端消费者。Host 类型用 `npm --prefix frontend run generate:api-contract` 生成；generation 合同用 `npm --prefix frontend run generate:generation-contract`，不手改生成结果。
@@ -64,9 +100,9 @@ npm --prefix frontend ci
 
 - `debug` 是实际运行和调试基线，不在该工作树直接编辑、rebase、reset 或切换分支。
 - 每个修改会话从最新 `debug` 创建独立的 `agent/<topic>` 分支和工作树；提交前只交付自己负责且已验证的完整切片。
-- 集成在独立的 `integration` 工作树进行：先把 agent 分支合并到 `integration`，再运行受影响的编译、测试、格式和边界检查；验证通过后提交合并结果。
+- 集成资格、批量改动门禁、构建锁与隔离目录遵循当前会话的工作树规则；使用本地 `AGENTS.md` 注入规则时以其要求为准。获得集成资格后，在独立的 `integration` 工作树审查提交，并运行受影响的编译、测试、格式和边界检查。
 - `debug` 只接受验证通过的 integration 结果，并使用 `git merge --ff-only integration` 快进更新。`master` 和远端发布属于单独的明确交接窗口，不在普通调试合并中隐式更新，也不强推。
-- `work/docs/work.md` 是被忽略的本地协作记录；公共规则以本文件、README、代码合同和测试入口为准。
+- `work/IN_PROGRESS.md` 是唯一共享任务表，路径相对 Git 协调根目录；读写必须持有 `work/.coordination.lock` 的独占锁。本机草稿另存 `work/docs/`，不替代任务表。
 
 Rust 使用 rustfmt、4 空格、`snake_case` 函数/模块和 `PascalCase` 类型，crate 名沿用 `a4n-<职责>`。TypeScript/TSX 使用 2 空格、双引号、分号、`camelCase` 函数和 `PascalCase` 组件/类型；沿用所在模块风格，不附带全仓格式重排。
 
