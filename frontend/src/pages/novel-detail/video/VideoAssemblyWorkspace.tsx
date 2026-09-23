@@ -721,9 +721,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
           {playbackSrc ? (
             <video
+              key={playbackSrc}
               controls
               playsInline
-              preload="metadata"
+              preload="auto"
               src={playbackSrc}
               className="h-full min-h-[260px] w-full bg-black object-contain"
               onLoadStart={() => setVideoLoading(true)}
