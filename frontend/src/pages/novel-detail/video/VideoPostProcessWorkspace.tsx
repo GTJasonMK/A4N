@@ -181,6 +181,9 @@ export const VideoPostProcessWorkspace: React.FC<
   const activeScopeRef = useRef(scopeKey);
   const mountedRef = useRef(false);
   const actionBusyRef = useRef(false);
+  const hideScrubPreview = useCallback(() => {
+    setScrubPreviewVisible(false);
+  }, []);
   const clearMarkers = useCallback(() => {
     setMarkers([]);
     setSelectedMarkerIndex(null);
@@ -211,6 +214,7 @@ export const VideoPostProcessWorkspace: React.FC<
   const cancelSeekPump = useCallback(() => {
     if (seekRafRef.current != null) cancelAnimationFrame(seekRafRef.current);
     seekRafRef.current = null;
+    hideScrubPreview();
     cancelPresentationWait();
     desiredSeekTimeRef.current = null;
     seekInFlightRef.current = false;
@@ -219,7 +223,7 @@ export const VideoPostProcessWorkspace: React.FC<
     pendingDragReleaseRef.current = false;
     const video = playbackVideoRef.current;
     if (video) delete video.dataset.scrubSeekPending;
-  }, [cancelPresentationWait]);
+  }, [cancelPresentationWait, hideScrubPreview]);
   const waitForPresentedFrame = useCallback(
     (video: HTMLVideoElement, targetTime: number, onPresented: () => void) => {
       cancelPresentationWait();
@@ -273,6 +277,8 @@ export const VideoPostProcessWorkspace: React.FC<
   );
   const showScrubFrame = useCallback(
     (time: number): boolean => {
+      // WebKit may defer rAF through a pointer burst; commit the JPEG now so
+      // the visible frame always follows the latest drag position.
       const image = scrubFrameImageRef.current;
       if (!image || !videoScrubFrames) return false;
       const index = Math.max(
@@ -299,7 +305,6 @@ export const VideoPostProcessWorkspace: React.FC<
     },
     [videoScrubFrames],
   );
-
   useEffect(() => {
     const urls = scrubFrameUrlsRef.current;
     return () => {
@@ -454,10 +459,11 @@ export const VideoPostProcessWorkspace: React.FC<
       if (pendingDragReleaseRef.current) {
         draggingScrubRef.current = false;
         pendingDragReleaseRef.current = false;
-        setScrubPreviewVisible(false);
+        scrubPreviewActiveRef.current = false;
+        hideScrubPreview();
       }
     }
-  }, [duration, showScrubFrame]);
+  }, [duration, hideScrubPreview, showScrubFrame]);
   const schedulePendingSeek = useCallback(() => {
     if (seekRafRef.current != null) return;
     seekRafRef.current = requestAnimationFrame(applyPendingSeek);
@@ -493,6 +499,7 @@ export const VideoPostProcessWorkspace: React.FC<
         if (pendingDragReleaseRef.current) {
           draggingScrubRef.current = false;
           pendingDragReleaseRef.current = false;
+          scrubPreviewActiveRef.current = false;
         }
       }
       if (!scrubPreviewActiveRef.current) {
@@ -501,12 +508,12 @@ export const VideoPostProcessWorkspace: React.FC<
         setPlaybackTimeSecs(latestVideo.currentTime);
         setMarkerValue(latestVideo.currentTime);
         latestVideo.dataset.scrubSeekPending = "false";
-        setScrubPreviewVisible(false);
+        hideScrubPreview();
         return;
       }
       setPlaybackTimeSecs(latestVideo.currentTime);
       latestVideo.dataset.scrubSeekPending = "false";
-      if (!draggingScrubRef.current) setScrubPreviewVisible(false);
+      if (!draggingScrubRef.current) hideScrubPreview();
     };
     const reachedDesiredTime =
       desiredTime != null &&
@@ -521,7 +528,7 @@ export const VideoPostProcessWorkspace: React.FC<
     } else {
       finish();
     }
-  }, [schedulePendingSeek, waitForPresentedFrame]);
+  }, [hideScrubPreview, schedulePendingSeek, waitForPresentedFrame]);
   const seekVideo = useCallback(
     (value: number) => {
       const target = Math.max(0, Math.min(value, duration));
@@ -924,7 +931,7 @@ export const VideoPostProcessWorkspace: React.FC<
                   // 元数据就绪后恢复到原位置。
                   seekInFlightRef.current = false;
                   cancelPresentationWait();
-                  setScrubPreviewVisible(false);
+                  hideScrubPreview();
                   handleVideoLoadStart();
                 }}
                 onLoadedMetadata={(event) => {
@@ -954,7 +961,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     playbackVideoRef.current?.pause();
                     return;
                   }
-                  setScrubPreviewVisible(false);
+                  hideScrubPreview();
                   cancelSeekPump();
                   setVideoPlaying(true);
                 }}
@@ -970,7 +977,7 @@ export const VideoPostProcessWorkspace: React.FC<
                   if (!handleVideoError(event)) return;
                   seekInFlightRef.current = false;
                   cancelPresentationWait();
-                  setScrubPreviewVisible(false);
+                  hideScrubPreview();
                 }}
               />
             ) : (

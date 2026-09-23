@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { I18nProvider } from "../../src/i18n";
 import { VideoPostProcessWorkspace } from "../../src/pages/novel-detail/video/VideoPostProcessWorkspace";
 import { writeCurrentUserId } from "../../src/api/authStorage";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
@@ -105,6 +106,11 @@ const mountHarness = async () => {
     let nextCallbackId = 1;
     window.__TAURI_INTERNALS__ = {
       invoke: async (command, args) => {
+        if (command === "invoke_host_command") {
+          if (args?.userId !== 1) throw new Error("unexpected fixture user");
+          command = args.command;
+          args = args.args;
+        }
         switch (command) {
           case "get_all_frontend_state":
             return { "a4n:current_user_id": "1" };
@@ -138,19 +144,21 @@ const mountHarness = async () => {
   if (nativeTauriRuntime) writeCurrentUserId(1);
 
   createRoot(document.getElementById("root")).render(
-    <div style={{ height: "100vh", padding: 16 }}>
-      <VideoPostProcessWorkspace
-        projectId={1}
-        chapter={{
-          id: 2,
-          chapter_number: 1,
-          title: "剪辑预览测试",
-          status: "completed",
-        }}
-        videos={videos}
-        onToast={() => undefined}
-        onRefresh={() => undefined}
-      />
+    <div className="flex min-h-0 flex-col" style={{ height: "100vh", padding: 16 }}>
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPostProcessWorkspace
+          projectId={1}
+          chapter={{
+            id: 2,
+            chapter_number: 1,
+            title: "剪辑预览测试",
+            status: "completed",
+          }}
+          videos={videos}
+          onToast={() => undefined}
+          onRefresh={() => undefined}
+        />
+      </I18nProvider>
     </div>,
   );
 };

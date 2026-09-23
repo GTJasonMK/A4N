@@ -10,7 +10,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-VARIABLE = "WEBKIT_GST_DISABLE_GL_SINK"
+VARIABLES = ("WEBKIT_GST_DISABLE_GL_SINK", "WEBKIT_DISABLE_DMABUF_RENDERER")
 
 
 @unittest.skipUnless(sys.platform == "linux", "WebKitGTK configuration is Linux-only")
@@ -23,8 +23,9 @@ class TauriVideoRenderingTest(unittest.TestCase):
             scratch = Path(directory)
             library = scratch / "probe.rs"
             library.write_text(
-                'pub fn run() { println!("{}", '
-                'std::env::var("WEBKIT_GST_DISABLE_GL_SINK").unwrap_or_default()); }\n'
+                'pub fn run() { println!("{}/{}", '
+                'std::env::var("WEBKIT_GST_DISABLE_GL_SINK").unwrap_or_default(), '
+                'std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").unwrap_or_default()); }\n'
             )
             rlib = scratch / "liba4n_tauri_lib.rlib"
             binary = scratch / "desktop-startup"
@@ -43,12 +44,17 @@ class TauriVideoRenderingTest(unittest.TestCase):
                 subprocess.run(
                     command, check=True, timeout=30, capture_output=True, text=True
                 )
-            for configured, expected in [(None, "1"), ("0", "0"), ("1", "1")]:
+            for configured, expected in [
+                ((None, None), "1/1"), (("0", None), "0/1"),
+                ((None, "0"), "1/0"), (("0", "0"), "0/0"),
+                (("1", "1"), "1/1"),
+            ]:
                 with self.subTest(configured=configured):
                     env = os.environ.copy()
-                    env.pop(VARIABLE, None)
-                    if configured is not None:
-                        env[VARIABLE] = configured
+                    for variable, value in zip(VARIABLES, configured):
+                        env.pop(variable, None)
+                        if value is not None:
+                            env[variable] = value
                     result = subprocess.run(
                         [str(binary)], env=env, check=True, timeout=5,
                         capture_output=True, text=True,

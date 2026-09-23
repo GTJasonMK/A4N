@@ -64,10 +64,10 @@ scripts/         开发、构建、测试脚本
 - PostgreSQL 16+，或 Docker Compose
 - Linux 桌面构建需要 WebKitGTK、GTK 和 Ayatana AppIndicator 开发库
 
-Linux 桌面端默认设置 `WEBKIT_GST_DISABLE_GL_SINK=1`，规避 WebKitGTK 在
-NVIDIA/Wayland 上拖动视频进度条时闪黑。此设置仅关闭视频 GL sink，保留
-WebView 合成加速，但视频渲染可能增加 CPU 开销；确认系统播放栈已修复后，
-可在启动进程前设置 `WEBKIT_GST_DISABLE_GL_SINK=0` 恢复 GL 视频渲染。
+Linux 桌面端默认设置 `WEBKIT_GST_DISABLE_GL_SINK=1` 和
+`WEBKIT_DISABLE_DMABUF_RENDERER=1`，规避 NVIDIA/Wayland 下拖动闪黑及
+暂停后缩放丢帧。内存拷贝可能增加 CPU 开销；已有环境值保持优先。
+确认系统播放栈修复后，可把对应变量设为 `0` 恢复相应渲染路径。
 
 启动本地 PostgreSQL：
 
