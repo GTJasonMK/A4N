@@ -54,7 +54,7 @@ pub fn build_video_assembly_filter(
     let mut filter = String::new();
     for index in 0..clip_count {
         filter.push_str(&format!(
-            "[{index}:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[v{index}];"
+            "[{index}:v:0]setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[v{index}];"
         ));
     }
 
@@ -112,6 +112,12 @@ pub fn assemble_videos(request: VideoAssemblyRequest<'_>) -> Result<(), VideoAss
         .arg("[outv]")
         .arg("-c:v")
         .arg("libx264")
+        .arg("-profile:v")
+        .arg("main")
+        .arg("-bf")
+        .arg("0")
+        .arg("-refs")
+        .arg("1")
         .arg("-preset")
         .arg("veryfast")
         .arg("-crf")
@@ -119,7 +125,11 @@ pub fn assemble_videos(request: VideoAssemblyRequest<'_>) -> Result<(), VideoAss
         .arg("-pix_fmt")
         .arg("yuv420p")
         .arg("-g")
-        .arg(request.fps.to_string());
+        .arg(request.fps.to_string())
+        .arg("-keyint_min")
+        .arg(request.fps.to_string())
+        .arg("-sc_threshold")
+        .arg("0");
     if request.audio_enabled {
         command
             .arg("-map")

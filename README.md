@@ -1,10 +1,43 @@
-# A4N
+<p align="center">
+  <img src="docs/readme/hero-banner.svg" alt="A4N — 从一句灵感到成片，本地优先的一体化全模态小说创作平台" width="880">
+</p>
+
+<p align="center">
+  <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg">
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.95-orange.svg">
+  <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-24C8DB.svg">
+  <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB.svg">
+</p>
 
 A4N 是一个面向小说创作与多模态派生内容生产的本地应用。项目以文本项目为根，围绕灵感对话、故事蓝图、大纲、章节写作、结构化分析、人物/物体/场景档案、图片生成、漫画派生、视频派生和成片编辑等工作流组织功能。
 
 当前代码库采用双 Host 架构：Tauri 桌面端和 axum Web Server 都通过
 `a4n-runtime` 调用同一套 orchestrator 业务逻辑。内置 `a4n` CLI 连接
 `a4n-server`，因此无前端运行、桌面端和网页端不会各自复制权限、事务、校验或状态机。
+
+## 核心亮点
+
+### 分析驱动的自反馈闭环
+
+<div align="center"><img src="docs/readme/self-feedback-loop.svg" alt="写作→分析→自动沉淀→检索反哺的自反馈闭环，叠加内容优化 Agent 的人工在环修订" width="880"></div>
+
+写完章节一键四阶段结构化分析（事实/摘要/角色状态/伏笔），结果在同一分析任务内自动沉淀为回顾性章纲、伏笔索引与角色/场景/物体档案并向量化入库；下一章生成前自动检索反哺。内容优化 Agent 再跨文档审查、生成补丁，经你确认后回写正文——让设定、伏笔、前文始终在场，而非“一键 AI 代写”。
+
+### 全模态创作台
+
+<div align="center"><img src="docs/readme/full-modality-pipeline.svg" alt="单一项目根贯穿文本创作、分析档案、视觉生成、视频成片四阶段九环节" width="880"></div>
+
+以同一个项目根为主轴，从灵感、蓝图/大纲、章节写作、结构化分析、人物/物体/场景/立绘档案，一路派生到图片、漫画、视频与节点式成片——九个环节都有真实后端与独立前端工作台。多模态成品依赖你自备的模型/API 与本地服务（图片 ComfyUI/SD/OpenAI；视频 Gemini-Veo/Seedance；成片本地 ffmpeg 与 sidecar）。
+
+### 商业级完成度
+
+<div align="center"><img src="docs/readme/architecture-overview.svg" alt="双 Host 加 CLI 三端收敛到单一业务门面 host_api 与单一分发表" width="880"></div>
+
+双 Host（Tauri 桌面、axum Web）与无前端 CLI 三端都不各自实现业务规则，全部收敛到唯一业务门面 `host_api` 与单一命令分发表；runtime 经 ApplicationPorts 依赖倒置，仅在单一装配点与 orchestrator 组合。
+
+<div align="center"><img src="docs/readme/stats-completeness.svg" alt="201 crate、400+ 业务命令、114 迁移、4200+ 测试断言、26 门禁脚本" width="880"></div>
+
+201 crate / 24 领域、400+ 业务命令（收敛到单一命令目录）、114 数据库迁移、4200+ 测试断言、26 门禁脚本；三端一致性由合同测试 + 代码生成 + `check:web-api-parity` 强制，外部依赖锁版本并校验 SHA256（ONNX 1.24.2 · Qdrant v1.18.3）。
 
 ## 技术栈
 

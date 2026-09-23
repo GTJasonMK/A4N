@@ -27,7 +27,7 @@ pub(in crate::actions::video_records) async fn build_assembly_cache_manifest(
         cached_clips.push(assembly_cache_clip_with_audio(clip, has_audio)?);
     }
     Ok(AssemblyCacheManifest {
-        version: 2,
+        version: 3,
         project_id,
         chapter_id,
         workflow_mode: workflow_mode.to_string(),
@@ -62,7 +62,7 @@ where
         .collect::<Result<Vec<_>, _>>()?;
     let audio_enabled = clips.iter().any(|clip| clip.has_audio);
     Ok(AssemblyCacheManifest {
-        version: 2,
+        version: 3,
         project_id,
         chapter_id,
         workflow_mode: workflow_mode.to_string(),

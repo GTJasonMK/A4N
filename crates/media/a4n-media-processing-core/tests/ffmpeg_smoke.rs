@@ -168,7 +168,11 @@ fn ffmpeg_basic_video_transforms_create_non_empty_outputs() {
         "replaced output duration should exchange the selected range: {replaced_duration}"
     );
     assert_keyframe_gap(&assembled, 1.1);
+    assert_webkit_compatible_codec(&assembled);
     assert_keyframe_gap(&inserted, 1.1);
+    assert_webkit_compatible_codec(&inserted);
+    assert_webkit_compatible_codec(&deleted);
+    assert_webkit_compatible_codec(&replaced);
 
     for output in [
         &input,

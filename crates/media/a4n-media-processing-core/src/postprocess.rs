@@ -150,7 +150,7 @@ pub fn build_video_postprocess_filter(
 
     if uses_source {
         filter.push_str(&format!(
-            "[1:v:0]scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[vsrc];",
+            "[1:v:0]setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p[vsrc];",
             fps = request.fps,
         ));
         if audio_enabled {
@@ -245,6 +245,12 @@ pub fn postprocess_video(
         .arg("[outv]")
         .arg("-c:v")
         .arg("libx264")
+        .arg("-profile:v")
+        .arg("main")
+        .arg("-bf")
+        .arg("0")
+        .arg("-refs")
+        .arg("1")
         .arg("-preset")
         .arg("veryfast")
         .arg("-crf")
@@ -252,7 +258,11 @@ pub fn postprocess_video(
         .arg("-pix_fmt")
         .arg("yuv420p")
         .arg("-g")
-        .arg(request.fps.to_string());
+        .arg(request.fps.to_string())
+        .arg("-keyint_min")
+        .arg(request.fps.to_string())
+        .arg("-sc_threshold")
+        .arg("0");
     let audio_enabled = request.base_has_audio || (uses_source && request.source_has_audio);
     if audio_enabled {
         command

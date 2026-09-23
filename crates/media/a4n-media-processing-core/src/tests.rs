@@ -142,8 +142,8 @@ fn assembly_filter_normalizes_and_concats_video_streams() {
 
     let filter = build_video_assembly_filter(&clips, 1280, 720, 24, false).expect("build filter");
 
-    assert!(filter.contains("[0:v:0]scale=1280:720"));
-    assert!(filter.contains("[1:v:0]scale=1280:720"));
+    assert!(filter.contains("[0:v:0]setpts=PTS-STARTPTS,scale=1280:720"));
+    assert!(filter.contains("[1:v:0]setpts=PTS-STARTPTS,scale=1280:720"));
     assert!(filter.contains("fps=24"));
     assert!(filter.ends_with("[v0][v1]concat=n=2:v=1:a=0[outv]"));
 }
@@ -154,7 +154,7 @@ fn assembly_filter_handles_single_video_only_clip() {
 
     let filter = build_video_assembly_filter(&clips, 1280, 720, 24, false).expect("build filter");
 
-    assert!(filter.contains("[0:v:0]scale=1280:720"));
+    assert!(filter.contains("[0:v:0]setpts=PTS-STARTPTS,scale=1280:720"));
     assert!(filter.ends_with("[v0]concat=n=1:v=1:a=0[outv]"));
 }
 
@@ -207,7 +207,7 @@ fn postprocess_insert_filter_keeps_prefix_source_and_tail() {
     let filter = build_video_postprocess_filter(&request).expect("build insert filter");
 
     assert!(filter.contains("trim=start=0:end=2.000"));
-    assert!(filter.contains("[1:v:0]scale=642:360"));
+    assert!(filter.contains("[1:v:0]setpts=PTS-STARTPTS,scale=642:360"));
     assert!(filter.contains("fps=24"));
     assert!(filter.contains("trim=start=2.000:end=8.000"));
     assert!(filter.contains("[0:a:0]atrim=start=0.000:end=2.000"));
