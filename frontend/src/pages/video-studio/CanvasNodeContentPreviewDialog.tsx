@@ -7,7 +7,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { toMediaSrc } from "../../utils/mediaSrc";
-import { videoPlaybackDataToObjectUrl } from "../../utils/videoPlayback";
+import { videoPlaybackDataToDataUrl } from "../../utils/videoPlayback";
 import { useI18n, type MessageTranslator } from "../../i18n";
 import { nodeDisplayTitle, nodeKindMeta } from "./StudioCanvasNode";
 import { configNumber, configObject, configPositiveNumber, configText } from "./canvasConfig";
@@ -234,7 +234,6 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview, t: Messa
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
 
     setVideoSrc("");
     setVideoLoadError(null);
@@ -252,8 +251,7 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview, t: Messa
     void loadVideoScrubPlaybackData(preview.generatedVideoId, true)
       .then((data) => {
         if (cancelled) return;
-        objectUrl = videoPlaybackDataToObjectUrl(data);
-        setVideoSrc(objectUrl);
+        setVideoSrc(videoPlaybackDataToDataUrl(data));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -263,7 +261,6 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview, t: Messa
 
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [preview.dataType, preview.filePath, preview.generatedVideoId, t]);
 

@@ -11,7 +11,7 @@ import {
 } from "../../../api/video";
 import type { GeneratedVideo, VideoPlaybackData } from "../../../api/video";
 import { base64ToBytes } from "../../../utils/base64";
-import { videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
+import { videoPlaybackDataToDataUrl } from "../../../utils/videoPlayback";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
 const VIDEO_ELEMENT_LOAD_TIMEOUT_MS = 20_000;
@@ -92,8 +92,7 @@ const loadPlaybackDataWithTimeout = async (
 
 interface UseVideoPlaybackSourceParams {
   selectedVideo: GeneratedVideo | null;
-  // preview 保留声音用于正常播放；scrub 去掉音轨，避免 WebKitGTK
-  // 在暂停状态连续 seek 时触发 GStreamer data stream error。
+  // Both modes play with audio; scrub also loads JPEGs for pointer dragging.
   mediaKind: "preview" | "scrub";
 }
 
@@ -133,7 +132,7 @@ export const useVideoPlaybackSource = ({
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [playbackRequestVersion, setPlaybackRequestVersion] = useState(0);
-  const objectUrlRef = useRef<string | null>(null);
+  const playbackUrlRef = useRef<string | null>(null);
   const playbackGenerationRef = useRef(0);
   const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -148,15 +147,11 @@ export const useVideoPlaybackSource = ({
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
     const generation = ++playbackGenerationRef.current;
     const useSourceFallback =
       mediaKind === "scrub" && sourceFallbackKey === playbackKey;
 
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
+    playbackUrlRef.current = null;
     setVideoLoadError(null);
     setPlaybackSource(null);
     if (!selectedVideoId || !selectedVideoPath) {
@@ -167,8 +162,17 @@ export const useVideoPlaybackSource = ({
     setVideoLoading(true);
     const loadPlaybackData = useSourceFallback
       ? loadVideoPlaybackData
-      : (videoId: number) =>
-          loadVideoScrubPlaybackData(videoId, mediaKind === "preview");
+      : async (videoId: number) => {
+          // ponytail: reuse existing proxy endpoints; combine their payloads
+          // server-side if transferring the unused silent MP4 becomes costly.
+          const [playback, scrub] = await Promise.all([
+            loadVideoScrubPlaybackData(videoId, true),
+            mediaKind === "scrub"
+              ? loadVideoScrubPlaybackData(videoId, false)
+              : null,
+          ]);
+          return scrub ? { ...playback, scrub_frames: scrub.scrub_frames } : playback;
+        };
     void loadPlaybackDataWithTimeout(
       loadPlaybackData,
       selectedVideoId,
@@ -180,13 +184,13 @@ export const useVideoPlaybackSource = ({
           mediaKind === "scrub" && !useSourceFallback
             ? decodeScrubFrames(data.scrub_frames, t)
             : null;
-        objectUrl = videoPlaybackDataToObjectUrl(data);
-        objectUrlRef.current = objectUrl;
+        const url = videoPlaybackDataToDataUrl(data);
+        playbackUrlRef.current = url;
         setPlaybackSource({
           videoId: selectedVideoId,
           videoPath: selectedVideoPath,
           mediaKind,
-          url: objectUrl,
+          url,
           scrubFrames,
           sourceFallback: useSourceFallback,
         });
@@ -214,10 +218,7 @@ export const useVideoPlaybackSource = ({
     return () => {
       cancelled = true;
       clearVideoLoadTimeout();
-      if (objectUrl && objectUrlRef.current === objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-        objectUrlRef.current = null;
-      }
+      playbackUrlRef.current = null;
     };
   }, [
     clearVideoLoadTimeout,
@@ -231,6 +232,8 @@ export const useVideoPlaybackSource = ({
   ]);
 
   const retryVideoLoad = useCallback(() => {
+    // Identical inline data must still recreate a failed media element.
+    setPlaybackSource(null);
     setPlaybackRequestVersion((version) => version + 1);
   }, []);
 
@@ -254,7 +257,11 @@ export const useVideoPlaybackSource = ({
     (event: SyntheticEvent<HTMLVideoElement>): boolean => {
       const eventSource =
         event.currentTarget.currentSrc || event.currentTarget.src;
-      if (eventSource !== objectUrlRef.current) return false;
+      if (eventSource !== playbackUrlRef.current) return false;
+      // WebKitGTK may emit a transient error while a seek is still settling.
+      // Keep the scrub proxy for those events; only a real media error merits
+      // falling back to the original source.
+      if (!event.currentTarget.error) return false;
       if (mediaKind === "scrub" && !sourceFallbackActive) {
         clearVideoLoadTimeout();
         setVideoLoading(true);
@@ -262,9 +269,6 @@ export const useVideoPlaybackSource = ({
         setSourceFallbackKey(playbackKey);
         return true;
       }
-      // WebKitGTK 在快速 seek 时可能发出 error 事件但 media error 为空。
-      // 这类假错误不应清掉当前可用的视频源。
-      if (!event.currentTarget.error) return false;
       clearVideoLoadTimeout();
       setVideoLoading(false);
       const detail = event.currentTarget.error?.message?.trim();

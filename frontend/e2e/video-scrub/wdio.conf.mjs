@@ -6,19 +6,22 @@ const frontendRoot = fileURLToPath(new URL("../..", import.meta.url));
 const fixturePath = fileURLToPath(
   new URL("./scrub-fixture.mp4", import.meta.url),
 );
+const playbackFixturePath = fileURLToPath(
+  new URL("./playback-fixture.mp4", import.meta.url),
+);
 const framesFixturePath = fileURLToPath(
   new URL("./scrub-fixture.mjpg", import.meta.url),
 );
 const sourceFixturePath = process.env.A4N_VIDEO_SCRUB_FIXTURE_PATH;
+const appBinary = process.env.A4N_WDIO_APP_BINARY;
+const useTauri = Boolean(appBinary);
 const host = "127.0.0.1";
-const port = 4175;
+const port = useTauri ? 5173 : 4175;
 const baseUrl = `http://${host}:${port}`;
 const chromiumBinary =
   process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromium";
 const chromedriverBinary =
   process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver";
-const appBinary = process.env.A4N_WDIO_APP_BINARY;
-const useTauri = Boolean(appBinary);
 const tauriDriverBinary =
   process.env.A4N_TAURI_DRIVER_BINARY ?? "/home/fufu/.cargo/bin/tauri-driver";
 const nativeWebDriverBinary =
@@ -30,6 +33,7 @@ let tauriDriverOutput = "";
 
 const removeFixture = () => {
   if (existsSync(fixturePath)) unlinkSync(fixturePath);
+  if (existsSync(playbackFixturePath)) unlinkSync(playbackFixturePath);
   if (existsSync(framesFixturePath)) unlinkSync(framesFixturePath);
 };
 
@@ -61,14 +65,25 @@ const createFramesFixture = (sourcePath) => {
   }
 };
 
+const createScrubFixture = () => {
+  const result = spawnSync("ffmpeg", [
+    "-y", "-hide_banner", "-loglevel", "error", "-i", playbackFixturePath,
+    "-c:v", "copy", "-an", "-movflags", "+faststart", fixturePath,
+  ], { encoding: "utf8" });
+  if (result.status !== 0) {
+    throw new Error(`无法生成静音拖动代理：${result.stderr}`);
+  }
+  createFramesFixture(playbackFixturePath);
+};
+
 const createFixture = () => {
   removeFixture();
   if (sourceFixturePath) {
     if (!existsSync(sourceFixturePath)) {
       throw new Error(`指定的视频剪辑测试文件不存在：${sourceFixturePath}`);
     }
-    copyFileSync(sourceFixturePath, fixturePath);
-    createFramesFixture(sourceFixturePath);
+    copyFileSync(sourceFixturePath, playbackFixturePath);
+    createScrubFixture();
     return;
   }
   const result = spawnSync(
@@ -82,6 +97,12 @@ const createFixture = () => {
       "lavfi",
       "-i",
       "testsrc2=duration=12:size=640x360:rate=24",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=12",
+      "-c:a",
+      "aac",
       "-c:v",
       "libx264",
       "-preset",
@@ -102,14 +123,16 @@ const createFixture = () => {
       "0",
       "-pix_fmt",
       "yuv420p",
-      fixturePath,
+      "-movflags",
+      "+faststart",
+      playbackFixturePath,
     ],
     { encoding: "utf8" },
   );
   if (result.status !== 0) {
     throw new Error(`无法生成视频剪辑测试文件：${result.stderr}`);
   }
-  createFramesFixture(fixturePath);
+  createScrubFixture();
 };
 
 const waitForVite = async () => {
@@ -184,11 +207,9 @@ export const config = {
   logLevel: "warn",
   baseUrl,
   onPrepare: async () => {
+    createFixture();
     if (useTauri) {
-      if (!sourceFixturePath) {
-        throw new Error("Tauri 视频剪辑测试需要 A4N_VIDEO_SCRUB_FIXTURE_PATH");
-      }
-      createFramesFixture(sourceFixturePath);
+      process.env.A4N_VIDEO_SCRUB_FIXTURE_PATH = playbackFixturePath;
       process.env.A4N_VIDEO_SCRUB_FRAMES_FIXTURE_PATH = framesFixturePath;
       tauriDriverProcess = spawn(
         tauriDriverBinary,
@@ -208,9 +229,7 @@ export const config = {
       tauriDriverProcess.stdout.on("data", recordDriverOutput);
       tauriDriverProcess.stderr.on("data", recordDriverOutput);
       await waitForTauriDriver();
-      return;
     }
-    createFixture();
     viteProcess = spawn(
       process.execPath,
       [

@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { I18nProvider } from "../../src/i18n";
 import { VideoPostProcessWorkspace } from "../../src/pages/novel-detail/video/VideoPostProcessWorkspace";
+import { VideoAssemblyWorkspace } from "../../src/pages/novel-detail/video/VideoAssemblyWorkspace";
 import { writeCurrentUserId } from "../../src/api/authStorage";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
 import "../../src/index.css";
@@ -15,49 +16,49 @@ window.addEventListener("unhandledrejection", (event) => {
     event.reason?.stack ?? String(event.reason);
 });
 
+const bytesToBase64 = (bytes) => {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+};
+
 const mountHarness = async () => {
   const nativeTauriRuntime = Boolean(window.__TAURI_INTERNALS__?.metadata);
+  const assemblyScenario = new URLSearchParams(window.location.search).get("scenario") === "assembly";
   const sourceFallbackScenario =
     new URLSearchParams(window.location.search).get("scenario") ===
     "source-fallback";
   let fixtureBytes = new Uint8Array();
   let fixtureBase64 = "";
+  let playbackBase64 = "";
   let scrubFramesBase64 = "";
   if (!nativeTauriRuntime) {
-    const [fixtureResponse, scrubFramesResponse] = await Promise.all([
+    const [fixtureResponse, playbackResponse, scrubFramesResponse] = await Promise.all([
       fetch("./scrub-fixture.mp4"),
+      fetch("./playback-fixture.mp4"),
       fetch("./scrub-fixture.mjpg"),
     ]);
-    if (!fixtureResponse.ok || !scrubFramesResponse.ok) {
+    if (!fixtureResponse.ok || !playbackResponse.ok || !scrubFramesResponse.ok) {
       throw new Error(
-        `无法加载视频测试文件：${fixtureResponse.status}/${scrubFramesResponse.status}`,
+        `无法加载视频测试文件：${fixtureResponse.status}/${playbackResponse.status}/${scrubFramesResponse.status}`,
       );
     }
     fixtureBytes = new Uint8Array(await fixtureResponse.arrayBuffer());
-    let fixtureBinary = "";
-    for (let offset = 0; offset < fixtureBytes.length; offset += 0x8000) {
-      fixtureBinary += String.fromCharCode(
-        ...fixtureBytes.subarray(offset, offset + 0x8000),
-      );
-    }
-    fixtureBase64 = btoa(fixtureBinary);
+    fixtureBase64 = bytesToBase64(fixtureBytes);
+    playbackBase64 = bytesToBase64(new Uint8Array(await playbackResponse.arrayBuffer()));
     const scrubFrameBytes = new Uint8Array(
       await scrubFramesResponse.arrayBuffer(),
     );
-    let scrubFramesBinary = "";
-    for (let offset = 0; offset < scrubFrameBytes.length; offset += 0x8000) {
-      scrubFramesBinary += String.fromCharCode(
-        ...scrubFrameBytes.subarray(offset, offset + 0x8000),
-      );
-    }
-    scrubFramesBase64 = btoa(scrubFramesBinary);
+    scrubFramesBase64 = bytesToBase64(scrubFrameBytes);
   }
 
   const video = {
     id: 9001,
     project_id: 1,
     chapter_id: 2,
-    video_type: "assembly_push",
+    video_type: assemblyScenario ? "assembly_insert" : "assembly_push",
     workflow_mode: "mixed",
     file_path: "/tmp/a4n-video-scrub-e2e.mp4",
     thumbnail_path: null,
@@ -75,6 +76,7 @@ const mountHarness = async () => {
     provider_job_id: null,
     error_message: null,
     metadata_json: {
+      ...(assemblyScenario ? { assembly_insert: { sort_order: 1000 } } : {}),
       assembly_push: {
         push_index: 1,
         status: "pending",
@@ -120,17 +122,39 @@ const mountHarness = async () => {
           case "set_frontend_state_many":
           case "remove_frontend_state_many":
             return null;
+          case "load_cached_assembled_chapter_video_preview":
+          case "assemble_chapter_videos":
+            if (!assemblyScenario) throw new Error("unexpected assembly fixture request");
+            return {
+              mime_type: "video/mp4",
+              data_base64: playbackBase64,
+              file_path: video.file_path,
+              video_ids: [video.id],
+              clips: [{
+                video_id: video.id,
+                video_type: video.video_type,
+                shot_number: 1,
+                sort_order: 1000,
+                insert_after_video_id: null,
+                duration_secs: 12,
+                file_path: video.file_path,
+              }],
+              duration_secs: 12,
+              file_size: fixtureBytes.length,
+              updated_at: video.updated_at,
+              cached: true,
+            };
           case "load_video_scrub_playback_data":
-            if (args?.includeAudio !== false) {
-              throw new Error("scrub playback must omit audio");
+            if (typeof args?.includeAudio !== "boolean") {
+              throw new Error("includeAudio must be explicit");
             }
             if (sourceFallbackScenario) {
               throw new Error("scrub proxy fixture failure");
             }
             return {
               mime_type: "video/mp4",
-              data_base64: fixtureBase64,
-              scrub_frames: {
+              data_base64: args.includeAudio ? playbackBase64 : fixtureBase64,
+              scrub_frames: args.includeAudio ? null : {
                 mime_type: "image/jpeg",
                 data_base64: scrubFramesBase64,
                 frames_per_second: 12,
@@ -142,7 +166,7 @@ const mountHarness = async () => {
             }
             return {
               mime_type: "video/mp4",
-              data_base64: fixtureBase64,
+              data_base64: playbackBase64,
               scrub_frames: null,
             };
           default:
@@ -157,11 +181,12 @@ const mountHarness = async () => {
 
   await initializePortableStorage();
   if (nativeTauriRuntime) writeCurrentUserId(1);
+  const Workspace = assemblyScenario ? VideoAssemblyWorkspace : VideoPostProcessWorkspace;
 
   createRoot(document.getElementById("root")).render(
     <div className="flex min-h-0 flex-col" style={{ height: "100vh", padding: 16 }}>
       <I18nProvider initialLocale="zh-CN">
-        <VideoPostProcessWorkspace
+        <Workspace
           projectId={1}
           chapter={{
             id: 2,
@@ -170,6 +195,8 @@ const mountHarness = async () => {
             status: "completed",
           }}
           videos={videos}
+          timeline={null}
+          adoptedVideoIds={new Set()}
           onToast={() => undefined}
           onRefresh={() => undefined}
         />

@@ -44,7 +44,7 @@ import {
 } from "../../../utils/videoUpload";
 import {
   videoPlaybackDataToBlob,
-  videoPlaybackDataToObjectUrl,
+  videoPlaybackDataToDataUrl,
 } from "../../../utils/videoPlayback";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { assemblyPushSourceIds, assemblyPushStatus } from "./videoAssemblyUtils";
@@ -138,6 +138,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const activeScopeRef = useRef(scopeKey);
   const mountedRef = useRef(false);
   const actionBusyRef = useRef(false);
+  const playbackVideoRef = useRef<HTMLVideoElement | null>(null);
   const timelineDisplayIndexByVideoId = useMemo(
     () =>
       new Map(
@@ -156,10 +157,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
 
   const clearPreview = () => {
     setPreview(null);
-    setPlaybackSrc((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return "";
-    });
+    setPlaybackSrc("");
     setVideoLoading(false);
   };
 
@@ -308,13 +306,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     )
       .then((data) => {
         if (cancelled || !data) return;
-        const objectUrl = videoPlaybackDataToObjectUrl(data);
-        setPlaybackSrc((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return objectUrl;
-        });
+        setPlaybackSrc(videoPlaybackDataToDataUrl(data));
         setPreview(data);
-        setVideoLoading(true);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -328,13 +321,6 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, chapter.id, clipSignature]);
-
-  useEffect(
-    () => () => {
-      if (playbackSrc) URL.revokeObjectURL(playbackSrc);
-    },
-    [playbackSrc],
-  );
 
   useEffect(() => {
     setPushClipCount((current) =>
@@ -356,13 +342,12 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         VIDEO_WORKFLOW_MODE_MIXED,
       );
       if (!isCurrentScope(requestScope)) return;
-      const objectUrl = videoPlaybackDataToObjectUrl(data);
-      setPlaybackSrc((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return objectUrl;
-      });
+      const url = videoPlaybackDataToDataUrl(data);
+      if (playbackVideoRef.current?.getAttribute("src") === url) {
+        playbackVideoRef.current.load();
+      }
+      setPlaybackSrc(url);
       setPreview(data);
-      setVideoLoading(true);
       onToast(data.cached ? t("video.chapter.assemblyPreviewLoaded") : t("video.chapter.assemblyPreviewGenerated"), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
@@ -721,6 +706,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
           {playbackSrc ? (
             <video
+              ref={playbackVideoRef}
               key={playbackSrc}
               controls
               playsInline

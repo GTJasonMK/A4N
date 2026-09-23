@@ -42,7 +42,7 @@ import {
   defaultRefTypeForNode,
   nodeGeneratedVideoRefId,
 } from "./canvasNodeRefs";
-import { videoPlaybackDataToObjectUrl } from "../../utils/videoPlayback";
+import { videoPlaybackDataToDataUrl } from "../../utils/videoPlayback";
 
 type StudioNodeTemplate = {
   kind: string;
@@ -193,7 +193,6 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
 
   React.useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
     setFailed(false);
     setSrc("");
 
@@ -212,8 +211,7 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
     void loadVideoScrubPlaybackData(preview.generatedVideoId, true)
       .then((data) => {
         if (cancelled) return;
-        objectUrl = videoPlaybackDataToObjectUrl(data);
-        setSrc(objectUrl);
+        setSrc(videoPlaybackDataToDataUrl(data));
       })
       .catch(() => {
         if (cancelled) return;
@@ -223,7 +221,6 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
 
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [preview.filePath, preview.generatedVideoId]);
 

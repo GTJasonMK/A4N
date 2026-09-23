@@ -20,16 +20,13 @@ interface VideoPostProcessTimelineProps {
   markerValueFromClientX: (clientX: number) => number | null;
   addMarker: () => void;
   constrainMarkerValue: (index: number, value: number) => number;
-  beginScrub: () => void;
+  beginScrub: (dragging?: boolean) => void;
   seekVideo: (value: number) => void;
   finishScrub: () => void;
   handleTimelineClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   setMarkers: React.Dispatch<React.SetStateAction<number[]>>;
   setSelectedMarkerIndex: React.Dispatch<React.SetStateAction<number | null>>;
   setDraggingMarkerIndex: React.Dispatch<React.SetStateAction<number | null>>;
-  draggingScrubRef: React.MutableRefObject<boolean>;
-  pendingDragReleaseRef: React.MutableRefObject<boolean>;
-  desiredSeekTimeRef: React.MutableRefObject<number | null>;
 }
 export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> = ({
   locale,
@@ -54,9 +51,6 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
   setMarkers,
   setSelectedMarkerIndex,
   setDraggingMarkerIndex,
-  draggingScrubRef,
-  pendingDragReleaseRef,
-  desiredSeekTimeRef,
 }) => {
   return (
             <div>
@@ -120,18 +114,12 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                         event.currentTarget.setPointerCapture(event.pointerId);
                       }
                       setSelectedMarkerIndex(index);
-                      beginScrub();
-                      draggingScrubRef.current = true;
+                      beginScrub(true);
                       setDraggingMarkerIndex(index);
                       seekVideo(marker);
                     }}
                     onPointerMove={(event) => {
-                      if (
-                        draggingMarkerIndex !== index &&
-                        !event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        return;
-                      }
+                      if (draggingMarkerIndex !== index) return;
                       const value = markerValueFromClientX(event.clientX);
                       if (value == null) return;
                       const constrainedValue = constrainMarkerValue(
@@ -147,11 +135,11 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                     }}
                     onPointerUp={(event) => {
                       if (
-                        draggingMarkerIndex !== index &&
-                        !event.currentTarget.hasPointerCapture(event.pointerId)
+                        event.currentTarget.hasPointerCapture(event.pointerId)
                       ) {
-                        return;
+                        event.currentTarget.releasePointerCapture(event.pointerId);
                       }
+                      if (draggingMarkerIndex !== index) return;
                       const value = markerValueFromClientX(event.clientX);
                       if (value != null) {
                         const constrainedValue = constrainMarkerValue(
@@ -165,20 +153,8 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                           ),
                         );
                       }
-                      if (
-                        event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        event.currentTarget.releasePointerCapture(
-                          event.pointerId,
-                        );
-                      }
                       setDraggingMarkerIndex(null);
-                      pendingDragReleaseRef.current = true;
                       finishScrub();
-                      if (desiredSeekTimeRef.current == null) {
-                        draggingScrubRef.current = false;
-                        pendingDragReleaseRef.current = false;
-                      }
                     }}
                     onPointerCancel={(event) => {
                       if (
@@ -188,9 +164,8 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                           event.pointerId,
                         );
                       }
+                      if (draggingMarkerIndex !== index) return;
                       setDraggingMarkerIndex(null);
-                      draggingScrubRef.current = false;
-                      pendingDragReleaseRef.current = false;
                       finishScrub();
                     }}
                     onKeyDown={(event) => {

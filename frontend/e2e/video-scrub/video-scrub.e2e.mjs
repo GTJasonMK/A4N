@@ -1,18 +1,17 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const screenshotDir = fileURLToPath(
+const screenshotDir = process.env.A4N_BROWSER_E2E_ARTIFACT_DIR ?? fileURLToPath(
   new URL("../../../target/tmp/video-scrub/", import.meta.url),
 );
 mkdirSync(screenshotDir, { recursive: true });
-const screenshotPath = (name) => `${screenshotDir}${name}`;
+const screenshotPath = (name) => `${screenshotDir}/${name}`;
 
 const openHarness = async (query = "") => {
-  if (process.env.A4N_WDIO_APP_BINARY)
-    await browser.url(`http://localhost:5173/e2e/video-scrub/${query}`);
-  else await browser.url(`/e2e/video-scrub/${query}`);
+  await browser.url(`/e2e/video-scrub/${query}`);
   await browser.waitUntil(
     () =>
       browser
@@ -23,19 +22,364 @@ const openHarness = async (query = "") => {
               video instanceof HTMLVideoElement &&
               video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
               Boolean(document.querySelector('[aria-label="视频剪辑时间轴"]')),
-            error: window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? null,
+            error: window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? document.querySelector('[role="alert"]')?.textContent ?? null,
           };
         })
         .then((state) => state.ready || state.error),
     { timeout: 30_000, timeoutMsg: "video scrub harness did not initialize" },
   );
   const error = await browser.execute(
-    () => window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? null,
+    () => window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? document.querySelector('[role="alert"]')?.textContent ?? null,
   );
   assert.equal(error, null, error);
 };
 
 describe("video timeline scrubbing", () => {
+  afterEach(async () => {
+    await browser.execute(() => {
+      for (const video of document.querySelectorAll("video")) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+    });
+  });
+
+  it("reloads an unchanged assembly preview when updating from cache", async function () {
+    if (process.env.A4N_WDIO_APP_BINARY) this.skip();
+    await browser.url("/e2e/video-scrub/?scenario=assembly");
+    await browser.waitUntil(() => browser.execute(() => document.querySelector("video")?.readyState >= 2));
+    await browser.execute(() => {
+      window.__assemblyReloads = 0;
+      document.querySelector("video").addEventListener("loadstart", () => { window.__assemblyReloads += 1; });
+    });
+    for (let count = 1; count <= 2; count += 1) {
+      await browser.execute(() => { document.querySelector("video").currentTime = 2; });
+      await browser.waitUntil(() => browser.execute(() => !document.querySelector("video").seeking));
+      await $("button=更新预览").click();
+      await browser.waitUntil(() => browser.execute((expected) => {
+        const video = document.querySelector("video");
+        return window.__assemblyReloads === expected && video.readyState >= 2 && video.currentTime < 0.1 &&
+          !document.body.textContent.includes("正在加载预览");
+      }, count), { timeout: 3000, timeoutMsg: "identical cached media did not reload or left its loading overlay active" });
+    }
+  });
+
+  it("seeks with the desktop native progress control, including after ending", async function () {
+    await browser.setWindowSize(1440, 1000);
+    await openHarness();
+    const webkit = await browser.execute(() =>
+      /AppleWebKit/i.test(navigator.userAgent) && !/Chrome|Chromium/i.test(navigator.userAgent),
+    );
+    if (!webkit) this.skip();
+    await browser.execute(async () => {
+      const video = document.querySelector("video");
+      video.muted = true;
+      await video.play();
+    });
+    await browser.waitUntil(() => browser.execute(() => document.querySelector("video").currentTime > 0.2));
+    const rect = await browser.execute(() => {
+      const video = document.querySelector("video");
+      video.pause();
+      video.scrollIntoView({ block: "center" });
+      const bounds = video.getBoundingClientRect();
+      return { left: bounds.left, bottom: bounds.bottom, width: bounds.width };
+    });
+    // WebKitGTK's native track lies between the transport/time and volume controls.
+    const xAt = (ratio) => Math.round(rect.left + 152 + (rect.width - 270) * ratio);
+    const y = Math.round(rect.bottom - 22);
+    const pointer = (actions) => browser.performActions([
+      { type: "pointer", id: "native-progress", parameters: { pointerType: "mouse" }, actions },
+    ]);
+    const samples = [];
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      if (cycle > 0) {
+        await browser.execute(async () => {
+          const video = document.querySelector("video");
+          video.currentTime = video.duration - 0.15;
+          await video.play();
+        });
+        await browser.waitUntil(() => browser.execute(() => document.querySelector("video").ended));
+      }
+      await pointer([
+        { type: "pointerMove", x: xAt(0.1), y },
+        { type: "pause", duration: 150 },
+        { type: "pointerDown", button: 0 },
+      ]);
+      try {
+        for (const ratio of [0.25, 0.75, 0.45]) {
+          await pointer([{ type: "pointerMove", x: xAt(ratio), y, duration: 120 }]);
+          let state;
+          try {
+            await browser.waitUntil(async () => {
+              state = await browser.execute(() => {
+                const video = document.querySelector("video");
+                return {
+                  time: video.currentTime,
+                  duration: video.duration,
+                  seeking: video.seeking,
+                  seekable: Array.from({ length: video.seekable.length }, (_, index) => [video.seekable.start(index), video.seekable.end(index)]),
+                  error: video.error?.message ?? null,
+                };
+              });
+              return !state.seeking && Math.abs(state.time - state.duration * ratio) < 0.15;
+            }, { timeout: 5000 });
+          } catch (error) {
+            throw new Error(`native progress stuck at cycle ${cycle}, ratio ${ratio}: ${JSON.stringify(state)}`, { cause: error });
+          }
+          const frame = await browser.execute(() => {
+            const video = document.querySelector("video");
+            const canvas = document.createElement("canvas");
+            canvas.width = 32;
+            canvas.height = 18;
+            const context = canvas.getContext("2d");
+            context.imageSmoothingEnabled = false;
+            context.drawImage(video, 0, 0, 32, 18);
+            return {
+              time: video.currentTime,
+              pixels: Array.from(context.getImageData(0, 0, 32, 18).data),
+              overlay: Boolean(document.querySelector('img[data-scrub-preview-visible="true"]')),
+              error: video.error?.message ?? null,
+            };
+          });
+          const expected = spawnSync("ffmpeg", [
+            "-hide_banner", "-loglevel", "error", "-ss", String(Math.floor(frame.time * 24) / 24),
+            "-i", fileURLToPath(new URL("./playback-fixture.mp4", import.meta.url)),
+            "-frames:v", "1", "-vf", "format=rgba,scale=32:18:flags=neighbor", "-pix_fmt", "rgba", "-f", "rawvideo", "pipe:1",
+          ], { timeout: 5000 });
+          assert.equal(expected.status, 0, expected.stderr?.toString());
+          assert.equal(expected.stdout.length, frame.pixels.length);
+          const pixelError = frame.pixels.reduce((sum, value, index) =>
+            sum + Math.abs(value - expected.stdout[index]), 0) / frame.pixels.length;
+          samples.push({ cycle, ratio, time: frame.time, pixelError });
+          assert.equal(frame.error, null);
+          assert.equal(frame.overlay, false);
+          assert.ok(pixelError < 8, `native frame did not follow time: ${JSON.stringify(samples)}`);
+        }
+      } finally {
+        await pointer([{ type: "pointerUp", button: 0 }]);
+      }
+    }
+    process.stdout.write(`A4N_NATIVE_PROGRESS_RESULT=${JSON.stringify(samples)}\n`);
+  });
+
+  it("cancels a captured marker drag when the marker is deleted or playback starts", async () => {
+    for (const action of ["delete", "play"]) {
+      await openHarness();
+      const rect = await browser.execute(() => {
+        const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+        timeline.scrollIntoView({ block: "center" });
+        const bounds = timeline.getBoundingClientRect();
+        return { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height };
+      });
+      const xAt = (ratio) => Math.round(rect.left + rect.width * ratio);
+      const y = Math.round(rect.top + rect.height / 2);
+      const pointer = (actions) => browser.performActions([
+        { type: "pointer", id: "cancel-marker", parameters: { pointerType: "mouse" }, actions },
+      ]);
+      await pointer([
+        { type: "pointerMove", x: xAt(0.2), y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerUp", button: 0 },
+      ]);
+      await $('[aria-label="剪辑竖线 1"]').waitForDisplayed();
+      await browser.waitUntil(() => browser.execute(() => {
+        const video = document.querySelector("video");
+        return !video.seeking && !document.querySelector('img[data-scrub-preview-visible="true"]');
+      }));
+      await pointer([
+        { type: "pointerMove", x: xAt(0.2), y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerMove", x: xAt(0.6), y, duration: 120 },
+      ]);
+      await browser.waitUntil(() => browser.execute(() =>
+        Boolean(document.querySelector('img[data-scrub-preview-visible="true"]')),
+      ));
+      try {
+        if (action === "delete") {
+          await browser.keys("Delete");
+          assert.equal(await $('[aria-label="剪辑竖线 1"]').isExisting(), false);
+          await browser.execute(() => {
+            const video = document.querySelector("video");
+            video.currentTime = video.duration * 0.3;
+          });
+          await browser.waitUntil(() => browser.execute(() =>
+            !document.querySelector("video").seeking && !document.querySelector('img[data-scrub-preview-visible="true"]'),
+          ), { timeout: 3000, timeoutMsg: "deleted marker kept the stale preview over native playback" });
+        } else {
+          await browser.execute(async () => {
+            const video = document.querySelector("video");
+            video.muted = true;
+            await video.play();
+          });
+          await pointer([{ type: "pointerMove", x: xAt(0.8), y, duration: 120 }]);
+          const state = await browser.execute(() => ({
+            preview: Boolean(document.querySelector('img[data-scrub-preview-visible="true"]')),
+            marker: Number(document.querySelector('[aria-label="剪辑竖线 1"]').getAttribute("aria-valuenow")),
+            duration: document.querySelector("video").duration,
+          }));
+          assert.equal(state.preview, false, "cancelled pointer capture reactivated the preview");
+          assert.ok(Math.abs(state.marker - state.duration * 0.6) < 0.1);
+        }
+      } finally {
+        await pointer([{ type: "pointerUp", button: 0 }]);
+      }
+    }
+  });
+
+  it("keeps source audio in normal playback", async () => {
+    await openHarness();
+    await browser.execute(async () => {
+      const video = document.querySelector("video");
+      video.muted = true;
+      await video.play();
+    });
+    await browser.waitUntil(
+      () => browser.execute(() => {
+        const video = document.querySelector("video");
+        return video.webkitAudioDecodedByteCount > 0 || video.audioTracks?.length > 0;
+      }),
+      { timeout: 3_000, timeoutMsg: "normal playback lost the source audio track" },
+    );
+  });
+
+  it("honors play while a timeline seek is settling", async () => {
+    await openHarness();
+    const result = await browser.executeAsync((done) => {
+      const video = document.querySelector("video");
+      const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+      const rect = timeline.getBoundingClientRect();
+      video.muted = true;
+      timeline.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        clientX: rect.left + rect.width * 0.2,
+        clientY: rect.top + rect.height / 2,
+      }));
+      video.play().then(() => {
+        setTimeout(() => done({
+          paused: video.paused,
+          currentTime: video.currentTime,
+          expected: video.duration * 0.2,
+          previewVisible: Boolean(document.querySelector('img[data-scrub-preview-visible="true"]')),
+        }), 300);
+      }).catch((error) => done({ playError: String(error) }));
+    });
+    assert.equal(result.playError, undefined, result.playError);
+    assert.equal(result.paused, false, JSON.stringify(result));
+    assert.ok(result.currentTime > result.expected, JSON.stringify(result));
+    assert.equal(result.previewVisible, false, JSON.stringify(result));
+  });
+
+  it("honors a native seek that supersedes a timeline seek", async () => {
+    await openHarness();
+    const expected = await browser.execute(() => {
+      const video = document.querySelector("video");
+      const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+      const rect = timeline.getBoundingClientRect();
+      timeline.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        clientX: rect.left + rect.width * 0.2,
+        clientY: rect.top + rect.height / 2,
+      }));
+      video.currentTime = video.duration * 0.8;
+      return video.currentTime;
+    });
+    await browser.waitUntil(
+      () => browser.execute((target) => {
+        const video = document.querySelector("video");
+        return !video.seeking && Math.abs(video.currentTime - target) < 0.05 &&
+          !document.querySelector('img[data-scrub-preview-visible="true"]');
+      }, expected),
+      { timeout: 3_000, timeoutMsg: "the previous timeline target overrode the native seek" },
+    );
+  });
+
+  it("adds keyboard markers at the live position and scrubs again after ending", async () => {
+    await openHarness();
+    await browser.execute(async () => {
+      const video = document.querySelector("video");
+      video.muted = true;
+      await video.play();
+      document.querySelector('[aria-label="视频剪辑时间轴"]').focus();
+    });
+    await browser.waitUntil(
+      () => browser.execute(() => document.querySelector("video").currentTime > 0.3),
+    );
+    const beforeMarker = await browser.execute(() => document.querySelector("video").currentTime);
+    await browser.keys("Enter");
+    const marker = await $('[aria-label="剪辑竖线 1"]');
+    const markerTime = Number(await marker.getAttribute("aria-valuenow"));
+    assert.ok(markerTime >= beforeMarker - 0.05, `marker ${markerTime} lagged behind playback ${beforeMarker}`);
+    await browser.execute(() => {
+      const video = document.querySelector("video");
+      video.currentTime = video.duration - 0.15;
+    });
+    await browser.waitUntil(
+      () => browser.execute(() => document.querySelector("video").ended),
+    );
+    await browser.execute(() => document.querySelector('[aria-label="剪辑竖线 1"]').focus());
+    await browser.keys("ArrowRight");
+    const target = Number(await marker.getAttribute("aria-valuenow"));
+    await browser.waitUntil(
+      () => browser.execute((time) => {
+        const video = document.querySelector("video");
+        return !video.seeking && Math.abs(video.currentTime - time) < 0.05 &&
+          !document.querySelector('img[data-scrub-preview-visible="true"]');
+      }, target),
+      { timeout: 3_000, timeoutMsg: "scrubbing stayed locked after playback ended" },
+    );
+    await browser.execute(async () => { await document.querySelector("video").play(); });
+    await browser.waitUntil(
+      () => browser.execute((time) => document.querySelector("video").currentTime > time + 0.1, target),
+    );
+  });
+
+  it("keeps the playback controls usable at wide and narrow widths", async () => {
+    try {
+      for (const width of [1440, 1024, 390]) {
+        await browser.setWindowSize(width, 900);
+        await openHarness();
+        const state = await browser.execute(() => {
+          const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+          timeline.scrollIntoView({ block: "center" });
+          timeline.focus();
+          return {
+            width: window.innerWidth,
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            focused: document.activeElement === timeline,
+          };
+        });
+        assert.equal(state.width, width, `viewport did not resize to ${width}px`);
+        assert.equal(state.overflow, 0, `horizontal overflow at ${width}px`);
+        assert.equal(state.focused, true, `timeline could not receive focus at ${width}px`);
+        await browser.keys("Enter");
+        assert.equal(await $('[aria-label="剪辑竖线 1"]').isExisting(), true);
+        await browser.saveScreenshot(screenshotPath(`playback-${width}.png`));
+      }
+    } finally {
+      await browser.setWindowSize(1440, 1000);
+    }
+  });
+
+  it("retries failed playback even when the returned media bytes are unchanged", async () => {
+    await openHarness("?scenario=source-fallback");
+    await browser.execute(() => {
+      const video = document.querySelector("video");
+      window.__failedVideo = video;
+      window.__failedVideoSource = video.currentSrc;
+      Object.defineProperty(video, "error", { value: { code: 3, message: "fixture decode failure" } });
+      video.dispatchEvent(new Event("error"));
+    });
+    const retry = await $("button=重试加载");
+    await retry.waitForDisplayed();
+    await retry.click();
+    await browser.waitUntil(() => browser.execute(() => {
+      const video = document.querySelector("video");
+      return video && video !== window.__failedVideo && video.readyState >= 2 && !video.error &&
+        video.currentSrc === window.__failedVideoSource && !document.querySelector('[role="alert"]');
+    }), { timeout: 3000, timeoutMsg: "retry reused the failed player for an identical source" });
+  });
+
   it("falls back to the source video when the scrub proxy fails", async () => {
     await openHarness("?scenario=source-fallback");
     const result = await browser.executeAsync((done) => {
@@ -68,7 +412,10 @@ describe("video timeline scrubbing", () => {
             const beforePlay = video.currentTime;
             video.muted = true;
             await video.play();
-            await wait(150);
+            const deadline = performance.now() + 3_000;
+            while (video.currentTime <= beforePlay + 0.1 && performance.now() < deadline) {
+              await wait(20);
+            }
             video.pause();
             done({
               currentTime: video.currentTime,
