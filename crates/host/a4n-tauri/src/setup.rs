@@ -5,6 +5,7 @@
 mod config;
 mod event_logger;
 
+use a4n_config::app_config::AppConfig;
 use a4n_error::AppError;
 use a4n_runtime::{AppState, RuntimeProfile, RuntimeRole};
 #[cfg(not(feature = "embedded-capabilities"))]
@@ -13,6 +14,10 @@ use a4n_storage::paths::AppPaths;
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 use tauri::Manager;
+
+pub(crate) fn load_config(app: &AppHandle) -> Result<AppConfig, AppError> {
+    config::load_config(app)
+}
 
 /// 初始化应用
 ///

@@ -1,5 +1,5 @@
 use crate::{
-    command_registry, commands, environment, logging, media_protocol, server_process, window,
+    command_registry, commands, environment, logging, media_protocol, server_process, setup, window,
 };
 use a4n_config::app_config::AppConfig;
 use a4n_storage::paths::AppPaths;
@@ -68,7 +68,15 @@ fn setup_http_mode(
     app: &mut tauri::App,
     remote_only: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = AppConfig::default();
+    let config = if remote_only {
+        AppConfig::default()
+    } else {
+        setup::load_config(app.handle())
+            .map_err(|error| std::io::Error::other(error.to_string()))?
+    };
+    if !remote_only {
+        configure_local_server_runtime();
+    }
     app_paths(&config).ensure_dirs()?;
     let api_base_url = if !remote_only {
         let (server, api_base_url) = tauri::async_runtime::block_on(
@@ -90,6 +98,17 @@ fn setup_http_mode(
         "A4N Tauri HTTP 模式启动完成，已跳过本地 AppState 初始化并启用本机 Embedding Runtime"
     );
     Ok(())
+}
+
+fn configure_local_server_runtime() {
+    if std::env::var_os("A4N_RUNTIME_PROFILE").is_none() {
+        // SAFETY: Tauri setup runs before the local Server child is spawned.
+        unsafe { std::env::set_var("A4N_RUNTIME_PROFILE", "sidecar") };
+    }
+    if std::env::var_os("A4N_MANAGED_SIDECARS").is_none() {
+        // SAFETY: Tauri setup runs before the local Server child is spawned.
+        unsafe { std::env::set_var("A4N_MANAGED_SIDECARS", "1") };
+    }
 }
 
 fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {

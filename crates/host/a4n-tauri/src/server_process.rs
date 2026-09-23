@@ -107,7 +107,7 @@ impl LocalServerProcess {
             SOURCE_SNAPSHOT_WORKER_BINARY_ENV,
         )?;
         let migration = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
-        run_migration(&migration)?;
+        run_migration(&migration, &config.database_url)?;
 
         let mut command = Command::new(&server);
         command
@@ -135,6 +135,7 @@ impl LocalServerProcess {
             .env("A4N_RUNTIME_PROFILE", "sidecar")
             .env("A4N_MANAGED_SIDECARS", "1")
             .env("A4N_PORTABLE_HOME", server_portable_home())
+            .env("A4N_DATABASE_URL", &config.database_url)
             .env("A4N_DATA_DIR", &config.data_dir)
             .env("A4N_CACHE_DIR", &config.cache_dir)
             .env("A4N_TEMP_DIR", &config.temp_dir)
@@ -142,6 +143,9 @@ impl LocalServerProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
+        if let Some(jwt_secret) = config.security.jwt_secret.as_deref() {
+            command.env("A4N_JWT_SECRET", jwt_secret);
+        }
         if let Some(address) = configured_address {
             command.env("A4N_WEB_ADDR", address.to_string());
         }
@@ -274,8 +278,9 @@ async fn wait_until_healthy(
     Err(format!("A4N Server 启动超时；请检查 Server 日志；最后连接错误: {last_error:?}").into())
 }
 
-fn run_migration(binary: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn run_migration(binary: &Path, database_url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(binary)
+        .env("A4N_DATABASE_URL", database_url)
         .env_remove("A4N_WEB_ADDR")
         .stdout(Stdio::inherit())
         .stderr(Stdio::piped())
