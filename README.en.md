@@ -43,7 +43,7 @@ The writing assistant can also suggest local edits and show the original and pro
 
 ### Images, comics, video and interactive stories
 
-[![Story sources and profiles connect shared assets to image, comic, video and interactive narrative workflows](docs/public/assets/multimodal.en.svg)](docs/public/assets/multimodal.en.svg)
+[![Images stay in the novel project; comic, video and interactive story projects keep source snapshots](docs/public/assets/multimodal.en.svg)](docs/public/assets/multimodal.en.svg)
 
 Images and portraits are saved in the novel project. To make a comic, video or interactive story, select chapters and create a separate derived project. A4N saves the versions of the text, analysis and profiles used for that work. This record is called a **source snapshot**.
 

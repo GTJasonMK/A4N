@@ -43,7 +43,7 @@ A4N 用来写小说、整理人物和场景资料，也支持制作漫画、视�
 
 ### 图片、漫画、视频与互动故事
 
-[![多模态来源图：小说与档案连接共享素材，分支派生图片、漫画、视频和互动叙事](docs/public/assets/multimodal.zh.svg)](docs/public/assets/multimodal.zh.svg)
+[![小说项目保存图片和立绘；漫画、视频与互动故事保留来源快照](docs/public/assets/multimodal.zh.svg)](docs/public/assets/multimodal.zh.svg)
 
 图片和立绘保存在小说项目里。制作漫画、视频或互动故事时，可以选择章节，创建单独的派生项目。A4N 会保存制作时使用的正文、分析和档案版本，这份记录称为“来源快照”。
 

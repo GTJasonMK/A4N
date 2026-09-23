@@ -1,86 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 950" role="img" aria-labelledby="title desc">
-  <title id="title">把小说改编成漫画、视频或互动故事</title>
-  <desc id="desc">图像资产直接关联文本项目；漫画、视频和互动叙事保留来源快照并独立推进。改稿可比较来源版本，已有本地修改交由作者决策。视频的帧与片段共用规划和执行身份。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">小说素材与改编项目的来源版本</title>
+  <desc id="desc">图片和立绘直接保存在小说项目中。漫画、视频和互动故事由选定章节派生，各自保留正文、分析及档案的来源快照；自由视频画布不属于这条派生链。视频的帧图和片段共用片段规划。下方展示原稿更新后的版本比较与作者确认；派生内容已有本地修改时，需要决定如何保留或合并。</desc>
   <defs>
     <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
     <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#a76524"/></marker>
     <style>
-      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:20px}
-      .heading{font-size:28px;font-weight:700}.panel{font-size:24px;font-weight:700}.label{font-size:22px;font-weight:600}.note{font-size:20px;fill:#516372}
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:24px}
+      .label{font-weight:600}.note{font-size:20px;fill:#516372}.author{fill:#a76524}
       .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#blue)}.manual{fill:none;stroke:#a76524;stroke-width:2;marker-end:url(#amber)}
     </style>
   </defs>
-  <rect width="1200" height="950" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">把小说改编成漫画、视频或互动故事</text>
-  <text x="40" y="80" class="note">先选择章节，再分别制作；改稿后可以检查受影响的内容</text>
-  <text x="40" y="131" class="panel">(a) 项目图片与派生项目</text>
+  <rect width="1200" height="520" rx="8" fill="#fff"/>
 
-  <path d="M290 242H338V201H817" class="manual"/>
-  <text x="405" y="180" class="note" style="fill:#945a24">按需生成与选取参考</text>
-  <path d="M290 422H372" class="manual"/>
-  <text x="334" y="395" text-anchor="middle" style="fill:#945a24;font-size:20px">按需派生</text>
-  <path d="M719 460H768" fill="none" stroke="#34699a" stroke-width="2"/>
-  <path d="M768 333V588" fill="none" stroke="#34699a" stroke-width="2"/>
-  <path d="M768 333H817" class="flow"/>
-  <path d="M768 460H817" class="flow"/>
-  <path d="M768 588H817" class="flow"/>
-  <circle cx="768" cy="460" r="4" fill="#34699a"/>
+  <path d="M220 184H288" class="manual"/>
+  <path d="M130 232V280" class="manual"/>
+  <path d="M520 184H568V80H616" class="flow"/>
+  <path d="M568 184H616" class="flow"/>
+  <path d="M568 184V288H616" class="flow"/>
+  <circle cx="568" cy="184" r="3" fill="#34699a"/>
 
-  <rect x="48" y="178" width="242" height="312" rx="5" fill="#f2f5f8" stroke="#d4dde5"/>
-  <rect x="40" y="186" width="250" height="312" rx="5" fill="#fff" stroke="#aebecb"/>
-  <rect x="60" y="216" width="208" height="56" fill="#edf3f8"/>
-  <text x="60" y="247" class="label" style="font-size:22px">小说项目 · 山海之间</text>
-  <text x="60" y="306" class="note" style="font-size:20px">蓝图 · 章纲 · 正文</text>
-  <text x="60" y="349" class="note" style="font-size:20px">人物 · 物体 · 场景</text>
-  <text x="60" y="392" class="note" style="font-size:20px">立绘与参考素材</text>
-  <path d="M60 417H268" stroke="#d4dde5"/>
-  <text x="60" y="451" class="note" style="font-size:20px">故事内容与创作资料</text>
-  <text x="60" y="480" class="note" style="font-size:20px">集中在同一个项目</text>
+  <rect x="40" y="136" width="180" height="96" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="130" y="193" text-anchor="middle" class="label">小说项目</text>
+  <rect x="40" y="280" width="180" height="64" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="130" y="320" text-anchor="middle" style="font-size:20px">图片 / 立绘</text>
 
-  <rect x="830" y="157" width="330" height="88" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
-  <text x="852" y="190" class="label">本项目图像与立绘</text>
-  <text x="852" y="226" class="note">生成素材，供后续选用</text>
+  <rect x="296" y="112" width="232" height="128" rx="5" fill="#f2f8f6" stroke="#c8dbd7"/>
+  <rect x="288" y="120" width="232" height="128" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="404" y="172" text-anchor="middle" class="label">来源快照</text>
+  <text x="404" y="216" text-anchor="middle" class="note">v1</text>
 
-  <rect x="390" y="281" width="329" height="281" rx="5" fill="#f2f7f6" stroke="#c8dbd7"/>
-  <rect x="382" y="289" width="337" height="281" rx="5" fill="#fff" stroke="#6d9b91" stroke-width="1.5"/>
-  <text x="402" y="328" class="label">保存制作时使用的版本</text>
-  <path d="M402 345H698" stroke="#c8dbd7"/>
-  <circle cx="409" cy="371" r="3" fill="#6d9b91"/><text x="425" y="378" class="note">选定的章节范围</text>
-  <circle cx="409" cy="418" r="3" fill="#6d9b91"/><text x="425" y="425" class="note">正文 / 分析 / 档案</text>
-  <circle cx="409" cy="465" r="3" fill="#6d9b91"/><text x="425" y="472" class="note">保留来源与所用版本</text>
-  <rect x="401" y="513" width="298" height="38" rx="3" fill="#f2f8f6"/>
-  <text x="550" y="539" text-anchor="middle" style="font-size:20px">各自拥有任务与制作产物</text>
+  <rect x="616" y="48" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="88" text-anchor="middle" class="label">漫画</text>
+  <rect x="616" y="152" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="192" text-anchor="middle" class="label">视频</text>
+  <rect x="616" y="256" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="296" text-anchor="middle" class="label">互动故事</text>
 
-  <rect x="830" y="286" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="324" class="label">漫画项目</text><text x="852" y="359" class="note">页、分镜与图像素材</text>
-  <rect x="830" y="413" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="451" class="label">视频项目</text><text x="852" y="486" class="note">剧本、片段与成片</text>
-  <rect x="830" y="540" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="578" class="label">互动叙事项目</text><text x="852" y="613" class="note">场景、台词与素材</text>
-  <path d="M40 662H1160" stroke="#e2e8ee"/>
-  <text x="40" y="702" class="panel">(b) 改稿后，先检查影响</text>
-  <text x="607" y="702" class="panel">(c) 视频先规划，再按片段推进</text>
-  <rect x="40" y="724" width="520" height="168" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
-  <rect x="58" y="742" width="132" height="45" rx="4" fill="#fff" stroke="#aebecb"/>
-  <text x="124" y="772" text-anchor="middle" class="label">来源 v1</text>
-  <path d="M190 765H220" class="flow"/>
-  <rect x="233" y="742" width="132" height="45" rx="4" fill="#f2f8f6" stroke="#b4d0c9"/>
-  <text x="299" y="772" text-anchor="middle" class="label">来源 v2</text>
-  <path d="M365 765H397" class="flow"/>
-  <rect x="410" y="742" width="132" height="45" rx="4" fill="#f3f7fb" stroke="#afc8de"/>
-  <text x="476" y="772" text-anchor="middle" class="label">比对差异</text>
-  <rect x="58" y="803" width="484" height="71" rx="4" fill="#fff7ed" stroke="#d6b18c"/>
-  <text x="76" y="832" style="fill:#945a24;font-size:20px">安全更新可同步；本地修改由作者决策</text>
-  <text x="76" y="860" class="note" style="font-size:20px">保留当前 / 手动合并 / 创建替换版本</text>
+  <path d="M832 184H872" class="flow"/>
+  <rect x="872" y="152" width="288" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="1016" y="192" text-anchor="middle" class="label">片段规划</text>
+  <path d="M1016 216V248H936V280" class="flow"/>
+  <path d="M1016 248H1096V280" class="flow"/>
+  <rect x="872" y="280" width="128" height="64" rx="5" fill="#fff" stroke="#afc8de"/>
+  <text x="936" y="320" text-anchor="middle">帧图</text>
+  <rect x="1032" y="280" width="128" height="64" rx="5" fill="#fff" stroke="#afc8de"/>
+  <text x="1096" y="320" text-anchor="middle">片段</text>
 
-  <rect x="607" y="724" width="553" height="168" rx="5" fill="#f7fafc" stroke="#cbd5df"/>
-  <rect x="625" y="740" width="516" height="39" rx="4" fill="#e1edf7" stroke="#afc8de"/>
-  <text x="883" y="767" text-anchor="middle" class="label">共用一份片段规划与执行身份</text>
-  <path d="M883 779V791H740V800" class="flow"/>
-  <path d="M883 779V791H1026V800" class="flow"/>
-  <rect x="625" y="812" width="231" height="62" rx="4" fill="#fff" stroke="#afc8de"/>
-  <text x="741" y="839" text-anchor="middle" class="label" style="font-size:22px">帧图与参考</text>
-  <text x="741" y="864" text-anchor="middle" class="note" style="font-size:18px">绑定对应规划与素材</text>
-  <rect x="910" y="812" width="231" height="62" rx="4" fill="#fff" stroke="#afc8de"/>
-  <text x="1026" y="839" text-anchor="middle" class="label">视频片段</text>
-  <text x="1026" y="864" text-anchor="middle" class="note" style="font-size:18px">按工作流衔接边界帧</text>
-  <text x="40" y="920" class="note" style="font-size:18px">首帧链续接使用前段尾帧，实际支持取决于工作流与模型</text>
-  <text x="1160" y="943" text-anchor="end" class="note" style="font-size:16px">关系与机制示意 · 不承诺模型输出自动保持一致</text>
+  <path d="M40 392H1160" stroke="#e2e8ee"/>
+  <rect x="80" y="424" width="112" height="56" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="136" y="460" text-anchor="middle">v1</text>
+  <path d="M192 452H288" class="manual"/>
+  <text x="240" y="434" text-anchor="middle" class="note author">改稿</text>
+  <rect x="288" y="424" width="112" height="56" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="344" y="460" text-anchor="middle">v2</text>
+  <path d="M400 452H512" class="flow"/>
+  <rect x="512" y="424" width="224" height="56" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="624" y="460" text-anchor="middle" class="label">查看改动</text>
+  <path d="M736 452H864" class="manual"/>
+  <rect x="864" y="424" width="256" height="56" rx="5" fill="#fff7ed" stroke="#c89762"/>
+  <text x="992" y="460" text-anchor="middle" class="label author">确认同步</text>
 </svg>

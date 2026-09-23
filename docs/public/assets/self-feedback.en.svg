@@ -1,99 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1010" role="img" aria-labelledby="title desc">
-  <title id="title">Using earlier chapters to write the next one</title>
-  <desc id="desc">Source spans support structured extraction and automatic material sync. Later writing retrieves earlier chapters for the current task. Revisions require author approval.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 456" role="img" aria-labelledby="title desc">
+  <title id="title">Chapter analysis, retrieval and reviewed edits</title>
+  <desc id="desc">The author starts chapter analysis and saves story notes with source citations. The next chapter retrieves earlier material using its outline and writing instructions. After saving a new chapter, the author can start analysis again. The separate edit flow below requires author approval and unchanged source text before applying a suggestion. The story is fictional; the loop is not automatic.</desc>
   <defs>
     <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
     <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#a76524"/></marker>
     <style>
-      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:20px}
-      .heading{font-size:28px;font-weight:700}.panel{font-size:24px;font-weight:700}.label{font-size:22px;font-weight:600}.note{font-size:20px;fill:#516372}
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:22px}
+      .label{font-size:24px;font-weight:600}.note{font-size:20px;fill:#516372}.author{fill:#a76524}
       .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#blue)}.manual{fill:none;stroke:#a76524;stroke-width:2;marker-end:url(#amber)}
     </style>
   </defs>
-  <rect width="1200" height="1010" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">Using earlier chapters to write the next one</text>
-  <text x="40" y="80" class="note">An example using two chapters from Mountains &amp; Sea</text>
-  <path d="M1160 688H1182V98H22V281H30" class="manual" stroke-dasharray="5 6" opacity=".65"/>
-  <text x="40" y="132" class="panel">(a) Analyze chapter 1 and save the results</text>
-  <path d="M314 281H344" class="manual"/>
-  <path d="M530 281H575" class="flow"/>
+  <rect width="1200" height="456" rx="8" fill="#fff"/>
 
-  <rect x="47" y="150" width="267" height="244" rx="5" fill="#f3f5f7" stroke="#d4dde5"/>
-  <rect x="40" y="158" width="274" height="248" rx="5" fill="#fff" stroke="#aebecb"/>
-  <text x="58" y="190" class="label" style="font-size:20px">Ch. 1 · Unsent Letter</text>
-  <path d="M58 205H296" stroke="#d4dde5"/>
-  <path d="M58 219V276M58 294V344" stroke="#6d9b91" stroke-width="3"/>
-  <text x="73" y="242">the second hand ran</text>
-  <text x="73" y="270">a full circle backwards</text>
-  <text x="73" y="315">Zhou's shadow did not</text>
-  <text x="73" y="343">move with the scene</text>
-  <rect x="60" y="363" width="234" height="30" rx="4" fill="#fff7ed" stroke="#c89762"/>
-  <text x="177" y="385" text-anchor="middle" style="fill:#945a24">Start chapter analysis</text>
+  <path d="M1076 136V48H296V136" class="manual" stroke-dasharray="5 6"/>
+  <text x="736" y="32" text-anchor="middle" class="note author">Save, then analyze</text>
+  <path d="M184 188H232" class="manual"/>
+  <text x="208" y="173" text-anchor="middle" class="note author">Start</text>
+  <path d="M360 188H408" class="flow"/>
+  <path d="M736 188H784" class="flow"/>
+  <path d="M944 188H992" class="flow"/>
 
-  <rect x="354" y="179" width="176" height="205" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
-  <text x="442" y="211" text-anchor="middle" class="label">Analysis</text>
-  <path d="M372 225H512" stroke="#cfdeeb"/>
-  <circle cx="376" cy="245" r="3" fill="#34699a"/><text x="389" y="252">Facts</text>
-  <circle cx="376" cy="279" r="3" fill="#34699a"/><text x="389" y="286">Summary</text>
-  <circle cx="376" cy="313" r="3" fill="#34699a"/><text x="389" y="320">States</text>
-  <circle cx="376" cy="347" r="3" fill="#34699a"/><text x="389" y="354">Threads/events</text>
+  <rect x="40" y="136" width="144" height="104" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="112" y="179" text-anchor="middle" class="label">Chapters</text>
+  <path d="M64 198H160M64 212H144" stroke="#d4dde5" stroke-width="3"/>
 
-  <rect x="591" y="150" width="569" height="250" rx="5" fill="#f2f7f6" stroke="#c8dbd7"/>
-  <rect x="585" y="156" width="569" height="250" rx="5" fill="#fff" stroke="#6d9b91" stroke-width="1.5"/>
-  <text x="607" y="190" class="label">What the analysis records</text>
-  <path d="M607 205H1132" stroke="#c8dbd7"/>
-  <text x="607" y="242" class="note">Object clue</text><text x="762" y="242" style="fill:#286e61">Watch: reversed seconds</text>
-  <text x="607" y="291" class="note">Character state</text><text x="762" y="291" style="fill:#286e61">Lin Lan: distrusts Zhou Heng</text>
-  <text x="607" y="340" class="note">Open thread</text><text x="762" y="340" style="fill:#286e61">Zhou's shadow stays still</text>
-  <path d="M607 360H1132" stroke="#dce7e4"/>
-  <text x="607" y="389" class="note">Sync outlines, profiles and retrieval records</text>
-  <text x="40" y="438" class="note">Key extractions cite source spans; author-owned outlines are preserved</text>
-  <path d="M898 406V508H778V519" class="flow"/>
+  <rect x="232" y="136" width="128" height="104" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="296" y="197" text-anchor="middle" class="label">Analysis</text>
 
-  <path d="M40 461H1160" stroke="#e2e8ee"/>
-  <text x="40" y="499" class="panel">(b) Prepare chapter 2: search by outline and story clues</text>
-  <path d="M360 630H405" class="flow"/>
-  <path d="M808 630H852" class="flow"/>
-  <rect x="40" y="529" width="320" height="204" rx="5" fill="#fff" stroke="#aebecb"/>
-  <text x="60" y="567" class="label">Chapter 2 · Writing intent</text>
-  <rect x="60" y="586" width="134" height="36" rx="4" fill="#f3f7fb" stroke="#d4e2ed"/><text x="127" y="610" text-anchor="middle" style="font-size:18px">Outline / intent</text>
-  <rect x="206" y="586" width="134" height="36" rx="4" fill="#f3f7fb" stroke="#d4e2ed"/><text x="273" y="610" text-anchor="middle" style="font-size:18px">Characters</text>
-  <rect x="60" y="635" width="134" height="36" rx="4" fill="#f3f7fb" stroke="#d4e2ed"/><text x="127" y="659" text-anchor="middle" style="font-size:18px">Open threads</text>
-  <rect x="206" y="635" width="134" height="36" rx="4" fill="#f3f7fb" stroke="#d4e2ed"/><text x="273" y="659" text-anchor="middle" style="font-size:18px">Scene cues</text>
-  <text x="60" y="715" class="note">Queries follow the current task</text>
+  <rect x="408" y="80" width="328" height="216" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="432" y="118" class="label">Story notes</text>
+  <path d="M432 134H712" stroke="#c8dbd7"/>
+  <text x="432" y="166">Lin Lan: wary of Zhou</text>
+  <text x="432" y="202">Watch: reversed seconds</text>
+  <text x="432" y="238">Thread: shadow stays still</text>
+  <text x="432" y="276" class="note">With source citations</text>
 
-  <rect x="415" y="529" width="393" height="204" rx="5" fill="#f7fafc" stroke="#afc8de"/>
-  <text x="435" y="567" class="label">Retrieve → Assemble context</text>
-  <rect x="435" y="581" width="353" height="38" rx="3" fill="#e1edf7"/><path d="M439 589V611" stroke="#34699a" stroke-width="3"/><text x="452" y="607">Continuity · states and events</text>
-  <rect x="435" y="628" width="353" height="38" rx="3" fill="#edf3f8"/><path d="M439 636V658" stroke="#34699a" stroke-width="3"/><text x="452" y="654">Summaries · relevant chapters</text>
-  <rect x="435" y="675" width="353" height="38" rx="3" fill="#edf3f8"/><path d="M439 683V705" stroke="#34699a" stroke-width="3"/><text x="452" y="701">Passages · check the source</text>
+  <rect x="784" y="136" width="160" height="104" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="864" y="178" text-anchor="middle" class="label">Retrieve</text>
+  <text x="864" y="212" text-anchor="middle" class="note">Earlier only</text>
+  <path d="M864 272V240" class="manual"/>
+  <text x="864" y="301" text-anchor="middle" class="note author">Outline / instructions</text>
 
-  <rect x="862" y="529" width="298" height="204" rx="5" fill="#fff" stroke="#aebecb"/>
-  <text x="882" y="567" class="label">Next writing request</text>
-  <path d="M882 588H1139M882 600H1108" stroke="#d4dde5" stroke-width="3"/>
-  <text x="882" y="636">Current outline and intent</text>
-  <text x="882" y="670">Selected earlier evidence</text>
-  <text x="882" y="712" style="fill:#945a24">Author reviews and saves</text>
-  <rect x="40" y="751" width="768" height="42" rx="4" fill="#f3f5f7"/>
-  <text x="60" y="779" class="note">Retrieval scope: chapter 1 … the preceding chapter</text>
-  <text x="1011" y="766" text-anchor="middle" style="fill:#945a24">Saved new chapters</text>
-  <text x="1011" y="792" text-anchor="middle" style="fill:#945a24">can enter analysis again</text>
+  <rect x="992" y="136" width="168" height="104" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="1076" y="197" text-anchor="middle" class="label">Next chapter</text>
 
-  <path d="M40 817H1160" stroke="#e2e8ee"/>
-  <text x="40" y="853" class="panel">(c) Preview the edit, then approve it</text>
-  <path d="M340 914H395" class="flow"/>
-  <path d="M725 914H780" class="manual"/>
-  <rect x="40" y="875" width="300" height="78" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
-  <text x="57" y="907" class="label" style="font-size:20px">Propose a bounded text edit</text>
-  <text x="57" y="936" class="note">Save proposal; keep original</text>
-  <rect x="405" y="875" width="320" height="78" rx="5" fill="#fff7ed" stroke="#c89762"/>
-  <text x="423" y="907" class="label" style="font-size:20px">The author reviews the patch</text>
-  <text x="423" y="936" class="note">Apply or keep the original</text>
-  <rect x="790" y="875" width="370" height="78" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
-  <text x="808" y="907" class="label">Check the source fingerprint</text>
-  <text x="808" y="936" class="note">Changed text blocks stale edits</text>
-  <path d="M40 980H70" stroke="#34699a" stroke-width="2"/><text x="82" y="987" style="font-size:18px">Automatic</text>
-  <path d="M211 980H241" stroke="#a76524" stroke-width="2"/><text x="253" y="987" style="font-size:18px">Author action</text>
-  <rect x="399" y="972" width="20" height="16" rx="2" fill="#f2f8f6" stroke="#6d9b91"/><text x="430" y="987" style="font-size:18px">Saved material</text>
-  <text x="1160" y="987" text-anchor="end" class="note" style="font-size:18px">Mechanism illustration · Not a model benchmark</text>
+  <path d="M40 336H1160" stroke="#e2e8ee"/>
+  <text x="208" y="396" text-anchor="middle" class="label">Suggested edit</text>
+  <path d="M304 388H488" class="flow"/>
+  <rect x="488" y="360" width="224" height="56" rx="5" fill="#fff7ed" stroke="#c89762"/>
+  <text x="600" y="396" text-anchor="middle" class="label author">Author approval</text>
+  <path d="M712 388H912" class="manual"/>
+  <text x="812" y="425" text-anchor="middle" class="note">Source unchanged</text>
+  <text x="1024" y="396" text-anchor="middle" class="label">Apply edit</text>
 </svg>

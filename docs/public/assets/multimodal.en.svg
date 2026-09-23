@@ -1,87 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 950" role="img" aria-labelledby="title desc">
-  <title id="title">Adapt a novel into comics, video or interactive stories</title>
-  <desc id="desc">Images belong to the text project. Comic, video and interactive narrative projects retain source snapshots and independent work. Source changes can be compared and locally edited outputs require a decision. Video frames and clips share a segment plan and execution identity.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Novel assets and source versions for adaptations</title>
+  <desc id="desc">Images and portraits stay in the novel project. Comics, video and interactive stories are derived from selected chapters, each retaining a snapshot of text, analysis and profiles. Freeform video canvases are separate. Frames and clips share a segment plan. Below, source edits lead to version comparison and author approval; locally edited adaptations require a decision about keeping or merging changes.</desc>
   <defs>
     <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
     <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#a76524"/></marker>
     <style>
-      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:20px}
-      .heading{font-size:28px;font-weight:700}.panel{font-size:24px;font-weight:700}.label{font-size:22px;font-weight:600}.note{font-size:20px;fill:#516372}
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:24px}
+      .label{font-weight:600}.note{font-size:20px;fill:#516372}.author{fill:#a76524}
       .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#blue)}.manual{fill:none;stroke:#a76524;stroke-width:2;marker-end:url(#amber)}
     </style>
   </defs>
-  <rect width="1200" height="950" rx="8" fill="#fff"/>
-  <text x="40" y="47" class="heading">Adapt a novel into comics, video or interactive stories</text>
-  <text x="40" y="80" class="note">Select chapters, work on each adaptation, then check the impact of story edits</text>
-  <text x="40" y="131" class="panel">(a) Project images and separate adaptations</text>
+  <rect width="1200" height="520" rx="8" fill="#fff"/>
 
-  <path d="M290 242H338V201H817" class="manual"/>
-  <text x="405" y="180" class="note" style="fill:#945a24">Generate and select references as needed</text>
-  <path d="M290 422H372" class="manual"/>
-  <text x="334" y="395" text-anchor="middle" style="fill:#945a24">Branch</text>
-  <path d="M719 460H768" fill="none" stroke="#34699a" stroke-width="2"/>
-  <path d="M768 333V588" fill="none" stroke="#34699a" stroke-width="2"/>
-  <path d="M768 333H817" class="flow"/>
-  <path d="M768 460H817" class="flow"/>
-  <path d="M768 588H817" class="flow"/>
-  <circle cx="768" cy="460" r="4" fill="#34699a"/>
+  <path d="M220 184H288" class="manual"/>
+  <path d="M130 232V280" class="manual"/>
+  <path d="M520 184H568V80H616" class="flow"/>
+  <path d="M568 184H616" class="flow"/>
+  <path d="M568 184V288H616" class="flow"/>
+  <circle cx="568" cy="184" r="3" fill="#34699a"/>
 
-  <rect x="48" y="178" width="242" height="312" rx="5" fill="#f2f5f8" stroke="#d4dde5"/>
-  <rect x="40" y="186" width="250" height="312" rx="5" fill="#fff" stroke="#aebecb"/>
-  <rect x="60" y="210" width="208" height="69" fill="#edf3f8"/>
-  <text x="60" y="238" class="label">Text project</text>
-  <text x="60" y="266">Mountains &amp; Sea</text>
-  <text x="60" y="306" class="note">Blueprint · Outline · Text</text>
-  <text x="60" y="349" class="note">Characters · Objects</text>
-  <text x="60" y="392" class="note">Scenes · Visual assets</text>
-  <path d="M60 417H268" stroke="#d4dde5"/>
-  <text x="60" y="451" class="note">Story material</text>
-  <text x="60" y="480" class="note">kept in one project</text>
+  <rect x="40" y="136" width="180" height="96" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="130" y="193" text-anchor="middle" class="label">Novel project</text>
+  <rect x="40" y="280" width="180" height="64" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="130" y="320" text-anchor="middle" style="font-size:20px">Images / portraits</text>
 
-  <rect x="830" y="157" width="330" height="88" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
-  <text x="852" y="190" class="label">Images and portraits</text>
-  <text x="852" y="226" class="note">Assets for later selection</text>
+  <rect x="296" y="112" width="232" height="128" rx="5" fill="#f2f8f6" stroke="#c8dbd7"/>
+  <rect x="288" y="120" width="232" height="128" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="404" y="172" text-anchor="middle" class="label">Source snapshot</text>
+  <text x="404" y="216" text-anchor="middle" class="note">v1</text>
 
-  <rect x="390" y="281" width="329" height="281" rx="5" fill="#f2f7f6" stroke="#c8dbd7"/>
-  <rect x="382" y="289" width="337" height="281" rx="5" fill="#fff" stroke="#6d9b91" stroke-width="1.5"/>
-  <text x="402" y="328" class="label">Save the version used</text>
-  <path d="M402 345H698" stroke="#c8dbd7"/>
-  <circle cx="409" cy="371" r="3" fill="#6d9b91"/><text x="425" y="378" class="note">Selected chapter range</text>
-  <circle cx="409" cy="418" r="3" fill="#6d9b91"/><text x="425" y="425" class="note">Text, analysis and profiles</text>
-  <circle cx="409" cy="465" r="3" fill="#6d9b91"/><text x="425" y="472" class="note">Source and version identity</text>
-  <rect x="401" y="513" width="298" height="38" rx="3" fill="#f2f8f6"/>
-  <text x="550" y="539" text-anchor="middle">Own tasks and artifacts</text>
+  <rect x="616" y="48" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="88" text-anchor="middle" class="label">Comic</text>
+  <rect x="616" y="152" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="192" text-anchor="middle" class="label">Video</text>
+  <rect x="616" y="256" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="296" text-anchor="middle" class="label">Interactive story</text>
 
-  <rect x="830" y="286" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="324" class="label">Comic project</text><text x="852" y="359" class="note">Pages, panels and image assets</text>
-  <rect x="830" y="413" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="451" class="label">Video project</text><text x="852" y="486" class="note">Scripts, clips and final edits</text>
-  <rect x="830" y="540" width="330" height="94" rx="5" fill="#f3f7fb" stroke="#afc8de"/><text x="852" y="578" class="label">Interactive narrative</text><text x="852" y="613" class="note">Scenes, dialogue and assets</text>
-  <path d="M40 662H1160" stroke="#e2e8ee"/>
-  <text x="40" y="702" class="panel">(b) Review the impact of a source edit</text>
-  <text x="607" y="702" class="panel">(c) Plan once, produce by segment</text>
-  <rect x="40" y="724" width="520" height="168" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
-  <rect x="58" y="742" width="132" height="45" rx="4" fill="#fff" stroke="#aebecb"/>
-  <text x="124" y="772" text-anchor="middle" class="label">Source v1</text>
-  <path d="M190 765H220" class="flow"/>
-  <rect x="233" y="742" width="132" height="45" rx="4" fill="#f2f8f6" stroke="#b4d0c9"/>
-  <text x="299" y="772" text-anchor="middle" class="label">Source v2</text>
-  <path d="M365 765H397" class="flow"/>
-  <rect x="410" y="742" width="132" height="45" rx="4" fill="#f3f7fb" stroke="#afc8de"/>
-  <text x="476" y="772" text-anchor="middle" class="label">Compare</text>
-  <rect x="58" y="803" width="484" height="71" rx="4" fill="#fff7ed" stroke="#d6b18c"/>
-  <text x="76" y="832" style="fill:#945a24;font-size:20px">Sync safe changes; review local edits</text>
-  <text x="76" y="860" class="note">Keep / Merge / Create a replacement</text>
+  <path d="M832 184H872" class="flow"/>
+  <rect x="872" y="152" width="288" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="1016" y="192" text-anchor="middle" class="label">Segment plan</text>
+  <path d="M1016 216V248H936V280" class="flow"/>
+  <path d="M1016 248H1096V280" class="flow"/>
+  <rect x="872" y="280" width="128" height="64" rx="5" fill="#fff" stroke="#afc8de"/>
+  <text x="936" y="320" text-anchor="middle">Frames</text>
+  <rect x="1032" y="280" width="128" height="64" rx="5" fill="#fff" stroke="#afc8de"/>
+  <text x="1096" y="320" text-anchor="middle">Clips</text>
 
-  <rect x="607" y="724" width="553" height="168" rx="5" fill="#f7fafc" stroke="#cbd5df"/>
-  <rect x="625" y="740" width="516" height="39" rx="4" fill="#e1edf7" stroke="#afc8de"/>
-  <text x="883" y="767" text-anchor="middle" class="label">Shared segment plan + identity</text>
-  <path d="M883 779V791H740V800" class="flow"/>
-  <path d="M883 779V791H1026V800" class="flow"/>
-  <rect x="625" y="812" width="231" height="62" rx="4" fill="#fff" stroke="#afc8de"/>
-  <text x="741" y="839" text-anchor="middle" class="label" style="font-size:20px">Frames / references</text>
-  <text x="741" y="864" text-anchor="middle" class="note">Plan + asset identity</text>
-  <rect x="910" y="812" width="231" height="62" rx="4" fill="#fff" stroke="#afc8de"/>
-  <text x="1026" y="839" text-anchor="middle" class="label">Video clips</text>
-  <text x="1026" y="864" text-anchor="middle" class="note">Boundary frames</text>
-  <text x="40" y="920" class="note" style="font-size:18px">First-frame chains use the preceding tail frame; support depends on workflow and model</text>
-  <text x="1160" y="943" text-anchor="end" class="note" style="font-size:16px">Relationships and mechanisms · Not a visual-consistency guarantee</text>
+  <path d="M40 392H1160" stroke="#e2e8ee"/>
+  <rect x="80" y="424" width="112" height="56" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="136" y="460" text-anchor="middle">v1</text>
+  <path d="M192 452H288" class="manual"/>
+  <text x="240" y="434" text-anchor="middle" class="note author">Edit</text>
+  <rect x="288" y="424" width="112" height="56" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="344" y="460" text-anchor="middle">v2</text>
+  <path d="M400 452H512" class="flow"/>
+  <rect x="512" y="424" width="224" height="56" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="624" y="460" text-anchor="middle" class="label">Review changes</text>
+  <path d="M736 452H864" class="manual"/>
+  <rect x="864" y="424" width="256" height="56" rx="5" fill="#fff7ed" stroke="#c89762"/>
+  <text x="992" y="460" text-anchor="middle" class="label author">Confirm sync</text>
 </svg>
