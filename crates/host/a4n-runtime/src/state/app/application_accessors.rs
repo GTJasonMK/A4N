@@ -278,13 +278,15 @@ impl AppState {
     pub(crate) fn task_cancellation_application(
         &self,
     ) -> &dyn a4n_api_contract::task::TaskCancellationPort {
-        self.task_cancellation_application.as_ref()
+        self.application_ports
+            .task_cancellation_application
+            .as_ref()
     }
 
     pub(crate) fn task_queue_stats_application(
         &self,
     ) -> &dyn a4n_api_contract::task::TaskQueueStatsApplicationPort {
-        self.task_queue_stats_application.as_ref()
+        self.application_ports.task_queue_stats_application.as_ref()
     }
 
     pub(crate) fn workflow_cancellation_application(
@@ -299,10 +301,28 @@ impl AppState {
         self.object_profile_read_application.as_ref()
     }
 
+    pub(crate) fn object_profile_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort {
+        self.object_profile_mutation_application.as_ref()
+    }
+
     pub(crate) fn scene_profile_read_application(
         &self,
     ) -> &dyn a4n_api_contract::profile::SceneProfileReadApplicationPort {
         self.scene_profile_read_application.as_ref()
+    }
+
+    pub(crate) fn scene_profile_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort {
+        self.scene_profile_mutation_application.as_ref()
+    }
+
+    pub(crate) fn scene_profile_record_sync_application(
+        &self,
+    ) -> Arc<dyn a4n_api_contract::profile::SceneProfileRecordSyncApplicationPort> {
+        self.scene_profile_record_sync_application.clone()
     }
 
     pub(crate) fn character_profile_overview_read_application(

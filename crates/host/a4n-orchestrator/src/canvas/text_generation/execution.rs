@@ -1,15 +1,15 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_db::{
     agent::{AgentOwnedTask, AgentTaskExecutionInput},
-    canvas::{
-        CanvasNodeArtifactUpdateInput, CanvasPromptArtifactUpsertInput,
-        FreeformCanvasGenerationSpecUpsertInput,
-    },
+    canvas::CanvasNodeArtifactUpdateInput,
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT,
     },
 };
-use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::{
+    CanvasNodeRefKind,
+    canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput},
+};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, ChatResponse, UsageInfo};
 use a4n_llm_trace::context_aware_chat_request_trace_json;

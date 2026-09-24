@@ -4,18 +4,21 @@ pub use a4n_api_contract::profile::{
     CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteResult,
     SceneProfileMutationResult, SceneProfileSummary, UpdateSceneProfileInput,
 };
+pub use a4n_domain::scene_profile::{SceneProfileSyncRecordsInput, SceneSyncRecordResult};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const SCENE_PROFILE_WORKER_ID: &str = "scene-profile-worker";
-pub const SCENE_PROFILE_WORKER_CONTRACT_VERSION: &str = "scene-profile-records-v1";
+pub const SCENE_PROFILE_WORKER_CONTRACT_VERSION: &str = "scene-profile-sync-v1";
 pub const SCENE_PROFILE_LIST_OPERATION: &str = "profile.scene.list";
 pub const SCENE_PROFILE_CREATE_OPERATION: &str = "profile.scene.create";
 pub const SCENE_PROFILE_UPDATE_OPERATION: &str = "profile.scene.update";
 pub const SCENE_PROFILE_DELETE_OPERATION: &str = "profile.scene.delete";
+pub const SCENE_PROFILE_SYNC_RECORDS_OPERATION: &str = "profile.scene.sync_records";
 pub const SCENE_PROFILE_READ_CAPABILITY: &str = "profile.scene.read";
 pub const SCENE_PROFILE_MUTATION_CAPABILITY: &str = "profile.scene.mutation";
+pub const SCENE_PROFILE_SYNC_CAPABILITY: &str = "profile.scene.sync";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

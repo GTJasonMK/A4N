@@ -37,6 +37,24 @@ impl ChapterVisualPlanAuthoringMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExpectedVisualPlanDraft {
+    pub record_id: i64,
+    pub revision: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfirmChapterVisualPlanInput {
+    pub record_id: i64,
+    pub expected_revision: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct DiscardChapterVisualPlanDraftInput {
+    pub record_id: i64,
+    pub expected_revision: i32,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum ChapterVisualPlanSchemaVersion {
     #[serde(rename = "chapter_visual_plan_v3")]

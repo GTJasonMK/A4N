@@ -1,11 +1,8 @@
 use a4n_db_models::models::chapter::chapter;
-use a4n_domain::source_text_hash;
+use a4n_domain::{chapter::ResolvedChapterSource, source_text_hash};
 use sea_orm::{ConnectionTrait, EntityTrait};
 
-use super::{
-    ProjectSourceIdentity,
-    contracts::{ResolveChapterSourceError, ResolvedChapterSource},
-};
+use super::{ProjectSourceIdentity, contracts::ResolveChapterSourceError};
 
 pub(super) async fn resolve_live_source<C>(
     db: &C,

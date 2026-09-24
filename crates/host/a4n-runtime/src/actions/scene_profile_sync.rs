@@ -1,6 +1,7 @@
 pub use a4n_scene_host_contract::{SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncProgress};
 
 use a4n_api_contract::profile::SyncSceneProfilesInput;
+use a4n_domain::scene_profile::SceneProfileSyncRecordsInput;
 use a4n_error::AppError;
 use a4n_scene_host_contract::SceneProfileSyncHostPort;
 use async_trait::async_trait;
@@ -9,18 +10,31 @@ use crate::{rag_ingest::SceneRagSyncTraceSource, state::AppState};
 
 pub(crate) struct RuntimeSceneProfileSyncHostPort {
     state: AppState,
+    scene_profile_worker:
+        std::sync::Arc<dyn a4n_api_contract::profile::SceneProfileRecordSyncApplicationPort>,
 }
 
 impl RuntimeSceneProfileSyncHostPort {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
             state: state.clone(),
+            scene_profile_worker: state.scene_profile_record_sync_application(),
         }
     }
 }
 
 #[async_trait]
 impl SceneProfileSyncHostPort for RuntimeSceneProfileSyncHostPort {
+    async fn replace_chapter_scene_sync_records(
+        &self,
+        user_id: i64,
+        input: SceneProfileSyncRecordsInput,
+    ) -> Result<(), AppError> {
+        self.scene_profile_worker
+            .replace_chapter_scene_sync_records(user_id, input)
+            .await
+    }
+
     async fn sync_scene_rag_records(
         &self,
         project_id: i64,

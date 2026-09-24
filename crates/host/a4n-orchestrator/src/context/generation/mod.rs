@@ -23,13 +23,14 @@ use a4n_db::DbHandle;
 use a4n_db::generation::{
     AttachGenerationRunsToWorkflowInput, GenerationLifecycleGateError, GenerationPublicSnapshot,
     GenerationTaskCheckpointPage, GenerationTaskLifecycleError, GenerationTaskPersistenceError,
-    PersistedGenerationTask, RecordCompletedGenerationRunInput,
-    RecordCompletedGenerationRunWithCheckpointInput, ReserveGenerationTaskInput,
+    PersistedGenerationTask, RecordCompletedGenerationRunWithCheckpointInput,
+    ReserveGenerationTaskInput,
 };
 use a4n_db_models::models::generation::{generation_run, llm_call_trace};
 use a4n_domain::generation::{
     GenerationLifecycleTask, GenerationTaskListCursor, PendingLifecycleOperation,
-    ProjectLifecycleGateClaim, ProjectLifecycleOperation, UserLifecycleGateClaim,
+    ProjectLifecycleGateClaim, ProjectLifecycleOperation, RecordCompletedGenerationRunInput,
+    UserLifecycleGateClaim,
 };
 use a4n_domain::llm::RecordLlmCallTraceInput;
 use a4n_domain::project::{

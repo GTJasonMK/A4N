@@ -254,7 +254,9 @@ pub async fn write_optimization_chapter_patch_content(
 ) -> Result<chapter::Model, OptimizeDbError> {
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(
         db,
-        &[crate::project::ChapterSourceSnapshot::from(&input.chapter)],
+        &[crate::project::chapter_source_snapshot_from_model(
+            &input.chapter,
+        )],
     )
     .await?
     {

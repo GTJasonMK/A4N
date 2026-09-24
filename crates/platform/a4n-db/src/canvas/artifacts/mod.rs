@@ -15,11 +15,9 @@ pub use media::{
 };
 pub use node::{update_canvas_node_artifact_record, update_canvas_node_observation_record};
 pub use types::{
-    CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary,
-    CanvasAssemblySourceVideoInput, CanvasImageMediaAssetEnsureInput, CanvasMediaAssetProbeRecord,
-    CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
-    CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput,
+    CanvasAssemblyContractSyncSummary, CanvasImageMediaAssetEnsureInput,
+    CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
+    CanvasVideoMediaAssetEnsureInput,
 };
 
 pub(super) const WORKFLOW_STATUS_COMPLETED: &str = "completed";

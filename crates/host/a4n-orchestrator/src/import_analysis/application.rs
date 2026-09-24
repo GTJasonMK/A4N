@@ -30,6 +30,7 @@ use super::{
 impl OrchestratorContext {
     pub async fn run_import_project_analysis_validated(
         &self,
+        user_id: i64,
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
@@ -39,6 +40,7 @@ impl OrchestratorContext {
 
         let result = self
             .execute_import_project_analysis(
+                user_id,
                 project_id,
                 &prepared.chapters,
                 &mut prepared.progress,
@@ -90,6 +92,7 @@ impl OrchestratorContext {
 
     async fn execute_import_project_analysis(
         &self,
+        user_id: i64,
         project_id: i64,
         chapters: &[chapter::Model],
         progress: &mut ProjectImportAnalysisProgress,
@@ -102,6 +105,7 @@ impl OrchestratorContext {
         if analyzed < total_chapters {
             match self
                 .run_import_analysis_chapter_stage(
+                    user_id,
                     project_id,
                     chapters,
                     analyzed,
@@ -128,6 +132,7 @@ impl OrchestratorContext {
     #[allow(clippy::too_many_arguments)]
     async fn run_import_analysis_chapter_stage(
         &self,
+        user_id: i64,
         project_id: i64,
         chapters: &[chapter::Model],
         mut analyzed: usize,
@@ -161,6 +166,7 @@ impl OrchestratorContext {
             )
             .await?;
             self.run_chapter_analysis_validated(
+                user_id,
                 chapter.id,
                 prompt_renderer,
                 chapter_analysis_host_port,
@@ -225,6 +231,7 @@ impl ImportAnalysisGenerationApplicationPort for OrchestratorContext {
         )
         .await?;
         self.run_import_project_analysis_validated(
+            user_id,
             project_id,
             prompt_renderer,
             chapter_analysis_host_port,

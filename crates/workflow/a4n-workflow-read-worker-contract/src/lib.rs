@@ -2,16 +2,42 @@
 
 pub use a4n_api_contract::task::{GetTaskHistoryInput, TaskInfoSummary};
 pub use a4n_api_contract::workflow::{
-    GetWorkflowRunInput, ListWorkflowRunsInput, WorkflowRunDetailSummary, WorkflowRunSummary,
+    ActiveTaskLookupRecord, GetWorkflowRunInput, ListWorkflowRunsInput, TaskLookupRecord,
+    WorkflowProgressEvent, WorkflowProgressEventsInput, WorkflowResumeRecord,
+    WorkflowRunDetailSummary, WorkflowRunSummary, WorkflowTaskAccessRecord,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const WORKFLOW_READ_WORKER_ID: &str = "workflow-read-worker";
-pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v1";
+pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v2";
 pub const WORKFLOW_READ_LIST_OPERATION: &str = "workflow.read.list";
 pub const WORKFLOW_READ_DETAIL_OPERATION: &str = "workflow.read.detail";
+pub const WORKFLOW_READ_SUMMARY_OPERATION: &str = "workflow.read.summary";
+pub const WORKFLOW_READ_RESUME_RECORD_OPERATION: &str = "workflow.read.resume_record";
+pub const WORKFLOW_READ_PROGRESS_EVENTS_OPERATION: &str = "workflow.read.progress_events";
 pub const WORKFLOW_READ_CAPABILITY: &str = "workflow.read";
 pub const TASK_READ_HISTORY_OPERATION: &str = "task.read.history";
+pub const TASK_READ_HISTORY_CAPABILITY: &str = "task.read.history";
+pub const WORKFLOW_TASK_LOOKUP_CAPABILITY: &str = "workflow.task_lookup";
+pub const TASK_LOOKUP_BY_ID_OPERATION: &str = "task.lookup.by_id";
+pub const TASK_LOOKUP_ACTIVE_OPERATION: &str = "task.lookup.active";
+pub const WORKFLOW_ACCESS_ACTIVE_TASK_OPERATION: &str = "workflow.access.active_task";
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TaskIdInput {
+    pub task_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EmptyInput {}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WorkflowRunIdInput {
+    pub workflow_run_id: i64,
+}
 
 #[cfg(test)]
 mod tests {

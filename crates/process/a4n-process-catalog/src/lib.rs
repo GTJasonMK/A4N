@@ -45,8 +45,12 @@ pub struct ProcessMetadata {
     pub default_addr: String,
     #[serde(default)]
     pub local_only: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_scope: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub read_scope: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub write_scope: Vec<String>,
     #[serde(default)]
     pub capabilities: Vec<String>,
     #[serde(default)]
@@ -91,8 +95,8 @@ pub struct StatefulWorkerCatalogEntry {
     pub default_addr: String,
     #[serde(default)]
     pub local_only: bool,
-    #[serde(default)]
-    pub data_scope: Vec<String>,
+    pub read_scope: Vec<String>,
+    pub write_scope: Vec<String>,
     #[serde(default)]
     pub capabilities: Vec<String>,
     #[serde(default)]
@@ -152,6 +156,8 @@ impl From<&ServiceCatalogEntry> for ProcessMetadata {
             default_addr: entry.default_addr.clone(),
             local_only: entry.local_only,
             data_scope: entry.data_scope.clone(),
+            read_scope: Vec::new(),
+            write_scope: Vec::new(),
             capabilities: Vec::new(),
             dependencies: entry.dependencies.clone(),
             migration: entry.migration.clone(),
@@ -171,7 +177,9 @@ impl From<&StatefulWorkerCatalogEntry> for ProcessMetadata {
             url_env: entry.url_env.clone(),
             default_addr: entry.default_addr.clone(),
             local_only: entry.local_only,
-            data_scope: entry.data_scope.clone(),
+            data_scope: Vec::new(),
+            read_scope: entry.read_scope.clone(),
+            write_scope: entry.write_scope.clone(),
             capabilities: entry.capabilities.clone(),
             dependencies: entry.dependencies.clone(),
             migration: entry.migration.clone(),
@@ -279,9 +287,31 @@ mod tests {
     }
 
     #[test]
+    fn workflow_read_worker_has_no_write_scope() {
+        let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
+        let worker = entries
+            .iter()
+            .find(|entry| entry.name == "workflow-read-worker")
+            .expect("workflow read worker entry");
+        assert!(worker.write_scope.is_empty());
+    }
+
+    #[test]
+    fn scene_profile_worker_declares_generation_run_write_scope() {
+        let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
+        let worker = entries
+            .iter()
+            .find(|entry| entry.name == "scene-profile-worker")
+            .expect("scene profile worker entry");
+        for scope in ["generation_run", "generation_run_target"] {
+            assert!(worker.write_scope.iter().any(|declared| declared == scope));
+        }
+    }
+
+    #[test]
     fn stateful_worker_catalog_has_contract_scope_and_migration_metadata() {
         let entries = stateful_worker_catalog().expect("embedded worker catalog must be valid");
-        assert_eq!(entries.len(), 27);
+        assert_eq!(entries.len(), 30);
         let entry = entries
             .iter()
             .find(|entry| entry.name == "agent-worker")
@@ -293,7 +323,8 @@ mod tests {
         assert_eq!(entry.addr_env, "A4N_AGENT_WORKER_ADDR");
         assert_eq!(entry.url_env.as_deref(), Some("A4N_AGENT_WORKER_URL"));
         assert_eq!(entry.default_addr, "127.0.0.1:47650");
-        assert!(!entry.data_scope.is_empty());
+        assert!(!entry.read_scope.is_empty());
+        assert!(!entry.write_scope.is_empty());
         assert_eq!(
             entry.capabilities,
             vec![
@@ -414,12 +445,15 @@ mod tests {
             .expect("foreshadowing worker entry");
         assert_eq!(foreshadowing.kind, ProcessKind::StatefulWorker);
         assert_eq!(foreshadowing.binary, "a4n-foreshadowing-worker");
-        assert_eq!(foreshadowing.contract_version, "foreshadowing-read-v1");
+        assert_eq!(foreshadowing.contract_version, "foreshadowing-records-v2");
         assert_eq!(foreshadowing.addr_env, "A4N_FORESHADOWING_WORKER_ADDR");
         assert_eq!(foreshadowing.default_addr, "127.0.0.1:47656");
         assert_eq!(
             foreshadowing.capabilities,
-            vec!["profile.foreshadowing.read".to_string()]
+            vec![
+                "profile.foreshadowing.read".to_string(),
+                "profile.foreshadowing.mutation".to_string()
+            ]
         );
         let object = entries
             .iter()
@@ -443,14 +477,15 @@ mod tests {
             .expect("scene profile worker entry");
         assert_eq!(scene.kind, ProcessKind::StatefulWorker);
         assert_eq!(scene.binary, "a4n-scene-profile-worker");
-        assert_eq!(scene.contract_version, "scene-profile-records-v1");
+        assert_eq!(scene.contract_version, "scene-profile-sync-v1");
         assert_eq!(scene.addr_env, "A4N_SCENE_PROFILE_WORKER_ADDR");
         assert_eq!(scene.default_addr, "127.0.0.1:47658");
         assert_eq!(
             scene.capabilities,
             vec![
                 "profile.scene.read".to_string(),
-                "profile.scene.mutation".to_string()
+                "profile.scene.mutation".to_string(),
+                "profile.scene.sync".to_string()
             ]
         );
         assert_eq!(
@@ -636,12 +671,17 @@ mod tests {
             .expect("workflow read worker entry");
         assert_eq!(workflow_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(workflow_read.binary, "a4n-workflow-read-worker");
-        assert_eq!(workflow_read.contract_version, "workflow-read-v1");
+        assert_eq!(workflow_read.contract_version, "workflow-read-v2");
+        assert_eq!(workflow_read.capability_version, "workflow-read-v2");
         assert_eq!(workflow_read.addr_env, "A4N_WORKFLOW_READ_WORKER_ADDR");
         assert_eq!(workflow_read.default_addr, "127.0.0.1:47672");
         assert_eq!(
             workflow_read.capabilities,
-            vec!["workflow.read".to_string()]
+            vec![
+                "workflow.read".to_string(),
+                "workflow.task_lookup".to_string(),
+                "task.read.history".to_string(),
+            ]
         );
         let video_record = entries
             .iter()
@@ -649,7 +689,8 @@ mod tests {
             .expect("video record worker entry");
         assert_eq!(video_record.kind, ProcessKind::StatefulWorker);
         assert_eq!(video_record.binary, "a4n-video-record-worker");
-        assert_eq!(video_record.contract_version, "video-record-v3");
+        assert_eq!(video_record.contract_version, "video-record-v4");
+        assert_eq!(video_record.capability_version, "video-record-v4");
         assert_eq!(video_record.addr_env, "A4N_VIDEO_RECORD_WORKER_ADDR");
         assert_eq!(video_record.default_addr, "127.0.0.1:47675");
         assert_eq!(
@@ -748,7 +789,7 @@ mod tests {
     #[test]
     fn normalized_process_catalog_keeps_sidecars_and_workers_separate() {
         let entries = process_catalog().expect("embedded process catalog must be valid");
-        assert_eq!(entries.len(), 36);
+        assert_eq!(entries.len(), 39);
         assert_eq!(
             entries
                 .iter()
@@ -775,6 +816,42 @@ mod tests {
             worker.capability_version.as_deref(),
             Some("agent-worker-v1")
         );
+        assert!(worker.data_scope.is_empty());
+        assert!(worker.read_scope.contains(&"agent_thread".to_string()));
+        assert!(worker.write_scope.contains(&"agent_thread".to_string()));
+    }
+
+    #[test]
+    fn every_stateful_worker_is_included_in_the_release_tool_catalog() {
+        let workers = stateful_worker_catalog().expect("embedded worker catalog must be valid");
+        let tools = super::release_tool_catalog().expect("embedded release tool catalog");
+
+        for worker in workers {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.package == worker.binary)
+                .unwrap_or_else(|| {
+                    panic!("worker {} is missing from release tools", worker.binary)
+                });
+            assert_eq!(tool.binary, worker.binary);
+        }
+    }
+
+    #[test]
+    fn every_stateful_worker_dependency_is_in_the_release_tool_catalog() {
+        let workers = stateful_worker_catalog().expect("embedded worker catalog must be valid");
+        let tools = super::release_tool_catalog().expect("embedded release tool catalog");
+
+        for worker in workers {
+            for dependency in worker.dependencies {
+                assert!(
+                    tools.iter().any(|tool| tool.package == dependency),
+                    "worker {} depends on unreleasable tool {}",
+                    worker.name,
+                    dependency
+                );
+            }
+        }
     }
 
     #[test]

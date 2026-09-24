@@ -1,5 +1,6 @@
-use a4n_db::{DbHandle, project::ProjectGeneratedChapterSceneSaveInput};
+use a4n_db::DbHandle;
 use a4n_db_models::models::chapter::chapter_scene;
+use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
 use a4n_error::AppError;
 
 use super::super::OrchestratorContext;

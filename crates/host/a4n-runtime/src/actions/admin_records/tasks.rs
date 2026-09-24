@@ -2,10 +2,13 @@ use super::TaskQueueSummary;
 use crate::AppState;
 use serde_json::{Value, json};
 
-pub(super) async fn list_pending_tasks(state: &AppState) -> Result<Vec<TaskQueueSummary>, String> {
+pub(super) async fn list_pending_tasks(
+    state: &AppState,
+    caller_user_id: i64,
+) -> Result<Vec<TaskQueueSummary>, String> {
     state
         .admin_read_application()
-        .pending_tasks()
+        .pending_tasks(caller_user_id)
         .await
         .map_err(|error| error.to_string())
 }
@@ -18,10 +21,10 @@ pub(super) async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result
         .map_err(|error| error.to_string())
 }
 
-pub(super) async fn health_check(state: &AppState) -> Result<Value, String> {
+pub(super) async fn health_check(state: &AppState, caller_user_id: i64) -> Result<Value, String> {
     state
         .admin_read_application()
-        .check_database_health()
+        .check_database_health(caller_user_id)
         .await
         .map_err(|error| error.to_string())?;
     let services = state

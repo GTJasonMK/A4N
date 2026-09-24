@@ -1,4 +1,5 @@
 use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
@@ -94,7 +95,7 @@ pub async fn create_profile_with_generation_run<C>(
     project_id: i64,
     name: &str,
     base_attributes: Value,
-    generation_run: crate::generation::RecordCompletedGenerationRunInput,
+    generation_run: RecordCompletedGenerationRunInput,
 ) -> Result<protagonist_profile::Model, CharacterProfileCreateError>
 where
     C: ConnectionTrait + TransactionTrait,
@@ -122,7 +123,7 @@ pub async fn create_profile_with_generation_run_in<C>(
     project_id: i64,
     name: &str,
     base_attributes: Value,
-    mut generation_run: crate::generation::RecordCompletedGenerationRunInput,
+    mut generation_run: RecordCompletedGenerationRunInput,
 ) -> Result<protagonist_profile::Model, CharacterProfileCreateError>
 where
     C: ConnectionTrait,
@@ -139,7 +140,7 @@ where
     }
 
     let profile = create_profile(db, project_id, name, base_attributes).await?;
-    generation_run.targets = vec![crate::generation::GenerationRunTraceTarget {
+    generation_run.targets = vec![GenerationRunTraceTarget {
         target_kind: "character_profile_record".to_string(),
         target_table: "protagonist_profile".to_string(),
         target_id: profile.id,

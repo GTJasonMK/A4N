@@ -3,25 +3,11 @@
 use super::*;
 
 impl OrchestratorContext {
-    pub(crate) async fn workflow_runs(
-        &self,
-        input: ListWorkflowRunsInput,
-    ) -> Result<Vec<WorkflowRunSummary>, AppError> {
-        self.workflow.workflow_runs(input).await
-    }
-
     pub(crate) async fn workflow_run_summary(
         &self,
         workflow_run_id: i64,
     ) -> Result<WorkflowRunSummary, AppError> {
         self.workflow.workflow_run_summary(workflow_run_id).await
-    }
-
-    pub(crate) async fn workflow_run_detail(
-        &self,
-        input: GetWorkflowRunInput,
-    ) -> Result<WorkflowRunDetailSummary, AppError> {
-        self.workflow.workflow_run_detail(input).await
     }
 
     pub(crate) async fn workflow_run_models(
@@ -179,15 +165,35 @@ impl OrchestratorContext {
             .workflow
             .cancel_workflow_run_persistence(workflow_run_id, reason)
             .await?;
+        self.apply_workflow_cancellation_side_effects(
+            WorkflowCancellationResult {
+                workflow_run_id: cancellation.workflow_run_id,
+                active_task_id: cancellation.active_task_id.clone(),
+                interrupted_generated_video_ids: cancellation
+                    .interrupted_generated_video_ids
+                    .clone(),
+                already_terminal: cancellation.already_terminal,
+            },
+            reason,
+        )
+        .await?;
+        Ok(cancellation)
+    }
+
+    pub(crate) async fn apply_workflow_cancellation_side_effects(
+        &self,
+        cancellation: WorkflowCancellationResult,
+        reason: &str,
+    ) -> Result<(), AppError> {
         if !cancellation.already_terminal {
             self.task_queue
-                .cancel_workflow_llm_calls(workflow_run_id)
+                .cancel_workflow_llm_calls(cancellation.workflow_run_id)
                 .await?;
             if let Some(task_id) = cancellation.active_task_id.as_deref() {
                 self.cancel_task_handle(task_id);
                 if let Err(error) = self.queue_cancel(task_id).await {
                     tracing::warn!(
-                        workflow_run_id,
+                        workflow_run_id = cancellation.workflow_run_id,
                         task_id,
                         error = %error,
                         "workflow 已持久化取消，但活动队列任务未能同步取消"
@@ -200,7 +206,7 @@ impl OrchestratorContext {
             )
             .await?;
         }
-        Ok(cancellation)
+        Ok(())
     }
 
     async fn interrupt_generated_videos_for_cancelled_workflow(

@@ -4,6 +4,7 @@ use a4n_api_contract::chapter::{
     CHAPTER_SCENE_PROGRESS_TOTAL, ChapterSceneProgressReporter, GenerateChapterSceneInput,
 };
 use a4n_db_models::models::chapter::chapter_scene;
+use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
@@ -11,7 +12,6 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    project::ProjectGeneratedChapterSceneSaveInput,
     workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 

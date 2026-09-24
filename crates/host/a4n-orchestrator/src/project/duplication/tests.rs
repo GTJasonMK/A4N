@@ -20,6 +20,7 @@ use a4n_db_models::models::{
     media::media_asset,
     project::novel_project,
 };
+use a4n_domain::canvas::FreeformCanvasGenerationSpecUpsertInput;
 use a4n_domain::canvas_transfer_runtime_identity_key;
 use a4n_domain::project::{ProjectMediaCopyError, ProjectMediaFileCopier};
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
@@ -253,7 +254,7 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
     .await;
     a4n_db::canvas::upsert_freeform_canvas_generation_spec_record(
         database.as_ref(),
-        a4n_db::canvas::FreeformCanvasGenerationSpecUpsertInput {
+        FreeformCanvasGenerationSpecUpsertInput {
             project_id: source.id,
             target_entity_id: node.id,
             canvas_text_asset_id: None,

@@ -6,6 +6,7 @@ use a4n_provider_contract::VideoProviderConfig;
 use a4n_video_contract::VideoSegmentPlanV2;
 use a4n_video_host_contract::VideoProviderPollTarget;
 
+pub use a4n_domain::video_prompt::ChapterVideoPromptSummary;
 pub use a4n_domain::{AssemblyPostprocessOperation, CanvasFrameKind, DownstreamConflictStrategy};
 pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
@@ -476,30 +477,6 @@ pub struct ReferenceMediaUploadInput {
     pub mime_type: String,
     #[schemars(length(min = 1))]
     pub data_base64: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ChapterVideoPromptSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub style: Option<String>,
-    pub prompt_type: String,
-    pub workflow_mode: String,
-    pub shot_number: i32,
-    pub title: Option<String>,
-    pub scene_summary: Option<String>,
-    pub visual_prompt: String,
-    pub motion_prompt: Option<String>,
-    pub negative_prompt: Option<String>,
-    pub duration_secs: i32,
-    pub aspect_ratio: Option<String>,
-    pub reference_image_ids_json: Option<Value>,
-    pub status: String,
-    pub generated_video_id: Option<i64>,
-    pub metadata_json: Option<Value>,
-    pub created_at: String,
-    pub updated_at: String,
 }
 
 /// Host-facing read boundary for persisted chapter video prompts.

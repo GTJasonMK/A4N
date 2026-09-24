@@ -1,14 +1,7 @@
-use serde::{Deserialize, Serialize};
+use a4n_domain::generation::GenerationRunTraceTarget;
 use serde_json::Value;
 
 use super::error::GenerationDbError;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenerationRunTraceTarget {
-    pub target_kind: String,
-    pub target_table: String,
-    pub target_id: i64,
-}
 
 pub(crate) fn append_generation_artifact_target(
     artifact_refs: Option<Value>,

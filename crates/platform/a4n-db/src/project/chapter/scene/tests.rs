@@ -1,5 +1,6 @@
 use super::*;
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
+use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
 use chrono::{NaiveDate, NaiveDateTime};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, Set};
 use std::error::Error;

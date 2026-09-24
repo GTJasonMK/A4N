@@ -19,6 +19,7 @@ REQUEST_URL=""
 REQUEST_BODY=""
 STARTUP_TIMEOUT=30
 REQUEST_TIMEOUT=60
+HOST_STOP_GRACE_SECONDS=5
 RUNS=1
 KEEP_TARGET=0
 SELF_TEST=0
@@ -435,6 +436,13 @@ host_group_has_process() {
     ps -e -o pgid= 2>/dev/null | awk -v expected="$1" '$1 == expected { found=1; exit } END { exit !found }'
 }
 
+host_group_has_live_process() {
+    local process_table
+    process_table="$(ps -e -o pgid= -o stat= 2>/dev/null)" || return 2
+    awk -v expected="$1" '$1 == expected && $2 !~ /^Z/ { found=1; exit } END { exit !found }' \
+        <<<"$process_table"
+}
+
 host_group_contains_protected_pid() {
     local protected pgid
     [[ -n "$HOST_PGID" ]] || return 1
@@ -473,6 +481,26 @@ fail_if_host_exited() {
     fi
 }
 
+wait_for_host_shutdown() {
+    local attempt group_status
+    for ((attempt = 0; attempt < HOST_STOP_GRACE_SECONDS * 10; attempt++)); do
+        group_status=1
+        if [[ -n "$HOST_PGID" ]]; then
+            if host_group_has_live_process "$HOST_PGID"; then
+                group_status=0
+            else
+                group_status=$?
+            fi
+            ((group_status <= 1)) || return 1
+        fi
+        if ! host_is_alive && ((group_status == 1)); then
+            return 0
+        fi
+        sleep 0.1
+    done
+    return 1
+}
+
 send_host_signal() {
     local signal="$1" pid
     if host_group_contains_protected_pid; then
@@ -502,9 +530,10 @@ stop_host_process() {
     if [[ -n "$HOST_PID" || -n "$HOST_PGID" ]]; then
         if ! send_host_signal TERM; then
             stop_failed=1
-        fi
-        if (( stop_failed == 0 )); then
-            send_host_signal KILL || stop_failed=1
+        elif ! wait_for_host_shutdown; then
+            if ! send_host_signal KILL || ! wait_for_host_shutdown; then
+                stop_failed=1
+            fi
         fi
         if (( stop_failed == 0 )); then
             reap_host

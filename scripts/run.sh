@@ -446,10 +446,18 @@ preflight_runtime_dependencies
 
 build_local_server_targets() {
   local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  local sidecar_package_lines package
+  local sidecar_package_lines worker_package_lines package
   local -a sidecar_packages=()
+  local -a worker_packages=()
   $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-novel-planning-worker -p a4n-artifact-media-worker -p a4n-outline-worker -p a4n-blueprint-worker -p a4n-asset-graph-worker -p a4n-foreshadowing-worker -p a4n-object-profile-worker -p a4n-scene-profile-worker -p a4n-profile-material-worker -p a4n-project-status-worker -p a4n-theme-read-worker -p a4n-project-read-worker -p a4n-import-review-worker -p a4n-inspiration-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-chapter-scene-worker -p a4n-chapter-content-worker -p a4n-workflow-read-worker -p a4n-config-read-worker -p a4n-character-mutation-worker -p a4n-video-record-worker -p a4n-manga-record-worker -p a4n-portrait-worker -p a4n-source-snapshot-worker -p a4n-edge -p a4n-server)
+  build_command+=(-p a4n-migration -p a4n-control -p a4n-edge -p a4n-server)
+  worker_package_lines="$(stateful_worker_packages)" \
+    || die "读取 stateful worker catalog 失败"
+  mapfile -t worker_packages <<<"$worker_package_lines"
+  ((${#worker_packages[@]} > 0)) || die "stateful worker catalog 为空"
+  for package in "${worker_packages[@]}"; do
+    build_command+=(-p "$package")
+  done
   $SERVER && build_command+=(-p a4n-cli)
   if $MANAGED_SIDECARS && ! $FULL_HOST; then
     sidecar_package_lines="$(sidecar_catalog_binaries)"

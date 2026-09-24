@@ -50,14 +50,12 @@ pub use chapter::context::{
 };
 pub use chapter::scene::{
     ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput, ProjectChapterSceneWriteError,
-    ProjectGeneratedChapterSceneSaveInput, chapter_by_project_number, chapter_scene_by_id,
-    chapter_scene_reorder_project_id, chapter_scenes_by_chapter, delete_chapter_scene_record,
-    reorder_chapter_scene_records, save_generated_chapter_scene_record,
-    update_chapter_scene_record,
+    chapter_by_project_number, chapter_scene_by_id, chapter_scene_reorder_project_id,
+    chapter_scenes_by_chapter, delete_chapter_scene_record, reorder_chapter_scene_records,
+    save_generated_chapter_scene_record, update_chapter_scene_record,
 };
 pub use chapter::source::{
-    ResolveChapterSourceError, ResolvedChapterSource, resolve_chapter_source,
-    resolve_snapshot_sources,
+    ResolveChapterSourceError, resolve_chapter_source, resolve_snapshot_sources,
 };
 pub use cleanup::ProjectCleanupDbError;
 pub(crate) use cleanup::{
@@ -118,18 +116,19 @@ pub(crate) use mutation::{
     project_write_identity_for_update,
 };
 pub use outline_records::{
-    ChapterSourceSnapshot, DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput,
-    ManualPartOutlineSaveInput, OutlineDeleteTarget, OutlineGenerationProgressChapter,
-    OutlineGenerationProgressPart, OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
+    DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
+    OutlineDeleteTarget, OutlineGenerationProgressChapter, OutlineGenerationProgressPart,
+    OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
     ProjectChapterOutlineUpdateInput, ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
     RetrospectiveChapterOutlineUpsertInput, RetrospectiveChapterOutlineUpsertOutcome,
     chapter_outline_by_id, chapter_outline_by_project_number, chapter_outline_source_kinds_for_ids,
     chapter_outlines_for_project, chapter_outlines_for_project_chapter_number,
-    delete_automatic_chapter_outlines_for_source_change, delete_latest_chapter_outline_records,
-    delete_latest_part_outline_records, formal_chapter_outline_by_project_number,
-    outline_generation_progress_rows, part_outline_by_id, part_outlines_by_ids,
-    part_outlines_for_project, save_manual_chapter_outline, save_manual_part_outline,
-    update_chapter_outline_record, upsert_retrospective_chapter_outline_checked,
+    chapter_source_snapshot_from_model, delete_automatic_chapter_outlines_for_source_change,
+    delete_latest_chapter_outline_records, delete_latest_part_outline_records,
+    formal_chapter_outline_by_project_number, outline_generation_progress_rows, part_outline_by_id,
+    part_outlines_by_ids, part_outlines_for_project, save_manual_chapter_outline,
+    save_manual_part_outline, update_chapter_outline_record,
+    upsert_retrospective_chapter_outline_checked,
 };
 pub(crate) use outline_records::{
     chapter_source_snapshot_matches, chapter_source_snapshot_matches_fields,

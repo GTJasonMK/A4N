@@ -15,8 +15,6 @@ runtime-client	a4n-runtime	a4n-rag-client	normal
 runtime-client	a4n-runtime	a4n-service-client	normal
 runtime-client	a4n-runtime	a4n-video-client	normal
 runtime-client	a4n-runtime	a4n-media-client	normal
-runtime-client	a4n-runtime	a4n-object-profile-worker-client	normal
-runtime-client	a4n-runtime	a4n-scene-profile-worker-client	normal
 
 # Capability clients point at their own contract, shared transport, and protocol identity.
 client-dependency	a4n-prompt-client	a4n-prompt-contract	normal
@@ -59,11 +57,21 @@ client-dependency	a4n-agent-worker-client	a4n-api-contract	normal
 client-dependency	a4n-agent-worker-client	a4n-error	normal
 client-dependency	a4n-agent-worker-client	a4n-worker-client	normal
 client-dependency	a4n-agent-worker-client	a4n-worker-contract	normal
+client-dependency	a4n-admin-worker-client	a4n-admin-worker-contract	normal
+client-dependency	a4n-admin-worker-client	a4n-api-contract	normal
+client-dependency	a4n-admin-worker-client	a4n-error	normal
+client-dependency	a4n-admin-worker-client	a4n-worker-client	normal
+client-dependency	a4n-admin-worker-client	a4n-worker-contract	normal
 client-dependency	a4n-artifact-media-client	a4n-artifact-media-contract	normal
 client-dependency	a4n-artifact-media-client	a4n-api-contract	normal
 client-dependency	a4n-artifact-media-client	a4n-error	normal
 client-dependency	a4n-artifact-media-client	a4n-worker-client	normal
 client-dependency	a4n-artifact-media-client	a4n-worker-contract	normal
+client-dependency	a4n-canvas-record-worker-client	a4n-api-contract	normal
+client-dependency	a4n-canvas-record-worker-client	a4n-canvas-record-worker-contract	normal
+client-dependency	a4n-canvas-record-worker-client	a4n-error	normal
+client-dependency	a4n-canvas-record-worker-client	a4n-worker-client	normal
+client-dependency	a4n-canvas-record-worker-client	a4n-worker-contract	normal
 client-dependency	a4n-asset-graph-worker-client	a4n-api-contract	normal
 client-dependency	a4n-asset-graph-worker-client	a4n-asset-graph-worker-contract	normal
 client-dependency	a4n-asset-graph-worker-client	a4n-error	normal
@@ -170,6 +178,11 @@ client-dependency	a4n-workflow-read-worker-client	a4n-error	normal
 client-dependency	a4n-workflow-read-worker-client	a4n-worker-client	normal
 client-dependency	a4n-workflow-read-worker-client	a4n-worker-contract	normal
 client-dependency	a4n-workflow-read-worker-client	a4n-workflow-read-worker-contract	normal
+client-dependency	a4n-workflow-lifecycle-worker-client	a4n-api-contract	normal
+client-dependency	a4n-workflow-lifecycle-worker-client	a4n-error	normal
+client-dependency	a4n-workflow-lifecycle-worker-client	a4n-worker-client	normal
+client-dependency	a4n-workflow-lifecycle-worker-client	a4n-worker-contract	normal
+client-dependency	a4n-workflow-lifecycle-worker-client	a4n-workflow-lifecycle-worker-contract	normal
 client-dependency	a4n-config-read-worker-client	a4n-api-contract	normal
 client-dependency	a4n-config-read-worker-client	a4n-config-read-worker-contract	normal
 client-dependency	a4n-config-read-worker-client	a4n-error	normal

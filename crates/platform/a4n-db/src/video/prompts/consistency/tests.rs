@@ -3,7 +3,9 @@ use super::*;
 use a4n_db_models::models::{
     chapter::{chapter, chapter_video_prompt},
     generation::{generation_run, generation_run_target},
+    project::source_snapshot_chapter,
 };
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::video_prompt::{
     ChapterVideoPromptPatch, ChapterVideoPromptRecordFields, ChapterVideoPromptSyncDraft,
     ChapterVideoPromptSyncPolicy, PreparedVideoPromptGenerationTrace,
@@ -95,7 +97,7 @@ fn completed_run_input(
     project_id: i64,
 ) -> crate::generation::RecordCompletedGenerationRunWithCheckpointInput {
     crate::generation::RecordCompletedGenerationRunWithCheckpointInput {
-        run: crate::generation::RecordCompletedGenerationRunInput {
+        run: RecordCompletedGenerationRunInput {
             project_id,
             workflow: "video_prompt_generation".to_string(),
             step_key: "video_prompt_update_transaction_test".to_string(),
@@ -641,6 +643,113 @@ async fn segment_recipe_update_writes_only_the_locked_plan_metadata() {
     let project_id = insert_project(&db).await;
     let chapter = insert_chapter(&db, project_id).await;
     let original = insert_prompt(&db, project_id, chapter.id).await;
+    let (segment, recipe) = segment_recipe_fixture();
+
+    let mut active: chapter_video_prompt::ActiveModel = original.clone().into();
+    active.style = Set(Some("cinematic".to_string()));
+    active.prompt_type = Set("frame_segment_plan".to_string());
+    active.workflow_mode = Set("shared_segment_plan".to_string());
+    active.shot_number = Set(0);
+    active.metadata_json = Set(Some(json!({
+        "video_execution_identity": {
+            "source_content_sha256": a4n_domain::source_text_hash(&chapter.content)
+        },
+        "segments": [segment],
+        "segment_recipes": [recipe.clone()]
+    })));
+    let plan = active.update(&db).await.unwrap();
+
+    let mut updated: a4n_video_contract::VideoSegmentExecutionRecipeV1 =
+        serde_json::from_value(recipe).unwrap();
+    updated.workflow_mode = a4n_video_contract::VideoSegmentWorkflowModeV1::Storyboard;
+    updated.guidance_mode = a4n_video_contract::VideoSegmentGuidanceModeV1::SystemFrames;
+    let recipes = update_chapter_video_segment_recipe(&db, plan.id, updated)
+        .await
+        .unwrap();
+
+    assert_eq!(recipes.len(), 1);
+    assert_eq!(
+        recipes[0].workflow_mode,
+        a4n_video_contract::VideoSegmentWorkflowModeV1::Storyboard
+    );
+    let stored = chapter_video_prompt::Entity::find_by_id(plan.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.visual_prompt, original.visual_prompt);
+    assert_eq!(
+        stored.metadata_json.unwrap()["segment_recipes"][0]["workflow_mode"],
+        "storyboard"
+    );
+}
+
+#[tokio::test]
+async fn segment_recipe_update_uses_derived_video_snapshot_content() {
+    let db = setup_db().await;
+    let root_project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, root_project_id).await;
+    let source_content = chapter.content.clone();
+    let derived = crate::project::create_derived_project_record(
+        &db,
+        1,
+        crate::project::CreateDerivedProjectParams {
+            root_project_id,
+            derived_kind: crate::project::PROJECT_KIND_VIDEO.to_string(),
+            title: "视频派生项目快照测试".to_string(),
+            description: String::new(),
+            chapter_scope: crate::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+        },
+    )
+    .await
+    .unwrap();
+    let snapshot = source_snapshot_chapter::Entity::find()
+        .filter(source_snapshot_chapter::Column::SnapshotId.eq(derived.source_snapshot_id.unwrap()))
+        .filter(source_snapshot_chapter::Column::SourceChapterId.eq(chapter.id))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(snapshot.content, source_content);
+
+    let mut changed_chapter: chapter::ActiveModel = chapter.clone().into();
+    changed_chapter.content = Set("父文本项目已更新".to_string());
+    changed_chapter.word_count = Set(8);
+    changed_chapter.update(&db).await.unwrap();
+
+    let original = insert_prompt(&db, derived.id, chapter.id).await;
+    let (segment, recipe) = segment_recipe_fixture();
+    let mut active: chapter_video_prompt::ActiveModel = original.into();
+    active.style = Set(Some("cinematic".to_string()));
+    active.prompt_type = Set("frame_segment_plan".to_string());
+    active.workflow_mode = Set("shared_segment_plan".to_string());
+    active.shot_number = Set(0);
+    active.metadata_json = Set(Some(json!({
+        "video_execution_identity": {
+            "source_content_sha256": a4n_domain::source_text_hash(&snapshot.content)
+        },
+        "segments": [segment],
+        "segment_recipes": [recipe]
+    })));
+    let plan = active.update(&db).await.unwrap();
+
+    let recipes = update_chapter_video_segment_recipe(
+        &db,
+        plan.id,
+        serde_json::from_value(plan.metadata_json.as_ref().unwrap()["segment_recipes"][0].clone())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(recipes.len(), 1);
+    assert_eq!(recipes[0].segment_number, 1);
+}
+
+fn segment_recipe_fixture() -> (serde_json::Value, serde_json::Value) {
     let segment = json!({
         "schema_version": "video_segment_plan_v2",
         "segment_number": 1,
@@ -680,43 +789,7 @@ async fn segment_recipe_update_writes_only_the_locked_plan_metadata() {
         "reference_media": null,
         "adopted_video_id": null
     });
-    let mut active: chapter_video_prompt::ActiveModel = original.clone().into();
-    active.style = Set(Some("cinematic".to_string()));
-    active.prompt_type = Set("frame_segment_plan".to_string());
-    active.workflow_mode = Set("shared_segment_plan".to_string());
-    active.shot_number = Set(0);
-    active.metadata_json = Set(Some(json!({
-        "video_execution_identity": {
-            "source_content_sha256": a4n_domain::source_text_hash(&chapter.content)
-        },
-        "segments": [segment],
-        "segment_recipes": [recipe.clone()]
-    })));
-    let plan = active.update(&db).await.unwrap();
-
-    let mut updated: a4n_video_contract::VideoSegmentExecutionRecipeV1 =
-        serde_json::from_value(recipe).unwrap();
-    updated.workflow_mode = a4n_video_contract::VideoSegmentWorkflowModeV1::Storyboard;
-    updated.guidance_mode = a4n_video_contract::VideoSegmentGuidanceModeV1::SystemFrames;
-    let recipes = update_chapter_video_segment_recipe(&db, plan.id, updated)
-        .await
-        .unwrap();
-
-    assert_eq!(recipes.len(), 1);
-    assert_eq!(
-        recipes[0].workflow_mode,
-        a4n_video_contract::VideoSegmentWorkflowModeV1::Storyboard
-    );
-    let stored = chapter_video_prompt::Entity::find_by_id(plan.id)
-        .one(&db)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(stored.visual_prompt, original.visual_prompt);
-    assert_eq!(
-        stored.metadata_json.unwrap()["segment_recipes"][0]["workflow_mode"],
-        "storyboard"
-    );
+    (segment, recipe)
 }
 
 #[test]

@@ -33,6 +33,7 @@ BUILD_ALL=false
 PACKAGE_SELECTED=false
 NO_DEFAULT_FEATURES=false
 FEATURES=""
+STATEFUL_WORKER_PACKAGES=()
 
 # —— 解析参数 ——
 while [[ $# -gt 0 ]]; do
@@ -99,6 +100,15 @@ if $FRONTEND_ONLY; then
     [[ -n "$FEATURES" ]] && die "--frontend 不能与 --features 同时使用"
 fi
 
+if ! $BUILD_ALL && [[ "$TARGET_CRATE" == "a4n-server" ]]; then
+    worker_packages="$(stateful_worker_packages)" || die "读取 stateful worker catalog 失败"
+    [[ -n "$worker_packages" ]] || die "stateful worker catalog 为空"
+    while IFS= read -r worker_package; do
+        [[ -n "$worker_package" ]] && STATEFUL_WORKER_PACKAGES+=("$worker_package")
+    done <<< "$worker_packages"
+    ((${#STATEFUL_WORKER_PACKAGES[@]} > 0)) || die "stateful worker catalog 未提供二进制包"
+fi
+
 should_build_frontend() {
     [[ "$BACKEND_ONLY" == false && "$BUILD_MODE" != "check" ]]
 }
@@ -110,32 +120,9 @@ cargo_target_args() {
             # Server supervises Edge as a sibling process; building the Server
             # alone would produce an unusable runtime bundle.
             printf '%s\n' "-p" "a4n-edge"
-            printf '%s\n' "-p" "a4n-novel-planning-worker"
-            printf '%s\n' "-p" "a4n-artifact-media-worker"
-            printf '%s\n' "-p" "a4n-outline-worker"
-            printf '%s\n' "-p" "a4n-blueprint-worker"
-            printf '%s\n' "-p" "a4n-asset-graph-worker"
-            printf '%s\n' "-p" "a4n-foreshadowing-worker"
-            printf '%s\n' "-p" "a4n-object-profile-worker"
-            printf '%s\n' "-p" "a4n-scene-profile-worker"
-            printf '%s\n' "-p" "a4n-profile-material-worker"
-            printf '%s\n' "-p" "a4n-project-status-worker"
-            printf '%s\n' "-p" "a4n-theme-read-worker"
-            printf '%s\n' "-p" "a4n-project-read-worker"
-            printf '%s\n' "-p" "a4n-import-review-worker"
-            printf '%s\n' "-p" "a4n-inspiration-worker"
-            printf '%s\n' "-p" "a4n-project-access-worker"
-            printf '%s\n' "-p" "a4n-project-collaboration-worker"
-            printf '%s\n' "-p" "a4n-project-mutation-worker"
-            printf '%s\n' "-p" "a4n-chapter-scene-worker"
-            printf '%s\n' "-p" "a4n-chapter-content-worker"
-            printf '%s\n' "-p" "a4n-workflow-read-worker"
-            printf '%s\n' "-p" "a4n-config-read-worker"
-            printf '%s\n' "-p" "a4n-character-mutation-worker"
-            printf '%s\n' "-p" "a4n-video-record-worker"
-            printf '%s\n' "-p" "a4n-manga-record-worker"
-            printf '%s\n' "-p" "a4n-portrait-worker"
-            printf '%s\n' "-p" "a4n-source-snapshot-worker"
+            for worker_package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
+                printf '%s\n' "-p" "$worker_package"
+            done
         fi
     fi
 

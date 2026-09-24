@@ -36,40 +36,65 @@ pub trait AdminReadApplicationPort: Send + Sync {
 
     async fn user_usage(
         &self,
+        caller_user_id: i64,
         user_id: i64,
         limit: u64,
     ) -> Result<Vec<UsageLogSummary>, a4n_error::AppError>;
 
-    async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, a4n_error::AppError>;
+    async fn token_summary(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+    ) -> Result<serde_json::Value, a4n_error::AppError>;
 
     async fn usage_trends(
         &self,
+        caller_user_id: i64,
         input: UsageTrendsInput,
     ) -> Result<Vec<DailyUsagePoint>, a4n_error::AppError>;
 
-    async fn overview(&self) -> Result<AdminOverviewSummary, a4n_error::AppError>;
+    async fn overview(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<AdminOverviewSummary, a4n_error::AppError>;
 
-    async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, a4n_error::AppError>;
+    async fn all_project_summaries(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<AdminProjectSummary>, a4n_error::AppError>;
 
-    async fn pending_tasks(&self) -> Result<Vec<TaskQueueSummary>, a4n_error::AppError>;
+    async fn pending_tasks(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<TaskQueueSummary>, a4n_error::AppError>;
 
     async fn generation_call_analytics(
         &self,
+        caller_user_id: i64,
         input: GenerationCallAnalyticsInput,
     ) -> Result<GenerationCallAnalytics, a4n_error::AppError>;
 
-    async fn check_database_health(&self) -> Result<(), a4n_error::AppError>;
+    async fn check_database_health(&self, caller_user_id: i64) -> Result<(), a4n_error::AppError>;
 
-    async fn list_users(&self) -> Result<Vec<UserSummary>, a4n_error::AppError>;
+    async fn list_users(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<UserSummary>, a4n_error::AppError>;
 
-    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, a4n_error::AppError>;
+    async fn list_invite_codes(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<InviteCodeSummary>, a4n_error::AppError>;
 }
 
 /// Host-facing administrative mutation boundary.
 #[async_trait::async_trait]
 pub trait AdminMutationApplicationPort: Send + Sync {
-    async fn create_user(&self, input: CreateUserInput)
-    -> Result<UserSummary, a4n_error::AppError>;
+    async fn create_user(
+        &self,
+        caller_user_id: i64,
+        input: CreateUserInput,
+    ) -> Result<UserSummary, a4n_error::AppError>;
 
     async fn create_invite_code(
         &self,
@@ -79,6 +104,7 @@ pub trait AdminMutationApplicationPort: Send + Sync {
 
     async fn update_user_role(
         &self,
+        caller_user_id: i64,
         user_id: i64,
         input: UpdateUserRoleInput,
     ) -> Result<UserSummary, a4n_error::AppError>;

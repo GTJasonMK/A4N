@@ -1,4 +1,4 @@
-use a4n_db::project::ResolvedChapterSource;
+use a4n_domain::chapter::ResolvedChapterSource;
 use a4n_domain::shooting_script::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingTransitionContractV1,
     ShootingTransitionTypeV1,

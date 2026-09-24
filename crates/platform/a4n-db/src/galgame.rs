@@ -7,6 +7,7 @@ use a4n_db_models::models::{
     generation::{generation_spec, prompt_artifact},
     project::{novel_project, source_snapshot_profile},
 };
+use a4n_domain::galgame::GalgamePromptArtifactUpsertInput;
 use a4n_domain::project::ProjectKind;
 use chrono::Utc;
 #[cfg(test)]
@@ -74,11 +75,10 @@ fn require_galgame_generation_text<'a>(
 mod types;
 pub use types::{
     CompletedGalgameVisualBindingRecords, GalgameAssetPlanSpecRecordError,
-    GalgameAssetPlanSpecRecordInput, GalgameAssetPlanningReadModel,
-    GalgameAssetPlanningSceneRecord, GalgameAssetPlanningSourceChapterRecord,
-    GalgameCompletedVisualAssetRecord, GalgameCompletedVisualBindingRecord,
-    GalgameContextRecordError, GalgameGenerationRecordError, GalgameGenerationSpecUpsert,
-    GalgameGenerationSpecUpsertInput, GalgameGenerationSpecUpsertOutcome, GalgameLineRecordError,
+    GalgameAssetPlanningReadModel, GalgameAssetPlanningSceneRecord,
+    GalgameAssetPlanningSourceChapterRecord, GalgameCompletedVisualAssetRecord,
+    GalgameCompletedVisualBindingRecord, GalgameContextRecordError, GalgameGenerationRecordError,
+    GalgameGenerationSpecUpsert, GalgameGenerationSpecUpsertOutcome, GalgameLineRecordError,
     GalgameLineReorderRecordError, GalgameMediaAssetReadRecord, GalgameMediaBindingReadModel,
     GalgameMediaBindingReadRecord, GalgameMediaBindingResult, GalgameMediaRecordError,
     GalgamePersistValidationScopeReadModel, GalgamePersistValidationSourceSnapshotChapterRecord,
@@ -86,11 +86,11 @@ pub use types::{
     GalgamePipelinePromptChapterRecord, GalgamePipelinePromptChapterSourceRecord,
     GalgamePipelinePromptContextRecord, GalgamePipelinePromptSpeakerProfileRecord,
     GalgamePipelinePromptTextAnchorRecord, GalgamePortraitSpecTargetInput,
-    GalgamePortraitSpecTargetProfile, GalgameProjectRecordError, GalgamePromptArtifactUpsertInput,
-    GalgameSceneRecordError, GalgameScriptDetailChoiceRecord, GalgameScriptDetailReadModel,
-    GalgameScriptDetailSceneRecord, GalgameScriptDetailScriptRecord, GalgameScriptRecordError,
-    GalgameTargetContext, InsertGalgameLineRecordInput, PersistGalgameChoiceRecordInput,
-    PersistGalgameLineRecordInput, PersistGalgameSceneRecordInput, PersistGalgameScriptRecordInput,
+    GalgamePortraitSpecTargetProfile, GalgameProjectRecordError, GalgameSceneRecordError,
+    GalgameScriptDetailChoiceRecord, GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
+    GalgameScriptDetailScriptRecord, GalgameScriptRecordError, GalgameTargetContext,
+    InsertGalgameLineRecordInput, PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput,
+    PersistGalgameSceneRecordInput, PersistGalgameScriptRecordInput,
     ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput, UpdateGalgameSceneRecordInput,
 };
 pub(in crate::galgame) use types::{

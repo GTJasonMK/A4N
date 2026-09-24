@@ -1,12 +1,12 @@
 use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 use super::{
     VideoDbError, VideoProjectIdentity, validate_positive_video_i64, video_project_record,
 };
 
-pub async fn project_and_chapter_for_video_source(
-    db: &DatabaseConnection,
+pub async fn project_and_chapter_for_video_source<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<(VideoProjectIdentity, chapter::Model), VideoDbError> {
@@ -27,8 +27,8 @@ pub async fn project_and_chapter_for_video_source(
     Ok((project, chapter))
 }
 
-pub async fn source_snapshot_chapter_for_video_source(
-    db: &DatabaseConnection,
+pub async fn source_snapshot_chapter_for_video_source<C: ConnectionTrait>(
+    db: &C,
     snapshot_id: i64,
     chapter_id: i64,
 ) -> Result<Option<source_snapshot_chapter::Model>, VideoDbError> {

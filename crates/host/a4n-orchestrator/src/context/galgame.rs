@@ -6,13 +6,14 @@
 use a4n_db::DbHandle;
 use a4n_db::galgame::{
     CompletedGalgameVisualBindingRecords, GalgameMediaBindingResult,
-    GalgamePortraitSpecTargetInput, GalgamePromptArtifactUpsertInput, GalgameTargetContext,
+    GalgamePortraitSpecTargetInput, GalgameTargetContext,
 };
 use a4n_db_models::models::{
     ai::generated_image,
     character::character_portrait,
     generation::{generation_spec, prompt_artifact},
 };
+use a4n_domain::galgame::GalgamePromptArtifactUpsertInput;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -319,7 +320,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn upsert_galgame_prompt_artifact_record(
         &self,
-        input: a4n_db::galgame::GalgamePromptArtifactUpsertInput,
+        input: GalgamePromptArtifactUpsertInput,
     ) -> Result<a4n_db_models::models::generation::prompt_artifact::Model, a4n_error::AppError>
     {
         self.galgame

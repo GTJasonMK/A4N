@@ -1,4 +1,5 @@
 use super::super::*;
+use a4n_domain::generation::GenerationRunTraceTarget;
 use std::collections::{HashMap, HashSet};
 
 pub async fn delete_generation_run_targets_for<C>(

@@ -1,5 +1,42 @@
 use super::super::*;
 
+pub(crate) fn catalog_worker_specs() -> anyhow::Result<Vec<WorkerSpec>> {
+    a4n_process_catalog::stateful_worker_catalog()?
+        .iter()
+        .map(|entry| {
+            let metadata = stateful_worker_catalog_entry_ref(&entry.name).ok_or_else(|| {
+                anyhow::anyhow!("进程目录缺少 {} 的 stateful worker 元数据", entry.name)
+            })?;
+            let address_value =
+                env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+            let address = address_value
+                .parse::<SocketAddr>()
+                .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
+            let address = ensure_nonzero_port(&metadata.addr_env, address)?;
+            if metadata.local_only && !address.ip().is_loopback() {
+                anyhow::bail!("{} 必须绑定 loopback 地址", metadata.addr_env);
+            }
+            Ok(WorkerSpec {
+                metadata,
+                binary: child_binary(&managed_worker_env(metadata, "BINARY"), &metadata.binary)?,
+                address,
+                token: worker_token_for_env(&managed_worker_env(metadata, "TOKEN"))?,
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn managed_worker_env(
+    metadata: &a4n_process_catalog::StatefulWorkerCatalogEntry,
+    suffix: &str,
+) -> String {
+    format!(
+        "A4N_{}_{}",
+        metadata.name.replace('-', "_").to_ascii_uppercase(),
+        suffix
+    )
+}
+
 pub(crate) fn binary_fingerprint(path: &Path) -> anyhow::Result<BinaryFingerprint> {
     let metadata = std::fs::metadata(path)
         .map_err(|error| anyhow::anyhow!("读取 worker 二进制 {} 失败: {error}", path.display()))?;
@@ -72,519 +109,6 @@ pub(crate) fn control_addr_from_web(web_addr: SocketAddr) -> anyhow::Result<Sock
     Ok(SocketAddr::from(([127, 0, 0, 1], control_port)))
 }
 
-pub(crate) fn agent_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = agent_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn agent_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(AGENT_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            AGENT_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn novel_planning_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(NOVEL_PLANNING_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            NOVEL_PLANNING_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn novel_planning_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = novel_planning_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn artifact_media_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(ARTIFACT_MEDIA_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            ARTIFACT_MEDIA_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn artifact_media_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = artifact_media_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn outline_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(OUTLINE_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            OUTLINE_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn outline_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = outline_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn blueprint_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(BLUEPRINT_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            BLUEPRINT_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn blueprint_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = blueprint_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn asset_graph_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(ASSET_GRAPH_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            ASSET_GRAPH_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn asset_graph_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = asset_graph_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn foreshadowing_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(FORESHADOWING_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            FORESHADOWING_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn foreshadowing_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = foreshadowing_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn object_profile_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(OBJECT_PROFILE_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            OBJECT_PROFILE_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn object_profile_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = object_profile_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn scene_profile_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(SCENE_PROFILE_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            SCENE_PROFILE_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn scene_profile_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = scene_profile_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn profile_material_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PROFILE_MATERIAL_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PROFILE_MATERIAL_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn profile_material_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = profile_material_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn project_status_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PROJECT_STATUS_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PROJECT_STATUS_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn project_status_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = project_status_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn portrait_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PORTRAIT_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PORTRAIT_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn portrait_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = portrait_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn source_snapshot_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(SOURCE_SNAPSHOT_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            SOURCE_SNAPSHOT_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn source_snapshot_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = source_snapshot_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn theme_read_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(THEME_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            THEME_READ_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn theme_read_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = theme_read_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn project_read_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PROJECT_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PROJECT_READ_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn project_read_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = project_read_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn import_review_read_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(IMPORT_REVIEW_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            IMPORT_REVIEW_READ_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn import_review_read_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = import_review_read_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn inspiration_history_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(INSPIRATION_HISTORY_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            INSPIRATION_HISTORY_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn inspiration_history_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = inspiration_history_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn project_access_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PROJECT_ACCESS_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PROJECT_ACCESS_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn project_access_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = project_access_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn project_collaboration_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PROJECT_COLLABORATION_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PROJECT_COLLABORATION_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn project_collaboration_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = project_collaboration_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn project_mutation_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(PROJECT_MUTATION_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            PROJECT_MUTATION_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn project_mutation_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = project_mutation_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn chapter_scene_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(CHAPTER_SCENE_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            CHAPTER_SCENE_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn chapter_scene_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = chapter_scene_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn chapter_content_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(CHAPTER_CONTENT_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            CHAPTER_CONTENT_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn chapter_content_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = chapter_content_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn workflow_read_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(WORKFLOW_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            WORKFLOW_READ_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn workflow_read_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = workflow_read_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn config_read_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(CONFIG_READ_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            CONFIG_READ_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn config_read_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = config_read_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn character_mutation_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(CHARACTER_MUTATION_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            CHARACTER_MUTATION_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn character_mutation_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = character_mutation_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn video_record_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(VIDEO_RECORD_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            VIDEO_RECORD_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn video_record_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = video_record_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
-pub(crate) fn manga_record_worker_metadata()
--> anyhow::Result<&'static a4n_process_catalog::StatefulWorkerCatalogEntry> {
-    stateful_worker_catalog_entry_ref(MANGA_RECORD_WORKER_CATALOG_NAME).ok_or_else(|| {
-        anyhow::anyhow!(
-            "进程目录缺少 {} 的 stateful worker 元数据",
-            MANGA_RECORD_WORKER_CATALOG_NAME
-        )
-    })
-}
-
-pub(crate) fn manga_record_worker_addr() -> anyhow::Result<SocketAddr> {
-    let metadata = manga_record_worker_metadata()?;
-    let value = env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
-    let address = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
-    ensure_nonzero_port(&metadata.addr_env, address)
-}
-
 pub(crate) fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
@@ -598,192 +122,6 @@ pub(crate) fn control_binary() -> anyhow::Result<PathBuf> {
 
 pub(crate) fn edge_binary() -> anyhow::Result<PathBuf> {
     child_binary(EDGE_BINARY_ENV, "a4n-edge")
-}
-
-pub(crate) fn agent_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(AGENT_WORKER_BINARY_ENV, &agent_worker_metadata()?.binary)
-}
-
-pub(crate) fn novel_planning_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        NOVEL_PLANNING_WORKER_BINARY_ENV,
-        &novel_planning_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn artifact_media_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        ARTIFACT_MEDIA_WORKER_BINARY_ENV,
-        &artifact_media_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn outline_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        OUTLINE_WORKER_BINARY_ENV,
-        &outline_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn blueprint_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        BLUEPRINT_WORKER_BINARY_ENV,
-        &blueprint_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn asset_graph_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        ASSET_GRAPH_WORKER_BINARY_ENV,
-        &asset_graph_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn foreshadowing_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        FORESHADOWING_WORKER_BINARY_ENV,
-        &foreshadowing_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn object_profile_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        OBJECT_PROFILE_WORKER_BINARY_ENV,
-        &object_profile_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn scene_profile_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        SCENE_PROFILE_WORKER_BINARY_ENV,
-        &scene_profile_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn profile_material_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PROFILE_MATERIAL_WORKER_BINARY_ENV,
-        &profile_material_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn project_status_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PROJECT_STATUS_WORKER_BINARY_ENV,
-        &project_status_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn portrait_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PORTRAIT_WORKER_BINARY_ENV,
-        &portrait_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn source_snapshot_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        SOURCE_SNAPSHOT_WORKER_BINARY_ENV,
-        &source_snapshot_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn theme_read_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        THEME_READ_WORKER_BINARY_ENV,
-        &theme_read_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn project_read_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PROJECT_READ_WORKER_BINARY_ENV,
-        &project_read_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn import_review_read_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        IMPORT_REVIEW_READ_WORKER_BINARY_ENV,
-        &import_review_read_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn inspiration_history_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        INSPIRATION_HISTORY_WORKER_BINARY_ENV,
-        &inspiration_history_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn project_access_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PROJECT_ACCESS_WORKER_BINARY_ENV,
-        &project_access_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn project_collaboration_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PROJECT_COLLABORATION_WORKER_BINARY_ENV,
-        &project_collaboration_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn project_mutation_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        PROJECT_MUTATION_WORKER_BINARY_ENV,
-        &project_mutation_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn chapter_scene_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        CHAPTER_SCENE_WORKER_BINARY_ENV,
-        &chapter_scene_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn chapter_content_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        CHAPTER_CONTENT_WORKER_BINARY_ENV,
-        &chapter_content_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn workflow_read_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        WORKFLOW_READ_WORKER_BINARY_ENV,
-        &workflow_read_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn config_read_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        CONFIG_READ_WORKER_BINARY_ENV,
-        &config_read_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn character_mutation_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        CHARACTER_MUTATION_WORKER_BINARY_ENV,
-        &character_mutation_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn video_record_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        VIDEO_RECORD_WORKER_BINARY_ENV,
-        &video_record_worker_metadata()?.binary,
-    )
-}
-
-pub(crate) fn manga_record_worker_binary() -> anyhow::Result<PathBuf> {
-    child_binary(
-        MANGA_RECORD_WORKER_BINARY_ENV,
-        &manga_record_worker_metadata()?.binary,
-    )
 }
 
 pub(crate) fn child_binary(env_name: &str, name: &str) -> anyhow::Result<PathBuf> {
@@ -816,4 +154,43 @@ pub(crate) fn executable_name(name: &str) -> PathBuf {
 #[cfg(not(windows))]
 pub(crate) fn executable_name(name: &str) -> PathBuf {
     name.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn worker_environment_names_follow_catalog_entries() {
+        let entries =
+            a4n_process_catalog::stateful_worker_catalog().expect("stateful worker catalog");
+        let workers = entries
+            .iter()
+            .filter(|worker| worker.name.ends_with("-record-worker"))
+            .collect::<Vec<_>>();
+        for name in [
+            "video-record-worker",
+            "manga-record-worker",
+            "canvas-record-worker",
+        ] {
+            assert!(workers.iter().any(|worker| worker.name == name));
+        }
+
+        let video = workers
+            .iter()
+            .find(|worker| worker.name == "video-record-worker")
+            .expect("video record worker");
+        assert_eq!(
+            managed_worker_env(video, "BINARY"),
+            "A4N_VIDEO_RECORD_WORKER_BINARY"
+        );
+        assert_eq!(
+            managed_worker_env(video, "TOKEN"),
+            "A4N_VIDEO_RECORD_WORKER_TOKEN"
+        );
+        assert_eq!(
+            video.url_env.as_deref().expect("video URL env"),
+            "A4N_VIDEO_RECORD_WORKER_URL"
+        );
+    }
 }

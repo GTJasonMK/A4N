@@ -4,10 +4,10 @@ use sea_orm::{
     QueryOrder, QuerySelect, Set,
 };
 
-use super::{ChapterContentEditError, StoreChapterAnalysisRecordInput};
-use crate::project::{
-    ChapterSourceSnapshot, chapter_source_snapshot_matches, chapter_source_snapshot_matches_fields,
-};
+use a4n_domain::chapter::{ChapterSourceSnapshot, StoreChapterAnalysisRecordInput};
+
+use super::ChapterContentEditError;
+use crate::project::{chapter_source_snapshot_matches, chapter_source_snapshot_matches_fields};
 
 pub async fn chapter_source_snapshots_match_for_update<C>(
     db: &C,

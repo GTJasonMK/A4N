@@ -5,6 +5,7 @@
 //! progress crossing the Runtime boundary.
 
 use a4n_api_contract::profile::SyncSceneProfilesInput;
+use a4n_domain::scene_profile::SceneProfileSyncRecordsInput;
 use a4n_error::AppError;
 use a4n_prompt_contract::rendering::PromptRenderer;
 use async_trait::async_trait;
@@ -82,6 +83,12 @@ impl<'a> SceneProfileSyncProgress<'a> {
 
 #[async_trait]
 pub trait SceneProfileSyncHostPort: Send + Sync {
+    async fn replace_chapter_scene_sync_records(
+        &self,
+        user_id: i64,
+        input: SceneProfileSyncRecordsInput,
+    ) -> Result<(), AppError>;
+
     async fn sync_scene_rag_records(
         &self,
         project_id: i64,

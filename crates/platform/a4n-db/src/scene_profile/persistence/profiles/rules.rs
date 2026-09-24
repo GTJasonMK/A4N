@@ -5,7 +5,9 @@ use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP
 use a4n_domain::profile_text::merge_profile_evidence_json;
 use a4n_domain::scene_profile::SceneProfileRecordInput;
 
-use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordDraft};
+use a4n_domain::scene_profile::SceneProfileRecordDraft;
+
+use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
 #[derive(Default)]
 pub(super) struct SceneProfileDraftTracker {

@@ -212,7 +212,7 @@ where
         video::chapter_video_prompt_scope_by_id(db, prompt_id)
             .await?
             .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
-    let chapter = lock_chapter_video_prompt_scope(db, candidate_chapter_id).await?;
+    let chapter_content = lock_chapter_video_prompt_scope(db, candidate_chapter_id).await?;
     let query = chapter_video_prompt::Entity::find_by_id(prompt_id)
         .select_only()
         .column(chapter_video_prompt::Column::Id)
@@ -248,11 +248,29 @@ where
     }
     video::ensure_video_chapter_belongs_to_project_record(db, plan.project_id, plan.chapter_id)
         .await?;
+    let project = video::video_project_record(db, candidate_project_id).await?;
+    let source_content = match project.project_kind.as_str() {
+        "text" => chapter_content,
+        "video" => {
+            let snapshot_id = project.source_snapshot_id.ok_or_else(|| {
+                VideoDbError::InvalidArgument("视频项目缺少源文本快照".to_string())
+            })?;
+            video::source_snapshot_chapter_for_video_source(db, snapshot_id, candidate_chapter_id)
+                .await?
+                .ok_or_else(|| VideoDbError::NotFound("源文本快照缺少当前章节".to_string()))?
+                .content
+        }
+        other => {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "视频链路不支持项目类型 {other}: project_id={candidate_project_id}"
+            )));
+        }
+    };
     let current_prompt_id = video::completed_shared_segment_plan_id_for_source_hash(
         db,
         plan.project_id,
         plan.chapter_id,
-        &source_text_hash(&chapter),
+        &source_text_hash(&source_content),
     )
     .await?;
     if current_prompt_id != Some(plan.id) {

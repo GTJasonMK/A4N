@@ -1,7 +1,5 @@
 //! 认证公共类型与纯规则。
-//! DB 行为由 `context/auth.rs` 的私有 `AuthApplication` 持有。
-
-pub(crate) use a4n_api_contract::auth::{required_session_id, required_session_user_id};
+//! DB 行为由 `a4n-auth-application` 持有。
 
 // 认证 Host 输入的纯校验规则（无 DB）。
 

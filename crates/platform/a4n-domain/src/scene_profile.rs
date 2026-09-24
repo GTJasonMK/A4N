@@ -3,6 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 
 use crate::profile_text::{
     normalize_aliases, normalize_text_set, required_text, validate_importance,
@@ -145,7 +146,7 @@ fn normalize_optional_importance(value: &str) -> Result<String, SceneProfileInpu
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneProfileRecordInput {
     pub name: String,
     pub normalized_name: String,
@@ -165,7 +166,7 @@ pub struct SceneProfileRecordInput {
     pub image_prompt_seed: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneOccurrenceRecordInput {
     pub occurrence_ref: String,
     pub scene_ref: String,
@@ -183,7 +184,7 @@ pub struct SceneOccurrenceRecordInput {
     pub exit_state_json: Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneTransitionRecordInput {
     pub from_scene_ref: Option<String>,
     pub to_scene_ref: String,
@@ -199,7 +200,7 @@ pub struct SceneTransitionRecordInput {
     pub evidence_json: Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneEntityStateRecordInput {
     pub scene_ref: String,
     pub occurrence_ref: String,
@@ -215,8 +216,43 @@ pub struct SceneEntityStateRecordInput {
     pub evidence_json: Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneProfileEvidenceRecordInput {
     pub scene_ref: String,
     pub text_anchor_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneProfileRecordDraft {
+    pub scene_ref: String,
+    pub scene_profile_id: Option<i64>,
+    pub input: SceneProfileRecordInput,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SceneSyncRecordInput {
+    pub profiles: Vec<SceneProfileRecordDraft>,
+    pub occurrences: Vec<SceneOccurrenceRecordInput>,
+    pub transitions: Vec<SceneTransitionRecordInput>,
+    pub entity_states: Vec<SceneEntityStateRecordInput>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SceneSyncRecordResult {
+    pub profile_ids: Vec<i64>,
+    pub profile_ref_ids: BTreeMap<String, i64>,
+    pub occurrence_count: usize,
+    pub transition_count: usize,
+    pub entity_state_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneProfileSyncRecordsInput {
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub chapter_number: i32,
+    pub source: crate::chapter::ChapterSourceSnapshot,
+    pub records: SceneSyncRecordInput,
+    pub profile_evidence: Vec<SceneProfileEvidenceRecordInput>,
+    pub generation_run: crate::generation::RecordCompletedGenerationRunInput,
 }

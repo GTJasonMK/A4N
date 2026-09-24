@@ -13,6 +13,7 @@ a4n-edge = { path = "crates/host/a4n-edge" }
 a4n-host-assembly = { path = "crates/host/a4n-host-assembly" }
 a4n-orchestrator = { path = "crates/host/a4n-orchestrator" }
 a4n-runtime = { path = "crates/host/a4n-runtime", default-features = false }
+a4n-auth-application = { path = "crates/auth/a4n-auth-application" }
 
 # platform
 a4n-cleanup-contract = { path = "crates/platform/a4n-cleanup-contract" }
@@ -83,6 +84,9 @@ a4n-rag-sidecar-contract = { path = "crates/rag/a4n-rag-sidecar-contract" }
 a4n-rag-value-contract = { path = "crates/rag/a4n-rag-value-contract" }
 
 # agent
+a4n-admin-worker = { path = "crates/admin/a4n-admin-worker" }
+a4n-admin-worker-client = { path = "crates/admin/a4n-admin-worker-client" }
+a4n-admin-worker-contract = { path = "crates/admin/a4n-admin-worker-contract" }
 a4n-agent-application = { path = "crates/agent/a4n-agent-application" }
 a4n-agent-runtime = { path = "crates/agent/a4n-agent-runtime" }
 a4n-agent-runtime-contract = { path = "crates/agent/a4n-agent-runtime-contract" }
@@ -208,6 +212,9 @@ a4n-asset-graph-worker-client = { path = "crates/canvas/a4n-asset-graph-worker-c
 a4n-asset-graph-worker-contract = { path = "crates/canvas/a4n-asset-graph-worker-contract" }
 a4n-canvas-contract = { path = "crates/canvas/a4n-canvas-contract" }
 a4n-canvas-host-contract = { path = "crates/canvas/a4n-canvas-host-contract" }
+a4n-canvas-record-worker = { path = "crates/canvas/a4n-canvas-record-worker" }
+a4n-canvas-record-worker-client = { path = "crates/canvas/a4n-canvas-record-worker-client" }
+a4n-canvas-record-worker-contract = { path = "crates/canvas/a4n-canvas-record-worker-contract" }
 
 # galgame
 a4n-galgame-host-contract = { path = "crates/galgame/a4n-galgame-host-contract" }
@@ -231,6 +238,9 @@ a4n-import-review-worker-contract = { path = "crates/transfer/a4n-import-review-
 a4n-generation-host-contract = { path = "crates/workflow/a4n-generation-host-contract" }
 a4n-optimize-host-contract = { path = "crates/workflow/a4n-optimize-host-contract" }
 a4n-workflow-core = { path = "crates/workflow/a4n-workflow-core" }
+a4n-workflow-lifecycle-worker = { path = "crates/workflow/a4n-workflow-lifecycle-worker" }
+a4n-workflow-lifecycle-worker-client = { path = "crates/workflow/a4n-workflow-lifecycle-worker-client" }
+a4n-workflow-lifecycle-worker-contract = { path = "crates/workflow/a4n-workflow-lifecycle-worker-contract" }
 a4n-workflow-read-worker = { path = "crates/workflow/a4n-workflow-read-worker" }
 a4n-workflow-read-worker-client = { path = "crates/workflow/a4n-workflow-read-worker-client" }
 a4n-workflow-read-worker-contract = { path = "crates/workflow/a4n-workflow-read-worker-contract" }

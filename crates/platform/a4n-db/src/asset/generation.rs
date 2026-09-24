@@ -2,8 +2,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::contracts::{AssetDbError, ObjectProfileUpsertRecordResult};
 use super::profiles::{ensure_object_profile_project_exists, upsert_object_profiles_in};
-use crate::project::ChapterSourceSnapshot;
 use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
+use a4n_domain::chapter::ChapterSourceSnapshot;
+use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_domain::object_profile::{ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput};
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use sea_orm::{ConnectionTrait, TransactionTrait};
@@ -15,7 +16,7 @@ pub async fn upsert_object_profiles_with_generation_run_record<C>(
     inputs: Vec<ObjectProfileRecordInput>,
     source_chapters: Vec<ChapterSourceSnapshot>,
     profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
-    mut generation_run: crate::generation::RecordCompletedGenerationRunInput,
+    mut generation_run: RecordCompletedGenerationRunInput,
 ) -> Result<ObjectProfileUpsertRecordResult, AssetDbError>
 where
     C: ConnectionTrait + TransactionTrait,
@@ -56,7 +57,7 @@ where
         .created
         .iter()
         .chain(result.updated.iter())
-        .map(|profile| crate::generation::GenerationRunTraceTarget {
+        .map(|profile| GenerationRunTraceTarget {
             target_kind: "object_profile_record".to_string(),
             target_table: "object_profile".to_string(),
             target_id: profile.id,

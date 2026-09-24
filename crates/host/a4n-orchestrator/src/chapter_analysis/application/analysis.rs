@@ -132,6 +132,7 @@ impl OrchestratorContext {
 
     pub async fn run_chapter_analysis_validated(
         &self,
+        user_id: i64,
         chapter_id: i64,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn ChapterAnalysisHostPort,
@@ -139,6 +140,7 @@ impl OrchestratorContext {
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<chapter::Model, AppError> {
         self.run_chapter_analysis_inner(
+            user_id,
             chapter_id,
             None,
             prompt_renderer,
@@ -151,6 +153,7 @@ impl OrchestratorContext {
 
     pub async fn resume_chapter_analysis_sync_validated(
         &self,
+        user_id: i64,
         chapter_id: i64,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn ChapterAnalysisHostPort,
@@ -169,6 +172,7 @@ impl OrchestratorContext {
         if !has_saved_analysis {
             return self
                 .run_chapter_analysis_inner(
+                    user_id,
                     chapter_id,
                     Some(workflow_run),
                     prompt_renderer,
@@ -181,6 +185,7 @@ impl OrchestratorContext {
         progress.report(45, "已找到结构化分析，正在继续同步派生数据")?;
         let result = self
             .sync_project_state_after_chapter_analysis(
+                user_id,
                 &chapter,
                 workflow_run.id,
                 prompt_renderer,
@@ -196,6 +201,7 @@ impl OrchestratorContext {
 
     pub async fn resume_chapter_analysis_workflow_run_validated(
         &self,
+        user_id: i64,
         run: &workflow_run::Model,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn ChapterAnalysisHostPort,
@@ -247,6 +253,7 @@ impl OrchestratorContext {
         if has_saved_analysis {
             let result = self
                 .sync_project_state_after_chapter_analysis(
+                    user_id,
                     &chapter,
                     running.id,
                     prompt_renderer,
@@ -259,6 +266,7 @@ impl OrchestratorContext {
                 .await?;
         } else {
             self.run_chapter_analysis_inner(
+                user_id,
                 chapter_id,
                 Some(running),
                 prompt_renderer,
@@ -274,6 +282,7 @@ impl OrchestratorContext {
     #[allow(clippy::too_many_arguments)]
     async fn run_chapter_analysis_inner(
         &self,
+        user_id: i64,
         chapter_id: i64,
         resumed_workflow_run: Option<workflow_run::Model>,
         prompt_renderer: &dyn PromptRenderer,
@@ -330,6 +339,7 @@ impl OrchestratorContext {
                 .await?;
             progress.report(45, "结构化分析已保存，正在读取章节")?;
             self.sync_project_state_after_chapter_analysis(
+                user_id,
                 &updated,
                 workflow_run.id,
                 prompt_renderer,
@@ -348,6 +358,7 @@ impl OrchestratorContext {
     #[allow(clippy::too_many_arguments)]
     async fn sync_project_state_after_chapter_analysis(
         &self,
+        user_id: i64,
         chapter: &chapter::Model,
         workflow_run_id: i64,
         prompt_renderer: &dyn PromptRenderer,
@@ -376,6 +387,7 @@ impl OrchestratorContext {
             .sync_character_discovery_phase(chapter, workflow_run_id, prompt_renderer, progress)
             .await?;
         self.sync_scene_profiles_phase(
+            user_id,
             chapter,
             workflow_run_id,
             prompt_renderer,
@@ -428,7 +440,7 @@ impl OrchestratorContext {
         let outcome = a4n_db::project::upsert_retrospective_chapter_outline_checked(
             self.database.connection(),
             input,
-            a4n_db::project::ChapterSourceSnapshot::from(chapter),
+            a4n_db::project::chapter_source_snapshot_from_model(chapter),
         )
         .await
         .map_err(crate::project::project_outline_record_error_to_app_error)?;
@@ -617,6 +629,7 @@ impl OrchestratorContext {
 
     async fn sync_scene_profiles_phase(
         &self,
+        user_id: i64,
         chapter: &chapter::Model,
         workflow_run_id: i64,
         prompt_renderer: &dyn PromptRenderer,
@@ -647,6 +660,7 @@ impl OrchestratorContext {
             progress.active_task_id,
         );
         self.sync_scene_profiles_validated(
+            user_id,
             chapter.project_id,
             Some(chapter.chapter_number),
             prompt_renderer,

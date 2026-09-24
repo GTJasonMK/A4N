@@ -7,7 +7,6 @@ use super::{
 
 pub use a4n_domain::workflow::{
     is_video_status_final_for_cancel_interrupt, require_positive_workflow_run_id,
-    validate_optional_project_id,
 };
 
 #[cfg(test)]

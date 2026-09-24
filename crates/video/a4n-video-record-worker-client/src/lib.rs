@@ -2,8 +2,8 @@
 
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::video::{
-    ChapterVideoPromptSummary, GeneratedVideoSummary, UpdateGeneratedVideoInput,
-    VideoPromptReadApplicationPort, VideoRecordReadApplicationPort,
+    ChapterVideoPromptSummary, GeneratedVideoSummary, SelectSegmentVideoInput,
+    UpdateGeneratedVideoInput, VideoPromptReadApplicationPort, VideoRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_video_record_worker_contract::{
@@ -12,8 +12,8 @@ use a4n_video_record_worker_contract::{
     VIDEO_PROMPT_DRAFT_UPDATE_OPERATION, VIDEO_PROMPT_LIST_OPERATION,
     VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
-    VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
-    VideoUpdateInput,
+    VIDEO_RECORD_SELECT_SEGMENT_OPERATION, VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_ID,
+    VideoIdInput, VideoSegmentSelectionInput, VideoSourceInput, VideoUpdateInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -159,6 +159,28 @@ impl VideoRecordWorkerClient {
             None,
             VIDEO_RECORD_UPDATE_OPERATION,
             VideoUpdateInput { video_id, input },
+        )
+        .await
+    }
+
+    pub async fn select_segment(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        video_id: i64,
+        input: SelectSegmentVideoInput,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        self.command(
+            user_id,
+            Some(project_id),
+            VIDEO_RECORD_SELECT_SEGMENT_OPERATION,
+            VideoSegmentSelectionInput {
+                project_id,
+                chapter_id,
+                video_id,
+                input,
+            },
         )
         .await
     }

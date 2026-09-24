@@ -9,7 +9,9 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use super::rules::{
     SceneProfileDraftTracker, merge_scene_profile_record_input, scene_profile_matches_record_input,
 };
-use crate::scene_profile::{SceneProfileDbResult, SceneProfileRecordDraft};
+use a4n_domain::scene_profile::SceneProfileRecordDraft;
+
+use crate::scene_profile::SceneProfileDbResult;
 
 pub(in crate::scene_profile) async fn upsert_scene_profile_records<C>(
     db: &C,

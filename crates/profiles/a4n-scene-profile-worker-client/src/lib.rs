@@ -3,13 +3,15 @@
 use a4n_api_contract::profile::{
     CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteOutcome,
     SceneProfileMutationApplicationPort, SceneProfileMutationOutcome,
-    SceneProfileReadApplicationPort, SceneProfileSummary, UpdateSceneProfileInput,
+    SceneProfileReadApplicationPort, SceneProfileRecordSyncApplicationPort, SceneProfileSummary,
+    UpdateSceneProfileInput,
 };
 use a4n_error::AppError;
 use a4n_scene_profile_worker_contract::{
     SCENE_PROFILE_CREATE_OPERATION, SCENE_PROFILE_DELETE_OPERATION, SCENE_PROFILE_LIST_OPERATION,
-    SCENE_PROFILE_UPDATE_OPERATION, SCENE_PROFILE_WORKER_ID, SceneProfileDeleteWorkerResult,
-    SceneProfileMutationWorkerResult, SceneProfileProjectInput,
+    SCENE_PROFILE_SYNC_RECORDS_OPERATION, SCENE_PROFILE_UPDATE_OPERATION, SCENE_PROFILE_WORKER_ID,
+    SceneProfileDeleteWorkerResult, SceneProfileMutationWorkerResult, SceneProfileProjectInput,
+    SceneProfileSyncRecordsInput, SceneSyncRecordResult,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -54,6 +56,20 @@ impl SceneProfileWorkerClient {
             .ok()
             .filter(|value| !value.trim().is_empty());
         Self::new(url, token)
+    }
+
+    pub async fn replace_chapter_sync_records(
+        &self,
+        user_id: i64,
+        input: SceneProfileSyncRecordsInput,
+    ) -> Result<SceneSyncRecordResult, AppError> {
+        self.command(
+            user_id,
+            Some(input.project_id),
+            SCENE_PROFILE_SYNC_RECORDS_OPERATION,
+            input,
+        )
+        .await
     }
 
     async fn command<I, O>(
@@ -183,6 +199,19 @@ impl SceneProfileMutationApplicationPort for SceneProfileWorkerClient {
             project_id: response.project_id,
             downstream_image_ids: response.downstream_image_ids,
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl SceneProfileRecordSyncApplicationPort for SceneProfileWorkerClient {
+    async fn replace_chapter_scene_sync_records(
+        &self,
+        user_id: i64,
+        input: SceneProfileSyncRecordsInput,
+    ) -> Result<(), AppError> {
+        self.replace_chapter_sync_records(user_id, input)
+            .await
+            .map(|_| ())
     }
 }
 

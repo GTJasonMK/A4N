@@ -10,33 +10,6 @@ pub use a4n_video_sidecar_contract::VideoMediaSource;
 pub type VideoGenerationRequest = a4n_video_sidecar_contract::VideoGenerationInput;
 pub type VideoMediaInput = a4n_video_sidecar_contract::VideoMediaInput<VideoMediaSource>;
 
-pub fn chapter_video_prompt_summary(
-    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
-) -> a4n_api_contract::video::ChapterVideoPromptSummary {
-    a4n_api_contract::video::ChapterVideoPromptSummary {
-        id: prompt.id,
-        project_id: prompt.project_id,
-        chapter_id: prompt.chapter_id,
-        style: prompt.style.clone(),
-        prompt_type: prompt.prompt_type.clone(),
-        workflow_mode: prompt.workflow_mode.clone(),
-        shot_number: prompt.shot_number,
-        title: prompt.title.clone(),
-        scene_summary: prompt.scene_summary.clone(),
-        visual_prompt: prompt.visual_prompt.clone(),
-        motion_prompt: prompt.motion_prompt.clone(),
-        negative_prompt: prompt.negative_prompt.clone(),
-        duration_secs: prompt.duration_secs,
-        aspect_ratio: prompt.aspect_ratio.clone(),
-        reference_image_ids_json: prompt.reference_image_ids_json.clone(),
-        status: prompt.status.clone(),
-        generated_video_id: prompt.generated_video_id,
-        metadata_json: prompt.metadata_json.clone(),
-        created_at: prompt.created_at.to_string(),
-        updated_at: prompt.updated_at.to_string(),
-    }
-}
-
 mod assembly;
 mod config;
 mod import;

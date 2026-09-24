@@ -2,6 +2,7 @@ use a4n_api_contract::character::{
     DiscoverCharacterProfilesResult, ExistingCharacterProfileDiscovery,
 };
 use a4n_db::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use serde_json::{Value, json};
@@ -9,10 +10,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     OrchestratorContext,
-    character::{
-        RecordCompletedGenerationRunInput,
-        json_field_rules::{required_string, required_value},
-    },
+    character::json_field_rules::{required_string, required_value},
     text_anchor::text_anchor_db_error,
 };
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
@@ -53,7 +51,7 @@ impl OrchestratorContext {
         let discovered_total = discovered.len();
         let source_chapters = chapters
             .iter()
-            .map(a4n_db::project::ChapterSourceSnapshot::from)
+            .map(a4n_db::project::chapter_source_snapshot_from_model)
             .collect::<Vec<_>>();
         let mut pending_evidence = BTreeMap::<(i64, i64), TextAnchorEvidenceInput>::new();
         let tx = self

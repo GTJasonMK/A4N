@@ -29,7 +29,6 @@ pub(crate) use a4n_db::character::{
     CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
     CharacterSyncWriteStepRecordInput, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
-pub(crate) use a4n_db::generation::RecordCompletedGenerationRunInput;
 pub(crate) use a4n_domain::character::category_storage_key;
 pub(crate) use attribute_lifecycle::CharacterAttributeLifecycleError;
 pub(crate) fn character_db_error(error: a4n_db::character::CharacterDbError) -> AppError {

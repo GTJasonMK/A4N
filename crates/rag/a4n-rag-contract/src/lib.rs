@@ -83,6 +83,18 @@ pub trait RagIngestPort: Send + Sync {
         event_id: i64,
     ) -> Result<(), AppError>;
 
+    async fn sync_foreshadowing_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+    ) -> Result<(), AppError>;
+
+    async fn delete_foreshadowing_rag_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+    ) -> Result<(), AppError>;
+
     async fn sync_chapter_records(
         &self,
         project_id: i64,

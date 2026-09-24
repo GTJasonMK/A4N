@@ -154,7 +154,8 @@ class DeployPlanTest(unittest.TestCase):
 
         self.assertEqual(plan["mode"], "delta")
         self.assertEqual(plan["build_packages"], ["a4n-agent-worker"])
-        self.assertIn("bin/services/a4n-agent-worker", plan["artifact_paths"])
+        self.assertIn("bin/a4n-agent-worker", plan["artifact_paths"])
+        self.assertNotIn("bin/services/a4n-agent-worker", plan["artifact_paths"])
         self.assertNotIn("a4n-control", plan["build_packages"])
 
     def test_shared_worker_contract_change_is_full(self) -> None:

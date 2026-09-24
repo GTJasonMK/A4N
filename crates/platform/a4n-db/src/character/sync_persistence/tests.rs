@@ -2,8 +2,9 @@ use super::snapshots::character_sync_required_i32;
 use super::validation::validate_character_sync_persistence_input;
 use super::{CharacterSyncPersistenceInput, apply_character_sync_persistence_record};
 use crate::character::CharacterDbError;
-use crate::project::ChapterSourceSnapshot;
+use a4n_domain::chapter::ChapterSourceSnapshot;
 use a4n_domain::character::CharacterSyncChapterStateRecordInput;
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::source_text_hash;
 use sea_orm::DatabaseConnection;
 use serde_json::json;
@@ -55,7 +56,7 @@ fn valid_input() -> CharacterSyncPersistenceInput {
             emotional_state: None,
         }],
         implicit_review_decisions: json!([]),
-        generation_run: crate::generation::RecordCompletedGenerationRunInput {
+        generation_run: RecordCompletedGenerationRunInput {
             project_id: 3,
             workflow: "character_sync".to_string(),
             step_key: "persist".to_string(),

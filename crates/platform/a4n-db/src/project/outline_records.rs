@@ -13,11 +13,12 @@ pub use chapters::{
 };
 pub use cleanup::{delete_latest_chapter_outline_records, delete_latest_part_outline_records};
 pub use contracts::{
-    ChapterSourceSnapshot, DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput,
-    ManualPartOutlineSaveInput, OutlineDeleteTarget, OutlineGenerationProgressChapter,
-    OutlineGenerationProgressPart, OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
+    DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
+    OutlineDeleteTarget, OutlineGenerationProgressChapter, OutlineGenerationProgressPart,
+    OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
     ProjectChapterOutlineUpdateInput, ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
     RetrospectiveChapterOutlineUpsertInput, RetrospectiveChapterOutlineUpsertOutcome,
+    chapter_source_snapshot_from_model,
 };
 pub(crate) use contracts::{
     chapter_source_snapshot_matches, chapter_source_snapshot_matches_fields,

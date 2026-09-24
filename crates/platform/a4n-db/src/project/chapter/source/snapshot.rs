@@ -1,13 +1,10 @@
 use a4n_db_models::models::project::{
     novel_project, project_source_snapshot, source_snapshot_chapter,
 };
-use a4n_domain::source_text_hash;
+use a4n_domain::{chapter::ResolvedChapterSource, source_text_hash};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
-use super::{
-    ProjectSourceIdentity,
-    contracts::{ResolveChapterSourceError, ResolvedChapterSource},
-};
+use super::{ProjectSourceIdentity, contracts::ResolveChapterSourceError};
 use crate::project::PROJECT_KIND_TEXT;
 
 pub(super) async fn resolve_snapshot_source<C>(

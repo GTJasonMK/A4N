@@ -1,4 +1,4 @@
-//! PostgreSQL-backed foreshadowing read worker.
+//! PostgreSQL-backed foreshadowing records worker.
 
 use std::{env, net::SocketAddr, sync::Arc};
 
@@ -6,8 +6,10 @@ use a4n_api_contract::profile::ForeshadowingSummary;
 use a4n_db::DbHandle;
 use a4n_domain::character::ForeshadowingStatus;
 use a4n_foreshadowing_worker_contract::{
-    FORESHADOWING_LIST_OPERATION, FORESHADOWING_READ_CAPABILITY,
-    FORESHADOWING_WORKER_CONTRACT_VERSION, FORESHADOWING_WORKER_ID, ForeshadowingProjectInput,
+    CreateInput, DeleteInput, FORESHADOWING_CREATE_OPERATION, FORESHADOWING_DELETE_OPERATION,
+    FORESHADOWING_LIST_OPERATION, FORESHADOWING_MUTATION_CAPABILITY, FORESHADOWING_READ_CAPABILITY,
+    FORESHADOWING_UPDATE_OPERATION, FORESHADOWING_WORKER_CONTRACT_VERSION, FORESHADOWING_WORKER_ID,
+    ForeshadowingMutationResult, ForeshadowingProjectInput, UpdateInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -69,6 +71,9 @@ impl ForeshadowingWorker {
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/profile.foreshadowing.list", post(list))
+            .route("/v1/commands/profile.foreshadowing.create", post(create))
+            .route("/v1/commands/profile.foreshadowing.update", post(update))
+            .route("/v1/commands/profile.foreshadowing.delete", post(delete))
             .with_state(self.state.clone())
     }
 
@@ -148,11 +153,18 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     Json(WorkerCapabilities {
         schema_version: WORKER_SCHEMA_VERSION,
         worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: FORESHADOWING_READ_CAPABILITY.into(),
-            version: FORESHADOWING_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
+        capabilities: vec![
+            WorkerCapability {
+                name: FORESHADOWING_READ_CAPABILITY.into(),
+                version: FORESHADOWING_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: FORESHADOWING_MUTATION_CAPABILITY.into(),
+                version: FORESHADOWING_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
     })
     .into_response()
 }
@@ -172,12 +184,57 @@ async fn list(
     Json(response).into_response()
 }
 
+async fn create(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<CreateInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.create(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn update(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<UpdateInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.update(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn delete(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<DeleteInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.delete(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
 impl WorkerState {
     async fn list(
         &self,
         request: WorkerEnvelope<ForeshadowingProjectInput>,
     ) -> Result<Vec<ForeshadowingSummary>, WorkerFailure> {
-        validate_request(&request)?;
+        validate_request(&request, FORESHADOWING_LIST_OPERATION)?;
         let project_id = request.payload.project_id;
         if request.project_id != Some(project_id) || project_id <= 0 {
             return Err(WorkerFailure::invalid_request(
@@ -201,6 +258,90 @@ impl WorkerState {
             .collect()
     }
 
+    async fn create(
+        &self,
+        request: WorkerEnvelope<CreateInput>,
+    ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
+        validate_request(&request, FORESHADOWING_CREATE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload.0;
+        let project_id = input.project_id;
+        ensure_project_scope(request.project_id, project_id)?;
+        self.verify_editor(project_id, user_id).await?;
+        let record = a4n_db::project::create_foreshadowing_record(
+            self.database.connection(),
+            project_id,
+            input.record,
+        )
+        .await
+        .map_err(foreshadowing_error)?;
+        Ok(ForeshadowingMutationResult {
+            project_id,
+            foreshadowing_id: record.id,
+        })
+    }
+
+    async fn update(
+        &self,
+        request: WorkerEnvelope<UpdateInput>,
+    ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
+        validate_request(&request, FORESHADOWING_UPDATE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload.0;
+        let project_id = input.project_id;
+        ensure_project_scope(request.project_id, project_id)?;
+        self.verify_editor(project_id, user_id).await?;
+        let record = a4n_db::project::update_foreshadowing_record(
+            self.database.connection(),
+            project_id,
+            input.foreshadowing_id,
+            &input.expected_updated_at,
+            input.record,
+        )
+        .await
+        .map_err(foreshadowing_error)?;
+        Ok(ForeshadowingMutationResult {
+            project_id,
+            foreshadowing_id: record.id,
+        })
+    }
+
+    async fn delete(
+        &self,
+        request: WorkerEnvelope<DeleteInput>,
+    ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
+        validate_request(&request, FORESHADOWING_DELETE_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload.0;
+        let project_id = input.project_id;
+        ensure_project_scope(request.project_id, project_id)?;
+        self.verify_editor(project_id, user_id).await?;
+        let record = a4n_db::project::delete_foreshadowing_record(
+            self.database.connection(),
+            project_id,
+            input.foreshadowing_id,
+            &input.expected_updated_at,
+        )
+        .await
+        .map_err(foreshadowing_error)?;
+        Ok(ForeshadowingMutationResult {
+            project_id,
+            foreshadowing_id: record.id,
+        })
+    }
+
+    async fn verify_editor(&self, project_id: i64, user_id: i64) -> Result<(), WorkerFailure> {
+        a4n_db::collaboration::verify_project_permission(
+            self.database.connection(),
+            project_id,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await
+        .map(|_| ())
+        .map_err(collaboration_error)
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -208,19 +349,34 @@ impl WorkerState {
     }
 }
 
-fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {
+fn validate_request<T: serde::Serialize>(
+    request: &WorkerEnvelope<T>,
+    expected_operation: &str,
+) -> Result<(), WorkerFailure> {
     request
         .validate()
         .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != FORESHADOWING_LIST_OPERATION {
+    if request.operation_id != expected_operation {
         return Err(WorkerFailure::invalid_request(format!(
             "operation_id 不匹配: expected={}, actual={}",
-            FORESHADOWING_LIST_OPERATION, request.operation_id
+            expected_operation, request.operation_id
         )));
     }
     if request.lease.worker_id != FORESHADOWING_WORKER_ID {
         return Err(WorkerFailure::invalid_request(
             "lease.worker_id 不属于 foreshadowing worker",
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_project_scope(
+    scope_project_id: Option<i64>,
+    payload_project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if payload_project_id <= 0 || scope_project_id != Some(payload_project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与 payload 不一致或无效",
         ));
     }
     Ok(())
@@ -276,9 +432,11 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
         a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
             WorkerFailure::unauthorized(message)
         }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
+        a4n_db::collaboration::CollaborationDbError::InvalidState(message) => {
             WorkerFailure::conflict(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::Internal(message) => {
+            WorkerFailure::internal(message)
         }
         a4n_db::collaboration::CollaborationDbError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
@@ -358,6 +516,13 @@ impl WorkerFailure {
             retryable: true,
         }
     }
+    fn internal(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Internal,
+            message: message.into(),
+            retryable: false,
+        }
+    }
 }
 
 fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
@@ -429,7 +594,7 @@ fn init_tracing() {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerEnvelope, validate_request};
+    use super::{WorkerEnvelope, collaboration_error, ensure_project_scope, validate_request};
     use a4n_foreshadowing_worker_contract::{
         FORESHADOWING_LIST_OPERATION, FORESHADOWING_WORKER_ID, ForeshadowingProjectInput,
     };
@@ -461,7 +626,25 @@ mod tests {
             },
             payload: ForeshadowingProjectInput { project_id: 1 },
         };
-        assert!(validate_request(&request).is_err());
+        assert!(validate_request(&request, FORESHADOWING_LIST_OPERATION).is_err());
         assert_eq!(FORESHADOWING_LIST_OPERATION, "profile.foreshadowing.list");
+    }
+
+    #[test]
+    fn mutation_scope_must_match_request_project() {
+        assert!(ensure_project_scope(Some(7), 7).is_ok());
+        assert!(ensure_project_scope(Some(8), 7).is_err());
+        assert!(ensure_project_scope(None, 7).is_err());
+        assert!(ensure_project_scope(Some(7), 0).is_err());
+    }
+
+    #[test]
+    fn collaboration_internal_errors_are_not_reported_as_conflicts() {
+        let error = collaboration_error(a4n_db::collaboration::CollaborationDbError::Internal(
+            "query failed".into(),
+        ));
+
+        assert_eq!(error.code, a4n_worker_contract::WorkerErrorCode::Internal);
+        assert!(!error.retryable);
     }
 }

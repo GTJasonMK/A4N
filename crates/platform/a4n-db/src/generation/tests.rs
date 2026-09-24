@@ -4,6 +4,7 @@ use a4n_db_models::models::{
     media::media_asset,
     project::{project_source_snapshot, text_anchor},
 };
+use a4n_domain::generation::GenerationRunTraceTarget;
 use a4n_domain::llm::LlmCallUsageTraceInput;
 use sea_orm::{ActiveModelTrait, Set};
 use serde_json::json;

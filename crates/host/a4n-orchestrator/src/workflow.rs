@@ -16,12 +16,10 @@ pub(crate) use checkpoint::{
 
 pub(crate) use a4n_db::workflow::{
     CancelWorkflowRunPersistenceResult, ClaimExclusiveWorkflowRunInput, CompletedLlmCallCheckpoint,
-    CompletedLlmCallCheckpointInput, GetWorkflowRunInput, ListWorkflowRunsInput, PersistedTaskInfo,
-    TaskProgressEventSummary, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
-    WorkflowCheckpointContractError, WorkflowProgressEventInput, WorkflowReadError,
-    WorkflowRunAccessRecord, WorkflowRunDetailSummary, WorkflowRunRecoveryRecord,
-    WorkflowRunStatusRecord, WorkflowRunSummary, WorkflowWriteError,
-    llm_call_checkpoint_fingerprint_sha256, required_llm_call_workflow_run_id,
+    CompletedLlmCallCheckpointInput, ListWorkflowRunsInput, UpsertWorkflowCheckpointInput,
+    UpsertWorkflowRunInput, WorkflowCheckpointContractError, WorkflowProgressEventInput,
+    WorkflowReadError, WorkflowRunRecoveryRecord, WorkflowRunStatusRecord, WorkflowRunSummary,
+    WorkflowWriteError, llm_call_checkpoint_fingerprint_sha256, required_llm_call_workflow_run_id,
     workflow_run_is_running_or_resumable,
 };
 pub(crate) use a4n_domain::workflow::{
@@ -36,5 +34,5 @@ pub(crate) use rules::require_workflow_can_resume;
 pub(crate) use rules::{
     WorkflowRunFinalizeOutcome, is_video_status_final_for_cancel_interrupt,
     require_positive_workflow_run_id, validate_begin_workflow_run_input,
-    validate_optional_project_id, workflow_run_finalize_status,
+    workflow_run_finalize_status,
 };
