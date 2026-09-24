@@ -11,6 +11,9 @@ pub struct AgentScope {
     pub project_id: Option<i64>,
     #[serde(default)]
     pub chapter_id: Option<i64>,
+    /// Derived from `chapter_id` by the Agent backend; never use it for authorization.
+    #[serde(default)]
+    pub chapter_number: Option<i32>,
     #[serde(default)]
     pub allowed_capabilities: Vec<String>,
     #[serde(default)]
