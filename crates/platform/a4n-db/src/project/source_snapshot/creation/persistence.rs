@@ -274,7 +274,7 @@ where
                 crate::shooting_script::insert_chapter_shooting_script(
                     db,
                     crate::shooting_script::InsertChapterShootingScriptInput {
-                        source: crate::project::ResolvedChapterSource {
+                        source: a4n_domain::chapter::ResolvedChapterSource {
                             requested_project_id: root_project_id,
                             root_project_id,
                             source_chapter_id: chapter.id,

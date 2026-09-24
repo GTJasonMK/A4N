@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use sea_orm::ConnectionTrait;
 use serde_json::json;
 
@@ -72,7 +73,7 @@ where
     });
     crate::generation::record_completed_generation_run_with_checkpoint_in(
         db,
-        crate::generation::RecordCompletedGenerationRunInput {
+        RecordCompletedGenerationRunInput {
             project_id: row.project_id,
             workflow: "video_prompt_generation".to_string(),
             step_key: trace.prompt_name.clone(),
@@ -95,7 +96,7 @@ where
                 "output": trace.response_text.clone(),
                 "llm_usage": trace.usage_json.clone(),
             })),
-            targets: vec![crate::generation::GenerationRunTraceTarget {
+            targets: vec![GenerationRunTraceTarget {
                 target_kind: row.prompt_type.clone(),
                 target_table: "chapter_video_prompt".to_string(),
                 target_id: row.id,

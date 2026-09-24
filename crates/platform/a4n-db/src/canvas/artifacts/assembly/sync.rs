@@ -9,8 +9,7 @@ use super::super::media::{
     ensure_canvas_video_media_asset_records_from_source_in,
 };
 use super::super::types::{
-    CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary, CanvasMediaSourceContext,
-    CanvasVideoMediaSourceEnsureInput,
+    CanvasAssemblyContractSyncSummary, CanvasMediaSourceContext, CanvasVideoMediaSourceEnsureInput,
 };
 use super::segments::replace_canvas_assembly_segments;
 use super::timeline::upsert_canvas_assembly_timeline;
@@ -18,6 +17,7 @@ use super::videos::{
     canvas_assembly_result_video, canvas_assembly_result_video_for_update,
     canvas_assembly_source_videos, canvas_video_media_origin,
 };
+use a4n_domain::canvas::CanvasAssemblyContractSyncInput;
 
 pub async fn sync_canvas_assembly_contract_records<C>(
     db: &C,

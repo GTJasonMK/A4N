@@ -5,7 +5,7 @@ mod snapshot;
 mod tests;
 
 use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
-use a4n_domain::project::ProjectSourceMode;
+use a4n_domain::{chapter::ResolvedChapterSource, project::ProjectSourceMode};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
 };
@@ -17,7 +17,7 @@ use self::{
 };
 use super::super::validate_positive_i64;
 
-pub use contracts::{ResolveChapterSourceError, ResolvedChapterSource};
+pub use contracts::ResolveChapterSourceError;
 
 /// 在同一个已校验的派生项目快照内批量解析章节来源。
 ///

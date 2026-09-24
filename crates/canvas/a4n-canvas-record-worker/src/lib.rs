@@ -1,0 +1,1181 @@
+//! PostgreSQL-backed Canvas graph document worker.
+
+use std::{env, future::Future, net::SocketAddr, sync::Arc};
+
+use a4n_canvas_record_worker_contract::{
+    CANVAS_GRAPH_EDIT_OPERATION, CANVAS_GRAPH_GET_OPERATION, CANVAS_GRAPH_MUTATION_CAPABILITY,
+    CANVAS_GRAPH_READ_CAPABILITY, CANVAS_GRAPH_READ_OPERATION, CANVAS_GRAPH_SAVE_OPERATION,
+    CANVAS_RECORD_WORKER_CONTRACT_VERSION, CANVAS_RECORD_WORKER_ID,
+    CANVAS_TEXT_ASSET_SAVE_OPERATION, CanvasGraphDocument, CanvasGraphEditResult,
+    CanvasGraphProjection, CanvasGraphReadResult, CanvasTextAssetSummary, EditCanvasGraphInput,
+    GetCanvasGraphInput, ReadCanvasGraphInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
+};
+use a4n_db::DbHandle;
+use a4n_db::canvas::{
+    CanvasDbError, CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
+    CanvasNodeRecordInput,
+};
+use a4n_domain::{canvas::CanvasTextAssetRecordInput, collaboration::ProjectAccessRole};
+use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::{
+    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
+    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
+    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+};
+use chrono::Utc;
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
+use serde::Serialize;
+use serde_json::Value;
+use subtle::ConstantTimeEq;
+
+const WORKER_ADDR_ENV: &str = "A4N_CANVAS_RECORD_WORKER_ADDR";
+const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
+const WORKER_TOKEN_ENV: &str = "A4N_CANVAS_RECORD_WORKER_TOKEN";
+const DEFAULT_ADDR: &str = "127.0.0.1:47677";
+
+#[derive(Clone)]
+pub struct CanvasRecordWorker {
+    state: WorkerState,
+}
+
+#[derive(Clone)]
+struct WorkerState {
+    database: DbHandle,
+    worker_id: Arc<str>,
+    auth_token: Arc<str>,
+}
+
+#[derive(Debug)]
+struct WorkerFailure {
+    code: WorkerErrorCode,
+    message: String,
+    retryable: bool,
+}
+
+#[derive(Clone)]
+struct RequestMeta {
+    request_id: String,
+    trace_id: String,
+    operation_id: String,
+}
+
+impl CanvasRecordWorker {
+    pub fn new(
+        database: DatabaseConnection,
+        worker_id: impl Into<String>,
+        auth_token: impl Into<String>,
+    ) -> Self {
+        Self {
+            state: WorkerState {
+                database: DbHandle::new(Arc::new(database)),
+                worker_id: Arc::<str>::from(worker_id.into()),
+                auth_token: Arc::<str>::from(auth_token.into()),
+            },
+        }
+    }
+
+    pub fn router(&self) -> Router {
+        Router::new()
+            .route(WORKER_HEALTH_PATH, get(health))
+            .route(WORKER_CAPABILITIES_PATH, get(capabilities))
+            .route("/v1/commands/canvas.graph.get", post(get_graph))
+            .route("/v1/commands/canvas.graph.read", post(read_graph))
+            .route("/v1/commands/canvas.graph.save", post(save_graph))
+            .route("/v1/commands/canvas.graph.edit", post(edit_graph))
+            .route("/v1/commands/canvas.text_asset.save", post(save_text_asset))
+            .with_state(self.state.clone())
+    }
+
+    pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
+        let listener = tokio::net::TcpListener::bind(address).await?;
+        axum::serve(listener, self.router())
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .map_err(anyhow::Error::from)
+    }
+}
+
+pub fn run() -> anyhow::Result<()> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> anyhow::Result<()> {
+    init_tracing();
+    let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
+    a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
+    let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
+    let address = worker_addr()?;
+    let mut options = ConnectOptions::new(database_url);
+    options
+        .max_connections(8)
+        .min_connections(1)
+        .connect_timeout(std::time::Duration::from_secs(5));
+    let database = Database::connect(options).await?;
+    CanvasRecordWorker::new(database, CANVAS_RECORD_WORKER_ID, auth_token)
+        .serve(address)
+        .await
+}
+
+fn worker_addr() -> anyhow::Result<SocketAddr> {
+    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
+    let address: SocketAddr = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
+    if !address.ip().is_loopback() || address.port() == 0 {
+        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
+    }
+    Ok(address)
+}
+
+async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let status = match state
+        .database
+        .connection()
+        .execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT 1",
+        ))
+        .await
+    {
+        Ok(_) => WorkerHealthStatus::Healthy,
+        Err(_) => WorkerHealthStatus::Degraded,
+    };
+    Json(WorkerHealth {
+        schema_version: WORKER_SCHEMA_VERSION,
+        worker_id: state.worker_id.to_string(),
+        status,
+        version: env!("CARGO_PKG_VERSION").into(),
+    })
+    .into_response()
+}
+
+async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    Json(WorkerCapabilities {
+        schema_version: WORKER_SCHEMA_VERSION,
+        worker_id: state.worker_id.to_string(),
+        capabilities: vec![
+            WorkerCapability {
+                name: CANVAS_GRAPH_READ_CAPABILITY.into(),
+                version: CANVAS_RECORD_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+            WorkerCapability {
+                name: CANVAS_GRAPH_MUTATION_CAPABILITY.into(),
+                version: CANVAS_RECORD_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
+        ],
+    })
+    .into_response()
+}
+
+async fn get_graph(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<GetCanvasGraphInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_GRAPH_GET_OPERATION,
+        |state, request| async move { state.get_graph(request).await },
+    )
+    .await
+}
+
+async fn read_graph(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ReadCanvasGraphInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_GRAPH_READ_OPERATION,
+        |state, request| async move { state.read_graph(request).await },
+    )
+    .await
+}
+
+async fn save_graph(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<SaveCanvasGraphInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_GRAPH_SAVE_OPERATION,
+        |state, request| async move { state.save_graph(request).await },
+    )
+    .await
+}
+
+async fn edit_graph(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<EditCanvasGraphInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_GRAPH_EDIT_OPERATION,
+        |state, request| async move { state.edit_graph(request).await },
+    )
+    .await
+}
+
+async fn save_text_asset(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<SaveCanvasTextAssetInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_TEXT_ASSET_SAVE_OPERATION,
+        |state, request| async move { state.save_text_asset(request).await },
+    )
+    .await
+}
+
+async fn dispatch<T, O, F, Fut>(
+    state: WorkerState,
+    headers: HeaderMap,
+    request: WorkerEnvelope<T>,
+    expected_operation: &'static str,
+    action: F,
+) -> Response
+where
+    T: Serialize,
+    O: Serialize,
+    F: FnOnce(WorkerState, WorkerEnvelope<T>) -> Fut,
+    Fut: Future<Output = Result<O, WorkerFailure>>,
+{
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let meta = RequestMeta::from(&request);
+    let response = match validate_request(&request, expected_operation) {
+        Ok(()) => match action(state, request).await {
+            Ok(payload) => completed(meta, payload),
+            Err(error) => failed(meta, error),
+        },
+        Err(error) => failed(meta, error),
+    };
+    Json(response).into_response()
+}
+
+impl WorkerState {
+    async fn get_graph(
+        &self,
+        request: WorkerEnvelope<GetCanvasGraphInput>,
+    ) -> Result<CanvasGraphDocument, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let document = a4n_db::canvas::get_or_create_canvas_graph_record(
+            self.database.connection(),
+            request.payload.project_id,
+            request.payload.graph_id,
+            Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        canvas_graph_document(document)
+    }
+
+    async fn read_graph(
+        &self,
+        request: WorkerEnvelope<ReadCanvasGraphInput>,
+    ) -> Result<CanvasGraphReadResult, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let input = request.payload;
+        if input.graph_id <= 0 || input.expected_version.is_some_and(|version| version <= 0) {
+            return Err(WorkerFailure::invalid_request("画布和版本必须是正整数"));
+        }
+        let document = a4n_db::canvas::get_or_create_canvas_graph_record(
+            self.database.connection(),
+            input.project_id,
+            Some(input.graph_id),
+            Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        read_canvas_graph(canvas_graph_document(document)?, input)
+    }
+
+    async fn save_graph(
+        &self,
+        request: WorkerEnvelope<SaveCanvasGraphInput>,
+    ) -> Result<CanvasGraphDocument, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let input = request.payload;
+        let record_input = canvas_graph_record_input(input.graph, input.expected_version);
+        let document = a4n_db::canvas::save_canvas_graph_record(
+            self.database.connection(),
+            input.project_id,
+            record_input,
+            Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        canvas_graph_document(document)
+    }
+
+    async fn edit_graph(
+        &self,
+        request: WorkerEnvelope<EditCanvasGraphInput>,
+    ) -> Result<CanvasGraphEditResult, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let input = request.payload;
+        if input.graph_id <= 0
+            || input.expected_version <= 0
+            || !(1..=20).contains(&input.operations.len())
+        {
+            return Err(WorkerFailure::invalid_request(
+                "画布局部修改需要有效画布、版本和 1..20 个操作",
+            ));
+        }
+        let original_record = a4n_db::canvas::get_or_create_canvas_graph_record(
+            self.database.connection(),
+            input.project_id,
+            Some(input.graph_id),
+            Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        let original = canvas_graph_document(original_record)?;
+        check_version(&original, Some(input.expected_version))?;
+        let mut edited = original.clone();
+        for operation in input.operations {
+            apply_operation(&mut edited, operation)?;
+        }
+        let changed = edited != original;
+        let saved = if changed {
+            let record_input =
+                canvas_graph_record_input(graph_input(edited), Some(input.expected_version));
+            let document = a4n_db::canvas::save_canvas_graph_record(
+                self.database.connection(),
+                input.project_id,
+                record_input,
+                Utc::now().naive_utc(),
+            )
+            .await
+            .map_err(canvas_db_error)?;
+            canvas_graph_document(document)?
+        } else {
+            original.clone()
+        };
+        Ok(CanvasGraphEditResult {
+            resource: resource(&saved),
+            changed,
+            changed_nodes: saved
+                .nodes
+                .iter()
+                .filter(|node| !original.nodes.contains(node))
+                .cloned()
+                .collect(),
+            added_edges: saved
+                .edges
+                .iter()
+                .filter(|edge| !original.edges.contains(edge))
+                .cloned()
+                .collect(),
+            removed_edge_ids: original
+                .edges
+                .iter()
+                .filter(|edge| {
+                    !saved
+                        .edges
+                        .iter()
+                        .any(|saved_edge| saved_edge.id == edge.id)
+                })
+                .map(|edge| edge.id)
+                .collect(),
+        })
+    }
+
+    async fn save_text_asset(
+        &self,
+        request: WorkerEnvelope<SaveCanvasTextAssetInput>,
+    ) -> Result<CanvasTextAssetSummary, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let input = request.payload;
+        let record = a4n_db::canvas::upsert_canvas_text_asset_record(
+            self.database.connection(),
+            input.project_id,
+            CanvasTextAssetRecordInput {
+                id: input.text_asset.id,
+                title: input.text_asset.title,
+                text_kind: input.text_asset.text_kind,
+                content: input.text_asset.content,
+            },
+            Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        Ok(CanvasTextAssetSummary {
+            id: record.id,
+            text_kind: record.text_kind,
+            content: record.content,
+        })
+    }
+
+    async fn verify_project_permission(
+        &self,
+        project_id: i64,
+        user_id: i64,
+        role: ProjectAccessRole,
+    ) -> Result<(), WorkerFailure> {
+        a4n_db::collaboration::verify_project_permission(
+            self.database.connection(),
+            project_id,
+            user_id,
+            role,
+        )
+        .await
+        .map(|_| ())
+        .map_err(collaboration_error)
+    }
+
+    fn authorized(&self, headers: &HeaderMap) -> bool {
+        headers
+            .get(WORKER_AUTH_HEADER)
+            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+    }
+}
+
+fn validate_request<T: Serialize>(
+    request: &WorkerEnvelope<T>,
+    expected_operation: &str,
+) -> Result<(), WorkerFailure> {
+    request
+        .validate()
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+    if request.operation_id != expected_operation {
+        return Err(WorkerFailure::invalid_request(format!(
+            "operation_id 不匹配: expected={expected_operation}, actual={}",
+            request.operation_id
+        )));
+    }
+    if request.lease.worker_id != CANVAS_RECORD_WORKER_ID {
+        return Err(WorkerFailure::invalid_request(
+            "lease.worker_id 不属于 Canvas record worker",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_project_scope<T>(
+    request: &WorkerEnvelope<T>,
+    project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if project_id <= 0 || request.project_id != Some(project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与 payload 不一致或无效",
+        ));
+    }
+    Ok(())
+}
+
+fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
+    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
+        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
+    }
+    request
+        .principal
+        .subject
+        .parse::<i64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+}
+
+fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
+    use a4n_db::collaboration::CollaborationDbError;
+    match error {
+        CollaborationDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        CollaborationDbError::NotFound(message) => WorkerFailure::not_found(message),
+        CollaborationDbError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        CollaborationDbError::InvalidState(message) => WorkerFailure::conflict(message),
+        CollaborationDbError::Internal(message) => WorkerFailure::internal(message),
+        CollaborationDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {
+    match error {
+        CanvasDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        CanvasDbError::NotFound(message) => WorkerFailure::not_found(message),
+        CanvasDbError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        CanvasDbError::VersionConflict {
+            graph_id,
+            expected_version,
+            current_version,
+        } => WorkerFailure::conflict(format!(
+            "canvas_graph_version_conflict:graph_id={graph_id},expected={expected_version},current={current_version}"
+        )),
+        CanvasDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+fn canvas_graph_document(
+    document: CanvasGraphRecordDocument,
+) -> Result<CanvasGraphDocument, WorkerFailure> {
+    let graph = document.graph;
+    let viewport_json = graph
+        .viewport_json
+        .map(|value| canvas_json_object(value, "canvas_graph.viewport_json"))
+        .transpose()?;
+    let nodes = document
+        .nodes
+        .into_iter()
+        .map(|node| {
+            Ok(a4n_canvas_record_worker_contract::CanvasNodeSummary {
+                id: node.id,
+                node_kind: node.node_kind,
+                ref_type: node.ref_type,
+                ref_id: node.ref_id,
+                config_json: canvas_json_object(node.config_json, "canvas_node.config_json")?,
+                position_json: canvas_json_object(node.position_json, "canvas_node.position_json")?,
+                state: node.state,
+            })
+        })
+        .collect::<Result<Vec<_>, WorkerFailure>>()?;
+    let edges = document
+        .edges
+        .into_iter()
+        .map(|edge| {
+            Ok(a4n_canvas_record_worker_contract::CanvasEdgeSummary {
+                id: edge.id,
+                source_node_id: edge.source_node_id,
+                target_node_id: edge.target_node_id,
+                source_port: edge.source_port,
+                target_port: edge.target_port,
+                role: edge.role,
+                config_json: canvas_json_object(edge.config_json, "canvas_edge.config_json")?,
+            })
+        })
+        .collect::<Result<Vec<_>, WorkerFailure>>()?;
+    Ok(CanvasGraphDocument {
+        graph: a4n_canvas_record_worker_contract::CanvasGraphSummary {
+            id: graph.id,
+            name: graph.name,
+            graph_kind: graph.graph_kind,
+            version: graph.version,
+            viewport_json,
+        },
+        nodes,
+        edges,
+    })
+}
+
+fn canvas_json_object(
+    value: Value,
+    field: &str,
+) -> Result<a4n_canvas_record_worker_contract::CanvasJsonObject, WorkerFailure> {
+    match value {
+        Value::Object(object) => Ok(object.into_iter().collect()),
+        _ => Err(WorkerFailure::internal(format!(
+            "{field} 不是 JSON 对象，无法输出 CanvasGraphDocument"
+        ))),
+    }
+}
+
+fn canvas_graph_record_input(
+    input: a4n_canvas_record_worker_contract::CanvasGraphInput,
+    expected_version: Option<i32>,
+) -> CanvasGraphRecordInput {
+    CanvasGraphRecordInput {
+        id: input.id,
+        expected_version,
+        name: Some(input.name),
+        graph_kind: Some(input.graph_kind),
+        viewport_json: input.viewport_json.map(canvas_json_value),
+        nodes: input
+            .nodes
+            .into_iter()
+            .map(|node| CanvasNodeRecordInput {
+                client_id: node.client_id,
+                node_kind: node.node_kind,
+                ref_type: node.ref_type,
+                ref_id: node.ref_id,
+                config_json: Some(canvas_json_value(node.config_json)),
+                position_json: canvas_json_value(node.position_json),
+                state: Some(node.state),
+            })
+            .collect(),
+        edges: input
+            .edges
+            .into_iter()
+            .map(|edge| CanvasEdgeRecordInput {
+                source_client_id: edge.source_client_id,
+                target_client_id: edge.target_client_id,
+                source_port: edge.source_port,
+                target_port: edge.target_port,
+                role: edge.role,
+                config_json: Some(canvas_json_value(edge.config_json)),
+            })
+            .collect(),
+    }
+}
+
+fn canvas_json_value(input: a4n_canvas_record_worker_contract::CanvasJsonObject) -> Value {
+    Value::Object(input.into_iter().collect())
+}
+
+fn read_canvas_graph(
+    graph: CanvasGraphDocument,
+    input: ReadCanvasGraphInput,
+) -> Result<CanvasGraphReadResult, WorkerFailure> {
+    check_version(&graph, input.expected_version)?;
+    let projection = match input.node_ids {
+        Some(ids) => {
+            if ids.is_empty() || ids.len() > 100 || input.offset != 0 || input.limit.is_some() {
+                return Err(WorkerFailure::invalid_request(
+                    "节点详情需要 1..100 个 ID，不能同时分页",
+                ));
+            }
+            let ids = ids.into_iter().collect::<std::collections::HashSet<_>>();
+            for id in &ids {
+                if !graph.nodes.iter().any(|node| node.id == *id) {
+                    return Err(WorkerFailure::not_found(format!(
+                        "画布 {} 不存在节点 {id}",
+                        input.graph_id
+                    )));
+                }
+            }
+            let edges = graph
+                .edges
+                .iter()
+                .filter(|edge| {
+                    ids.contains(&edge.source_node_id) || ids.contains(&edge.target_node_id)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            let neighbors = edges
+                .iter()
+                .flat_map(|edge| [edge.source_node_id, edge.target_node_id])
+                .collect::<std::collections::HashSet<_>>();
+            CanvasGraphProjection::Nodes {
+                nodes: graph
+                    .nodes
+                    .iter()
+                    .filter(|node| ids.contains(&node.id))
+                    .cloned()
+                    .collect(),
+                adjacent_nodes: graph
+                    .nodes
+                    .iter()
+                    .filter(|node| neighbors.contains(&node.id) && !ids.contains(&node.id))
+                    .map(node_index)
+                    .collect(),
+                edges,
+            }
+        }
+        None => {
+            let limit = input.limit.unwrap_or(20) as usize;
+            let offset = input.offset as usize;
+            if !(1..=100).contains(&limit) || offset > graph.nodes.len() {
+                return Err(WorkerFailure::invalid_request(
+                    "画布索引分页超出范围，limit 必须在 1..100",
+                ));
+            }
+            let end = (offset + limit).min(graph.nodes.len());
+            CanvasGraphProjection::Index {
+                nodes: graph.nodes[offset..end].iter().map(node_index).collect(),
+                total: graph.nodes.len(),
+                next_offset: (end < graph.nodes.len()).then_some(end as u32),
+            }
+        }
+    };
+    Ok(CanvasGraphReadResult {
+        resource: resource(&graph),
+        projection,
+    })
+}
+
+fn apply_operation(
+    graph: &mut CanvasGraphDocument,
+    operation: a4n_canvas_record_worker_contract::CanvasGraphEditOperation,
+) -> Result<(), WorkerFailure> {
+    use a4n_canvas_record_worker_contract::CanvasGraphEditOperation;
+    match operation {
+        CanvasGraphEditOperation::SetNodeConfig {
+            node_id,
+            config_json,
+        } => {
+            graph
+                .nodes
+                .iter_mut()
+                .find(|node| node.id == node_id)
+                .ok_or_else(|| WorkerFailure::not_found(format!("画布不存在节点 {node_id}")))?
+                .config_json = config_json;
+        }
+        CanvasGraphEditOperation::Disconnect { edge_id } => {
+            let index = graph
+                .edges
+                .iter()
+                .position(|edge| edge.id == edge_id)
+                .ok_or_else(|| WorkerFailure::not_found(format!("画布不存在连线 {edge_id}")))?;
+            graph.edges.remove(index);
+        }
+        CanvasGraphEditOperation::Connect { edge } => {
+            let resolve = |id: &str| {
+                graph
+                    .nodes
+                    .iter()
+                    .find(|node| node.id.to_string() == id)
+                    .map(|node| node.id)
+                    .ok_or_else(|| WorkerFailure::not_found(format!("画布不存在节点 {id}")))
+            };
+            let connection = a4n_canvas_record_worker_contract::CanvasEdgeSummary {
+                id: 0,
+                source_node_id: resolve(&edge.source_client_id)?,
+                target_node_id: resolve(&edge.target_client_id)?,
+                source_port: edge.source_port,
+                target_port: edge.target_port,
+                role: edge.role,
+                config_json: edge.config_json,
+            };
+            if graph.edges.iter().any(|existing| {
+                existing.source_node_id == connection.source_node_id
+                    && existing.target_node_id == connection.target_node_id
+                    && existing.source_port == connection.source_port
+                    && existing.target_port == connection.target_port
+                    && existing.role == connection.role
+            }) {
+                return Err(WorkerFailure::invalid_request(
+                    "连线已存在；修改前请显式断开原连线",
+                ));
+            }
+            graph.edges.push(connection);
+        }
+    }
+    Ok(())
+}
+
+fn graph_input(graph: CanvasGraphDocument) -> a4n_canvas_record_worker_contract::CanvasGraphInput {
+    a4n_canvas_record_worker_contract::CanvasGraphInput {
+        id: Some(graph.graph.id),
+        name: graph.graph.name,
+        graph_kind: graph.graph.graph_kind,
+        viewport_json: graph.graph.viewport_json,
+        nodes: graph
+            .nodes
+            .into_iter()
+            .map(|node| a4n_canvas_record_worker_contract::CanvasNodeInput {
+                client_id: node.id.to_string(),
+                node_kind: node.node_kind,
+                ref_type: node.ref_type,
+                ref_id: node.ref_id,
+                config_json: node.config_json,
+                position_json: node.position_json,
+                state: node.state,
+            })
+            .collect(),
+        edges: graph
+            .edges
+            .into_iter()
+            .map(|edge| a4n_canvas_record_worker_contract::CanvasEdgeInput {
+                source_client_id: edge.source_node_id.to_string(),
+                target_client_id: edge.target_node_id.to_string(),
+                source_port: edge.source_port,
+                target_port: edge.target_port,
+                role: edge.role,
+                config_json: edge.config_json,
+            })
+            .collect(),
+    }
+}
+
+fn node_index(
+    node: &a4n_canvas_record_worker_contract::CanvasNodeSummary,
+) -> a4n_canvas_record_worker_contract::CanvasNodeIndex {
+    a4n_canvas_record_worker_contract::CanvasNodeIndex {
+        id: node.id,
+        node_kind: node.node_kind.clone(),
+        state: node.state.clone(),
+    }
+}
+
+fn resource(graph: &CanvasGraphDocument) -> a4n_api_contract::agent::AgentResourceRef {
+    a4n_api_contract::agent::AgentResourceRef {
+        kind: "canvas_graph".into(),
+        id: graph.graph.id.to_string(),
+        label: Some(graph.graph.name.clone()),
+        revision: Some(graph.graph.version.to_string()),
+        hash: None,
+    }
+}
+
+fn check_version(graph: &CanvasGraphDocument, expected: Option<i32>) -> Result<(), WorkerFailure> {
+    if expected.is_some_and(|version| version != graph.graph.version) {
+        return Err(WorkerFailure::conflict(format!(
+            "画布版本冲突：expected={expected:?}, current={}",
+            graph.graph.version
+        )));
+    }
+    Ok(())
+}
+
+fn completed<T: Serialize>(meta: RequestMeta, payload: T) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: meta.request_id,
+        trace_id: meta.trace_id,
+        operation: WorkerOperationRef {
+            operation_id: meta.operation_id,
+            task_id: None,
+        },
+        status: WorkerOperationStatus::Completed,
+        payload: Some(payload),
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error: None,
+    }
+}
+
+fn failed<T>(meta: RequestMeta, failure: WorkerFailure) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: meta.request_id,
+        trace_id: meta.trace_id,
+        operation: WorkerOperationRef {
+            operation_id: meta.operation_id,
+            task_id: None,
+        },
+        status: WorkerOperationStatus::Failed,
+        payload: None,
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error: Some(WorkerError {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+        }),
+    }
+}
+
+impl RequestMeta {
+    fn from<T>(request: &WorkerEnvelope<T>) -> Self {
+        Self {
+            request_id: request.request_id.clone(),
+            trace_id: request.trace_id.clone(),
+            operation_id: request.operation_id.clone(),
+        }
+    }
+}
+
+impl WorkerFailure {
+    fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::InvalidRequest,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Unauthorized,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Conflict,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::NotFound,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+
+    fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Unavailable,
+            message: message.into(),
+            retryable: true,
+        }
+    }
+
+    fn internal(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Internal,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+}
+
+fn unauthorized() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        "Canvas record worker authentication required",
+    )
+        .into_response()
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("install SIGTERM handler");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+fn init_tracing() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .try_init();
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::{apply_operation, read_canvas_graph, validate_project_scope, validate_request};
+    use a4n_canvas_record_worker_contract::{
+        CANVAS_GRAPH_EDIT_OPERATION, CANVAS_RECORD_WORKER_ID, CanvasEdgeInput, CanvasEdgeSummary,
+        CanvasGraphDocument, CanvasGraphEditOperation, CanvasGraphProjection, CanvasGraphSummary,
+        CanvasNodeSummary, GetCanvasGraphInput, ReadCanvasGraphInput,
+    };
+    use a4n_worker_contract::{
+        WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerLease, WorkerPrincipal, WorkerPrincipalKind,
+    };
+
+    fn request(project_id: Option<i64>, operation: &str) -> WorkerEnvelope<GetCanvasGraphInput> {
+        WorkerEnvelope {
+            schema_version: WORKER_SCHEMA_VERSION,
+            request_id: "request".into(),
+            trace_id: "trace".into(),
+            principal: WorkerPrincipal {
+                kind: WorkerPrincipalKind::User,
+                subject: "7".into(),
+            },
+            operation_id: operation.into(),
+            idempotency_key: "key".into(),
+            project_id,
+            root_project_id: None,
+            target_revision: None,
+            runtime_config_snapshot_ref: None,
+            lease: WorkerLease {
+                worker_id: CANVAS_RECORD_WORKER_ID.into(),
+                epoch: 1,
+                fence_token: "control".into(),
+                expires_at: "9999-12-31T23:59:59Z".into(),
+            },
+            payload: GetCanvasGraphInput {
+                project_id: 1,
+                graph_id: Some(1),
+            },
+        }
+    }
+
+    fn graph() -> CanvasGraphDocument {
+        CanvasGraphDocument {
+            graph: CanvasGraphSummary {
+                id: 1,
+                name: "graph".into(),
+                graph_kind: "video".into(),
+                version: 1,
+                viewport_json: None,
+            },
+            nodes: vec![1, 2]
+                .into_iter()
+                .map(|id| CanvasNodeSummary {
+                    id,
+                    node_kind: "TextInputNode".into(),
+                    ref_type: None,
+                    ref_id: None,
+                    config_json: BTreeMap::new(),
+                    position_json: BTreeMap::new(),
+                    state: "draft".into(),
+                })
+                .collect(),
+            edges: Vec::new(),
+        }
+    }
+
+    fn read_input(
+        node_ids: Option<Vec<i64>>,
+        offset: u32,
+        limit: Option<u32>,
+    ) -> ReadCanvasGraphInput {
+        ReadCanvasGraphInput {
+            project_id: 1,
+            graph_id: 1,
+            expected_version: Some(1),
+            node_ids,
+            offset,
+            limit,
+        }
+    }
+
+    #[test]
+    fn request_scope_and_operation_are_enforced() {
+        let request = request(Some(1), CANVAS_GRAPH_EDIT_OPERATION);
+        assert!(validate_request(&request, CANVAS_GRAPH_EDIT_OPERATION).is_ok());
+        assert!(validate_project_scope(&request, 1).is_ok());
+        assert!(validate_project_scope(&request, 2).is_err());
+        assert!(validate_request(&request, "canvas.graph.read").is_err());
+    }
+
+    #[test]
+    fn graph_edit_rejects_duplicate_edges() {
+        let mut document = graph();
+        let edge = CanvasGraphEditOperation::Connect {
+            edge: CanvasEdgeInput {
+                source_client_id: "1".into(),
+                target_client_id: "2".into(),
+                source_port: "text".into(),
+                target_port: "text".into(),
+                role: "input".into(),
+                config_json: BTreeMap::new(),
+            },
+        };
+        apply_operation(&mut document, edge.clone()).expect("first edge should be added");
+        assert!(apply_operation(&mut document, edge).is_err());
+        assert_eq!(document.edges.len(), 1);
+    }
+
+    #[test]
+    fn graph_reads_preserve_node_neighbors_and_pagination() {
+        let mut document = graph();
+        document.edges.push(CanvasEdgeSummary {
+            id: 3,
+            source_node_id: 1,
+            target_node_id: 2,
+            source_port: "text".into(),
+            target_port: "text".into(),
+            role: "input".into(),
+            config_json: BTreeMap::new(),
+        });
+
+        let details = read_canvas_graph(document, read_input(Some(vec![1]), 0, None))
+            .expect("node details should be projected");
+        match details.projection {
+            CanvasGraphProjection::Nodes {
+                nodes,
+                edges,
+                adjacent_nodes,
+            } => {
+                assert_eq!(
+                    nodes.iter().map(|node| node.id).collect::<Vec<_>>(),
+                    vec![1]
+                );
+                assert_eq!(
+                    edges.iter().map(|edge| edge.id).collect::<Vec<_>>(),
+                    vec![3]
+                );
+                assert_eq!(
+                    adjacent_nodes
+                        .iter()
+                        .map(|node| node.id)
+                        .collect::<Vec<_>>(),
+                    vec![2]
+                );
+            }
+            CanvasGraphProjection::Index { .. } => panic!("expected node projection"),
+        }
+
+        let page = read_canvas_graph(graph(), read_input(None, 1, Some(1)))
+            .expect("node index page should be projected");
+        match page.projection {
+            CanvasGraphProjection::Index {
+                nodes,
+                total,
+                next_offset,
+            } => {
+                assert_eq!(
+                    nodes.iter().map(|node| node.id).collect::<Vec<_>>(),
+                    vec![2]
+                );
+                assert_eq!(total, 2);
+                assert_eq!(next_offset, None);
+            }
+            CanvasGraphProjection::Nodes { .. } => panic!("expected index projection"),
+        }
+    }
+}

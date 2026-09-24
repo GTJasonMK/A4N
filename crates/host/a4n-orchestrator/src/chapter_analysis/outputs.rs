@@ -221,7 +221,7 @@ impl OrchestratorContext {
         let resolved_ids = chapter_analysis_foreshadowing_resolved_ids(chapter.id, analysis)?;
         let synced = self
             .sync_chapter_analysis_foreshadowing(
-                a4n_db::project::ChapterSourceSnapshot::from(chapter),
+                a4n_db::project::chapter_source_snapshot_from_model(chapter),
                 drafts,
                 resolved_ids,
             )

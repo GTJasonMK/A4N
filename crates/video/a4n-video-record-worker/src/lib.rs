@@ -12,9 +12,10 @@ use a4n_video_record_worker_contract::{
     VIDEO_PROMPT_DRAFT_UPDATE_OPERATION, VIDEO_PROMPT_LIST_OPERATION,
     VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_CAPABILITY, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_MUTATION_CAPABILITY, VIDEO_RECORD_PLAYBACK_OPERATION,
-    VIDEO_RECORD_REFERENCE_IMAGES_OPERATION, VIDEO_RECORD_UPDATE_OPERATION,
-    VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID, VideoIdInput,
-    VideoSegmentPlanDraftSummary, VideoSourceInput, VideoUpdateInput,
+    VIDEO_RECORD_REFERENCE_IMAGES_OPERATION, VIDEO_RECORD_SELECT_SEGMENT_OPERATION,
+    VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_CONTRACT_VERSION, VIDEO_RECORD_WORKER_ID,
+    VideoIdInput, VideoSegmentPlanDraftSummary, VideoSegmentSelectionInput, VideoSourceInput,
+    VideoUpdateInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -87,6 +88,10 @@ impl VideoRecordWorker {
                 post(validated_reference_images),
             )
             .route("/v1/commands/video.record.update", post(update_record))
+            .route(
+                "/v1/commands/video.record.select_segment",
+                post(select_segment),
+            )
             .route(
                 "/v1/commands/video.prompt.draft.load",
                 post(load_video_segment_plan_draft),
@@ -252,6 +257,17 @@ async fn update_record(
     .await
 }
 
+async fn select_segment(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<VideoSegmentSelectionInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.select_segment(request)
+    })
+    .await
+}
+
 async fn load_video_segment_plan_draft(
     State(state): State<WorkerState>,
     headers: HeaderMap,
@@ -321,6 +337,75 @@ where
 }
 
 impl WorkerState {
+    async fn select_segment(
+        &self,
+        request: WorkerEnvelope<VideoSegmentSelectionInput>,
+    ) -> Result<GeneratedVideoSummary, WorkerFailure> {
+        validate_request(&request, VIDEO_RECORD_SELECT_SEGMENT_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let project_id = positive(input.project_id, "project_id")?;
+        let chapter_id = positive(input.chapter_id, "chapter_id")?;
+        let video_id = positive(input.video_id, "video_id")?;
+        verify_project_permission(
+            &self.database,
+            project_id,
+            user_id,
+            ProjectAccessRole::Editor,
+        )
+        .await?;
+        let source_content =
+            validate_video_source(&self.database, project_id, chapter_id, "采用片段视频", true)
+                .await?;
+        let source_content_sha256 = a4n_domain::source_text_hash(&source_content);
+        let db = self.database.connection();
+        let (plan_result, video_result) = tokio::join!(
+            a4n_db::video::chapter_video_prompt_by_id(db, input.input.segment_plan_prompt_id),
+            a4n_db::video::generated_video_by_id(db, video_id),
+        );
+        let plan = plan_result
+            .map_err(video_error)?
+            .ok_or_else(|| WorkerFailure::not_found("视频提示词不存在"))?;
+        let current_plan_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
+            db,
+            project_id,
+            chapter_id,
+            &source_content_sha256,
+        )
+        .await
+        .map_err(video_error)?;
+        if current_plan_id != Some(plan.id) {
+            return Err(WorkerFailure::invalid_request(
+                "目标片段规划不是当前章节已完成的共享片段规划",
+            ));
+        }
+        let target = &input.input.target_segment;
+        let segment_number = a4n_video_contract::resolve_video_segment_number(
+            plan.metadata_json.as_ref(),
+            &target.source_shot_id,
+            target.segment_index_in_shot,
+        )
+        .map_err(WorkerFailure::invalid_request)?;
+        let mut recipe = a4n_video_contract::video_segment_recipe_from_metadata(
+            plan.metadata_json.as_ref(),
+            segment_number,
+        )
+        .map_err(WorkerFailure::invalid_request)?
+        .ok_or_else(|| {
+            WorkerFailure::invalid_request(format!("当前规划缺少片段 {segment_number} 的执行方案"))
+        })?;
+        let video = video_result
+            .map_err(database_error)?
+            .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        recipe.adopted_video_id = Some(video_id);
+        a4n_db::video::prompts::consistency::update_chapter_video_segment_recipe(
+            db, plan.id, recipe,
+        )
+        .await
+        .map_err(video_error)?;
+        Ok(video_summary(&video))
+    }
+
     async fn load_video_segment_plan_draft(
         &self,
         request: WorkerEnvelope<LoadVideoSegmentPlanDraftInput>,
@@ -727,7 +812,7 @@ impl WorkerState {
         .map_err(database_error)?;
         Ok(prompts
             .iter()
-            .map(a4n_video::chapter_video_prompt_summary)
+            .map(ChapterVideoPromptSummary::from)
             .collect())
     }
 
@@ -747,6 +832,7 @@ impl WorkerState {
             input.writable,
         )
         .await
+        .map(|_| ())
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -878,7 +964,7 @@ async fn validate_video_source(
     chapter_id: i64,
     operation: &str,
     writable: bool,
-) -> Result<(), WorkerFailure> {
+) -> Result<String, WorkerFailure> {
     let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source(
         database.connection(),
         project_id,
@@ -899,6 +985,7 @@ async fn validate_video_source(
                     chapter.status
                 )));
             }
+            Ok(chapter.content)
         }
         "video" => {
             if project.root_project_id != Some(chapter.project_id) {
@@ -909,7 +996,7 @@ async fn validate_video_source(
             let snapshot_id = project.source_snapshot_id.ok_or_else(|| {
                 WorkerFailure::conflict(format!("missing_source_snapshot: {operation}"))
             })?;
-            a4n_db::video::source_snapshot_chapter_for_video_source(
+            let snapshot_chapter = a4n_db::video::source_snapshot_chapter_for_video_source(
                 database.connection(),
                 snapshot_id,
                 chapter_id,
@@ -921,6 +1008,7 @@ async fn validate_video_source(
                     "{operation}失败：视频项目 {project_id} 的源快照不包含章节 {chapter_id}"
                 ))
             })?;
+            Ok(snapshot_chapter.content)
         }
         other => {
             return Err(WorkerFailure::invalid_request(format!(
@@ -928,7 +1016,6 @@ async fn validate_video_source(
             )));
         }
     }
-    Ok(())
 }
 
 fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
@@ -946,6 +1033,9 @@ fn worker_app_error(error: a4n_error::AppError) -> WorkerFailure {
         other => WorkerFailure::unavailable(other.to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
     match error {

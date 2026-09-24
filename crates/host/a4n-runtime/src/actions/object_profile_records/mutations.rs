@@ -8,15 +8,14 @@ use crate::{
         delete_downstream_images_if_requested, downstream_cleanup_warnings,
     },
 };
-use a4n_api_contract::profile::ObjectProfileMutationApplicationPort;
-use a4n_object_profile_worker_client::ObjectProfileWorkerClient;
 
 pub async fn create_object_profile(
     state: &AppState,
     user_id: i64,
     input: CreateObjectProfileInput,
 ) -> Result<ObjectProfileMutationResult, String> {
-    let outcome = ObjectProfileWorkerClient::from_env()
+    let outcome = state
+        .object_profile_mutation_application()
         .create(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -32,7 +31,8 @@ pub async fn update_object_profile(
     user_id: i64,
     input: UpdateObjectProfileInput,
 ) -> Result<ObjectProfileMutationResult, String> {
-    let outcome = ObjectProfileWorkerClient::from_env()
+    let outcome = state
+        .object_profile_mutation_application()
         .update(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -48,7 +48,8 @@ pub async fn delete_object_profile(
     user_id: i64,
     input: DeleteObjectProfileInput,
 ) -> Result<ObjectProfileDeleteResult, String> {
-    let outcome = ObjectProfileWorkerClient::from_env()
+    let outcome = state
+        .object_profile_mutation_application()
         .delete(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)?;

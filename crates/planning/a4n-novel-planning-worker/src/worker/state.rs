@@ -317,7 +317,7 @@ impl WorkerState {
         let expected = match (request.payload.record_id, request.payload.expected_revision) {
             (None, None) => None,
             (Some(record_id), Some(revision)) if record_id > 0 && revision > 0 => {
-                Some(a4n_db::chapter_visual_plan::ExpectedVisualPlanDraft {
+                Some(a4n_domain::chapter_visual_plan::ExpectedVisualPlanDraft {
                     record_id,
                     revision,
                 })
@@ -362,7 +362,7 @@ impl WorkerState {
         ensure_visual_plan_belongs_to_source(self, &request.payload).await?;
         let outcome = a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
             self.database.connection(),
-            a4n_db::chapter_visual_plan::ConfirmChapterVisualPlanInput {
+            a4n_domain::chapter_visual_plan::ConfirmChapterVisualPlanInput {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
             },
@@ -393,7 +393,7 @@ impl WorkerState {
         ensure_visual_plan_belongs_to_source(self, &request.payload).await?;
         a4n_db::chapter_visual_plan::discard_chapter_visual_plan_draft(
             self.database.connection(),
-            a4n_db::chapter_visual_plan::DiscardChapterVisualPlanDraftInput {
+            a4n_domain::chapter_visual_plan::DiscardChapterVisualPlanDraftInput {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
             },

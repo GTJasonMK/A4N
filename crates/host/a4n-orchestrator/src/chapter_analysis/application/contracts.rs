@@ -37,6 +37,7 @@ impl ChapterAnalysisGenerationApplicationPort for OrchestratorContext {
         .await?;
         match self
             .run_chapter_analysis_validated(
+                user_id,
                 chapter_id,
                 prompt_renderer,
                 host_port,
@@ -104,6 +105,7 @@ impl ChapterAnalysisResumeApplicationPort for OrchestratorContext {
         .await?;
         let chapter = self
             .resume_chapter_analysis_sync_validated(
+                user_id,
                 chapter_id,
                 prompt_renderer,
                 host_port,
@@ -137,6 +139,7 @@ impl ChapterAnalysisResumeApplicationPort for OrchestratorContext {
         )
         .await?;
         self.resume_chapter_analysis_workflow_run_validated(
+            user_id,
             &run,
             prompt_renderer,
             host_port,

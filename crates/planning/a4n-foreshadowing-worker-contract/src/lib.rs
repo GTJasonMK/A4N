@@ -1,19 +1,45 @@
-//! Typed commands owned by the foreshadowing read worker.
+//! Typed commands owned by the foreshadowing worker.
 
-pub use a4n_api_contract::profile::ForeshadowingSummary;
+pub use a4n_api_contract::profile::{
+    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingSummary,
+    UpdateForeshadowingInput,
+};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const FORESHADOWING_WORKER_ID: &str = "foreshadowing-worker";
-pub const FORESHADOWING_WORKER_CONTRACT_VERSION: &str = "foreshadowing-read-v1";
+pub const FORESHADOWING_WORKER_CONTRACT_VERSION: &str = "foreshadowing-records-v2";
 pub const FORESHADOWING_LIST_OPERATION: &str = "profile.foreshadowing.list";
+pub const FORESHADOWING_CREATE_OPERATION: &str = "profile.foreshadowing.create";
+pub const FORESHADOWING_UPDATE_OPERATION: &str = "profile.foreshadowing.update";
+pub const FORESHADOWING_DELETE_OPERATION: &str = "profile.foreshadowing.delete";
 pub const FORESHADOWING_READ_CAPABILITY: &str = "profile.foreshadowing.read";
+pub const FORESHADOWING_MUTATION_CAPABILITY: &str = "profile.foreshadowing.mutation";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ForeshadowingProjectInput {
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CreateInput(pub CreateForeshadowingInput);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateInput(pub UpdateForeshadowingInput);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteInput(pub DeleteForeshadowingInput);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ForeshadowingMutationResult {
+    pub project_id: i64,
+    pub foreshadowing_id: i64,
 }
 
 #[cfg(test)]

@@ -109,7 +109,7 @@ async fn resolve_source(
     state: &WorkerState,
     project_id: i64,
     source_chapter_id: i64,
-) -> Result<a4n_db::project::ResolvedChapterSource, WorkerFailure> {
+) -> Result<a4n_domain::chapter::ResolvedChapterSource, WorkerFailure> {
     a4n_db::project::resolve_chapter_source(
         state.database.connection(),
         project_id,
@@ -174,7 +174,7 @@ fn visual_plan_resource(
 
 fn ensure_visual_plan_belongs_to_source_record(
     plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
-    source: &a4n_db::project::ResolvedChapterSource,
+    source: &a4n_domain::chapter::ResolvedChapterSource,
 ) -> Result<(), WorkerFailure> {
     if plan.record.root_project_id != source.root_project_id
         || plan.record.source_chapter_id != source.source_chapter_id

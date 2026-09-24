@@ -2,10 +2,6 @@
 //!
 //! 持有 `DbHandle`，封装画布图读写、生成规格/提示词产物、媒体资产与 Video Studio 导入导出的数据库行为。
 
-use a4n_api_contract::canvas::{
-    CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphInput, CanvasGraphSummary, CanvasJsonObject,
-    CanvasNodeSummary, CanvasTextAssetInput, CanvasTextAssetSummary,
-};
 use a4n_canvas_contract::{
     CanvasEditingNodeApplicationPort, CanvasEditingNodeHostPort,
     CanvasGraphExecutionApplicationPort, CanvasGraphExecutionHostPort,
@@ -21,11 +17,9 @@ use a4n_canvas_contract::{
 };
 use a4n_db::DbHandle;
 use a4n_db::canvas::{
-    CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary, CanvasEdgeRecordInput,
-    CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasImageMediaAssetEnsureInput,
+    CanvasAssemblyContractSyncSummary, CanvasGraphRecordDocument, CanvasImageMediaAssetEnsureInput,
     CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
-    CanvasNodeRecordInput, CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput, VideoStudioProjectExportRows,
+    CanvasVideoMediaAssetEnsureInput, VideoStudioProjectExportRows,
     VideoStudioProjectImportMediaFileWriter, validate_canvas_record_document_edge_contract,
 };
 use a4n_db_models::models::{
@@ -34,10 +28,12 @@ use a4n_db_models::models::{
     media::media_asset,
     project::novel_project,
 };
-use a4n_domain::canvas::CanvasTextAssetRecordInput;
+use a4n_domain::canvas::{
+    CanvasAssemblyContractSyncInput, CanvasPromptArtifactUpsertInput, CanvasTextAssetRecordInput,
+    FreeformCanvasGenerationSpecUpsertInput,
+};
 use a4n_error::AppError;
 use chrono::{NaiveDateTime, Utc};
-use serde_json::Value;
 
 use super::OrchestratorContext;
 use crate::canvas::{
@@ -47,6 +43,9 @@ use crate::canvas::{
 };
 use crate::project::VideoStudioProjectPackage;
 use a4n_domain::collaboration::ProjectAccessRole;
+
+#[cfg(test)]
+use a4n_db::canvas::CanvasGraphRecordInput;
 
 /// Canvas 领域 application owner。
 #[derive(Clone)]
@@ -79,6 +78,7 @@ impl CanvasApplication {
         .map_err(canvas_db_error)
     }
 
+    #[cfg(test)]
     async fn save_canvas_graph_record(
         &self,
         project_id: i64,
@@ -245,19 +245,6 @@ impl CanvasApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn get_or_create_canvas_graph(
-        &self,
-        project_id: i64,
-        graph_id: Option<i64>,
-        now: NaiveDateTime,
-    ) -> Result<CanvasGraphDocument, AppError> {
-        let document = self
-            .canvas
-            .get_or_create_canvas_graph_record(project_id, graph_id, now)
-            .await?;
-        canvas_graph_document(document)
-    }
-
     pub(crate) async fn get_or_create_canvas_graph_record(
         &self,
         project_id: i64,
@@ -281,24 +268,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn save_canvas_graph(
-        &self,
-        project_id: i64,
-        expected_version: Option<i32>,
-        input: CanvasGraphInput,
-        now: NaiveDateTime,
-    ) -> Result<CanvasGraphDocument, AppError> {
-        let document = self
-            .canvas
-            .save_canvas_graph_record(
-                project_id,
-                canvas_graph_record_input(input, expected_version),
-                now,
-            )
-            .await?;
-        canvas_graph_document(document)
-    }
-
     pub(crate) async fn upsert_canvas_text_asset_record(
         &self,
         project_id: i64,
@@ -308,28 +277,6 @@ impl OrchestratorContext {
         self.canvas
             .upsert_canvas_text_asset_record(project_id, input, now)
             .await
-    }
-
-    pub(crate) async fn upsert_canvas_text_asset(
-        &self,
-        project_id: i64,
-        input: CanvasTextAssetInput,
-        now: NaiveDateTime,
-    ) -> Result<CanvasTextAssetSummary, AppError> {
-        let record = self
-            .canvas
-            .upsert_canvas_text_asset_record(
-                project_id,
-                CanvasTextAssetRecordInput {
-                    id: input.id,
-                    title: input.title,
-                    text_kind: input.text_kind,
-                    content: input.content,
-                },
-                now,
-            )
-            .await?;
-        Ok(canvas_text_asset_summary(record))
     }
 
     pub(crate) async fn upsert_freeform_canvas_generation_spec_record(
@@ -480,70 +427,6 @@ impl OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
         self.begin_workflow_run_validated(input).await
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::canvas::CanvasReadApplicationPort for OrchestratorContext {
-    async fn get_graph(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::canvas::GetCanvasGraphInput,
-    ) -> Result<a4n_api_contract::canvas::CanvasGraphDocument, AppError> {
-        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.get_or_create_canvas_graph(input.project_id, input.graph_id, Utc::now().naive_utc())
-            .await
-    }
-
-    async fn read_graph(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::canvas::ReadCanvasGraphInput,
-    ) -> Result<a4n_api_contract::canvas::CanvasGraphReadResult, AppError> {
-        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.read_canvas_graph(input).await
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::canvas::CanvasMutationApplicationPort for OrchestratorContext {
-    async fn save_graph(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::canvas::SaveCanvasGraphInput,
-    ) -> Result<a4n_api_contract::canvas::CanvasGraphDocument, AppError> {
-        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.save_canvas_graph(
-            input.project_id,
-            input.expected_version,
-            input.graph,
-            Utc::now().naive_utc(),
-        )
-        .await
-    }
-
-    async fn edit_graph(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::canvas::EditCanvasGraphInput,
-    ) -> Result<a4n_api_contract::canvas::CanvasGraphEditResult, AppError> {
-        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.edit_canvas_graph(input).await
-    }
-
-    async fn save_text_asset(
-        &self,
-        user_id: i64,
-        input: a4n_api_contract::canvas::SaveCanvasTextAssetInput,
-    ) -> Result<a4n_api_contract::canvas::CanvasTextAssetSummary, AppError> {
-        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.upsert_canvas_text_asset(input.project_id, input.text_asset, Utc::now().naive_utc())
-            .await
     }
 }
 
@@ -954,202 +837,5 @@ impl CanvasGraphFailureApplicationPort for OrchestratorContext {
             .await
             .map(|_| ())
             .map_err(|error| error.to_string())
-    }
-}
-
-fn canvas_graph_record_input(
-    input: CanvasGraphInput,
-    expected_version: Option<i32>,
-) -> CanvasGraphRecordInput {
-    CanvasGraphRecordInput {
-        id: input.id,
-        expected_version,
-        name: Some(input.name),
-        graph_kind: Some(input.graph_kind),
-        viewport_json: input.viewport_json.map(canvas_json_value),
-        nodes: input
-            .nodes
-            .into_iter()
-            .map(|node| CanvasNodeRecordInput {
-                client_id: node.client_id,
-                node_kind: node.node_kind,
-                ref_type: node.ref_type,
-                ref_id: node.ref_id,
-                config_json: Some(canvas_json_value(node.config_json)),
-                position_json: canvas_json_value(node.position_json),
-                state: Some(node.state),
-            })
-            .collect(),
-        edges: input
-            .edges
-            .into_iter()
-            .map(|edge| CanvasEdgeRecordInput {
-                source_client_id: edge.source_client_id,
-                target_client_id: edge.target_client_id,
-                source_port: edge.source_port,
-                target_port: edge.target_port,
-                role: edge.role,
-                config_json: Some(canvas_json_value(edge.config_json)),
-            })
-            .collect(),
-    }
-}
-
-fn canvas_graph_document(
-    document: CanvasGraphRecordDocument,
-) -> Result<CanvasGraphDocument, AppError> {
-    let CanvasGraphRecordDocument {
-        graph,
-        nodes,
-        edges,
-        text_assets: _,
-    } = document;
-    let viewport_json = graph
-        .viewport_json
-        .map(|value| canvas_json_object(value, "canvas_graph.viewport_json"))
-        .transpose()?;
-    let nodes = nodes
-        .into_iter()
-        .map(|node| {
-            Ok(CanvasNodeSummary {
-                id: node.id,
-                node_kind: node.node_kind,
-                ref_type: node.ref_type,
-                ref_id: node.ref_id,
-                config_json: canvas_json_object(node.config_json, "canvas_node.config_json")?,
-                position_json: canvas_json_object(node.position_json, "canvas_node.position_json")?,
-                state: node.state,
-            })
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
-    let edges = edges
-        .into_iter()
-        .map(|edge| {
-            Ok(CanvasEdgeSummary {
-                id: edge.id,
-                source_node_id: edge.source_node_id,
-                target_node_id: edge.target_node_id,
-                source_port: edge.source_port,
-                target_port: edge.target_port,
-                role: edge.role,
-                config_json: canvas_json_object(edge.config_json, "canvas_edge.config_json")?,
-            })
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
-    Ok(CanvasGraphDocument {
-        graph: CanvasGraphSummary {
-            id: graph.id,
-            name: graph.name,
-            graph_kind: graph.graph_kind,
-            version: graph.version,
-            viewport_json,
-        },
-        nodes,
-        edges,
-    })
-}
-
-fn canvas_text_asset_summary(record: canvas_text_asset::Model) -> CanvasTextAssetSummary {
-    CanvasTextAssetSummary {
-        id: record.id,
-        text_kind: record.text_kind,
-        content: record.content,
-    }
-}
-
-fn canvas_json_object(value: Value, field: &str) -> Result<CanvasJsonObject, AppError> {
-    match value {
-        Value::Object(object) => Ok(object.into_iter().collect()),
-        _ => Err(AppError::InvalidState {
-            current: format!("{field} 不是 JSON 对象"),
-            operation: "输出 CanvasGraphDocument".to_string(),
-        }),
-    }
-}
-
-fn canvas_json_value(input: CanvasJsonObject) -> Value {
-    Value::Object(input.into_iter().collect())
-}
-
-#[cfg(test)]
-mod tests {
-    use a4n_db_models::models::canvas::{canvas_graph, canvas_text_asset};
-    use chrono::DateTime;
-    use serde_json::json;
-
-    use super::{AppError, CanvasGraphRecordDocument, canvas_graph_document, canvas_json_object};
-
-    #[test]
-    fn canvas_graph_document_projects_only_api_contract() {
-        let now = DateTime::UNIX_EPOCH.naive_utc();
-        let document = canvas_graph_document(CanvasGraphRecordDocument {
-            graph: canvas_graph::Model {
-                id: 7,
-                project_id: 11,
-                name: "画布".to_string(),
-                graph_kind: "video".to_string(),
-                version: 3,
-                viewport_json: Some(json!({ "zoom": 1 })),
-                created_at: now,
-                updated_at: now,
-            },
-            nodes: Vec::new(),
-            edges: Vec::new(),
-            text_assets: Vec::new(),
-        })
-        .expect("record document should project");
-
-        assert_eq!(
-            serde_json::to_value(document).expect("document should serialize"),
-            json!({
-                "graph": {
-                    "id": 7,
-                    "name": "画布",
-                    "graph_kind": "video",
-                    "version": 3,
-                    "viewport_json": { "zoom": 1 }
-                },
-                "nodes": [],
-                "edges": []
-            })
-        );
-    }
-
-    #[test]
-    fn canvas_text_asset_summary_projects_only_api_contract() {
-        let now = DateTime::UNIX_EPOCH.naive_utc();
-        let summary = super::canvas_text_asset_summary(canvas_text_asset::Model {
-            id: 5,
-            project_id: 11,
-            title: "内部标题".to_string(),
-            text_kind: "script".to_string(),
-            content: "正文".to_string(),
-            content_hash: "hash".to_string(),
-            created_at: now,
-            updated_at: now,
-        });
-
-        assert_eq!(
-            serde_json::to_value(summary).expect("summary should serialize"),
-            json!({
-                "id": 5,
-                "text_kind": "script",
-                "content": "正文"
-            })
-        );
-    }
-
-    #[test]
-    fn canvas_json_object_rejects_non_object_values() {
-        assert_eq!(
-            canvas_json_object(json!({ "x": 1 }), "canvas_node.config_json")
-                .expect("object should be accepted")
-                .get("x"),
-            Some(&json!(1))
-        );
-        assert!(matches!(
-            canvas_json_object(json!(null), "canvas_node.config_json"),
-            Err(AppError::InvalidState { .. })
-        ));
     }
 }

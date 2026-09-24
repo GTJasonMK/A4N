@@ -1,4 +1,4 @@
-use a4n_db::galgame::{GalgameAssetPlanSpecRecordInput, GalgameGenerationSpecUpsertInput};
+use a4n_domain::galgame::{GalgameAssetPlanSpecRecordInput, GalgameGenerationSpecUpsertInput};
 use serde_json::Value;
 
 pub(super) struct GalgameSpecInput {

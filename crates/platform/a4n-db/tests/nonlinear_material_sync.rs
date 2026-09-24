@@ -14,17 +14,14 @@ use a4n_db::{
         sync_chapter_outline_records_by_number,
     },
     project::{
-        ChapterSourceSnapshot, CreateProjectRecordInput, ProjectChapterOutlineUpdateInput,
+        CreateProjectRecordInput, ProjectChapterOutlineUpdateInput,
         RetrospectiveChapterOutlineAction, RetrospectiveChapterOutlineUpsertInput,
         character_sync_chapters, create_project_record,
         delete_automatic_chapter_outlines_for_source_change,
         formal_chapter_outline_by_project_number, update_chapter_outline_record,
         upsert_retrospective_chapter_outline_checked,
     },
-    scene_profile::{
-        SceneProfileDbError, SceneProfileRecordDraft, SceneSyncRecordInput,
-        replace_chapter_scene_sync_with_generation_run_records,
-    },
+    scene_profile::{SceneProfileDbError, replace_chapter_scene_sync_with_generation_run_records},
     text_anchor::{
         EVIDENCE_ROLE_FIRST_SEEN, delete_chapter_content_profile_evidence_records,
         merge_profile_evidence_records_batch, rebuild_chapter_content_anchor_records,
@@ -41,8 +38,12 @@ use a4n_db_models::models::{
 use a4n_domain::chapter::ChapterOutlineSyncDraft;
 use a4n_domain::chapter::ImportChapterContentInput;
 use a4n_domain::generation::ProjectLifecycleOperation;
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::object_profile::{ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput};
-use a4n_domain::scene_profile::{SceneProfileEvidenceRecordInput, SceneProfileRecordInput};
+use a4n_domain::scene_profile::{
+    SceneProfileEvidenceRecordInput, SceneProfileRecordDraft, SceneProfileRecordInput,
+    SceneSyncRecordInput,
+};
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use chrono::{Duration, Utc};
 use sea_orm::{
@@ -95,8 +96,8 @@ async fn insert_source_chapter(
     .expect("source chapter must be inserted")
 }
 
-fn object_generation_run(project_id: i64) -> a4n_db::generation::RecordCompletedGenerationRunInput {
-    a4n_db::generation::RecordCompletedGenerationRunInput {
+fn object_generation_run(project_id: i64) -> RecordCompletedGenerationRunInput {
+    RecordCompletedGenerationRunInput {
         project_id,
         workflow: "object_discovery".to_string(),
         step_key: "object_discovery.llm".to_string(),
@@ -117,7 +118,7 @@ fn object_generation_run(project_id: i64) -> a4n_db::generation::RecordCompleted
     }
 }
 
-fn scene_generation_run(project_id: i64) -> a4n_db::generation::RecordCompletedGenerationRunInput {
+fn scene_generation_run(project_id: i64) -> RecordCompletedGenerationRunInput {
     let mut run = object_generation_run(project_id);
     run.workflow = "scene_profile_sync".to_string();
     run.step_key = "sync_scene_profiles_for_chapter".to_string();
@@ -125,9 +126,7 @@ fn scene_generation_run(project_id: i64) -> a4n_db::generation::RecordCompletedG
     run
 }
 
-fn character_discovery_generation_run(
-    project_id: i64,
-) -> a4n_db::generation::RecordCompletedGenerationRunInput {
+fn character_discovery_generation_run(project_id: i64) -> RecordCompletedGenerationRunInput {
     let mut run = object_generation_run(project_id);
     run.workflow = "character_discovery".to_string();
     run.step_key = "character_discovery.llm".to_string();
@@ -744,7 +743,7 @@ async fn retrospective_outline_yields_to_manual_edit() {
     let created = upsert_retrospective_chapter_outline_checked(
         &db,
         input("first", "自动摘要"),
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
     )
     .await
     .expect("retrospective outline must be created");
@@ -789,7 +788,7 @@ async fn retrospective_outline_yields_to_manual_edit() {
     let preserved = upsert_retrospective_chapter_outline_checked(
         &db,
         input("second", "不应覆盖"),
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
     )
     .await
     .expect("user-owned outline must be preserved");
@@ -851,7 +850,7 @@ async fn source_change_removes_only_analysis_owned_outline() {
             word_count_target: 3,
             source_fingerprint_json: json!({"fingerprint": "old"}),
         },
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
     )
     .await
     .expect("automatic outline must be created");
@@ -903,7 +902,7 @@ async fn stale_chapter_source_rejects_object_discovery_write() {
     .insert(&db)
     .await
     .expect("source chapter must be inserted");
-    let source = ChapterSourceSnapshot::from(&chapter);
+    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
 
     let mut changed: chapter::ActiveModel = chapter.into();
     changed.content = Set("用户改成了没有钥匙的版本".to_string());
@@ -961,7 +960,7 @@ async fn stale_chapter_source_rejects_scene_sync_write() {
     .insert(&db)
     .await
     .expect("source chapter must be inserted");
-    let source = ChapterSourceSnapshot::from(&chapter);
+    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
 
     let mut changed: chapter::ActiveModel = chapter.clone().into();
     changed.content = Set("用户改成了露天广场".to_string());
@@ -1126,7 +1125,9 @@ async fn object_discovery_evidence_failure_rolls_back_profile_and_generation() {
         &db,
         project_id,
         vec![discovered_object()],
-        vec![ChapterSourceSnapshot::from(&chapter)],
+        vec![a4n_db::project::chapter_source_snapshot_from_model(
+            &chapter,
+        )],
         vec![ObjectProfileEvidenceRecordInput {
             normalized_name: "青铜钥匙".to_string(),
             text_anchor_ids: vec![i64::MAX],
@@ -1177,7 +1178,7 @@ async fn scene_sync_evidence_failure_rolls_back_profile_and_generation() {
         project_id,
         chapter.id,
         chapter.chapter_number,
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
         discovered_scene(),
         vec![SceneProfileEvidenceRecordInput {
             scene_ref: "old-study".to_string(),

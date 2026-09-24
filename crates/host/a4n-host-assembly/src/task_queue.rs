@@ -6,8 +6,6 @@ use a4n_api_contract::task::{
 use a4n_error::AppError;
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 
-/// Runtime owns queue cancellation and scheduler observation at the Host
-/// boundary; business applications only use the queue for their own work.
 pub(crate) struct TaskQueueApplication {
     queue: Arc<PersistentTaskQueue>,
 }

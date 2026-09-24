@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 a4n-api-contract = { workspace = true }
 a4n-error = { workspace = true, default-features = true }
 a4n-foreshadowing-worker-contract = { workspace = true }
@@ -13,4 +14,5 @@ a4n-worker-contract = { workspace = true }
 
 async-trait = { workspace = true }
 serde = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }

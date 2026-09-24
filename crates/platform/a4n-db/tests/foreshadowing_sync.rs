@@ -1,8 +1,7 @@
 use a4n_db::project::{
-    ChapterSourceSnapshot, CreateProjectRecordInput, ForeshadowingAnalysisDraft,
-    ForeshadowingDbError, cleanup_foreshadowing_for_chapter, create_foreshadowing_record,
-    create_project_record, delete_foreshadowing_record, sync_chapter_analysis_foreshadowing,
-    update_foreshadowing_record,
+    CreateProjectRecordInput, ForeshadowingAnalysisDraft, ForeshadowingDbError,
+    cleanup_foreshadowing_for_chapter, create_foreshadowing_record, create_project_record,
+    delete_foreshadowing_record, sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
 };
 use a4n_db_models::models::{chapter::chapter, character::foreshadowing_index};
 use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
@@ -86,7 +85,7 @@ async fn sync_resolves_idempotently_and_preserves_when_reanalysis_omits_it() {
     let db = setup_db().await;
     let project_id = create_project(&db).await;
     let chapter = insert_chapter(&db, project_id, 8).await;
-    let source = ChapterSourceSnapshot::from(&chapter);
+    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
     let planted = insert_foreshadowing(&db, project_id, "门后的脚步声", 2, None, "pending").await;
 
     let first =
@@ -143,7 +142,7 @@ async fn sync_reports_created_updated_and_existing_setups() {
 
     let result = sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
         vec![
             ForeshadowingAnalysisDraft {
                 description: "保持不变".to_string(),
@@ -182,7 +181,7 @@ async fn sync_preserves_setup_that_a_repeat_analysis_does_not_return() {
 
     sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
         Vec::new(),
         Vec::new(),
     )
@@ -207,7 +206,7 @@ async fn invalid_resolution_rolls_back_current_chapter_reopen() {
 
     let error = sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&chapter),
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
         Vec::new(),
         vec![i64::MAX],
     )
@@ -232,7 +231,7 @@ async fn stale_chapter_source_rejects_all_foreshadowing_writes() {
     let db = setup_db().await;
     let project_id = create_project(&db).await;
     let chapter = insert_chapter(&db, project_id, 8).await;
-    let source = ChapterSourceSnapshot::from(&chapter);
+    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
     let pending = insert_foreshadowing(&db, project_id, "门后的脚步声", 2, None, "pending").await;
     let mut changed: chapter::ActiveModel = chapter.into();
     changed.content = Set("用户重写后的正文".to_string());

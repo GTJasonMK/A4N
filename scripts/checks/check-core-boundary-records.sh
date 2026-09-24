@@ -290,15 +290,25 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     exit 1
 fi
 
-if ! rg -n 'ObjectProfileWorkerClient::from_env\(\)' \
-    crates/host/a4n-runtime/src/actions/object_profile_records/mutations.rs; then
-    printf 'Runtime object profile mutation actions must route through ObjectProfileWorkerClient\n' >&2
+if ! rg -n 'object_profile_mutation_application\(\)' \
+    crates/host/a4n-runtime/src/actions/object_profile_records/mutations.rs || \
+   ! rg -n '\.(create|update|delete)\(user_id, input\)' \
+    crates/host/a4n-runtime/src/actions/object_profile_records/mutations.rs || \
+   ! rg -n 'ObjectProfileWorkerClient::from_env\(\)' crates/host/a4n-host-assembly/src/lib.rs || \
+   ! rg -n 'object_profile_mutation_application: object_profile_worker' \
+    crates/host/a4n-host-assembly/src/lib.rs; then
+    printf 'Object profile mutations must route through the injected Worker application port\n' >&2
     exit 1
 fi
 
-if ! rg -n 'SceneProfileWorkerClient::from_env\(\)' \
-    crates/host/a4n-runtime/src/actions/scene_profile_records/mutations.rs; then
-    printf 'Runtime scene profile mutation actions must route through SceneProfileWorkerClient\n' >&2
+if ! rg -n 'scene_profile_mutation_application\(\)' \
+    crates/host/a4n-runtime/src/actions/scene_profile_records/mutations.rs || \
+   ! rg -n '\.(create|update|delete)\(user_id, input\)' \
+    crates/host/a4n-runtime/src/actions/scene_profile_records/mutations.rs || \
+   ! rg -n 'SceneProfileWorkerClient::from_env\(\)' crates/host/a4n-host-assembly/src/lib.rs || \
+   ! rg -n 'scene_profile_mutation_application: scene_profile_worker' \
+    crates/host/a4n-host-assembly/src/lib.rs; then
+    printf 'Scene profile mutations must route through the injected Worker application port\n' >&2
     exit 1
 fi
 

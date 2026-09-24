@@ -1,6 +1,6 @@
-use a4n_db::galgame::GalgameGenerationSpecUpsertInput;
 use a4n_db::galgame::GalgamePipelinePromptTextAnchorRecord;
 use a4n_db_models::models::{galgame::galgame_line, generation::generation_spec};
+use a4n_domain::galgame::GalgameGenerationSpecUpsertInput;
 use chrono::Utc;
 use serde_json::{Value, json};
 

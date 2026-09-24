@@ -10,9 +10,7 @@ use std::{
 use a4n_agent_runtime::AgentRuntimeShared;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_config::app_config::AppConfig;
-use a4n_db::character::Sha256SnapshotStore;
 use a4n_event::{BroadcastEventBus, InternalEvent};
-use a4n_task_runtime::persistent::PersistentTaskQueue;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AgentHostCommandPayload, AgentRunPayload, WorkerEnvelope,
 };
@@ -51,10 +49,6 @@ pub struct AppState {
     /// Managed service health queries stay with the service manager owner.
     service_health_application:
         Arc<dyn a4n_api_contract::service_health::ServiceHealthApplicationPort>,
-    /// Standalone queue cancellation boundary for tasks without a workflow.
-    task_cancellation_application: Arc<dyn a4n_api_contract::task::TaskCancellationPort>,
-    /// Host-facing scheduler statistics boundary.
-    task_queue_stats_application: Arc<dyn a4n_api_contract::task::TaskQueueStatsApplicationPort>,
     application_ports: ApplicationPorts,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
     capabilities: RuntimeCapabilities,

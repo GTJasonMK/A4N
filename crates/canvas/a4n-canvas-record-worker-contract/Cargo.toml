@@ -1,0 +1,11 @@
+[package]
+name = "a4n-canvas-record-worker-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-api-contract = { workspace = true }
+a4n-worker-contract = { workspace = true }
+
+serde = { workspace = true }

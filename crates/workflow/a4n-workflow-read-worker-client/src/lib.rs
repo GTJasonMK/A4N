@@ -2,8 +2,10 @@
 
 use a4n_api_contract::task::{TaskInfoSummary, TaskReadApplicationPort};
 use a4n_api_contract::workflow::{
-    GetWorkflowRunInput, ListWorkflowRunsInput, WorkflowReadApplicationPort,
-    WorkflowRunDetailSummary, WorkflowRunSummary,
+    ActiveTaskLookupRecord, GetWorkflowRunInput, ListWorkflowRunsInput, TaskLookupRecord,
+    WorkflowProgressEvent, WorkflowProgressEventsInput, WorkflowReadApplicationPort,
+    WorkflowResumeRecord, WorkflowRunDetailSummary, WorkflowRunSummary, WorkflowTaskAccessRecord,
+    WorkflowTaskLookupApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -12,8 +14,11 @@ use a4n_worker_contract::{
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
 use a4n_workflow_read_worker_contract::{
-    GetTaskHistoryInput, TASK_READ_HISTORY_OPERATION, WORKFLOW_READ_DETAIL_OPERATION,
-    WORKFLOW_READ_LIST_OPERATION, WORKFLOW_READ_WORKER_ID,
+    EmptyInput, GetTaskHistoryInput, TASK_LOOKUP_ACTIVE_OPERATION, TASK_LOOKUP_BY_ID_OPERATION,
+    TASK_READ_HISTORY_OPERATION, TaskIdInput, WORKFLOW_ACCESS_ACTIVE_TASK_OPERATION,
+    WORKFLOW_READ_DETAIL_OPERATION, WORKFLOW_READ_LIST_OPERATION,
+    WORKFLOW_READ_PROGRESS_EVENTS_OPERATION, WORKFLOW_READ_RESUME_RECORD_OPERATION,
+    WORKFLOW_READ_SUMMARY_OPERATION, WORKFLOW_READ_WORKER_ID, WorkflowRunIdInput,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47672";
@@ -126,6 +131,15 @@ impl WorkflowReadWorkerClient {
             subject: "runtime".into(),
         }
     }
+
+    async fn service_command<I, O>(&self, operation: &str, payload: I) -> Result<O, AppError>
+    where
+        I: serde::Serialize,
+        O: serde::de::DeserializeOwned,
+    {
+        self.command(Self::service_principal(), None, operation, payload)
+            .await
+    }
 }
 
 #[async_trait::async_trait]
@@ -174,6 +188,75 @@ impl TaskReadApplicationPort for WorkflowReadWorkerClient {
             GetTaskHistoryInput {
                 project_id,
                 offset,
+                limit,
+            },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl WorkflowTaskLookupApplicationPort for WorkflowReadWorkerClient {
+    async fn task_by_id(&self, task_id: &str) -> Result<Option<TaskLookupRecord>, AppError> {
+        self.service_command(
+            TASK_LOOKUP_BY_ID_OPERATION,
+            TaskIdInput {
+                task_id: task_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    async fn active_tasks(&self) -> Result<Vec<ActiveTaskLookupRecord>, AppError> {
+        self.service_command(TASK_LOOKUP_ACTIVE_OPERATION, EmptyInput {})
+            .await
+    }
+
+    async fn workflow_access_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<WorkflowTaskAccessRecord>, AppError> {
+        self.service_command(
+            WORKFLOW_ACCESS_ACTIVE_TASK_OPERATION,
+            TaskIdInput {
+                task_id: task_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    async fn workflow_run_for_resume(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowResumeRecord, AppError> {
+        self.service_command(
+            WORKFLOW_READ_RESUME_RECORD_OPERATION,
+            WorkflowRunIdInput { workflow_run_id },
+        )
+        .await
+    }
+
+    async fn workflow_run_summary(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowRunSummary, AppError> {
+        self.service_command(
+            WORKFLOW_READ_SUMMARY_OPERATION,
+            WorkflowRunIdInput { workflow_run_id },
+        )
+        .await
+    }
+
+    async fn workflow_progress_events(
+        &self,
+        workflow_run_id: i64,
+        limit: usize,
+    ) -> Result<Vec<WorkflowProgressEvent>, AppError> {
+        self.service_command(
+            WORKFLOW_READ_PROGRESS_EVENTS_OPERATION,
+            WorkflowProgressEventsInput {
+                task_id: None,
+                workflow_run_id: Some(workflow_run_id),
                 limit,
             },
         )

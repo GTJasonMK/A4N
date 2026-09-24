@@ -21,7 +21,7 @@ pub struct WorkflowProgressEventsResponse {
     pub stream_text: Option<String>,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct WorkflowStateSummary {
     pub task_id: String,
     pub root_project_id: Option<i64>,
@@ -123,7 +123,7 @@ pub struct CancelWorkflowInput {
     pub workflow_run_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WorkflowProgressEventsInput {
     pub task_id: Option<String>,
@@ -160,7 +160,7 @@ pub struct ResumeWorkflowRunInput {
 /// Runtime-only task/workflow lookup record. Persistence and ORM models stay
 /// inside the workflow owner; Runtime receives only the fields needed for
 /// access checks, progress routing, and resume dispatch.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TaskLookupRecord {
     pub task_id: String,
     pub project_id: Option<i64>,
@@ -169,6 +169,7 @@ pub struct TaskLookupRecord {
     pub status: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ActiveTaskLookupRecord {
     pub task_id: String,
     pub project_id: Option<i64>,
@@ -177,14 +178,14 @@ pub struct ActiveTaskLookupRecord {
     pub workflow: WorkflowStateSummary,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct WorkflowTaskAccessRecord {
     pub workflow_run_id: i64,
     pub project_id: Option<i64>,
     pub root_project_id: Option<i64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct WorkflowResumeRecord {
     pub id: i64,
     pub workflow_kind: String,
@@ -197,6 +198,14 @@ pub struct WorkflowResumeRecord {
     pub status: String,
     pub can_resume: bool,
     pub resume_block_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct WorkflowCancellationResult {
+    pub workflow_run_id: i64,
+    pub active_task_id: Option<String>,
+    pub interrupted_generated_video_ids: Vec<i64>,
+    pub already_terminal: bool,
 }
 
 /// Narrow lookup boundary used by Runtime task/workflow actions.
@@ -245,6 +254,37 @@ pub trait WorkflowCancellationPort: Send + Sync {
         &self,
         workflow_run_id: i64,
         active_task_id: &str,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Persistence-only workflow lifecycle boundary.
+///
+/// Queue handles and cross-domain media interruption stay outside this worker;
+/// callers receive the durable cancellation facts and apply those side effects
+/// through their existing owners.
+#[async_trait::async_trait]
+pub trait WorkflowLifecycleApplicationPort: Send + Sync {
+    async fn mark_running(&self, workflow_run_id: i64) -> Result<(), a4n_error::AppError>;
+
+    async fn cancel(
+        &self,
+        workflow_run_id: i64,
+        reason: &str,
+    ) -> Result<WorkflowCancellationResult, a4n_error::AppError>;
+
+    async fn resume_with_active_task(
+        &self,
+        workflow_run_id: i64,
+        active_task_id: &str,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+#[async_trait::async_trait]
+pub trait WorkflowCancellationSideEffectsPort: Send + Sync {
+    async fn apply_cancellation_side_effects(
+        &self,
+        cancellation: WorkflowCancellationResult,
+        reason: &str,
     ) -> Result<(), a4n_error::AppError>;
 }
 

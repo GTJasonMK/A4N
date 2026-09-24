@@ -565,6 +565,28 @@ def service_response_ok(result: HttpResult) -> bool:
     return isinstance(value, dict) and value.get("status") == "ok" and isinstance(value.get("payload"), dict)
 
 
+def slow_consumer_observation_passed(
+    *,
+    slow_response_statuses: list[int],
+    expected_slow_responses: int,
+    held_queue_depth: int,
+    queue_capacity: int,
+    queued_results: list[HttpResult],
+    drained_results: list[HttpResult],
+) -> bool:
+    return (
+        expected_slow_responses > 0
+        and len(slow_response_statuses) == expected_slow_responses
+        and all(status == 200 for status in slow_response_statuses)
+        and held_queue_depth > 0
+        and len(queued_results) == queue_capacity + 1
+        and sum(service_response_ok(result) for result in queued_results) == queue_capacity
+        and sum(result.status == 429 for result in queued_results) == 1
+        and len(drained_results) == expected_slow_responses
+        and all(result.status == 200 and result.error is None for result in drained_results)
+    )
+
+
 def metrics_delta(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     validate_metrics_snapshot(before, "metrics before")
     validate_metrics_snapshot(after, "metrics after")
@@ -1357,22 +1379,30 @@ class RuntimeRunner:
 
             rejected = sum(result.status == 429 for result in queued_results)
             successful = sum(service_response_ok(result) for result in queued_results)
+            slow_response_statuses = [handle["response"].status for handle in handles]
+            observed = slow_consumer_observation_passed(
+                slow_response_statuses=slow_response_statuses,
+                expected_slow_responses=slow_count,
+                held_queue_depth=held_queue_depth,
+                queue_capacity=queue_capacity,
+                queued_results=queued_results,
+                drained_results=drained,
+            )
             return {
-                "status": (
-                    "observed"
-                    if len(handles) == slow_count and held_queue_depth > 0 and rejected >= 1
-                    else "partial"
-                ),
+                "status": "observed" if observed else "partial",
                 "slow_response_count": len(handles),
                 "expected_slow_response_count": slow_count,
-                "slow_response_statuses": [handle["response"].status for handle in handles],
+                "slow_response_statuses": slow_response_statuses,
                 "metrics_samples": len(samples),
                 "metrics_poll_errors": poll_errors,
                 "max_queue_depth_while_body_held": held_queue_depth,
                 "queued_requests": queued_count,
+                "expected_queued_successful_responses": queue_capacity,
                 "queued_successful_responses": successful,
+                "expected_queued_rejected_responses": 1,
                 "queued_rejected_responses": rejected,
                 "drained_response_statuses": [result.status for result in drained],
+                "drained_error_count": sum(result.error is not None for result in drained),
                 "open_errors": open_errors,
                 "fairness": {
                     "status": "not_applicable",
@@ -1924,6 +1954,33 @@ def self_test() -> None:
         raise AssertionError("missing post-run operation metrics must fail explicitly")
     assert service_response_ok(HttpResult(200, b'{"status":"ok","payload":{}}', 0))
     assert not service_response_ok(HttpResult(200, b'{"status":"error"}', 0))
+    queue_capacity = 4
+    queued_results = [
+        HttpResult(200, b'{"status":"ok","payload":{}}', 0)
+        for _ in range(queue_capacity)
+    ] + [HttpResult(429, b"queue full", 0)]
+    drained_results = [HttpResult(200, b"", 0, response_bytes=1) for _ in range(2)]
+    observation = {
+        "slow_response_statuses": [200, 200],
+        "expected_slow_responses": 2,
+        "held_queue_depth": 2,
+        "queue_capacity": queue_capacity,
+        "queued_results": queued_results,
+        "drained_results": drained_results,
+    }
+    assert slow_consumer_observation_passed(**observation)
+    assert not slow_consumer_observation_passed(
+        **{
+            **observation,
+            "queued_results": [HttpResult(429, b"queue full", 0) for _ in range(queue_capacity + 1)],
+        }
+    ), "queue rejections without successful releases must not count as observed"
+    assert not slow_consumer_observation_passed(
+        **{
+            **observation,
+            "drained_results": [HttpResult(200, b"", 0, error="truncated response"), drained_results[1]],
+        }
+    ), "held responses with drain errors must not count as observed"
     assert 2_377_237 in PROTECTED_PIDS and 3_425_752 in PROTECTED_PIDS and 3_424_452 in PROTECTED_PIDS
     from unittest.mock import patch
 

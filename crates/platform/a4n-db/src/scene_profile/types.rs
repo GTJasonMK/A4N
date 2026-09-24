@@ -1,9 +1,4 @@
-use a4n_domain::scene_profile::{
-    SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileRecordInput,
-    SceneTransitionRecordInput,
-};
 use sea_orm::DbErr;
-use std::collections::BTreeMap;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SceneProfileDbError {
@@ -42,27 +37,3 @@ impl From<crate::text_anchor::TextAnchorDbError> for SceneProfileDbError {
 }
 
 pub type SceneProfileDbResult<T> = Result<T, SceneProfileDbError>;
-
-#[derive(Debug, Clone)]
-pub struct SceneProfileRecordDraft {
-    pub scene_ref: String,
-    pub scene_profile_id: Option<i64>,
-    pub input: SceneProfileRecordInput,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SceneSyncRecordInput {
-    pub profiles: Vec<SceneProfileRecordDraft>,
-    pub occurrences: Vec<SceneOccurrenceRecordInput>,
-    pub transitions: Vec<SceneTransitionRecordInput>,
-    pub entity_states: Vec<SceneEntityStateRecordInput>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SceneSyncRecordResult {
-    pub profile_ids: Vec<i64>,
-    pub profile_ref_ids: BTreeMap<String, i64>,
-    pub occurrence_count: usize,
-    pub transition_count: usize,
-    pub entity_state_count: usize,
-}

@@ -211,6 +211,15 @@ pub trait SceneProfileMutationApplicationPort: Send + Sync {
     ) -> Result<SceneProfileDeleteOutcome, a4n_error::AppError>;
 }
 
+#[async_trait::async_trait]
+pub trait SceneProfileRecordSyncApplicationPort: Send + Sync {
+    async fn replace_chapter_scene_sync_records(
+        &self,
+        user_id: i64,
+        input: a4n_domain::scene_profile::SceneProfileSyncRecordsInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host-facing object profile mutation boundary.
 ///
 /// Authorization, conflict policy, persistence and DTO projection stay with
@@ -435,24 +444,49 @@ pub trait ForeshadowingReadApplicationPort: Send + Sync {
     ) -> Result<Vec<ForeshadowingSummary>, a4n_error::AppError>;
 }
 
+/// Host callback for the post-commit foreshadowing RAG side effect.
+///
+/// The worker owns authorization and database persistence. Runtime keeps the
+/// RAG application as a Host concern and turns failures into warnings.
+#[async_trait::async_trait]
+pub trait ForeshadowingRagSyncHostPort: Send + Sync {
+    async fn sync_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn delete_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host-facing foreshadowing mutation boundary.
+///
+/// The worker owns authorization and persistence. Runtime only supplies the
+/// post-commit RAG callback and preserves warning semantics.
 #[async_trait::async_trait]
 pub trait ForeshadowingMutationApplicationPort: Send + Sync {
     async fn create(
         &self,
         user_id: i64,
+        host_port: &dyn ForeshadowingRagSyncHostPort,
         input: CreateForeshadowingInput,
     ) -> Result<ForeshadowingWriteResult, a4n_error::AppError>;
 
     async fn update(
         &self,
         user_id: i64,
+        host_port: &dyn ForeshadowingRagSyncHostPort,
         input: UpdateForeshadowingInput,
     ) -> Result<ForeshadowingWriteResult, a4n_error::AppError>;
 
     async fn delete(
         &self,
         user_id: i64,
+        host_port: &dyn ForeshadowingRagSyncHostPort,
         input: DeleteForeshadowingInput,
     ) -> Result<ForeshadowingWriteResult, a4n_error::AppError>;
 }

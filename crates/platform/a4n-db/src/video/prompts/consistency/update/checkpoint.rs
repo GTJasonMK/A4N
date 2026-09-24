@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::generation::GenerationRunTraceTarget;
 use a4n_domain::video_prompt::ChapterVideoPromptPatch;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
@@ -54,7 +55,7 @@ where
         ));
     }
 
-    let target = crate::generation::GenerationRunTraceTarget {
+    let target = GenerationRunTraceTarget {
         target_kind: "chapter_video_prompt".to_string(),
         target_table: "chapter_video_prompt".to_string(),
         target_id: row.id,

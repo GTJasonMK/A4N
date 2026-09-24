@@ -1,8 +1,6 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
-use a4n_domain::shooting_script::ChapterShootingScriptV1;
+use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV1};
 use sea_orm::DbErr;
-
-use crate::project::ResolvedChapterSource;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedChapterShootingScript {

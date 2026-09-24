@@ -24,11 +24,3 @@ pub struct GalgamePortraitSpecTargetProfile {
     pub project_id: i64,
     pub name: String,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GalgamePromptArtifactUpsertInput {
-    pub generation_spec_id: i64,
-    pub prompt_kind: String,
-    pub prompt_text: String,
-    pub renderer_version: String,
-}

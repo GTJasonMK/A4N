@@ -8,6 +8,10 @@ use a4n_db_models::models::{
     media::{media_asset, media_binding, media_provenance},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_domain::canvas::{
+    CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
+    FreeformCanvasGenerationSpecUpsertInput,
+};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::video_workflow::{WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_VIDEO};
 use sea_orm::{

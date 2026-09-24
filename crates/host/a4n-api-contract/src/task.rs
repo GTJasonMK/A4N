@@ -18,7 +18,7 @@ pub struct GetTaskHistoryInput {
     pub limit: u64,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TaskProgressSummary {
     pub current: u32,
     pub total: u32,

@@ -61,24 +61,6 @@ impl From<generated_video::Model> for CanvasVideoMediaSource {
 }
 
 #[derive(Debug, Clone)]
-pub struct FreeformCanvasGenerationSpecUpsertInput {
-    pub project_id: i64,
-    pub target_entity_id: i64,
-    pub canvas_text_asset_id: Option<i64>,
-    pub target_kind: String,
-    pub target_entity_kind: String,
-    pub status: String,
-    pub params_json: Value,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasPromptArtifactUpsertInput {
-    pub generation_spec_id: i64,
-    pub prompt_kind: String,
-    pub prompt_text: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct CanvasImageMediaAssetEnsureInput {
     pub project_id: i64,
     pub image: generated_image::Model,
@@ -100,21 +82,6 @@ pub(super) struct CanvasVideoMediaSourceEnsureInput {
     pub video: CanvasVideoMediaSource,
     pub generation_spec_id: Option<i64>,
     pub origin: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasAssemblySourceVideoInput {
-    pub video_id: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasAssemblyContractSyncInput {
-    pub project_id: i64,
-    pub graph_id: i64,
-    pub node_id: i64,
-    pub assembly_video_id: i64,
-    pub source_videos: Vec<CanvasAssemblySourceVideoInput>,
-    pub generation_spec_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

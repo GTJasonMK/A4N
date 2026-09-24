@@ -3,16 +3,14 @@ use a4n_db::blueprint::{
     next_blueprint_version_record, sync_project_after_blueprint_record,
     upsert_novel_blueprint_record, validate_blueprint_chapter_plan,
 };
-use a4n_db::generation::{
-    GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
-    record_completed_generation_run_in_transaction,
-};
+use a4n_db::generation::record_completed_generation_run_in_transaction;
 use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     insert_project_status_history, merge_blueprint_characters, merge_blueprint_relationships,
     project_by_id_record,
 };
 use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_domain::project::{
     BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_GENERATION_KIND,
     BLUEPRINT_GENERATION_PROMPTS, ParsedBlueprint, ProjectStatus, ProjectStatusHistoryInput,

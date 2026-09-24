@@ -4,11 +4,9 @@ mod references;
 mod transfer;
 
 pub use artifacts::{
-    CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary,
-    CanvasAssemblySourceVideoInput, CanvasImageMediaAssetEnsureInput, CanvasMediaAssetProbeRecord,
-    CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
-    CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput, canvas_media_asset_by_id,
+    CanvasAssemblyContractSyncSummary, CanvasImageMediaAssetEnsureInput,
+    CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
+    CanvasVideoMediaAssetEnsureInput, canvas_media_asset_by_id,
     ensure_canvas_image_media_asset_record, ensure_canvas_video_media_asset_record,
     mark_canvas_generation_spec_status_record, sync_canvas_assembly_contract_records,
     update_canvas_node_artifact_record, update_canvas_node_observation_record,

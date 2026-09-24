@@ -1,6 +1,5 @@
 use a4n_db_models::models::chapter::chapter_outline;
 use chrono::NaiveDateTime;
-use serde_json::Value;
 
 use crate::generation::GenerationDbError;
 
@@ -23,13 +22,6 @@ pub struct GeneratedChapterContentRecordInput {
     pub content: String,
     pub word_count: i32,
     pub now: NaiveDateTime,
-}
-
-#[derive(Debug, Clone)]
-pub struct StoreChapterAnalysisRecordInput {
-    pub analysis_data: Value,
-    pub summary: Option<String>,
-    pub style_tags: Option<Value>,
 }
 
 #[derive(Debug, thiserror::Error)]

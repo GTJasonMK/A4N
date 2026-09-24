@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 import subprocess
@@ -487,31 +488,38 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertIn("-p a4n-control", commands[0])
         self.assertNotIn("-p a4n-chapter-scene-worker ", commands[0])
 
+    def test_canvas_record_worker_change_builds_only_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/canvas/a4n-canvas-record-worker/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-canvas-record-worker", commands[0])
+        self.assertNotIn("-p a4n-control", commands[0])
+
+    def test_canvas_record_contract_change_builds_control_and_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/canvas/a4n-canvas-record-worker-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-canvas-record-worker", commands[0])
+
+    def test_canvas_record_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/canvas/a4n-canvas-record-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-canvas-record-worker ", commands[0])
+
     def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
         commands = self.run_watcher(ROOT / "crates/host/a4n-api-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        for package in (
-            "a4n-agent-worker",
-            "a4n-novel-planning-worker",
-            "a4n-artifact-media-worker",
-            "a4n-outline-worker",
-            "a4n-blueprint-worker",
-            "a4n-asset-graph-worker",
-            "a4n-foreshadowing-worker",
-            "a4n-object-profile-worker",
-            "a4n-scene-profile-worker",
-            "a4n-portrait-worker",
-            "a4n-source-snapshot-worker",
-            "a4n-theme-read-worker",
-            "a4n-project-read-worker",
-            "a4n-import-review-worker",
-            "a4n-inspiration-worker",
-            "a4n-project-access-worker",
-            "a4n-project-collaboration-worker",
-            "a4n-project-mutation-worker",
-            "a4n-chapter-scene-worker",
-        ):
+        self.assertIn("-p a4n-edge", commands[0])
+        worker_catalog = ROOT / "crates/process/a4n-process-catalog/worker-catalog.json"
+        for entry in json.loads(worker_catalog.read_text(encoding="utf-8")):
+            package = entry["binary"]
             self.assertIn(f"-p {package}", commands[0])
 
 

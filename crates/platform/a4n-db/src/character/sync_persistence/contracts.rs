@@ -5,11 +5,12 @@ use a4n_domain::character::{
     CharacterImplicitReviewDecisionRecordInput, CharacterSyncChapterStateRecordInput,
     InsertBehaviorRecordInput,
 };
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::project::ChapterSourceSnapshot;
+use a4n_domain::chapter::ChapterSourceSnapshot;
 
 #[derive(Debug, Clone)]
 pub struct CharacterSyncAttributeEventRecordInput {
@@ -67,7 +68,7 @@ pub struct CharacterSyncPersistenceInput {
     pub deletion_candidates: Vec<Value>,
     pub chapter_states: Vec<CharacterSyncChapterStateRecordInput>,
     pub implicit_review_decisions: Value,
-    pub generation_run: crate::generation::RecordCompletedGenerationRunInput,
+    pub generation_run: RecordCompletedGenerationRunInput,
 }
 
 #[derive(Debug, Clone, PartialEq)]

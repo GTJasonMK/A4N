@@ -1,10 +1,11 @@
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_db::generation::{
-    GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
-    RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
+    GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
+    generation_checkpoint_fingerprint_sha256,
 };
 use a4n_db_models::models::ai::generated_image;
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,

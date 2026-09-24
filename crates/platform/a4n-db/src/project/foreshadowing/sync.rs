@@ -17,7 +17,7 @@ use super::{
         foreshadowing_related_characters_after_setup_resync, foreshadowing_resolution_action,
     },
 };
-use crate::project::ChapterSourceSnapshot;
+use a4n_domain::chapter::ChapterSourceSnapshot;
 
 pub async fn sync_chapter_analysis_foreshadowing(
     db: &DatabaseConnection,

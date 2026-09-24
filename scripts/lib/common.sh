@@ -61,6 +61,29 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "未找到命令: $1"
 }
 
+stateful_worker_packages() {
+    require_command ruby
+    ruby -rjson -e '
+      JSON.parse(File.read(ARGV.fetch(0)))
+        .each { |entry| puts entry.fetch("binary") }
+    ' "$PROJECT_ROOT/crates/process/a4n-process-catalog/worker-catalog.json"
+}
+
+worker_client_packages() {
+    require_command ruby
+    (cd "$PROJECT_ROOT" && cargo metadata --locked --no-deps --format-version 1) |
+        ruby -rjson -e '
+          packages = JSON.parse(STDIN.read).fetch("packages")
+          packages
+            .map { |package| package.fetch("name") }
+            .select do |name|
+              name.end_with?("-worker-client") || name == "a4n-artifact-media-client"
+            end
+            .sort
+            .each { |name| puts name }
+        '
+}
+
 sha256_file() {
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum "$1" | awk '{print $1}'

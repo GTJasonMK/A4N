@@ -1,4 +1,4 @@
-use crate::project::ResolvedChapterSource;
+use a4n_domain::chapter::ResolvedChapterSource;
 
 use super::contracts::ShootingScriptDbError;
 

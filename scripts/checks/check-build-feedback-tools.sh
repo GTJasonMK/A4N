@@ -322,6 +322,37 @@ fi
     exit 1
 }
 
+host_test_bin="$fixture_root/host-test-bin"
+mkdir -p "$host_test_bin"
+printf '%s\n' '#!/usr/bin/env bash' 'printf 200' > "$host_test_bin/curl"
+chmod +x "$host_test_bin/curl"
+graceful_host="$fixture_root/graceful-host"
+printf '%s\n' \
+    '#!/usr/bin/env python3' \
+    'import os, signal, time' \
+    'signal.signal(signal.SIGTERM, signal.SIG_IGN)' \
+    'time.sleep(0.3)' \
+    'with open(os.environ["RUNTIME_HOST_STOP_FILE"], "w", encoding="utf-8") as stopped:' \
+    '    stopped.write("stopped")' > "$graceful_host"
+chmod +x "$graceful_host"
+graceful_host_report="$tmp_dir/runtime-report-graceful-host"
+RUNTIME_CARGO_LOG="$fixture_root/runtime-cargo-graceful-host.tsv"
+RUNTIME_HOST_STOP_FILE="$fixture_root/graceful-host-stopped"
+export RUNTIME_CARGO_LOG RUNTIME_HOST_STOP_FILE
+PATH="$host_test_bin:$PATH" "$runtime_measure" \
+    --source-snapshot "$snapshot" \
+    --report-dir "$graceful_host_report" \
+    --host-patch "$fixture_root/host.patch" \
+    --worker-patch "$fixture_root/worker.patch" \
+    --host-package host \
+    --worker-package worker \
+    --host-binary "$graceful_host" \
+    --ready-url http://127.0.0.1/ready >/dev/null
+[[ "$(< "$fixture_root/graceful-host-stopped")" == stopped ]] || {
+    echo "runtime measurement killed Host before graceful shutdown completed" >&2
+    exit 1
+}
+
 multi_runtime_cargo_log="$fixture_root/runtime-cargo-multi.tsv"
 RUNTIME_CARGO_LOG="$multi_runtime_cargo_log"
 export RUNTIME_CARGO_LOG

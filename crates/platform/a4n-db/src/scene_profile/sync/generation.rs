@@ -1,18 +1,20 @@
 use std::collections::BTreeSet;
 
+use a4n_domain::{
+    chapter::ChapterSourceSnapshot,
+    generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput},
+    scene_profile::{SceneProfileEvidenceRecordInput, SceneSyncRecordInput, SceneSyncRecordResult},
+    text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind},
+};
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 
-use super::super::{
-    SceneProfileDbError, SceneProfileDbResult, SceneSyncRecordInput, SceneSyncRecordResult,
-};
+use super::super::{SceneProfileDbError, SceneProfileDbResult};
 use super::replacement::replace_chapter_scene_sync_records;
 use super::rules::{
     scene_sync_generation_response_summary, validate_scene_sync_generation_run_scope,
 };
-use crate::project::{ChapterSourceSnapshot, chapter_source_snapshot_targets};
+use crate::project::chapter_source_snapshot_targets;
 use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
-use a4n_domain::scene_profile::SceneProfileEvidenceRecordInput;
-use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 
 pub async fn replace_chapter_scene_sync_with_generation_run_records(
     db: &DatabaseConnection,
@@ -22,7 +24,7 @@ pub async fn replace_chapter_scene_sync_with_generation_run_records(
     source: ChapterSourceSnapshot,
     input: SceneSyncRecordInput,
     profile_evidence: Vec<SceneProfileEvidenceRecordInput>,
-    mut generation_run: crate::generation::RecordCompletedGenerationRunInput,
+    mut generation_run: RecordCompletedGenerationRunInput,
 ) -> SceneProfileDbResult<SceneSyncRecordResult> {
     validate_scene_sync_generation_run_scope(
         project_id,
@@ -56,7 +58,7 @@ pub async fn replace_chapter_scene_sync_with_generation_run_records(
     generation_run.targets = result
         .profile_ids
         .iter()
-        .map(|id| crate::generation::GenerationRunTraceTarget {
+        .map(|id| GenerationRunTraceTarget {
             target_kind: "scene_profile_record".to_string(),
             target_table: "scene_profile".to_string(),
             target_id: *id,

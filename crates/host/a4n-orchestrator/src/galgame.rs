@@ -104,9 +104,8 @@ pub(crate) use rules::{
 #[cfg(test)]
 mod tests;
 
-use a4n_db::galgame::{
-    GalgamePortraitSpecTargetInput, GalgamePromptArtifactUpsertInput, GalgameTargetContext,
-};
+use a4n_db::galgame::{GalgamePortraitSpecTargetInput, GalgameTargetContext};
+use a4n_domain::galgame::GalgamePromptArtifactUpsertInput;
 
 #[cfg(test)]
 use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};

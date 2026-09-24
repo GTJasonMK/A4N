@@ -12,6 +12,10 @@ pub(crate) fn run_if_requested() -> anyhow::Result<Option<()>> {
         a4n_edge::run()?;
         return Ok(Some(()));
     }
+    if env::var(ADMIN_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+        a4n_admin_worker::run()?;
+        return Ok(Some(()));
+    }
     if env::var("A4N_AGENT_WORKER_PROCESS").as_deref() == Ok("1") {
         a4n_agent_worker::run()?;
         return Ok(Some(()));
@@ -100,6 +104,10 @@ pub(crate) fn run_if_requested() -> anyhow::Result<Option<()>> {
         a4n_workflow_read_worker::run()?;
         return Ok(Some(()));
     }
+    if env::var(WORKFLOW_LIFECYCLE_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+        a4n_workflow_lifecycle_worker::run()?;
+        return Ok(Some(()));
+    }
     if env::var(CONFIG_READ_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
         a4n_config_read_worker::run()?;
         return Ok(Some(()));
@@ -114,6 +122,10 @@ pub(crate) fn run_if_requested() -> anyhow::Result<Option<()>> {
     }
     if env::var(MANGA_RECORD_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
         a4n_manga_record_worker::run()?;
+        return Ok(Some(()));
+    }
+    if env::var(CANVAS_RECORD_WORKER_PROCESS_ENV).as_deref() == Ok("1") {
+        a4n_canvas_record_worker::run()?;
         return Ok(Some(()));
     }
 

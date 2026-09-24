@@ -2,7 +2,10 @@ use a4n_db_models::models::{
     chapter::{chapter, chapter_visual_plan},
     project::{novel_project, source_snapshot_chapter},
 };
-use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanStatus};
+use a4n_domain::chapter_visual_plan::{
+    CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanStatus, ConfirmChapterVisualPlanInput,
+    DiscardChapterVisualPlanDraftInput,
+};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -13,8 +16,7 @@ use sea_orm::{
 use super::{
     codec::{parse_record, serialize_plan},
     contracts::{
-        ChapterVisualPlanDbError, ConfirmChapterVisualPlanInput, ConfirmChapterVisualPlanOutcome,
-        DiscardChapterVisualPlanDraftInput, ParsedChapterVisualPlan,
+        ChapterVisualPlanDbError, ConfirmChapterVisualPlanOutcome, ParsedChapterVisualPlan,
         SaveChapterVisualPlanDraftInput,
     },
     queries::{chapter_visual_plan_by_id, lineage_condition_for_identity, validate_source},

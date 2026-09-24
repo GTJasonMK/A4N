@@ -14,10 +14,7 @@ pub use sync::{
     delete_chapter_scene_sync_records, replace_chapter_scene_sync_records,
     replace_chapter_scene_sync_with_generation_run_records,
 };
-pub use types::{
-    SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordDraft, SceneSyncRecordInput,
-    SceneSyncRecordResult,
-};
+pub use types::{SceneProfileDbError, SceneProfileDbResult};
 
 #[cfg(test)]
 mod tests;
