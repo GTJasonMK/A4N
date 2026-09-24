@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 648" role="img" aria-labelledby="title desc">
+  <title id="title">多端调用与任务恢复</title>
+  <desc id="desc">桌面默认通过 HTTP 连接本地 Server，Native 模式通过 Tauri；Web 和 CLI 通过 Server。两种入口共用 Host API，经 ApplicationPorts 调用 Orchestrator，再连接数据库、文件、索引、模型与 Worker。箭头表示运行时调用，不是 Rust 包的直接依赖。下方仅适用于支持恢复的任务：读取已完成检查点，核对输入；满足匹配条件和工作流恢复规则时，复用完成结果并继续剩余步骤。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
+    <style>
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:24px}
+      .label{font-weight:600}.note{font-size:20px;fill:#516372}
+      .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="648" rx="8" fill="#fff"/>
+
+  <path d="M160 88V144" class="flow"/>
+  <text x="176" y="126" class="note">Native</text>
+  <path d="M280 60H352V170H440" class="flow"/>
+  <text x="374" y="126" class="note">HTTP · 默认</text>
+  <path d="M620 88V144" class="flow"/>
+  <path d="M1060 88V144" class="flow"/>
+  <rect x="40" y="32" width="240" height="56" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="160" y="68" text-anchor="middle" class="label">桌面</text>
+  <rect x="480" y="32" width="280" height="56" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="620" y="68" text-anchor="middle" class="label">Web</text>
+  <rect x="960" y="32" width="200" height="56" rx="5" fill="#f7f9fb" stroke="#cbd5df"/>
+  <text x="1060" y="68" text-anchor="middle" class="label">CLI</text>
+
+  <rect x="40" y="144" width="240" height="52" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="160" y="178" text-anchor="middle" class="label">Tauri</text>
+  <rect x="440" y="144" width="720" height="52" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="800" y="178" text-anchor="middle" class="label">Server</text>
+  <path d="M160 196V270H344" class="flow"/>
+  <path d="M800 196V244" class="flow"/>
+
+  <rect x="344" y="244" width="512" height="52" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="600" y="278" text-anchor="middle" class="label">Host API</text>
+  <path d="M600 296V340" class="flow"/>
+  <text x="624" y="327" class="note">ApplicationPorts</text>
+  <rect x="344" y="340" width="512" height="56" rx="5" fill="#e1edf7" stroke="#91b3ce"/>
+  <text x="600" y="376" text-anchor="middle" class="label">Orchestrator</text>
+
+  <path d="M600 396V418H180V440" class="flow"/>
+  <path d="M600 418V440" class="flow"/>
+  <path d="M600 418H1020V440" class="flow"/>
+  <rect x="40" y="440" width="280" height="56" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="180" y="476" text-anchor="middle">PostgreSQL</text>
+  <rect x="460" y="440" width="280" height="56" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="600" y="476" text-anchor="middle">文件 / 索引</text>
+  <rect x="880" y="440" width="280" height="56" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="1020" y="476" text-anchor="middle">模型 / Worker</text>
+
+  <path d="M40 528H1160" stroke="#e2e8ee"/>
+  <rect x="80" y="560" width="256" height="56" rx="5" fill="#f2f8f6" stroke="#b4d0c9"/>
+  <text x="208" y="596" text-anchor="middle" class="label">检查点</text>
+  <path d="M336 588H472" class="flow"/>
+  <rect x="472" y="560" width="256" height="56" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="600" y="596" text-anchor="middle" class="label">核对输入</text>
+  <path d="M728 588H904" class="flow"/>
+  <text x="816" y="574" text-anchor="middle" class="note">匹配</text>
+  <rect x="904" y="560" width="256" height="56" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="1032" y="596" text-anchor="middle" class="label">继续</text>
+</svg>

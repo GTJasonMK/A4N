@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 456" role="img" aria-labelledby="title desc">
+  <title id="title">章节分析、前文检索与正文修改</title>
+  <desc id="desc">作者发起章节分析，结果保存为带原文引用的故事资料。生成下一章时，按章纲和写作要求检索当前章之前的内容；保存后的新章节可由作者再次发起分析。下方为独立的局部修改流程：作者确认且原文未变，建议才写入正文。故事例子为虚构内容，箭头不表示自动循环。</desc>
+  <defs>
+    <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
+    <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#a76524"/></marker>
+    <style>
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:22px}
+      .label{font-size:24px;font-weight:600}.note{font-size:20px;fill:#516372}.author{fill:#a76524}
+      .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#blue)}.manual{fill:none;stroke:#a76524;stroke-width:2;marker-end:url(#amber)}
+    </style>
+  </defs>
+  <rect width="1200" height="456" rx="8" fill="#fff"/>
+
+  <path d="M1076 136V48H296V136" class="manual" stroke-dasharray="5 6"/>
+  <text x="736" y="32" text-anchor="middle" class="note author">保存后再分析</text>
+  <path d="M184 188H232" class="manual"/>
+  <text x="208" y="173" text-anchor="middle" class="note author">发起</text>
+  <path d="M360 188H408" class="flow"/>
+  <path d="M736 188H784" class="flow"/>
+  <path d="M944 188H992" class="flow"/>
+
+  <rect x="40" y="136" width="144" height="104" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="112" y="179" text-anchor="middle" class="label">已写章节</text>
+  <path d="M64 198H160M64 212H144" stroke="#d4dde5" stroke-width="3"/>
+
+  <rect x="232" y="136" width="128" height="104" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="296" y="197" text-anchor="middle" class="label">分析</text>
+
+  <rect x="408" y="80" width="328" height="216" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="432" y="118" class="label">故事资料</text>
+  <path d="M432 134H712" stroke="#c8dbd7"/>
+  <text x="432" y="166">林岚：警惕周衡</text>
+  <text x="432" y="202">旧怀表：秒针逆行</text>
+  <text x="432" y="238">伏笔：影子未回退</text>
+  <text x="432" y="276" class="note">附原文引用</text>
+
+  <rect x="784" y="136" width="160" height="104" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="864" y="178" text-anchor="middle" class="label">检索</text>
+  <text x="864" y="212" text-anchor="middle" class="note">仅前文</text>
+  <path d="M864 272V240" class="manual"/>
+  <text x="864" y="301" text-anchor="middle" class="note author">章纲 / 写作要求</text>
+
+  <rect x="992" y="136" width="168" height="104" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="1076" y="197" text-anchor="middle" class="label">下一章</text>
+
+  <path d="M40 336H1160" stroke="#e2e8ee"/>
+  <text x="208" y="396" text-anchor="middle" class="label">修改建议</text>
+  <path d="M304 388H488" class="flow"/>
+  <rect x="488" y="360" width="224" height="56" rx="5" fill="#fff7ed" stroke="#c89762"/>
+  <text x="600" y="396" text-anchor="middle" class="label author">作者确认</text>
+  <path d="M712 388H912" class="manual"/>
+  <text x="812" y="425" text-anchor="middle" class="note">原文未变</text>
+  <text x="1024" y="396" text-anchor="middle" class="label">写入正文</text>
+</svg>

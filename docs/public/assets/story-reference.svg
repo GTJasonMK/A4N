@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">山海之间：旧车站的七分钟</title>
+  <desc id="desc">原创预置示意素材。雨夜旧车站、钟楼与怀表；用于展示媒体导入和视频工作流，不是生成模型的效果样本。</desc>
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#132c41"/><stop offset="1" stop-color="#355567"/></linearGradient>
+    <linearGradient id="light" x2="0" y2="1"><stop stop-color="#efc990" stop-opacity=".25"/><stop offset="1" stop-color="#efc990" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="960" height="540" fill="url(#sky)"/>
+  <circle cx="763" cy="100" r="44" fill="#bac9cb" opacity=".45"/>
+  <path d="M0 178H80V152H113V199H177V179H228V217H298V195H333V210H411V175H454V208H527V197H589V181H631V220H703V203H758V172H812V195H889V179H960V350H0Z" fill="#233e4e"/>
+  <path d="M0 390H960V540H0Z" fill="#192f3c"/>
+  <path d="M0 428H960M0 442H960M0 483H960" stroke="#456372" stroke-width="2"/>
+  <path d="M135 362H860L903 387H107Z" fill="#55737e"/>
+  <path d="M157 261H854V367H157Z" fill="#294756"/>
+  <path d="M130 260L188 227H815L874 260Z" fill="#183544" stroke="#77909a"/>
+  <path d="M160 270H850" stroke="#7d969c" stroke-width="2"/>
+  <g fill="#d6b581" stroke="#1b3747" stroke-width="8">
+    <path d="M190 291H240V343H190Z"/><path d="M265 291H315V343H265Z"/>
+    <path d="M340 291H390V343H340Z"/><path d="M710 291H760V343H710Z"/>
+    <path d="M785 291H825V343H785Z"/>
+  </g>
+  <path d="M429 283H506V367H429Z" fill="#e4c397"/>
+  <path d="M429 366H506L565 491H356Z" fill="url(#light)"/>
+  <path d="M465 284V367M428 310H506" stroke="#41616e" stroke-width="3"/>
+  <path d="M564 187H671V367H564Z" fill="#385664" stroke="#75919a"/>
+  <path d="M550 187L617 126L685 187Z" fill="#183442" stroke="#769098"/>
+  <path d="M610 127V101H624V127" fill="#7f979c"/>
+  <circle cx="617" cy="228" r="34" fill="#d5c7a7" stroke="#173848" stroke-width="5"/>
+  <circle cx="617" cy="228" r="27" fill="none" stroke="#607678"/>
+  <path d="M617 202V207M617 249V254M591 228H596M638 228H643M617 228L604 211M617 228L600 238" fill="none" stroke="#294654" stroke-width="3"/>
+  <circle cx="617" cy="228" r="3" fill="#294654"/>
+  <path d="M596 286H638V340H596Z" fill="#142f40"/>
+  <path d="M95 258V398M81 258H109M95 258V230" fill="none" stroke="#b6bca8" stroke-width="4"/>
+  <circle cx="95" cy="223" r="10" fill="#e8c48a"/>
+  <path d="M95 233L137 388H53Z" fill="url(#light)"/>
+  <g fill="#102938">
+    <circle cx="461" cy="336" r="8"/>
+    <path d="M454 344H468L480 379H443ZM450 377H458L454 407H448ZM464 377H472L477 407H470Z"/>
+    <path d="M413 334Q451 287 490 334Z"/><path d="M451 328H454V367H451Z"/>
+  </g>
+  <g stroke="#abc0c7" stroke-width="1.3" opacity=".22">
+    <path d="M38 42L17 89M129 62L108 109M229 25L208 72M318 82L297 129M417 34L396 81M527 64L506 111M654 24L633 71M856 38L835 85M929 137L908 184"/>
+    <path d="M61 167L40 214M241 159L220 206M338 140L317 187M450 147L429 194M705 155L684 202M860 316L839 363M939 292L918 339"/>
+    <path d="M34 356L13 403M275 365L254 412M364 386L343 433M748 387L727 434M887 421L866 468"/>
+  </g>
+  <path d="M475 399L467 435M611 407L597 453M88 405L72 466M764 401L748 444" stroke="#d9bd88" stroke-width="3" opacity=".22"/>
+  <g transform="translate(814 433) rotate(-13)">
+    <path d="M-12-62Q-19-89 0-89Q19-89 12-62" fill="none" stroke="#c5a36b" stroke-width="5"/>
+    <circle r="62" fill="#a98a56"/><circle r="54" fill="#decda6"/>
+    <circle r="44" fill="none" stroke="#6c796f"/>
+    <path d="M0-44V-35M0 35V44M-44 0H-35M35 0H44M0 0L-14-28M0 0L-29 17" fill="none" stroke="#344f53" stroke-width="4"/>
+    <circle r="4" fill="#344f53"/>
+  </g>
+  <text x="42" y="485" font-family="Arial,Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-size="30" fill="#e4dcc5" letter-spacing="4">山海之间</text>
+  <text x="43" y="514" font-family="Arial,Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-size="14" fill="#a8bec5">旧车站 · 七分钟的时间偏差 / PREPARED STORY REFERENCE</text>
+</svg>

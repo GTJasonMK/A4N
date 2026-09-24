@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">小说素材与改编项目的来源版本</title>
+  <desc id="desc">图片和立绘直接保存在小说项目中。漫画、视频和互动故事由选定章节派生，各自保留正文、分析及档案的来源快照；自由视频画布不属于这条派生链。视频的帧图和片段共用片段规划。下方展示原稿更新后的版本比较与作者确认；派生内容已有本地修改时，需要决定如何保留或合并。</desc>
+  <defs>
+    <marker id="blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#34699a"/></marker>
+    <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 10 5 0 10" fill="#a76524"/></marker>
+    <style>
+      text{font-family:Arial,"Noto Sans CJK SC","Microsoft YaHei",sans-serif;fill:#233343;font-size:24px}
+      .label{font-weight:600}.note{font-size:20px;fill:#516372}.author{fill:#a76524}
+      .flow{fill:none;stroke:#34699a;stroke-width:2;marker-end:url(#blue)}.manual{fill:none;stroke:#a76524;stroke-width:2;marker-end:url(#amber)}
+    </style>
+  </defs>
+  <rect width="1200" height="520" rx="8" fill="#fff"/>
+
+  <path d="M220 184H288" class="manual"/>
+  <path d="M130 232V280" class="manual"/>
+  <path d="M520 184H568V80H616" class="flow"/>
+  <path d="M568 184H616" class="flow"/>
+  <path d="M568 184V288H616" class="flow"/>
+  <circle cx="568" cy="184" r="3" fill="#34699a"/>
+
+  <rect x="40" y="136" width="180" height="96" rx="5" fill="#fff" stroke="#aebecb"/>
+  <text x="130" y="193" text-anchor="middle" class="label">小说项目</text>
+  <rect x="40" y="280" width="180" height="64" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="130" y="320" text-anchor="middle" style="font-size:20px">图片 / 立绘</text>
+
+  <rect x="296" y="112" width="232" height="128" rx="5" fill="#f2f8f6" stroke="#c8dbd7"/>
+  <rect x="288" y="120" width="232" height="128" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="404" y="172" text-anchor="middle" class="label">来源快照</text>
+  <text x="404" y="216" text-anchor="middle" class="note">v1</text>
+
+  <rect x="616" y="48" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="88" text-anchor="middle" class="label">漫画</text>
+  <rect x="616" y="152" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="192" text-anchor="middle" class="label">视频</text>
+  <rect x="616" y="256" width="216" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="724" y="296" text-anchor="middle" class="label">互动故事</text>
+
+  <path d="M832 184H872" class="flow"/>
+  <rect x="872" y="152" width="288" height="64" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="1016" y="192" text-anchor="middle" class="label">片段规划</text>
+  <path d="M1016 216V248H936V280" class="flow"/>
+  <path d="M1016 248H1096V280" class="flow"/>
+  <rect x="872" y="280" width="128" height="64" rx="5" fill="#fff" stroke="#afc8de"/>
+  <text x="936" y="320" text-anchor="middle">帧图</text>
+  <rect x="1032" y="280" width="128" height="64" rx="5" fill="#fff" stroke="#afc8de"/>
+  <text x="1096" y="320" text-anchor="middle">片段</text>
+
+  <path d="M40 392H1160" stroke="#e2e8ee"/>
+  <rect x="80" y="424" width="112" height="56" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="136" y="460" text-anchor="middle">v1</text>
+  <path d="M192 452H288" class="manual"/>
+  <text x="240" y="434" text-anchor="middle" class="note author">改稿</text>
+  <rect x="288" y="424" width="112" height="56" rx="5" fill="#f2f8f6" stroke="#6d9b91"/>
+  <text x="344" y="460" text-anchor="middle">v2</text>
+  <path d="M400 452H512" class="flow"/>
+  <rect x="512" y="424" width="224" height="56" rx="5" fill="#f3f7fb" stroke="#afc8de"/>
+  <text x="624" y="460" text-anchor="middle" class="label">查看改动</text>
+  <path d="M736 452H864" class="manual"/>
+  <rect x="864" y="424" width="256" height="56" rx="5" fill="#fff7ed" stroke="#c89762"/>
+  <text x="992" y="460" text-anchor="middle" class="label author">确认同步</text>
+</svg>

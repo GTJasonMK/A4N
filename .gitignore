@@ -78,8 +78,10 @@ CLAUDE.md
 # Local parallel worktrees and coordination state
 /work/
 
-# Local project documentation, drafts, diagrams, and reports
-/docs/
+# Public guides and curated README assets; other documentation stays local.
+/docs/*
+!/docs/public/
+!/docs/public/assets/demo.mp4
 
 # OS/editor noise
 .DS_Store
