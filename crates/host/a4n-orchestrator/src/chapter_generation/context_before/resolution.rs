@@ -1,14 +1,12 @@
 use super::{
     analysis::chapter_analysis_context_line, character_state::recent_character_state_context_lines,
     object_profile::recent_object_profile_context_lines,
-    scene_profile::recent_scene_profile_context_lines, shared::truncate_chars,
-    summaries::layered_chapter_summary_lines,
+    scene_profile::recent_scene_profile_context_lines, summaries::layered_chapter_summary_lines,
 };
 use crate::OrchestratorContext;
 use a4n_db_models::models::chapter::chapter;
 
 const RECENT_ANALYSIS_CHAPTERS: usize = 12;
-const CHAPTER_CONTEXT_CHAR_LIMIT: usize = 16_000;
 const PREVIOUS_CHAPTER_TAIL_CHAR_LIMIT: usize = 600;
 
 impl OrchestratorContext {
@@ -41,6 +39,42 @@ impl OrchestratorContext {
             .collect::<Vec<_>>();
 
         let mut lines = Vec::new();
+        let mut world_facts = std::collections::BTreeMap::new();
+        let ready_sources =
+            a4n_db::fact_feedback::current_feedback_sources(self.database.connection(), project_id)
+                .await
+                .map_err(|error| error.to_string())?;
+        for chapter in previous_chapters.iter().filter(|chapter| {
+            ready_sources
+                .iter()
+                .any(|source| source.chapter.id == chapter.id)
+        }) {
+            if let Some(value) = chapter
+                .analysis_data
+                .as_ref()
+                .and_then(|analysis| analysis.get("world_facts"))
+            {
+                let facts: Vec<a4n_domain::fact_feedback::WorldFact> =
+                    serde_json::from_value(value.clone())
+                        .map_err(|error| format!("章节世界事实无效: {error}"))?;
+                for fact in facts {
+                    if fact.assertion == a4n_domain::fact_feedback::FactAssertion::Observed {
+                        world_facts.insert(
+                            fact.identity(),
+                            format!("- 第{}章确认：{}", chapter.chapter_number, fact.statement),
+                        );
+                    }
+                }
+            }
+        }
+        append_section(
+            &mut lines,
+            "最新正文事实（优先于尚未更新的蓝图）",
+            world_facts.into_values().collect(),
+        );
+        append_section(&mut lines, "角色状态", character_result?);
+        append_section(&mut lines, "关键物体档案", object_result?);
+        append_section(&mut lines, "场景档案", scene_result?);
         let summary_lines = layered_chapter_summary_lines(&previous_chapters, chapter_number);
         if !summary_lines.is_empty() {
             lines.push("## 前文摘要".to_string());
@@ -63,10 +97,6 @@ impl OrchestratorContext {
             lines.extend(analysis_lines);
         }
 
-        append_section(&mut lines, "角色状态", character_result?);
-        append_section(&mut lines, "关键物体档案", object_result?);
-        append_section(&mut lines, "场景档案", scene_result?);
-
         if let Some(tail) = previous_chapter_tail(&previous_chapters) {
             append_section(&mut lines, "上一章结尾", vec![tail]);
         }
@@ -75,7 +105,9 @@ impl OrchestratorContext {
         if context.trim().is_empty() {
             Ok(None)
         } else {
-            Ok(Some(truncate_chars(&context, CHAPTER_CONTEXT_CHAR_LIMIT)))
+            // The request context ledger owns the budget; cutting the assembled text
+            // here could silently discard freshly synchronized facts.
+            Ok(Some(context))
         }
     }
 }

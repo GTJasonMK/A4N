@@ -14,6 +14,7 @@ pub mod collaboration;
 pub mod config;
 pub mod cost;
 pub mod embedding;
+pub mod fact_feedback;
 pub mod galgame;
 pub mod generation;
 pub mod hash;

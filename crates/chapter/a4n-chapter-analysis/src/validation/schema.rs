@@ -23,6 +23,7 @@ pub(super) fn validate_analysis_schema(root: &Map<String, Value>) -> Result<(), 
             "character_states",
             "foreshadowing",
             "key_events",
+            "world_facts",
         ],
         "chapter_analysis",
     )?;
@@ -32,5 +33,13 @@ pub(super) fn validate_analysis_schema(root: &Map<String, Value>) -> Result<(), 
     validate_character_states_schema(root)?;
     validate_foreshadowing_schema(root)?;
     validate_key_events_schema(root)?;
+    if let Some(value) = root.get("world_facts") {
+        let facts: Vec<a4n_domain::fact_feedback::WorldFact> =
+            serde_json::from_value(value.clone())
+                .map_err(|error| AppError::InvalidArgument(format!("世界事实结构无效: {error}")))?;
+        for fact in facts {
+            fact.validate().map_err(AppError::InvalidArgument)?;
+        }
+    }
     Ok(())
 }

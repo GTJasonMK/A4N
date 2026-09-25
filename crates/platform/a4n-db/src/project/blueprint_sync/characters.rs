@@ -1,4 +1,4 @@
-use super::contracts::{BlueprintCharacterDraft, BlueprintSyncError};
+use super::contracts::{BlueprintCharacterDraft, BlueprintSyncError, BlueprintWriteMode};
 use super::identity::{blueprint_character_matches, normalized_blueprint_identity};
 use a4n_db_models::models::project::blueprint_character;
 use a4n_domain::json_contract::is_empty_json_value;
@@ -16,7 +16,14 @@ pub(in crate::project) async fn sync_blueprint_characters<C>(
 where
     C: ConnectionTrait,
 {
-    write_blueprint_characters(db, project_id, characters, now, true).await
+    write_blueprint_characters(
+        db,
+        project_id,
+        characters,
+        now,
+        BlueprintWriteMode::ReplaceAll,
+    )
+    .await
 }
 
 pub async fn merge_blueprint_characters<C>(
@@ -28,7 +35,23 @@ pub async fn merge_blueprint_characters<C>(
 where
     C: ConnectionTrait,
 {
-    write_blueprint_characters(db, project_id, characters, now, false).await
+    write_blueprint_characters(
+        db,
+        project_id,
+        characters,
+        now,
+        BlueprintWriteMode::Supplement,
+    )
+    .await
+}
+
+pub async fn edit_blueprint_characters<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    characters: Vec<BlueprintCharacterDraft>,
+    now: NaiveDateTime,
+) -> Result<(), BlueprintSyncError> {
+    write_blueprint_characters(db, project_id, characters, now, BlueprintWriteMode::Edit).await
 }
 
 async fn write_blueprint_characters<C>(
@@ -36,7 +59,7 @@ async fn write_blueprint_characters<C>(
     project_id: i64,
     characters: Vec<BlueprintCharacterDraft>,
     now: NaiveDateTime,
-    delete_missing: bool,
+    mode: BlueprintWriteMode,
 ) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
@@ -68,10 +91,10 @@ where
             && !candidates.is_empty()
         {
             let existing = candidates.remove(0);
-            let draft = if delete_missing {
-                draft
-            } else {
-                supplement_character_draft(&existing, draft)
+            let draft = match mode {
+                BlueprintWriteMode::ReplaceAll => draft,
+                BlueprintWriteMode::Supplement => supplement_character_draft(&existing, draft),
+                BlueprintWriteMode::Edit => edited_character_draft(&existing, draft),
             };
             if blueprint_character_matches(&existing, &draft) {
                 continue;
@@ -256,7 +279,7 @@ where
         }
     }
 
-    if delete_missing {
+    if mode == BlueprintWriteMode::ReplaceAll {
         let stale_ids = existing_by_key
             .into_values()
             .flatten()
@@ -309,6 +332,47 @@ fn supplement_character_draft(
             incoming.relationship_to_protagonist,
         ),
         arc_stages: prefer_existing_json(existing.arc_stages.as_ref(), incoming.arc_stages),
+    }
+}
+
+fn edited_character_draft(
+    existing: &blueprint_character::Model,
+    incoming: BlueprintCharacterDraft,
+) -> BlueprintCharacterDraft {
+    // Explicit refinements update supplied fields; an omitted field is not a deletion.
+    BlueprintCharacterDraft {
+        name: existing.name.clone(),
+        character_type: prefer_existing_text(
+            &incoming.character_type,
+            existing.character_type.clone(),
+        ),
+        gender: prefer_existing_optional_text(incoming.gender.as_deref(), existing.gender.clone()),
+        age: prefer_existing_optional_text(incoming.age.as_deref(), existing.age.clone()),
+        appearance: prefer_existing_optional_text(
+            incoming.appearance.as_deref(),
+            existing.appearance.clone(),
+        ),
+        personality: prefer_existing_optional_text(
+            incoming.personality.as_deref(),
+            existing.personality.clone(),
+        ),
+        background: prefer_existing_optional_text(
+            incoming.background.as_deref(),
+            existing.background.clone(),
+        ),
+        motivation: prefer_existing_optional_text(
+            incoming.motivation.as_deref(),
+            existing.motivation.clone(),
+        ),
+        arc_summary: prefer_existing_optional_text(
+            incoming.arc_summary.as_deref(),
+            existing.arc_summary.clone(),
+        ),
+        relationship_to_protagonist: prefer_existing_optional_text(
+            incoming.relationship_to_protagonist.as_deref(),
+            existing.relationship_to_protagonist.clone(),
+        ),
+        arc_stages: prefer_existing_json(incoming.arc_stages.as_ref(), existing.arc_stages.clone()),
     }
 }
 

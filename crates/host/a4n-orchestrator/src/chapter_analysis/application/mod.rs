@@ -30,8 +30,9 @@ use crate::{
     },
     scene_profile::SceneProfileSyncProgress,
     workflow::{
-        CompletedWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED, required_checkpoint_field,
-        required_checkpoint_json, workflow_checkpoint_fingerprint_sha256,
+        CompletedWorkflowCheckpointInput, UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED,
+        required_checkpoint_field, required_checkpoint_json,
+        workflow_checkpoint_fingerprint_sha256,
     },
 };
 

@@ -7,7 +7,7 @@ use a4n_db::blueprint::{
 use a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT;
 use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
-    merge_blueprint_characters, merge_blueprint_relationships,
+    edit_blueprint_characters, edit_blueprint_relationships,
 };
 use a4n_db_models::models::project::novel_blueprint;
 use a4n_domain::project::ProjectStatus;
@@ -75,12 +75,12 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
     .await
     .map_err(blueprint_db_error)?;
     if let Some(characters) = parsed.characters {
-        merge_blueprint_characters(tx, project_id, blueprint_character_drafts(&characters), now)
+        edit_blueprint_characters(tx, project_id, blueprint_character_drafts(&characters), now)
             .await
             .map_err(blueprint_sync_error)?;
     }
     if let Some(relationships) = parsed.relationships {
-        merge_blueprint_relationships(
+        edit_blueprint_relationships(
             tx,
             project_id,
             blueprint_relationship_drafts(&relationships),

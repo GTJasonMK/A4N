@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub const SOURCE_KIND_LEGACY_UNKNOWN: &str = CharacterTimelineSourceKind::LegacyUnknown.as_str();
 pub const SOURCE_KIND_USER: &str = CharacterTimelineSourceKind::User.as_str();
 pub const SOURCE_KIND_AI_SYNC: &str = CharacterTimelineSourceKind::AiSync.as_str();
+pub const SOURCE_KIND_TEXT_FACT: &str = CharacterTimelineSourceKind::TextFact.as_str();
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "attribute_event")]

@@ -20,6 +20,7 @@ pub mod config_records;
 mod dependency_conflict;
 pub mod embedding_model;
 pub mod export_files;
+pub mod fact_feedback;
 pub mod foreshadowing_records;
 pub mod galgame_records;
 pub mod generation_analytics;

@@ -81,7 +81,7 @@ fn profile_merge_preserves_chapter_range_and_deduplicates_evidence() {
 }
 
 #[test]
-fn profile_merge_preserves_user_fields_but_extends_chapter_facts() {
+fn profile_merge_updates_facts_but_keeps_identity_and_manual_prompts() {
     let mut existing = scene_profile::Model {
         id: 1,
         project_id: 2,
@@ -108,10 +108,13 @@ fn profile_merge_preserves_user_fields_but_extends_chapter_facts() {
     };
     let mut incoming = input("AI 场景", "用户场景");
     incoming.spatial_layout = "AI 布局".to_string();
+    incoming.visual_description = "正文确认的新视觉描述".to_string();
     let merged = merge_scene_profile_record_input(&existing, incoming);
 
     assert_eq!(merged.name, existing.name);
-    assert_eq!(merged.visual_description, existing.visual_description);
+    assert_eq!(merged.visual_description, "正文确认的新视觉描述");
+    assert_eq!(merged.image_prompt_seed, "用户提示词");
+    assert_eq!(merged.parent_scene_id, Some(9));
     assert_eq!(merged.spatial_layout, "AI 布局");
     assert_eq!(merged.first_seen_chapter, 2);
     assert_eq!(merged.last_seen_chapter, 8);
@@ -122,7 +125,7 @@ fn profile_merge_preserves_user_fields_but_extends_chapter_facts() {
 
     existing.ownership_kind = PROFILE_OWNERSHIP_AI_SYNC.to_string();
     let merged = merge_scene_profile_record_input(&existing, input("AI 场景", "用户场景"));
-    assert_eq!(merged.name, "AI 场景");
+    assert_eq!(merged.name, existing.name);
 }
 
 #[test]

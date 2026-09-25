@@ -410,6 +410,8 @@ pub struct ApplicationPorts {
     /// authorization, workflow state and summaries stay in the chapter owner.
     pub chapter_analysis_generation_application:
         Arc<dyn a4n_chapter_analysis_host_contract::ChapterAnalysisGenerationApplicationPort>,
+    pub project_fact_feedback_application:
+        Arc<dyn a4n_chapter_analysis_host_contract::ProjectFactFeedbackApplicationPort>,
     /// Host-facing chapter-analysis synchronization and workflow-recovery
     /// boundary.
     pub chapter_analysis_resume_application:

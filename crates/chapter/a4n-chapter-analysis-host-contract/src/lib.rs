@@ -79,6 +79,13 @@ impl ChapterAnalysisApplicationProgress<'_> {
 #[async_trait]
 pub trait ChapterAnalysisHostPort: ChapterDerivedCleanupHostPort + Send + Sync {
     fn scene_profile_sync_host_port(&self) -> &dyn SceneProfileSyncHostPort;
+    async fn sync_fact_material_rag_records(
+        &self,
+        project_id: i64,
+        workflow_run_id: i64,
+        blueprint_changed: bool,
+        characters_changed: bool,
+    ) -> Result<(), AppError>;
 }
 
 #[derive(Debug)]
@@ -150,6 +157,32 @@ pub trait ChapterAnalysisResumePreviewApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChapterAnalysisRequestPreview, AppError>;
+}
+
+#[async_trait]
+pub trait ProjectFactFeedbackApplicationPort: Send + Sync {
+    async fn feedback_summary(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<a4n_api_contract::fact_feedback::ProjectFactFeedbackSummary, AppError>;
+
+    async fn run_feedback(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::fact_feedback::RunProjectFactFeedbackInput,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<a4n_api_contract::fact_feedback::ProjectFactFeedbackSummary, AppError>;
+
+    async fn preview_feedback(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::fact_feedback::RunProjectFactFeedbackInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChapterAnalysisRequestPreview, AppError>;
 }

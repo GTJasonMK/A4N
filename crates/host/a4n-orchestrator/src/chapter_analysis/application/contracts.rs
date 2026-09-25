@@ -48,8 +48,9 @@ impl ChapterAnalysisGenerationApplicationPort for OrchestratorContext {
         {
             Ok(chapter) => Ok(ChapterAnalysisMutationResult {
                 chapter: self.chapter_summary_for_user(user_id, chapter.id).await?,
-                warnings: Vec::new(),
+                warnings: self.fact_feedback_warnings(chapter.project_id).await?,
             }),
+            Err(AppError::Cancelled) => Err(AppError::Cancelled),
             Err(sync_error) => {
                 let summary = self.chapter_summary_for_user(user_id, chapter_id).await?;
                 if !summary.analysis_sync_has_saved_analysis || !summary.analysis_sync_can_resume {

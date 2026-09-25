@@ -153,6 +153,8 @@ pub const BLUEPRINT_REFINEMENT_FIELDS: &[&str] = &[
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ChapterDerivedCleanupArtifacts {
+    pub blueprint_facts_changed: bool,
+    pub character_facts_changed: bool,
     pub stale_profile_ids: Vec<i64>,
     pub stale_character_state_ids: Vec<i64>,
     pub stale_attribute_event_ids: Vec<i64>,
@@ -163,6 +165,8 @@ pub struct ChapterDerivedCleanupArtifacts {
 
 impl ChapterDerivedCleanupArtifacts {
     pub fn merge(&mut self, other: Self) {
+        self.blueprint_facts_changed |= other.blueprint_facts_changed;
+        self.character_facts_changed |= other.character_facts_changed;
         self.stale_profile_ids.extend(other.stale_profile_ids);
         self.stale_character_state_ids
             .extend(other.stale_character_state_ids);

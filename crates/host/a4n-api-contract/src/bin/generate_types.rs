@@ -2,6 +2,10 @@ use a4n_api_contract::command_manifest::{
     API_COMMANDS, AgentCommandPolicy, CommandDescriptor, RuntimeConfigPolicy,
     command_runtime_config_policy,
 };
+use a4n_api_contract::fact_feedback::{
+    FactFeedbackMode, MaterialFactChangeSummary, ProjectFactFeedbackSummary,
+    RunProjectFactFeedbackInput,
+};
 use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
 use a4n_api_contract::{
     admin::{

@@ -10,6 +10,8 @@ use sea_orm::DatabaseConnection;
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectSummaryError {
     #[error(transparent)]
+    Database(#[from] sea_orm::DbErr),
+    #[error(transparent)]
     Progress(#[from] a4n_db::project::ProjectProgressReadError),
     #[error(transparent)]
     Family(#[from] a4n_db::project::ProjectFamilyMetadataReadError),
@@ -28,7 +30,7 @@ pub async fn project_summary_for_user(
     let status = progress_query.status;
     let family_query = a4n_db::project::ProjectFamilyMetadataQuery::from_project(project);
     let access_query = a4n_db::collaboration::ProjectAccessInfoQuery::from_project(project);
-    let (progress, metadata, access) = tokio::try_join!(
+    let (progress, metadata, access, interval) = tokio::try_join!(
         async {
             a4n_db::project::project_progress_summary(database, progress_query)
                 .await
@@ -44,6 +46,11 @@ pub async fn project_summary_for_user(
                 .await
                 .map_err(ProjectSummaryError::from)
         },
+        async {
+            a4n_db::fact_feedback::feedback_interval(database, project.id)
+                .await
+                .map_err(ProjectSummaryError::from)
+        },
     )?;
     Ok(project_summary_from_parts(
         project,
@@ -53,6 +60,7 @@ pub async fn project_summary_for_user(
         source_mode,
         status,
         progress,
+        interval,
     ))
 }
 
@@ -64,9 +72,11 @@ pub fn project_summary_from_parts(
     source_mode: ProjectSourceMode,
     status: ProjectStatus,
     progress: ProjectProgressSummary,
+    fact_feedback_interval_chapters: i32,
 ) -> ProjectSummary {
     ProjectSummary {
         id: project.id,
+        fact_feedback_interval_chapters,
         title: project.title.clone(),
         description: project.description.clone(),
         lifecycle_gate: project.lifecycle_gate.clone(),
@@ -143,6 +153,7 @@ mod tests {
                 label: "4/20".into(),
                 detail: None,
             },
+            5,
         );
         assert_eq!(summary.root_project_title.as_deref(), Some("根项目"));
         assert_eq!(summary.my_role, ProjectAccessRole::Editor);

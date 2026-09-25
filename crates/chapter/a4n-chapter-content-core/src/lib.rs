@@ -400,7 +400,7 @@ fn chapter_material_projection(
             content_index: phase_status(
                 run,
                 &checkpoint_by_step,
-                &[CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS],
+                &[a4n_domain::fact_feedback::CHAPTER_FACT_INDEX_STEP],
             ),
             outline_and_foreshadowing: phase_status(
                 run,

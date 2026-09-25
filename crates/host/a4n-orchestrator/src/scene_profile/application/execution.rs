@@ -51,13 +51,26 @@ impl OrchestratorContext {
             self,
             user_id,
             prompt_renderer,
-            host_port,
             project_id,
             workflow_run_id,
             chapters,
             progress,
         )
         .await;
+        let result = match result {
+            Ok(())
+                if self
+                    .workflow_run_model_by_id(workflow_run_id)
+                    .await?
+                    .workflow_kind
+                    != "chapter_analysis" =>
+            {
+                host_port
+                    .sync_scene_rag_records(project_id, workflow_run_id)
+                    .await
+            }
+            result => result,
+        };
         if owns_workflow_run {
             self.finalize_workflow_result(workflow_run_id, result, "场景档案同步")
                 .await

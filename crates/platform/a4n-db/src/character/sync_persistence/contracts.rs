@@ -14,6 +14,7 @@ use a4n_domain::chapter::ChapterSourceSnapshot;
 
 #[derive(Debug, Clone)]
 pub struct CharacterSyncAttributeEventRecordInput {
+    pub assertion: a4n_domain::fact_feedback::FactAssertion,
     pub operation: String,
     pub change: CharacterAttributeValueChangeInput,
     pub from_classification: bool,

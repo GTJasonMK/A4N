@@ -30,6 +30,7 @@ pub struct UpdateProjectRecordInput {
     pub project_id: i64,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub fact_feedback_interval_chapters: Option<i32>,
 }
 
 #[derive(Debug, thiserror::Error)]

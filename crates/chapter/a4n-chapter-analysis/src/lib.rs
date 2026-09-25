@@ -32,6 +32,7 @@ pub const CHAPTER_ANALYSIS_FACT_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("items", "物品候选", 1),
     FieldMilestone::new("event_candidates", "事件候选", 1),
     FieldMilestone::new("foreshadowing_candidates", "伏笔候选", 1),
+    FieldMilestone::new("world_facts", "世界事实", 1),
 ];
 pub const CHAPTER_ANALYSIS_SUMMARY_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("metadata_additions", "元数据补充", 1),

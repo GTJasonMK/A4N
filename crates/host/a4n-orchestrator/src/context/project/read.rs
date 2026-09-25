@@ -79,13 +79,18 @@ impl OrchestratorContext {
         let project_kind = progress_query.project_kind;
         let source_mode = progress_query.source_mode;
         let status = progress_query.status;
-        let (progress, metadata, info) = tokio::try_join!(
+        let (progress, metadata, info, interval) = tokio::try_join!(
             self.project_progress_summary(progress_query),
             self.project_family_metadata(ProjectFamilyMetadataQuery::from_project(&project)),
             self.project_access_info(
                 a4n_db::collaboration::ProjectAccessInfoQuery::from_project(&project),
                 user_id,
             ),
+            async {
+                a4n_db::fact_feedback::feedback_interval(self.database.connection(), project_id)
+                    .await
+                    .map_err(AppError::Database)
+            },
         )?;
         Ok(Some(project_summary_from_parts(
             &project,
@@ -95,6 +100,7 @@ impl OrchestratorContext {
             source_mode,
             status,
             progress,
+            interval,
         )))
     }
 

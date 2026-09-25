@@ -44,6 +44,8 @@ pub struct ProjectFamilyExportSelection {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProjectFamilyTextCoreRows {
+    #[serde(default)]
+    pub fact_feedback: Option<crate::fact_feedback::FactFeedbackArchive>,
     pub blueprint: Option<novel_blueprint::Model>,
     pub blueprint_versions: Vec<blueprint_version::Model>,
     pub blueprint_characters: Vec<blueprint_character::Model>,

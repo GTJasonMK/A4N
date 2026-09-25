@@ -14,6 +14,8 @@ use sea_orm::{Condition, DbBackend, DbErr};
 
 const CHAPTER_ANALYSIS_WORKFLOW_KIND: &str = "chapter_analysis";
 const CHAPTER_ANALYSIS_DERIVED_CHECKPOINTS: &[&str] = &[
+    a4n_domain::fact_feedback::CHAPTER_FACT_FEEDBACK_STEP,
+    a4n_domain::fact_feedback::CHAPTER_FACT_INDEX_STEP,
     "chapter_analysis.derived_sync",
     "chapter_analysis.outline_sync",
     "chapter_analysis.sync_outputs",

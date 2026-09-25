@@ -19,6 +19,7 @@ pub(crate) mod export {
 
     mod application;
 }
+pub(crate) mod fact_feedback;
 pub(crate) mod galgame;
 pub(crate) mod generation;
 pub(crate) mod import_analysis;

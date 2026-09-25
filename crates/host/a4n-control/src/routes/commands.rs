@@ -1,6 +1,7 @@
 mod admin;
 mod canvas;
 mod characters;
+mod fact_feedback;
 mod front;
 mod galgame;
 mod import_project;

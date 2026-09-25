@@ -33,22 +33,29 @@ pub async fn object_profiles_before_chapter(
         .collect::<Vec<_>>();
     let mut evidence =
         object_evidence_before_chapter(db, project_id, chapter_number, &profile_ids).await?;
-    Ok(profiles
-        .into_iter()
-        .filter_map(|profile| {
-            if let Some(evidence) = evidence.remove(&profile.id) {
-                Some(ChapterObjectProfileContext::Observed {
-                    profile_id: profile.id,
-                    name: profile.name,
-                    evidence,
-                })
-            } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-                Some(ChapterObjectProfileContext::Authored(profile))
-            } else {
-                None
-            }
-        })
-        .collect())
+    let mut result = Vec::new();
+    for profile in profiles {
+        if let Some(evidence) = evidence.remove(&profile.id) {
+            let fact_state = crate::fact_feedback::profile_facts_before_chapter(
+                db,
+                project_id,
+                "object_profile",
+                profile.id,
+                chapter_number,
+            )
+            .await
+            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
+            result.push(ChapterObjectProfileContext::Observed {
+                profile_id: profile.id,
+                name: profile.name,
+                evidence,
+                fact_state,
+            });
+        } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
+            result.push(ChapterObjectProfileContext::Authored(profile));
+        }
+    }
+    Ok(result)
 }
 
 pub async fn scene_profiles_before_chapter(
@@ -75,22 +82,29 @@ pub async fn scene_profiles_before_chapter(
         .order_by_asc(scene_profile::Column::Id)
         .all(db)
         .await?;
-    Ok(profiles
-        .into_iter()
-        .filter_map(|profile| {
-            if let Some(occurrence) = latest.remove(&profile.id) {
-                Some(ChapterSceneProfileContext::Observed {
-                    profile_id: profile.id,
-                    name: profile.name,
-                    occurrence,
-                })
-            } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-                Some(ChapterSceneProfileContext::Authored(profile))
-            } else {
-                None
-            }
-        })
-        .collect())
+    let mut result = Vec::new();
+    for profile in profiles {
+        if let Some(occurrence) = latest.remove(&profile.id) {
+            let fact_state = crate::fact_feedback::profile_facts_before_chapter(
+                db,
+                project_id,
+                "scene_profile",
+                profile.id,
+                chapter_number,
+            )
+            .await
+            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
+            result.push(ChapterSceneProfileContext::Observed {
+                profile_id: profile.id,
+                name: profile.name,
+                occurrence,
+                fact_state,
+            });
+        } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
+            result.push(ChapterSceneProfileContext::Authored(profile));
+        }
+    }
+    Ok(result)
 }
 
 async fn object_evidence_before_chapter(

@@ -1,7 +1,7 @@
 use super::contracts::CharacterTimelineDeletionSummary;
 use crate::character::{CharacterDbError, validate_chapter_number};
 use a4n_db_models::models::character::{
-    attribute_event::{self, SOURCE_KIND_AI_SYNC},
+    attribute_event::{self, SOURCE_KIND_AI_SYNC, SOURCE_KIND_TEXT_FACT},
     character_state_index, protagonist_behavior_record, snapshot_reference,
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
@@ -25,7 +25,7 @@ where
     .await
 }
 
-pub(in crate::character) async fn delete_ai_timeline_artifacts_from_chapter_checked<C>(
+pub async fn delete_ai_timeline_artifacts_from_chapter_checked<C>(
     db: &C,
     profile_id: i64,
     start_chapter: i32,
@@ -61,8 +61,9 @@ where
         .filter(attribute_event::Column::ProfileId.eq(profile_id))
         .filter(attribute_event::Column::ChapterNumber.gte(start_chapter));
     if let Some(source_kind) = source_kind {
-        attribute_event_ids_query =
-            attribute_event_ids_query.filter(attribute_event::Column::SourceKind.eq(source_kind));
+        attribute_event_ids_query = attribute_event_ids_query.filter(
+            attribute_event::Column::SourceKind.is_in([source_kind, SOURCE_KIND_TEXT_FACT]),
+        );
     }
     if let Some(end_chapter) = end_chapter {
         attribute_event_ids_query = attribute_event_ids_query
@@ -88,8 +89,9 @@ where
         .filter(attribute_event::Column::ProfileId.eq(profile_id))
         .filter(attribute_event::Column::ChapterNumber.gte(start_chapter));
     if let Some(source_kind) = source_kind {
-        attribute_event_delete =
-            attribute_event_delete.filter(attribute_event::Column::SourceKind.eq(source_kind));
+        attribute_event_delete = attribute_event_delete.filter(
+            attribute_event::Column::SourceKind.is_in([source_kind, SOURCE_KIND_TEXT_FACT]),
+        );
     }
     if let Some(end_chapter) = end_chapter {
         attribute_event_delete =

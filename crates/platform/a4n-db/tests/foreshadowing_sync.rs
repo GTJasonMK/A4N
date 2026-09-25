@@ -1,7 +1,8 @@
 use a4n_db::project::{
-    CreateProjectRecordInput, ForeshadowingAnalysisDraft, ForeshadowingDbError,
-    cleanup_foreshadowing_for_chapter, create_foreshadowing_record, create_project_record,
-    delete_foreshadowing_record, sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
+    CreateProjectRecordInput, ForeshadowingAnalysisDraft,
+    ForeshadowingDbError, ForeshadowingFactUpdate, cleanup_foreshadowing_for_chapter,
+    create_foreshadowing_record, create_project_record, delete_foreshadowing_record,
+    sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
 };
 use a4n_db_models::models::{chapter::chapter, character::foreshadowing_index};
 use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
@@ -11,6 +12,15 @@ use serde_json::json;
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+fn resolved(id: i64) -> ForeshadowingFactUpdate {
+    ForeshadowingFactUpdate {
+        id,
+        status: ForeshadowingStatus::Resolved,
+        reason: "正文揭示真相".into(),
+        evidence: vec!["章节正文".into()],
+    }
 }
 
 async fn create_project(db: &DatabaseConnection) -> i64 {
@@ -88,14 +98,22 @@ async fn sync_resolves_idempotently_and_preserves_when_reanalysis_omits_it() {
     let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
     let planted = insert_foreshadowing(&db, project_id, "门后的脚步声", 2, None, "pending").await;
 
-    let first =
-        sync_chapter_analysis_foreshadowing(&db, source.clone(), Vec::new(), vec![planted.id])
-            .await
-            .expect("first resolution must succeed");
-    let repeated =
-        sync_chapter_analysis_foreshadowing(&db, source.clone(), Vec::new(), vec![planted.id])
-            .await
-            .expect("same resolution must be idempotent");
+    let first = sync_chapter_analysis_foreshadowing(
+        &db,
+        source.clone(),
+        Vec::new(),
+        vec![resolved(planted.id)],
+    )
+    .await
+    .expect("first resolution must succeed");
+    let repeated = sync_chapter_analysis_foreshadowing(
+        &db,
+        source.clone(),
+        Vec::new(),
+        vec![resolved(planted.id)],
+    )
+    .await
+    .expect("same resolution must be idempotent");
     assert_eq!(
         first
             .resolved
@@ -146,16 +164,22 @@ async fn sync_reports_created_updated_and_existing_setups() {
         vec![
             ForeshadowingAnalysisDraft {
                 description: "保持不变".to_string(),
+                existing_id: None,
+                evidence: "章节正文".into(),
                 related_characters: None,
                 importance: 3,
             },
             ForeshadowingAnalysisDraft {
                 description: "需要更新".to_string(),
+                existing_id: None,
+                evidence: "章节正文".into(),
                 related_characters: Some(json!(["主角"])),
                 importance: 5,
             },
             ForeshadowingAnalysisDraft {
                 description: "本章新增".to_string(),
+                existing_id: None,
+                evidence: "章节正文".into(),
                 related_characters: None,
                 importance: 4,
             },
@@ -167,7 +191,7 @@ async fn sync_reports_created_updated_and_existing_setups() {
 
     assert_eq!(result.existing[0].description, "保持不变");
     assert_eq!(result.updated[0].description, "需要更新");
-    assert_eq!(result.updated[0].importance, 3);
+    assert_eq!(result.updated[0].importance, 5);
     assert_eq!(result.updated[0].related_characters, Some(json!(["主角"])));
     assert_eq!(result.created[0].description, "本章新增");
 }
@@ -202,13 +226,13 @@ async fn invalid_resolution_rolls_back_current_chapter_reopen() {
     let db = setup_db().await;
     let project_id = create_project(&db).await;
     let chapter = insert_chapter(&db, project_id, 8).await;
-    let resolved = insert_foreshadowing(&db, project_id, "旧友身份", 2, Some(8), "resolved").await;
+    let existing = insert_foreshadowing(&db, project_id, "旧友身份", 2, Some(8), "resolved").await;
 
     let error = sync_chapter_analysis_foreshadowing(
         &db,
         a4n_db::project::chapter_source_snapshot_from_model(&chapter),
         Vec::new(),
-        vec![i64::MAX],
+        vec![resolved(i64::MAX)],
     )
     .await
     .expect_err("unknown id must fail");
@@ -217,7 +241,7 @@ async fn invalid_resolution_rolls_back_current_chapter_reopen() {
         ForeshadowingDbError::InvalidResolutionTarget { .. }
     ));
 
-    let unchanged = foreshadowing_index::Entity::find_by_id(resolved.id)
+    let unchanged = foreshadowing_index::Entity::find_by_id(existing.id)
         .one(&db)
         .await
         .expect("lookup")
@@ -246,10 +270,12 @@ async fn stale_chapter_source_rejects_all_foreshadowing_writes() {
         source,
         vec![ForeshadowingAnalysisDraft {
             description: "旧模型识别的新伏笔".to_string(),
+            existing_id: None,
+            evidence: "章节正文".into(),
             related_characters: None,
             importance: 3,
         }],
-        vec![pending.id],
+        vec![resolved(pending.id)],
     )
     .await
     .expect_err("stale chapter analysis must not write foreshadowing");
@@ -273,6 +299,53 @@ async fn stale_chapter_source_rejects_all_foreshadowing_writes() {
             .expect("foreshadowing rows must load")
             .len(),
         1
+    );
+}
+
+#[tokio::test]
+async fn fact_updates_reject_foreign_future_and_unquoted_evidence() {
+    let db = setup_db().await;
+    let project_id = create_project(&db).await;
+    let other = create_project(&db).await;
+    let chapter = insert_chapter(&db, project_id, 8).await;
+    let foreign = insert_foreshadowing(&db, other, "另一项目", 2, None, "pending").await;
+    let future = insert_foreshadowing(&db, project_id, "未来伏笔", 9, None, "pending").await;
+    let future_payoff =
+        insert_foreshadowing(&db, project_id, "未来回收", 2, Some(9), "resolved").await;
+    for id in [foreign.id, future.id, future_payoff.id] {
+        let error = sync_chapter_analysis_foreshadowing(
+            &db,
+            a4n_db::project::chapter_source_snapshot_from_model(&chapter),
+            vec![],
+            vec![resolved(id)],
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            ForeshadowingDbError::InvalidResolutionTarget { .. }
+        ));
+    }
+    let pending = insert_foreshadowing(&db, project_id, "待回收", 2, None, "pending").await;
+    let mut unquoted = resolved(pending.id);
+    unquoted.evidence = vec!["正文中不存在的句子".into()];
+    let error = sync_chapter_analysis_foreshadowing(
+        &db,
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter),
+        vec![],
+        vec![unquoted],
+    )
+    .await
+    .unwrap_err();
+    assert!(error.to_string().contains("原文证据"));
+    assert_eq!(
+        foreshadowing_index::Entity::find_by_id(pending.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "pending"
     );
 }
 

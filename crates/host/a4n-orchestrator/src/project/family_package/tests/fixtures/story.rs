@@ -133,6 +133,7 @@ pub(in crate::project::family_package::tests) fn package_with_part_outlines(
         root_project_id: 1,
         projects: vec![root_project()],
         text_core: TextCorePackage {
+            fact_feedback: None,
             part_outlines,
             ..Default::default()
         },
