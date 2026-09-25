@@ -1,23 +1,27 @@
-use a4n_domain::{
-    chapter_visual_plan::{
-        ChapterVisualPlanV3, SceneBindingV3, VisualSegmentProjectionV3, VisualUserAdditionKindV1,
-        VisualUserAdditionV1,
-    },
-    shooting_script::{ShootingDirectingStatementV1, ShootingEditingModeV1},
-    source_spans::SourceSpan,
-};
-use a4n_error::AppError;
+//! 已确认导演编排到拍摄剧本叙事单元的确定性投影。
+//!
+//! 生成、变基与校验共用同一分组规则：连续绑定同一场景的镜头归入一个叙事单元，
+//! 转场镜头单独成为一个单元；单元身份取首个镜头 ID。
+
 use serde::Serialize;
 
+use crate::chapter_visual_plan::{
+    ChapterVisualPlanV3, ChapterVisualPlanValidationError, SceneBindingV3,
+    VisualSegmentProjectionV3, VisualUserAdditionKindV1, VisualUserAdditionV1,
+};
+use crate::source_spans::SourceSpan;
+
+use super::{ShootingDirectingStatementV1, ShootingEditingModeV1};
+
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct DirectorScriptPlan {
+pub struct DirectorScriptPlan {
     pub directing_statement: ShootingDirectingStatementV1,
     pub user_additions: Vec<VisualUserAdditionV1>,
     pub narrative_units: Vec<DirectorScriptUnit>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct DirectorScriptUnit {
+pub struct DirectorScriptUnit {
     pub id: String,
     pub title: String,
     pub sequence_index: u32,
@@ -31,17 +35,24 @@ pub(crate) struct DirectorScriptUnit {
     pub shots: Vec<VisualSegmentProjectionV3>,
 }
 
-pub(crate) fn segment_addition_id(segment_id: &str) -> String {
+impl DirectorScriptPlan {
+    pub fn shot(&self, segment_id: &str) -> Option<&VisualSegmentProjectionV3> {
+        self.narrative_units
+            .iter()
+            .flat_map(|unit| &unit.shots)
+            .find(|shot| shot.segment_id == segment_id)
+    }
+}
+
+pub fn segment_addition_id(segment_id: &str) -> String {
     format!("director:{segment_id}")
 }
 
-pub(crate) fn project_visual_plan_for_shooting_script(
+pub fn project_visual_plan_for_shooting_script(
     plan: &ChapterVisualPlanV3,
     source_spans: &[SourceSpan],
-) -> Result<DirectorScriptPlan, AppError> {
-    let shots = plan
-        .project()
-        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+) -> Result<DirectorScriptPlan, ChapterVisualPlanValidationError> {
+    let shots = plan.project()?;
     let source_ids = source_spans
         .iter()
         .map(|span| span.id.clone())
@@ -63,8 +74,10 @@ pub(crate) fn project_visual_plan_for_shooting_script(
             last.shots.push(shot);
             continue;
         }
-        let index = u32::try_from(units.len() + 1)
-            .map_err(|_| AppError::InvalidArgument("镜头数量超出 u32 范围".into()))?;
+        let index = u32::try_from(units.len() + 1).map_err(|_| ChapterVisualPlanValidationError {
+            path: "segments".into(),
+            message: "镜头数量超出 u32 范围".into(),
+        })?;
         units.push(DirectorScriptUnit {
             id: format!("unit:{}", shot.segment_id),
             title: shot.title.clone(),
@@ -104,7 +117,7 @@ pub(crate) fn project_visual_plan_for_shooting_script(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_domain::chapter_visual_plan::{VisualPlanEditOperationV3, VisualPointV3};
+    use crate::chapter_visual_plan::{VisualPlanEditOperationV3, VisualPointV3};
 
     #[test]
     fn projection_keeps_segment_identity_and_does_not_require_one_paragraph_per_scene() {
@@ -152,5 +165,6 @@ mod tests {
         assert_eq!(second.keyframes[0].image_id, Some(9));
         assert!(projected.narrative_units[0].source_span_ids.is_empty());
         assert_eq!(projected.user_additions[0].id, "director:shot-1");
+        assert_eq!(projected.shot("shot-2").unwrap().start_ms, 4000);
     }
 }

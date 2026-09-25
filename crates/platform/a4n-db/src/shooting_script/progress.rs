@@ -159,6 +159,7 @@ pub async fn edit_chapter_shooting_script_progress(
             sha256: identity.plan_sha256.clone(),
         },
         &input.script,
+        Some(&current.script),
     )
     .await?;
     if input.script == current.script {

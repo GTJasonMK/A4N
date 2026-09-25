@@ -186,13 +186,7 @@ fn apply_visual_shot_plan(
 ) -> Result<(), AppError> {
     shot.shot_index = checked_index(index)?;
     shot.shot_id = planned.segment_id.clone();
-    shot.visual_shot_id = Some(planned.segment_id.clone());
-    shot.planned_start_ms = Some(planned.start_ms);
-    shot.planned_end_ms = Some(planned.end_ms);
-    shot.title = planned.title.clone();
     shot.user_addition_ids = vec![format!("director:{}", planned.segment_id)];
-    shot.visual_constraints = Some(planned.clone());
-    shot.narrative_purpose = planned.prompt.clone();
     let mut beat_ids = HashMap::new();
     let mut cited = shot
         .source_span_ids
@@ -215,24 +209,8 @@ fn apply_visual_shot_plan(
             .cloned()
             .ok_or_else(|| AppError::InvalidArgument("对白引用了不存在的 beat_id".into()))?;
     }
-    let duration = (planned.end_ms - planned.start_ms) as f64 / 1000.0;
-    let seconds = shot
-        .performance_beats
-        .iter()
-        .map(|beat| beat.estimated_seconds)
-        .sum::<f64>();
-    if !shot.performance_beats.is_empty() {
-        if !seconds.is_finite() || seconds <= 0.0 {
-            return Err(AppError::InvalidArgument(
-                "表演节拍时长必须为有效正数".into(),
-            ));
-        }
-        for beat in &mut shot.performance_beats {
-            beat.estimated_seconds *= duration / seconds;
-        }
-    }
-    shot.estimated_natural_seconds = duration;
-    Ok(())
+    shot.bind_director_constraints(planned)
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
 fn checked_index(index: usize) -> Result<u32, AppError> {
