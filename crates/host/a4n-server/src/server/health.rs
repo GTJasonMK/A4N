@@ -51,6 +51,7 @@ pub(crate) fn wait_for_managed_worker(
         },
         (config.metadata.name != AGENT_WORKER_CATALOG_NAME).then_some(&config.metadata.name),
         &required,
+        &config.metadata.capability_version,
         &config.metadata.name,
     )
 }
@@ -62,6 +63,7 @@ pub(crate) fn wait_for_worker_contract(
     auth_header: &str,
     expected_worker_id: Option<&str>,
     required_capabilities: &[&str],
+    expected_capability_version: &str,
     worker_name: &str,
 ) -> anyhow::Result<()> {
     let client = reqwest::blocking::Client::builder()
@@ -125,15 +127,12 @@ pub(crate) fn wait_for_worker_contract(
                             anyhow::anyhow!("{worker_name} capabilities 合同无效: {error}")
                         })?;
                     }
-                    for required in required_capabilities {
-                        if !capabilities
-                            .capabilities
-                            .iter()
-                            .any(|capability| capability.enabled && capability.name == *required)
-                        {
-                            anyhow::bail!("{worker_name} capabilities 缺少已启用操作: {required}");
-                        }
-                    }
+                    validate_worker_capabilities(
+                        worker_name,
+                        &capabilities,
+                        required_capabilities,
+                        expected_capability_version,
+                    )?;
                     return Ok(());
                 }
                 last_error = Some(anyhow::anyhow!(
@@ -160,4 +159,32 @@ pub(crate) fn wait_for_worker_contract(
             .map(ToString::to_string)
             .unwrap_or_else(|| "无".to_string())
     )
+}
+
+pub(crate) fn validate_worker_capabilities(
+    worker_name: &str,
+    capabilities: &WorkerCapabilities,
+    required_capabilities: &[&str],
+    expected_capability_version: &str,
+) -> anyhow::Result<()> {
+    for capability in &capabilities.capabilities {
+        if capability.version != expected_capability_version {
+            anyhow::bail!(
+                "{worker_name} capability {} 版本不匹配: expected={}, actual={}",
+                capability.name,
+                expected_capability_version,
+                capability.version
+            );
+        }
+    }
+    for required in required_capabilities {
+        if !capabilities
+            .capabilities
+            .iter()
+            .any(|capability| capability.enabled && capability.name == *required)
+        {
+            anyhow::bail!("{worker_name} capabilities 缺少已启用操作: {required}");
+        }
+    }
+    Ok(())
 }

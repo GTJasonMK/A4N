@@ -217,8 +217,15 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "read_image",
             "get_generation_task_summary",
             "wait_generation_task",
+            "load_agent_skill",
         ],
         DIRECTOR_AGENT_CAPABILITY => &[
+            "list_images_by_projects",
+            "preview_visual_plan_point_generation",
+            "read_visual_plan_prompt_candidate",
+            "start_visual_plan_prompt_generation",
+            "start_image_generation",
+            "wait_generation_task",
             "inspect_editor_target",
             "read_editor_draft",
             "save_editor_draft",
@@ -234,6 +241,9 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "list_chapter_scenes",
             "web_search",
             "web_fetch",
+            "search_agent_tools",
+            "describe_agent_tool",
+            "load_agent_skill",
         ],
         CANVAS_AGENT_CAPABILITY => &[
             "read_agent_execution_result",
@@ -247,6 +257,7 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "get_workflow_run_detail",
             "wait_workflow_run",
             "get_project",
+            "load_agent_skill",
         ],
         _ => agent_tools_for_capability(capability),
     }

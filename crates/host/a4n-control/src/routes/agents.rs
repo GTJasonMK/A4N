@@ -110,22 +110,10 @@ impl AgentRegistry {
 
     fn expire(&self) {
         let now = chrono::Utc::now().to_rfc3339();
-        let mut expired = Vec::new();
-        {
+        let expired = {
             let mut records = self.records.write();
-            for record in records.values_mut() {
-                if record.view.status != "offline" && record.view.expires_at <= now {
-                    record.view.status = "offline".into();
-                    record.view.updated_at = now.clone();
-                    expired.push(AgentEvent {
-                        kind: "updated",
-                        agent_id: record.view.agent_id.clone(),
-                        agent: Some(record.view.clone()),
-                        owner_user_id: record.owner_user_id,
-                    });
-                }
-            }
-        }
+            expire_records(&mut records, &now)
+        };
         for event in expired {
             let _ = self.events.send(event);
         }
@@ -239,19 +227,23 @@ impl AgentRegistry {
         token: &str,
         input: UpdateAgentInput,
     ) -> Result<AgentView, ApiError> {
-        self.expire();
-        let view = {
+        let now = chrono::Utc::now().to_rfc3339();
+        let (view, expired) = {
             let mut records = self.records.write();
+            let expired = expire_records(&mut records, &now);
             let record = records
                 .get_mut(agent_id)
                 .ok_or_else(|| ApiError::not_found("Agent 不存在"))?;
             authorize_record(record, owner_user_id, token)?;
             apply_update(&mut record.view, input)?;
-            record.view.updated_at = chrono::Utc::now().to_rfc3339();
+            record.view.updated_at = now;
             record.view.last_heartbeat_at = record.view.updated_at.clone();
             record.view.expires_at = lease_expiry();
-            record.view.clone()
+            (record.view.clone(), expired)
         };
+        for event in expired {
+            let _ = self.events.send(event);
+        }
         let _ = self.events.send(AgentEvent {
             kind: "updated",
             agent_id: agent_id.to_string(),
@@ -278,6 +270,23 @@ impl AgentRegistry {
         });
         Ok(())
     }
+}
+
+fn expire_records(records: &mut HashMap<String, AgentRecord>, now: &str) -> Vec<AgentEvent> {
+    let mut expired = Vec::new();
+    for record in records.values_mut() {
+        if record.view.status != "offline" && record.view.expires_at.as_str() <= now {
+            record.view.status = "offline".into();
+            record.view.updated_at = now.to_string();
+            expired.push(AgentEvent {
+                kind: "updated",
+                agent_id: record.view.agent_id.clone(),
+                agent: Some(record.view.clone()),
+                owner_user_id: record.owner_user_id,
+            });
+        }
+    }
+    expired
 }
 
 pub(super) async fn list(
@@ -518,5 +527,38 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn valid_heartbeat_recovers_an_expired_agent() {
+        let registry = AgentRegistry::new();
+        let registered = registry.register_for_test(7, "worker");
+        registry
+            .records
+            .write()
+            .get_mut(&registered.0)
+            .expect("registered agent")
+            .view
+            .expires_at = "2000-01-01T00:00:00+00:00".into();
+
+        let updated = registry
+            .update(
+                7,
+                &registered.0,
+                &registered.1,
+                UpdateAgentInput {
+                    status: Some("running".into()),
+                    phase: None,
+                    summary: None,
+                    progress: None,
+                    current_task_id: None,
+                    project_id: None,
+                    chapter_id: None,
+                    metadata: None,
+                },
+            )
+            .expect("valid heartbeat should be accepted");
+        assert_eq!(updated.status, "running");
+        assert!(updated.expires_at > updated.last_heartbeat_at);
     }
 }

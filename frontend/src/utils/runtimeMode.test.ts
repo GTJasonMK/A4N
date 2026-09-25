@@ -55,6 +55,16 @@ it("requires a configured remote address when the desktop does not manage a serv
   expect(() => apiBaseUrl()).toThrow("Desktop HTTP API address is not configured");
 });
 
+it("rejects non-absolute or non-http desktop API addresses", async () => {
+  vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+  const { apiBaseUrl } = await import("./runtimeMode");
+
+  for (const value of ["/remote-api", "ftp://example.com/api", ""]) {
+    vi.stubEnv("VITE_A4N_API_BASE_URL", value);
+    expect(() => apiBaseUrl()).toThrow();
+  }
+});
+
 it("keeps browser requests on their own origin", async () => {
   vi.stubEnv("VITE_A4N_API_BASE_URL", "/api");
   vi.stubGlobal("window", { __A4N_API_BASE_URL__: "http://127.0.0.1:38191/api" });

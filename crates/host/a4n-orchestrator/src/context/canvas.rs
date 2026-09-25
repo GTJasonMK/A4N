@@ -218,30 +218,6 @@ impl CanvasApplication {
         .await
         .map_err(video_studio_project_import_error)
     }
-
-    pub(super) async fn import_video_studio_package_into_existing<Writer>(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        package: VideoStudioProjectPackage,
-        now: NaiveDateTime,
-        media_file_writer: &mut Writer,
-    ) -> Result<novel_project::Model, AppError>
-    where
-        Writer: VideoStudioProjectImportMediaFileWriter,
-    {
-        let rows = package.into_import_rows();
-        a4n_db::canvas::import_video_studio_project_record_into_existing(
-            self.connection(),
-            user_id,
-            project_id,
-            rows,
-            now,
-            media_file_writer,
-        )
-        .await
-        .map_err(video_studio_project_import_error)
-    }
 }
 
 impl OrchestratorContext {

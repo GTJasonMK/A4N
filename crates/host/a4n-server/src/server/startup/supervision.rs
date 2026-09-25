@@ -73,7 +73,7 @@ fn handle_worker_event(
         .find_mut(&worker_name)
         .ok_or_else(|| anyhow::anyhow!("未注册需要重启的 Worker: {worker_name}"))?;
     if let Err(error) = restart_managed_worker(worker, stop_first) {
-        eprintln!("A4N {worker_name} Worker 重启失败，监督服务继续运行并重试: {error:#}");
+        eprintln!("A4N {worker_name} Worker 重启失败，监督服务继续运行: {error:#}");
     }
     Ok(())
 }
@@ -205,6 +205,7 @@ mod tests {
                 metadata: stateful_worker_catalog_entry_ref(worker_name).unwrap(),
                 binary,
                 address: "127.0.0.1:47675".parse().unwrap(),
+                control_addr: "127.0.0.1:47674".parse().unwrap(),
                 token: "test-token".into(),
             },
             child,

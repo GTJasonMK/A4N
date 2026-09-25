@@ -451,7 +451,7 @@ where
             None,
             None,
             None,
-            None,
+            waiting_reason.map(|reason| json!({ "waiting_reason": reason })),
         )
         .await?;
     }
@@ -466,6 +466,48 @@ pub async fn update_run_state(
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
 ) -> Result<run::Model, AgentDbError> {
+    update_run_state_inner(
+        db,
+        run_id,
+        lease_token,
+        status,
+        waiting_reason,
+        error_message,
+        None,
+    )
+    .await
+}
+
+pub async fn update_run_state_with_budget(
+    db: &DatabaseConnection,
+    run_id: i64,
+    lease_token: Option<&str>,
+    status: &str,
+    waiting_reason: Option<&str>,
+    error_message: Option<&str>,
+    budget_json: Value,
+) -> Result<run::Model, AgentDbError> {
+    update_run_state_inner(
+        db,
+        run_id,
+        lease_token,
+        status,
+        waiting_reason,
+        error_message,
+        Some(budget_json),
+    )
+    .await
+}
+
+async fn update_run_state_inner(
+    db: &DatabaseConnection,
+    run_id: i64,
+    lease_token: Option<&str>,
+    status: &str,
+    waiting_reason: Option<&str>,
+    error_message: Option<&str>,
+    budget_json: Option<Value>,
+) -> Result<run::Model, AgentDbError> {
     validate_run_status(status)?;
     let current = run::Entity::find_by_id(run_id)
         .one(db)
@@ -479,7 +521,7 @@ pub async fn update_run_state(
         .ok_or_else(|| {
             AgentDbError::NotFound(format!("Agent thread 不存在: {}", current.thread_id))
         })?;
-    let run_row = update_run_state_on(
+    let mut run_row = update_run_state_on(
         &tx,
         run_id,
         lease_token,
@@ -488,6 +530,11 @@ pub async fn update_run_state(
         error_message,
     )
     .await?;
+    if let Some(budget_json) = budget_json {
+        let mut active: run::ActiveModel = run_row.into();
+        active.budget_json = Set(budget_json);
+        run_row = active.update(&tx).await.map_err(AgentDbError::Database)?;
+    }
     let _ = refresh_thread_status_on(&tx, run_row.thread_id).await?;
     tx.commit().await?;
     Ok(run_row)

@@ -385,6 +385,7 @@ async fn process_claimed_run_inner(
     .await?;
     let mut messages = chat_messages(&context)?;
     let mut loaded_message_ids = context.messages.iter().map(|message| message.id).collect();
+    let mut summary_messages = context.messages.clone();
     let mut pinned_user_contents = context
         .messages
         .iter()
@@ -396,6 +397,7 @@ async fn process_claimed_run_inner(
         claimed,
         &mut messages,
         &mut loaded_message_ids,
+        &mut summary_messages,
         &mut pinned_user_contents,
     )
     .await?;
@@ -502,6 +504,7 @@ async fn process_claimed_run_inner(
             claimed,
             &mut messages,
             &mut loaded_message_ids,
+            &mut summary_messages,
             &mut pinned_user_contents,
         )
         .await?;

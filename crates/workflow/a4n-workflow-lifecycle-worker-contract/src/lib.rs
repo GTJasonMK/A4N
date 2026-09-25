@@ -4,7 +4,7 @@ pub use a4n_api_contract::workflow::WorkflowCancellationResult;
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const WORKFLOW_LIFECYCLE_WORKER_ID: &str = "workflow-lifecycle-worker";
-pub const WORKFLOW_LIFECYCLE_WORKER_CONTRACT_VERSION: &str = "workflow-lifecycle-v1";
+pub const WORKFLOW_LIFECYCLE_WORKER_CONTRACT_VERSION: &str = "workflow-lifecycle-v2";
 pub const WORKFLOW_LIFECYCLE_CAPABILITY: &str = "workflow.lifecycle";
 pub const WORKFLOW_LIFECYCLE_MARK_RUNNING_OPERATION: &str = "workflow.lifecycle.mark_running";
 pub const WORKFLOW_LIFECYCLE_CANCEL_OPERATION: &str = "workflow.lifecycle.cancel";

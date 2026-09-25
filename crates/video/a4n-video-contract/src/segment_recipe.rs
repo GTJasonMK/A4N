@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::{
     VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
@@ -8,6 +8,155 @@ use super::{
 };
 
 pub const VIDEO_SEGMENT_RECIPES_METADATA_KEY: &str = "segment_recipes";
+const VIDEO_EXECUTION_BASE_IDENTITY_FIELDS: [&str; 5] = [
+    "contract_epoch",
+    "source_content_sha256",
+    "style_sha256",
+    "duration_secs",
+    "aspect_ratio",
+];
+const VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS: [&str; 4] = [
+    "contract_epoch",
+    "source_content_sha256",
+    "style_sha256",
+    "aspect_ratio",
+];
+const VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS: [&str; 5] = [
+    "segment_plan_prompt_id",
+    "source_shot_id",
+    "segment_index_in_shot",
+    "segment_sha256",
+    "segment_recipe_fingerprint",
+];
+
+pub fn video_execution_segment_identity_matches(
+    stored_metadata: Option<&Value>,
+    expected_identity: &Value,
+) -> bool {
+    video_execution_identity_fields_match(
+        stored_metadata,
+        expected_identity,
+        &VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
+    ) && video_execution_identity_fields_match(
+        stored_metadata,
+        expected_identity,
+        &VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS,
+    )
+}
+
+pub fn video_execution_segment_lineage_matches(
+    stored_metadata: Option<&Value>,
+    expected_identity: &Value,
+) -> bool {
+    video_execution_identity_fields_match(
+        stored_metadata,
+        expected_identity,
+        &VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS,
+    ) && video_execution_identity_fields_match(
+        stored_metadata,
+        expected_identity,
+        &VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS,
+    )
+}
+
+fn video_execution_identity_fields_match(
+    stored_metadata: Option<&Value>,
+    expected_identity: &Value,
+    fields: &[&str],
+) -> bool {
+    let Some(stored_identity) = stored_metadata
+        .and_then(|metadata| metadata.get("video_execution_identity"))
+        .and_then(Value::as_object)
+    else {
+        return false;
+    };
+    let Some(expected_identity) = expected_identity.as_object() else {
+        return false;
+    };
+    fields.iter().all(|field| {
+        expected_identity
+            .get(*field)
+            .is_some_and(|expected| stored_identity.get(*field) == Some(expected))
+    })
+}
+
+pub fn video_segment_execution_identity(
+    identity: Value,
+    segment_plan_prompt_id: i64,
+    recipe: &VideoSegmentExecutionRecipeV1,
+    target: (&str, i32),
+) -> Result<Value, String> {
+    video_segment_execution_identity_with(
+        identity,
+        segment_plan_prompt_id,
+        recipe,
+        target,
+        VideoSegmentExecutionRecipeV1::generation_fingerprint,
+    )
+}
+
+pub fn video_segment_frame_execution_identity(
+    identity: Value,
+    segment_plan_prompt_id: i64,
+    recipe: &VideoSegmentExecutionRecipeV1,
+    target: (&str, i32),
+) -> Result<Value, String> {
+    video_segment_execution_identity_with(
+        identity,
+        segment_plan_prompt_id,
+        recipe,
+        target,
+        VideoSegmentExecutionRecipeV1::frame_generation_fingerprint,
+    )
+}
+
+fn video_segment_execution_identity_with(
+    mut identity: Value,
+    segment_plan_prompt_id: i64,
+    recipe: &VideoSegmentExecutionRecipeV1,
+    target: (&str, i32),
+    fingerprint: fn(&VideoSegmentExecutionRecipeV1) -> Result<String, String>,
+) -> Result<Value, String> {
+    let segment_identity = identity
+        .get("segment_identities")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items.iter().find(|item| {
+                item.get("source_shot_id").and_then(Value::as_str) == Some(target.0)
+                    && item.get("segment_index_in_shot").and_then(Value::as_i64)
+                        == Some(i64::from(target.1))
+            })
+        })
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "视频执行身份不存在镜头 {} 的第 {} 个片段",
+                target.0, target.1
+            )
+        })?;
+    let object = identity
+        .as_object_mut()
+        .ok_or_else(|| "视频执行身份必须是 JSON 对象".to_string())?;
+    object.insert(
+        "segment_plan_prompt_id".to_string(),
+        json!(segment_plan_prompt_id),
+    );
+    object.insert("segment_number".to_string(), json!(recipe.segment_number));
+    object.insert("source_shot_id".to_string(), json!(target.0));
+    object.insert("segment_index_in_shot".to_string(), json!(target.1));
+    object.insert(
+        "segment_sha256".to_string(),
+        segment_identity
+            .get("segment_sha256")
+            .cloned()
+            .ok_or_else(|| "片段执行身份缺少内容指纹".to_string())?,
+    );
+    object.insert(
+        "segment_recipe_fingerprint".to_string(),
+        json!(fingerprint(recipe)?),
+    );
+    Ok(identity)
+}
 
 pub fn propagate_adopted_video_change(
     recipes: &mut [VideoSegmentExecutionRecipeV1],

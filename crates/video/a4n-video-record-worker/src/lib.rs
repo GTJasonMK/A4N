@@ -342,6 +342,7 @@ impl WorkerState {
         request: WorkerEnvelope<VideoSegmentSelectionInput>,
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_SELECT_SEGMENT_OPERATION)?;
+        validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         let project_id = positive(input.project_id, "project_id")?;
@@ -397,6 +398,37 @@ impl WorkerState {
         let video = video_result
             .map_err(database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        let plan_identity = plan
+            .metadata_json
+            .as_ref()
+            .and_then(|metadata| metadata.get("video_execution_identity"))
+            .cloned()
+            .ok_or_else(|| WorkerFailure::invalid_request("当前片段规划缺少执行身份"))?;
+        let expected_identity = a4n_video_contract::video_segment_execution_identity(
+            plan_identity,
+            plan.id,
+            &recipe,
+            (&target.source_shot_id, target.segment_index_in_shot),
+        )
+        .map_err(WorkerFailure::invalid_request)?;
+        if video.project_id != project_id
+            || video.chapter_id != Some(chapter_id)
+            || video.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+            || video
+                .file_path
+                .as_deref()
+                .map(str::trim)
+                .is_none_or(str::is_empty)
+            || video.workflow_mode.as_deref() != Some(recipe.workflow_mode.as_str())
+            || !a4n_video_contract::video_execution_segment_lineage_matches(
+                video.metadata_json.as_ref(),
+                &expected_identity,
+            )
+        {
+            return Err(WorkerFailure::invalid_request(format!(
+                "视频 #{video_id} 不属于当前规划片段 {segment_number} 的所选执行方案"
+            )));
+        }
         recipe.adopted_video_id = Some(video_id);
         a4n_db::video::prompts::consistency::update_chapter_video_segment_recipe(
             db, plan.id, recipe,
@@ -411,6 +443,7 @@ impl WorkerState {
         request: WorkerEnvelope<LoadVideoSegmentPlanDraftInput>,
     ) -> Result<VideoSegmentPlanDraftSummary, WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_DRAFT_LOAD_OPERATION)?;
+        validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         positive(input.project_id, "project_id")?;
@@ -560,6 +593,7 @@ impl WorkerState {
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_UPDATE_OPERATION)?;
         let user_id = user_id(&request)?;
+        let request_project_id = request.project_id;
         let input = request.payload;
         let video_id = positive(input.video_id, "video_id")?;
         if input.input.is_empty() {
@@ -569,6 +603,7 @@ impl WorkerState {
             .await
             .map_err(database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        validate_optional_project_scope(request_project_id, video.project_id)?;
         verify_project_permission(
             &self.database,
             video.project_id,
@@ -696,6 +731,7 @@ impl WorkerState {
             .await
             .map_err(database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        validate_optional_project_scope(request.project_id, video.project_id)?;
         verify_project_permission(
             &self.database,
             video.project_id,
@@ -711,6 +747,7 @@ impl WorkerState {
         request: WorkerEnvelope<ChapterVideosInput>,
     ) -> Result<Vec<GeneratedVideoSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_LIST_OPERATION)?;
+        validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         positive(input.project_id, "project_id")?;
@@ -744,6 +781,7 @@ impl WorkerState {
         request: WorkerEnvelope<ReferenceImagesInput>,
     ) -> Result<Vec<GeneratedImageSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION)?;
+        validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         positive(input.project_id, "project_id")?;
@@ -784,6 +822,7 @@ impl WorkerState {
         request: WorkerEnvelope<ChapterVideosInput>,
     ) -> Result<Vec<ChapterVideoPromptSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_LIST_OPERATION)?;
+        validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         positive(input.project_id, "project_id")?;
@@ -821,6 +860,7 @@ impl WorkerState {
         request: WorkerEnvelope<VideoSourceInput>,
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION)?;
+        validate_required_project_scope(&request, request.payload.project_id)?;
         let input = request.payload;
         positive(input.project_id, "project_id")?;
         positive(input.chapter_id, "chapter_id")?;
@@ -946,6 +986,30 @@ fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, Work
         .ok()
         .filter(|id| *id > 0)
         .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+}
+
+fn validate_required_project_scope<T>(
+    request: &WorkerEnvelope<T>,
+    project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if project_id <= 0 || request.project_id != Some(project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与资源 project_id 不一致或无效",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_optional_project_scope(
+    request_project_id: Option<i64>,
+    project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if project_id <= 0 || request_project_id.is_some_and(|scope| scope != project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与资源 project_id 不一致或无效",
+        ));
+    }
+    Ok(())
 }
 
 fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {

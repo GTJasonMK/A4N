@@ -1,4 +1,4 @@
-// Read-only reproduction probes; successful assertions confirm the reported gaps.
+// Read-only regression probes for the previously reported Agent event gaps.
 // Node 24 can execute the production TypeScript module without dependencies.
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
@@ -30,7 +30,7 @@ const approval = reduceAgentEvent(
   event("approval_requested", { approval_id: "approval-1" }),
   0,
 );
-assert.equal(approval.needsReload, false);
+assert.equal(approval.needsReload, true);
 assert.equal(approval.snapshot.approvals.length, 0);
 assert.equal(approval.snapshot.runs[0].status, "running");
 
@@ -41,10 +41,10 @@ const waiting = reduceAgentEvent(
 );
 assert.equal(waiting.needsReload, false);
 assert.equal(waiting.snapshot.runs[0].status, "waiting");
-assert.equal(waiting.snapshot.runs[0].waiting_reason, null);
+assert.equal(waiting.snapshot.runs[0].waiting_reason, "budget");
 
 console.log(JSON.stringify({
-  meaning: "defects reproduced; not a passing product acceptance suite",
+  meaning: "previous Agent event defects remain covered by regression probes",
   source_root: sourceRoot,
   approval_event_requests_reload: approval.needsReload,
   visible_pending_approvals_after_event: approval.snapshot.approvals.length,

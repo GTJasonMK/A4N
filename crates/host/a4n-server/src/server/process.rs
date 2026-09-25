@@ -37,6 +37,7 @@ pub(crate) fn spawn_managed_worker(config: &ManagedWorkerConfig) -> anyhow::Resu
             config.metadata.addr_env.as_str(),
             config.address.to_string(),
         )
+        .env("A4N_CONTROL_ADDR", config.control_addr.to_string())
         .env(managed_worker_env(config.metadata, "TOKEN"), &config.token)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
@@ -51,6 +52,43 @@ pub(crate) fn spawn_managed_worker(config: &ManagedWorkerConfig) -> anyhow::Resu
             config.binary.display()
         )
     })
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn managed_worker_receives_resolved_control_address() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let binary = temp_dir.path().join("agent-worker");
+        let output = temp_dir.path().join("control-address");
+        std::fs::write(
+            &binary,
+            "#!/bin/sh\nprintf '%s' \"$A4N_CONTROL_ADDR\" > \"$A4N_AGENT_WORKER_TOKEN\"\n",
+        )
+        .unwrap();
+        let mut permissions = std::fs::metadata(&binary).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&binary, permissions).unwrap();
+        let control_addr = control_addr_from_web("127.0.0.1:0".parse().unwrap()).unwrap();
+        assert_eq!(control_addr.to_string(), "127.0.0.1:18080");
+        let config = ManagedWorkerConfig {
+            metadata: stateful_worker_catalog_entry_ref("agent-worker").unwrap(),
+            binary,
+            address: "127.0.0.1:47650".parse().unwrap(),
+            control_addr,
+            token: output.display().to_string(),
+        };
+
+        let mut child = spawn_managed_worker(&config).unwrap();
+        assert!(child.wait().unwrap().success());
+        assert_eq!(
+            std::fs::read_to_string(output).unwrap(),
+            control_addr.to_string()
+        );
+    }
 }
 
 pub(crate) fn spawn_edge(binary: &Path, control_addr: SocketAddr) -> anyhow::Result<Child> {

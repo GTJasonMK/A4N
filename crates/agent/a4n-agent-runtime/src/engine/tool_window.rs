@@ -24,18 +24,23 @@ pub(crate) fn available_runtime_tools(
     let mut dropped_optional = Vec::new();
     // Pending calls are resumed from their executions before another model
     // request. Their schemas need no second, potentially stale, mandatory list.
-    for name in foundation
-        .into_iter()
-        .chain(discovered_tools.iter().rev().map(String::as_str))
-        .chain(initial_tools.iter().copied())
-    {
+    for name in foundation.into_iter().chain(initial_tools.iter().copied()) {
         if !seen.insert(name)
             || ensure_agent_scope_allows_tool(scope, name).is_err()
             || !a4n_api_contract::agent::capability_allows_tool(capability, name)
         {
             continue;
         }
-        if names.len() == MAX_AGENT_TOOL_SCHEMAS {
+        names.push(name);
+    }
+    for name in discovered_tools.iter().rev().map(String::as_str) {
+        if !seen.insert(name)
+            || ensure_agent_scope_allows_tool(scope, name).is_err()
+            || !a4n_api_contract::agent::capability_allows_tool(capability, name)
+        {
+            continue;
+        }
+        if names.len() >= MAX_AGENT_TOOL_SCHEMAS {
             dropped_optional.push(name.to_string());
         } else {
             names.push(name);

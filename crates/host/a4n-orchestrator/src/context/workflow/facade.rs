@@ -173,6 +173,7 @@ impl OrchestratorContext {
                     .interrupted_generated_video_ids
                     .clone(),
                 already_terminal: cancellation.already_terminal,
+                cancelled: cancellation.cancelled,
             },
             reason,
         )
@@ -185,7 +186,7 @@ impl OrchestratorContext {
         cancellation: WorkflowCancellationResult,
         reason: &str,
     ) -> Result<(), AppError> {
-        if !cancellation.already_terminal {
+        if cancellation.cancelled {
             self.task_queue
                 .cancel_workflow_llm_calls(cancellation.workflow_run_id)
                 .await?;
@@ -223,12 +224,30 @@ impl OrchestratorContext {
             .map(|video| (video.id, video))
             .collect::<std::collections::HashMap<_, _>>();
         let mut inputs = Vec::with_capacity(video_ids.len());
+        let mut cancelled_video_ids = Vec::new();
         for video_id in video_ids {
             let Some(video) = videos_by_id.get(video_id) else {
                 tracing::warn!(video_id, "取消工作流时读取关联视频失败: 视频不存在");
                 continue;
             };
-            if is_video_status_final_for_cancel_interrupt(&video.status) {
+            let already_cancelled =
+                video.status == a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED;
+            let final_status = is_video_status_final_for_cancel_interrupt(&video.status);
+            let next_status =
+                if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref())
+                    .is_some()
+                {
+                    a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
+                } else {
+                    a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+                };
+            if already_cancelled
+                || (!final_status
+                    && next_status == a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED)
+            {
+                cancelled_video_ids.push(video.id);
+            }
+            if final_status {
                 continue;
             }
             inputs.push(GeneratedVideoErrorStatusBatchInput {
@@ -236,29 +255,18 @@ impl OrchestratorContext {
                 prompt_id: a4n_domain::video::generated_video_prompt_id(
                     video.metadata_json.as_ref(),
                 ),
-                status: if crate::video::normalized_provider_job_id(
-                    video.provider_job_id.as_deref(),
-                )
-                .is_some()
-                {
-                    a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED.to_string()
-                } else {
-                    a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED.to_string()
-                },
+                status: next_status.to_string(),
             });
         }
-        let missing = self
-            .video
-            .mark_generated_videos_error_status_and_prompt_records(&inputs, reason)
-            .await?;
-        for video_id in missing {
-            tracing::warn!(video_id, "取消工作流时读取关联视频失败: 视频不存在");
+        if !inputs.is_empty() {
+            let missing = self
+                .video
+                .mark_generated_videos_error_status_and_prompt_records(&inputs, reason)
+                .await?;
+            for video_id in missing {
+                tracing::warn!(video_id, "取消工作流时读取关联视频失败: 视频不存在");
+            }
         }
-        let cancelled_video_ids = inputs
-            .iter()
-            .filter(|input| input.status == a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED)
-            .map(|input| input.video_id)
-            .collect::<Vec<_>>();
         if cancelled_video_ids.is_empty() {
             return Ok(());
         }
@@ -272,14 +280,11 @@ impl OrchestratorContext {
             .await?
             .into_iter()
             .collect::<std::collections::HashMap<_, _>>();
-        for input in inputs
-            .iter()
-            .filter(|input| input.status == a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED)
-        {
+        for video_id in &cancelled_video_ids {
             crate::video::ensure_provider_generation_run_updated(
-                input.video_id,
+                *video_id,
                 cancelled_run_counts
-                    .get(&input.video_id)
+                    .get(video_id)
                     .copied()
                     .unwrap_or_default(),
                 "取消 provider 视频生成",

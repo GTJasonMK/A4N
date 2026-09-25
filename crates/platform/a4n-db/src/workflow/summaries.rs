@@ -16,6 +16,7 @@ pub struct CancelWorkflowRunPersistenceResult {
     pub active_task_id: Option<String>,
     pub interrupted_generated_video_ids: Vec<i64>,
     pub already_terminal: bool,
+    pub cancelled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

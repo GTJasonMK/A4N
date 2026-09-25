@@ -14,6 +14,18 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::{Value, json};
 
+#[test]
+fn required_project_scope_rejects_missing_and_mismatched_scope() {
+    let mut request = selection_request(7, 9, 10, 11, 12);
+    assert!(validate_required_project_scope(&request, 9).is_ok());
+
+    request.project_id = None;
+    assert!(validate_required_project_scope(&request, 9).is_err());
+
+    request.project_id = Some(10);
+    assert!(validate_required_project_scope(&request, 9).is_err());
+}
+
 #[tokio::test]
 async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
     let db = a4n_migration::test_support::connect_test_database().await;
@@ -40,6 +52,7 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
         .unwrap()
         .clone();
     let segment_sha256 = video_segment_content_fingerprint(&segments[1]).unwrap();
+    let first_segment_sha256 = video_segment_content_fingerprint(&segments[0]).unwrap();
     let recipe_fingerprint = recipe.generation_fingerprint().unwrap();
     let plan = insert_plan(
         &db,
@@ -51,7 +64,19 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
                 "source_content_sha256": source_content_sha256,
                 "style_sha256": style_sha256,
                 "duration_secs": 6,
-                "aspect_ratio": "16:9"
+                "aspect_ratio": "16:9",
+                "segment_identities": [
+                    {
+                        "source_shot_id": "stable-shot",
+                        "segment_index_in_shot": 1,
+                        "segment_sha256": first_segment_sha256
+                    },
+                    {
+                        "source_shot_id": "stable-shot",
+                        "segment_index_in_shot": 2,
+                        "segment_sha256": segment_sha256
+                    }
+                ]
             },
             "segments": segments,
             "segment_recipes": recipes
@@ -90,7 +115,43 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
         "matching-lineage",
     )
     .await;
+    let another_project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: owner.id,
+            title: "其他项目".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let another_chapter = insert_chapter(&db, another_project.id).await;
+    let cross_project_video = insert_completed_video(
+        &db,
+        another_project.id,
+        another_chapter.id,
+        video_identity(&recipe_fingerprint),
+        "cross-project",
+    )
+    .await;
     let state = VideoRecordWorker::new(db.clone(), VIDEO_RECORD_WORKER_ID, "test-token").state;
+
+    let cross_project_failure = state
+        .select_segment(selection_request(
+            owner.id,
+            project.id,
+            chapter.id,
+            plan.id,
+            cross_project_video.id,
+        ))
+        .await
+        .expect_err("a video from another project must not be adopted");
+    assert!(
+        cross_project_failure
+            .message
+            .contains("不属于当前规划片段 2")
+    );
 
     let failure = match state
         .select_segment(selection_request(

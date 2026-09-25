@@ -21,17 +21,31 @@ export function shouldUseHttpBackend(): boolean {
 }
 
 export function apiBaseUrl(): string {
-  if (isTauriRuntime() && window.__A4N_API_BASE_URL__ !== undefined) {
-    return window.__A4N_API_BASE_URL__;
-  }
-  const value = import.meta.env.VITE_A4N_API_BASE_URL;
-  if (typeof value === "string" && value.trim() && value.trim() !== "/api") {
-    return value.trim().replace(/\/$/, "");
-  }
+  const value = isTauriRuntime() && window.__A4N_API_BASE_URL__ !== undefined
+    ? window.__A4N_API_BASE_URL__
+    : import.meta.env.VITE_A4N_API_BASE_URL;
+  const configured = normalizeHttpApiBaseUrl(value);
+  if (configured) return configured;
   if (isTauriRuntime()) {
     throw new Error("Desktop HTTP API address is not configured");
   }
   return "/api";
+}
+
+function normalizeHttpApiBaseUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "/api") return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("HTTP API address must be an absolute http(s) URL");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("HTTP API address must use http or https");
+  }
+  return trimmed.replace(/\/+$/, "");
 }
 
 type BackendKind = "local_tauri" | "remote_http";

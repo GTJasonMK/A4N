@@ -253,6 +253,7 @@ impl WorkerState {
             active_task_id: result.active_task_id,
             interrupted_generated_video_ids: result.interrupted_generated_video_ids,
             already_terminal: result.already_terminal,
+            cancelled: result.cancelled,
         })
     }
 

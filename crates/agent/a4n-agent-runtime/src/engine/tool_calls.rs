@@ -232,6 +232,7 @@ pub(crate) async fn append_inbox_messages(
     claimed: &AgentWorkerRun,
     messages: &mut Vec<ChatMessage>,
     loaded_message_ids: &mut HashSet<i64>,
+    summary_messages: &mut Vec<AgentMessageSnapshot>,
     pinned_user_contents: &mut Vec<String>,
 ) -> Result<(), AppError> {
     while let Some(row) = state.claim_agent_inbox(claimed).await? {
@@ -247,6 +248,7 @@ pub(crate) async fn append_inbox_messages(
                 pinned_user_contents.push(message.content.clone());
             }
             messages.push(chat_message_from_model(&message)?);
+            summary_messages.push(message.clone());
             loaded_message_ids.insert(message.id);
         } else {
             let (_, message) = state.persist_agent_inbox(claimed, &row).await?;
@@ -254,6 +256,7 @@ pub(crate) async fn append_inbox_messages(
                 pinned_user_contents.push(message.content.clone());
             }
             messages.push(chat_message_from_model(&message)?);
+            summary_messages.push(message.clone());
             loaded_message_ids.insert(message.id);
         }
     }

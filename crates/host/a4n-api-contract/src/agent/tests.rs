@@ -1,12 +1,39 @@
 use super::{
-    AGENT_CAPABILITIES, AGENT_PHASE_APPLY, AGENT_PHASE_VERIFY, AgentToolExposure,
-    CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
-    LocateWritingTargetInput, MAIN_AGENT_CAPABILITY, SearchAgentToolsInput, agent_phase_for_tool,
-    agent_tool_descriptor, agent_tool_requires_user_approval, agent_tools_for_capability,
-    capability_allows_tool, initial_agent_tools, scope_agent_tool_search,
-    synthetic_agent_tool_descriptor,
+    AGENT_CAPABILITIES, AGENT_PHASE_APPLY, AGENT_PHASE_VERIFY, AgentBudget, AgentToolExposure,
+    CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, ControlAgentRunInput,
+    DIRECTOR_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
+    SearchAgentToolsInput, agent_phase_for_tool, agent_tool_descriptor,
+    agent_tool_requires_user_approval, agent_tools_for_capability, capability_allows_tool,
+    initial_agent_tools, scope_agent_tool_search, synthetic_agent_tool_descriptor,
 };
 use crate::command_manifest::command_descriptor;
+use serde_json::json;
+
+#[test]
+fn control_agent_run_accepts_optional_budget_updates() {
+    let existing_request = serde_json::from_value::<ControlAgentRunInput>(json!({
+        "thread_id": "thread-1",
+        "run_id": "run-1",
+        "action": "resume"
+    }))
+    .expect("existing requests remain valid");
+    assert!(existing_request.budget.is_none());
+
+    let update_request = serde_json::from_value::<ControlAgentRunInput>(json!({
+        "thread_id": "thread-1",
+        "run_id": "run-1",
+        "action": "resume",
+        "budget": {"max_steps": 64}
+    }))
+    .expect("resume requests can carry a new budget");
+    assert_eq!(
+        update_request.budget,
+        Some(AgentBudget {
+            max_steps: Some(64),
+            ..AgentBudget::default()
+        })
+    );
+}
 
 #[test]
 fn capability_catalogs_are_non_empty_and_every_tool_is_resolvable() {
@@ -93,6 +120,7 @@ fn restricted_capabilities_allow_their_complete_catalog_not_just_initial_tools()
     ] {
         let tools = initial_agent_tools(capability);
         assert!(!tools.is_empty());
+        assert!(tools.contains(&"load_agent_skill"));
         assert!(
             agent_tools_for_capability(capability)
                 .iter()
@@ -104,6 +132,28 @@ fn restricted_capabilities_allow_their_complete_catalog_not_just_initial_tools()
         MAIN_AGENT_CAPABILITY,
         "describe_agent_tool"
     ));
+    for capability in [
+        CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+        CANVAS_AGENT_CAPABILITY,
+    ] {
+        assert!(!initial_agent_tools(capability).contains(&"describe_agent_tool"));
+    }
+
+    for tool in [
+        "search_agent_tools",
+        "describe_agent_tool",
+        "list_images_by_projects",
+        "preview_visual_plan_point_generation",
+        "read_visual_plan_prompt_candidate",
+        "start_visual_plan_prompt_generation",
+        "start_image_generation",
+        "wait_generation_task",
+    ] {
+        assert!(
+            capability_allows_tool(DIRECTOR_AGENT_CAPABILITY, tool),
+            "Director must allow {tool}"
+        );
+    }
 }
 
 #[test]

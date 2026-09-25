@@ -44,7 +44,7 @@ const WORKER_MAX_CONCURRENT_RUNS: usize = 4;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
 // Discovery remains available even when a domain's full catalog does not fit.
-const MAX_AGENT_TOOL_SCHEMAS: usize = 15;
+const MAX_AGENT_TOOL_SCHEMAS: usize = 32;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
 pub(super) const MAX_OBSERVATION_BYTES: usize = 16 * 1024;
@@ -129,6 +129,32 @@ mod tests {
         .expect("optional discovered tools should be trimmed");
         assert!(tools.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
         assert!(tools.dropped_optional.len() <= discovered.len());
+    }
+
+    #[test]
+    fn director_initial_tools_are_not_evicted_by_discovery() {
+        let tools = available_runtime_tools(
+            a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY,
+            &AgentScope::default(),
+            &a4n_api_contract::agent::DIRECTOR_AGENT_TOOLS
+                .iter()
+                .map(|name| (*name).to_string())
+                .collect::<Vec<_>>(),
+        )
+        .expect("director tool window should resolve");
+        let names = tools
+            .schemas
+            .iter()
+            .filter_map(|schema| schema["function"]["name"].as_str())
+            .collect::<HashSet<_>>();
+        for name in a4n_api_contract::agent::initial_agent_tools(
+            a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY,
+        ) {
+            assert!(
+                names.contains(name),
+                "missing Director initial tool: {name}"
+            );
+        }
     }
 
     #[test]
@@ -223,7 +249,7 @@ mod tests {
                 resource_id: Some("13".into()),
                 project_id: Some(11),
                 chapter_id: Some(13),
-                chapter_number: Some(1),
+                chapter_number: None,
                 allowed_capabilities: vec!["content_optimization".into()],
                 allowed_tools: Vec::new(),
             },

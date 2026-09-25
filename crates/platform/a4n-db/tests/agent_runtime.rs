@@ -6,7 +6,8 @@ use a4n_db::agent::{
     expired_running_runs, finish_run_with_message, latest_events_by_thread,
     mark_turn_active_for_run_lease, recover_expired_run, release_inbox_claim, renew_run_lease,
     request_approval_for_run_lease, supersede_inbox, update_delegation,
-    update_execution_for_run_lease, update_run_state, update_run_usage,
+    update_execution_for_run_lease, update_run_state, update_run_state_with_budget,
+    update_run_usage,
 };
 use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, run, thread, turn,
@@ -1079,6 +1080,21 @@ async fn external_task_wait_wakes_only_its_live_execution() {
     wait_run_for_lease_with_request(&db, run.id, token, "external", None)
         .await
         .unwrap();
+    let waiting_event = event::Entity::find()
+        .filter(event::Column::RunId.eq(run.id))
+        .filter(event::Column::Kind.eq("run_waiting"))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("waiting event must be persisted");
+    assert_eq!(
+        waiting_event
+            .payload_json
+            .as_ref()
+            .and_then(|payload| payload.get("waiting_reason"))
+            .and_then(serde_json::Value::as_str),
+        Some("external")
+    );
     assert_eq!(list_external_task_waits(&db, 0).await.unwrap().len(), 1);
     wake_external_task_wait(&db, run.id, execution.id + 1)
         .await
@@ -1721,6 +1737,26 @@ async fn expired_worker_cannot_commit_execution_result() {
         .expect("execution must exist");
     assert_eq!(unchanged.status, "prepared");
     assert!(unchanged.result_json.is_none());
+}
+
+#[tokio::test]
+async fn budget_wait_can_resume_with_a_persisted_budget_update() {
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+
+    update_run_state(&db, run.id, None, "waiting", Some("budget"), None)
+        .await
+        .expect("run must enter budget wait");
+    let budget = json!({"max_steps": 64});
+    let resumed =
+        update_run_state_with_budget(&db, run.id, None, "queued", None, None, budget.clone())
+            .await
+            .expect("budget update and requeue must succeed");
+
+    assert_eq!(resumed.status, "queued");
+    assert_eq!(resumed.waiting_reason, None);
+    assert_eq!(resumed.budget_json, budget);
 }
 
 #[tokio::test]

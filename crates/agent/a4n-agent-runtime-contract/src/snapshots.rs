@@ -4,6 +4,7 @@ use super::*;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
 pub const AGENT_CONTEXT_SUMMARY_VERSION: u32 = 2;
+pub const AGENT_CONTEXT_SUMMARY_SOURCE_MAX_CHARS: usize = 2_000;
 
 /// Stable worker-facing projection of a durable Agent run.
 #[derive(Debug, Clone)]
@@ -75,6 +76,118 @@ impl AgentContextSummary {
             });
         }
         Ok(())
+    }
+}
+
+pub fn deterministic_context_summary(
+    previous: Option<&Value>,
+    goal: Option<&str>,
+    source: &str,
+    covered_through_sequence: i64,
+) -> Result<AgentContextSummary, AppError> {
+    let strings = |name: &str| {
+        previous
+            .and_then(|value| value.get(name))
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(|value| bound_summary_text(value, 1_000))
+                    .take(64)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    let current_goal = goal
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            previous
+                .and_then(|value| value.get("current_goal"))
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or("未提供显式目标")
+        .to_string();
+    let mut facts_resources = strings("facts_resources");
+    if !source.trim().is_empty() {
+        push_recent(
+            &mut facts_resources,
+            bound_summary_text(source, AGENT_CONTEXT_SUMMARY_SOURCE_MAX_CHARS),
+        );
+    }
+    let mut tool_state = strings("tool_state");
+    push_recent(
+        &mut tool_state,
+        format!("上下文已确定性压缩，覆盖到事件序列 {covered_through_sequence}"),
+    );
+    let mut summary = AgentContextSummary {
+        schema_version: AGENT_CONTEXT_SUMMARY_VERSION,
+        current_goal: bound_summary_text(&current_goal, 4_000),
+        constraints: strings("constraints"),
+        decisions: strings("decisions"),
+        facts_resources,
+        completed: strings("completed"),
+        pending: strings("pending"),
+        tool_state,
+        covered_through_sequence,
+    };
+    let mut summary_bytes = serde_json::to_vec(&summary)?.len();
+    while summary_bytes > MAX_CONTEXT_SUMMARY_BYTES {
+        let values = if !summary.completed.is_empty() {
+            &mut summary.completed
+        } else if summary.facts_resources.len() > 1 {
+            &mut summary.facts_resources
+        } else if summary.tool_state.len() > 1 {
+            &mut summary.tool_state
+        } else if !summary.decisions.is_empty() {
+            &mut summary.decisions
+        } else if !summary.pending.is_empty() {
+            &mut summary.pending
+        } else if !summary.constraints.is_empty() {
+            &mut summary.constraints
+        } else {
+            break;
+        };
+        let removed_bytes = serde_json::to_vec(&values[0])?.len() + usize::from(values.len() > 1);
+        summary_bytes = summary_bytes.saturating_sub(removed_bytes);
+        values.remove(0);
+    }
+    summary.validate()?;
+    Ok(summary)
+}
+
+fn bound_summary_text(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+    if max_chars == 0 {
+        return String::new();
+    }
+    const MARKER: &str = "\n…[summary truncated]…\n";
+    let marker_len = MARKER.chars().count();
+    if max_chars <= marker_len {
+        return MARKER.chars().take(max_chars).collect();
+    }
+    let available = max_chars - marker_len;
+    let start_len = available.div_ceil(2);
+    let end_len = available - start_len;
+    let start = value.chars().take(start_len).collect::<String>();
+    let end = value
+        .chars()
+        .rev()
+        .take(end_len)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>();
+    format!("{start}{MARKER}{end}")
+}
+
+fn push_recent(values: &mut Vec<String>, value: String) {
+    values.push(value);
+    if values.len() > 64 {
+        values.remove(0);
     }
 }
 

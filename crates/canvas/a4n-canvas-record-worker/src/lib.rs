@@ -7,8 +7,9 @@ use a4n_canvas_record_worker_contract::{
     CANVAS_GRAPH_READ_CAPABILITY, CANVAS_GRAPH_READ_OPERATION, CANVAS_GRAPH_SAVE_OPERATION,
     CANVAS_RECORD_WORKER_CONTRACT_VERSION, CANVAS_RECORD_WORKER_ID,
     CANVAS_TEXT_ASSET_SAVE_OPERATION, CanvasGraphDocument, CanvasGraphEditResult,
-    CanvasGraphProjection, CanvasGraphReadResult, CanvasTextAssetSummary, EditCanvasGraphInput,
-    GetCanvasGraphInput, ReadCanvasGraphInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
+    CanvasGraphProjection, CanvasGraphReadResult, CanvasGraphSaveResult, CanvasTextAssetSummary,
+    EditCanvasGraphInput, GetCanvasGraphInput, ReadCanvasGraphInput, SaveCanvasGraphInput,
+    SaveCanvasTextAssetInput,
 };
 use a4n_db::DbHandle;
 use a4n_db::canvas::{
@@ -341,7 +342,7 @@ impl WorkerState {
     async fn save_graph(
         &self,
         request: WorkerEnvelope<SaveCanvasGraphInput>,
-    ) -> Result<CanvasGraphDocument, WorkerFailure> {
+    ) -> Result<CanvasGraphSaveResult, WorkerFailure> {
         let user_id = user_id(&request)?;
         validate_project_scope(&request, request.payload.project_id)?;
         self.verify_project_permission(
@@ -352,7 +353,7 @@ impl WorkerState {
         .await?;
         let input = request.payload;
         let record_input = canvas_graph_record_input(input.graph, input.expected_version);
-        let document = a4n_db::canvas::save_canvas_graph_record(
+        let saved = a4n_db::canvas::save_canvas_graph_record(
             self.database.connection(),
             input.project_id,
             record_input,
@@ -360,7 +361,10 @@ impl WorkerState {
         )
         .await
         .map_err(canvas_db_error)?;
-        canvas_graph_document(document)
+        Ok(CanvasGraphSaveResult {
+            document: canvas_graph_document(saved.document)?,
+            node_ids: saved.node_ids,
+        })
     }
 
     async fn edit_graph(
@@ -410,7 +414,7 @@ impl WorkerState {
             )
             .await
             .map_err(canvas_db_error)?;
-            canvas_graph_document(document)?
+            canvas_graph_document(document.document)?
         } else {
             original.clone()
         };

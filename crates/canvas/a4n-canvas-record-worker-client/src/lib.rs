@@ -1,7 +1,7 @@
 //! Typed Host adapter for the Canvas graph-record worker.
 
 use a4n_api_contract::canvas::{
-    CanvasGraphDocument, CanvasGraphEditResult, CanvasGraphReadResult,
+    CanvasGraphDocument, CanvasGraphEditResult, CanvasGraphReadResult, CanvasGraphSaveResult,
     CanvasMutationApplicationPort, CanvasReadApplicationPort, CanvasTextAssetSummary,
     EditCanvasGraphInput, GetCanvasGraphInput, ReadCanvasGraphInput, SaveCanvasGraphInput,
     SaveCanvasTextAssetInput,
@@ -149,7 +149,7 @@ impl CanvasMutationApplicationPort for CanvasRecordWorkerClient {
         &self,
         user_id: i64,
         input: SaveCanvasGraphInput,
-    ) -> Result<CanvasGraphDocument, AppError> {
+    ) -> Result<CanvasGraphSaveResult, AppError> {
         self.command(
             user_id,
             input.project_id,

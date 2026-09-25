@@ -62,25 +62,24 @@ require_command() {
 }
 
 stateful_worker_packages() {
-    require_command ruby
-    ruby -rjson -e '
-      JSON.parse(File.read(ARGV.fetch(0)))
-        .each { |entry| puts entry.fetch("binary") }
+    require_command node
+    node -e '
+      for (const entry of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))) {
+        console.log(entry.binary);
+      }
     ' "$PROJECT_ROOT/crates/process/a4n-process-catalog/worker-catalog.json"
 }
 
 worker_client_packages() {
-    require_command ruby
+    require_command node
     (cd "$PROJECT_ROOT" && cargo metadata --locked --no-deps --format-version 1) |
-        ruby -rjson -e '
-          packages = JSON.parse(STDIN.read).fetch("packages")
+        node -e '
+          const packages = JSON.parse(require("fs").readFileSync(0, "utf8")).packages;
           packages
-            .map { |package| package.fetch("name") }
-            .select do |name|
-              name.end_with?("-worker-client") || name == "a4n-artifact-media-client"
-            end
-            .sort
-            .each { |name| puts name }
+            .map(({ name }) => name)
+            .filter((name) => name.endsWith("-worker-client") || name === "a4n-artifact-media-client")
+            .sort()
+            .forEach((name) => console.log(name));
         '
 }
 

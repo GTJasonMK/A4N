@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn catalog_worker_specs() -> anyhow::Result<Vec<WorkerSpec>> {
+pub(crate) fn catalog_worker_specs(control_addr: SocketAddr) -> anyhow::Result<Vec<WorkerSpec>> {
     a4n_process_catalog::stateful_worker_catalog()?
         .iter()
         .map(|entry| {
@@ -20,6 +20,7 @@ pub(crate) fn catalog_worker_specs() -> anyhow::Result<Vec<WorkerSpec>> {
                 metadata,
                 binary: child_binary(&managed_worker_env(metadata, "BINARY"), &metadata.binary)?,
                 address,
+                control_addr,
                 token: worker_token_for_env(&managed_worker_env(metadata, "TOKEN"))?,
             })
         })

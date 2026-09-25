@@ -24,7 +24,7 @@ impl AgentApplication {
         self.database.connection()
     }
 
-    pub(super) fn reconcile_canonical_thread(
+    pub(super) async fn reconcile_canonical_thread(
         &self,
         existing: thread::Model,
         capability: &str,
@@ -42,14 +42,48 @@ impl AgentApplication {
             from_json(existing.scope_json.clone(), "agent_thread.scope_json")?;
         let mut requested: AgentScope = from_json(requested_scope.clone(), "requested_scope")?;
         inherit_subagent_allowlists(&existing_scope, &mut requested)?;
-        let mut comparable_existing = existing_scope;
-        comparable_existing.chapter_number = requested.chapter_number;
-        if comparable_existing == requested {
+        if !agent_scopes_match_except_chapter_number(&existing_scope, &requested) {
+            return Err(AppError::InvalidArgument(
+                "canonical Agent thread 已有不同 scope；请通过 update_agent_thread 显式修改，不能在重用时覆盖权限".into(),
+            ));
+        }
+        if existing_scope.chapter_number == requested.chapter_number {
             return Ok(existing);
         }
-        Err(AppError::InvalidArgument(
-            "canonical Agent thread 已有不同 scope；请通过 update_agent_thread 显式修改，不能在重用时覆盖权限".into(),
-        ))
+
+        let tx = self.connection().begin().await?;
+        let existing = thread::Entity::find_by_id(existing.id)
+            .lock_exclusive()
+            .one(&tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
+        if existing.thread_kind != expected_kind || existing.profile_id != capability {
+            return Err(AppError::InvalidState {
+                current: format!("canonical Agent thread {} 配置不一致", existing.id),
+                operation: operation.into(),
+            });
+        }
+        let mut existing_scope: AgentScope =
+            from_json(existing.scope_json.clone(), "agent_thread.scope_json")?;
+        let mut requested: AgentScope = from_json(requested_scope.clone(), "requested_scope")?;
+        inherit_subagent_allowlists(&existing_scope, &mut requested)?;
+        if !agent_scopes_match_except_chapter_number(&existing_scope, &requested) {
+            return Err(AppError::InvalidArgument(
+                "canonical Agent thread 已有不同 scope；请通过 update_agent_thread 显式修改，不能在重用时覆盖权限".into(),
+            ));
+        }
+        if existing_scope.chapter_number == requested.chapter_number {
+            tx.commit().await?;
+            return Ok(existing);
+        }
+
+        existing_scope.chapter_number = requested.chapter_number;
+        let mut active: thread::ActiveModel = existing.into();
+        active.scope_json = Set(serde_json::to_value(existing_scope)?);
+        active.updated_at = Set(chrono::Utc::now().naive_utc());
+        let updated = active.update(&tx).await.map_err(AppError::Database)?;
+        tx.commit().await?;
+        Ok(updated)
     }
 }
 

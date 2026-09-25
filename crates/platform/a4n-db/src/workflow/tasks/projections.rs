@@ -47,12 +47,14 @@ pub(in crate::workflow) struct WorkflowCheckpointVideoRefs {
     pub(in crate::workflow) input_generated_video_id: Option<Value>,
 }
 
-pub(in crate::workflow) fn generated_video_ids_for_active_checkpoints(
+pub(in crate::workflow) fn generated_video_ids_for_cancellation_checkpoints(
     checkpoints: &[WorkflowCheckpointVideoRefs],
 ) -> Vec<i64> {
     let mut video_ids = BTreeSet::new();
     for checkpoint in checkpoints {
-        if is_terminal_workflow_status(&checkpoint.status) {
+        if is_terminal_workflow_status(&checkpoint.status)
+            && checkpoint.status != crate::workflow::WORKFLOW_STATUS_CANCELLED
+        {
             continue;
         }
         if let Some(video_id) = checkpoint

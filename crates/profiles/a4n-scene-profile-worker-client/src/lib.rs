@@ -216,7 +216,16 @@ impl SceneProfileRecordSyncApplicationPort for SceneProfileWorkerClient {
 }
 
 fn worker_client_error(error: WorkerClientError) -> AppError {
-    AppError::ConfigError(format!("scene profile worker 请求失败: {error}"))
+    match error {
+        WorkerClientError::Timeout => AppError::Timeout("scene profile worker 请求超时".into()),
+        WorkerClientError::Transport(error) => {
+            AppError::Timeout(format!("scene profile worker 请求失败: {error}"))
+        }
+        WorkerClientError::HttpStatus { status } if status >= 500 => {
+            AppError::Timeout(format!("scene profile worker 返回 HTTP {status}"))
+        }
+        error => AppError::ConfigError(format!("scene profile worker 请求失败: {error}")),
+    }
 }
 
 fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
@@ -224,10 +233,17 @@ fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
         WorkerErrorCode::InvalidRequest => AppError::InvalidArgument(error.message.clone()),
         WorkerErrorCode::Unauthorized => AppError::Forbidden(error.message.clone()),
         WorkerErrorCode::NotFound => AppError::NotFound(error.message.clone()),
-        WorkerErrorCode::Conflict => AppError::InvalidState {
+        WorkerErrorCode::Conflict | WorkerErrorCode::VersionMismatch => AppError::InvalidState {
             current: error.message.clone(),
             operation: operation.to_string(),
         },
+        WorkerErrorCode::Unavailable | WorkerErrorCode::Timeout if error.retryable => {
+            AppError::Timeout(format!(
+                "scene profile worker {operation} 失败: {}",
+                error.message
+            ))
+        }
+        WorkerErrorCode::Cancelled => AppError::Cancelled,
         _ => AppError::ConfigError(format!(
             "scene profile worker {operation} 失败: {}",
             error.message
@@ -248,5 +264,28 @@ mod tests {
         let debug = format!("{client:?}");
         assert!(!debug.contains("scene-profile-worker.example.test"));
         assert!(!debug.contains("scene-profile-token"));
+    }
+
+    #[test]
+    fn retryable_worker_failures_remain_retryable() {
+        assert!(matches!(
+            worker_client_error(WorkerClientError::Timeout),
+            AppError::Timeout(_)
+        ));
+        assert!(matches!(
+            worker_client_error(WorkerClientError::HttpStatus { status: 503 }),
+            AppError::Timeout(_)
+        ));
+        assert!(matches!(
+            worker_response_error(
+                &WorkerError {
+                    code: WorkerErrorCode::Unavailable,
+                    message: "database unavailable".into(),
+                    retryable: true,
+                },
+                SCENE_PROFILE_SYNC_RECORDS_OPERATION,
+            ),
+            AppError::Timeout(_)
+        ));
     }
 }
