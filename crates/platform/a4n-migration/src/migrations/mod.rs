@@ -11,6 +11,7 @@ pub mod agent_runtime_status_canonicalization;
 
 pub mod blueprint_version_snapshot_cleanup;
 pub mod blueprint_version_snapshot_contract;
+pub mod body_fact_feedback;
 pub mod canvas_assemble_clip_order;
 pub mod canvas_assemble_edge_role;
 pub mod canvas_extract_frame_contract;

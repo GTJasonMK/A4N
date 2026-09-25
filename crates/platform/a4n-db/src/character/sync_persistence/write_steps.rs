@@ -13,7 +13,9 @@ use crate::character::attributes::{
 use crate::character::behavior::record_behavior_in;
 use crate::character::profile_current_state_fields;
 use crate::character::timeline::CharacterAttributeOwnership;
-use a4n_db_models::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
+use a4n_db_models::models::character::attribute_event::{
+    SOURCE_KIND_AI_SYNC, SOURCE_KIND_TEXT_FACT,
+};
 use a4n_db_models::models::character::{attribute_event, protagonist_profile};
 use a4n_domain::character::{
     CHARACTER_DELETION_THRESHOLD, CharacterAttributeDeletionExecutionInput,
@@ -41,11 +43,13 @@ where
                         profile_id, event.change.profile_id
                     )));
                 }
-                if ownership.is_protected(
-                    event.change.chapter_number,
-                    &event.change.category,
-                    &event.change.key,
-                ) {
+                if attribute_event_source(&event) != SOURCE_KIND_TEXT_FACT
+                    && ownership.is_protected(
+                        event.change.chapter_number,
+                        &event.change.category,
+                        &event.change.key,
+                    )
+                {
                     record_protected_attribute(
                         &mut summary,
                         event.change.chapter_number,
@@ -169,6 +173,19 @@ struct RecordedCharacterSyncAttributeEvent {
     from_classification: bool,
 }
 
+fn attribute_event_source(event: &CharacterSyncAttributeEventRecordInput) -> &'static str {
+    // Evidence has already been resolved from a chapter's text anchor at the model boundary.
+    // Classification and implicit traits remain inferences, even when they cite a passage.
+    if !event.from_classification
+        && event.assertion == a4n_domain::fact_feedback::FactAssertion::Observed
+        && !event.change.evidence.trim().is_empty()
+    {
+        SOURCE_KIND_TEXT_FACT
+    } else {
+        SOURCE_KIND_AI_SYNC
+    }
+}
+
 async fn record_character_sync_attribute_event<C>(
     db: &C,
     profile: &protagonist_profile::Model,
@@ -177,6 +194,7 @@ async fn record_character_sync_attribute_event<C>(
 where
     C: ConnectionTrait,
 {
+    let source_kind = attribute_event_source(&event);
     let from_classification = event.from_classification;
     let operation = event.operation.trim();
     let recorded = match operation {
@@ -185,7 +203,7 @@ where
                 db,
                 profile.clone(),
                 event.change,
-                SOURCE_KIND_AI_SYNC,
+                source_kind,
             )
             .await?
         }
@@ -194,7 +212,7 @@ where
                 db,
                 profile.clone(),
                 event.change,
-                SOURCE_KIND_AI_SYNC,
+                source_kind,
             )
             .await?
         }

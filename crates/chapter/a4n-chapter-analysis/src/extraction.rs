@@ -23,6 +23,7 @@ pub struct CharacterStateSnapshot {
 
 #[derive(Debug, Clone)]
 pub struct ForeshadowingEntry {
+    pub id: Option<String>,
     pub description: String,
     pub original_text: Option<String>,
     pub category: Option<String>,

@@ -34,8 +34,8 @@ pub use blueprint_sync::{
     BlueprintCharacterDraft, BlueprintRelationshipDraft, BlueprintSyncError,
     blueprint_characters_for_project, blueprint_relationships_for_project,
     blueprint_sources_need_review, blueprint_version_by_project_version,
-    blueprint_versions_by_project, merge_blueprint_characters, merge_blueprint_relationships,
-    novel_blueprint_for_project,
+    blueprint_versions_by_project, edit_blueprint_characters, edit_blueprint_relationships,
+    merge_blueprint_characters, merge_blueprint_relationships, novel_blueprint_for_project,
 };
 pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
@@ -94,11 +94,12 @@ pub use family::metadata::{
     ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError,
     project_family_metadata, project_family_metadata_batch,
 };
+pub(crate) use foreshadowing::restore_foreshadowing_fact;
 pub use foreshadowing::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
-    cleanup_foreshadowing_for_chapter, create_foreshadowing_record, delete_foreshadowing_record,
-    foreshadowing_records_by_project, sync_chapter_analysis_foreshadowing,
-    update_foreshadowing_record,
+    ForeshadowingFactUpdate, cleanup_foreshadowing_for_chapter, create_foreshadowing_record,
+    delete_foreshadowing_record, foreshadowing_records_by_project,
+    sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
 };
 pub(crate) use freeform_reset::FreeformGeneratedResetTargets;
 pub use freeform_reset::{

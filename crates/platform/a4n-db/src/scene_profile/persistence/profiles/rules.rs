@@ -59,12 +59,16 @@ pub(super) fn merge_scene_profile_record_input(
         existing.last_seen_chapter.max(input.last_seen_chapter)
     };
     let evidence_json = merge_profile_evidence_json(&existing.evidence_json, &input.evidence_json);
+    let aliases_json = merge_profile_evidence_json(&existing.aliases_json, &input.aliases_json);
     if existing.ownership_kind != PROFILE_OWNERSHIP_AI_SYNC {
         input = merge_user_scene_profile_fields(existing, input);
     }
     input.first_seen_chapter = first_seen_chapter;
     input.last_seen_chapter = last_seen_chapter;
     input.evidence_json = evidence_json;
+    input.aliases_json = aliases_json;
+    input.name = existing.name.clone();
+    input.normalized_name = existing.normalized_name.clone();
     input
 }
 
@@ -76,25 +80,17 @@ fn merge_user_scene_profile_fields(
     if existing.aliases_json.as_array().is_some_and(Vec::is_empty) {
         merged.aliases_json = incoming.aliases_json;
     }
-    fill_blank(&mut merged.scene_type, incoming.scene_type);
+    merged.scene_type = incoming.scene_type;
     fill_blank(&mut merged.importance, incoming.importance);
     if merged.parent_scene_id.is_none() {
         merged.parent_scene_id = incoming.parent_scene_id;
     }
-    fill_blank(&mut merged.base_description, incoming.base_description);
-    fill_blank(&mut merged.visual_description, incoming.visual_description);
-    fill_blank(&mut merged.spatial_layout, incoming.spatial_layout);
-    fill_blank(&mut merged.atmosphere, incoming.atmosphere);
-    if existing
-        .entry_points_json
-        .as_array()
-        .is_some_and(Vec::is_empty)
-    {
-        merged.entry_points_json = incoming.entry_points_json;
-    }
-    if existing.rules_json.as_array().is_some_and(Vec::is_empty) {
-        merged.rules_json = incoming.rules_json;
-    }
+    merged.base_description = incoming.base_description;
+    merged.visual_description = incoming.visual_description;
+    merged.spatial_layout = incoming.spatial_layout;
+    merged.atmosphere = incoming.atmosphere;
+    merged.entry_points_json = incoming.entry_points_json;
+    merged.rules_json = incoming.rules_json;
     fill_blank(&mut merged.image_prompt_seed, incoming.image_prompt_seed);
     merged
 }

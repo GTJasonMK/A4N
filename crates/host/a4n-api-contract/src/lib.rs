@@ -18,6 +18,7 @@ pub mod cost;
 pub mod embedding;
 pub mod error;
 pub mod export;
+pub mod fact_feedback;
 pub mod galgame;
 pub mod generation_tasks;
 pub mod image;

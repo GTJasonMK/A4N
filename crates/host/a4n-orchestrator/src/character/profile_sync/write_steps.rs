@@ -160,6 +160,7 @@ fn attribute_event_record_input(
     event: &CharacterSyncAttributeEventDraft,
 ) -> CharacterSyncAttributeEventRecordInput {
     CharacterSyncAttributeEventRecordInput {
+        assertion: event.assertion,
         operation: event.operation.clone(),
         change: CharacterAttributeValueChangeInput {
             profile_id,

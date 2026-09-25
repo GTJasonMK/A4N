@@ -46,6 +46,7 @@ pub struct UpdateProjectInput {
     pub project_id: i64,
     pub title: Option<String>,
     pub description: Option<String>,
+    pub fact_feedback_interval_chapters: Option<i32>,
 }
 
 #[cfg(test)]
@@ -81,6 +82,7 @@ mod tests {
                 project_id: 9,
                 title: Some("新标题".into()),
                 description: None,
+                fact_feedback_interval_chapters: None,
             },
         };
         request.validate().expect("project mutation validates");

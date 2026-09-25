@@ -33,10 +33,12 @@ impl ProjectChapterContextApplication {
     async fn generation_reference_rows(
         &self,
         project_id: i64,
+        chapter_number: i32,
     ) -> Result<ChapterGenerationReferenceContextRows, AppError> {
         a4n_db::project::chapter_generation_reference_context_rows(
             self.database.connection(),
             project_id,
+            chapter_number,
         )
         .await
         .map_err(project_chapter_context_error_to_app_error)
@@ -46,13 +48,13 @@ impl ProjectChapterContextApplication {
         &self,
         source: a4n_db::project::ChapterSourceSnapshot,
         drafts: Vec<ForeshadowingAnalysisDraft>,
-        resolved_ids: Vec<i64>,
+        updates: Vec<a4n_db::project::ForeshadowingFactUpdate>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         a4n_db::project::sync_chapter_analysis_foreshadowing(
             self.database.connection(),
             source,
             drafts,
-            resolved_ids,
+            updates,
         )
         .await
         .map_err(foreshadowing_db_error_to_app_error)
@@ -207,9 +209,10 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_generation_reference_context_rows(
         &self,
         project_id: i64,
+        chapter_number: i32,
     ) -> Result<ChapterGenerationReferenceContextRows, AppError> {
         self.project_chapter_context
-            .generation_reference_rows(project_id)
+            .generation_reference_rows(project_id, chapter_number)
             .await
     }
 
@@ -217,10 +220,10 @@ impl OrchestratorContext {
         &self,
         source: a4n_db::project::ChapterSourceSnapshot,
         drafts: Vec<ForeshadowingAnalysisDraft>,
-        resolved_ids: Vec<i64>,
+        updates: Vec<a4n_db::project::ForeshadowingFactUpdate>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         self.project_chapter_context
-            .sync_analysis_foreshadowing(source, drafts, resolved_ids)
+            .sync_analysis_foreshadowing(source, drafts, updates)
             .await
     }
 

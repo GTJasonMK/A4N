@@ -192,6 +192,17 @@ prompts:
     description: "根据章节摘要、上下文和场景引导生成单个章节场景正文"
 
   # ============= 05 分析 =============
+  project_fact_consolidation:
+    path: "novel/05_analysis/project_fact_consolidation.md"
+    title: "正文事实归纳"
+    category: "analysis"
+    tags: ["analysis", "facts", "blueprint"]
+    version: "1.0"
+    used_by:
+      - "fact_feedback::prepare_consolidation"
+    dependencies: ["chapter_fact_extraction"]
+    description: "按章节变化增量归纳世界观、蓝图事实、角色说话特征和成长进展"
+
   chapter_analysis_session:
     path: "novel/05_analysis/chapter_analysis_session.md"
     title: "章节分析会话"

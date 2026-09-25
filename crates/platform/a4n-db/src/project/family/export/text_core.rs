@@ -136,6 +136,9 @@ where
     );
 
     Ok(ProjectFamilyTextCoreRows {
+        fact_feedback: Some(
+            crate::fact_feedback::load_feedback_archive(db, root_project_id).await?,
+        ),
         blueprint: blueprint?,
         blueprint_versions: blueprint_versions?,
         blueprint_characters: blueprint_characters?,

@@ -53,12 +53,11 @@ pub fn chapter_foreshadowing_resolution_context(
         items
             .iter()
             .filter(|item| {
-                item.setup_chapter < chapter_number
-                    && ((item.payoff_chapter.is_none()
-                        && ForeshadowingStatus::parse(&item.status)
-                            .is_some_and(ForeshadowingStatus::can_resolve))
-                        || (item.payoff_chapter == Some(chapter_number)
-                            && item.status == ForeshadowingStatus::Resolved.as_str()))
+                item.setup_chapter <= chapter_number
+                    && item
+                        .payoff_chapter
+                        .is_none_or(|payoff| payoff <= chapter_number)
+                    && ForeshadowingStatus::parse(&item.status).is_some()
             })
             .map(|item| {
                 json!({
@@ -99,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn resolution_context_keeps_pending_and_current_chapter_payoffs_only() {
+    fn resolution_context_keeps_known_identities_without_future_records() {
         let context = chapter_foreshadowing_resolution_context(
             8,
             &[
@@ -109,6 +108,8 @@ mod tests {
                 item(4, 4, Some(7), "resolved"),
                 item(5, 8, None, "pending"),
                 item(6, 1, None, "abandoned"),
+                item(7, 9, None, "pending"),
+                item(8, 2, Some(9), "resolved"),
             ],
         );
 
@@ -118,6 +119,6 @@ mod tests {
             .iter()
             .map(|item| item["id"].as_str().expect("id").to_string())
             .collect::<Vec<_>>();
-        assert_eq!(ids, ["1", "2", "3"]);
+        assert_eq!(ids, ["1", "2", "3", "4", "5", "6"]);
     }
 }

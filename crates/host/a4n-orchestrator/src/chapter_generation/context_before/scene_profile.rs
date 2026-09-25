@@ -40,8 +40,19 @@ fn scene_profile_context_line(context: &ChapterSceneProfileContext) -> Option<St
             format!("{}（作者预设）", profile.name)
         }
         ChapterSceneProfileContext::Observed {
-            name, occurrence, ..
+            name,
+            occurrence,
+            fact_state,
+            ..
         } => {
+            if let Some(state) = fact_state {
+                for (key, label) in [("spatial_layout", "布局"), ("visual_description", "视觉")]
+                {
+                    if let Some(value) = state.get(key).and_then(Value::as_str) {
+                        push_text_detail(&mut details, label, value, 180);
+                    }
+                }
+            }
             push_text_detail(&mut details, "本次出场", &occurrence.summary, 160);
             if let Some(mood) = occurrence.mood.as_deref() {
                 push_text_detail(&mut details, "氛围", mood, 80);

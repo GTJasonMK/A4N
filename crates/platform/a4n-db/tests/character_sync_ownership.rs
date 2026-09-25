@@ -11,7 +11,7 @@ use a4n_db::{
 use a4n_db_models::models::{
     chapter::chapter,
     character::{
-        attribute_event::{self, SOURCE_KIND_AI_SYNC},
+        attribute_event::{self, SOURCE_KIND_AI_SYNC, SOURCE_KIND_TEXT_FACT},
         character_state_index, protagonist_behavior_record,
     },
     generation::generation_run_target,
@@ -69,170 +69,195 @@ fn generation_run(project_id: i64) -> RecordCompletedGenerationRunInput {
 }
 
 #[tokio::test]
-async fn character_sync_preserves_user_attribute_and_commits_other_steps() {
-    let db = a4n_migration::test_support::connect_test_database().await;
-    let project = create_project_record(
-        &db,
-        CreateProjectRecordInput {
-            user_id: 1,
-            title: "角色冲突保留".to_string(),
-            description: String::new(),
-            project_type: "novel_long".to_string(),
-        },
-    )
-    .await
-    .expect("test project must be created");
-    let chapter = insert_chapter(&db, project.id).await;
-    let base = json!({
-        "explicit_attributes": {},
-        "implicit_attributes": {},
-        "social_attributes": {}
-    });
-    let created_profile = create_profile(&db, project.id, "林岚", base.clone())
+async fn character_sync_preserves_manual_values_for_inferences_but_accepts_observed_facts() {
+    for observed in [false, true] {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let project = create_project_record(
+            &db,
+            CreateProjectRecordInput {
+                user_id: 1,
+                title: "角色冲突保留".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+            },
+        )
         .await
-        .expect("manual profile must be created");
-    add_profile_attribute(
-        &db,
-        CharacterAttributeValueChangeInput {
-            profile_id: created_profile.id,
-            chapter_number: 1,
-            category: "social".to_string(),
-            key: "沈默".to_string(),
-            value: json!("旧友"),
-            change_description: Some("用户确认关系".to_string()),
-            cause: "用户设定".to_string(),
-            evidence: "用户手工录入".to_string(),
-        },
-    )
-    .await
-    .expect("user attribute must be recorded");
-    let profile = profile_by_id(&db, created_profile.id)
-        .await
-        .expect("profile reload must succeed")
-        .expect("profile must remain");
-    let behavior = json!({
-        "chapter_number": 1,
-        "behavior_type": "decision",
-        "behavior_description": "进入旧仓库",
-        "original_text": "林岚推开旧仓库的门",
-        "behavior_tags": ["调查"],
-        "classification_results": {},
-        "related_characters": [],
-        "impact_analysis": "开始调查"
-    });
-
-    let applied = apply_character_sync_persistence_record(
-        &db,
-        CharacterSyncPersistenceInput {
-            project_id: project.id,
-            profile_id: profile.id,
-            profile_name: profile.name.clone(),
-            expected_profile_updated_at: profile.updated_at,
-            expected_profile_last_synced_chapter: profile.last_synced_chapter,
-            expected_profile_base_attributes: profile.base_attributes.clone(),
-            expected_profile_current_state: profile.current_state.clone(),
-            start_chapter: 1,
-            target_chapter: 1,
-            clear_to_chapter: Some(1),
-            selected_chapter_numbers: vec![1],
-            source_chapters: vec![ChapterSourceSnapshot::from(&chapter)],
-            baseline_state: base,
-            write_steps: vec![
-                CharacterSyncWriteStepRecordInput::AttributeEvent(
-                    CharacterSyncAttributeEventRecordInput {
-                        operation: "modify".to_string(),
-                        change: CharacterAttributeValueChangeInput {
-                            profile_id: profile.id,
-                            chapter_number: 1,
-                            category: "social".to_string(),
-                            key: "沈默".to_string(),
-                            value: json!("敌人"),
-                            change_description: Some("模型误判关系".to_string()),
-                            cause: "章节分析".to_string(),
-                            evidence: "冲突证据".to_string(),
-                        },
-                        from_classification: false,
-                    },
-                ),
-                CharacterSyncWriteStepRecordInput::AttributeEvent(
-                    CharacterSyncAttributeEventRecordInput {
-                        operation: "add".to_string(),
-                        change: CharacterAttributeValueChangeInput {
-                            profile_id: profile.id,
-                            chapter_number: 1,
-                            category: "explicit".to_string(),
-                            key: "location".to_string(),
-                            value: json!("旧仓库"),
-                            change_description: Some("记录当前位置".to_string()),
-                            cause: "章节分析".to_string(),
-                            evidence: "进入旧仓库".to_string(),
-                        },
-                        from_classification: false,
-                    },
-                ),
-                CharacterSyncWriteStepRecordInput::Behavior(InsertBehaviorRecordInput {
-                    profile_id: profile.id,
-                    chapter_number: 1,
-                    source_kind: SOURCE_KIND_AI_SYNC.to_string(),
-                    behavior_type: "decision".to_string(),
-                    behavior_description: "进入旧仓库".to_string(),
-                    original_text: "林岚推开旧仓库的门".to_string(),
-                    behavior_tags: json!(["调查"]),
-                    classification_results: json!({}),
-                    related_characters: Some(json!([])),
-                    impact_analysis: Some("开始调查".to_string()),
-                }),
-            ],
-            behaviors: vec![behavior],
-            classification_suggestions: vec![],
-            deletion_candidates: vec![],
-            chapter_states: vec![CharacterSyncChapterStateRecordInput {
+        .expect("test project must be created");
+        let chapter = insert_chapter(&db, project.id).await;
+        let base = json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {}
+        });
+        let created_profile = create_profile(&db, project.id, "林岚", base.clone())
+            .await
+            .expect("manual profile must be created");
+        add_profile_attribute(
+            &db,
+            CharacterAttributeValueChangeInput {
+                profile_id: created_profile.id,
                 chapter_number: 1,
-                state_summary: "林岚进入旧仓库调查".to_string(),
-                current_location: Some("旧仓库".to_string()),
-                current_goal: Some("调查线索".to_string()),
-                emotional_state: Some("警觉".to_string()),
-            }],
-            implicit_review_decisions: json!([]),
-            generation_run: generation_run(project.id),
-        },
-    )
-    .await
-    .expect("protected conflict must not abort the other writes");
-
-    assert_eq!(applied.write_summary.protected_attributes.len(), 1);
-    assert_eq!(applied.write_summary.protected_attributes[0].key, "沈默");
-    assert_eq!(applied.write_summary.changes_applied, 1);
-    assert_eq!(applied.write_summary.behaviors_recorded, 1);
-
-    let stored = profile_by_id(&db, profile.id)
+                category: "social".to_string(),
+                key: "沈默".to_string(),
+                value: json!("旧友"),
+                change_description: Some("用户确认关系".to_string()),
+                cause: "用户设定".to_string(),
+                evidence: "用户手工录入".to_string(),
+            },
+        )
         .await
-        .expect("profile lookup must succeed")
-        .expect("profile must remain");
-    assert_eq!(
-        stored.current_state["social_attributes"]["沈默"],
-        json!("旧友")
-    );
-    assert_eq!(
-        stored.current_state["explicit_attributes"]["location"],
-        json!("旧仓库")
-    );
-    let events = attribute_event::Entity::find()
-        .filter(attribute_event::Column::ProfileId.eq(profile.id))
-        .all(&db)
+        .expect("user attribute must be recorded");
+        let profile = profile_by_id(&db, created_profile.id)
+            .await
+            .expect("profile reload must succeed")
+            .expect("profile must remain");
+        let behavior = json!({
+            "chapter_number": 1,
+            "behavior_type": "decision",
+            "behavior_description": "进入旧仓库",
+            "original_text": "林岚推开旧仓库的门",
+            "behavior_tags": ["调查"],
+            "classification_results": {},
+            "related_characters": [],
+            "impact_analysis": "开始调查"
+        });
+
+        let applied = apply_character_sync_persistence_record(
+            &db,
+            CharacterSyncPersistenceInput {
+                project_id: project.id,
+                profile_id: profile.id,
+                profile_name: profile.name.clone(),
+                expected_profile_updated_at: profile.updated_at,
+                expected_profile_last_synced_chapter: profile.last_synced_chapter,
+                expected_profile_base_attributes: profile.base_attributes.clone(),
+                expected_profile_current_state: profile.current_state.clone(),
+                start_chapter: 1,
+                target_chapter: 1,
+                clear_to_chapter: Some(1),
+                selected_chapter_numbers: vec![1],
+                source_chapters: vec![ChapterSourceSnapshot::from(&chapter)],
+                baseline_state: base,
+                write_steps: vec![
+                    CharacterSyncWriteStepRecordInput::AttributeEvent(
+                        CharacterSyncAttributeEventRecordInput {
+                            assertion: if observed {
+                                a4n_domain::fact_feedback::FactAssertion::Observed
+                            } else {
+                                a4n_domain::fact_feedback::FactAssertion::Inferred
+                            },
+                            operation: "modify".to_string(),
+                            change: CharacterAttributeValueChangeInput {
+                                profile_id: profile.id,
+                                chapter_number: 1,
+                                category: "social".to_string(),
+                                key: "沈默".to_string(),
+                                value: json!("敌人"),
+                                change_description: Some("模型误判关系".to_string()),
+                                cause: "章节分析".to_string(),
+                                evidence: "冲突证据".to_string(),
+                            },
+                            from_classification: false,
+                        },
+                    ),
+                    CharacterSyncWriteStepRecordInput::AttributeEvent(
+                        CharacterSyncAttributeEventRecordInput {
+                            assertion: a4n_domain::fact_feedback::FactAssertion::Observed,
+                            operation: "add".to_string(),
+                            change: CharacterAttributeValueChangeInput {
+                                profile_id: profile.id,
+                                chapter_number: 1,
+                                category: "explicit".to_string(),
+                                key: "location".to_string(),
+                                value: json!("旧仓库"),
+                                change_description: Some("记录当前位置".to_string()),
+                                cause: "章节分析".to_string(),
+                                evidence: "进入旧仓库".to_string(),
+                            },
+                            from_classification: false,
+                        },
+                    ),
+                    CharacterSyncWriteStepRecordInput::Behavior(InsertBehaviorRecordInput {
+                        profile_id: profile.id,
+                        chapter_number: 1,
+                        source_kind: SOURCE_KIND_AI_SYNC.to_string(),
+                        behavior_type: "decision".to_string(),
+                        behavior_description: "进入旧仓库".to_string(),
+                        original_text: "林岚推开旧仓库的门".to_string(),
+                        behavior_tags: json!(["调查"]),
+                        classification_results: json!({}),
+                        related_characters: Some(json!([])),
+                        impact_analysis: Some("开始调查".to_string()),
+                    }),
+                ],
+                behaviors: vec![behavior],
+                classification_suggestions: vec![],
+                deletion_candidates: vec![],
+                chapter_states: vec![CharacterSyncChapterStateRecordInput {
+                    chapter_number: 1,
+                    state_summary: "林岚进入旧仓库调查".to_string(),
+                    current_location: Some("旧仓库".to_string()),
+                    current_goal: Some("调查线索".to_string()),
+                    emotional_state: Some("警觉".to_string()),
+                }],
+                implicit_review_decisions: json!([]),
+                generation_run: generation_run(project.id),
+            },
+        )
         .await
-        .expect("attribute events must load");
-    assert_eq!(events.len(), 2);
-    let user_event = events
-        .iter()
-        .find(|event| event.key == "沈默")
-        .expect("user relationship event must remain");
-    assert_eq!(user_event.source_kind, "user");
-    let ai_event = events
-        .iter()
-        .find(|event| event.key == "location")
-        .expect("non-conflicting AI event must be committed");
-    assert_eq!(ai_event.source_kind, SOURCE_KIND_AI_SYNC);
+        .expect("protected conflict must not abort the other writes");
+
+        assert_eq!(
+            applied.write_summary.protected_attributes.len(),
+            usize::from(!observed)
+        );
+        if !observed {
+            assert_eq!(applied.write_summary.protected_attributes[0].key, "沈默");
+        }
+        assert_eq!(
+            applied.write_summary.changes_applied,
+            1 + usize::from(observed)
+        );
+        assert_eq!(applied.write_summary.behaviors_recorded, 1);
+
+        let stored = profile_by_id(&db, profile.id)
+            .await
+            .expect("profile lookup must succeed")
+            .expect("profile must remain");
+        assert_eq!(
+            stored.current_state["social_attributes"]["沈默"],
+            json!(if observed { "敌人" } else { "旧友" })
+        );
+        assert_eq!(
+            stored.current_state["explicit_attributes"]["location"],
+            json!("旧仓库")
+        );
+        let events = attribute_event::Entity::find()
+            .filter(attribute_event::Column::ProfileId.eq(profile.id))
+            .all(&db)
+            .await
+            .expect("attribute events must load");
+        assert_eq!(events.len(), 2 + usize::from(observed));
+        let user_event = events
+            .iter()
+            .find(|event| event.key == "沈默" && event.source_kind == "user")
+            .expect("user relationship event must remain");
+        assert_eq!(user_event.source_kind, "user");
+        let ai_event = events
+            .iter()
+            .find(|event| event.key == "location")
+            .expect("non-conflicting AI event must be committed");
+        assert_eq!(ai_event.source_kind, SOURCE_KIND_TEXT_FACT);
+        if observed {
+            let correction = events
+                .iter()
+                .find(|event| event.key == "沈默" && event.source_kind == SOURCE_KIND_TEXT_FACT)
+                .unwrap();
+            assert_eq!(correction.old_value, json!("旧友"));
+            assert_eq!(correction.new_value, json!("敌人"));
+            assert_eq!(user_event.new_value, json!("旧友"));
+        }
+    }
 }
 
 #[tokio::test]
@@ -277,6 +302,7 @@ async fn stale_chapter_source_rejects_entire_character_sync_transaction() {
         write_steps: vec![
             CharacterSyncWriteStepRecordInput::AttributeEvent(
                 CharacterSyncAttributeEventRecordInput {
+                    assertion: a4n_domain::fact_feedback::FactAssertion::Observed,
                     operation: "add".to_string(),
                     change: CharacterAttributeValueChangeInput {
                         profile_id: profile.id,

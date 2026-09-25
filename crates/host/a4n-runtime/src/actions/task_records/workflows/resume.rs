@@ -70,6 +70,28 @@ pub async fn resume_workflow_run_for_user(
             blueprint_records::resume_blueprint_refinement_workflow(state, user_id, &run).await?;
             load_workflow_run_summary(state, input.workflow_run_id).await
         }
+        UnifiedResumeDispatch::ProjectFactFeedback {
+            project_id,
+            rebuild,
+        } => {
+            crate::actions::fact_feedback::run_project_fact_feedback(
+                state,
+                user_id,
+                a4n_api_contract::fact_feedback::RunProjectFactFeedbackInput {
+                    project_id,
+                    workflow_run_id: Some(run.id),
+                    mode: if rebuild {
+                        a4n_api_contract::fact_feedback::FactFeedbackMode::Rebuild
+                    } else {
+                        a4n_api_contract::fact_feedback::FactFeedbackMode::Consolidate
+                    },
+                },
+                Default::default(),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+            load_workflow_run_summary(state, input.workflow_run_id).await
+        }
     }
 }
 

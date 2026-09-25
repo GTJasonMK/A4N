@@ -1,4 +1,4 @@
-use super::contracts::{BlueprintRelationshipDraft, BlueprintSyncError};
+use super::contracts::{BlueprintRelationshipDraft, BlueprintSyncError, BlueprintWriteMode};
 use super::identity::{blueprint_relationship_matches, blueprint_relationship_model_identity};
 use a4n_db_models::models::project::blueprint_relationship;
 use a4n_domain::json_contract::is_empty_json_value;
@@ -16,7 +16,14 @@ pub(in crate::project) async fn sync_blueprint_relationships<C>(
 where
     C: ConnectionTrait,
 {
-    write_blueprint_relationships(db, project_id, relationships, now, true).await
+    write_blueprint_relationships(
+        db,
+        project_id,
+        relationships,
+        now,
+        BlueprintWriteMode::ReplaceAll,
+    )
+    .await
 }
 
 pub async fn merge_blueprint_relationships<C>(
@@ -28,7 +35,24 @@ pub async fn merge_blueprint_relationships<C>(
 where
     C: ConnectionTrait,
 {
-    write_blueprint_relationships(db, project_id, relationships, now, false).await
+    write_blueprint_relationships(
+        db,
+        project_id,
+        relationships,
+        now,
+        BlueprintWriteMode::Supplement,
+    )
+    .await
+}
+
+pub async fn edit_blueprint_relationships<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    relationships: Vec<BlueprintRelationshipDraft>,
+    now: NaiveDateTime,
+) -> Result<(), BlueprintSyncError> {
+    write_blueprint_relationships(db, project_id, relationships, now, BlueprintWriteMode::Edit)
+        .await
 }
 
 async fn write_blueprint_relationships<C>(
@@ -36,7 +60,7 @@ async fn write_blueprint_relationships<C>(
     project_id: i64,
     relationships: Vec<BlueprintRelationshipDraft>,
     now: NaiveDateTime,
-    delete_missing: bool,
+    mode: BlueprintWriteMode,
 ) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
@@ -74,10 +98,23 @@ where
             && !candidates.is_empty()
         {
             let existing = candidates.remove(0);
-            let draft = if delete_missing {
-                draft
-            } else {
-                supplement_relationship_draft(&existing, draft)
+            let draft = match mode {
+                BlueprintWriteMode::ReplaceAll => draft,
+                BlueprintWriteMode::Supplement => supplement_relationship_draft(&existing, draft),
+                BlueprintWriteMode::Edit => BlueprintRelationshipDraft {
+                    relationship_type: existing.relationship_type.clone(),
+                    character_a: existing.character_a.clone(),
+                    character_b: existing.character_b.clone(),
+                    description: draft
+                        .description
+                        .filter(|value| !value.trim().is_empty())
+                        .or(existing.description.clone()),
+                    strength: draft.strength.or(existing.strength),
+                    evolution: draft
+                        .evolution
+                        .filter(|value| !is_empty_json_value(value))
+                        .or(existing.evolution.clone()),
+                },
             };
             if blueprint_relationship_matches(&existing, &draft) {
                 continue;
@@ -198,7 +235,7 @@ where
         }
     }
 
-    if delete_missing {
+    if mode == BlueprintWriteMode::ReplaceAll {
         let stale_ids = existing_by_key
             .into_values()
             .flatten()
