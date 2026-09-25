@@ -46,18 +46,13 @@ fn object_profile_context_line(context: &ChapterObjectProfileContext) -> String 
             truncate_chars(&profile.material_and_state, 100),
             truncate_chars(&profile.story_usage, 120),
         ),
-        ChapterObjectProfileContext::Observed {
-            name,
-            evidence,
-            fact_state,
-            ..
-        } => {
+        ChapterObjectProfileContext::Observed { name, evidence, .. } => {
             let recent = evidence.len().saturating_sub(2);
             let selected = evidence
                 .iter()
                 .take(usize::from(recent > 0))
                 .chain(evidence[recent..].iter());
-            let mut facts = selected
+            let facts = selected
                 .map(|item| {
                     format!(
                         "第{}章正文：{}",
@@ -66,20 +61,6 @@ fn object_profile_context_line(context: &ChapterObjectProfileContext) -> String 
                     )
                 })
                 .collect::<Vec<_>>();
-            if let Some(state) = fact_state {
-                for (key, label) in [
-                    ("material_and_state", "本章之前状态"),
-                    ("location_context", "位置"),
-                ] {
-                    if let Some(value) = state
-                        .get(key)
-                        .and_then(serde_json::Value::as_str)
-                        .filter(|text| !text.trim().is_empty())
-                    {
-                        facts.push(format!("{label}: {value}"));
-                    }
-                }
-            }
             format!("- {name}：{}", facts.join("；"))
         }
     }

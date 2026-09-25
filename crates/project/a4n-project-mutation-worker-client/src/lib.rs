@@ -198,7 +198,6 @@ impl ProjectMutationApplicationPort for ProjectMutationWorkerClient {
                 project_id,
                 title: input.title,
                 description: input.description,
-                fact_feedback_interval_chapters: input.fact_feedback_interval_chapters,
             },
         )
         .await

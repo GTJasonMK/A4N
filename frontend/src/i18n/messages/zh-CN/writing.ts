@@ -318,7 +318,7 @@ export const writing = {
     moreUpdates: "；另 {count} 项",
     syncAria: "本章资料同步状态",
     syncHeading: "当前正文的资料更新",
-    syncDescription: "已完成表示本章事实已检查并同步，不代表一定新增条目。明确正文事实会修正旧资料并保留来源；蓝图按项目周期归纳，未来剧情调整保留为建议。",
+    syncDescription: "已完成表示系统已检查并同步，不代表本章一定识别出了对应条目。用户手工资料不会被静默覆盖；分部大纲和蓝图只在你主动操作时更新。",
     updateSummary: "本次分析：{summary}",
     otherUpdatesAria: "其余资料更新明细",
     syncFailureFallback: "本章分析已经保留，但资料同步尚未完成。请继续同步或重新分析。",

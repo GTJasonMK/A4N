@@ -27,12 +27,10 @@ impl ProjectChapterContextApplication {
     async fn generation_reference_rows(
         &self,
         project_id: i64,
-        chapter_number: i32,
     ) -> Result<ChapterGenerationReferenceContextRows, AppError> {
         a4n_db::project::chapter_generation_reference_context_rows(
             self.database.connection(),
             project_id,
-            chapter_number,
         )
         .await
         .map_err(project_chapter_context_error_to_app_error)
@@ -42,13 +40,13 @@ impl ProjectChapterContextApplication {
         &self,
         source: ChapterSourceSnapshot,
         drafts: Vec<ForeshadowingAnalysisDraft>,
-        updates: Vec<a4n_db::project::ForeshadowingFactUpdate>,
+        resolved_ids: Vec<i64>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         a4n_db::project::sync_chapter_analysis_foreshadowing(
             self.database.connection(),
             source,
             drafts,
-            updates,
+            resolved_ids,
         )
         .await
         .map_err(foreshadowing_db_error_to_app_error)
@@ -126,10 +124,9 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_generation_reference_context_rows(
         &self,
         project_id: i64,
-        chapter_number: i32,
     ) -> Result<ChapterGenerationReferenceContextRows, AppError> {
         self.project_chapter_context
-            .generation_reference_rows(project_id, chapter_number)
+            .generation_reference_rows(project_id)
             .await
     }
 
@@ -137,10 +134,10 @@ impl OrchestratorContext {
         &self,
         source: ChapterSourceSnapshot,
         drafts: Vec<ForeshadowingAnalysisDraft>,
-        updates: Vec<a4n_db::project::ForeshadowingFactUpdate>,
+        resolved_ids: Vec<i64>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         self.project_chapter_context
-            .sync_analysis_foreshadowing(source, drafts, updates)
+            .sync_analysis_foreshadowing(source, drafts, resolved_ids)
             .await
     }
 

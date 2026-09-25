@@ -26,10 +26,6 @@ pub mod chapter_analysis {
     };
 }
 
-pub mod fact_feedback {
-    pub use crate::actions::fact_feedback::*;
-}
-
 pub mod rag_ingest {
     pub use crate::rag_ingest::{
         ClientRagIngestUploadInput, RagIngestOptions, RagIngestProgress, RagIngestTaskScope,

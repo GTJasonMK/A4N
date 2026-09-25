@@ -3,13 +3,14 @@ use a4n_error::AppError;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
+use super::super::SceneProfileSyncHostPort;
 use super::super::context::{
     build_scene_profile_sync_request, load_scene_profile_sync_anchor_context,
     load_scene_profile_sync_stable_context,
 };
 use super::super::progress::{
     SCENE_PROFILE_SYNC_CHAPTER_END, SCENE_PROFILE_SYNC_CHAPTER_START,
-    SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncProgress,
+    SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SCENE_PROFILE_SYNC_RAG_PROGRESS, SceneProfileSyncProgress,
     report_scene_profile_sync_progress,
 };
 use super::super::stages::run_scene_profile_sync_stages;
@@ -22,6 +23,7 @@ pub(super) async fn sync_scene_profile_chapters(
     state: &OrchestratorContext,
     user_id: i64,
     prompt_renderer: &dyn PromptRenderer,
+    host_port: &dyn SceneProfileSyncHostPort,
     project_id: i64,
     workflow_run_id: i64,
     chapters: Vec<chapter::Model>,
@@ -98,8 +100,16 @@ pub(super) async fn sync_scene_profile_chapters(
     }
     report_scene_profile_sync_progress(
         progress,
+        SCENE_PROFILE_SYNC_RAG_PROGRESS,
+        "正在同步场景档案 RAG",
+    )?;
+    host_port
+        .sync_scene_rag_records(project_id, workflow_run_id)
+        .await?;
+    report_scene_profile_sync_progress(
+        progress,
         SCENE_PROFILE_SYNC_PROGRESS_TOTAL,
-        "场景事实写入已完成",
+        "场景档案同步已完成",
     )?;
     Ok(())
 }

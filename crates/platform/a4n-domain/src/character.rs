@@ -611,7 +611,6 @@ impl CharacterAttributeOperation {
 pub enum CharacterTimelineSourceKind {
     User,
     AiSync,
-    TextFact,
     LegacyUnknown,
 }
 
@@ -620,7 +619,6 @@ impl CharacterTimelineSourceKind {
         match self {
             Self::User => "user",
             Self::AiSync => "ai_sync",
-            Self::TextFact => "text_fact",
             Self::LegacyUnknown => "legacy_unknown",
         }
     }
@@ -629,7 +627,6 @@ impl CharacterTimelineSourceKind {
         match value {
             "user" => Some(Self::User),
             "ai_sync" => Some(Self::AiSync),
-            "text_fact" => Some(Self::TextFact),
             "legacy_unknown" => Some(Self::LegacyUnknown),
             _ => None,
         }

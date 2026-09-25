@@ -105,16 +105,6 @@ pub fn validate_chapter_foreshadowing_events(
         .flatten()
         .filter_map(|item| item.get("id").and_then(Value::as_str))
         .collect::<HashSet<_>>();
-    for item in planted {
-        if let Some(id) = item.get("id").filter(|id| !id.is_null()) {
-            if !id
-                .as_str()
-                .is_some_and(|id| allowed_resolution_ids.contains(id))
-            {
-                return Err(analysis_materialize_error("planted.id 必须引用已有伏笔"));
-            }
-        }
-    }
     let resolved = foreshadowing
         .get("resolved")
         .and_then(Value::as_array)
@@ -124,23 +114,7 @@ pub fn validate_chapter_foreshadowing_events(
             )
         })?;
     let mut seen_resolution_ids = HashSet::new();
-    let progressed = foreshadowing
-        .get("progressed")
-        .map(|value| {
-            value
-                .as_array()
-                .ok_or_else(|| analysis_materialize_error("foreshadowing.progressed 必须是数组"))
-        })
-        .transpose()?;
-    let candidate_spans: HashSet<_> = event_span_ids
-        .union(&foreshadowing_span_ids)
-        .copied()
-        .collect();
-    for (index, item) in resolved
-        .iter()
-        .chain(progressed.into_iter().flatten())
-        .enumerate()
-    {
+    for (index, item) in resolved.iter().enumerate() {
         let id = item
             .get("id")
             .and_then(Value::as_str)
@@ -170,18 +144,6 @@ pub fn validate_chapter_foreshadowing_events(
                     "chapter_foreshadowing_events.foreshadowing.resolved[{index}].resolution 必须是非空字符串"
                 ))
             })?;
-        if facts.get("world_facts").is_some() || item.get("source_span_ids").is_some() {
-            let ids: Vec<String> =
-                serde_json::from_value(item.get("source_span_ids").cloned().unwrap_or(Value::Null))
-                    .map_err(|error| {
-                        analysis_materialize_error(format!("伏笔变化必须引用原文证据: {error}"))
-                    })?;
-            a4n_domain::fact_feedback::validate_evidence_ids(&ids)
-                .map_err(analysis_materialize_error)?;
-            if ids.iter().any(|id| !candidate_spans.contains(id.as_str())) {
-                return Err(analysis_materialize_error("伏笔变化证据不在事实候选中"));
-            }
-        }
     }
     Ok(())
 }
@@ -203,7 +165,6 @@ mod tests {
             "foreshadowing": {
                 "planted": [{"original_text_span_id": "ch1:s6:f3"}],
                 "resolved": [],
-                "progressed": [],
                 "tensions": []
             },
             "key_events": [{"source_span_ids": ["ch1:s2:f1"]}]
@@ -221,15 +182,14 @@ mod tests {
     #[test]
     fn resolved_ids_must_come_from_request_context_and_be_unique() {
         let facts = json!({
-            "event_candidates": [{"source_span_ids": ["ch1:s2:f1"]}],
+            "event_candidates": [],
             "foreshadowing_candidates": []
         });
         let pending = json!([{"id": "7"}, {"id": "9"}]);
         let mut output = json!({
             "foreshadowing": {
                 "planted": [],
-                "resolved": [{"id": "7", "resolution": "脚步声来自守门人", "source_span_ids": ["ch1:s2:f1"]}],
-                "progressed": [],
+                "resolved": [{"id": "7", "resolution": "脚步声来自守门人"}],
                 "tensions": []
             },
             "key_events": []
@@ -247,8 +207,8 @@ mod tests {
         );
 
         output["foreshadowing"]["resolved"] = json!([
-            {"id": "7", "resolution": "第一次", "source_span_ids": ["ch1:s2:f1"]},
-            {"id": "7", "resolution": "第二次", "source_span_ids": ["ch1:s2:f1"]}
+            {"id": "7", "resolution": "第一次"},
+            {"id": "7", "resolution": "第二次"}
         ]);
         assert!(
             validate_chapter_foreshadowing_events(&output, &facts, &pending)

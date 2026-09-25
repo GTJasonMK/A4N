@@ -28,11 +28,9 @@ pub mod project {
     pub mod blueprint_relationship;
     pub mod blueprint_version;
     pub mod import_review_queue;
-    pub mod material_fact_change;
     pub mod novel_blueprint;
     pub mod novel_project;
     pub mod profile_evidence;
-    pub mod project_fact_feedback;
     pub mod project_invite;
     pub mod project_member;
     pub mod project_source_snapshot;

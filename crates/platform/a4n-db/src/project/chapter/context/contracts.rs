@@ -29,7 +29,6 @@ pub enum ChapterObjectProfileContext {
         profile_id: i64,
         name: String,
         evidence: Vec<ChapterProfileEvidence>,
-        fact_state: Option<Value>,
     },
 }
 
@@ -40,7 +39,6 @@ pub enum ChapterSceneProfileContext {
         profile_id: i64,
         name: String,
         occurrence: a4n_db_models::models::scene::scene_occurrence::Model,
-        fact_state: Option<Value>,
     },
 }
 

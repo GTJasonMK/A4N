@@ -58,15 +58,6 @@ name: chapter_fact_extraction
       "source_span_ids": ["ch1:s4:f1"]
     }
   ],
-  "world_facts": [
-    {
-      "field": "technology_or_magic",
-      "subject": "施法代价",
-      "statement": "施法会损失一段记忆",
-      "assertion": "observed",
-      "source_span_ids": ["ch1:s5:f1"]
-    }
-  ],
   "foreshadowing_candidates": [
     {
       "foreshadowing_ref": "foreshadowing_1",
@@ -89,9 +80,6 @@ name: chapter_fact_extraction
 - `importance` 和 `priority` 只能使用：high、medium、low。
 - `category` 只能使用：character_secret、plot_twist、item_mystery、world_rule。
 - 没有内容的数组输出 `[]`。
-- `world_facts` 必须输出，记录规则、能力限制、地点、组织、历史及社会设定；本章没有新信息时返回 `[]`。`field` 只能是 premise、core_rules、technology_or_magic、key_locations、factions、history_timeline、culture_and_society、conflict_sources、mysteries_and_foreshadowing、genre_promises。
-- `subject` 是稳定的事实主题，同一主题在本章合并成一项。`statement` 只陈述来源支持的事实，不规划未来剧情。
-- `assertion` 必须区分 observed（叙述确认或实际发生）、reported（角色声称或传闻）、hypothetical（猜测、假设）、recollection（回忆）。对白中的宣称不能仅因为有原文就标记 observed。回忆可说明历史，但不能替换现在的角色或物体状态。
 
 ## 禁止项
 

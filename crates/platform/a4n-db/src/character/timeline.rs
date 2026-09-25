@@ -5,7 +5,7 @@ mod projection;
 mod records;
 mod rollback;
 
-pub use cleanup::delete_ai_timeline_artifacts_from_chapter_checked;
+pub(in crate::character) use cleanup::delete_ai_timeline_artifacts_from_chapter_checked;
 pub use cleanup::delete_timeline_artifacts_from_chapter_checked;
 pub use conflict::character_conflict_context_rows;
 pub(in crate::character) use contracts::CharacterStateIndexUpsertInput;

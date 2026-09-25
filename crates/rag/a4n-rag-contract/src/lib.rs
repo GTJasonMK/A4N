@@ -33,7 +33,6 @@ pub enum RagRecordSet {
     Outline,
     BlueprintMaterial,
     Protagonist,
-    CharacterContinuity,
     Scene,
 }
 

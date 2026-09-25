@@ -14,8 +14,7 @@ pub use attributes::{
     CharacterAttributeMutationResult, CharacterDeletionMarkRewindSummary, add_profile_attribute,
     apply_implicit_review_decision_record, attribute_events_by_ids, attribute_history,
     deletion_marks_by_profile, execute_ready_attribute_deletion, modify_profile_attribute,
-    request_attribute_deletion, reset_deletion_marks_in, rewind_ai_deletion_marks_after,
-    rewind_deletion_marks_after,
+    request_attribute_deletion, reset_deletion_marks_in, rewind_deletion_marks_after,
 };
 pub use behavior::{behavior_records_by_profile, implicit_review_behavior_records};
 pub use blueprint_seed::{CharacterProfileSeedError, sync_character_profiles_from_blueprint};
@@ -49,11 +48,13 @@ pub use sync_persistence::{
 pub use timeline::{
     CharacterConflictContextRows, CharacterProfileRollbackResult, CharacterTimelineDeletionSummary,
     behavior_records_before_chapter, character_conflict_context_rows,
-    delete_ai_timeline_artifacts_from_chapter_checked,
     delete_timeline_artifacts_from_chapter_checked, replay_profile_state_through_chapter,
     rollback_profile_to_chapter,
 };
 
+use a4n_db_models::models::character::attribute_event::{
+    SOURCE_KIND_AI_SYNC, SOURCE_KIND_LEGACY_UNKNOWN, SOURCE_KIND_USER,
+};
 use sea_orm::DbErr;
 
 #[derive(Debug, thiserror::Error)]
@@ -107,7 +108,10 @@ fn validate_chapter_number(chapter_number: i32) -> Result<(), CharacterDbError> 
 
 fn validate_timeline_source_kind(source_kind: &str) -> Result<String, CharacterDbError> {
     let source_kind = source_kind.trim();
-    if a4n_domain::character::CharacterTimelineSourceKind::parse(source_kind).is_some() {
+    if matches!(
+        source_kind,
+        SOURCE_KIND_USER | SOURCE_KIND_AI_SYNC | SOURCE_KIND_LEGACY_UNKNOWN
+    ) {
         Ok(source_kind.to_string())
     } else {
         Err(CharacterDbError::InvalidArgument(format!(

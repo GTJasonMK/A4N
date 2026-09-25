@@ -139,23 +139,6 @@ pub fn chapter_analysis_foreshadowing_drafts(
                     }
                 })?;
             Ok(ForeshadowingAnalysisDraft {
-                existing_id: entry
-                    .id
-                    .as_deref()
-                    .map(|id| {
-                        id.parse::<i64>().ok().filter(|id| *id > 0).ok_or_else(|| {
-                            ChapterAnalysisOutputError::InvalidForeshadowingResolutionId {
-                                chapter_id,
-                                id: id.to_string(),
-                            }
-                        })
-                    })
-                    .transpose()?,
-                evidence: entry.original_text.clone().ok_or_else(|| {
-                    ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(
-                        "伏笔缺少原文证据".into(),
-                    ))
-                })?,
                 description,
                 related_characters: entry.related_entities,
                 importance,
@@ -236,73 +219,11 @@ impl OrchestratorContext {
         )?;
         let drafts = chapter_analysis_foreshadowing_drafts(chapter.id, analysis)?;
         let resolved_ids = chapter_analysis_foreshadowing_resolved_ids(chapter.id, analysis)?;
-        let source_spans =
-            a4n_domain::source_spans::source_spans_for_chapters(std::slice::from_ref(chapter));
-        let source_index = a4n_domain::source_spans::SourceSpanIndex::new(&source_spans);
-        let mut updates = Vec::new();
-        for (key, resolved) in [("resolved", true), ("progressed", false)] {
-            for item in analysis["foreshadowing"][key]
-                .as_array()
-                .into_iter()
-                .flatten()
-            {
-                let id = item["id"]
-                    .as_str()
-                    .and_then(|id| id.parse::<i64>().ok())
-                    .filter(|id| *id > 0)
-                    .ok_or_else(|| {
-                        ChapterAnalysisOutputError::InvalidForeshadowingResolutionId {
-                            chapter_id: chapter.id,
-                            id: item["id"].to_string(),
-                        }
-                    })?;
-                let status = if resolved {
-                    a4n_domain::character::ForeshadowingStatus::Resolved
-                } else {
-                    item["status"]
-                        .as_str()
-                        .and_then(a4n_domain::character::ForeshadowingStatus::parse)
-                        .ok_or_else(|| {
-                            ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(
-                                "伏笔进展状态无效".into(),
-                            ))
-                        })?
-                };
-                let ids: Vec<String> = serde_json::from_value(item["source_span_ids"].clone())
-                    .map_err(|error| {
-                        ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(format!(
-                            "伏笔更新缺少原文证据，需要重新分析：{error}"
-                        )))
-                    })?;
-                let evidence = ids
-                    .iter()
-                    .map(|id| source_index.resolve_text(id))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| {
-                        ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(error))
-                    })?;
-                updates.push(a4n_db::project::ForeshadowingFactUpdate {
-                    id,
-                    status,
-                    evidence,
-                    reason: item["resolution"].as_str().unwrap_or_default().to_string(),
-                });
-            }
-        }
-        debug_assert_eq!(
-            updates
-                .iter()
-                .filter(
-                    |update| update.status == a4n_domain::character::ForeshadowingStatus::Resolved
-                )
-                .count(),
-            resolved_ids.len()
-        );
         let synced = self
             .sync_chapter_analysis_foreshadowing(
                 a4n_db::project::chapter_source_snapshot_from_model(chapter),
                 drafts,
-                updates,
+                resolved_ids,
             )
             .await
             .map_err(ChapterAnalysisOutputError::Persistence)?;
@@ -311,6 +232,9 @@ impl OrchestratorContext {
             .iter()
             .map(|item| item.id)
             .collect::<Vec<_>>();
+        self.reingest_foreshadowing_rag_by_ids(chapter.project_id, &current_ids)
+            .await
+            .map_err(ChapterAnalysisOutputError::Rag)?;
         let rows = |items: &[a4n_db_models::models::character::foreshadowing_index::Model]| {
             items
                 .iter()
@@ -318,7 +242,6 @@ impl OrchestratorContext {
                 .collect::<Vec<_>>()
         };
         Ok(json!({
-            "current_ids": current_ids,
             "created": rows(&synced.created),
             "updated": rows(&synced.updated),
             "existing": rows(&synced.existing),

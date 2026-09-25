@@ -30,21 +30,11 @@ pub enum ForeshadowingDbError {
     Database(#[from] DbErr),
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ForeshadowingAnalysisDraft {
-    pub existing_id: Option<i64>,
-    pub evidence: String,
     pub description: String,
     pub related_characters: Option<Value>,
     pub importance: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct ForeshadowingFactUpdate {
-    pub id: i64,
-    pub status: a4n_domain::character::ForeshadowingStatus,
-    pub reason: String,
-    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default)]

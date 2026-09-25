@@ -318,7 +318,7 @@ export const writing = {
     moreUpdates: "; {count} more",
     syncAria: "Chapter material sync status",
     syncHeading: "Material updates for the current body",
-    syncDescription: "Completed means this chapter's facts were checked and synced; new entries are not always needed. Explicit story facts can correct earlier material with evidence. Blueprints are consolidated periodically; future plot changes remain suggestions.",
+    syncDescription: "Completed means the system checked and synced the material; it does not mean a matching entry was found. User-maintained material is never silently overwritten. Part outlines and blueprints update only when you choose to update them.",
     updateSummary: "This analysis: {summary}",
     otherUpdatesAria: "Other material update details",
     syncFailureFallback: "The chapter analysis was kept, but material sync is incomplete. Continue syncing or analyze again.",

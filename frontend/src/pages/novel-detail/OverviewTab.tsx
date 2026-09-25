@@ -18,7 +18,6 @@ import {
 import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
-import { FactFeedbackPanel } from "./FactFeedbackPanel";
 import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { nonEmptyText } from "../../utils/text";
@@ -340,10 +339,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           onOpenImports={handleOpenImports}
           onCreateBlueprint={handleCreateBlueprint}
         />
-
-        <div className="min-w-0 lg:col-span-2">
-          <FactFeedbackPanel key={project.id} projectId={project.id} canEdit={canEditProject} refreshKey={project.updated_at} onChanged={async () => { await load(); await onRefresh(); }} />
-        </div>
 
         <nav
           aria-label={t("novel.projectManagement")}

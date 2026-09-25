@@ -126,15 +126,6 @@ impl OrchestratorContext {
         if import_analysis_cancelled(self, project_id).await? {
             return cancelled_import_analysis_summary(self, project_id, analyzed).await;
         }
-        self.consolidate_facts(
-            project_id,
-            true,
-            None,
-            prompt_renderer,
-            chapter_analysis_host_port,
-            ChapterAnalysisApplicationProgress::default(),
-        )
-        .await?;
         complete_import_project_analysis(self, project_id, progress, analyzed).await
     }
 

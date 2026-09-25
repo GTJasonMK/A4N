@@ -69,15 +69,6 @@ pub(crate) fn args_chapter_analysis() -> Value {
 pub(crate) fn args_chapter_analysis_task() -> Value {
     optional_task_runtime_typed_input_schema::<crate::chapter::ChapterAnalysisInput>()
 }
-pub(crate) fn args_project_fact_feedback_task() -> Value {
-    optional_task_runtime_typed_input_schema::<crate::fact_feedback::RunProjectFactFeedbackInput>()
-}
-pub(crate) fn args_project_fact_feedback_preview() -> Value {
-    strict_runtime_typed_input_schema::<crate::fact_feedback::RunProjectFactFeedbackInput>()
-}
-pub(crate) fn result_project_fact_feedback() -> Value {
-    typed_schema::<crate::fact_feedback::ProjectFactFeedbackSummary>()
-}
 pub(crate) fn args_create_derived_project() -> Value {
     strict_typed_input_schema::<crate::project::CreateDerivedProjectInput>()
 }

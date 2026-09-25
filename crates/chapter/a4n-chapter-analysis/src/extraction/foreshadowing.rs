@@ -18,7 +18,6 @@ pub fn foreshadowing_entries(analysis: &Value) -> Vec<ForeshadowingEntry> {
         .iter()
         .filter_map(|item| {
             first_string(item, &["description"]).map(|description| ForeshadowingEntry {
-                id: first_string(item, &["id"]),
                 description,
                 original_text: first_string(item, &["original_text"]),
                 category: first_string(item, &["category"]),

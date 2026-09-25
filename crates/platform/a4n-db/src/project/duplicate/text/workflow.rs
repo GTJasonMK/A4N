@@ -89,12 +89,6 @@ where
     let outline_id_map =
         copy_project_chapter_outlines(db, original.id, new_project.id, &part_id_map, now).await?;
     copy_project_chapters(db, original.id, new_project.id, &outline_id_map, now).await?;
-    let interval = crate::fact_feedback::feedback_interval(db, original.id)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
-    crate::fact_feedback::update_feedback_interval(db, new_project.id, interval)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
 
     Ok(new_project)
 }

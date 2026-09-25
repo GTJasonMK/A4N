@@ -96,8 +96,7 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
     let facts = json!({
         "characters": [],
         "event_candidates": [],
-        "foreshadowing_candidates": [],
-        "world_facts": []
+        "foreshadowing_candidates": []
     });
     let pending_foreshadowing = json!([{
         "id": "7",

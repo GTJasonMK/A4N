@@ -366,13 +366,20 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<(), AppError> {
+        self.finish_chapter_analysis_replacement_cleanup(
+            chapter,
+            workflow_run_id,
+            host_port,
+            progress,
+        )
+        .await?;
         self.mark_workflow_current_step(workflow_run_id, STEP_DERIVED_SYNC)
             .await?;
         progress.report(50, "正在同步本章章纲")?;
         self.sync_retrospective_outline_phase(chapter, workflow_run_id, progress)
             .await?;
-        progress.report(54, "正在同步章节分析和伏笔事实")?;
-        self.sync_analysis_outputs_phase(chapter, workflow_run_id, progress)
+        progress.report(54, "正在同步章节分析、伏笔和 RAG")?;
+        self.sync_analysis_outputs_phase(chapter, workflow_run_id, host_port, progress)
             .await?;
         self.sync_object_discovery_phase(chapter, workflow_run_id, prompt_renderer, progress)
             .await?;
@@ -397,15 +404,6 @@ impl OrchestratorContext {
             character_trace_port,
         )
         .await?;
-        self.record_chapter_fact_feedback(chapter, workflow_run_id).await?;
-        let reporter = |current: u32, total: u32, message: &str| progress.subprogress(current, total, 97, 99, message);
-        if let Err(error) = self.consolidate_facts_if_due(chapter.project_id, prompt_renderer, host_port,
-            ChapterAnalysisApplicationProgress { reporter: Some(&reporter), ..progress }).await {
-            if matches!(error, AppError::Cancelled) { return Err(error); }
-            tracing::warn!(project_id = chapter.project_id, error = %error, "逐章事实已保存，项目归纳未完成");
-            progress.report(98, &format!("逐章事实已保存，项目归纳未完成：{error}"))?;
-        }
-        self.sync_chapter_fact_indexes(chapter, workflow_run_id, host_port, progress).await?;
         self.refresh_project_status_phase(chapter, workflow_run_id, progress)
             .await?;
         progress.report(100, "章节分析和项目状态同步已完成")
@@ -482,6 +480,7 @@ impl OrchestratorContext {
         &self,
         chapter: &chapter::Model,
         workflow_run_id: i64,
+        host_port: &dyn ChapterAnalysisHostPort,
         progress: ChapterAnalysisApplicationProgress<'_>,
     ) -> Result<(), AppError> {
         if self
@@ -505,6 +504,9 @@ impl OrchestratorContext {
                 current: "chapter_analysis_outputs".to_string(),
                 operation: error.to_string(),
             })?;
+        host_port
+            .sync_chapter_rag_records(chapter.project_id, chapter.id, workflow_run_id)
+            .await?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
             chapter,
@@ -731,39 +733,6 @@ impl OrchestratorContext {
             json!({ "completed": true, "result": sync_result }),
         )
         .await
-    }
-
-    async fn record_chapter_fact_feedback(&self, chapter: &chapter::Model, workflow_run_id: i64) -> Result<(), AppError> {
-        use sea_orm::TransactionTrait;
-        let step = crate::fact_feedback::CHAPTER_FEEDBACK_STEP;
-        if self.completed_chapter_analysis_phase(workflow_run_id, chapter, step).await?.is_some() { return Ok(()); }
-        let tx = self.database.connection().begin().await?;
-        a4n_db::chapter_content::lock_chapter_analysis_source(&tx, &a4n_db::project::ChapterSourceSnapshot::from(chapter)).await.map_err(crate::chapter_content_edit_error_to_app_error)?;
-        a4n_db::fact_feedback::record_feedback_completion(&tx, chapter, workflow_run_id).await.map_err(crate::fact_feedback::feedback_error)?;
-        a4n_db::workflow::upsert_workflow_checkpoint_in_transaction(&tx, UpsertWorkflowCheckpointInput {
-            workflow_run_id, step_key: step.into(), step_order: 55, status: "completed".into(),
-            input_fingerprint_sha256: None, input_fingerprint_json: Some(chapter_analysis_phase_fingerprint(chapter, step)),
-            checkpoint_json: Some(json!({"completed":true,"result":{"world_facts":chapter.analysis_data.as_ref().and_then(|analysis|analysis.get("world_facts"))}})),
-            artifacts_json: None, generation_run_ids_json: None, error_message: None, completed: true,
-        }).await.map_err(crate::workflow::workflow_write_app_error)?;
-        tx.commit().await?;
-        Ok(())
-    }
-
-    async fn sync_chapter_fact_indexes(&self, chapter: &chapter::Model, workflow_run_id: i64, host_port: &dyn ChapterAnalysisHostPort, progress: ChapterAnalysisApplicationProgress<'_>) -> Result<(), AppError> {
-        let step = crate::fact_feedback::CHAPTER_INDEX_STEP;
-        if self.completed_chapter_analysis_phase(workflow_run_id, chapter, step).await?.is_some() { return Ok(()); }
-        self.mark_workflow_current_step(workflow_run_id, step).await?;
-        let mut errors = Vec::new();
-        if let Err(error) = self.finish_chapter_analysis_replacement_cleanup(chapter, workflow_run_id, host_port, progress).await { errors.push(error.to_string()); }
-        self.mark_workflow_current_step(workflow_run_id, step).await?;
-        if let Err(error) = host_port.sync_chapter_rag_records(chapter.project_id, chapter.id, workflow_run_id).await { errors.push(error.to_string()); }
-        if let Err(error) = host_port.scene_profile_sync_host_port().sync_scene_rag_records(chapter.project_id, workflow_run_id).await { errors.push(error.to_string()); }
-        if let Err(error) = host_port.sync_fact_material_rag_records(chapter.project_id, workflow_run_id, false, true).await { errors.push(error.to_string()); }
-        if !errors.is_empty() {
-            return Err(AppError::InvalidState { current: "fact_indexes_incomplete".into(), operation: format!("逐章事实已保存，资料索引未完成：{}", errors.join("；")) });
-        }
-        self.save_chapter_analysis_phase(workflow_run_id, chapter, step, 58, json!({"completed":true})).await
     }
 
     async fn refresh_project_status_phase(

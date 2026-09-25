@@ -7,16 +7,15 @@ use a4n_domain::chapter::ChapterSourceSnapshot;
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_domain::object_profile::{ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput};
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
-use a4n_db_models::models::asset::object_profile;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
 
 pub async fn upsert_object_profiles_with_generation_run_record<C>(
     db: &C,
     project_id: i64,
-    mut inputs: Vec<ObjectProfileRecordInput>,
+    inputs: Vec<ObjectProfileRecordInput>,
     source_chapters: Vec<ChapterSourceSnapshot>,
-    mut profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
+    profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
     mut generation_run: RecordCompletedGenerationRunInput,
 ) -> Result<ObjectProfileUpsertRecordResult, AssetDbError>
 where
@@ -52,85 +51,7 @@ where
         });
     }
     ensure_object_profile_project_exists(&txn, project_id).await?;
-    let before = object_profile::Entity::find()
-        .filter(object_profile::Column::ProjectId.eq(project_id))
-        .all(&txn)
-        .await?;
-    for input in &mut inputs {
-        let matches: Vec<_> = before
-            .iter()
-            .filter(|profile| {
-                profile.normalized_name == input.normalized_name
-                    || profile.aliases_json.as_array().is_some_and(|aliases| {
-                        aliases.iter().filter_map(Value::as_str).any(|alias| {
-                            a4n_domain::object_profile::normalize_object_name(alias)
-                                .ok()
-                                .as_deref()
-                                == Some(input.normalized_name.as_str())
-                        })
-                    })
-            })
-            .collect();
-        if matches.len() > 1 {
-            return Err(AssetDbError::InvalidArgument(format!(
-                "物体名称/别名对应多个档案，请明确身份：{}",
-                input.name
-            )));
-        }
-        if let Some(existing) = matches.first() {
-            for evidence in &mut profile_evidence {
-                if evidence.normalized_name == input.normalized_name {
-                    evidence.normalized_name = existing.normalized_name.clone();
-                }
-            }
-            input.name = existing.name.clone();
-            input.normalized_name = existing.normalized_name.clone();
-        }
-    }
-    let chapters = a4n_db_models::models::chapter::chapter::Entity::find()
-        .filter(
-            a4n_db_models::models::chapter::chapter::Column::Id
-                .is_in(source_chapters.iter().map(|source| source.chapter_id)),
-        )
-        .all(&txn)
-        .await?;
-    let evidence_by_name = inputs
-        .iter()
-        .map(|input| (input.normalized_name.clone(), input.evidence_json.clone()))
-        .collect::<HashMap<_, _>>();
-    let mut result = upsert_object_profiles_in(&txn, project_id, inputs).await?;
-    for profile in result.created.iter().chain(&result.updated) {
-        let previous = before
-            .iter()
-            .find(|item| item.id == profile.id)
-            .map(|item| crate::fact_feedback::profile_fact_snapshot(item, "object_profile"))
-            .transpose()
-            .map_err(|error| AssetDbError::InvalidArgument(error.to_string()))?
-            .unwrap_or(Value::Null);
-        let after = crate::fact_feedback::profile_fact_snapshot(profile, "object_profile")
-            .map_err(|error| AssetDbError::InvalidArgument(error.to_string()))?;
-        let evidence = evidence_by_name
-            .get(&profile.normalized_name)
-            .ok_or_else(|| AssetDbError::InvalidArgument("物体事实缺少对应证据".into()))?;
-        crate::fact_feedback::record_profile_fact_observation(
-            &txn,
-            project_id,
-            "object_profile",
-            profile.id,
-            previous,
-            after,
-            &chapters,
-            evidence,
-        )
-        .await
-        .map_err(|error| AssetDbError::InvalidArgument(error.to_string()))?;
-    }
-    for profile in result.created.iter_mut().chain(&mut result.updated) {
-        *profile = object_profile::Entity::find_by_id(profile.id)
-            .one(&txn)
-            .await?
-            .ok_or_else(|| AssetDbError::InvalidArgument("物体投影记录丢失".into()))?;
-    }
+    let result = upsert_object_profiles_in(&txn, project_id, inputs).await?;
     merge_object_profile_evidence_records(&txn, project_id, &result, profile_evidence).await?;
     generation_run.targets = result
         .created

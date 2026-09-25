@@ -318,7 +318,6 @@ async fn initialize_runtime_with_ports(
         import_reverse_confirmation_application: orchestrator.clone(),
         import_reverse_read_application: orchestrator.clone(),
         chapter_analysis_generation_application: orchestrator.clone(),
-        project_fact_feedback_application: orchestrator.clone(),
         chapter_analysis_resume_application: orchestrator.clone(),
         chapter_analysis_generation_preview_application: orchestrator.clone(),
         chapter_analysis_resume_preview_application: orchestrator.clone(),

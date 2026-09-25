@@ -17,7 +17,6 @@ pub enum UnifiedResumeDispatch {
     SceneProfileSync,
     BlueprintGeneration,
     BlueprintRefinement,
-    ProjectFactFeedback { project_id: i64, rebuild: bool },
 }
 
 pub fn require_positive_workflow_run_id(workflow_run_id: i64) -> Result<(), String> {
@@ -135,14 +134,6 @@ pub fn resolve_unified_resume_dispatch(
                 return Err("蓝图优化工作流缺少 novel_blueprint 目标".to_string());
             }
             Ok(UnifiedResumeDispatch::BlueprintRefinement)
-        }
-        "project_fact_consolidation" | "project_fact_rebuild" => {
-            Ok(UnifiedResumeDispatch::ProjectFactFeedback {
-                project_id: scope_id
-                    .filter(|id| *id > 0 && scope_table == Some("novel_project"))
-                    .ok_or_else(|| "正文事实反馈缺少项目作用域".to_string())?,
-                rebuild: workflow_kind == "project_fact_rebuild",
-            })
         }
         "manga_pipeline" => Err("漫画流水线请在漫画章节页使用“续传流水线”入口恢复".to_string()),
         other => Err(format!("工作流类型 {other} 暂未接入统一恢复入口")),

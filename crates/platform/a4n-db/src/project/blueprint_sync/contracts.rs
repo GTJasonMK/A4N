@@ -33,9 +33,3 @@ pub enum BlueprintSyncError {
     #[error(transparent)]
     Database(#[from] DbErr),
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum BlueprintWriteMode {
-    ReplaceAll,
-    Supplement,
-    Edit,
-}

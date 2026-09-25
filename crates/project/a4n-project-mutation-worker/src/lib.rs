@@ -368,7 +368,6 @@ impl WorkerState {
                 project_id,
                 title,
                 description,
-                fact_feedback_interval_chapters: input.fact_feedback_interval_chapters,
             },
         )
         .await
@@ -504,9 +503,6 @@ fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> Worke
 
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
-        a4n_project_read_core::ProjectSummaryError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
         a4n_project_read_core::ProjectSummaryError::Progress(error) => match error {
             a4n_db::project::ProjectProgressReadError::InvalidArgument(message) => {
                 WorkerFailure::invalid_request(message)
@@ -670,7 +666,6 @@ mod tests {
                 project_id: 8,
                 title: None,
                 description: None,
-                fact_feedback_interval_chapters: None,
             },
         };
         assert!(project_scope(&request, PROJECT_MUTATION_UPDATE_OPERATION, 8).is_err());

@@ -30,7 +30,7 @@ impl OrchestratorContext {
         outline: Option<&chapter_outline::Model>,
     ) -> Result<Option<String>, String> {
         let (rows_result, foreshadowing_result) = futures::join!(
-            self.chapter_generation_reference_context_rows(project_id, chapter_number),
+            self.chapter_generation_reference_context_rows(project_id),
             self.pending_foreshadowing_for_project(project_id, 20),
         );
         let rows = rows_result.map_err(|error| error.to_string())?;

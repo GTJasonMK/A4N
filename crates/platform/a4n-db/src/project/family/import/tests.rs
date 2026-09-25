@@ -10,7 +10,6 @@ use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::error::Error;
 
-mod fact_feedback;
 mod remap;
 
 struct FailingMediaImporter;
@@ -240,7 +239,6 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
         root_project_id: project.id,
         projects: vec![project],
         text_core: crate::project::ProjectFamilyTextCoreRows {
-            fact_feedback: None,
             blueprint: Some(blueprint),
             blueprint_versions: vec![blueprint_version::Model {
                 id: 4,
@@ -503,7 +501,6 @@ async fn project_family_import_batches_video_reference_fixups() {
         root_project_id: project.id,
         projects: vec![project],
         text_core: crate::project::ProjectFamilyTextCoreRows {
-            fact_feedback: None,
             chapters: vec![chapter],
             scene_profiles: vec![scene(30, "大厅", None), scene(31, "内室", Some(30))],
             ..Default::default()

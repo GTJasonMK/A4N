@@ -1,18 +1,21 @@
-use a4n_db_models::models::{
-    chapter::chapter, character::foreshadowing_index, project::material_fact_change,
-};
-use a4n_domain::{character::ForeshadowingStatus, fact_feedback::FactSourceRevision};
+use a4n_db_models::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
+use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
-use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::{
-    ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
-    ForeshadowingFactUpdate,
+    contracts::{
+        ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
+    },
+    rules::{
+        ForeshadowingResolutionAction, foreshadowing_matches_analysis_draft,
+        foreshadowing_related_characters_after_setup_resync, foreshadowing_resolution_action,
+    },
 };
 use a4n_domain::chapter::ChapterSourceSnapshot;
 
@@ -20,324 +23,277 @@ pub async fn sync_chapter_analysis_foreshadowing(
     db: &DatabaseConnection,
     source: ChapterSourceSnapshot,
     drafts: Vec<ForeshadowingAnalysisDraft>,
-    updates: Vec<ForeshadowingFactUpdate>,
+    resolved_ids: Vec<i64>,
 ) -> Result<ForeshadowingAnalysisSyncResult, ForeshadowingDbError> {
-    let tx = db.begin().await?;
-    super::records::lock_project_for_write(&tx, source.project_id, "保存章节伏笔事实").await?;
+    let txn = db.begin().await?;
+    super::records::lock_project_for_write(&txn, source.project_id, "保存章节伏笔分析结果").await?;
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(
-        &tx,
+        &txn,
         std::slice::from_ref(&source),
     )
     .await?
     {
         return Err(ForeshadowingDbError::InvalidState {
-            current: "chapter_source_changed".into(),
-            operation: "章节已变化，请重新分析伏笔".into(),
+            current: "chapter_source_changed".to_string(),
+            operation: "保存章节伏笔同步结果；章节正文已变化，请重新分析".to_string(),
         });
     }
-    let chapter = chapter::Entity::find_by_id(source.chapter_id)
-        .one(&tx)
-        .await?
-        .ok_or_else(|| ForeshadowingDbError::InvalidArgument("章节不存在".into()))?;
-    let existing = foreshadowing_index::Entity::find()
-        .filter(foreshadowing_index::Column::ProjectId.eq(source.project_id))
-        .lock_exclusive()
-        .all(&tx)
-        .await?;
-    let history = material_fact_change::Entity::find()
-        .filter(material_fact_change::Column::ProjectId.eq(source.project_id))
-        .filter(material_fact_change::Column::MaterialKind.eq("foreshadowing"))
-        .filter(material_fact_change::Column::ChapterId.eq(source.chapter_id))
-        .order_by_desc(material_fact_change::Column::Id)
-        .all(&tx)
-        .await?;
-    let mut by_id: BTreeMap<_, _> = existing.into_iter().map(|item| (item.id, item)).collect();
-    let mut result = ForeshadowingAnalysisSyncResult::default();
-    let mut touched = BTreeSet::new();
-    // ponytail: a chapter has few foreshadowings; batch writes if large extracts become measurable.
-    for draft in drafts {
-        require_evidence(&chapter, std::slice::from_ref(&draft.evidence))?;
-        if !(1..=5).contains(&draft.importance) {
-            return Err(ForeshadowingDbError::InvalidArgument(
-                "伏笔重要度必须在 1 到 5 之间".into(),
-            ));
-        }
-        let id = draft
-            .existing_id
-            .or_else(|| {
-                history
-                    .iter()
-                    .find(|record| {
-                        record.target_id.is_some_and(|id| by_id.contains_key(&id))
-                            && record.evidence_json.as_array().is_some_and(|items| {
-                                items.iter().any(|item| {
-                                    item.get("quote").and_then(Value::as_str)
-                                        == Some(draft.evidence.as_str())
-                                })
-                            })
-                    })
-                    .and_then(|record| record.target_id)
-            })
-            .or_else(|| {
-                by_id
-                    .values()
-                    .find(|item| {
-                        item.setup_chapter == source.chapter_number
-                            && item.description == draft.description
-                    })
-                    .map(|item| item.id)
-            });
-        let prior = id.and_then(|id| by_id.get(&id)).cloned();
-        if draft.existing_id.is_some() && prior.is_none() {
-            return Err(ForeshadowingDbError::InvalidArgument(
-                "伏笔 ID 不属于当前项目".into(),
-            ));
-        }
-        if prior
-            .as_ref()
-            .is_some_and(|item| item.setup_chapter > source.chapter_number)
-        {
-            return Err(ForeshadowingDbError::InvalidArgument(
-                "不能用本章事实修改未来伏笔".into(),
-            ));
-        }
-        let before = prior
-            .as_ref()
-            .map(foreshadowing_fact_snapshot)
-            .unwrap_or(Value::Null);
-        let mut active =
-            prior
-                .clone()
-                .map(Into::into)
-                .unwrap_or_else(|| foreshadowing_index::ActiveModel {
-                    project_id: Set(source.project_id),
-                    setup_chapter: Set(source.chapter_number),
-                    payoff_chapter: Set(None),
-                    status: Set(ForeshadowingStatus::Pending.as_str().into()),
-                    created_at: Set(Utc::now().naive_utc()),
-                    ..Default::default()
-                });
-        active.description = Set(draft.description);
-        active.related_characters = Set(draft.related_characters);
-        active.importance = Set(draft.importance);
-        active.updated_at = Set(Utc::now().naive_utc());
-        let item = if prior.is_some() {
-            active.update(&tx).await?
-        } else {
-            active.insert(&tx).await?
-        };
-        if !touched.insert(item.id) {
-            return Err(ForeshadowingDbError::InvalidArgument(
-                "本章重复更新同一伏笔".into(),
-            ));
-        }
-        if before == foreshadowing_fact_snapshot(&item) {
-            result.existing.push(item.clone());
-        } else {
-            record_change(
-                &tx,
-                &chapter,
-                &item,
-                before,
-                vec![draft.evidence],
-                "正文更新伏笔内容",
-            )
-            .await?;
-            if prior.is_some() {
-                result.updated.push(item.clone());
-            } else {
-                result.created.push(item.clone());
-            }
-        }
-        by_id.insert(item.id, item.clone());
-        result.current.push(item);
-    }
-    let mut updated = BTreeSet::new();
-    for update in updates {
-        require_evidence(&chapter, &update.evidence)?;
-        if !updated.insert(update.id) {
-            return Err(ForeshadowingDbError::DuplicateResolutionTarget {
-                foreshadowing_id: update.id,
-                chapter_number: source.chapter_number,
-            });
-        }
-        let prior = by_id.get(&update.id).cloned().ok_or_else(|| {
-            ForeshadowingDbError::InvalidResolutionTarget {
-                foreshadowing_id: update.id,
-                chapter_number: source.chapter_number,
-                reason: "项目中不存在该伏笔".into(),
-            }
-        })?;
-        if prior.setup_chapter >= source.chapter_number
-            || prior
-                .payoff_chapter
-                .is_some_and(|chapter| chapter > source.chapter_number)
-        {
-            return Err(ForeshadowingDbError::InvalidResolutionTarget {
-                foreshadowing_id: update.id,
-                chapter_number: source.chapter_number,
-                reason: "伏笔不在本章可更新范围内".into(),
-            });
-        }
-        if !matches!(
-            update.status,
-            ForeshadowingStatus::PartiallyRevealed
-                | ForeshadowingStatus::Resolved
-                | ForeshadowingStatus::Abandoned
-        ) {
-            return Err(ForeshadowingDbError::InvalidArgument(
-                "正文只能部分揭示、回收或明确否定已有伏笔".into(),
-            ));
-        }
-        if update.reason.trim().is_empty() {
-            return Err(ForeshadowingDbError::InvalidArgument(
-                "伏笔进展缺少变化说明".into(),
-            ));
-        }
-        if update.status == ForeshadowingStatus::Resolved
-            && prior.status == ForeshadowingStatus::Resolved.as_str()
-        {
-            result.existing.push(prior.clone());
-            result.current.push(prior);
-            continue;
-        }
-        let before = foreshadowing_fact_snapshot(&prior);
-        let mut active: foreshadowing_index::ActiveModel = prior.into();
-        active.status = Set(update.status.as_str().into());
-        active.payoff_chapter =
-            Set((update.status == ForeshadowingStatus::Resolved).then_some(source.chapter_number));
-        active.updated_at = Set(Utc::now().naive_utc());
-        let item = active.update(&tx).await?;
-        if before == foreshadowing_fact_snapshot(&item) {
-            result.existing.push(item.clone());
-        } else {
-            record_change(
-                &tx,
-                &chapter,
-                &item,
-                before,
-                update.evidence,
-                &update.reason,
-            )
-            .await?;
-            if update.status == ForeshadowingStatus::Resolved {
-                result.resolved.push(item.clone());
-            } else {
-                result.updated.push(item.clone());
-            }
-        }
-        by_id.insert(item.id, item.clone());
-        result.current.push(item);
-    }
-    tx.commit().await?;
+    let result = sync_in(
+        &txn,
+        source.project_id,
+        source.chapter_number,
+        drafts,
+        resolved_ids,
+    )
+    .await?;
+    txn.commit().await?;
     Ok(result)
 }
 
-fn require_evidence(
-    chapter: &chapter::Model,
-    evidence: &[String],
-) -> Result<(), ForeshadowingDbError> {
-    if evidence.is_empty()
-        || evidence
-            .iter()
-            .any(|quote| quote.trim().is_empty() || !chapter.content.contains(quote))
-    {
-        return Err(ForeshadowingDbError::InvalidArgument(
-            "伏笔事实必须有当前正文中的原文证据".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn foreshadowing_fact_snapshot(item: &foreshadowing_index::Model) -> Value {
-    json!({"description":item.description,"setup_chapter":item.setup_chapter,"payoff_chapter":item.payoff_chapter,"status":item.status,"related_characters":item.related_characters,"importance":item.importance})
-}
-
-async fn record_change(
-    tx: &DatabaseTransaction,
-    chapter: &chapter::Model,
-    item: &foreshadowing_index::Model,
-    before: Value,
-    evidence: Vec<String>,
-    reason: &str,
-) -> Result<(), ForeshadowingDbError> {
-    let source = FactSourceRevision {
-        chapter_id: chapter.id,
-        chapter_number: chapter.chapter_number,
-        content_revision: a4n_domain::chapter::chapter_edit_revision(
-            &chapter.content,
-            chapter.title.as_deref(),
-        ),
-        analysis_hash: a4n_domain::source_text_hash(
-            &chapter
-                .analysis_data
-                .as_ref()
-                .unwrap_or(&Value::Null)
-                .to_string(),
-        ),
-    };
-    crate::fact_feedback::record_fact_change(
-        tx,
-        crate::fact_feedback::FactChangeRecordInput {
-            project_id: chapter.project_id,
-            workflow_run_id: None,
-            material_kind: "foreshadowing".into(),
-            target_id: Some(item.id),
-            field_path: String::new(),
-            operation: if before.is_null() { "add" } else { "replace" }.into(),
-            before,
-            after: foreshadowing_fact_snapshot(item),
-            sources: vec![source],
-            evidence: Value::Array(
-                evidence
-                    .into_iter()
-                    .map(|quote| json!({"chapter_number":chapter.chapter_number,"quote":quote}))
-                    .collect(),
-            ),
-            reason: reason.into(),
-            status: "applied".into(),
-        },
-    )
-    .await
-    .map_err(|error| ForeshadowingDbError::InvalidState {
-        current: "foreshadowing_fact_log".into(),
-        operation: error.to_string(),
-    })?;
-    Ok(())
-}
-
-pub(crate) async fn restore_foreshadowing_fact<C: ConnectionTrait>(
+async fn sync_in<C>(
     db: &C,
-    change: &material_fact_change::Model,
-) -> Result<(), crate::fact_feedback::FactFeedbackDbError> {
-    let Some(id) = change.target_id else {
-        return Ok(());
-    };
-    let Some(item) = foreshadowing_index::Entity::find_by_id(id).one(db).await? else {
-        return Ok(());
-    };
-    if item.project_id != change.project_id
-        || foreshadowing_fact_snapshot(&item) != change.after_json
-    {
-        return Ok(());
+    project_id: i64,
+    chapter_number: i32,
+    drafts: Vec<ForeshadowingAnalysisDraft>,
+    resolved_ids: Vec<i64>,
+) -> Result<ForeshadowingAnalysisSyncResult, ForeshadowingDbError>
+where
+    C: ConnectionTrait,
+{
+    let now = Utc::now().naive_utc();
+    let mut query = foreshadowing_index::Entity::find()
+        .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
+        .order_by_asc(foreshadowing_index::Column::Id);
+    if db.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
     }
-    if change.before_json.is_null() {
-        foreshadowing_index::Entity::delete_by_id(id)
+    let existing = query.all(db).await?;
+    let mut by_id = HashMap::<i64, foreshadowing_index::Model>::new();
+    let mut setup_by_description = HashMap::<String, Vec<foreshadowing_index::Model>>::new();
+    for item in existing {
+        if item.setup_chapter == chapter_number {
+            setup_by_description
+                .entry(item.description.clone())
+                .or_default()
+                .push(item.clone());
+        }
+        by_id.insert(item.id, item);
+    }
+    let mut state_by_id = by_id
+        .iter()
+        .map(|(id, item)| (*id, item.clone()))
+        .collect::<HashMap<_, _>>();
+
+    let mut result = ForeshadowingAnalysisSyncResult {
+        current: Vec::with_capacity(drafts.len() + resolved_ids.len()),
+        ..Default::default()
+    };
+    let mut draft_update_ids = HashSet::new();
+    let mut pending_creates = Vec::new();
+    let mut pending_create_slots = Vec::new();
+    for draft in drafts {
+        if let Some(candidates) = setup_by_description.get_mut(&draft.description)
+            && !candidates.is_empty()
+        {
+            let existing = candidates.remove(0);
+            if foreshadowing_matches_analysis_draft(&existing, &draft) {
+                result.existing.push(existing.clone());
+                result.current.push(existing);
+                continue;
+            }
+            let related_characters =
+                foreshadowing_related_characters_after_setup_resync(&existing, &draft);
+            let updated_at =
+                std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
+            let updated = state_by_id
+                .get_mut(&existing.id)
+                .expect("existing foreshadowing state must exist");
+            updated.related_characters = related_characters;
+            updated.updated_at = updated_at;
+            draft_update_ids.insert(existing.id);
+            result.updated.push(updated.clone());
+            result.current.push(updated.clone());
+        } else {
+            let created = foreshadowing_index::Model {
+                id: 0,
+                project_id,
+                description: draft.description.clone(),
+                setup_chapter: chapter_number,
+                payoff_chapter: None,
+                status: ForeshadowingStatus::Pending.as_str().to_string(),
+                related_characters: draft.related_characters.clone(),
+                importance: draft.importance,
+                created_at: now,
+                updated_at: now,
+            };
+            let current_slot = result.current.len();
+            let created_slot = result.created.len();
+            result.current.push(created.clone());
+            result.created.push(created);
+            pending_create_slots.push((current_slot, created_slot));
+            pending_creates.push(foreshadowing_index::ActiveModel {
+                project_id: Set(project_id),
+                description: Set(draft.description),
+                setup_chapter: Set(chapter_number),
+                payoff_chapter: Set(None),
+                status: Set(ForeshadowingStatus::Pending.as_str().to_string()),
+                related_characters: Set(draft.related_characters),
+                importance: Set(draft.importance),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            });
+        }
+    }
+
+    if !pending_creates.is_empty() {
+        let expected = pending_creates.len();
+        let created = foreshadowing_index::Entity::insert_many(pending_creates)
+            .exec_with_returning_many(db)
+            .await?;
+        if created.len() != expected {
+            return Err(ForeshadowingDbError::InvalidArgument(format!(
+                "伏笔批量插入返回行数不一致: inserted={}, expected={}",
+                created.len(),
+                expected
+            )));
+        }
+        for (created, (current_slot, created_slot)) in created.into_iter().zip(pending_create_slots)
+        {
+            state_by_id.insert(created.id, created.clone());
+            result.created[created_slot] = created.clone();
+            result.current[current_slot] = created;
+        }
+    }
+
+    let mut requested = BTreeSet::new();
+    for foreshadowing_id in resolved_ids {
+        if !requested.insert(foreshadowing_id) {
+            return Err(ForeshadowingDbError::DuplicateResolutionTarget {
+                foreshadowing_id,
+                chapter_number,
+            });
+        }
+    }
+
+    let mut resolve_update_ids = HashSet::new();
+    for foreshadowing_id in requested {
+        let existing = by_id.get(&foreshadowing_id).ok_or_else(|| {
+            ForeshadowingDbError::InvalidResolutionTarget {
+                foreshadowing_id,
+                chapter_number,
+                reason: "项目中不存在该伏笔".to_string(),
+            }
+        })?;
+        match foreshadowing_resolution_action(existing, chapter_number).map_err(|reason| {
+            ForeshadowingDbError::InvalidResolutionTarget {
+                foreshadowing_id,
+                chapter_number,
+                reason,
+            }
+        })? {
+            ForeshadowingResolutionAction::Keep => {
+                result.existing.push(existing.clone());
+                result.current.push(existing.clone());
+            }
+            ForeshadowingResolutionAction::Resolve => {
+                let updated_at =
+                    std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
+                let resolved = state_by_id
+                    .get_mut(&foreshadowing_id)
+                    .expect("existing foreshadowing state must exist");
+                resolved.payoff_chapter = Some(chapter_number);
+                resolved.status = ForeshadowingStatus::Resolved.as_str().to_string();
+                resolved.updated_at = updated_at;
+                resolve_update_ids.insert(foreshadowing_id);
+                result.resolved.push(resolved.clone());
+                result.current.push(resolved.clone());
+            }
+        }
+    }
+
+    let mut update_ids = draft_update_ids.clone();
+    update_ids.extend(resolve_update_ids.iter().copied());
+    if !update_ids.is_empty() {
+        let ids = update_ids.into_iter().collect::<Vec<_>>();
+        let mut update = foreshadowing_index::Entity::update_many();
+        if !draft_update_ids.is_empty() {
+            let mut related_characters_case = CaseStatement::new();
+            for id in &draft_update_ids {
+                let model = state_by_id
+                    .get(id)
+                    .expect("draft-updated foreshadowing state must exist");
+                related_characters_case = related_characters_case.case(
+                    foreshadowing_index::Column::Id.eq(*id),
+                    Expr::value(model.related_characters.clone()).cast_as("json"),
+                );
+            }
+            update = update.col_expr(
+                foreshadowing_index::Column::RelatedCharacters,
+                related_characters_case
+                    .finally(Expr::col(foreshadowing_index::Column::RelatedCharacters))
+                    .into(),
+            );
+        }
+        if !resolve_update_ids.is_empty() {
+            let mut payoff_chapter_case = CaseStatement::new();
+            let mut status_case = CaseStatement::new();
+            for id in &resolve_update_ids {
+                let model = state_by_id
+                    .get(id)
+                    .expect("resolved foreshadowing state must exist");
+                payoff_chapter_case = payoff_chapter_case.case(
+                    foreshadowing_index::Column::Id.eq(*id),
+                    Expr::value(model.payoff_chapter),
+                );
+                status_case = status_case.case(
+                    foreshadowing_index::Column::Id.eq(*id),
+                    Expr::value(model.status.clone()),
+                );
+            }
+            update = update
+                .col_expr(
+                    foreshadowing_index::Column::PayoffChapter,
+                    payoff_chapter_case
+                        .finally(Expr::col(foreshadowing_index::Column::PayoffChapter))
+                        .into(),
+                )
+                .col_expr(
+                    foreshadowing_index::Column::Status,
+                    status_case
+                        .finally(Expr::col(foreshadowing_index::Column::Status))
+                        .into(),
+                );
+        }
+        let mut updated_at_case = CaseStatement::new();
+        for id in &ids {
+            let model = state_by_id
+                .get(id)
+                .expect("updated foreshadowing state must exist");
+            updated_at_case = updated_at_case.case(
+                foreshadowing_index::Column::Id.eq(*id),
+                Expr::value(model.updated_at),
+            );
+        }
+        let updated = update
+            .col_expr(
+                foreshadowing_index::Column::UpdatedAt,
+                updated_at_case
+                    .finally(Expr::col(foreshadowing_index::Column::UpdatedAt))
+                    .into(),
+            )
+            .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
+            .filter(foreshadowing_index::Column::Id.is_in(ids.clone()))
             .exec(db)
             .await?;
-    } else {
-        let before = &change.before_json;
-        let mut active: foreshadowing_index::ActiveModel = item.into();
-        active.description = Set(serde_json::from_value(before["description"].clone())?);
-        active.setup_chapter = Set(serde_json::from_value(before["setup_chapter"].clone())?);
-        active.payoff_chapter = Set(serde_json::from_value(before["payoff_chapter"].clone())?);
-        active.status = Set(serde_json::from_value(before["status"].clone())?);
-        active.related_characters = Set(serde_json::from_value(
-            before["related_characters"].clone(),
-        )?);
-        active.importance = Set(serde_json::from_value(before["importance"].clone())?);
-        active.updated_at = Set(Utc::now().naive_utc());
-        active.update(db).await?;
+        if updated.rows_affected != ids.len() as u64 {
+            return Err(ForeshadowingDbError::InvalidArgument(format!(
+                "伏笔批量更新返回行数不一致: updated={}, expected={}",
+                updated.rows_affected,
+                ids.len()
+            )));
+        }
     }
-    Ok(())
+
+    Ok(result)
 }

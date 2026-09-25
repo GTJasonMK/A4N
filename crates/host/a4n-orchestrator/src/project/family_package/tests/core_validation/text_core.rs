@@ -1,14 +1,6 @@
 use super::*;
 
 #[test]
-fn legacy_v5_package_without_feedback_remains_importable() {
-    let mut package = package_with_part_outlines(Vec::new());
-    package.version = "project_family_v5".into();
-    package.text_core.fact_feedback = None;
-    validate_package_manifest(&package).unwrap();
-}
-
-#[test]
 fn validate_package_manifest_rejects_overlapping_part_ranges() {
     let package = package_with_part_outlines(vec![
         part_outline(101, 1, 1, 10),

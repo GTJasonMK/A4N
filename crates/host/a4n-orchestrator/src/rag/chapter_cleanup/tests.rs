@@ -11,7 +11,6 @@ fn chapter_derived_rag_cleanup_plan_contains_only_rag_scopes() {
         changed_foreshadowing_ids: vec![5],
         media_file_paths: vec!["chapter/video.mp4".to_string()],
         scene_records_changed: true,
-        ..Default::default()
     };
     let plan = ChapterDerivedRagCleanupPlan::new(9, 10, 11, &artifacts);
 

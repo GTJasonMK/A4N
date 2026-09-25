@@ -16,7 +16,6 @@ pub use a4n_domain::project::{
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectSummary {
     pub id: i64,
-    pub fact_feedback_interval_chapters: i32,
     pub title: String,
     pub description: String,
     pub lifecycle_gate: String,
@@ -252,8 +251,6 @@ pub struct DuplicateProjectInput {
 pub struct UpdateProjectInput {
     pub title: Option<String>,
     pub description: Option<String>,
-    #[schemars(range(min = 1))]
-    pub fact_feedback_interval_chapters: Option<i32>,
 }
 
 #[derive(Serialize, JsonSchema)]

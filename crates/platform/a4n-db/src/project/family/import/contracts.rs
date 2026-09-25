@@ -81,7 +81,6 @@ pub(super) struct ImportIdMaps {
     pub(super) chapter_outline_ids: HashMap<i64, i64>,
     pub(super) chapter_ids: HashMap<i64, i64>,
     pub(super) character_profile_ids: HashMap<i64, i64>,
-    pub(super) foreshadowing_ids: HashMap<i64, i64>,
     pub(super) object_profile_ids: HashMap<i64, i64>,
     pub(super) scene_profile_ids: HashMap<i64, i64>,
     pub(super) scene_occurrence_ids: HashMap<i64, i64>,

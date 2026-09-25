@@ -323,7 +323,7 @@ impl WorkerState {
             .map(a4n_db::project::ProjectProgressQuery::from_project)
             .collect::<Result<Vec<_>, _>>()
             .map_err(progress_error)?;
-        let (metadata_by_id, access_by_id, progress_by_id, intervals) = tokio::try_join!(
+        let (metadata_by_id, access_by_id, progress_by_id) = tokio::try_join!(
             async {
                 a4n_db::project::project_family_metadata_batch(
                     self.database.connection(),
@@ -349,17 +349,6 @@ impl WorkerState {
                 .await
                 .map_err(progress_error)
             },
-            async {
-                a4n_db::fact_feedback::feedback_intervals(
-                    self.database.connection(),
-                    &projects
-                        .iter()
-                        .map(|project| project.id)
-                        .collect::<Vec<_>>(),
-                )
-                .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))
-            },
         )?;
         projects
             .iter()
@@ -382,10 +371,6 @@ impl WorkerState {
                     query.source_mode,
                     query.status,
                     progress,
-                    intervals
-                        .get(&project.id)
-                        .copied()
-                        .unwrap_or(a4n_domain::fact_feedback::DEFAULT_FEEDBACK_INTERVAL_CHAPTERS),
                 ))
             })
             .collect()
@@ -482,9 +467,6 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
 
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
-        a4n_project_read_core::ProjectSummaryError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
         a4n_project_read_core::ProjectSummaryError::Progress(error) => progress_error(error),
         a4n_project_read_core::ProjectSummaryError::Family(error) => family_error(error),
         a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {

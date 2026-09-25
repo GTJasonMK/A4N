@@ -100,7 +100,6 @@ pub async fn reset_project_generated_data_record(
     let generation_media_cleanup =
         project_db::delete_project_generation_media_graph(&tx, project_id).await?;
     let profile_scene_cleanup = delete_project_profile_scene_data(&tx, project_id).await?;
-    crate::fact_feedback::reset_feedback_coverage(&tx, project_id).await?;
 
     let deleted_chapters = chapter::Entity::delete_many()
         .filter(chapter::Column::ProjectId.eq(project_id))

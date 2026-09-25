@@ -460,9 +460,6 @@ impl RagIngestPort for OrchestratorContext {
             a4n_rag_contract::RagRecordSet::Protagonist => {
                 append_protagonist_records(self, project_id, &mut records, &mut ids).await?;
             }
-            a4n_rag_contract::RagRecordSet::CharacterContinuity => {
-                append_character_records(self, project_id, &mut records, &mut ids).await?;
-            }
             a4n_rag_contract::RagRecordSet::Scene => {
                 append_scene_records(self, project_id, &mut records, &mut ids).await?;
             }

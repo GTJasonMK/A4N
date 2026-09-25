@@ -281,10 +281,6 @@ pub(super) fn run() {
         &typescript_interface::<ImportAnalysisStages>("ImportAnalysisStages"),
         &typescript_interface::<ProjectImportAnalysisProgress>("ProjectImportAnalysisProgress"),
         &typescript_interface::<ImportProjectAnalysisSummary>("ImportProjectAnalysisSummary"),
-        &typescript_enum::<FactFeedbackMode>("FactFeedbackMode"),
-        &typescript_interface::<RunProjectFactFeedbackInput>("RunProjectFactFeedbackInput"),
-        &typescript_interface::<MaterialFactChangeSummary>("MaterialFactChangeSummary"),
-        &typescript_interface::<ProjectFactFeedbackSummary>("ProjectFactFeedbackSummary"),
         &typescript_chapter_constants(),
         &typescript_interface::<ChapterAnalysisInput>("ChapterAnalysisInput"),
         &typescript_interface::<PreparedGenerationRagEmbeddingRequest>(

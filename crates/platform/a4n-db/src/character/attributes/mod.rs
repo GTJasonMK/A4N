@@ -6,10 +6,12 @@ mod types;
 
 #[cfg(test)]
 pub(in crate::character::attributes) use deletion_marks::request_attribute_deletion_in;
-pub(in crate::character) use deletion_marks::request_attribute_deletion_with_profile_in;
 pub use deletion_marks::{
     deletion_marks_by_profile, request_attribute_deletion, reset_deletion_marks_in,
-    rewind_ai_deletion_marks_after, rewind_deletion_marks_after,
+    rewind_deletion_marks_after,
+};
+pub(in crate::character) use deletion_marks::{
+    request_attribute_deletion_with_profile_in, rewind_ai_deletion_marks_after,
 };
 pub(in crate::character) use events::attribute_events_by_profile_chapter_range;
 #[cfg(test)]

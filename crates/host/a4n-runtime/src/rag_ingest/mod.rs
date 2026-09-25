@@ -11,8 +11,7 @@ pub use self::contracts::RagIngestTaskScope;
 pub(crate) use self::contracts::SceneRagSyncTraceSource;
 pub use self::orchestration::{rag_ingest_all, rag_ingest_task_scope, sync_scene_rag_records};
 pub(crate) use self::orchestration::{
-    sync_blueprint_material_rag_records, sync_character_continuity_rag_records,
-    sync_outline_rag_records, sync_protagonist_rag_records,
+    sync_blueprint_material_rag_records, sync_outline_rag_records, sync_protagonist_rag_records,
 };
 pub use self::sync::RagIngestProgress;
 pub use a4n_api_contract::rag::{ClientRagIngestUploadInput, RagIngestOptions};

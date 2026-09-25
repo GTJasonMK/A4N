@@ -13,7 +13,6 @@ pub(super) fn validate_root_fields(facts: &Value) -> Result<(), AppError> {
             "items",
             "event_candidates",
             "foreshadowing_candidates",
-            "world_facts",
         ],
         CHAPTER_ANALYSIS_STAGE_FACTS,
     )

@@ -17,7 +17,6 @@ pub mod cleanup_outbox;
 pub mod collaboration;
 pub mod config;
 pub mod export;
-pub mod fact_feedback;
 pub mod galgame;
 pub mod generation;
 pub mod import_reverse;

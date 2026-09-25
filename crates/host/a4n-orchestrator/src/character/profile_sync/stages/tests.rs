@@ -161,7 +161,6 @@ fn canonical_stage_responses() -> Vec<String> {
                 "new_value": "巷口",
                 "change_description": "角色移动到巷口",
                 "event_cause": "保护少女",
-                "assertion": "observed",
                 "evidence_anchor_id": 11
             }]
         })
@@ -201,7 +200,6 @@ fn canonical_attribute_change() -> Value {
         "new_value": "巷口",
         "change_description": "角色移动到巷口",
         "event_cause": "保护少女",
-        "assertion": "observed",
         "evidence_anchor_id": 11
     })
 }
@@ -529,7 +527,6 @@ fn output_rejects_unknown_fields_and_invalid_anchor_contracts() {
                 "new_value": "巷口",
                 "change_description": "移动",
                 "event_cause": "保护少女",
-                "assertion": "observed",
                 "evidence": "自由文本"
             }]
         })

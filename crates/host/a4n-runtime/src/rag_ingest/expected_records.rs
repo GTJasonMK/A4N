@@ -3,7 +3,7 @@ pub(crate) use self::contracts::ExpectedRagRecords;
 
 use crate::state::AppState;
 
-pub(super) async fn expected_for_set(
+async fn expected_for_set(
     state: &AppState,
     project_id: i64,
     set: a4n_rag_contract::RagRecordSet,

@@ -16,34 +16,6 @@ const BLUEPRINT_RAG_DATA_TYPES: &[RagDataType] = &[
     RagDataType::Relationship,
 ];
 
-pub(crate) async fn sync_character_continuity_rag_records(
-    state: &AppState,
-    project_id: i64,
-) -> Result<(), String> {
-    // ponytail: scan the current project and reuse hash-based embedding skips; scope by chapter if scans become costly.
-    let expected = super::super::expected_records::expected_for_set(
-        state,
-        project_id,
-        a4n_rag_contract::RagRecordSet::CharacterContinuity,
-    )
-    .await?;
-    sync_data_type_records(
-        state,
-        project_id,
-        &[
-            RagDataType::Character,
-            RagDataType::Protagonist,
-            RagDataType::CharacterState,
-            RagDataType::CharacterAttributeEvent,
-            RagDataType::Foreshadowing,
-            RagDataType::Relationship,
-        ],
-        expected.into_records(),
-    )
-    .await
-    .map(|_| ())
-}
-
 pub(crate) async fn sync_outline_rag_records(
     state: &AppState,
     project_id: i64,

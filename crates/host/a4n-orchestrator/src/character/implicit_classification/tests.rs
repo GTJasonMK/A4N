@@ -317,7 +317,6 @@ async fn application_skips_llm_when_no_behavior_or_implicit_attribute_exists() {
                     "new_value": "落霞镇",
                     "change_description": "抵达落霞镇",
                     "event_cause": "赶路抵达",
-                    "assertion": "observed",
                     "evidence": "他终于看见落霞镇的牌坊"
                 })],
                 behaviors: Vec::new(),

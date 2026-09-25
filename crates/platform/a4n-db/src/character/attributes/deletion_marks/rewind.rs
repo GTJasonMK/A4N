@@ -1,8 +1,7 @@
 use super::super::types::CharacterDeletionMarkRewindSummary;
 use super::rules::retained_deletion_mark_count;
 use a4n_db_models::models::character::{
-    attribute_event::{SOURCE_KIND_AI_SYNC, SOURCE_KIND_TEXT_FACT},
-    protagonist_deletion_mark,
+    attribute_event::SOURCE_KIND_AI_SYNC, protagonist_deletion_mark,
 };
 use chrono::Utc;
 use sea_orm::{
@@ -21,7 +20,7 @@ where
     rewind_deletion_marks_after_with_source(db, profile_id, chapter_number, None).await
 }
 
-pub async fn rewind_ai_deletion_marks_after<C>(
+pub(in crate::character) async fn rewind_ai_deletion_marks_after<C>(
     db: &C,
     profile_id: i64,
     chapter_number: i32,
@@ -51,10 +50,7 @@ where
         .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
         .filter(protagonist_deletion_mark::Column::LastMarkedChapter.gt(chapter_number));
     if let Some(source_kind) = source_kind {
-        query = query.filter(
-            protagonist_deletion_mark::Column::SourceKind
-                .is_in([source_kind, SOURCE_KIND_TEXT_FACT]),
-        );
+        query = query.filter(protagonist_deletion_mark::Column::SourceKind.eq(source_kind));
     }
     let marks = query.all(db).await?;
 

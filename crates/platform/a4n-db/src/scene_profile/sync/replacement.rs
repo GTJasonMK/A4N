@@ -1,9 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::{
-    chapter::chapter,
-    scene::{scene_occurrence, scene_profile},
-};
+use a4n_db_models::models::scene::scene_occurrence;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::SceneProfileDbResult;
@@ -36,47 +33,7 @@ where
         .into_iter()
         .collect::<BTreeSet<_>>();
 
-    let before = scene_profile::Entity::find()
-        .filter(scene_profile::Column::ProjectId.eq(project_id))
-        .all(db)
-        .await?;
-    let chapter = chapter::Entity::find_by_id(chapter_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| super::super::SceneProfileDbError::InvalidArgument("章节不存在".into()))?;
     let scene_ref_map = upsert_scene_profile_records(db, project_id, &input.profiles).await?;
-    for draft in &input.profiles {
-        let id = scene_ref_map[&draft.scene_ref];
-        let profile = scene_profile::Entity::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or_else(|| {
-                super::super::SceneProfileDbError::InvalidArgument("场景档案不存在".into())
-            })?;
-        let previous = before
-            .iter()
-            .find(|item| item.id == id)
-            .map(|item| crate::fact_feedback::profile_fact_snapshot(item, "scene_profile"))
-            .transpose()
-            .map_err(|error| super::super::SceneProfileDbError::InvalidArgument(error.to_string()))?
-            .unwrap_or(serde_json::Value::Null);
-        let after = crate::fact_feedback::profile_fact_snapshot(&profile, "scene_profile")
-            .map_err(|error| {
-                super::super::SceneProfileDbError::InvalidArgument(error.to_string())
-            })?;
-        crate::fact_feedback::record_profile_fact_observation(
-            db,
-            project_id,
-            "scene_profile",
-            id,
-            previous,
-            after,
-            std::slice::from_ref(&chapter),
-            &draft.input.evidence_json,
-        )
-        .await
-        .map_err(|error| super::super::SceneProfileDbError::InvalidArgument(error.to_string()))?;
-    }
     delete_chapter_scene_records(db, project_id, chapter_id).await?;
     let occurrence_ref_map = insert_scene_occurrence_records(
         db,

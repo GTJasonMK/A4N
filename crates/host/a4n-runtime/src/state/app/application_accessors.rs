@@ -538,12 +538,6 @@ impl AppState {
         self.chapter_analysis_generation_application.as_ref()
     }
 
-    pub(crate) fn project_fact_feedback_application(
-        &self,
-    ) -> &dyn a4n_chapter_analysis_host_contract::ProjectFactFeedbackApplicationPort {
-        self.project_fact_feedback_application.as_ref()
-    }
-
     pub(crate) fn chapter_analysis_resume_application(
         &self,
     ) -> &dyn a4n_chapter_analysis_host_contract::ChapterAnalysisResumeApplicationPort {

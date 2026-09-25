@@ -172,7 +172,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
         CharacterProfileSyncStage::AttributeChanges => json!({
             "format": "json_object",
             "required_root_field": "attribute_changes",
-            "item_required_fields": ["chapter_number", "category", "key", "operation", "new_value", "change_description", "event_cause", "evidence_anchor_id", "assertion"],
+            "item_required_fields": ["chapter_number", "category", "key", "operation", "new_value", "change_description", "event_cause", "evidence_anchor_id"],
             "field_value_rules": {
                 "category": {
                     "allowed_values": ["explicit", "implicit", "social"],

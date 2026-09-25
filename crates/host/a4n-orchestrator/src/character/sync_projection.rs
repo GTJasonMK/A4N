@@ -11,7 +11,6 @@ mod tests;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CharacterSyncAttributeEventDraft {
-    pub assertion: a4n_domain::fact_feedback::FactAssertion,
     pub chapter_number: i32,
     pub sequence: usize,
     pub stage: u8,
@@ -74,13 +73,6 @@ fn attribute_event_from_change(
     change: &Value,
 ) -> Result<CharacterSyncAttributeEventDraft, String> {
     Ok(CharacterSyncAttributeEventDraft {
-        assertion: serde_json::from_value(
-            change
-                .get("assertion")
-                .cloned()
-                .ok_or("角色变化缺少 assertion")?,
-        )
-        .map_err(|error| format!("角色事实类型无效: {error}"))?,
         chapter_number: required_i32(change, "chapter_number")?,
         sequence: index,
         stage: 0,
@@ -102,7 +94,6 @@ fn attribute_event_from_classification_suggestion(
     let reasoning = required_string(suggestion, "reasoning")?;
     let key = required_string(suggestion, "key")?;
     Ok(CharacterSyncAttributeEventDraft {
-        assertion: a4n_domain::fact_feedback::FactAssertion::Inferred,
         chapter_number: required_i32(suggestion, "chapter_number")?,
         sequence: required_usize(suggestion, "sequence")?,
         stage: 1,

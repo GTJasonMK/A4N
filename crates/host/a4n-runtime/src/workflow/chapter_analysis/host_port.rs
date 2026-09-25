@@ -125,30 +125,6 @@ impl ChapterAnalysisHostPort for RuntimeChapterAnalysisHostPort {
     fn scene_profile_sync_host_port(&self) -> &dyn SceneProfileSyncHostPort {
         &self.scene_profile
     }
-
-    async fn sync_fact_material_rag_records(
-        &self,
-        project_id: i64,
-        workflow_run_id: i64,
-        blueprint_changed: bool,
-        characters_changed: bool,
-    ) -> Result<(), AppError> {
-        let trace_id =
-            workflow_rag_operation_trace_id(workflow_run_id).map_err(AppError::InvalidArgument)?;
-        scope_rag_operation_trace(trace_id, async {
-            if blueprint_changed {
-                crate::rag_ingest::sync_blueprint_material_rag_records(&self.state, project_id)
-                    .await
-                    .map_err(host_error)?;
-            } else if characters_changed {
-                crate::rag_ingest::sync_character_continuity_rag_records(&self.state, project_id)
-                    .await
-                    .map_err(host_error)?;
-            }
-            Ok(())
-        })
-        .await
-    }
 }
 
 fn host_error(error: String) -> AppError {

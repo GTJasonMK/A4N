@@ -11,7 +11,7 @@ pub(super) fn validate_foreshadowing_schema(
     let foreshadowing = required_object(root, "foreshadowing", "chapter_analysis")?;
     reject_unknown_fields(
         foreshadowing,
-        &["planted", "resolved", "tensions", "progressed"],
+        &["planted", "resolved", "tensions"],
         "chapter_analysis.foreshadowing",
     )?;
     let planted = required_array(foreshadowing, "planted", "chapter_analysis.foreshadowing")?;
@@ -23,7 +23,6 @@ pub(super) fn validate_foreshadowing_schema(
         reject_unknown_fields(
             item,
             &[
-                "id",
                 "description",
                 "original_text",
                 "category",
@@ -51,7 +50,7 @@ pub(super) fn validate_foreshadowing_schema(
         let item = item
             .as_object()
             .ok_or_else(|| analysis_schema_error(format!("{context} 必须是对象")))?;
-        reject_unknown_fields(item, &["id", "resolution", "source_span_ids"], &context)?;
+        reject_unknown_fields(item, &["id", "resolution"], &context)?;
         required_string(item, "id", &context)?;
         required_string(item, "resolution", &context)?;
     }
@@ -61,34 +60,6 @@ pub(super) fn validate_foreshadowing_schema(
             return Err(analysis_schema_error(format!(
                 "chapter_analysis.foreshadowing.tensions[{index}] 必须是非空字符串"
             )));
-        }
-    }
-    if let Some(progressed) = foreshadowing.get("progressed") {
-        let progressed = progressed
-            .as_array()
-            .ok_or_else(|| analysis_schema_error("foreshadowing.progressed 必须是数组"))?;
-        for item in progressed {
-            let item = item
-                .as_object()
-                .ok_or_else(|| analysis_schema_error("伏笔进展必须是对象"))?;
-            reject_unknown_fields(
-                item,
-                &["id", "status", "resolution", "source_span_ids"],
-                "foreshadowing.progressed",
-            )?;
-            required_string(item, "id", "foreshadowing.progressed")?;
-            required_string(item, "resolution", "foreshadowing.progressed")?;
-            let status = required_string(item, "status", "foreshadowing.progressed")?;
-            if !matches!(status, "partially_revealed" | "abandoned") {
-                return Err(analysis_schema_error(
-                    "伏笔进展状态只能是 partially_revealed 或 abandoned",
-                ));
-            }
-            let ids: Vec<String> =
-                serde_json::from_value(item.get("source_span_ids").cloned().unwrap_or(Value::Null))
-                    .map_err(|error| analysis_schema_error(format!("伏笔进展证据无效: {error}")))?;
-            a4n_domain::fact_feedback::validate_evidence_ids(&ids)
-                .map_err(analysis_schema_error)?;
         }
     }
     Ok(())

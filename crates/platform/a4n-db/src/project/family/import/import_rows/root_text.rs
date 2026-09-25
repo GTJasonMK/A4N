@@ -1,4 +1,3 @@
-mod fact_feedback;
 mod profiles;
 mod projects;
 mod scenes;
@@ -25,6 +24,5 @@ pub(super) async fn insert_text_core(
     )?;
     insert_story_rows(txn, root_project_id, package, maps).await?;
     insert_profile_rows(txn, root_project_id, package, maps).await?;
-    insert_scene_rows(txn, root_project_id, package, maps).await?;
-    fact_feedback::insert_feedback_rows(txn, root_project_id, package, maps).await
+    insert_scene_rows(txn, root_project_id, package, maps).await
 }
