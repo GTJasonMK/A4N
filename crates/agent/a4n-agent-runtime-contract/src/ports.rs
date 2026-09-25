@@ -135,8 +135,6 @@ pub trait AgentWorkerClaimApplicationPort: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentWorkerCompletionApplicationPort: Send + Sync {
-    async fn run_is_terminal(&self, claimed: &AgentWorkerRun) -> Result<bool, AppError>;
-
     async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError>;
 
     async fn result_refs_for_run_request(
@@ -148,28 +146,6 @@ pub trait AgentWorkerCompletionApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerCompletionRequest,
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError>;
-
-    async fn run_is_terminal_request(
-        &self,
-        request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError>;
-
-    async fn complete_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: String,
-        result_summary: String,
-        result_refs_json: Option<Value>,
-        observed_input_message_id: i64,
-    ) -> Result<bool, AppError>;
-
-    async fn complete_claimed_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: String,
-        result_refs_json: Option<Value>,
-        observed_input_message_id: i64,
-    ) -> Result<bool, AppError>;
 }
 
 #[async_trait::async_trait]
@@ -377,6 +353,7 @@ pub trait AgentWorkerMessageApplicationPort: Send + Sync {
         claimed: &AgentWorkerRun,
         content: String,
         tool_calls: Value,
+        client_message_id: String,
     ) -> Result<AgentMessageSnapshot, AppError>;
 
     async fn upsert_assistant_streaming_message(

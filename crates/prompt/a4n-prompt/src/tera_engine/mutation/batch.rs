@@ -14,6 +14,7 @@ impl TeraPromptEngine {
         &self,
         updates: Vec<(String, String)>,
         author: &str,
+        overwrite: bool,
     ) -> Result<Vec<PromptEntry>, AppError> {
         if updates.is_empty() {
             return Ok(Vec::new());
@@ -38,6 +39,14 @@ impl TeraPromptEngine {
                 })
                 .collect::<Result<Vec<_>, _>>()?
         };
+        let (updates, current_entries): (Vec<_>, Vec<_>) = updates
+            .into_iter()
+            .zip(current_entries)
+            .filter(|(_, current)| overwrite || !current.is_modified)
+            .unzip();
+        if updates.is_empty() {
+            return Ok(Vec::new());
+        }
 
         let mut staged_tera = self.tera.read().clone();
         for (name, content) in &updates {

@@ -83,25 +83,27 @@ fn validate_package_manifest_rejects_regenerate_scene_result_new_chapter_scene_m
 #[test]
 fn validate_package_manifest_rejects_regenerate_scene_stage_output_chapter_mismatch() {
     let mut payload = regenerate_scene_decision_payload();
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_snapshot_chapter_id"] =
-        json!(1002);
+    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["chapter_number"] =
+        json!(2);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
     let mut package = package_with_regenerate_scene_decision(payload);
     package.source_sync_decisions = vec![decision];
 
     let err = validate_package_manifest(&package)
-        .expect_err("stage output source_snapshot_chapter_id must match regenerated chapter");
+        .expect_err("declared chapter number must match regenerated chapter");
 
-    assert!(err.contains("source_snapshot_chapter_id 与重建目标章节不一致"));
-    assert!(err.contains("source_snapshot_chapter_id=1002"));
-    assert!(err.contains("expected=1001"));
+    assert!(err.contains("chapter_number 与重建目标章节不一致"));
+    assert!(err.contains("chapter_number=2"));
+    assert!(err.contains("expected=1"));
 }
 
 #[test]
 fn validate_package_manifest_rejects_regenerate_scene_source_span_chapter_mismatch() {
     let mut payload = regenerate_scene_decision_payload();
     payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_span_ids"] =
+        json!(["ch2:ta702"]);
+    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
         json!(["ch2:ta702"]);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
@@ -121,6 +123,8 @@ fn validate_package_manifest_rejects_regenerate_scene_source_span_outside_target
     let mut payload = regenerate_scene_decision_payload();
     payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_span_ids"] =
         json!(["ch2:ta703"]);
+    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
+        json!(["ch2:ta703"]);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
     let mut package = package_with_regenerate_scene_decision(payload);
@@ -138,21 +142,17 @@ fn validate_package_manifest_rejects_regenerate_scene_source_span_outside_target
 }
 
 #[test]
-fn validate_package_manifest_rejects_regenerate_scene_shooting_script_projection_empty_source_span()
-{
+fn validate_package_manifest_accepts_director_scene_without_text_spans() {
     let mut payload = regenerate_scene_decision_payload();
     payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_span_ids"] =
+        json!([]);
+    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
         json!([]);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
     let mut package = package_with_regenerate_scene_decision(payload);
     package.source_sync_decisions = vec![decision];
 
-    let err = validate_package_manifest(&package)
-        .expect_err("regenerate_scene shooting_script_projection scenes must keep source evidence");
-
-    assert!(
-        err.contains("result.stage_outputs.shooting_script_projection.scenes[0].source_span_ids")
-    );
-    assert!(err.contains("必须是非空字符串数组"));
+    validate_package_manifest(&package)
+        .expect("declared chapter ownership and line evidence remain valid without scene spans");
 }

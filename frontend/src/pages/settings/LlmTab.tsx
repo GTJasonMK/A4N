@@ -12,6 +12,7 @@ import {
   testLlmConfig,
   updateLlmConfig,
   updateServerLlmConfig,
+  updateSystemDefaultLlmKey,
   SYSTEM_LLM_CONFIG_ID,
 } from "../../api/config";
 import { ConfigListPanel, type ConfigItem } from "./ConfigListPanel";
@@ -96,12 +97,18 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
             />
           )}
           onCreate={async (form) => {
-            await (serverScope ? createServerLlmConfig : createLlmConfig)(toCreateLlmInput(form, t));
+            const created = await (serverScope ? createServerLlmConfig : createLlmConfig)(toCreateLlmInput(form, t));
+            return created.id;
           }}
           onUpdate={async (id, form) => {
+            const input = toUpdateLlmInput(form, t);
+            if (!serverScope && id === SYSTEM_LLM_CONFIG_ID) {
+              await updateSystemDefaultLlmKey({ api_key_encrypted: input.api_key_encrypted });
+              return;
+            }
             await (serverScope ? updateServerLlmConfig : updateLlmConfig)(
               id,
-              toUpdateLlmInput(form, t),
+              input,
             );
           }}
           onDelete={serverScope ? deleteServerLlmConfig : deleteLlmConfig}

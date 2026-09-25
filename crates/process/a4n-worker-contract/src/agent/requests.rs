@@ -301,10 +301,24 @@ impl AgentWorkerChapterScopeRequest {
 pub struct AgentWorkerHistoryRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
+    #[serde(default)]
+    pub page: Option<a4n_api_contract::agent::ReadAgentHistoryInput>,
 }
 
 impl AgentWorkerHistoryRequest {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if let Some(page) = &self.page
+            && (page.limit.is_some_and(|limit| limit == 0 || limit > 100)
+                || page
+                    .before
+                    .as_ref()
+                    .is_some_and(|id| id.parse::<i64>().ok().is_none_or(|id| id <= 0)))
+        {
+            return Err(WorkerContractError::InvalidValue {
+                field: "page",
+                reason: "invalid history cursor or limit",
+            });
+        }
         AgentWorkerRunLeaseRequest {
             run_id: self.run_id,
             lease: self.lease.clone(),

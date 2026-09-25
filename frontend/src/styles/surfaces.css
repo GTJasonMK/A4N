@@ -1,38 +1,6 @@
 @layer components {
 
-  /* ---- 桌面端输入控件（替代 web 玻璃态） ---- */
-  .book-control {
-    box-sizing: border-box;
-    min-width: 0;
-    max-width: 100%;
-    border: 1px solid transparent;
-    background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
-    color: rgb(var(--color-text-primary));
-    caret-color: rgb(var(--color-primary));
-    border-radius: var(--pyqt-radius-sm);
-    transition:
-      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
-      background var(--a4n-motion-fast) var(--a4n-ease-out),
-      box-shadow var(--a4n-motion-fast) var(--a4n-ease-out);
-  }
-
-  .book-control:hover {
-    background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
-  }
-
-  .book-control:focus {
-    outline: none;
-    background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
-    border-color: rgb(var(--color-primary) / 0.35);
-    box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.14);
-  }
-
-  .book-control:disabled {
-    cursor: not-allowed;
-    opacity: 0.62;
-  }
-
-  /* 弹窗遮罩：暖褐半透明 */
+  /* 弹窗是唯一需要明显空间深度的表面。 */
   .dialog-backdrop {
     background: rgb(44 24 16 / 0.32);
     backdrop-filter: blur(8px) saturate(115%);
@@ -43,12 +11,12 @@
   /* 弹窗面板：大圆角浮层 */
   .dialog-panel {
     border-radius: var(--pyqt-radius-xl);
-    border: 0.5px solid rgb(var(--color-border) / 0.45);
+    border: 1px solid rgb(var(--color-border) / 0.7);
     background: rgb(var(--color-bg-secondary) / var(--a4n-dialog-opacity));
     box-shadow: var(--shadow-overlay);
     transform-origin: center bottom;
     animation: a4n-dialog-panel-enter 190ms var(--a4n-ease-out) both;
-    }
+  }
 
   .a4n-dialog-section {
     background-color: rgb(var(--color-bg-secondary) / var(--a4n-dialog-opacity));
@@ -72,127 +40,122 @@
     background: rgb(var(--color-border) / 0.65);
   }
 
-  .a4n-page-header {
-    min-height: var(--a4n-page-header-height);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding-inline: var(--a4n-content-gutter);
-    border-bottom: 0.5px solid rgb(var(--color-border) / 0.4);
-    background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
-    backdrop-filter: saturate(130%) blur(14px);
-    -webkit-backdrop-filter: saturate(160%) blur(18px);
-    box-shadow: none;
-  }
-
-  .a4n-app-page-header {
-    min-width: 0;
-    flex-wrap: wrap;
-    padding-block: 8px;
-  }
-
-  .a4n-app-page-header__leading,
-  .a4n-app-page-header__icon,
-  .a4n-app-page-header__meta,
-  .a4n-app-page-header__actions {
-    flex: 0 0 auto;
-  }
-
-  .a4n-app-page-header__leading {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .a4n-app-page-header__icon {
-    display: inline-flex;
-    width: 32px;
-    height: 32px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgb(var(--color-primary) / 0.2);
-    border-radius: 10px;
-    background: rgb(var(--color-primary) / 0.09);
-    color: rgb(var(--color-primary));
-  }
-
-  .a4n-app-page-header__identity {
-    min-width: 0;
-    flex: 1 1 160px;
-  }
-
-  .a4n-app-page-header__title-row {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .a4n-app-page-header__title {
-    min-width: 0;
-    overflow: hidden;
-    color: rgb(var(--color-text-primary));
-    font-family: var(--font-serif);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.3;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .a4n-app-page-header__meta {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .a4n-app-page-header__subtitle {
-    margin-top: 2px;
-    overflow: hidden;
-    color: rgb(var(--color-text-tertiary));
-    font-size: 11.5px;
-    line-height: 1.3;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .a4n-app-page-header__actions {
-    display: flex;
-    margin-left: auto;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .a4n-app-page-header--detail .a4n-app-page-header__subtitle {
-    overflow: visible;
-    white-space: normal;
-  }
-
-  .a4n-derived-project-subtitle {
-    overflow-wrap: anywhere;
-    line-height: 1.45;
-    white-space: normal;
-  }
-
-  @media (min-width: 640px) {
-    .a4n-derived-project-subtitle {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
   /* 静态分区不悬浮：用于列表栏、只读详情等页面骨架。 */
   .a4n-flat-surface {
     background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
     border: 1px solid rgb(var(--color-border) / 0.38);
     border-radius: var(--pyqt-radius-lg);
-    box-shadow: var(--shadow-card);
+    box-shadow: none;
     backdrop-filter: blur(var(--a4n-surface-blur));
     -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
   }
 
+
+  .a4n-interactive-row {
+    background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
+    border: 1px solid rgb(var(--color-border) / 0.4);
+    border-radius: var(--pyqt-radius-lg);
+    transition:
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+      box-shadow var(--a4n-motion) var(--a4n-ease-out);
+    backdrop-filter: blur(var(--a4n-surface-blur));
+    -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
+  }
+
+  .a4n-interactive-row:hover {
+    background: rgb(var(--color-bg-card-hover));
+    border-color: rgb(var(--color-border-dark));
+  }
+
+  .a4n-interactive-row:focus-visible {
+    outline: 2px solid rgb(var(--color-primary));
+    outline-offset: 2px;
+  }
+
+  .a4n-stat-tile {
+    background: rgb(var(--color-bg-tertiary) / calc(0.36 * var(--a4n-card-opacity)));
+    border: 1px solid rgb(var(--color-border) / 0.55);
+    border-radius: var(--pyqt-radius-md);
+    padding: 0.65rem 0.85rem;
+    box-shadow: none;
+    backdrop-filter: blur(var(--a4n-surface-blur));
+    -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
+  }
+
+  .a4n-empty-state {
+    display: flex;
+    min-height: 7.5rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: rgb(var(--color-text-tertiary));
+  }
+
+  .a4n-empty-state--compact {
+    min-height: auto;
+    padding-block: 1.25rem;
+  }
+
+  .a4n-empty-state--framed {
+    border: 1px dashed rgb(var(--color-border));
+    border-radius: var(--pyqt-radius-lg);
+    background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
+  }
+
+  .a4n-sidebar-item {
+    width: 100%;
+    border-radius: var(--pyqt-radius-sm);
+    min-height: var(--a4n-control-height-md);
+    padding: 0.6rem 0.85rem;
+    text-align: left;
+    transition:
+      background var(--a4n-motion-fast) var(--a4n-ease-out),
+      color var(--a4n-motion-fast) var(--a4n-ease-out);
+  }
+
+  .a4n-sidebar-item:hover {
+    background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
+    color: rgb(var(--color-text-primary));
+  }
+
+  .a4n-sidebar-item[data-active="1"] {
+    background: rgb(var(--color-primary) / 0.08);
+    color: rgb(var(--color-primary));
+    font-weight: 600;
+  }
+
+  .a4n-context-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.75rem;
+    border: 0.5px solid rgb(var(--color-border) / 0.4);
+    border-radius: var(--pyqt-radius-md);
+    background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
+  }
+
+  .a4n-context-chip {
+    display: inline-flex;
+    min-height: 26px;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
+    color: rgb(var(--color-text-secondary));
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .a4n-kicker {
+    color: rgb(var(--color-text-tertiary));
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-transform: uppercase;
+  }
 }

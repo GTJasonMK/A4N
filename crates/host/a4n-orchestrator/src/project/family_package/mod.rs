@@ -50,7 +50,9 @@ pub(crate) use crate::project::{hash_json, hash_text, sha256_bytes};
 pub(crate) use export_assembly::{
     assemble_project_family_export_package, family_media_package_path,
 };
-pub(crate) use validation::{validate_media_manifest, validate_package_manifest};
+pub(crate) use validation::{
+    validate_media_manifest, validate_package_manifest, validate_package_manifest_with_canvas,
+};
 
 use a4n_db::project::family::import::ProjectFamilyImportPackage;
 
@@ -58,6 +60,7 @@ impl ProjectFamilyPackage {
     /// 转为 DB 导入包（不含 media_files 索引）。
     pub(crate) fn into_import_package(self) -> ProjectFamilyImportPackage {
         ProjectFamilyImportPackage {
+            canvas_projects: Vec::new(),
             root_project_id: self.root_project_id,
             projects: self.projects,
             text_core: self.text_core,

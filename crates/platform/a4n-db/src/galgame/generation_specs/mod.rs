@@ -19,6 +19,5 @@ pub use prompt_artifacts::{
 pub(in crate::galgame) use records::validate_galgame_asset_generation_spec_query;
 pub use records::{
     galgame_asset_generation_specs, galgame_generation_spec_content_changed,
-    galgame_generation_spec_source_hash_for_value,
     upsert_galgame_asset_plan_spec_records_transaction,
 };

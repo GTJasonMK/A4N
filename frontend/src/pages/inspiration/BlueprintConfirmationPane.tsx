@@ -141,7 +141,6 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
                 if (!focus) return;
                 onRefine(focus);
                 setRefineModalOpen(false);
-                setRefineFocus("");
               }}
               disabled={refining || !refineReady}
               className="min-w-0 flex-1 !text-xs sm:flex-none"

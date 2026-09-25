@@ -330,14 +330,18 @@ impl WorkerError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, bound(deserialize = "T: Deserialize<'de>"))]
 pub struct WorkerResponse<T> {
     pub schema_version: u32,
     pub request_id: String,
     pub trace_id: String,
     pub operation: WorkerOperationRef,
     pub status: WorkerOperationStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_payload",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub payload: Option<T>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resource_refs: Vec<WorkerResourceRef>,
@@ -351,6 +355,15 @@ pub struct WorkerResponse<T> {
     pub pagination: Option<WorkerPagination>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<WorkerError>,
+}
+
+fn deserialize_present_payload<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    // 字段缺失与业务结果为 null 不同；后者仍是一次有结果的完成响应。
+    T::deserialize(deserializer).map(Some)
 }
 
 impl<T> WorkerResponse<T> {

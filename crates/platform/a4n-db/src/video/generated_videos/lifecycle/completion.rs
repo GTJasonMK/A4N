@@ -30,7 +30,7 @@ async fn mark_generated_video_completed_and_link_prompt_record_in<C>(
     video_id: i64,
     file_path: &str,
     thumbnail_path: Option<&str>,
-    file_size: i64,
+    properties: &a4n_domain::media::VideoFileProperties,
     metadata_json: Option<Value>,
     prompt_id: Option<i64>,
 ) -> Result<generated_video::Model, VideoDbError>
@@ -51,13 +51,20 @@ where
         return Ok(video);
     }
     ensure_generated_video_status_allows_completion(&video.status)?;
+    properties
+        .validate()
+        .map_err(VideoDbError::InvalidArgument)?;
     let existing_metadata = video.metadata_json.clone();
     let mut active: generated_video::ActiveModel = video.into();
     active.file_path = Set(Some(file_path.to_string()));
     if let Some(path) = thumbnail_path {
         active.thumbnail_path = Set(Some(path.to_string()));
     }
-    active.file_size = Set(Some(file_size));
+    active.file_size = Set(Some(properties.file_size));
+    active.width = Set(properties.width);
+    active.height = Set(properties.height);
+    active.duration_secs = Set(properties.duration_secs);
+    active.fps = Set(properties.fps);
     active.status = Set(a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string());
     active.error_message = Set(None);
     if metadata_json.is_some() {
@@ -86,7 +93,7 @@ pub async fn mark_generated_video_completed_and_link_prompt_record<C>(
     video_id: i64,
     file_path: &str,
     thumbnail_path: Option<&str>,
-    file_size: i64,
+    properties: &a4n_domain::media::VideoFileProperties,
     metadata_json: Option<Value>,
     prompt_id: Option<i64>,
 ) -> Result<generated_video::Model, VideoDbError>
@@ -99,7 +106,7 @@ where
         video_id,
         file_path,
         thumbnail_path,
-        file_size,
+        properties,
         metadata_json,
         prompt_id,
     )

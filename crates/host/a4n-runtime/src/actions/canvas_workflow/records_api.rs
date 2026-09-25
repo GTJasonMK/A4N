@@ -3,7 +3,9 @@ use super::{
     SaveCanvasTextAssetInput,
 };
 use crate::{AppState, actions::app_error_message};
-use a4n_api_contract::canvas::{CanvasGraphDocument, CanvasTextAssetSummary};
+use a4n_api_contract::canvas::{
+    CanvasGraphDocument, CanvasGraphSaveResult, CanvasTextAssetSummary,
+};
 
 pub async fn get_canvas_graph(
     state: &AppState,
@@ -29,7 +31,7 @@ pub async fn save_canvas_graph(
     state: &AppState,
     user_id: i64,
     input: SaveCanvasGraphInput,
-) -> Result<CanvasGraphDocument, String> {
+) -> Result<CanvasGraphSaveResult, String> {
     state
         .canvas_mutation_application()
         .save_graph(user_id, input)

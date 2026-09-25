@@ -41,18 +41,35 @@ pub(super) fn validate_media_assets(
                 asset.id, asset.origin
             ));
         }
-        if asset.root_project_id != package.root_project_id {
-            return Err(format!(
-                "媒体资产 root_project_id 与导入包根项目不一致: media_asset_id={}",
-                asset.id
-            ));
+        if asset.root_project_id == asset.project_id {
+            if !package
+                .projects
+                .iter()
+                .any(|project| project.id == asset.project_id && project.project_kind == "video")
+            {
+                return Err(format!(
+                    "freeform 媒体资产必须属于项目族的视频项目: {}",
+                    asset.id
+                ));
+            }
+            crate::project::video_studio_package::validate_canvas_media_asset_owner(
+                asset,
+                asset.project_id,
+            )?;
+        } else {
+            if asset.root_project_id != package.root_project_id {
+                return Err(format!(
+                    "媒体资产 root_project_id 与导入包根项目不一致: media_asset_id={}",
+                    asset.id
+                ));
+            }
+            validate_media_asset_source_context(
+                asset,
+                package.root_project_id,
+                &context.source_snapshots,
+                &context.source_snapshot_chapters,
+            )?;
         }
-        validate_media_asset_source_context(
-            asset,
-            package.root_project_id,
-            &context.source_snapshots,
-            &context.source_snapshot_chapters,
-        )?;
         if media_asset_path(asset, FILE_PATH_FIELD)?.is_some()
             && !media_payload.entries.contains_key(&media_file_key(
                 MEDIA_ASSET_OWNER,

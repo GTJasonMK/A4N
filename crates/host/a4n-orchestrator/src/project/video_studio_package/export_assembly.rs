@@ -5,7 +5,9 @@ use a4n_db_models::models::{generation::generation_spec, project::novel_project}
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use chrono::Utc;
 
-use super::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage};
+use super::{
+    FAMILY_CANVAS_MODE, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage,
+};
 use crate::project::{MediaFileEntry, validate_freeform_video_project};
 
 /// 组装视频画布导出 manifest。
@@ -67,7 +69,12 @@ pub(crate) fn assemble_video_studio_project_canvas_package(
     Ok(VideoStudioProjectPackage {
         version: VIDEO_STUDIO_PACKAGE_VERSION.to_string(),
         exported_at: Utc::now().naive_utc().to_string(),
-        mode: PACKAGE_MODE.to_string(),
+        mode: if project.root_project_id.is_some() {
+            FAMILY_CANVAS_MODE
+        } else {
+            PACKAGE_MODE
+        }
+        .to_string(),
         project,
         canvas_graphs: rows.canvas_graphs,
         canvas_nodes: rows.canvas_nodes,

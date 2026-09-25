@@ -12,8 +12,9 @@ describe("extractWritingTarget", () => {
         toolMessage({
           tool: "locate_writing_target",
           result: {
-            project: { id: "7" },
-            chapter_number: 12,
+            observation_version: 1,
+            status: "success",
+            data: { project: { id: "7" }, chapter_number: 12 },
           },
         }),
       ),
@@ -26,7 +27,11 @@ describe("extractWritingTarget", () => {
       extractWritingTarget(
         toolMessage({
           tool: "locate_writing_target",
-          result: { project: { id: "x" }, chapter_number: 0 },
+          result: {
+            observation_version: 1,
+            status: "success",
+            data: { project: { id: "x" }, chapter_number: 0 },
+          },
         }),
       ),
     ).toBeNull();
@@ -35,11 +40,22 @@ describe("extractWritingTarget", () => {
         toolMessage(
           {
             tool: "locate_writing_target",
-            result: { project: { id: "7" }, chapter_number: 1 },
+            result: {
+              observation_version: 1,
+              status: "success",
+              data: { project: { id: "7" }, chapter_number: 1 },
+            },
           },
           "assistant",
         ),
       ),
     ).toBeNull();
+  });
+
+  it("does not navigate from failed or unversioned observations", () => {
+    const data = { project: { id: "7" }, chapter_number: 1 };
+    for (const result of [data, { observation_version: 1, status: "error", data }]) {
+      expect(extractWritingTarget(toolMessage({ tool: "locate_writing_target", result }))).toBeNull();
+    }
   });
 });

@@ -125,6 +125,20 @@ export const errors = {
 } as const;
 
 export const agent = {
+  budget: {
+    title: "调整预算并继续",
+    apply: "继续已有任务",
+    explanation: "填写新的总上限。已有用量不会清零，子任务与历史摘要也计入共享预算。",
+    parent: "本次调整上级任务的共享预算；审批和其他等待条件仍然保留。",
+    usage: "已确认 {tokens} token",
+    reserved: "另有 {tokens} token 预留，用量尚未完全确认",
+    invalid: "请输入安全范围内的正整数，且不能降低已有上限。",
+    max_steps: "总模型步骤",
+    max_model_calls: "总模型调用次数",
+    max_tool_calls: "总工具调用次数",
+    max_tokens: "总 token 上限",
+    max_duration_seconds: "总时长上限（秒，包含等待）",
+  },
   collaborationHub: "协作中枢",
   workbench: "Agent 工作台",
   polling: "轮询模式",

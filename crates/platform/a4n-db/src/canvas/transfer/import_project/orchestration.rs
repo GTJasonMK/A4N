@@ -20,7 +20,7 @@ use super::generated_media::{
 };
 use super::project::insert_video_studio_project_record;
 use a4n_db_models::models::project::novel_project;
-use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, TransactionTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 
 pub async fn import_video_studio_project_record<Writer>(
     db: &DatabaseConnection,
@@ -34,40 +34,6 @@ where
 {
     let txn = db.begin().await?;
     let project = insert_video_studio_project_record(&txn, user_id, &rows.project, now).await?;
-    import_video_studio_project_record_rows(&txn, project.clone(), rows, now, media_file_writer)
-        .await?;
-    txn.commit()
-        .await
-        .map_err(VideoStudioProjectImportError::TransactionCommit)?;
-    Ok(project)
-}
-
-/// 将画布及其生成记录导入到已经由项目族导入创建的项目。
-pub async fn import_video_studio_project_record_into_existing<Writer>(
-    db: &DatabaseConnection,
-    user_id: i64,
-    project_id: i64,
-    rows: VideoStudioProjectImportRows,
-    now: chrono::NaiveDateTime,
-    media_file_writer: &mut Writer,
-) -> Result<novel_project::Model, VideoStudioProjectImportError>
-where
-    Writer: VideoStudioProjectImportMediaFileWriter,
-{
-    let txn = db.begin().await?;
-    let project = novel_project::Entity::find_by_id(project_id)
-        .one(&txn)
-        .await?
-        .ok_or_else(|| {
-            VideoStudioProjectImportError::InvalidPackage(format!(
-                "画布导入目标项目不存在: {project_id}"
-            ))
-        })?;
-    if project.user_id != user_id {
-        return Err(VideoStudioProjectImportError::InvalidPackage(
-            "画布导入目标项目不属于当前用户".to_string(),
-        ));
-    }
     import_video_studio_project_record_rows(&txn, project.clone(), rows, now, media_file_writer)
         .await?;
     txn.commit()

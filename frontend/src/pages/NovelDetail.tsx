@@ -44,6 +44,7 @@ import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
 import { getScrollRailCue, scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
+import { usePackagePreferences } from "../store/packagePreferences";
 import { runBlueprintRefinementWithProgress } from "./novel-detail/blueprintRefinement";
 
 const AssetDependencyGraphDialog = lazy(() =>
@@ -168,7 +169,8 @@ export const NovelDetail: React.FC = () => {
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
   const { locale, t } = useI18n();
-  const tabs = TABS.map((item) => ({
+  const { isVisible: isPackageVisible } = usePackagePreferences();
+  const tabs = TABS.filter(item => item.id !== "imports" || isPackageVisible("external-import")).map((item) => ({
     id: item.id,
     label: t(item.labelKey),
     accessibleLabel: t(item.accessibleLabelKey),
@@ -356,14 +358,14 @@ export const NovelDetail: React.FC = () => {
     `${project?.title || t("novel.projects")} · ${tabs.find((item) => item.id === tab)?.label || tab}`,
   );
 
-  if (loading) {
+  if (loading && project?.id !== projectId) {
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
         <LoadingSpinner size="lg" text={t("novel.loadingProjects")} />
       </div>
     );
   }
-  if (!project) return null;
+  if (!project || project.id !== projectId) return null;
 
   const homeEntryRoute = getProjectHomeEntryRoute(project);
   const primaryRoute = getProjectPrimaryRoute(project);
@@ -628,9 +630,11 @@ export const NovelDetail: React.FC = () => {
                 size="sm"
                 onClick={() => navigate(workspaceRoute)}
                 title={workspaceLabel}
+                aria-label={workspaceLabel}
                 className="!min-h-8 !px-3 !text-xs"
               >
-                {workspaceLabel}
+                <span className="sm:hidden">{project.project_kind === "text" ? t("novel.writeShortcut") : workspaceLabel}</span>
+                <span className="hidden sm:inline">{workspaceLabel}</span>
               </BookButton>
             )}
             <BookButton

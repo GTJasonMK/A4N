@@ -71,7 +71,7 @@ export function inferCanvasEdgeContract(
       return {
         sourcePort: sourcePort.id,
         targetPort: targetPort.id,
-        role: canvasEdgeRoleForPorts(sourcePort.id, target.data.nodeKind, targetPort.id),
+        role: canvasEdgeRoleForPorts(target.data.nodeKind, targetPort.id),
       };
     }
   }
@@ -140,7 +140,7 @@ export function canvasGraphSaveValidationError(
     if (
       edge.sourceHandle !== contract.sourcePort ||
       edge.targetHandle !== contract.targetPort ||
-      edge.data?.role !== contract.role
+      !edge.data?.role?.trim()
     ) {
       return canvasEdgeMismatchMessage(edge, source, target, t);
     }
@@ -187,7 +187,6 @@ function canvasEdgeMismatchMessage(
 }
 
 function canvasEdgeRoleForPorts(
-  sourcePort: string,
   targetKind: string,
   targetPort: string,
 ): string {
@@ -196,6 +195,6 @@ function canvasEdgeRoleForPorts(
   if (targetPort === "reference_image") return "style_reference";
   if (targetPort === "clip") return "assembly_clip";
   if (targetKind === "VideoOutputNode" && targetPort === "video") return "final_video";
-  if (targetPort === "video" && sourcePort === "video") return "source_video";
+  if (targetPort === "video" && (targetKind === "ExtractFrameNode" || targetKind === "TrimVideoNode")) return "source_video";
   return "context";
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { BadgeCheck, Box, Clipboard, MapPinned, RefreshCw, Sparkles, Star, Upload } from "lucide-react";
+import { BadgeCheck, Box, Clipboard, Eye, MapPinned, RefreshCw, Sparkles, Star, Upload } from "lucide-react";
 import type { GeneratedImage } from "../../../api/image";
 import type {
   ProfileMaterialFilter,
@@ -10,6 +10,8 @@ import type {
   ProfileMaterialState,
 } from "../../../api/profileMaterials";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { BookIconButton } from "../../../components/ui/BookButton";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
@@ -189,15 +191,9 @@ export function MaterialCard({
         </div>
       </div>
 
-      <button
-        type="button"
-        disabled={!hero}
-        onClick={() => hero && onOpenImage(hero.image)}
-        className="relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-2xl border border-book-border/45 bg-book-bg-tertiary text-xs text-book-text-muted disabled:cursor-default"
-        title={hero ? t("video.material.openImage") : t("video.material.noImage")}
-      >
+      <div className="relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-2xl border border-book-border/45 bg-book-bg-tertiary text-xs text-book-text-muted">
         {heroSrc ? (
-          <img
+          <ZoomableImage
             src={heroSrc}
             alt={`${group.profile.name} ${t("video.material.primaryMaterial")}`}
             className="h-full w-full object-cover"
@@ -206,7 +202,8 @@ export function MaterialCard({
           t("video.material.noImage")
         )}
         {hero ? (
-          <div className="absolute left-2 top-2 flex gap-1.5 text-white">
+          <>
+            <div className="absolute left-2 top-2 flex gap-1.5 text-white">
             {hero.is_primary ? (
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/35 backdrop-blur-md"
@@ -225,9 +222,19 @@ export function MaterialCard({
                 <Star size={13} fill="currentColor" />
               </span>
             ) : null}
-          </div>
+            </div>
+            <BookIconButton
+              size="sm"
+              variant="secondary"
+              onClick={() => onOpenImage(hero.image)}
+              className="absolute right-2 top-2 border-white/25 bg-black/40 text-white hover:bg-black/60 hover:text-white"
+              label={t("video.material.openImage")}
+            >
+              <Eye size={14} />
+            </BookIconButton>
+          </>
         ) : null}
-      </button>
+      </div>
 
       <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-book-text-sub">
         {group.profile.primary_text || t("video.material.noVisualDescription")}
@@ -238,22 +245,19 @@ export function MaterialCard({
 
       <div className="mt-2 flex min-h-14 gap-2 overflow-x-auto pb-1 custom-scrollbar">
         {candidateImages.length > 0 ? (
-          candidateImages.slice(0, 12).map((item) => {
+          candidateImages.map((item) => {
             const src = toMediaSrc(item.image.file_path);
             return (
               <div key={item.image.id} className="group/thumb relative h-14 w-14 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onOpenImage(item.image)}
+                <div
                   className={`relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border bg-book-bg-tertiary text-caption text-book-text-muted ${
                     item.is_primary
                       ? "border-book-primary/80"
                       : "border-book-border/45"
                   }`}
-                  title={t("video.material.materialImage")}
                 >
                   {src ? (
-                    <img
+                    <ZoomableImage
                       src={src}
                       alt={`${group.profile.name} ${t("video.material.candidateImage")}`}
                       className="h-full w-full object-cover"
@@ -275,7 +279,16 @@ export function MaterialCard({
                       fill="currentColor"
                     />
                   ) : null}
-                </button>
+                  <BookIconButton
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => onOpenImage(item.image)}
+                    className="absolute right-1 top-1 h-7 w-7 border-white/25 bg-black/40 text-white hover:bg-black/60 hover:text-white"
+                    label={t("video.material.materialImage")}
+                  >
+                    <Eye size={12} />
+                  </BookIconButton>
+                </div>
                 {!item.is_primary ? (
                   <button
                     type="button"

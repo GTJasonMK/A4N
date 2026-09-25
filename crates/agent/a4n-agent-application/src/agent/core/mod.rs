@@ -42,7 +42,9 @@ impl AgentApplication {
             from_json(existing.scope_json.clone(), "agent_thread.scope_json")?;
         let mut requested: AgentScope = from_json(requested_scope.clone(), "requested_scope")?;
         inherit_subagent_allowlists(&existing_scope, &mut requested)?;
-        if existing_scope == requested {
+        let mut comparable_existing = existing_scope;
+        comparable_existing.chapter_number = requested.chapter_number;
+        if comparable_existing == requested {
             return Ok(existing);
         }
         Err(AppError::InvalidArgument(

@@ -17,6 +17,7 @@ import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../../hooks/useProgressTask";
@@ -476,15 +477,15 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                   const selected = selectedReferenceImageIds.includes(image.id);
                   const src = toMediaSrc(image.file_path);
                   return (
+                    <div key={image.id} className="relative min-w-0">
                     <button
-                      key={image.id}
                       type="button"
                       onClick={() => toggleReferenceImage(image.id)}
                       disabled={busy || uploadingReference}
                       data-active={selected ? "1" : undefined}
                       aria-pressed={selected}
                       className={[
-                        "group min-w-0 overflow-hidden rounded-[12px] border bg-book-bg-paper/45 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary/40 disabled:opacity-60",
+                        "group w-full min-w-0 overflow-hidden rounded-[12px] border bg-book-bg-paper/45 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary/40 disabled:opacity-60",
                         selected
                           ? "border-book-primary/75 bg-book-primary/5 shadow-[0_0_0_1px_rgb(var(--color-primary)/0.18)]"
                           : "border-book-border/50 hover:border-book-primary/45 hover:bg-book-bg-paper/75",
@@ -495,7 +496,11 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                     >
                       <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-book-bg-tertiary text-caption text-book-text-muted">
                         {src ? (
-                          <img src={src} alt="" className="h-full w-full object-cover" />
+                          <img
+                            src={src}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           <span>{t("characterDetail.portrait.noImage")}</span>
                         )}
@@ -509,6 +514,8 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                         {imageTypeLabel(image.image_type, t)}
                       </span>
                     </button>
+                    {src ? <ImageZoomButton src={src} alt={image.prompt} className="absolute left-1 top-1" /> : null}
+                    </div>
                   );
                 })}
               </div>

@@ -31,6 +31,7 @@ impl HttpLlmProvider {
             connect_timeout_secs,
             extra_body: None,
             protocol: LlmProtocolKind::OpenAiChatCompletions,
+            replay_reasoning: false,
             caps: ModelCapabilities {
                 max_context_tokens: DEFAULT_LLM_MAX_CONTEXT_TOKENS,
                 max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,

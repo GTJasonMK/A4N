@@ -259,16 +259,19 @@ export function ConfigListPanel<C>({
     setSaving(true);
     try {
       if (requestCreating) {
-        await onCreate(requestForm);
+        const createdId = await onCreate(requestForm);
+        await onRefresh();
         if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
         if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
           addToast(t("settings.configCreated", { name: title }), "success");
           setCreating(false);
+          setSelectedId(createdId);
           setMobileEditorOpen(false);
           markClean();
         } else if (editorScope() === requestScope) {
           addToast(t("settings.configCreatedWithDraft", { name: title }), "success");
         }
+        return;
       } else if (requestSelectedItem) {
         await onUpdate(requestSelectedItem.id, requestForm);
         if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
@@ -592,7 +595,7 @@ export function ConfigListPanel<C>({
 
       <div
         className={`grid min-h-0 gap-3 md:flex-1 md:grid-rows-1 ${
-          items.length > 1 ? "md:grid-cols-[260px_minmax(0,1fr)]" : "md:grid-cols-1"
+          items.length > 1 ? "md:grid-cols-[clamp(180px,24%,260px)_minmax(0,1fr)]" : "md:grid-cols-1"
         }`}
       >
         {items.length > 1 ? (

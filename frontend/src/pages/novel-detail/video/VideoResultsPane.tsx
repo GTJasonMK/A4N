@@ -354,7 +354,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 {t("video.chapter.loadingVideoFile")}
               </div>
             )}
-            {videoLoading && !videoLoadError && (
+            {videoPlaybackSrc && videoLoading && !videoLoadError && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
                 <span className="inline-flex items-center gap-1.5 rounded bg-black/55 px-2 py-1">
                   <LoadingSpinner size="sm" />

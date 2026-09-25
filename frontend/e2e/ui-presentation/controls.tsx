@@ -4,7 +4,7 @@ import { I18nProvider } from "../../src/i18n";
 import { Modal } from "../../src/components/ui/Modal";
 import { ThemedSelect } from "../../src/components/ui/ThemedSelect";
 import { ThemedCombobox } from "../../src/components/ui/ThemedCombobox";
-import { StatusBar, StatusBarProvider } from "../../src/components/ui/StatusBar";
+import { StatusBar, StatusBarProvider, StatusBarToggle } from "../../src/components/ui/StatusBar";
 import { ChapterOutlineSection } from "../../src/pages/novel-detail/outlines/ChapterOutlineSection";
 import type { ChapterOutline } from "../../src/api/outline";
 import "../../src/index.css";
@@ -86,6 +86,7 @@ function Controls() {
         </section>
       </main>
       <button id="under-orb" className="pyqt-btn-secondary fixed bottom-3 right-3 h-12 w-12" aria-label="底部主操作">保存</button>
+      <StatusBarToggle />
       <StatusBar actions={<button className="a4n-status-bar-action" aria-label="主题设置">☼</button>} />
 
       <Modal isOpen={dialog != null} onClose={() => setDialog(null)} title={dialog === "scene" ? "编辑场景" : dialog === "summary" ? "阅读说明" : "选择章节"}>

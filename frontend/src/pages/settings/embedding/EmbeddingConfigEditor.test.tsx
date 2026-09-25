@@ -16,8 +16,8 @@ describe("EmbeddingConfigEditor", () => {
       api_key: "",
       has_api_key: false,
       clear_api_key: false,
-      dimension: 384,
-      batch_size: 100,
+      dimension: "384",
+      batch_size: "100",
       local_model_path: "",
       pricing: DEFAULT_PRICING_PLAN,
     };
@@ -53,8 +53,8 @@ describe("EmbeddingConfigEditor", () => {
       api_key: "",
       has_api_key: false,
       clear_api_key: false,
-      dimension: 768,
-      batch_size: 32,
+      dimension: "768",
+      batch_size: "32",
       local_model_path: "",
       pricing: DEFAULT_PRICING_PLAN,
     };
@@ -98,8 +98,8 @@ describe("EmbeddingConfigEditor", () => {
       api_key: "",
       has_api_key: false,
       clear_api_key: false,
-      dimension: model.dimension,
-      batch_size: 32,
+      dimension: String(model.dimension),
+      batch_size: "32",
       local_model_path: "",
       pricing: DEFAULT_PRICING_PLAN,
     };

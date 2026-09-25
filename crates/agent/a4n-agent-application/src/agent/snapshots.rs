@@ -57,6 +57,7 @@ pub(super) fn message_snapshot(row: message::Model) -> AgentMessageSnapshot {
         turn_id: row.turn_id,
         run_id: row.run_id,
         role: row.role,
+        client_message_id: row.client_message_id,
         content: row.content,
         payload_json: row.payload_json,
     }

@@ -316,6 +316,24 @@ async fn watch_generation_task(
     output: &OutputOptions,
 ) -> Result<()> {
     let path = task_path(task_id, attempt, "/events")?;
+    if cursor.is_none() {
+        let value = client
+            .send_json(get_request(&task_path(task_id, attempt, "/snapshot")?))
+            .await?;
+        let snapshot: a4n_service_protocol::GenerationTaskSnapshot =
+            serde_json::from_value(value.clone()).context("generation snapshot 合同无效")?;
+        snapshot.validate().context("generation snapshot 合同无效")?;
+        if snapshot.task_id != task_id || snapshot.attempt != attempt {
+            bail!("generation snapshot task_id/attempt 与请求不一致");
+        }
+        if let Some(event) = snapshot.terminal_event {
+            let event = serde_json::to_value(event)?;
+            print_json(&event, output)?;
+            return finish_generation_task(event);
+        }
+        print_json(&value, output)?;
+        cursor = Some(snapshot.covers_through_sequence);
+    }
     let mut reconnect_attempt = 0_u32;
     loop {
         let last_event_id = cursor.map(|sequence| format!("{attempt}:{sequence}"));
@@ -324,30 +342,7 @@ async fn watch_generation_task(
             .await?;
         match sse::consume_generation_events(response, |event| print_json(event, output)).await? {
             sse::StreamOutcome::Terminal(event) => {
-                let kind = event
-                    .pointer("/event/kind")
-                    .and_then(Value::as_str)
-                    .expect("terminal generation event must have a terminal kind");
-                return match kind {
-                    "completed" => Ok(()),
-                    "cancelled" | "interrupted" => Err(output::CliError::new(
-                        "task_cancelled",
-                        "cancelled",
-                        format!("generation task 终态为 {kind}"),
-                        9,
-                    )
-                    .with_details(event)
-                    .into()),
-                    "failed" => Err(output::CliError::new(
-                        "task_failed",
-                        "server",
-                        format!("generation task 终态为 {kind}"),
-                        8,
-                    )
-                    .with_details(event)
-                    .into()),
-                    _ => unreachable!("SSE parser only returns known terminal task kinds"),
-                };
+                return finish_generation_task(event);
             }
             sse::StreamOutcome::Disconnected {
                 last_sequence,
@@ -376,3 +371,29 @@ async fn watch_generation_task(
     }
 }
 
+fn finish_generation_task(event: Value) -> Result<()> {
+    let kind = event
+        .pointer("/event/kind")
+        .and_then(Value::as_str)
+        .expect("validated terminal generation event must have a terminal kind");
+    match kind {
+        "completed" => Ok(()),
+        "cancelled" | "interrupted" => Err(output::CliError::new(
+            "task_cancelled",
+            "cancelled",
+            format!("generation task 终态为 {kind}"),
+            9,
+        )
+        .with_details(event)
+        .into()),
+        "failed" => Err(output::CliError::new(
+            "task_failed",
+            "server",
+            format!("generation task 终态为 {kind}"),
+            8,
+        )
+        .with_details(event)
+        .into()),
+        _ => unreachable!("validated terminal generation event must have a known kind"),
+    }
+}

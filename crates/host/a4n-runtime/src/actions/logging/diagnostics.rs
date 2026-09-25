@@ -1,4 +1,4 @@
-use super::{LogReadResult, ReadLogsInput};
+use super::{LOG_FILE_PREFIX, LogReadResult, ReadLogsInput};
 use crate::AppState;
 use crate::actions::admin_records::{AdminPermission, require_admin_permission};
 use a4n_api_contract::logging::MAX_LOG_READ_LINES;
@@ -27,9 +27,9 @@ pub(super) fn read_recent_logs(
 ) -> Result<LogReadResult, String> {
     let lines = input.lines.min(MAX_LOG_READ_LINES);
     let days_ago = input.days_ago;
-    let date = log_date_for_days_ago(chrono::Local::now().date_naive(), days_ago)?;
+    let date = log_date_for_days_ago(chrono::Utc::now().date_naive(), days_ago)?;
     let date_str = date.format("%Y-%m-%d").to_string();
-    let file_path = log_dir.join(format!("a4n.log.{date_str}"));
+    let file_path = log_dir.join(format!("{LOG_FILE_PREFIX}.{date_str}"));
 
     if !file_path.exists() {
         return Ok(LogReadResult {

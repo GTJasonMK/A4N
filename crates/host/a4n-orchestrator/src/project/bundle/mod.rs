@@ -85,18 +85,47 @@ impl ProjectBundlePackage {
             if canvas.project.id <= 0 {
                 return Err("画布项目 ID 必须大于 0".to_string());
             }
-            if family_project_ids.contains(&canvas.project.id) {
-                // A family project may also own a canvas. It is intentionally
-                // allowed; import will attach the graph to the remapped row.
-                continue;
-            }
             if !canvas_project_ids.insert(canvas.project.id) {
                 return Err(format!("画布项目重复: {}", canvas.project.id));
             }
         }
+        validate_canvas_ids(
+            self.canvas_projects
+                .iter()
+                .flat_map(|canvas| canvas.canvas_graphs.iter().map(|row| row.id)),
+            "canvas_graph",
+        )?;
+        validate_canvas_ids(
+            self.canvas_projects
+                .iter()
+                .flat_map(|canvas| canvas.canvas_nodes.iter().map(|row| row.id)),
+            "canvas_node",
+        )?;
+        validate_canvas_ids(
+            self.canvas_projects
+                .iter()
+                .flat_map(|canvas| canvas.canvas_edges.iter().map(|row| row.id)),
+            "canvas_edge",
+        )?;
+        validate_canvas_ids(
+            self.canvas_projects
+                .iter()
+                .flat_map(|canvas| canvas.canvas_text_assets.iter().map(|row| row.id)),
+            "canvas_text_asset",
+        )?;
         validate_media_entries(&self.media_files)?;
         validate_provider_slots(&self.provider_slots)
     }
+}
+
+fn validate_canvas_ids(ids: impl Iterator<Item = i64>, table: &str) -> Result<(), String> {
+    let mut seen = HashSet::new();
+    for id in ids {
+        if id <= 0 || !seen.insert(id) {
+            return Err(format!("项目包 {table} ID 非法或跨画布重复: {id}"));
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn assemble_project_bundle(

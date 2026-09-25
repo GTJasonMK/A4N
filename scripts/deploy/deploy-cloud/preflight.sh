@@ -1,7 +1,7 @@
 check_prerequisites() {
     log_section "前置检查"
     local command
-    for command in ssh scp curl tar sha256sum file strings ruby tee flock cargo; do
+    for command in ssh scp curl tar sha256sum file strings ruby tee flock cargo dd; do
         require_command "$command"
     done
     [[ -r "$DEPLOY_PLAN_TOOL" ]] || die "缺少部署计划工具: $DEPLOY_PLAN_TOOL"

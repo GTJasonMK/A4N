@@ -40,17 +40,34 @@ impl AgentApplication {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
-            run_id: request.run_id,
-            lease: request.lease.clone(),
-        })
-        .await?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        let page = if let Some(page) = &request.page {
+            Some(
+                self.list_messages(
+                    claimed.thread.owner_user_id,
+                    a4n_api_contract::agent::ListAgentMessagesInput {
+                        thread_id: claimed.run.thread_id.to_string(),
+                        before: page.before.clone(),
+                        limit: Some(page.limit.unwrap_or(20)),
+                    },
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
         let user_messages = self.user_messages_for_run(request.run_id).await?;
         let latest_model_input_message_id =
             self.latest_model_input_message_id(request.run_id).await?;
         Ok(AgentWorkerHistorySnapshotWire {
             user_messages: user_messages.into_iter().map(Into::into).collect(),
             latest_model_input_message_id,
+            page,
         })
     }
 

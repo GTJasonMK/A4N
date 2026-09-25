@@ -26,21 +26,29 @@ impl GoogleOAuth2 {
 
 #[async_trait]
 impl OAuth2Provider for GoogleOAuth2 {
-    fn authorize_url(&self, state: &str) -> String {
-        format!(
-            "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=openid%20profile%20email&state={state}",
-            self.client_id,
-            super::contracts::urlencoding::encode(&self.redirect_uri),
-        )
+    fn authorize_url(&self, state: &str, code_challenge: &str) -> String {
+        let query = url::form_urlencoded::Serializer::new(String::new())
+            .extend_pairs([
+                ("client_id", self.client_id.as_str()),
+                ("redirect_uri", self.redirect_uri.as_str()),
+                ("response_type", "code"),
+                ("scope", "openid profile email"),
+                ("state", state),
+                ("code_challenge", code_challenge),
+                ("code_challenge_method", "S256"),
+            ])
+            .finish();
+        format!("https://accounts.google.com/o/oauth2/v2/auth?{query}")
     }
 
-    async fn exchange_token(&self, code: &str) -> Result<String, AppError> {
+    async fn exchange_token(&self, code: &str, code_verifier: &str) -> Result<String, AppError> {
         requests::exchange_token(
             &self.http_client,
             &self.client_id,
             &self.client_secret,
             code,
             &self.redirect_uri,
+            code_verifier,
         )
         .await
     }

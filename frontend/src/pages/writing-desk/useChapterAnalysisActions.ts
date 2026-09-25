@@ -15,14 +15,29 @@ import {
   resumeChapterAnalysisSync,
   type ChapterSummary,
 } from "../../api/chapter";
+import {
+  cancelWorkflowTask,
+  getWorkflowRunDetail,
+  listWorkflowRuns,
+} from "../../api/streaming";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
-import { cancelWorkflowTask } from "../../api/streaming";
+import { choiceDialog } from "../../components/feedback/ConfirmDialog";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { useI18n } from "../../i18n";
 
 type AddToast = (message: string, type: ToastType) => void;
+
+export const waitForWorkflowRun = async (workflowRunId: number) => {
+  for (;;) {
+    const detail = await getWorkflowRunDetail(workflowRunId, false);
+    if (detail.run.status !== "running" && detail.run.status !== "pending") {
+      return detail.run;
+    }
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 500));
+  }
+};
 
 interface UseChapterAnalysisActionsParams {
   projectId: number;
@@ -115,6 +130,10 @@ export function useChapterAnalysisActions({
         addToast(activeChapterGeneratingMessage, "error");
         return null;
       }
+      if (operation === "generate" && activeChapter.analysis_sync_status === "running") {
+        addToast(t("writing.analysisRunning"), "error");
+        return null;
+      }
       if (dirtyRef.current) {
         addToast(
           operation === "generate"
@@ -137,7 +156,11 @@ export function useChapterAnalysisActions({
         addToast(analysisBlockedReason, "error");
         return null;
       }
-      if (operation === "resume" && !activeChapter.analysis_sync_can_resume) {
+      if (
+        operation === "resume" &&
+        !activeChapter.analysis_sync_can_resume &&
+        activeChapter.analysis_sync_status !== "running"
+      ) {
         addToast(
           activeChapter.analysis_sync_resume_block_reason ||
             t("writing.analysisNoResume"),
@@ -156,6 +179,27 @@ export function useChapterAnalysisActions({
       dirtyRef,
       t,
     ],
+  );
+
+  const runAnalysisProgressTask = useCallback(
+    <T,>(taskId: string | null, task: () => Promise<T>) =>
+      runProgressTask(
+        {
+          cancelTaskId: taskId,
+          cancelTask: taskId ? cancelWorkflowTask : undefined,
+          pollTaskProgress: taskId != null,
+          streaming: taskId != null,
+          title: t("writing.resumeAnalysisTitle"),
+          startMessage: t("writing.resumeAnalysisPreparing"),
+          successMessage: t("writing.resumeAnalysisComplete"),
+          errorMessage: t("writing.resumeAnalysisFailed"),
+          total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
+          cancelLabel: t("writing.analysisStop"),
+          runningHint: t("writing.analysisRunningHint"),
+        },
+        task,
+      ),
+    [runProgressTask, t],
   );
 
   const handleGenerateAnalysis = useCallback(async () => {
@@ -220,6 +264,10 @@ export function useChapterAnalysisActions({
         addToast(t("writing.analysisStopped"), "info");
         return;
       }
+      if (refreshedChapter?.analysis_sync_status === "running") {
+        addToast(t("writing.analysisRunningInBackground"), "info");
+        return;
+      }
       if (refreshedChapter?.analysis_sync_can_resume) {
         addToast(
           refreshedChapter.analysis_sync_has_saved_analysis
@@ -256,33 +304,58 @@ export function useChapterAnalysisActions({
       const chapter = requireSavedAnalyzableChapter("resume");
       if (!chapter) return;
 
-      const taskId = createWorkflowTaskId("chapter-analysis-resume", projectId);
       setAnalysisBusy(true);
-      const updated = await runProgressTask(
-        {
-          cancelTaskId: taskId,
-          cancelTask: cancelWorkflowTask,
-          pollTaskProgress: true,
-          streaming: true,
-          title: t("writing.resumeAnalysisTitle"),
-          startMessage: t("writing.resumeAnalysisPreparing"),
-          successMessage: t("writing.resumeAnalysisComplete"),
-          errorMessage: t("writing.resumeAnalysisFailed"),
-          total: CHAPTER_ANALYSIS_PROGRESS_TOTAL,
-          cancelLabel: t("writing.analysisStop"),
-          runningHint: t("writing.analysisRunningHint"),
-        },
-        () =>
-          resumeChapterAnalysisSync(
-            {
-              chapter_id: chapter.id,
-            },
-            taskId,
-          ),
-      );
-      setChapters((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      const runningRun = (
+        await listWorkflowRuns({
+          chapter_id: chapter.id,
+          limit: 1,
+          project_id: projectId,
+          resumable_only: false,
+          status: "running",
+          workflow_kind: "chapter_analysis",
+        })
+      )[0];
+      let updated: ChapterSummary | null = null;
+      if (runningRun) {
+        const takeoverChoice = await choiceDialog({
+          title: t("writing.analysisRunningTakeoverTitle"),
+          message: t("writing.analysisRunningTakeoverMessage"),
+          confirmText: t("writing.analysisRunningTakeoverConfirm"),
+          cancelText: t("writing.analysisRunningTakeoverCancel"),
+          secondaryText: t("writing.analysisRunningTakeoverCancel"),
+          dialogType: "warning",
+        });
+        if (takeoverChoice !== "confirm") return;
+
+        const taskId = runningRun.active_task_id;
+        const terminalRun = await runAnalysisProgressTask(taskId, () =>
+          waitForWorkflowRun(runningRun.id),
+        );
+        if (terminalRun.status !== "completed") {
+          throw new Error(
+            terminalRun.status === "cancelled" || terminalRun.status === "interrupted"
+              ? t("writing.resumeAnalysisStopped")
+              : terminalRun.error_message || t("writing.resumeAnalysisFailed"),
+          );
+        }
+      } else {
+        const taskId = createWorkflowTaskId("chapter-analysis-resume", projectId);
+        updated = await runAnalysisProgressTask(
+          taskId,
+          () =>
+            resumeChapterAnalysisSync(
+              {
+                chapter_id: chapter.id,
+              },
+              taskId,
+            ),
+        );
+      }
+      if (updated) {
+        setChapters((prev) =>
+          prev.map((item) => (item.id === updated.id ? updated : item)),
+        );
+      }
       await reloadChapters({ force: true });
       await reloadOutlines();
       refreshProfiles();
@@ -307,7 +380,7 @@ export function useChapterAnalysisActions({
     reloadChapters,
     reloadOutlines,
     requireSavedAnalyzableChapter,
-    runProgressTask,
+    runAnalysisProgressTask,
     setChapters,
     t,
   ]);

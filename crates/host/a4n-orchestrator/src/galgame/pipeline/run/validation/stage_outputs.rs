@@ -46,10 +46,10 @@ pub(crate) fn validate_source_sync_scene_regeneration_stage_outputs(
         || shooting_script_projection
             .scenes
             .first()
-            .is_none_or(|scene| scene.index != 1 || scene.source_span_ids.is_empty())
+            .is_none_or(|scene| scene.index != 1)
     {
         return Err(AppError::InvalidArgument(
-            "Galgame source sync stage_outputs.shooting_script_projection 必须只包含 scene_index=1 且带 source_span_ids 的单场"
+            "Galgame source sync stage_outputs.shooting_script_projection 必须只包含 scene_index=1 的单场"
                 .to_string(),
         ));
     }

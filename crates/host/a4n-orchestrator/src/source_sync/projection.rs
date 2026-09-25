@@ -66,13 +66,10 @@ fn source_sync_conflict_summary(
             .decision_json
             .map(|value| json_object(value, "decision_json"))
             .transpose()?,
-        created_at: conflict
-            .created_at
-            .format("%Y-%m-%dT%H:%M:%S%.f")
-            .to_string(),
+        created_at: conflict.created_at.and_utc().to_rfc3339(),
         resolved_at: conflict
             .resolved_at
-            .map(|value| value.format("%Y-%m-%dT%H:%M:%S%.f").to_string()),
+            .map(|value| value.and_utc().to_rfc3339()),
     })
 }
 
@@ -91,8 +88,8 @@ fn source_sync_run_summary(run: source_sync_run::Model) -> Result<SourceSyncRunS
         status,
         summary_json: json_object(run.summary_json, "summary_json")?,
         error_message: run.error_message,
-        created_at: run.created_at.to_string(),
-        updated_at: run.updated_at.to_string(),
+        created_at: run.created_at.and_utc().to_rfc3339(),
+        updated_at: run.updated_at.and_utc().to_rfc3339(),
     })
 }
 
@@ -153,7 +150,7 @@ mod tests {
         assert_eq!(summary.status, SourceSyncRunStatus::Planned);
         assert_eq!(summary.summary_json.get("conflicts"), Some(&json!(6)));
         assert_eq!(summary.error_message.as_deref(), Some("err"));
-        assert_eq!(summary.created_at, "2026-06-01 02:03:04");
-        assert_eq!(summary.updated_at, "2026-06-02 03:04:05");
+        assert_eq!(summary.created_at, "2026-06-01T02:03:04+00:00");
+        assert_eq!(summary.updated_at, "2026-06-02T03:04:05+00:00");
     }
 }

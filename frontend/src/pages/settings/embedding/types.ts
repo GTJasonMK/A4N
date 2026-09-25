@@ -8,8 +8,8 @@ export interface EmbeddingForm {
   api_key: string;
   has_api_key: boolean;
   clear_api_key: boolean;
-  dimension: number;
-  batch_size: number;
+  dimension: string;
+  batch_size: string;
   local_model_path: string;
   pricing: PricingPlan;
 }

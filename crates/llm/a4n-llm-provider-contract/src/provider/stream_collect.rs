@@ -43,7 +43,7 @@ where
 #[derive(Debug, Clone, Default)]
 pub struct ChatStreamAccumulator {
     content: String,
-    reasoning_content: String,
+    reasoning_content: Option<String>,
     usage: Option<UsageInfo>,
     finish_reason: Option<String>,
     tool_calls: ToolCallCollection,
@@ -54,8 +54,10 @@ impl ChatStreamAccumulator {
         if let Some(delta) = chunk.content.filter(|text| !text.is_empty()) {
             self.content.push_str(&delta);
         }
-        if let Some(delta) = chunk.reasoning_content.filter(|text| !text.is_empty()) {
-            self.reasoning_content.push_str(&delta);
+        if let Some(delta) = chunk.reasoning_content {
+            self.reasoning_content
+                .get_or_insert_with(String::new)
+                .push_str(&delta);
         }
         if let Some(calls) = chunk.tool_calls {
             for call in calls {
@@ -76,7 +78,7 @@ impl ChatStreamAccumulator {
     }
 
     pub fn reasoning_content(&self) -> Option<&str> {
-        (!self.reasoning_content.is_empty()).then_some(self.reasoning_content.as_str())
+        self.reasoning_content.as_deref()
     }
 
     pub fn finish_reason(&self) -> Option<&str> {
@@ -86,6 +88,7 @@ impl ChatStreamAccumulator {
     pub fn snapshot(&self) -> Result<ChatResponse, AppError> {
         let mut message = super::ChatMessage::assistant(self.content.clone());
         message.tool_calls = self.tool_calls.clone().finish()?;
+        message.preserve_tool_reasoning(self.reasoning_content())?;
         Ok(ChatResponse {
             message,
             usage: self.usage.clone(),
@@ -98,12 +101,12 @@ impl ChatStreamAccumulator {
         super::validate_finish_reason(self.finish_reason.as_deref())?;
         let mut message = super::ChatMessage::assistant(self.content);
         message.tool_calls = self.tool_calls.finish()?;
+        message.preserve_tool_reasoning(self.reasoning_content.as_deref())?;
         Ok(ChatResponse {
             message,
             usage: self.usage,
             finish_reason: self.finish_reason,
-            reasoning_content: (!self.reasoning_content.is_empty())
-                .then_some(self.reasoning_content),
+            reasoning_content: self.reasoning_content,
         })
     }
 }
@@ -233,6 +236,41 @@ mod tests {
     use futures::{Stream, stream};
 
     use super::*;
+
+    #[test]
+    fn completed_tool_stream_preserves_reasoning_through_message_snapshot() {
+        let mut stream = ChatStreamAccumulator::default();
+        stream
+            .push(ChatChunk {
+                content: None,
+                reasoning_content: Some("opaque provider replay state".into()),
+                tool_calls: Some(vec![ToolCall {
+                    id: "call".into(),
+                    name: "read".into(),
+                    arguments: serde_json::json!({}),
+                    stream_index: None,
+                    provider_metadata: Some(serde_json::json!({"native_signature":"keep"})),
+                }]),
+                finish_reason: Some("tool_calls".into()),
+                index: 0,
+                usage: None,
+            })
+            .unwrap();
+        let response = stream.finish().unwrap();
+        let saved = serde_json::to_value(response.message).unwrap();
+        let restored: super::super::ChatMessage = serde_json::from_value(saved).unwrap();
+        let metadata = restored
+            .tool_calls
+            .unwrap()
+            .remove(0)
+            .provider_metadata
+            .unwrap();
+        assert_eq!(
+            metadata["reasoning_content"],
+            "opaque provider replay state"
+        );
+        assert_eq!(metadata["native_signature"], "keep");
+    }
     use crate::provider::{
         ChatChunk, ChatMessage, LlmProvider, MessageRole, ModelCapabilities, UsageInfo,
     };

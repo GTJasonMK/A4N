@@ -150,7 +150,7 @@ export const ComicProjectWorkspace: React.FC = () => {
         />
       ) : null}
 
-      <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden custom-scrollbar">
+      <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />

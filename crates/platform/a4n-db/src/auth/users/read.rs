@@ -35,9 +35,9 @@ impl CurrentUserSummaryRow {
             avatar_url: self.avatar_url,
             page_cli_enabled: self.page_cli_enabled,
             is_active: self.is_active,
-            created_at: Some(self.created_at.to_string()),
-            updated_at: Some(self.updated_at.to_string()),
-            last_login_at: self.last_login_at.map(|value| value.to_string()),
+            created_at: Some(self.created_at.and_utc().to_rfc3339()),
+            updated_at: Some(self.updated_at.and_utc().to_rfc3339()),
+            last_login_at: self.last_login_at.map(|value| value.and_utc().to_rfc3339()),
         }
     }
 }
@@ -78,7 +78,7 @@ pub async fn current_user_summary(
         .map_err(AppError::Database)?
         .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))?;
     if !user.is_active {
-        return Err(AppError::Forbidden("账户已被禁用".into()));
+        return Err(AppError::Unauthorized("账户已被禁用".into()));
     }
     Ok(user.into_summary())
 }
@@ -124,7 +124,7 @@ pub(in crate::auth) async fn active_user(
 ) -> Result<user::Model, AppError> {
     let user = user_by_id(db, user_id).await?;
     if !user.is_active {
-        return Err(AppError::Forbidden("账户已被禁用".into()));
+        return Err(AppError::Unauthorized("账户已被禁用".into()));
     }
     Ok(user)
 }

@@ -108,8 +108,9 @@ impl AgentApplication {
                 ));
             }
         }
-        let stored_scope: AgentScope =
+        let mut stored_scope: AgentScope =
             from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+        self.hydrate_scope_chapter_number(&mut stored_scope).await?;
         let expected_scope = effective_agent_scope(&thread.profile_id, stored_scope)?;
         if request.payload.scope != expected_scope {
             return Err(AppError::Forbidden(
@@ -239,33 +240,37 @@ impl AgentApplication {
             .map_err(AppError::Database)?
             .ok_or_else(|| AppError::NotFound(format!("Agent turn 不存在: {}", run_row.turn_id)))?;
         validate_model_override_json(turn_row.model_override_json.as_ref())?;
-        let mut messages =
-            agent::messages_by_thread(self.connection(), run_row.thread_id, SNAPSHOT_LIMIT)
-                .await
-                .map_err(agent_db_error_to_app)?;
-        // The UI history limit must never drop a pending call from an active Run.
-        messages.extend(
-            agent::messages_by_run(self.connection(), run_row.id)
-                .await
-                .map_err(agent_db_error_to_app)?,
-        );
-        messages.sort_by_key(|message| message.id);
-        messages.dedup_by_key(|message| message.id);
+        let thread = thread_snapshot(thread_row.clone())?;
+        let covered_message_id = thread
+            .context_summary
+            .as_ref()
+            .and_then(|summary| summary.get("covered_through_sequence"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let messages = agent::messages_for_context(
+            self.connection(),
+            run_row.thread_id,
+            run_row.id,
+            covered_message_id,
+        )
+        .await
+        .map_err(agent_db_error_to_app)?;
+        let mut scope = effective_agent_scope(
+            &thread_row.profile_id,
+            from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?,
+        )?;
+        self.hydrate_scope_chapter_number(&mut scope).await?;
         let editor_source = messages
             .iter()
             .find(|message| message.id == turn_row.input_message_id)
             .and_then(|message| message.payload_json.as_ref())
             .and_then(|payload| payload.get("editor_source"))
             .cloned()
-            .map(|value| parse_persisted_editor_source(value, &thread_row))
+            .map(|value| parse_persisted_editor_source(value, &thread_row.profile_id, &scope))
             .transpose()?;
         let delegations = agent::delegations_by_thread(self.connection(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
-        let scope = effective_agent_scope(
-            &thread_row.profile_id,
-            from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?,
-        )?;
         let executions = agent::executions_by_runs(self.connection(), vec![run_row.id])
             .await
             .map_err(agent_db_error_to_app)?;
@@ -284,7 +289,7 @@ impl AgentApplication {
             runtime_snapshot_required,
             delegation_depth,
             run: run_snapshot(run_row),
-            thread: thread_snapshot(thread_row)?,
+            thread,
             turn: turn_snapshot(turn_row),
             messages: messages.into_iter().map(message_snapshot).collect(),
             delegations: delegations.into_iter().map(delegation_snapshot).collect(),
@@ -299,6 +304,10 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
         context_summary: Value,
     ) -> Result<(), AppError> {
+        serde_json::from_value::<a4n_agent_runtime_contract::AgentContextSummary>(
+            context_summary.clone(),
+        )?
+        .validate()?;
         agent::update_context_summary_for_run_lease(
             self.connection(),
             claimed.run.id,
@@ -317,20 +326,14 @@ impl AgentApplication {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
-            run_id: request.run_id,
-            lease: request.lease.clone(),
-        })
-        .await?;
-        agent::update_context_summary_for_run_lease(
-            self.connection(),
-            request.run_id,
-            &request.lease.fence_token,
-            request.context_summary.clone(),
-        )
-        .await
-        .map(|_| ())
-        .map_err(agent_db_error_to_app)
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        self.update_context_summary(&claimed, request.context_summary.clone())
+            .await
     }
 
     pub(crate) async fn read_memory_for_run(

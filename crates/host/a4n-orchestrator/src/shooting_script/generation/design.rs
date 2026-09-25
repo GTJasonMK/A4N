@@ -259,13 +259,13 @@ fn validate_scene_actors(
     scene: &ShootingSceneV1,
     participants: &HashSet<&str>,
 ) -> Result<(), AppError> {
-    if !optional_actor_is_allowed(scene.focal_character.as_deref(), &participants) {
+    if !optional_actor_is_allowed(scene.focal_character.as_deref(), participants) {
         return Err(AppError::InvalidArgument(format!(
             "镜头设计 unit {} 的 focal_character 不属于 participants",
             scene.narrative_unit_index
         )));
     }
-    if !optional_actor_is_allowed(scene.viewpoint.anchor_character.as_deref(), &participants) {
+    if !optional_actor_is_allowed(scene.viewpoint.anchor_character.as_deref(), participants) {
         return Err(AppError::InvalidArgument(format!(
             "镜头设计 unit {} 的 viewpoint.anchor_character 不属于 participants",
             scene.narrative_unit_index

@@ -495,7 +495,13 @@ async fn delete_generated_video_with_cleanup_records_video_and_thumbnail_paths()
         video.id,
         &format!("projects/{}/videos/atomic.mp4", project.id),
         Some(&thumbnail),
-        1,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 1,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         None,
     )
@@ -562,7 +568,13 @@ async fn delete_generated_video_rebinds_prompt_to_completed_candidate() {
         deleted.id,
         &format!("projects/{}/videos/deleted.mp4", project.id),
         None,
-        1024,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 1024,
+            width: deleted.width,
+            height: deleted.height,
+            duration_secs: deleted.duration_secs,
+            fps: deleted.fps,
+        },
         None,
         Some(prompt.id),
     )
@@ -573,7 +585,13 @@ async fn delete_generated_video_rebinds_prompt_to_completed_candidate() {
         candidate.id,
         &format!("projects/{}/videos/candidate.mp4", project.id),
         None,
-        1024,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 1024,
+            width: candidate.width,
+            height: candidate.height,
+            duration_secs: candidate.duration_secs,
+            fps: candidate.fps,
+        },
         None,
         None,
     )
@@ -683,7 +701,13 @@ async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding(
         video.id,
         &format!("projects/{}/videos/missing-binding.mp4", project.id),
         None,
-        2048,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 2048,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         None,
     )

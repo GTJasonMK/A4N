@@ -50,7 +50,7 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
   const StatusIcon = iconInfo?.Icon;
 
   const containerClass = selected
-    ? "bg-book-primary/10 shadow-[inset_2px_0_0_rgb(var(--color-primary))]"
+    ? "bg-book-primary/8"
     : "bg-transparent hover:bg-book-bg-tertiary/55";
 
   const metaParts: string[] = [];
@@ -67,17 +67,17 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
       type="button"
       onClick={onClick}
       aria-current={selected ? "page" : undefined}
-      className={`a4n-chapter-card w-full px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary/35 ${containerClass}`}
+      className={`a4n-chapter-card w-full px-3 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${containerClass}`}
       data-selected={selected ? "true" : undefined}
     >
       <div className="flex items-start gap-2">
         {StatusIcon && (
           <span className={`shrink-0 mt-0.5 ${iconInfo.tone}`} title={t(iconInfo.title)}>
-            <StatusIcon size={11} />
+            <StatusIcon size={14} />
           </span>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5 text-xs">
+          <div className="flex min-w-0 items-center gap-1.5 text-body">
             <span
               className={`min-w-0 flex-1 truncate ${
                 selected ? "text-book-text-main font-semibold" : "text-book-text-sub"

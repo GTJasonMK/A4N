@@ -51,6 +51,7 @@ a4n-task-runtime = { workspace = true }
 # 异步
 tokio = { workspace = true }
 reqwest = { workspace = true }
+axum = { workspace = true }
 tempfile = { workspace = true }
 
 # 配置解析

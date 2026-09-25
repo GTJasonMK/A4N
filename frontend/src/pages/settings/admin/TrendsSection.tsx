@@ -24,7 +24,7 @@ export const TrendsSection: React.FC = () => {
     },
     [activeKey],
   );
-  const { loading, load } = useAdminSectionLoader(
+  const { loading, error, load } = useAdminSectionLoader(
     activeKey,
     loadTrends,
     applyTrends,
@@ -32,7 +32,7 @@ export const TrendsSection: React.FC = () => {
   );
 
   const displayTrends = loadedKey === activeKey ? trends : [];
-  const displayLoading = loading || loadedKey !== activeKey;
+  const displayLoading = loading || (loadedKey !== activeKey && !error);
   const maxCalls = displayTrends.reduce((max, trend) => Math.max(max, trend.total_calls), 0);
   const callScaleMax = maxCalls > 0 ? maxCalls : 1;
 
@@ -44,7 +44,7 @@ export const TrendsSection: React.FC = () => {
           <ThemedSelect
             value={days}
             onChange={(selectedValue) => setDays(Number(selectedValue))}
-            className="pyqt-input w-24 !px-2 !py-1"
+            className="pyqt-input w-32 !px-2 !py-1"
             aria-label={t("settingsAdmin.usageRange")}
           >
             <option value={7}>{t("settingsAdmin.recentDays", { count: 7 })}</option>
@@ -58,12 +58,13 @@ export const TrendsSection: React.FC = () => {
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
+      {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {displayLoading ? (
         <div className="a4n-empty-state a4n-empty-state--compact inline-flex items-center justify-center gap-2 text-xs">
           <LoadingSpinner size="sm" />
           {t("settingsAdmin.loadingTrends")}
         </div>
-      ) : displayTrends.length === 0 ? (
+      ) : error && displayTrends.length === 0 ? null : displayTrends.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--compact text-xs">
           {t("settingsAdmin.noData")}
         </div>

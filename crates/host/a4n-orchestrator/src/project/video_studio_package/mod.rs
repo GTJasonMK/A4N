@@ -17,6 +17,8 @@ use crate::project::{ImportMediaPayload, MediaFileEntry};
 
 mod export_assembly;
 mod validation;
+pub(crate) use validation::validate_canvas_media_asset_owner;
+pub(crate) use validation::validate_family_canvas_package;
 
 #[cfg(test)]
 pub(crate) use validation::MediaEntryOwnerIndex;
@@ -25,6 +27,7 @@ pub(crate) use validation::MediaEntryOwnerIndex;
 pub(crate) const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v2";
 /// 视频画布项目包 mode。
 pub(crate) const PACKAGE_MODE: &str = "video_studio_project";
+pub(crate) const FAMILY_CANVAS_MODE: &str = "project_family_canvas";
 /// zip 内清单路径。
 pub const MANIFEST_PATH: &str = "a4n-video-studio-project.json";
 

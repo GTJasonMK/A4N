@@ -6,6 +6,7 @@ pub struct GalgamePipelineSourceSpan {
     pub id: String,
     pub text_anchor_id: i64,
     pub source_snapshot_chapter_id: i64,
+    pub chapter_number: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]

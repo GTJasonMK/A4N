@@ -1,5 +1,6 @@
 //! PostgreSQL baseline schema.
 
+pub mod agent_history_contract_canonicalization;
 pub mod agent_replay_policy_canonicalization;
 pub mod agent_runtime;
 pub mod agent_runtime_checkpoint_cleanup;
@@ -43,6 +44,7 @@ pub mod foreshadowing_index_integrity_contract;
 pub mod freeform_canonical_media;
 pub mod freeform_generation_context;
 pub mod galgame_generation_spec_contract;
+pub mod galgame_generation_spec_source_hash;
 pub mod galgame_media_binding_contract;
 pub mod galgame_presentation_contract_cleanup;
 pub mod galgame_script_integrity_contract;

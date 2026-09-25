@@ -67,6 +67,7 @@ pub fn galgame_pipeline_source_spans_from_prompt_chapters(
                     id: span.id.clone(),
                     text_anchor_id: span.text_anchor_id,
                     source_snapshot_chapter_id: span.source_snapshot_chapter_id,
+                    chapter_number: chapter.chapter_number,
                 })
         })
         .collect()

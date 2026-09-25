@@ -28,7 +28,7 @@ from run_cli_contract_e2e import (
     secure_json,
     start_provider,
 )
-from specialized_agent_fixture import GENERAL_MARKER
+from specialized_agent_fixture import GENERAL_MARKER, observation_data
 
 
 TERMINAL_RUN_STATUSES = {
@@ -181,6 +181,7 @@ def main() -> int:
     environment.pop(args.password_env, None)
 
     report: dict[str, Any] = {
+        "checks": [],
         "schema_version": 1,
         "run_id": run_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -301,8 +302,8 @@ def main() -> int:
                        and any(ref["kind"] == "optimization_patch_set" for ref in row["result_refs"])
                        for row in child_executions):
                 raise RunnerError("child Agent 未生成真实 PatchSet")
-            if child_run["model_calls_used"] != 3 or child_run["tool_calls_used"] != 4:
-                raise RunnerError("专业执行的模型/工具计数不完整，或仍包含外层模型调用")
+            if child_run["model_calls_used"] != sum(row["kind"] == "model_call" for row in child_executions) or child_run["tool_calls_used"] != sum(row["kind"] != "model_call" for row in child_executions):
+                raise RunnerError("专业执行的模型/工具计数与真实执行记录不一致")
             if not any(row["run_id"] == parent_run_id and row["tool_name"] == "review_agent_delegation"
                        and row["status"] == "succeeded" for row in parent_snapshot["executions"]):
                 raise RunnerError("parent Agent 缺少显式验收执行")
@@ -377,12 +378,49 @@ def main() -> int:
             general_snapshot = thread_snapshot(cli, general_thread_value["id"])
             general_executions = [row for row in general_snapshot["executions"] if row["run_id"] == general_run_id]
             assert general_run["status"] == "completed"
-            assert [row["tool_name"] for row in general_executions if row["status"] == "succeeded"] == [
+            assert [row["tool_name"] for row in general_executions if row["kind"] == "tool_call" and row["status"] == "succeeded"] == [
                 "search_agent_tools",
                 "describe_agent_tool",
                 "get_project",
             ]
             report["checks"].append("general Agent discovers a project tool, loads its schema and reads a real project result")
+
+            revision_value = data(checked(cli, [
+                "agent", "chat", parent_thread_id,
+                "A4N_REVIEW_REVISE 请优化最近写作项目的最新一章；首次交付后要求一次修订，再读取实际结果并验收。",
+                "--budget", json.dumps({"max_steps": 64, "max_model_calls": 64}),
+            ], "request revision workflow")[0], "revision workflow")
+            revision_run_id = revision_value["run_id"]
+            _, revision_parent, revised_delegation = wait_for_parent_and_child(
+                cli, revision_run_id, parent_thread_id, args.poll_timeout, args.poll_interval,
+            )
+            reviews = [row for row in revision_parent["executions"]
+                       if row["run_id"] == revision_run_id and row["tool_name"] == "review_agent_delegation"]
+            review_inputs = [call["arguments"]["input"] for row in revision_parent["messages"]
+                             if row["run_id"] == revision_run_id
+                             for call in (row.get("metadata") or {}).get("tool_calls", [])
+                             if call["name"] == "review_agent_delegation"]
+            assert [value["decision"] for value in review_inputs] == ["request_revision", "accept"], review_inputs
+            assert len(reviews) == 2 and all(row["status"] == "succeeded" for row in reviews), reviews
+            child_ids = [value["expected_child_run_id"] for value in review_inputs]
+            assert child_ids[0] != child_ids[1] == revised_delegation["child_run_id"], child_ids
+            assert len([row for row in revision_parent["delegations"] if row["parent_run_id"] == revision_run_id]) == 1
+            revised_child = thread_snapshot(cli, revised_delegation["child_thread_id"])
+            assert all(any(row["id"] == child_id and row["status"] == "completed" for row in revised_child["runs"]) for child_id in child_ids)
+            patches = [call["arguments"]["patches"][0]["new_text"] for row in revised_child["messages"]
+                       if row["run_id"] in child_ids
+                       for call in (row.get("metadata") or {}).get("tool_calls", []) if call["name"] == "edit_article"]
+            assert len(patches) == 2 and patches[0] != patches[1] and "没有立即拆开" in patches[1], patches
+            delivered_patch_ids = {ref["id"] for ref in revised_delegation["result_refs"] if ref["kind"] == "optimization_patch_set"}
+            actual_patches = [patch for row in revision_parent["messages"] if row["run_id"] == revision_run_id
+                              and (row.get("metadata") or {}).get("tool") == "list_optimize_patch_sets"
+                              for patch in observation_data(row) if str(patch["id"]) in delivered_patch_ids]
+            assert any(patch["patches"][0]["new_text"] == patches[1] for patch in actual_patches), actual_patches
+            current = data(checked(cli, ["chapter", "get", str(chapter_id)], "verify revised proposal")[0], "chapter")
+            assert current["content"] == chapter_value["content"]
+            secure_json(report_path.parent / "revision-parent.json", revision_parent)
+            secure_json(report_path.parent / "revision-child.json", revised_child)
+            report["checks"].append("one delegation requests revision, preserves its child thread and parent Run, then accepts the reread revised patch")
 
             report["agent"] = {
                 "parent": {"run_id": parent_run_id, "status": parent_run.get("status")},
@@ -401,8 +439,8 @@ def main() -> int:
                 "general": {"thread_id": general_thread_value["id"], "run_id": general_run_id, "status": general_run["status"]},
             }
             report["success"] = True
-    except (RunnerError, OSError, ValueError, TypeError) as error:
-        report["error"] = str(error)
+    except (RunnerError, OSError, ValueError, TypeError, AssertionError, KeyError) as error:
+        report["error"] = f"{type(error).__name__}: {error}"
     finally:
         if provider:
             provider.stop()

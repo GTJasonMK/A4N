@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-domain = { workspace = true }
 a4n-api-contract = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }

@@ -3,8 +3,6 @@ use a4n_error::AppError;
 
 use crate::oauth_provider::{GitHubOAuth2, GoogleOAuth2, OAuth2Provider};
 
-pub(super) const DEFAULT_OAUTH2_REDIRECT_URI: &str = "http://localhost:1420/auth/callback";
-
 pub(super) fn oauth2_provider_from_env(
     provider: &str,
     redirect_uri: &str,

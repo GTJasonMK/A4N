@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
-import { Images, RefreshCw } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { ChevronRight, Images, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { Modal } from "../../../components/ui/Modal";
 import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import { useI18n } from "../../../i18n";
 import type { ImageSize } from "../../../api/image";
@@ -52,6 +53,7 @@ export const AssetPlanPanel: React.FC<{
   onGenerateSpec,
 }) => {
   const { t } = useI18n();
+  const [open, setOpen] = useState(false);
   const planSummary = plan
     ? [
         plan.summary.background_specs > 0
@@ -101,11 +103,11 @@ export const AssetPlanPanel: React.FC<{
         .join(" · ")
     : null;
   return (
-    <details
+    <section
       aria-label={t("galgame.assetPlan")}
       className="a4n-flat-surface overflow-hidden text-xs"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="flex w-full items-center gap-2 px-3 py-3 text-left font-medium text-book-text-main hover:bg-book-bg-tertiary/55">
         <span>{t("galgame.visualAssets")}</span>
         <span className="flex-1" />
         {loading || generating ? (
@@ -114,21 +116,16 @@ export const AssetPlanPanel: React.FC<{
         <span className="text-small font-normal text-book-text-muted">
           {plan ? t("galgame.assetPlanPlanned") : t("galgame.assetPlanUnplanned")}
         </span>
-      </summary>
-      <div className="border-t border-book-border/40 px-3 py-3">
-        <ImageSizeSelect
-          label={t("settingsForm.selectImageSize")}
-          value={imageSize}
-          sizes={imageSizes}
-          loading={imageSizeLoading}
-          error={imageSizeError}
-          disabled={disabled}
-          onChange={onImageSizeChange}
-        />
+        <ChevronRight size={14} className="shrink-0 text-book-text-muted" />
+      </button>
+      <Modal isOpen={open} onClose={() => setOpen(false)} title={t("galgame.visualAssets")} maxWidthClassName="max-w-4xl" footer={(
+        <div className="flex w-full flex-wrap items-center justify-end gap-2">
+          {plan ? (
+            <Dropdown items={[{ label: t("galgame.replanVisualAssets"), icon: <RefreshCw size={13} />, onClick: onPlan, disabled }]} />
+          ) : null}
         <BookButton
           variant="primary"
           size="sm"
-          className="w-full"
           onClick={plan ? onGenerate : onPlan}
           disabled={disabled || imageSize == null}
         >
@@ -141,20 +138,13 @@ export const AssetPlanPanel: React.FC<{
             ? t("galgame.generateVisualAssets")
             : t("galgame.planVisualAssets")}
         </BookButton>
-        {plan ? (
-          <div className="mt-2 flex justify-end">
-            <Dropdown
-              items={[
-                {
-                  label: t("galgame.replanVisualAssets"),
-                  icon: <RefreshCw size={13} />,
-                  onClick: onPlan,
-                  disabled,
-                },
-              ]}
-            />
-          </div>
-        ) : null}
+        </div>
+      )}>
+      <div className="space-y-4">
+        <div className="max-w-xs">
+          <ImageSizeSelect label={t("settingsForm.selectImageSize")} value={imageSize} sizes={imageSizes} loading={imageSizeLoading}
+            error={imageSizeError} disabled={disabled} onChange={onImageSizeChange} />
+        </div>
         {!plan ? (
           <div className="mt-2 text-small text-book-text-muted">
             {t("galgame.assetPlanHint")}
@@ -179,7 +169,8 @@ export const AssetPlanPanel: React.FC<{
           </div>
         )}
       </div>
-    </details>
+      </Modal>
+    </section>
   );
 };
 
@@ -193,7 +184,7 @@ const AssetPlanList: React.FC<{
     <div className="border-t border-book-border pt-2">
       <div className="mb-1 font-semibold text-book-text-main">{title}</div>
       <div className="space-y-1">
-        {items.slice(0, 4).map((item) => (
+        {items.map((item) => (
           <div
             key={item.canonical_key}
             className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
@@ -204,7 +195,6 @@ const AssetPlanList: React.FC<{
             <span>{assetPlanOutcomeLabel(item.outcome, t)}</span>
           </div>
         ))}
-        {items.length > 4 ? <div>{t("galgame.moreCount", { count: items.length - 4 })}</div> : null}
       </div>
     </div>
   );
@@ -242,7 +232,7 @@ export const PortraitExpressionMatrix: React.FC<{
           {t("galgame.itemCount", { count: cells.length })}
         </span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="custom-scrollbar overflow-x-auto" role="region" tabIndex={0} aria-label={t("galgame.portraitExpressions")}>
         <table className="w-full min-w-[360px] border-collapse text-small">
           <thead>
             <tr className="text-left text-book-text-muted">
@@ -298,7 +288,7 @@ export const PortraitExpressionMatrix: React.FC<{
                             <BookButton
                               variant="secondary"
                               size="sm"
-                              className="h-7 w-full"
+                              className="w-full"
                               disabled={disabled}
                               onClick={() =>
                                 onGenerateSpec(cell.item.generation_spec_id)
@@ -309,9 +299,7 @@ export const PortraitExpressionMatrix: React.FC<{
                               ) : (
                                 <RefreshCw size={12} />
                               )}
-                              {cell.item.status === "completed"
-                                ? t("common.open")
-                                : t("galgame.generateScript")}
+                              {t("galgame.generateAsset")}
                             </BookButton>
                           </div>
                         ) : (

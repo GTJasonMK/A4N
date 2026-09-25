@@ -31,7 +31,11 @@ pub trait SettingsAllHostPort: Send + Sync {
         rows: &[PromptRow],
     ) -> Result<Vec<(String, String)>, a4n_error::AppError>;
 
-    async fn import_prompts(&self, rows: Vec<PromptRow>) -> Result<usize, a4n_error::AppError>;
+    async fn import_prompts(
+        &self,
+        rows: Vec<PromptRow>,
+        overwrite: bool,
+    ) -> Result<Vec<String>, a4n_error::AppError>;
 
     async fn rollback_prompts(
         &self,

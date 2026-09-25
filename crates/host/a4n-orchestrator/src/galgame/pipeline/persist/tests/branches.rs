@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn rejects_branch_design_choice_after_missing_line() {
-    let scenes = shooting_script_projection_from_value(
+    let mut scenes = shooting_script_projection_from_value(
         json!({
             "scenes": [
                 directing_scene_value(1, "分岔口", "s1"),
@@ -12,6 +12,7 @@ fn rejects_branch_design_choice_after_missing_line() {
         "galgame_shooting_script_projection",
     )
     .expect("scenes");
+    scenes.scenes[1].chapter_number = 2;
     let staging = character_staging_from_value(
         json!({
             "scene_lines": [
@@ -80,11 +81,13 @@ fn rejects_branch_design_choice_after_missing_line() {
             id: "s1".to_string(),
             text_anchor_id: 100,
             source_snapshot_chapter_id: 20,
+            chapter_number: 1,
         },
         GalgamePipelineSourceSpan {
             id: "s2".to_string(),
             text_anchor_id: 101,
             source_snapshot_chapter_id: 21,
+            chapter_number: 2,
         },
     ];
 
@@ -102,7 +105,7 @@ fn rejects_branch_design_choice_after_missing_line() {
 
 #[test]
 fn inserts_choice_line_from_branch_design() {
-    let scenes = shooting_script_projection_from_value(
+    let mut scenes = shooting_script_projection_from_value(
         json!({
             "scenes": [
                 directing_scene_value(1, "分岔口", "s1"),
@@ -112,6 +115,7 @@ fn inserts_choice_line_from_branch_design() {
         "galgame_shooting_script_projection",
     )
     .expect("scenes");
+    scenes.scenes[1].chapter_number = 2;
     let staging = character_staging_from_value(
         json!({
             "scene_lines": [
@@ -203,11 +207,13 @@ fn inserts_choice_line_from_branch_design() {
             id: "s1".to_string(),
             text_anchor_id: 100,
             source_snapshot_chapter_id: 20,
+            chapter_number: 1,
         },
         GalgamePipelineSourceSpan {
             id: "s2".to_string(),
             text_anchor_id: 101,
             source_snapshot_chapter_id: 21,
+            chapter_number: 2,
         },
     ];
 

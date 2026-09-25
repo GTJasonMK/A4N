@@ -56,7 +56,7 @@ pub fn normalize_create_llm_config_input(
             "LLM配置 agent_protocol 不受支持：{agent_protocol}"
         )));
     }
-    let extra_body_json = normalize_llm_extra_body_json(&provider, &model, extra_body_json)?;
+    let extra_body_json = normalize_llm_extra_body_json(&provider, extra_body_json)?;
     Ok(NormalizedLlmConfig {
         name,
         provider,

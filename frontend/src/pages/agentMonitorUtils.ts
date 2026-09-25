@@ -11,7 +11,9 @@ export function extractWritingTarget(
   if (message.role !== "tool") return null;
   const metadata = objectValue(message.metadata);
   if (metadata?.tool !== "locate_writing_target") return null;
-  const result = objectValue(metadata.result);
+  const observation = objectValue(metadata.result);
+  if (observation?.observation_version !== 1 || observation.status !== "success") return null;
+  const result = objectValue(observation.data);
   const project = objectValue(result?.project);
   const projectId = Number(project?.id);
   const chapterNumber = Number(result?.chapter_number);

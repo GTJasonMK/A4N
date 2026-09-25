@@ -19,6 +19,7 @@ vi.mock("../api", () => ({
 }));
 
 vi.mock("../api/authStorage", () => ({
+  CURRENT_SESSION_ID_KEY: "a4n:current_session_id",
   clearCurrentAuth: mocks.clearCurrentAuth,
   readCurrentAccessToken: mocks.readCurrentAccessToken,
   readCurrentRefreshToken: mocks.readCurrentRefreshToken,
@@ -38,6 +39,7 @@ vi.mock("../api/auth", () => ({
 vi.mock("../utils/logger", () => ({
   logger: { scoped: () => ({ error: vi.fn() }) },
 }));
+vi.mock("../api/oauth", () => ({ completeOAuthLogin: vi.fn() }));
 
 import type { UserSummary } from "../api/auth";
 import { useAuthStore } from "./auth";
@@ -116,5 +118,53 @@ describe("auth store initialization", () => {
 
     expect(mocks.updateUserProfile).toHaveBeenCalledWith({ page_cli_enabled: true });
     expect(useAuthStore.getState().user).toEqual(updated);
+  });
+
+  it("finishes initialization when the global unauthorized event clears the starting session", async () => {
+    mocks.readCurrentUserId.mockReturnValue(user.id);
+    mocks.readCurrentAccessToken.mockReturnValue("expired");
+    mocks.readCurrentSessionId.mockReturnValue("revoked-session");
+    mocks.clearCurrentAuth.mockImplementation(() => {
+      mocks.readCurrentSessionId.mockReturnValue(null);
+    });
+    mocks.getCurrentUser.mockImplementation(async () => {
+      await useAuthStore.getState().onUnauthorized();
+      throw mocks.unauthorized;
+    });
+    await useAuthStore.getState().init();
+    expect(useAuthStore.getState()).toMatchObject({ initialized: true, user: null, error: null });
+  });
+
+  it("does not restore an account from a profile response after sign-out", async () => {
+    useAuthStore.setState({ initialized: true, user, error: null });
+    mocks.readCurrentSessionId.mockReturnValue("session-1");
+    let finish!: (value: UserSummary) => void;
+    mocks.updateUserProfile.mockReturnValue(new Promise<UserSummary>((resolve) => {
+      finish = resolve;
+    }));
+    const saving = useAuthStore.getState().updateProfile({ page_cli_enabled: true });
+    useAuthStore.getState().onUnauthorized();
+    mocks.readCurrentSessionId.mockReturnValue(null);
+    finish({ ...user, page_cli_enabled: true });
+    await expect(saving).rejects.toMatchObject({ name: "AbortError" });
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it("initializes a changed session without accepting the previous session response", async () => {
+    mocks.readCurrentUserId.mockReturnValue(user.id);
+    mocks.readCurrentAccessToken.mockReturnValue("access-token");
+    mocks.readCurrentSessionId.mockReturnValue("old-session");
+    let finishOld!: (value: UserSummary) => void;
+    mocks.getCurrentUser.mockReturnValueOnce(new Promise<UserSummary>((resolve) => {
+      finishOld = resolve;
+    }));
+    const oldInitialization = useAuthStore.getState().init();
+    const nextUser = { ...user, id: 8, username: "bob" };
+    mocks.readCurrentSessionId.mockReturnValue("new-session");
+    mocks.getCurrentUser.mockResolvedValueOnce(nextUser);
+    await useAuthStore.getState().init();
+    finishOld(user);
+    await oldInitialization;
+    expect(useAuthStore.getState()).toMatchObject({ initialized: true, user: nextUser });
   });
 });

@@ -6,7 +6,7 @@ use a4n_api_contract::generation_tasks::{
     GenerationTaskHistoryQuery, GenerationTaskSummary, HostErrorResponse,
 };
 use a4n_api_contract::image_generation::StartImageGenerationInput;
-use a4n_api_contract::inspiration::StartInspirationGenerationInput;
+use a4n_api_contract::inspiration::{InspirationResponse, StartInspirationGenerationInput};
 use a4n_api_contract::optimize::{
     StartOptimizeAnalysisGenerationInput, StartOptimizeChatGenerationInput,
     StartOptimizePatchGenerationInput,
@@ -41,6 +41,7 @@ struct GenerationContractBundle {
     host_error: HostErrorResponse,
     start_chapter_generation: StartChapterGenerationInput,
     start_inspiration_generation: StartInspirationGenerationInput,
+    inspiration_response: InspirationResponse,
     start_optimize_analysis_generation: StartOptimizeAnalysisGenerationInput,
     start_optimize_chat_generation: StartOptimizeChatGenerationInput,
     start_optimize_patch_generation: StartOptimizePatchGenerationInput,

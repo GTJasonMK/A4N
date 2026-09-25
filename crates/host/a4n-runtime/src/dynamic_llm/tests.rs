@@ -151,6 +151,40 @@ async fn prepared_agent_request_is_stable_when_chat_preparation_runs_again() {
 }
 
 #[tokio::test]
+async fn already_prepared_requests_still_apply_provider_cache_capabilities() {
+    let facade =
+        crate::provider_runtime::DynamicProviderFacade::new(Arc::new(TestProviderPort::default()));
+    let provider = DynamicLlmProvider::new(facade);
+    let mut config = test_llm_model();
+    config.model = "gpt-6-luna".into();
+    let model = ResolvedLlmModel::new(config).expect("resolved model");
+    let mut request = test_chat_request();
+    request.cache_scope_key = Some("preset-cache-key".into());
+    request.add_cache_breakpoint(0, 3).unwrap();
+    request.context_manifest_json = Some(json!({}));
+    request.trace_context = Some(LlmTraceContext {
+        project_id: Some(7),
+        root_project_id: Some(7),
+        workflow: "agent".into(),
+        step_key: "model-call:1".into(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: Some("model-call:1".into()),
+        input_fingerprint_sha256: None,
+        context_plan_json: Some(json!({})),
+        context_pack_refs_json: Some(json!({})),
+    });
+
+    let (_, prepared, _) = provider
+        .prepare_request(model, request)
+        .await
+        .expect("prepared request");
+
+    assert!(prepared.cache_breakpoints.is_empty());
+    assert!(prepared.cache_scope_key.is_none());
+}
+
+#[tokio::test]
 async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
     use a4n_llm_client::{LlmClient, LlmGatewayRequest, LlmProbeResponse};
     use a4n_model_discovery_contract::{ModelDiscoveryRequest, ModelDiscoveryResult};
@@ -451,8 +485,6 @@ fn test_chat_request() -> ChatRequest {
         cache_scope_key: None,
         cache_breakpoints: Vec::new(),
         cache_mode: None,
-        cache_system_prefix: false,
-        cache_user_prefix_len: None,
         trace_context: None,
         context_manifest_json: None,
         tools: None,

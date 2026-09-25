@@ -204,7 +204,11 @@ pub async fn import_project_bundle_history(
     bundle_id: &str,
     user_id: i64,
 ) -> Result<ProjectBundleHistoryImportSummary, ProjectBundleHistoryError> {
-    let bundle_id = required_bundle_id(bundle_id)?;
+    let bundle_id = format!(
+        "{}:{}",
+        required_bundle_id(bundle_id)?,
+        uuid::Uuid::new_v4()
+    );
     if user_id <= 0 {
         return Err(ProjectBundleHistoryError::Invalid(
             "user_id 必须大于 0".to_string(),
@@ -426,6 +430,7 @@ pub async fn import_project_bundle_history(
     for source in &rows.model_usage_records {
         let mut active: model_usage_record::ActiveModel = source.clone().into();
         active.id = sea_orm::NotSet;
+        active.request_id = Set(uuid::Uuid::new_v4().to_string());
         active.user_id = Set(Some(user_id));
         active.project_id = Set(source
             .project_id

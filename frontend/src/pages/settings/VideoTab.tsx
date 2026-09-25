@@ -11,6 +11,7 @@ import {
   SYSTEM_VIDEO_CONFIG_ID,
   updateVideoConfig,
   updateServerVideoConfig,
+  updateSystemDefaultVideoKey,
 } from "../../api/video";
 import { ConfigListPanel, type ConfigItem } from "./ConfigListPanel";
 import { useConfigItems } from "./config-list/useConfigItems";
@@ -100,22 +101,24 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
         />
       )}
       onCreate={async (form) => {
-        await (serverScope ? addServerVideoConfig : addVideoConfig)(
+        const created = await (serverScope ? addServerVideoConfig : addVideoConfig)(
           toCreateVideoInput(
             form,
             catalog?.video.find((provider) => provider.id === form.provider),
             t,
           ),
         );
+        return created.id;
       }}
       onUpdate={async (id, form) => {
+        const input = toUpdateVideoInput(form, catalog?.video.find((provider) => provider.id === form.provider), t);
+        if (!serverScope && id === SYSTEM_VIDEO_CONFIG_ID) {
+          await updateSystemDefaultVideoKey({ api_key_encrypted: input.api_key_encrypted });
+          return;
+        }
         await (serverScope ? updateServerVideoConfig : updateVideoConfig)(
           id,
-          toUpdateVideoInput(
-            form,
-            catalog?.video.find((provider) => provider.id === form.provider),
-            t,
-          ),
+          input,
         );
       }}
       onDelete={serverScope ? removeServerVideoConfig : removeVideoConfig}

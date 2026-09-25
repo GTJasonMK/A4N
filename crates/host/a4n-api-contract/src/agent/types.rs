@@ -47,6 +47,15 @@ pub struct ReadAgentExecutionResultInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReadAgentHistoryInput {
+    /// Read earlier messages in this Thread, newest first. Use the last ID as the next cursor.
+    pub before: Option<String>,
+    /// Messages per page; 1..=100, default 20.
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AgentExecutionResultPage {
     pub execution_id: String,
     pub pointer: String,
@@ -140,6 +149,12 @@ pub struct AgentRunView {
     pub model_calls_used: u32,
     pub tool_calls_used: u32,
     pub tokens_used: u64,
+    #[serde(default)]
+    pub tokens_reserved: u64,
+    #[serde(default)]
+    pub usage_complete: bool,
+    #[serde(default)]
+    pub budget_limiting_run_id: Option<String>,
     /// Estimated tokens in the latest fitted Agent model input.
     #[serde(default)]
     pub context_input_tokens: Option<u64>,

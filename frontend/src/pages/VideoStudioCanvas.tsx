@@ -10,7 +10,6 @@ import React, {
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Background,
-  Controls,
   MiniMap,
   ReactFlow,
   useEdgesState,
@@ -47,6 +46,7 @@ import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
+import { FlowControls } from "../components/ui/FlowControls";
 import { BackButton } from "../components/ui/BackButton";
 import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { Modal } from "../components/ui/Modal";
@@ -69,6 +69,7 @@ import {
 } from "./video-studio/canvasConfig";
 import { canvasGraphSaveValidationError } from "./video-studio/canvasEdgeContract";
 import {
+  canvasGraphViewport,
   preserveSelectedItems,
   toFlowEdge,
   toFlowNode,
@@ -131,6 +132,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const projectId = Number(id);
   const [project, setProject] = useState<NovelProject | null>(null);
   const [document, setDocument] = useState<CanvasGraphDocument | null>(null);
+  const initialViewport = canvasGraphViewport(document?.graph.viewport_json);
   const [nodeContracts, setNodeContracts] = useState<StudioNodeContract[]>([]);
   const [nodes, setNodes, applyNodesChange] = useNodesState<StudioNode>([]);
   const [edges, setEdges, applyEdgesChange] = useEdgesState<StudioEdge>([]);
@@ -280,10 +282,9 @@ export const VideoStudioCanvas: React.FC = () => {
   const canvasMutationDisabled = !canEdit || canvasWriteBusy;
 
   useEffect(() => {
-    if (isMobileLayout) return;
-    setMobileNodeLibraryOpen(false);
-    setMobileInspectorOpen(false);
-  }, [isMobileLayout]);
+    if (leftSidebarVisible) setMobileNodeLibraryOpen(false);
+    if (rightSidebarVisible) setMobileInspectorOpen(false);
+  }, [leftSidebarVisible, rightSidebarVisible]);
 
   useEffect(() => {
     if (!workflowLive) return;
@@ -468,7 +469,6 @@ export const VideoStudioCanvas: React.FC = () => {
     setPreviewData,
     setContentPreviewNode,
     refreshCanvasRuntimeResults: graphActions.refreshCanvasRuntimeResults,
-    load,
     selectCanvasNode: graphActions.selectCanvasNode,
     selectCanvasEdge: graphActions.selectCanvasEdge,
     deleteCanvasNode: graphActions.deleteCanvasNode,
@@ -596,9 +596,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   key={kind}
                   type="button"
                   draggable={!mobile && !canvasMutationDisabled}
-                  onClick={
-                    mobile ? () => addNodeToVisibleCanvas(kind, label) : undefined
-                  }
+                  onClick={() => addNodeToVisibleCanvas(kind, label)}
                   onDragStart={
                     mobile
                       ? undefined
@@ -726,8 +724,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 <Bot size={14} />
                 <span className="hidden sm:inline">{t("agent.domain.domainAgent")}</span>
               </BookButton>
-              {isMobileLayout ? (
-                <>
+              {!leftSidebarVisible ? (
                   <BookIconButton
                     label={t("video.openNodeLibrary")}
                     onClick={() => setMobileNodeLibraryOpen(true)}
@@ -737,6 +734,8 @@ export const VideoStudioCanvas: React.FC = () => {
                   >
                     <ListPlus size={14} />
                   </BookIconButton>
+              ) : null}
+              {!rightSidebarVisible ? (
                   <BookIconButton
                     label={t("video.openProperties")}
                     onClick={() => setMobileInspectorOpen(true)}
@@ -745,7 +744,6 @@ export const VideoStudioCanvas: React.FC = () => {
                   >
                     <SlidersHorizontal size={14} />
                   </BookIconButton>
-                </>
               ) : null}
               <Dropdown items={headerActionItems} />
               {dirty || saving ? (
@@ -839,9 +837,9 @@ export const VideoStudioCanvas: React.FC = () => {
                   onInit={setFlowInstance}
                   onDragOver={onCanvasDragOver}
                   onDrop={onCanvasDrop}
-                  fitView
+                  fitView={initialViewport === undefined}
                   fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
-                  defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+                  defaultViewport={initialViewport}
                   minZoom={0.35}
                   maxZoom={1.4}
                   deleteKeyCode={
@@ -861,7 +859,7 @@ export const VideoStudioCanvas: React.FC = () => {
                       }}
                     />
                   ) : null}
-                  <Controls className="a4n-flow-controls" />
+                  <FlowControls />
                   <Background
                     color="rgb(var(--color-text-tertiary) / 0.24)"
                     gap={32}
@@ -897,8 +895,7 @@ export const VideoStudioCanvas: React.FC = () => {
             </aside>
           ) : null}
         </section>
-        {isMobileLayout ? (
-          <>
+        {!leftSidebarVisible ? (
             <Modal
               isOpen={mobileNodeLibraryOpen}
               onClose={() => setMobileNodeLibraryOpen(false)}
@@ -908,6 +905,8 @@ export const VideoStudioCanvas: React.FC = () => {
             >
               {renderNodeLibraryPanel(true)}
             </Modal>
+        ) : null}
+        {!rightSidebarVisible ? (
             <Modal
               isOpen={mobileInspectorOpen}
               onClose={() => setMobileInspectorOpen(false)}
@@ -917,7 +916,6 @@ export const VideoStudioCanvas: React.FC = () => {
             >
               {renderInspectorPanel(true)}
             </Modal>
-          </>
         ) : null}
         {previewDialogOpen ? (
           <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>

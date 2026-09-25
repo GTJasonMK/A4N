@@ -584,21 +584,6 @@ pub(super) async fn create_agent_child_run(
         .map_err(Into::into)
 }
 
-pub(super) async fn agent_worker_run_is_terminal(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(input): Json<AgentWorkerRunLeaseRequest>,
-) -> Result<Json<AgentWorkerRunStatusSnapshotWire>, ApiError> {
-    authorize_worker_request(&state, &headers)?;
-    input
-        .validate()
-        .map_err(|error| ApiError::bad_request(error.to_string()))?;
-    agent_actions::agent_worker_run_is_terminal(state.runtime(), &input)
-        .await
-        .map(Json)
-        .map_err(Into::into)
-}
-
 pub(super) async fn command(
     State(state): State<ServerState>,
     headers: HeaderMap,

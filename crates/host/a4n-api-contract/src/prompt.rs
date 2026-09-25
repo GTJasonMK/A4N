@@ -280,6 +280,7 @@ pub trait PromptMutationApplicationPort: Send + Sync {
         context: &PromptExecutionContext,
         updates: Vec<(String, String)>,
         author: &str,
+        overwrite: bool,
     ) -> Result<Vec<PromptEntry>, a4n_error::AppError>;
 }
 

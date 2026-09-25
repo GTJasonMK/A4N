@@ -70,6 +70,173 @@ fn assemble_clip_edge(source: &str, target: &str, order_index: i64) -> CanvasEdg
 }
 
 #[tokio::test]
+async fn media_inputs_read_current_reference_metadata_without_persisting_copies() {
+    use a4n_db_models::models::{
+        ai::{generated_image, generated_video},
+        media::media_asset,
+    };
+    use sea_orm::{ActiveModelTrait, Set};
+
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        1,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "画布输入资源属性".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let image = generated_image::ActiveModel {
+        project_id: Set(project.id),
+        image_type: Set("canvas".to_string()),
+        file_path: Set("current.png".to_string()),
+        prompt: Set("image".to_string()),
+        model: Set("test".to_string()),
+        width: Set(320),
+        height: Set(200),
+        file_size: Set(Some(100)),
+        is_favorite: Set(false),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let video = generated_video::ActiveModel {
+        project_id: Set(project.id),
+        video_type: Set(a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string()),
+        file_path: Set(Some("current.mp4".to_string())),
+        prompt: Set("video".to_string()),
+        model: Set("test".to_string()),
+        width: Set(640),
+        height: Set(360),
+        duration_secs: Set(3.0),
+        fps: Set(25),
+        status: Set("completed".to_string()),
+        is_favorite: Set(false),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let audio = media_asset::ActiveModel {
+        project_id: Set(project.id),
+        root_project_id: Set(project.id),
+        media_kind: Set("audio".to_string()),
+        origin: Set("imported".to_string()),
+        file_path: Set(Some("current.wav".to_string())),
+        duration_secs: Set(Some(1.5)),
+        status: Set("completed".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let mut nodes = [
+        ("ImageInputNode", "generated_image", image.id),
+        ("VideoInputNode", "generated_video", video.id),
+        ("AudioInputNode", "media_asset", audio.id),
+    ]
+    .into_iter()
+    .map(|(kind, ref_type, id)| {
+        node_with_kind(
+            kind,
+            kind,
+            Some(ref_type),
+            Some(id),
+            json!({
+                "title": "authored", "file_path": "stale", "thumbnail_path": "stale",
+                "duration_secs": 99, "width": 1, "generated_video_id": 999,
+                "generated_image_id": 999, "media_asset_id": 999,
+            }),
+        )
+    })
+    .collect::<Vec<_>>();
+    nodes.push(node_with_kind(
+        "GenerateVideoNode",
+        "generate",
+        None,
+        None,
+        json!({"duration_secs": 6}),
+    ));
+    nodes.push(node_with_kind(
+        "VideoInputNode",
+        "missing",
+        None,
+        None,
+        json!({
+            "file_path": "deleted.mp4", "missing_reason": "deleted", "missing_ref_id": 99,
+        }),
+    ));
+    nodes.last_mut().unwrap().state = Some("missing".to_string());
+    let saved = save_canvas_graph_record(&db, project.id, graph_input(nodes, vec![]), now)
+        .await
+        .unwrap();
+    let document = saved.document;
+    let config = |id: &str| {
+        &document
+            .nodes
+            .iter()
+            .find(|n| n.id == saved.node_ids[id])
+            .unwrap()
+            .config_json
+    };
+    assert_eq!(config("ImageInputNode")["file_path"], "current.png");
+    assert_eq!(config("ImageInputNode")["width"], 320);
+    assert!(config("ImageInputNode").get("duration_secs").is_none());
+    assert_eq!(config("VideoInputNode")["file_path"], "current.mp4");
+    assert_eq!(config("VideoInputNode")["duration_secs"], 3.0);
+    assert!(config("VideoInputNode")["thumbnail_path"].is_null());
+    assert_eq!(config("AudioInputNode")["file_path"], "current.wav");
+    assert_eq!(config("AudioInputNode")["duration_secs"], 1.5);
+    assert_eq!(config("generate")["duration_secs"], 6);
+    assert_eq!(config("missing")["missing_reason"], "deleted");
+    assert!(config("missing").get("file_path").is_none());
+    for id in ["ImageInputNode", "VideoInputNode", "AudioInputNode"] {
+        let stored = canvas_node::Entity::find_by_id(saved.node_ids[id])
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.config_json, json!({"title": "authored"}));
+    }
+
+    // A legacy stored copy and a later resource update must not survive a fresh read.
+    let mut input: canvas_node::ActiveModel = document
+        .nodes
+        .iter()
+        .find(|n| n.id == saved.node_ids["VideoInputNode"])
+        .unwrap()
+        .clone()
+        .into();
+    input.config_json =
+        Set(json!({"title": "authored", "file_path": "legacy.mp4", "duration_secs": 99}));
+    input.update(&db).await.unwrap();
+    let mut updated: generated_video::ActiveModel = video.into();
+    updated.file_path = Set(Some("updated.mp4".to_string()));
+    updated.duration_secs = Set(4.0);
+    updated.update(&db).await.unwrap();
+    let fresh = get_or_create_canvas_graph_record(&db, project.id, Some(document.graph.id), now)
+        .await
+        .unwrap();
+    let video = fresh
+        .nodes
+        .iter()
+        .find(|n| n.id == saved.node_ids["VideoInputNode"])
+        .unwrap();
+    assert_eq!(video.config_json["file_path"], "updated.mp4");
+    assert_eq!(video.config_json["duration_secs"], 4.0);
+    assert_eq!(video.config_json["title"], "authored");
+}
+
+#[tokio::test]
 async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let project = crate::project::create_freeform_video_project_record(
@@ -105,7 +272,7 @@ async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
         })
         .collect::<Vec<_>>();
 
-    let document = save_canvas_graph_record(
+    let saved = save_canvas_graph_record(
         &db,
         project.id,
         graph_input(nodes, edges),
@@ -114,6 +281,10 @@ async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
     .await
     .unwrap();
 
+    let document = saved.document;
+    for (index, node) in document.nodes.iter().enumerate() {
+        assert_eq!(saved.node_ids[&format!("node-{index}")], node.id);
+    }
     assert_eq!(document.nodes.len(), 20);
     assert_eq!(document.edges.len(), 19);
     for (index, edge) in document.edges.iter().enumerate() {
@@ -169,6 +340,13 @@ async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
     let changed = save_canvas_graph_record(&db, project.id, edit, Utc::now().naive_utc())
         .await
         .unwrap();
+    assert!(
+        changed
+            .node_ids
+            .iter()
+            .all(|(client_id, id)| client_id == &id.to_string())
+    );
+    let changed = changed.document;
     assert_eq!(
         changed.nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
         document.nodes.iter().map(|n| n.id).collect::<Vec<_>>()
@@ -212,7 +390,8 @@ async fn canvas_graph_save_rejects_stale_version_without_replacing_topology() {
         Utc::now().naive_utc(),
     )
     .await
-    .unwrap();
+    .unwrap()
+    .document;
 
     let mut winning = graph_input(
         vec![node_with_kind(
@@ -229,7 +408,8 @@ async fn canvas_graph_save_rejects_stale_version_without_replacing_topology() {
     winning.name = Some("胜出的保存".to_string());
     let saved = save_canvas_graph_record(&db, project.id, winning, Utc::now().naive_utc())
         .await
-        .unwrap();
+        .unwrap()
+        .document;
     assert_eq!(saved.graph.version, 2);
 
     let mut stale = graph_input(Vec::new(), Vec::new());

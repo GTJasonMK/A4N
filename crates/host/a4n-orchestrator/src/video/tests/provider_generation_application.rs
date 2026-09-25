@@ -113,8 +113,14 @@ impl VideoProviderHostPort for TestVideoProviderHost {
             project_id: target.project_id,
             file_path: format!("generated/videos/{}.{}", target.video_id, result.format),
             thumbnail_path: Some(format!("generated/videos/{}.jpg", target.video_id)),
-            file_size: i64::try_from(result.bytes.len())
-                .map_err(|_| AppError::InvalidArgument("测试视频过大".to_string()))?,
+            properties: a4n_domain::media::VideoFileProperties {
+                file_size: i64::try_from(result.bytes.len())
+                    .map_err(|_| AppError::InvalidArgument("测试视频过大".to_string()))?,
+                width: 16,
+                height: 16,
+                duration_secs: 1.0,
+                fps: 24,
+            },
             metadata_json: Some(json!({
                 "provider": "test-video-host",
                 "format": result.format,
@@ -820,6 +826,8 @@ async fn reference_media_generate_persists_completed_video() {
     );
     assert_eq!(video.project_id, project_id);
     assert_eq!(video.chapter_id, Some(chapter_id));
+    assert_eq!(video.duration_secs, 1.0);
+    assert_eq!((video.width, video.height, video.fps), (16, 16, 24));
     assert_eq!(
         video.video_type,
         a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA

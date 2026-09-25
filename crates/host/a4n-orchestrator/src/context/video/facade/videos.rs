@@ -169,16 +169,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn update_generated_video_duration_record(
-        &self,
-        video_id: i64,
-        duration_secs: f32,
-    ) -> Result<generated_video::Model, AppError> {
-        self.video
-            .update_generated_video_duration_record(video_id, duration_secs)
-            .await
-    }
-
     pub(crate) async fn delete_generated_image_record_with_cleanup(
         &self,
         image_id: i64,
@@ -291,7 +281,7 @@ impl OrchestratorContext {
         video_id: i64,
         file_path: &str,
         thumbnail_path: Option<&str>,
-        file_size: i64,
+        properties: &a4n_domain::media::VideoFileProperties,
         metadata_json: Option<Value>,
         prompt_id: Option<i64>,
     ) -> Result<generated_video::Model, AppError> {
@@ -300,7 +290,7 @@ impl OrchestratorContext {
                 video_id,
                 file_path,
                 thumbnail_path,
-                file_size,
+                properties,
                 metadata_json,
                 prompt_id,
             )

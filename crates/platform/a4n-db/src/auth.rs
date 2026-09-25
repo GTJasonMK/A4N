@@ -25,6 +25,7 @@ pub use sessions::{
     verify_active_session, verify_session_refresh_token,
 };
 pub use types::BootstrapAdminInput;
+pub(crate) use users::lock_administrator_membership;
 #[cfg(test)]
 pub use users::{bootstrap_first_admin, disable_user, register_user};
 pub use users::{

@@ -38,12 +38,14 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
         content: impl Into<String>,
         tool_calls: Value,
+        client_message_id: String,
     ) -> Result<AgentMessageSnapshot, AppError> {
         let request = self.worker_message_request_for_claimed(
             claimed,
             AgentWorkerMessageOperation::AppendAssistantTool {
                 content: content.into(),
                 tool_calls,
+                client_message_id,
             },
         )?;
         self.apply_message_request(&request)
@@ -171,6 +173,31 @@ impl AgentApplication {
         let thread_id = run.thread_id;
         let turn_id = Some(run.turn_id);
         match &request.operation {
+            AgentWorkerMessageOperation::AppendQuestion {
+                execution_id,
+                content,
+                observation,
+            } => {
+                a4n_api_contract::agent::RequestAgentInput {
+                    question: content.clone(),
+                }
+                .validate()
+                .map_err(AppError::InvalidArgument)?;
+                agent::request_user_input(
+                    self.connection(),
+                    agent::AgentQuestionInput {
+                        run_id: run.id,
+                        lease_token: request.lease.fence_token.clone(),
+                        execution_id: *execution_id,
+                        question: content.clone(),
+                        observation: observation.clone(),
+                    },
+                )
+                .await
+                .map(message_snapshot)
+                .map(Some)
+                .map_err(agent_db_error_to_app)
+            }
             AgentWorkerMessageOperation::AppendTool {
                 execution_id,
                 tool_name,
@@ -208,6 +235,7 @@ impl AgentApplication {
             AgentWorkerMessageOperation::AppendAssistantTool {
                 content,
                 tool_calls,
+                client_message_id,
             } => agent::append_message_for_run_lease(
                 self.connection(),
                 request.run_id,
@@ -219,11 +247,7 @@ impl AgentApplication {
                     role: "assistant".into(),
                     sender_kind: "agent".into(),
                     sender_thread_id: None,
-                    client_message_id: Some(format!(
-                        "agent-assistant:{}:{}",
-                        request.run_id,
-                        a4n_domain::source_text_hash(&tool_calls.to_string())
-                    )),
+                    client_message_id: Some(client_message_id.clone()),
                     content: content.clone(),
                     status: "complete".into(),
                     payload_json: Some(json!({ "tool_calls": tool_calls })),
@@ -319,8 +343,16 @@ impl AgentWorkerMessageApplicationPort for AgentApplication {
         claimed: &AgentWorkerRun,
         content: String,
         tool_calls: Value,
+        client_message_id: String,
     ) -> Result<AgentMessageSnapshot, AppError> {
-        AgentApplication::append_assistant_tool_message(self, claimed, content, tool_calls).await
+        AgentApplication::append_assistant_tool_message(
+            self,
+            claimed,
+            content,
+            tool_calls,
+            client_message_id,
+        )
+        .await
     }
 
     async fn upsert_assistant_streaming_message(

@@ -64,7 +64,12 @@ where
     }
     .insert(db)
     .await?;
+    let mut usage = run_row.usage_json.clone();
+    if let Some(usage) = usage.as_object_mut() {
+        usage.remove("budget_wait");
+    }
     let mut active: run::ActiveModel = run_row.into();
+    active.usage_json = Set(usage);
     active.next_execution_sequence = Set(sequence);
     active.updated_at = Set(timestamp);
     active.update(db).await?;
@@ -87,13 +92,26 @@ pub async fn create_execution_for_run_lease(
         ));
     }
     let tx = db.begin().await?;
-    budget::reserve_budget_on(&tx, &input).await?;
+    let admission = budget::reserve_budget_on(&tx, &input).await;
     let run_row = run::Entity::find_by_id(input.run_id)
         .lock_exclusive()
         .one(&tx)
         .await?
         .ok_or_else(|| AgentDbError::NotFound("Agent run 不存在".into()))?;
     validate_live_run_lease(&run_row, lease_token, now())?;
+    if let Err(error) = admission {
+        if matches!(error, AgentDbError::BudgetExhausted(_)) {
+            let mut usage = run_row.usage_json.clone();
+            usage["budget_wait"] =
+                serde_json::to_value(budget::BudgetDemand::for_execution(&input)?)
+                    .map_err(|error| AgentDbError::InvalidArgument(error.to_string()))?;
+            let mut active: run::ActiveModel = run_row.into();
+            active.usage_json = Set(usage);
+            active.update(&tx).await?;
+            tx.commit().await?;
+        }
+        return Err(error);
+    }
     let row = create_execution_on(&tx, input, run_row).await?;
     tx.commit().await?;
     Ok(row)

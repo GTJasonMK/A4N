@@ -77,7 +77,6 @@ export interface CanvasWorkflowActionsOptions {
   setPreviewData: React.Dispatch<React.SetStateAction<ModelRequestPreview | null>>;
   setContentPreviewNode: React.Dispatch<React.SetStateAction<StudioNode | null>>;
   refreshCanvasRuntimeResults: (graphId: number) => Promise<void>;
-  load: () => Promise<void>;
   selectCanvasNode: (nodeId: string) => void;
   selectCanvasEdge: (edgeId: string) => void;
   deleteCanvasNode: (node: StudioNode) => void;
@@ -120,7 +119,6 @@ export function useCanvasWorkflowActions({
   setPreviewData,
   setContentPreviewNode,
   refreshCanvasRuntimeResults,
-  load,
   selectCanvasNode,
   selectCanvasEdge,
   deleteCanvasNode,
@@ -368,7 +366,6 @@ export function useCanvasWorkflowActions({
         result.status === "failed" ? "info" : "success",
       );
       await loadWorkflowStatus(result.workflow_run_id);
-      await load();
     } catch (err) {
       addToast(extractErrorMessage(err, t("video.runOnlyNodeError")), "error");
     } finally {
@@ -429,7 +426,6 @@ export function useCanvasWorkflowActions({
         result.status === "failed" ? "info" : "success",
       );
       await loadWorkflowStatus(result.workflow_run_id);
-      await load();
     } catch (err) {
       addToast(extractErrorMessage(err, t("video.runToNodeError")), "error");
     } finally {
@@ -469,7 +465,6 @@ export function useCanvasWorkflowActions({
         result.status === "failed" ? "info" : "success",
       );
       await loadWorkflowStatus(result.workflow_run_id);
-      await load();
     } catch (err) {
       addToast(extractErrorMessage(err, t("video.runCanvasError")), "error");
     } finally {

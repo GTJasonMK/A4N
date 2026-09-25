@@ -5,6 +5,7 @@ use super::*;
 #[test]
 fn context_summary_validation_rejects_oversized_serialized_payload() {
     let summary = AgentContextSummary {
+        schema_version: a4n_agent_runtime_contract::AGENT_CONTEXT_SUMMARY_VERSION,
         current_goal: "goal".into(),
         constraints: vec!["x".repeat(4_000); 64],
         decisions: vec!["x".repeat(4_000); 64],
@@ -54,38 +55,15 @@ fn budget_validation_rejects_zero_limits_and_caps_child_budget() {
         max_delegation_depth: Some(9),
         ..AgentBudget::default()
     };
-    let capped = child_budget_within_parent(
-        child,
-        &parent,
-        &json!({
-            "steps_used": 3,
-            "model_calls_used": 2,
-            "tokens_used": 250
-        }),
-    )
-    .expect("child budget must be capped");
-    assert_eq!(capped.max_steps, Some(7));
-    assert_eq!(capped.max_model_calls, Some(6));
-    assert_eq!(capped.max_tokens, Some(750));
-    assert_eq!(capped.max_delegation_depth, Some(1));
+    let capped = child_budget_for_delegation(child, &parent).expect("child budget must be capped");
+    assert_eq!(capped.max_steps, Some(99));
+    assert_eq!(capped.max_model_calls, Some(99));
+    assert_eq!(capped.max_tokens, Some(9_999));
+    assert_eq!(capped.max_delegation_depth, Some(2));
 
-    let exhausted = child_budget_within_parent(
-        AgentBudget::default(),
-        &AgentBudget {
-            max_steps: Some(3),
-            ..AgentBudget::default()
-        },
-        &json!({"steps_used": 3}),
-    )
-    .expect_err("an exhausted parent budget must not admit another child");
-    assert!(exhausted.to_string().contains("max_steps"));
-    let malformed = child_budget_within_parent(
-        AgentBudget::default(),
-        &AgentBudget::default(),
-        &json!({"steps_used": "3"}),
-    )
-    .expect_err("malformed parent usage must not reset to zero");
-    assert!(malformed.to_string().contains("steps_used"));
+    let inherited = child_budget_for_delegation(AgentBudget::default(), &parent).unwrap();
+    assert_eq!(inherited.max_steps, None);
+    assert_eq!(inherited.max_tokens, None);
 }
 
 #[test]
@@ -245,10 +223,12 @@ fn generic_children_keep_nested_delegation_open_but_domains_do_not() {
 }
 
 #[test]
-fn legacy_editor_source_uses_only_the_bound_chapter_as_fallback() {
-    let value = json!({
+fn editor_source_requires_a_database_id_and_uses_the_current_chapter_number() {
+    let mut value = json!({
         "view_instance_id": "view-1",
         "project_id": 7,
+        "chapter_id": 11,
+        "chapter_number": 99,
         "editor_revision": "revision-1",
         "scene_id": null,
         "shot_id": null,
@@ -256,18 +236,20 @@ fn legacy_editor_source_uses_only_the_bound_chapter_as_fallback() {
         "entity_id": null
     });
 
-    let normalized = normalize_legacy_editor_source(value, Some(11))
-        .expect("legacy editor source should use the bound chapter");
-
-    assert_eq!(normalized["chapter_id"], 11);
-}
-
-#[test]
-fn legacy_editor_source_without_a_bound_chapter_is_rejected() {
-    let error = normalize_legacy_editor_source(json!({}), None)
-        .expect_err("chapter-less legacy editor source must be rejected");
-
-    assert!(error.to_string().contains("线程 scope 未绑定章节"));
+    let scope = AgentScope {
+        project_id: Some(7),
+        chapter_id: Some(11),
+        chapter_number: Some(1),
+        ..AgentScope::default()
+    };
+    let source = parse_persisted_editor_source(value.clone(), "director", &scope).unwrap();
+    assert_eq!(source.chapter_id, 11);
+    assert_eq!(source.chapter_number, Some(1));
+    assert!(parse_persisted_editor_source(value.clone(), "canvas", &scope).is_err());
+    value["chapter_id"] = json!(12);
+    assert!(parse_persisted_editor_source(value.clone(), "director", &scope).is_err());
+    value.as_object_mut().unwrap().remove("chapter_id");
+    assert!(parse_persisted_editor_source(value, "director", &scope).is_err());
 }
 
 #[tokio::test]
@@ -323,6 +305,109 @@ async fn remote_admission_rejects_before_persisting_turn_or_run() {
             .await
             .expect("messages query")
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn completed_model_receipt_replays_after_lease_cleanup_without_another_final() {
+    let database = std::sync::Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let application = AgentApplication::new(DbHandle::new(database.clone()));
+    let thread = application
+        .create_thread(1, CreateAgentThreadInput::default())
+        .await
+        .unwrap();
+    let accepted = application
+        .send_message(
+            1,
+            SendAgentMessageInput {
+                thread_id: thread.id,
+                client_message_id: uuid::Uuid::new_v4().to_string(),
+                content: "仅回复：已完成".into(),
+                ..SendAgentMessageInput::default()
+            },
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+    let claimed = application
+        .claim_worker_run("completion-test")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(claimed.run.id.to_string(), accepted.run_id);
+    let input_message_id = accepted.message_id.parse::<i64>().unwrap();
+    let model = application.create_prepared_execution(WorkerExecutionInput {
+        run_id: claimed.run.id,
+        lease_token: claimed.lease_token.clone(),
+        execution_key: "model-call:1".into(),
+        execution_kind: "model_call".into(),
+        tool_name: None,
+        effect: Some("read".into()),
+        replay_policy: Some("safe".into()),
+        arguments_json: Some(json!({"messages": [{"role": "user", "content": "仅回复：已完成"}], "max_tokens": 32})),
+        resource_preconditions_json: Some(json!({"input_message_id": input_message_id})),
+    }).await.unwrap().unwrap();
+    application.update_worker_execution(WorkerExecutionUpdate {
+        run_id: claimed.run.id,
+        lease_token: claimed.lease_token.clone(),
+        execution_id: model.id,
+        status: "succeeded".into(),
+        result_json: Some(json!({"message": {"role": "assistant", "content": "已完成"}, "finish_reason": "stop", "usage": null})),
+        result_summary: None,
+        result_refs_json: None,
+        error_message: None,
+    }).await.unwrap();
+    let mut request = a4n_worker_contract::AgentWorkerCompletionRequest {
+        run_id: claimed.run.id,
+        lease: a4n_worker_contract::WorkerLease {
+            worker_id: "completion-test".into(),
+            epoch: claimed.run.attempt as u64,
+            fence_token: claimed.lease_token.clone(),
+            expires_at: claimed.run.lease_expires_at.unwrap().to_string(),
+        },
+        content: "已完成".into(),
+        result_summary: "已完成".into(),
+        result_refs_json: None,
+        observed_input_message_id: input_message_id,
+        source_execution_id: model.id,
+    };
+    assert!(
+        application
+            .complete_worker_run_request(&request)
+            .await
+            .unwrap()
+            .completed
+    );
+    let finished = agent::run_by_id(database.as_ref(), claimed.run.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(finished.lease_token.is_none());
+    assert!(
+        application
+            .complete_worker_run_request(&request)
+            .await
+            .unwrap()
+            .completed
+    );
+    let messages = agent::messages_by_run(database.as_ref(), claimed.run.id)
+        .await
+        .unwrap();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.client_message_id.as_deref()
+                == Some(&format!("agent-final:{}", claimed.run.id)))
+            .count(),
+        1
+    );
+    request.content = "不是原模型回复".into();
+    assert!(
+        application
+            .complete_worker_run_request(&request)
+            .await
+            .is_err()
     );
 }
 

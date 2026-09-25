@@ -31,6 +31,7 @@ import {
   providerConfigIdOrSystem,
   requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
+  requireSystemDefaultKeyUpdate,
   systemDefaultProviderConfig,
 } from "../config/shared";
 
@@ -123,13 +124,18 @@ export async function updateVideoConfig(
   input: UpdateVideoConfigInput,
 ): Promise<VideoGenConfig> {
   if (isSystemDefaultVideoConfigId(configId)) {
-    if (!usesLocalRuntimeSettings()) rejectSystemDefaultMutation();
-    updateSystemDefaultVideoApiKey(input.api_key_encrypted);
-    return requiredSystemDefaultVideoConfig(await listServerVideoConfigs());
+    rejectSystemDefaultMutation();
   }
   if (usesLocalRuntimeSettings())
     return updateLocalVideoConfig(videoConfigId(configId), input);
   return updateServerVideoConfig(configId, input);
+}
+
+export async function updateSystemDefaultVideoKey(input: Pick<UpdateVideoConfigInput, "api_key_encrypted">): Promise<VideoGenConfig> {
+  if (!usesLocalRuntimeSettings()) rejectSystemDefaultMutation();
+  requireSystemDefaultKeyUpdate(input);
+  await updateSystemDefaultVideoApiKey(input.api_key_encrypted);
+  return requiredSystemDefaultVideoConfig(await listServerVideoConfigs());
 }
 
 export async function removeServerVideoConfig(configId: Id): Promise<void> {
@@ -141,8 +147,7 @@ export async function removeServerVideoConfig(configId: Id): Promise<void> {
 export async function removeVideoConfig(configId: Id): Promise<void> {
   if (isSystemDefaultVideoConfigId(configId)) rejectSystemDefaultMutation();
   if (usesLocalRuntimeSettings()) {
-    deleteLocalVideoConfig(videoConfigId(configId));
-    return;
+    return deleteLocalVideoConfig(videoConfigId(configId));
   }
   return removeServerVideoConfig(configId);
 }
@@ -156,12 +161,10 @@ export async function setDefaultServerVideoConfig(configId: Id): Promise<void> {
 export async function setDefaultVideoConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings() && isSystemDefaultVideoConfigId(configId)) {
     requiredSystemDefaultVideoConfig(await listServerVideoConfigs());
-    setSystemDefaultVideoConfig();
-    return;
+    return setSystemDefaultVideoConfig();
   }
   if (usesLocalRuntimeSettings()) {
-    setDefaultLocalVideoConfig(videoConfigId(configId));
-    return;
+    return setDefaultLocalVideoConfig(videoConfigId(configId));
   }
   return setDefaultServerVideoConfig(configId);
 }

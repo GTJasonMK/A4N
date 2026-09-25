@@ -24,10 +24,10 @@ export const DEFAULT_LLM_FORM: LlmForm = {
   api_key: "",
   has_api_key: false,
   clear_api_key: false,
-  max_concurrent: 4,
-  timeout_secs: 300,
-  max_context_tokens: DEFAULT_LLM_MAX_CONTEXT_TOKENS,
-  max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+  max_concurrent: "4",
+  timeout_secs: "300",
+  max_context_tokens: String(DEFAULT_LLM_MAX_CONTEXT_TOKENS),
+  max_output_tokens: String(DEFAULT_LLM_MAX_OUTPUT_TOKENS),
   extra_body_text: "",
   pricing: DEFAULT_PRICING_PLAN,
 };
@@ -84,19 +84,23 @@ export function validateLlmForm(form: LlmForm, t: MessageTranslator): string | n
     return t("settingsForm.remoteHttpApiKey");
   }
   if (!form.model.trim()) return t("settingsForm.modelRequired");
-  if (!Number.isInteger(form.max_concurrent) || form.max_concurrent <= 0) {
+  const maxConcurrent = Number(form.max_concurrent);
+  const timeoutSecs = Number(form.timeout_secs);
+  const maxContextTokens = Number(form.max_context_tokens);
+  const maxOutputTokens = Number(form.max_output_tokens);
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent <= 0) {
     return t("settingsForm.concurrencyPositive");
   }
-  if (!Number.isInteger(form.timeout_secs) || form.timeout_secs <= 0) {
+  if (!Number.isInteger(timeoutSecs) || timeoutSecs <= 0) {
     return t("settingsForm.timeoutPositive");
   }
-  if (!Number.isInteger(form.max_context_tokens) || form.max_context_tokens <= 0) {
+  if (!Number.isInteger(maxContextTokens) || maxContextTokens <= 0) {
     return t("settingsForm.contextWindowPositive");
   }
-  if (!Number.isInteger(form.max_output_tokens) || form.max_output_tokens <= 0) {
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
     return t("settingsForm.maxOutputPositive");
   }
-  if (form.max_output_tokens >= form.max_context_tokens) {
+  if (maxOutputTokens >= maxContextTokens) {
     return t("settingsForm.maxOutputLessThanContext");
   }
   if (form.clear_api_key && form.api_key.trim()) {
@@ -135,10 +139,10 @@ export function toLlmItem(raw: LlmConfigSummary): ConfigItem<LlmForm> {
       api_key: "",
       has_api_key: raw.has_api_key,
       clear_api_key: false,
-      max_concurrent: raw.max_concurrent,
-      timeout_secs: raw.timeout_secs,
-      max_context_tokens: raw.max_context_tokens,
-      max_output_tokens: raw.max_output_tokens,
+      max_concurrent: String(raw.max_concurrent),
+      timeout_secs: String(raw.timeout_secs),
+      max_context_tokens: String(raw.max_context_tokens),
+      max_output_tokens: String(raw.max_output_tokens),
       extra_body_text: formatExtraBody(raw.extra_body_json),
       pricing: clonePricingPlan(raw.pricing),
     },
@@ -153,10 +157,10 @@ export function toCreateLlmInput(form: LlmForm, t: MessageTranslator): CreateLlm
     base_url: form.api_base_url,
     api_key_encrypted: form.api_key.trim() ? form.api_key.trim() : undefined,
     model: form.model,
-    max_concurrent: form.max_concurrent,
-    timeout_secs: form.timeout_secs,
-    max_context_tokens: form.max_context_tokens,
-    max_output_tokens: form.max_output_tokens,
+    max_concurrent: Number(form.max_concurrent),
+    timeout_secs: Number(form.timeout_secs),
+    max_context_tokens: Number(form.max_context_tokens),
+    max_output_tokens: Number(form.max_output_tokens),
     extra_body_json: parseExtraBodyText(form.extra_body_text, t),
     pricing: form.pricing,
   };
@@ -171,10 +175,10 @@ export function toUpdateLlmInput(form: LlmForm, t: MessageTranslator): UpdateLlm
     base_url: form.api_base_url,
     api_key_encrypted: form.clear_api_key ? null : apiKey || undefined,
     model: form.model,
-    max_concurrent: form.max_concurrent,
-    timeout_secs: form.timeout_secs,
-    max_context_tokens: form.max_context_tokens,
-    max_output_tokens: form.max_output_tokens,
+    max_concurrent: Number(form.max_concurrent),
+    timeout_secs: Number(form.timeout_secs),
+    max_context_tokens: Number(form.max_context_tokens),
+    max_output_tokens: Number(form.max_output_tokens),
     extra_body_json: parseExtraBodyText(form.extra_body_text, t),
     pricing: form.pricing,
   };

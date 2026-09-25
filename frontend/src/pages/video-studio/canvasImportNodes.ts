@@ -43,14 +43,7 @@ export function importedImageInputNode(
     refType: CANVAS_REF_TYPE_GENERATED_IMAGE,
     refId: image.id,
     state: "ready",
-    config: {
-      title,
-      file_path: image.file_path,
-      generated_image_id: image.id,
-      media_asset_id: asset.id,
-      width: image.width,
-      height: image.height,
-    },
+    config: { title },
   });
 }
 
@@ -67,16 +60,7 @@ export function importedVideoInputNode(
     refType: CANVAS_REF_TYPE_GENERATED_VIDEO,
     refId: video.id,
     state: video.status || "ready",
-    config: {
-      title,
-      file_path: video.file_path,
-      thumbnail_path: video.thumbnail_path,
-      generated_video_id: video.id,
-      media_asset_id: asset.id,
-      width: video.width,
-      height: video.height,
-      duration_secs: video.duration_secs,
-    },
+    config: { title },
   });
 }
 
@@ -92,9 +76,6 @@ export function importedAudioInputNode(
     refType: CANVAS_REF_TYPE_MEDIA_ASSET,
     refId: asset.id,
     state: asset.status || "ready",
-    config: {
-      title,
-      file_path: asset.file_path,
-    },
+    config: { title },
   });
 }

@@ -232,12 +232,15 @@ pub struct AgentEditorSavedView {
     pub editor_revision: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ControlAgentRunInput {
     pub thread_id: String,
     pub action: AgentControlAction,
     pub run_id: String,
+    /// Absolute increased limits for resume; omitted fields retain their caps.
+    #[serde(default)]
+    pub budget: Option<AgentBudget>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -305,6 +308,22 @@ pub struct SearchAgentToolsInput {
 #[serde(deny_unknown_fields)]
 pub struct DescribeAgentToolInput {
     pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RequestAgentInput {
+    #[schemars(length(min = 1, max = 4000))]
+    pub question: String,
+}
+
+impl RequestAgentInput {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.question.trim().is_empty() || self.question.chars().count() > 4000 {
+            return Err("Agent 问题必须为 1—4000 个字符".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

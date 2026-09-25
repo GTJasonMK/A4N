@@ -345,12 +345,15 @@ impl OrchestratorContext {
                 .await?;
             return Err(AppError::Cancelled);
         }
-        let persisted = match host_port.persist_canvas_video_file(CanvasVideoFileInput {
-            project_id: video.project_id,
-            video_id: video.id,
-            bytes: &result.bytes,
-            format: &result.format,
-        }) {
+        let persisted = match host_port
+            .persist_canvas_video_file(CanvasVideoFileInput {
+                project_id: video.project_id,
+                video_id: video.id,
+                bytes: &result.bytes,
+                format: &result.format,
+            })
+            .await
+        {
             Ok(persisted) => persisted,
             Err(error) => {
                 return self
@@ -363,7 +366,7 @@ impl OrchestratorContext {
                 video.id,
                 &persisted.relative_path,
                 None,
-                persisted.file_size,
+                &persisted.properties,
                 Some(json!({
                     "provider": result.metadata,
                     "canvas_video": true,

@@ -92,6 +92,14 @@ mod tests {
 
     #[async_trait]
     impl ProjectPackageTransferHostPort for TestFileHost {
+        async fn rollback_imported_project(
+            &self,
+            _user_id: i64,
+            _project_id: i64,
+        ) -> Result<(), String> {
+            panic!("file-only transfer test must not delete projects");
+        }
+
         fn write_imported_media_file(
             &mut self,
             _relative_path: &str,

@@ -452,6 +452,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         let mut client = ApiClient::new(config_path, stored, None).unwrap();
 
@@ -496,6 +497,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         stored.save(&config_path).unwrap();
         let mut stale = ApiClient::new(config_path.clone(), stored.clone(), None).unwrap();
@@ -524,6 +526,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         stored.save(&config_path).unwrap();
         let mut client =
@@ -580,6 +583,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         stored.save(&config_path).unwrap();
         let mut client = ApiClient::new(config_path.clone(), stored, None).unwrap();
@@ -674,6 +678,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         stored.save(&config_path).unwrap();
         let mut first_client = ApiClient::new(
@@ -735,6 +740,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         stored.save(&config_path).unwrap();
         let mut client = ApiClient::new(config_path.clone(), stored, None).unwrap();
@@ -760,6 +766,7 @@ mod tests {
             ui_session_id: None,
             ui_session_token: None,
             runtime_config_snapshot: None,
+            pending_oauth: None,
         };
         stored.save(&config_path).unwrap();
         let mut client = ApiClient::new(config_path.clone(), stored, None).unwrap();

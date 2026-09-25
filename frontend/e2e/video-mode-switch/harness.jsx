@@ -8,6 +8,7 @@ import {
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
 import { PromptDialogHost } from "../../src/components/feedback/PromptDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
+import { ImageLightboxProvider } from "../../src/components/ui/ImageLightbox";
 import { ProgressTaskProvider } from "../../src/hooks/useProgressTask";
 import { VideoTab } from "../../src/pages/novel-detail/VideoTab";
 import { videoSegmentRecipeFrameFingerprintJson, videoSegmentRecipeGenerationFingerprintJson } from "../../src/pages/novel-detail/video/videoSegmentPlan";
@@ -1192,16 +1193,18 @@ createRoot(document.getElementById("root")).render(
         <ToastContainer />
         <ConfirmDialogHost />
         <PromptDialogHost />
-        <VideoTab
-          projectId={projectId}
-          fixedChapter={{
-            id: chapterId,
-            chapter_number: 1,
-            title: "第一章",
-            content,
-            status: "completed",
-          }}
-        />
+        <ImageLightboxProvider>
+          <VideoTab
+            projectId={projectId}
+            fixedChapter={{
+              id: chapterId,
+              chapter_number: 1,
+              title: "第一章",
+              content,
+              status: "completed",
+            }}
+          />
+        </ImageLightboxProvider>
       </div>
     </ProgressTaskProvider>
   </I18nProvider>,

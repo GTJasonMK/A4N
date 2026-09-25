@@ -117,6 +117,13 @@ impl RuntimeAgentToolExecutor {
                 serde_json::to_value(self.state.read_agent_memory(claimed, input).await?)
                     .map_err(AppError::from)
             }
+            "read_agent_history" => {
+                let input = parse_arguments::<a4n_api_contract::agent::ReadAgentHistoryInput>(
+                    arguments, name,
+                )?;
+                serde_json::to_value(self.state.read_agent_history(claimed, input).await?)
+                    .map_err(AppError::from)
+            }
             "read_agent_execution_result" => {
                 let input = parse_arguments::<
                     a4n_api_contract::agent::ReadAgentExecutionResultInput,
@@ -206,7 +213,10 @@ pub fn ensure_argument_scope(
     // command such as create_project from a bound scope.
     if (scope.project_id.is_some() || scope.chapter_id.is_some() || scope.resource_kind.is_some())
         && a4n_api_contract::agent::synthetic_agent_tool_descriptor(&descriptor.name).is_none()
-        && !matches!(descriptor.name.as_str(), "web_search" | "web_fetch")
+        && !matches!(
+            descriptor.name.as_str(),
+            "web_search" | "web_fetch" | "review_agent_delegation"
+        )
         && project_ids.is_empty()
         && chapter_ids.is_empty()
     {
@@ -348,8 +358,11 @@ pub fn ensure_chapter_scope(scope: &AgentScope, chapter_id: i64) -> Result<(), A
     }
     if scope.chapter_id.is_some_and(|scoped| scoped != chapter_id) {
         return Err(AppError::Forbidden(format!(
-            "Agent scope 仅允许章节 {}，不能访问章节 {chapter_id}",
-            scope.chapter_id.expect("checked Some")
+            "Agent scope 仅允许 chapter_id={}（第{}章），不能访问 chapter_id={chapter_id}",
+            scope.chapter_id.expect("checked Some"),
+            scope
+                .chapter_number
+                .map_or_else(|| "业务序号未知".to_string(), |number| format!("{number}"))
         )));
     }
     Ok(())
@@ -432,7 +445,7 @@ pub fn tool_result_refs(
     value: &Value,
 ) -> Result<Vec<a4n_api_contract::agent::AgentResourceRef>, AppError> {
     use a4n_api_contract::agent::AgentResourceRef;
-    if value.get("error").is_some() {
+    if observation::error_value(value).is_some() {
         return Ok(Vec::new());
     }
     let mut refs = Vec::new();

@@ -79,6 +79,37 @@ impl CanvasNodeRefKind {
     }
 }
 
+pub const CANVAS_MEDIA_INPUT_REF_TYPES: [(&str, CanvasNodeRefKind); 3] = [
+    ("ImageInputNode", CanvasNodeRefKind::GeneratedImage),
+    ("VideoInputNode", CanvasNodeRefKind::GeneratedVideo),
+    ("AudioInputNode", CanvasNodeRefKind::MediaAsset),
+];
+
+// These are projections of the referenced resource, never authored input parameters.
+pub const CANVAS_MEDIA_INPUT_METADATA_KEYS: [&str; 14] = [
+    "generated_image_id",
+    "generated_video_id",
+    "media_asset_id",
+    "file_path",
+    "thumbnail_path",
+    "width",
+    "height",
+    "duration_secs",
+    "fps",
+    "file_size",
+    "status",
+    "error_message",
+    "output",
+    "canvas_runtime_result",
+];
+
+pub fn canvas_media_input_ref_kind(node_kind: &str) -> Option<CanvasNodeRefKind> {
+    CANVAS_MEDIA_INPUT_REF_TYPES
+        .iter()
+        .find(|(kind, _)| *kind == node_kind)
+        .map(|(_, ref_kind)| *ref_kind)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CanvasFrameKind {

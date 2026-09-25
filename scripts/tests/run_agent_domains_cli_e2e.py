@@ -7,12 +7,13 @@ import json
 import os
 import tempfile
 import time
+import traceback
 import uuid
 from pathlib import Path
 
 from run_agent_cli_e2e import data, run_view, thread_snapshot, wait_for_run
 from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json, start_provider
-from specialized_agent_fixture import MARKER
+from specialized_agent_fixture import MARKER, observation_data
 
 
 def main():
@@ -116,9 +117,10 @@ def main():
             run, completed = finish(thread_id, run_id)
             executions = [row for row in completed["executions"] if row["run_id"] == run_id]
             assert run["status"] == "completed"
-            assert [row["tool_name"] for row in executions if row["status"] == "succeeded"] == [
+            assert [row["tool_name"] for row in executions if row["kind"] == "tool_call" and row["status"] == "succeeded"] == [
                 "inspect_project_context",
                 "read_project_context",
+                "read_agent_execution_result",
                 "edit_article",
             ]
             assert data(checked(cli, ["chapter", "get", str(chapter["id"])], "unchanged chapter")[0], "chapter")["content"] == original
@@ -133,15 +135,18 @@ def main():
             video = call("create_freeform_video_project", {"title": "Canvas 局部验证", "description": "isolated fixture"})
             checked(cli, ["context", "set", "--project-id", str(video["id"])], "canvas context")
             nodes = [{"client_id": str(i), "node_kind": "LlmTextNode", "ref_type": None, "ref_id": None,
-                      "config_json": {"prompt": "原提示词"}, "position_json": {"x": i * 200, "y": 0}, "state": "idle"} for i in range(3)]
+                      "config_json": {"instruction": "原指令", "output_kind": "shot_script"}, "position_json": {"x": i * 200, "y": 0}, "state": "idle"} for i in range(3)]
+            nodes[0]["node_kind"] = "TextInputNode"
+            nodes[0]["config_json"] = {"content": "A4N_AGENT_CANVAS_INPUT 雨夜的钟楼。"}
             edges = [{"source_client_id": "0", "target_client_id": "1", "source_port": "text", "target_port": "input", "role": "context", "config_json": {}}]
+            edges.append({**edges[0], "target_client_id": "2"})
             graph = call("save_canvas_graph", {"project_id": video["id"], "expected_version": None,
                          "graph": {"id": None, "name": "局部测试图", "graph_kind": "video_studio", "viewport_json": None, "nodes": nodes, "edges": edges}})
             resource = {"project_id": video["id"], "graph_id": graph["graph"]["id"]}
             index = call("read_canvas_graph", {**resource, "limit": 2})
             assert index["projection"]["total"] == 3 and index["projection"]["next_offset"] == 2
             canvas_thread = data(checked(cli, ["agent", "thread", "create", "--kind", "subagent", "--capability", "canvas", "--project-id", str(video["id"]), "--resource-kind", "project", "--resource-id", str(video["id"])], "canvas thread")[0], "thread")
-            canvas_task = {"mode": "canvas_edit", **resource, "node_id": graph["nodes"][2]["id"], "config": {"prompt": "仅修改这一节点"}, "run": True}
+            canvas_task = {"mode": "canvas_edit", **resource, "node_id": graph["nodes"][2]["id"], "config": {"instruction": "转为镜头描述", "output_kind": "shot_script"}, "run": True}
             canvas_run = send(canvas_thread["id"], MARKER + json.dumps(canvas_task, ensure_ascii=False))
             approval = wait_state(canvas_thread["id"], canvas_run, "approval")
             pending_approval = next(row for row in approval["approvals"] if row["status"] == "pending")
@@ -153,18 +158,26 @@ def main():
             assert run_execution["status"] == "succeeded" and any(ref["kind"] == "workflow_run" for ref in run_execution["result_refs"])
             assert wait_execution["status"] == "succeeded"
             wait_result = next(
-                row["metadata"]["result"]
+                observation_data(row)
                 for row in canvas_completed["messages"]
                 if row["run_id"] == canvas_run
                 and row["role"] == "tool"
                 and row["metadata"]["tool"] == "wait_workflow_run"
             )
-            assert wait_result["run"]["status"] in {"completed", "failed", "cancelled", "stopped"}
+            assert wait_result["run"]["status"] == "completed"
             changed = call("get_canvas_graph", resource)
-            assert changed["nodes"][:2] == graph["nodes"][:2] and changed["edges"] == graph["edges"]
+            secure_json(args.report.parent / "canvas-before-after.json", {"before": graph, "after": changed})
+            assert changed["nodes"][:2] == graph["nodes"][:2], {"before": graph["nodes"][:2], "after": changed["nodes"][:2]}
+            assert changed["edges"] == graph["edges"], {"before": graph["edges"], "after": changed["edges"]}
             assert [row["id"] for row in changed["nodes"]] == [row["id"] for row in graph["nodes"]]
-            assert changed["nodes"][2]["config_json"] == canvas_task["config"]
-            rejected_task = {**canvas_task, "config": {"prompt": "用户拒绝的执行"}}
+            target = changed["nodes"][2]
+            artifact = next(row["artifacts_json"] for row in wait_result["checkpoints"]
+                            if row["step_key"] == f"canvas_node:{canvas_task['node_id']}")
+            assert target["config_json"] == {**canvas_task["config"], **artifact}, target
+            assert target["state"] == "completed" and target["ref_type"] == "prompt_artifact", target
+            assert target["ref_id"] == artifact["prompt_artifact_id"] and target["position_json"] == graph["nodes"][2]["position_json"], target
+            assert artifact["text"] == "镜头：雨水沿钟楼的窗棂滑落。", artifact
+            rejected_task = {**canvas_task, "config": {"instruction": "用户拒绝的执行"}}
             rejected_run = send(canvas_thread["id"], MARKER + json.dumps(rejected_task, ensure_ascii=False))
             rejected_approval = wait_state(canvas_thread["id"], rejected_run, "approval")
             rejected_pending = next(row for row in rejected_approval["approvals"] if row["status"] == "pending")
@@ -175,12 +188,12 @@ def main():
             assert call("get_canvas_graph", resource) == changed
             report["checks"].append("rejecting a Canvas write leaves graph state and workflow untouched")
             version = changed["graph"]["version"]
-            edit = {**resource, "expected_version": version, "operations": [{"kind": "set_node_config", "node_id": canvas_task["node_id"], "config_json": canvas_task["config"]}]}
+            edit = {**resource, "expected_version": version, "operations": [{"kind": "set_node_config", "node_id": canvas_task["node_id"], "config_json": target["config_json"]}]}
             noop = call("edit_canvas_graph", edit)
             assert noop["changed"] is False and int(noop["resource"]["revision"]) == version
             call("edit_canvas_graph", {**edit, "expected_version": version - 1}, failure=True)
             invalid = copy.deepcopy(edit)
-            invalid["operations"][0]["config_json"] = {"prompt": "不得保存的半成品"}
+            invalid["operations"][0]["config_json"] = {"instruction": "不得保存的半成品"}
             invalid["operations"].append({"kind": "connect", "edge": {**edges[0], "source_client_id": str(graph["nodes"][0]["id"]), "target_client_id": str(graph["nodes"][2]["id"]), "source_port": "invalid"}})
             call("edit_canvas_graph", invalid, failure=True)
             assert call("get_canvas_graph", resource) == changed
@@ -189,6 +202,7 @@ def main():
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration) as error:
         report["error"] = f"{type(error).__name__}: {error}"
+        report["traceback"] = traceback.format_exc()
     finally:
         if provider:
             provider.stop()

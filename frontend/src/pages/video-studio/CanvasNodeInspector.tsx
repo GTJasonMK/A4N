@@ -12,6 +12,7 @@ import {
   CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT,
 } from "../../api/canvas";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { ZoomableImage } from "../../components/ui/ImageLightbox";
 import { ImageSizeSelect } from "../../components/image/ImageSizeSelect";
 import { useI18n } from "../../i18n";
 import {
@@ -88,7 +89,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   return (
     <div className="space-y-3 text-xs">
       {previewSrc ? (
-        <img
+        <ZoomableImage
           src={previewSrc}
           alt=""
           className="max-h-44 w-full rounded-2xl border border-book-border/55 bg-book-bg-tertiary object-contain"

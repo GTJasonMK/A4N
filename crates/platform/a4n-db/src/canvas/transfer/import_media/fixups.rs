@@ -12,7 +12,7 @@ use a4n_db_models::models::{
 use sea_orm::sea_query::{Alias, CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
-pub(in crate::canvas::transfer) async fn update_imported_canvas_node_refs<C>(
+pub(crate) async fn update_imported_canvas_node_refs<C>(
     db: &C,
     rows: &VideoStudioProjectImportRows,
     maps: &VideoStudioProjectImportIdMaps,
@@ -78,7 +78,7 @@ where
     Ok(())
 }
 
-pub(in crate::canvas::transfer) async fn update_imported_media_metadata<C>(
+pub(crate) async fn update_imported_media_metadata<C>(
     db: &C,
     rows: &VideoStudioProjectImportRows,
     maps: &VideoStudioProjectImportIdMaps,

@@ -18,7 +18,11 @@ pub(super) fn validate_stage_output_object(
     path: &str,
 ) -> Result<(), String> {
     validate_regenerate_shooting_script_projection_stage_output(
-        object, owner_kind, owner_id, path,
+        object,
+        context.expected_chapter_number,
+        owner_kind,
+        owner_id,
+        path,
     )?;
     validate_regenerate_scene_single_scene_line_stage_output(object, owner_kind, owner_id, path)?;
     validate_regenerate_scene_visual_planning_stage_output(object, owner_kind, owner_id, path)?;

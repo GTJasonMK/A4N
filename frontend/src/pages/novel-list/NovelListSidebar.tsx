@@ -4,6 +4,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { ParticleLogoWithSubtitle } from "./ParticleLogoWithSubtitle";
 import type { Quote } from "./novelListUtils";
 import { useI18n } from "../../i18n";
+import { usePackagePreferences } from "../../store/packagePreferences";
 
 interface NovelListSidebarProps {
   quote: Quote;
@@ -19,6 +20,7 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
   onImportProject,
 }) => {
   const { t } = useI18n();
+  const { isVisible } = usePackagePreferences();
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches,
   );
@@ -34,13 +36,14 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
   if (!isDesktop) return null;
 
   return (
-  <aside className="a4n-home-sidebar flex shrink-0 flex-col overflow-hidden border-b border-book-border/40 bg-book-bg-paper/70 backdrop-blur-xl md:w-[min(31vw,360px)] md:min-w-[288px] md:max-w-[360px] md:border-b-0 md:border-r">
-    <div className="flex flex-col px-4 py-2.5 sm:px-5 sm:py-3.5 md:flex-1 md:overflow-y-auto md:px-6 md:py-6 lg:px-7 custom-scrollbar">
-      <div className="mb-4 flex justify-end">
+  <aside className="a4n-home-sidebar">
+    <div className="a4n-home-sidebar__body custom-scrollbar">
+      <div className="flex items-center justify-between gap-2">
+        <span className="a4n-home-wordmark">A4N</span>
         <button
           type="button"
           onClick={onOpenSettings}
-          className="pyqt-btn-secondary !min-h-9 px-3.5 text-sm"
+          className="a4n-btn-ghost min-h-9 px-2 text-sm"
         >
           <SettingsIcon size={14} className="mr-1" />
           {t("novel.settings")}
@@ -48,25 +51,16 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
       </div>
 
       {/* Logo 粒子效果（现网 canvas，勿替换为纯文字） */}
-      <div className="mb-2 flex justify-center sm:mb-3 md:mb-6">
-        <div className="w-full max-w-[250px] sm:max-w-[280px] md:max-w-none">
-          <ParticleLogoWithSubtitle />
-        </div>
+      <div className="a4n-home-logo">
+        <ParticleLogoWithSubtitle />
       </div>
 
-      <figure className="a4n-home-quote hidden rounded-2xl bg-book-primary/[0.06] px-4 py-3.5 md:block">
-        <p className="text-body-lg text-book-text-main font-serif italic leading-relaxed">
-          {quote.zh}
-        </p>
-        <p className="mt-1.5 hidden text-xs text-book-text-muted leading-relaxed sm:block">{quote.en}</p>
-      </figure>
-
-      <div className="mt-8 flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-3">
         <BookButton
           variant="primary"
           size="lg"
           onClick={onCreateProject}
-          className="w-full justify-center !min-h-11 !px-4 !text-base"
+          className="w-full justify-center"
         >
           <span className="inline-flex items-center gap-2">
             <Plus size={17} />
@@ -74,23 +68,25 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
           </span>
         </BookButton>
 
-        <BookButton
+        {isVisible("external-import") ? <BookButton
           variant="secondary"
           size="lg"
           onClick={onImportProject}
           aria-label={t("novel.importProjectButton")}
           title={t("novel.importProjectButton")}
-          className="w-full justify-center !min-h-11 !px-4 !text-body-lg"
+          className="w-full justify-center"
         >
           <span className="inline-flex items-center gap-2">
             <Upload size={17} />
-            <span className="hidden sm:inline">{t("novel.importProjectButton")}</span>
+            {t("novel.importProjectButton")}
           </span>
-        </BookButton>
-
+        </BookButton> : null}
       </div>
 
-      <div className="flex-1" />
+      <figure className="a4n-home-quote">
+        <blockquote className="font-serif text-lg leading-relaxed">{quote.zh}</blockquote>
+        <figcaption className="mt-3 text-small leading-relaxed text-book-text-muted">{quote.en}</figcaption>
+      </figure>
     </div>
   </aside>
   );

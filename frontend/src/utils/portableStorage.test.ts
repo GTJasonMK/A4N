@@ -48,7 +48,7 @@ it("observes credential rotation and removal from another browser tab", async ()
   vi.spyOn(localStorage, "setItem").mockImplementation(() => {
     throw new Error("storage unavailable");
   });
-  expect(() => api.writePortableItem(key, "not-persisted")).toThrow("storage unavailable");
+  await expect(api.writePortableItem(key, "not-persisted")).rejects.toThrow("storage unavailable");
   expect(api.readPortableItem(key)).toBeNull();
 });
 
@@ -62,10 +62,31 @@ it("keeps desktop storage owned by the native backend", async () => {
   const api = await import("./portableStorage");
   await api.initializePortableStorage();
   expect(api.readPortableItem("a4n:current_refresh_token")).toBe("native-token");
-  api.writePortableItem("a4n:current_refresh_token", "rotated-native-token");
-  await api.flushPortableStorage();
+  await api.writePortableItem("a4n:current_refresh_token", "rotated-native-token");
   expect(mocks.invoke).toHaveBeenCalledWith("set_frontend_state_many", {
     entries: { "a4n:current_refresh_token": "rotated-native-token" },
   });
   expect(window.localStorage.getItem("a4n:current_refresh_token")).toBeNull();
+});
+
+it("publishes only committed desktop writes and never replays a failed save", async () => {
+  mocks.isTauriRuntime.mockReturnValue(true);
+  mocks.invoke.mockResolvedValueOnce({ "a4n:settings": "saved" });
+  vi.stubGlobal("window", { localStorage: storage(), sessionStorage: storage() });
+  const api = await import("./portableStorage");
+  await api.initializePortableStorage();
+  let rejectWrite!: (error: Error) => void;
+  mocks.invoke.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectWrite = reject; }));
+  const failedWrite = api.writePortableItem("a4n:settings", "not-saved");
+  const rejected = expect(failedWrite).rejects.toThrow("read-only");
+  await vi.waitFor(() => expect(rejectWrite).toBeTypeOf("function"));
+  expect(api.readPortableItem("a4n:settings")).toBe("saved");
+  rejectWrite(new Error("read-only"));
+  await rejected;
+  expect(api.readPortableItem("a4n:settings")).toBe("saved");
+  mocks.invoke.mockResolvedValueOnce(undefined);
+  await api.writePortableItems({ "a4n:other": "new" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("set_frontend_state_many", { entries: { "a4n:other": "new" } });
+  expect(api.readPortableItem("a4n:settings")).toBe("saved");
+  expect(api.readPortableItem("a4n:other")).toBe("new");
 });

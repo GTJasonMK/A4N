@@ -58,12 +58,12 @@ mod queries;
 pub use queries::{
     active_runs_by_thread, approval_by_id, approvals_by_thread, create_thread,
     default_thread_by_owner, delegation_by_id, delegation_by_parent_and_key, delegations_by_thread,
-    executions_by_runs, inbox_by_thread, list_threads_by_owner, message_by_id, messages_by_run,
-    messages_by_thread, run_by_id, runs_by_thread, thread_by_canonical_binding, thread_by_id,
-    turns_by_thread,
+    executions_by_runs, inbox_by_thread, list_threads_by_owner, message_by_id, messages_before,
+    messages_by_run, messages_by_thread, messages_for_context, run_by_id, runs_by_thread,
+    thread_by_canonical_binding, thread_by_id, turns_by_thread,
 };
 mod recovery;
-pub use recovery::{cancel_run_tree, expired_running_runs, recover_expired_run};
+pub use recovery::{cancel_run_tree, expired_running_runs, pause_run_tree, recover_expired_run};
 mod runs;
 pub use runs::{
     claim_editor_execution, claim_runnable_run, expire_editor_requests, fail_run_for_lease,
@@ -84,10 +84,12 @@ pub use turns_events::{
 pub(crate) use turns_events::{append_event_on, append_run_event_on, create_turn_with_run_on};
 mod review;
 pub use review::review_delegation;
+mod completion;
+pub use completion::{completion_blockers, request_user_input};
 mod task_wait;
 pub use task_wait::{external_task_wait, list_external_task_waits, wake_external_task_wait};
 mod budget;
-pub use budget::{AgentBudgetSnapshot, run_budget_snapshot};
+pub use budget::{AgentBudgetSnapshot, resume_run, run_budget_snapshot};
 mod generation;
 pub use generation::{
     AgentOwnedTask, AgentTaskExecutionInput, active_owned_generation_tasks, create_task_execution,
@@ -103,6 +105,8 @@ const AGENT_SKILL_PROFILE_KEY_PREFIX: &str = "agent_skill_profile:";
 
 #[derive(Debug, thiserror::Error)]
 pub enum AgentDbError {
+    #[error("Agent 尚有未完成事项: {0:?}")]
+    CompletionBlocked(Vec<a4n_domain::agent::AgentCompletionBlocker>),
     #[error("Agent 共享预算已耗尽: {0}")]
     BudgetExhausted(String),
     #[error("{0}")]
@@ -140,6 +144,14 @@ pub struct AgentChildCompletionInput {
     pub result_refs_json: Option<Value>,
     pub result_summary: String,
     pub observed_input_message_id: i64,
+}
+
+pub struct AgentQuestionInput {
+    pub run_id: i64,
+    pub lease_token: String,
+    pub execution_id: i64,
+    pub question: String,
+    pub observation: Value,
 }
 
 #[derive(Debug, Clone)]
@@ -309,6 +321,7 @@ enum ExecutionTermination {
     Failed,
     Cancelled,
     RecoveryRequired,
+    Paused,
 }
 
 /// Closes every non-terminal execution owned by a run while the run's
@@ -341,8 +354,24 @@ where
         .await?;
     for row in rows {
         let status = match termination {
+            ExecutionTermination::Paused => match row.status.as_str() {
+                "dispatching" | "running" if row.execution_kind == "model_call" => "failed",
+                "dispatching" | "running"
+                    if row.effect.as_deref() != Some("read")
+                        && !matches!(row.replay_policy.as_deref(), Some("safe" | "idempotent")) =>
+                {
+                    "outcome_unknown"
+                }
+                _ => continue,
+            },
             ExecutionTermination::Cancelled => match row.status.as_str() {
                 "prepared" | "awaiting_user" => "cancelled",
+                "dispatching" | "running"
+                    if row.execution_kind == "model_call"
+                        || row.effect.as_deref() == Some("read") =>
+                {
+                    "cancelled"
+                }
                 "dispatching" | "running" => "outcome_unknown",
                 _ => continue,
             },

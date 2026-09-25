@@ -14,8 +14,8 @@ import { VideoDurationOptionsPicker } from "./VideoDurationOptionsPicker";
 import { VideoSegmentPlanEditor } from "./VideoSegmentPlanEditor";
 import {
   promptOutputLanguageLabel,
+  VIDEO_ASPECT_RATIOS,
   type VideoDurationLimits,
-  type VideoAspectRatio,
   type VideoGenOptions,
 } from "./videoTabConstants";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
@@ -31,8 +31,6 @@ interface VideoPlanningWorkspaceProps {
   dataReady: boolean;
   acting: string | null;
   shootingScenes: ShootingSceneV1[];
-  supportedAspectRatios: readonly VideoAspectRatio[];
-  aspectRatioLoading: boolean;
   onGenerate: (
     targetNarrativeUnitIndex: number,
     regenerateExisting: boolean,
@@ -145,8 +143,6 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   dataReady,
   acting,
   shootingScenes,
-  supportedAspectRatios,
-  aspectRatioLoading,
   onGenerate,
   onOptionsChange,
   onRetryLoad,
@@ -154,7 +150,6 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   onSavePlan,
 }) => {
   const { locale, t } = useI18n();
-  const aspectRatioAvailable = supportedAspectRatios.includes(options.aspectRatio);
   const persistedSegments = useMemo(
     () =>
       asArray(asJsonRecord(prompt?.metadata_json)?.segments)
@@ -310,7 +305,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               </BookButton>
               {editingPlan ? (
                 <BookButton
-                  variant="secondary"
+                  variant="primary"
                   size="md"
                   onClick={() => void savePlanEdit()}
                   disabled={busy || loading || savingPlan || !planDirty}
@@ -347,7 +342,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
             )}
           </ThemedSelect>
           <BookButton
-            variant="primary"
+            variant={canEditPlan ? "secondary" : "primary"}
             size="md"
             onClick={() =>
               void (needsLoadRetry
@@ -361,9 +356,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               loading ||
               editingPlan ||
               selectedUnitIndex == null ||
-              (!dataReady && !needsLoadRetry) ||
-              aspectRatioLoading ||
-              !aspectRatioAvailable
+              (!dataReady && !needsLoadRetry)
             }
           >
             {busy || loading ? <LoadingSpinner size="sm" /> : selectedScenePlanned || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
@@ -406,15 +399,10 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                       ...previous,
                       aspectRatio: selectedValue as VideoGenOptions["aspectRatio"],
                     }))}
-                    disabled={busy || aspectRatioLoading || supportedAspectRatios.length === 0}
+                    disabled={busy}
                     className="pyqt-input !px-2 !py-1.5"
                   >
-                    {!aspectRatioAvailable && (
-                      <option value={options.aspectRatio} disabled>
-                        {options.aspectRatio} · {t("video.chapter.unsupportedAspectRatio")}
-                      </option>
-                    )}
-                    {supportedAspectRatios.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+                    {VIDEO_ASPECT_RATIOS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
                   </ThemedSelect>
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">

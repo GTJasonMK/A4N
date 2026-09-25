@@ -2,6 +2,8 @@ use super::generation_tasks::GenerationStartRequestMeta;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use a4n_domain::inspiration::InspirationResponse;
+
 /// Start one inspiration conversation turn through the canonical generation path.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

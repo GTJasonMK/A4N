@@ -18,6 +18,7 @@ const WORKFLOW_STATUS_KEYS: Record<string, MessageKey> = {
   running: "workflow.runningStatus",
   completed: "workflow.success",
   success: "workflow.successStatus",
+  succeeded: "workflow.successStatus",
   failed: "workflow.failed",
   error: "workflow.error",
   interrupted: "workflow.interrupted",

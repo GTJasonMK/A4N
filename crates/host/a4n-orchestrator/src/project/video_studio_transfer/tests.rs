@@ -61,6 +61,14 @@ impl TestVideoStudioTransferHost {
 
 #[async_trait]
 impl ProjectPackageTransferHostPort for TestVideoStudioTransferHost {
+    async fn rollback_imported_project(
+        &self,
+        _user_id: i64,
+        _project_id: i64,
+    ) -> Result<(), String> {
+        panic!("standalone canvas import must roll back its transaction");
+    }
+
     async fn render_export_package(
         &self,
         input: ProjectPackageExportInput,

@@ -1,21 +1,20 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useI18n } from "../../i18n";
 
 /**
  * 智能返回 hook。
  *
- *   - 如果用户来自项目内导航（history.key !== "default"），调用 navigate(-1) 回上一页
+ *   - 有站内历史时调用 navigate(-1) 回上一页；replace 也会生成 key，不能据此判断
  *   - 如果是直接进入（刷新 / 外部链接），跳转到默认目标
  *
  * 返回点击处理函数，由按钮或页面自定义流程复用。
  */
 export const useSmartBack = (defaultTarget: string = "/") => {
   const navigate = useNavigate();
-  const location = useLocation();
   return () => {
-    if (location.key !== "default") {
+    if (typeof window.history.state?.idx === "number" && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       navigate(defaultTarget);

@@ -21,13 +21,13 @@ export const DEFAULT_VIDEO_FORM: VideoForm = {
   has_api_key: false,
   clear_api_key: false,
   size: "1280x720",
-  duration_secs: 6,
-  min_duration_secs: 1,
-  max_duration_secs: 60,
+  duration_secs: "6",
+  min_duration_secs: "1",
+  max_duration_secs: "60",
   duration_mode: "range",
   supported_durations_text: "",
-  fps: 24,
-  max_concurrent: 1,
+  fps: "24",
+  max_concurrent: "1",
   pricing: DEFAULT_PRICING_PLAN,
 };
 
@@ -90,16 +90,16 @@ export function toVideoItem(raw: VideoGenConfig): ConfigItem<VideoForm> {
       has_api_key: raw.has_api_key,
       clear_api_key: false,
       size: `${raw.default_width}x${raw.default_height}`,
-      duration_secs: raw.default_duration_secs,
-      min_duration_secs: raw.min_duration_secs,
-      max_duration_secs: raw.max_duration_secs,
+      duration_secs: String(raw.default_duration_secs),
+      min_duration_secs: String(raw.min_duration_secs),
+      max_duration_secs: String(raw.max_duration_secs),
       duration_mode: raw.duration_mode,
       supported_durations_text:
         raw.duration_mode === "fixed"
           ? raw.supported_durations_json.join(", ")
           : "",
-      fps: raw.default_fps,
-      max_concurrent: raw.max_concurrent,
+      fps: String(raw.default_fps),
+      max_concurrent: String(raw.max_concurrent),
       pricing: clonePricingPlan(raw.pricing),
     },
   };
@@ -237,25 +237,26 @@ function parseVideoSize(value: string, t: Translate): { width: number; height: n
   return { width, height };
 }
 
-function ensureIntRange(value: number, label: string, min: number, max: number, t: Translate): number {
+function ensureIntRange(value: string, label: string, min: number, max: number, t: Translate): number {
   const error = intRangeError(value, label, min, max, t);
   if (error) throw new Error(error);
-  return value;
+  return Number(value);
 }
 
 function ensureIntRangeOrNull(
-  value: number,
+  value: string,
   label: string,
   min: number,
   max: number,
   t: Translate,
 ): number | string {
   const error = intRangeError(value, label, min, max, t);
-  return error ?? value;
+  return error ?? Number(value);
 }
 
-function intRangeError(value: number, label: string, min: number, max: number, t: Translate): string | null {
-  if (!Number.isInteger(value) || value < min || value > max) {
+function intRangeError(value: string, label: string, min: number, max: number, t: Translate): string | null {
+  const number = Number(value);
+  if (!value.trim() || !Number.isInteger(number) || number < min || number > max) {
     return t("settingsForm.rangeInvalid", { label, min, max });
   }
   return null;

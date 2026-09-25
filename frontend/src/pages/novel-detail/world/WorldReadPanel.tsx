@@ -10,6 +10,7 @@ interface WorldReadPanelProps {
   normalizedWorld: unknown;
   worldObject: WorldObject | null;
   onCreateBlueprint?: () => void;
+  onOpenDetail: () => void;
 }
 
 export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
@@ -18,6 +19,7 @@ export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
   normalizedWorld,
   worldObject,
   onCreateBlueprint,
+  onOpenDetail,
 }) => {
   const { t } = useI18n();
   if (!hasBlueprint) {
@@ -33,7 +35,7 @@ export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
   }
 
   if (worldObject && hasWorldContent) {
-    return <WorldSummaryView obj={worldObject} />;
+    return <WorldSummaryView obj={worldObject} onOpenDetail={onOpenDetail} />;
   }
 
   if (hasTextWorldValue(normalizedWorld)) {

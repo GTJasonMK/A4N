@@ -22,6 +22,8 @@ pub enum ProjectFamilyImportError {
     InvalidPackage(String),
     #[error(transparent)]
     MediaImport(#[from] ProjectFamilyMediaImportError),
+    #[error(transparent)]
+    CanvasImport(#[from] crate::canvas::VideoStudioProjectImportError),
 }
 
 impl ProjectFamilyImportError {

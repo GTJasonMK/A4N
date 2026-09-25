@@ -61,7 +61,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
         />
       </FormField>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField label={t("settingsForm.imageProvider")}>
           <ThemedSelect
             value={form.provider}
@@ -138,28 +138,26 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
         />
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField
-          label={t("settingsForm.supportedSizes")}
-          hint={t("settingsForm.supportedSizesHint")}
-        >
+      <fieldset className="min-w-0">
+        <legend className="mb-2 text-xs font-semibold text-book-text-sub">{t("settingsForm.supportedSizes")}</legend>
           <div className="space-y-2">
             {form.supported_sizes.map((size, index) => (
               <div
-                key={`${index}-${size.width}-${size.height}`}
+                key={index}
                 className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2"
               >
                 <BookInput
+                  label={t("settingsForm.width")}
                   type="number"
                   min={1}
-                  value={String(size.width)}
+                  value={size.width}
                   aria-label={`${t("settingsForm.width")} ${index + 1}`}
                   onChange={(event) =>
                     setForm({
                       ...form,
                       supported_sizes: form.supported_sizes.map((item, itemIndex) =>
                         itemIndex === index
-                          ? { ...item, width: Number(event.target.value) }
+                          ? { ...item, width: event.target.value }
                           : item,
                       ),
                     })
@@ -168,16 +166,17 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
                   disabled={structureDisabled}
                 />
                 <BookInput
+                  label={t("settingsForm.height")}
                   type="number"
                   min={1}
-                  value={String(size.height)}
+                  value={size.height}
                   aria-label={`${t("settingsForm.height")} ${index + 1}`}
                   onChange={(event) =>
                     setForm({
                       ...form,
                       supported_sizes: form.supported_sizes.map((item, itemIndex) =>
                         itemIndex === index
-                          ? { ...item, height: Number(event.target.value) }
+                          ? { ...item, height: event.target.value }
                           : item,
                       ),
                     })
@@ -198,7 +197,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
                       ),
                     })
                   }
-                  className="!h-9 !w-9"
+                  className="!h-9 !w-9 self-end"
                 >
                   <Trash2 size={13} />
                 </BookIconButton>
@@ -212,7 +211,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
                   ...form,
                   supported_sizes: [
                     ...form.supported_sizes,
-                    DEFAULT_IMAGE_SIZES[0],
+                    { width: String(DEFAULT_IMAGE_SIZES[0].width), height: String(DEFAULT_IMAGE_SIZES[0].height) },
                   ],
                 })
               }
@@ -222,7 +221,8 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
               {t("settingsForm.addSize")}
             </BookButton>
           </div>
-        </FormField>
+        <p className="mt-2 text-small text-book-text-muted">{t("settingsForm.supportedSizesHint")}</p>
+      </fieldset>
         <FormField
           label={t("settingsForm.concurrencyLimit")}
           hint={t("settingsForm.imageConcurrencyHint")}
@@ -232,18 +232,18 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             min={1}
             max={8}
             step={1}
-            value={String(form.max_concurrent)}
+            value={form.max_concurrent}
             onChange={(event) =>
-              setForm({ ...form, max_concurrent: Number(event.target.value) })
+              setForm({ ...form, max_concurrent: event.target.value })
             }
             disabled={structureDisabled}
           />
         </FormField>
-      </div>
       <PricingPlanFields
+        kind="image"
         value={form.pricing}
         onChange={(pricing) => setForm({ ...form, pricing })}
-        readonly={readonly}
+        readonly={structureDisabled}
       />
     </>
   );

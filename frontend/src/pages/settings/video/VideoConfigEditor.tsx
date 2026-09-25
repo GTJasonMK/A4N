@@ -76,7 +76,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         />
       </FormField>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField label={t("settingsForm.videoProvider")}>
           <ThemedSelect
             value={form.provider}
@@ -89,12 +89,12 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
               setForm({
                 ...form,
                 provider: provider.id,
-                duration_secs: Math.min(
+                duration_secs: form.duration_secs === "" ? "" : String(Math.min(
                   provider.max_duration_secs,
-                  Math.max(provider.min_duration_secs, form.duration_secs),
-                ),
-                min_duration_secs: provider.min_duration_secs,
-                max_duration_secs: provider.max_duration_secs,
+                  Math.max(provider.min_duration_secs, Number(form.duration_secs)),
+                )),
+                min_duration_secs: String(provider.min_duration_secs),
+                max_duration_secs: String(provider.max_duration_secs),
               });
             }}
             className="pyqt-input w-full"
@@ -167,21 +167,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         />
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <FormField label={t("settingsForm.size")}>
-          <ThemedSelect
-            value={form.size}
-            onChange={(selectedValue) => setForm({ ...form, size: selectedValue })}
-            className="pyqt-input w-full"
-            disabled={structureDisabled}
-          >
-            {VIDEO_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </ThemedSelect>
-        </FormField>
+      <div className="a4n-config-form-grid">
         <FormField label={t("settingsForm.durationMode")}>
           <div className="grid grid-cols-2 overflow-hidden rounded border border-book-border bg-book-bg-paper">
             {VIDEO_DURATION_MODES.map((mode) => {
@@ -213,35 +199,9 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             min={providerMinDuration}
             max={providerMaxDuration}
             step={1}
-            value={String(form.duration_secs)}
+            value={form.duration_secs}
             onChange={(event) =>
-              setForm({ ...form, duration_secs: Number(event.target.value) })
-            }
-            disabled={structureDisabled}
-          />
-        </FormField>
-        <FormField label="FPS">
-          <BookInput
-            type="number"
-            min={1}
-            max={120}
-            step={1}
-            value={String(form.fps)}
-            onChange={(event) =>
-              setForm({ ...form, fps: Number(event.target.value) })
-            }
-            disabled={structureDisabled}
-          />
-        </FormField>
-        <FormField label={t("settingsForm.concurrency")}>
-          <BookInput
-            type="number"
-            min={1}
-            max={8}
-            step={1}
-            value={String(form.max_concurrent)}
-            onChange={(event) =>
-              setForm({ ...form, max_concurrent: Number(event.target.value) })
+              setForm({ ...form, duration_secs: event.target.value })
             }
             disabled={structureDisabled}
           />
@@ -249,18 +209,18 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
       </div>
 
       {form.duration_mode === "range" ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="a4n-config-form-grid">
           <FormField label={t("settingsForm.minDuration")}>
             <BookInput
               type="number"
               min={providerMinDuration}
               max={providerMaxDuration}
               step={1}
-              value={String(form.min_duration_secs)}
+              value={form.min_duration_secs}
               onChange={(event) =>
                 setForm({
                   ...form,
-                  min_duration_secs: Number(event.target.value),
+                  min_duration_secs: event.target.value,
                 })
               }
               disabled={structureDisabled}
@@ -272,11 +232,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
               min={providerMinDuration}
               max={providerMaxDuration}
               step={1}
-              value={String(form.max_duration_secs)}
+              value={form.max_duration_secs}
               onChange={(event) =>
                 setForm({
                   ...form,
-                  max_duration_secs: Number(event.target.value),
+                  max_duration_secs: event.target.value,
                 })
               }
               disabled={structureDisabled}
@@ -298,10 +258,47 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
           />
         </FormField>
       )}
+      <div className="a4n-config-form-grid">
+        <FormField label={t("settingsForm.size")}>
+          <ThemedSelect
+            value={form.size}
+            onChange={(selectedValue) => setForm({ ...form, size: selectedValue })}
+            className="pyqt-input w-full"
+            disabled={structureDisabled}
+          >
+            {VIDEO_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </ThemedSelect>
+        </FormField>
+        <FormField label="FPS">
+          <BookInput
+            type="number"
+            min={1}
+            max={120}
+            step={1}
+            value={form.fps}
+            onChange={(event) => setForm({ ...form, fps: event.target.value })}
+            disabled={structureDisabled}
+          />
+        </FormField>
+        <FormField label={t("settingsForm.concurrency")}>
+          <BookInput
+            type="number"
+            min={1}
+            max={8}
+            step={1}
+            value={form.max_concurrent}
+            onChange={(event) => setForm({ ...form, max_concurrent: event.target.value })}
+            disabled={structureDisabled}
+          />
+        </FormField>
+      </div>
       <PricingPlanFields
+        kind="video"
         value={form.pricing}
         onChange={(pricing) => setForm({ ...form, pricing })}
-        readonly={readonly}
+        readonly={structureDisabled}
       />
     </>
   );

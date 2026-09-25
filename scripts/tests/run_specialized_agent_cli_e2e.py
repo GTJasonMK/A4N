@@ -11,6 +11,7 @@ import re
 import subprocess
 import tempfile
 import time
+import traceback
 import uuid
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -18,7 +19,7 @@ from urllib.parse import unquote, urlparse
 from mock_openai.protocol import PNG_1X1_BASE64
 from run_agent_cli_e2e import data, thread_snapshot, wait_for_run
 from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json, start_provider
-from specialized_agent_fixture import MARKER
+from specialized_agent_fixture import MARKER, observation_data
 
 
 def visual_plan():
@@ -123,7 +124,9 @@ def main():
             def finish(run_id):
                 result = wait_for_run(cli, run_id, 60, 0.1)
                 assert result["status"] == "completed", result
-                return thread_snapshot(cli, thread_id)
+                snapshot = thread_snapshot(cli, thread_id)
+                secure_json(args.report.parent / f"run-{run_id}.json", snapshot)
+                return snapshot
 
             def approve(snapshot, decision="approve"):
                 approval = next(row for row in snapshot["approvals"] if row["status"] == "pending")
@@ -176,7 +179,7 @@ def main():
             result_task = {"mode": "read_result", "execution_id": full_result["id"]}
             history_run = send(result_task)
             history = finish(history_run)
-            page = next(row["metadata"]["result"] for row in history["messages"] if row["run_id"] == history_run and row["role"] == "tool")
+            page = next(observation_data(row) for row in history["messages"] if row["run_id"] == history_run and row["role"] == "tool")
             assert page["text"] == source_text[2:10]
             model_result = next(row for row in discovered["executions"] if row["run_id"] == discovery_run and row["kind"] == "model_call")
             denied_run = send({**result_task, "execution_id": model_result["id"]})
@@ -199,11 +202,15 @@ def main():
             run_id = send(task, {"max_tokens": 30})
             wait_state(run_id, "budget")
             checked(cli, ["agent", "run", run_id, "pause", "--thread-id", thread_id], "pause exhausted budget")
-            checked(cli, ["agent", "run", run_id, "resume", "--thread-id", thread_id], "resume exhausted budget")
-            limited = wait_state(run_id, "budget")
+            denied_resume = cli.run(["agent", "run", run_id, "resume", "--thread-id", thread_id])
+            assert denied_resume["exit_code"] != 0
+            limited = thread_snapshot(cli, thread_id)
             assert not any(row["run_id"] == run_id and row["kind"] == "tool_call" for row in limited["executions"])
-            checked(cli, ["agent", "run", run_id, "cancel", "--thread-id", thread_id], "cancel exhausted run")
-            report["checks"].append("batch prefix executes within tool budget; resume cannot bypass token budget")
+            checked(cli, ["agent", "run", run_id, "resume", "--thread-id", thread_id, "--budget", json.dumps({"max_tokens": 500000})], "extend exhausted budget")
+            approve(wait_state(run_id, "approval"))
+            resumed = finish(run_id)
+            assert any(row["run_id"] == run_id and row["kind"] == "tool_call" for row in resumed["executions"])
+            report["checks"].append("batch prefix respects budget; empty resume cannot bypass it; explicit extension continues the same Run")
 
             source = {"view_instance_id": "cli-original-view", "project_id": project["id"], "chapter_id": chapter["id"],
                       "editor_revision": "editor-v1", "scene_id": "scene-1", "shot_id": "shot-1", "keyframe_id": None, "entity_id": None}
@@ -424,7 +431,7 @@ def main():
                 "read_visual_plan_prompt_candidate",
             ], generated_tools
             prompt_handle = next(
-                row["metadata"]["result"]
+                observation_data(row)
                 for row in generated_snapshot["messages"]
                 if row["run_id"] == generation_run
                 and row["role"] == "tool"
@@ -443,8 +450,10 @@ def main():
                 if row["run_id"] == cross_chapter_run
                 and row["tool_name"] == "wait_generation_task"
             )
-            assert cross_chapter_execution["status"] == "failed"
-            assert "章节" in (cross_chapter_execution["error"] or "")
+            assert cross_chapter_execution["status"] == "failed", cross_chapter_execution
+            denial = next(observation_data(row) for row in cross_chapter_snapshot["messages"]
+                          if (row.get("metadata") or {}).get("execution_id") == cross_chapter_execution["id"])
+            assert denial["error"]["code"] == "FORBIDDEN", denial
             thread_id = original_thread_id
             report["checks"].append("a Director Agent cannot observe a completed generation task from another chapter in the same project")
             report["checks"].append("Director Agent starts an async prompt generation task, waits for its terminal result and reads a plan-bound candidate without auto-adoption")
@@ -490,6 +499,39 @@ def main():
                     assert result.returncode == 0, result.stderr
                     return result.stdout.strip()
 
+                budget_run = send({"mode": "inspect_only"}, {"max_tokens": 1_000_000}, source)
+                waiting_editor = wait_state(budget_run, "external")
+                editor_event = next(row for row in reversed(waiting_editor["events"]) if row.get("editor_request"))
+                model = next(row for row in waiting_editor["executions"] if row["run_id"] == budget_run and row["kind"] == "model_call")
+                # Simulate a late usage receipt while the original view is open.
+                sql("UPDATE agent_execution SET result_json = jsonb_set(result_json, '{usage}', "
+                    "'{\"prompt_tokens\":1000000,\"completion_tokens\":1,\"total_tokens\":1000001}'::jsonb) "
+                    "WHERE id = :'id'::bigint AND run_id = :'run_id'::bigint;", id=model["id"], run_id=budget_run)
+                budget_reply = {**reply, "run_id": budget_run,
+                                "execution_id": editor_event["editor_request"]["execution_id"],
+                                "view_instance_id": source["view_instance_id"]}
+                rejected = call("respond_agent_editor", budget_reply)
+                assert rejected["status"] == "failed" and "预算" in rejected["error_message"], rejected
+                wait_state(budget_run, "budget")
+                checked(cli, ["agent", "run", budget_run, "cancel", "--thread-id", thread_id], "cancel exhausted editor")
+                report["checks"].append("editor responses consult the durable budget ledger after a late usage receipt")
+
+                def replay_faulted_run():
+                    # Simulate a Worker reclaim after the injected persistence gap.
+                    # User resume correctly rejects an unchanged exhausted budget.
+                    replayed_id = sql("""
+                        WITH resumed AS (
+                            UPDATE agent_run SET status = 'queued', waiting_reason = NULL,
+                              next_attempt_at = NOW(), updated_at = NOW()
+                            WHERE id = :'run_id'::bigint AND status = 'paused'
+                            RETURNING id, thread_id
+                        )
+                        UPDATE agent_thread SET status = 'active', updated_at = NOW()
+                          FROM resumed WHERE agent_thread.id = resumed.thread_id
+                          RETURNING resumed.id;
+                    """, run_id=recovery_run)
+                    assert replayed_id == recovery_run, replayed_id
+
                 before_fault = call("get_chapter_visual_plan", resource)["draft"]
                 recovery_run = send({**task, "prompt": "恢复验证：仅提交一次"}, {"max_model_calls": 2})
                 approve(wait_state(recovery_run, "approval"))
@@ -498,8 +540,9 @@ def main():
                 assert execution["status"] == "succeeded"
                 written = call("get_chapter_visual_plan", resource)["draft"]
                 assert written["record"]["revision"] == before_fault["record"]["revision"] + 1
-                assistant = next(row for row in saved["messages"] if row["run_id"] == recovery_run and any(item["id"] == "edit" for item in (row.get("metadata") or {}).get("tool_calls", [])))
-                observation = next(row for row in saved["messages"] if row["run_id"] == recovery_run and (row.get("metadata") or {}).get("tool_call_id") == "edit")
+                observation = next(row for row in saved["messages"] if row["run_id"] == recovery_run and (row.get("metadata") or {}).get("execution_id") == execution["id"])
+                call_id = observation["metadata"]["tool_call_id"]
+                assistant = next(row for row in saved["messages"] if row["run_id"] == recovery_run and any(item["id"] == call_id for item in (row.get("metadata") or {}).get("tool_calls", [])))
                 control = lambda action: checked(cli, ["agent", "run", recovery_run, action, "--thread-id", thread_id], "recovery " + action)
                 control("pause")
                 sql("""
@@ -508,9 +551,9 @@ def main():
                     DELETE FROM agent_message WHERE run_id = :'run_id'::bigint AND id IN (:'assistant_id'::bigint, :'message_id'::bigint);
                     COMMIT;
                 """, run_id=recovery_run, assistant_id=assistant["id"], message_id=observation["id"])
-                control("resume")
+                replay_faulted_run()
                 replayed = wait_state(recovery_run, "budget")
-                replayed_message = next(row for row in replayed["messages"] if row["run_id"] == recovery_run and (row.get("metadata") or {}).get("tool_call_id") == "edit")
+                replayed_message = next(row for row in replayed["messages"] if row["run_id"] == recovery_run and (row.get("metadata") or {}).get("tool_call_id") == call_id)
                 assert replayed_message["metadata"] == observation["metadata"]
                 assert call("get_chapter_visual_plan", resource)["draft"] == written
                 assert len([row for row in replayed["executions"] if row["run_id"] == recovery_run]) == len([row for row in saved["executions"] if row["run_id"] == recovery_run])
@@ -526,7 +569,7 @@ def main():
                       WHERE id = :'id'::bigint AND run_id = :'run_id'::bigint;
                     COMMIT;
                 """, run_id=recovery_run, message_id=replayed_message["id"], id=execution["id"])
-                control("resume")
+                replay_faulted_run()
                 uncertain = wait_state(recovery_run, "reconcile")
                 assert next(row for row in uncertain["executions"] if row["id"] == execution["id"])["status"] == "outcome_unknown"
                 assert call("get_chapter_visual_plan", resource)["draft"] == written
@@ -535,7 +578,7 @@ def main():
                 control("pause")
                 sql("UPDATE agent_execution SET status = 'succeeded', result_json = :'result'::jsonb, result_refs_json = :'refs'::jsonb, error_message = NULL WHERE id = :'id'::bigint AND run_id = :'run_id'::bigint;",
                     result=json.dumps(receipt["result"]), refs=json.dumps(receipt["refs"]), id=execution["id"], run_id=recovery_run)
-                control("resume")
+                replay_faulted_run()
                 wait_state(recovery_run, "budget")
                 control("cancel")
 
@@ -552,6 +595,7 @@ def main():
             report["success"] = True
     except (AssertionError, RunnerError, OSError, ValueError, KeyError, StopIteration, subprocess.SubprocessError) as error:
         report["error"] = str(error) or type(error).__name__
+        report["traceback"] = traceback.format_exc()
     finally:
         if provider: provider.stop()
     secure_json(args.report, report)

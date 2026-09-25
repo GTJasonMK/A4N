@@ -1,6 +1,6 @@
 use a4n_db_models::models::ai::generated_video;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
 use super::metadata::validate_video_metadata_update_preserves_system_fields;
 use crate::video::{
@@ -49,40 +49,6 @@ where
     } else if input.metadata_json.is_some() {
         active.metadata_json = Set(input.metadata_json);
     }
-    active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(VideoDbError::Database)
-}
-
-pub async fn update_generated_video_duration_record<C>(
-    db: &C,
-    video_id: i64,
-    duration_secs: f32,
-) -> Result<generated_video::Model, VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    if !duration_secs.is_finite() || duration_secs <= 0.0 {
-        return Err(VideoDbError::InvalidArgument(
-            "视频实际时长必须是大于 0 的有限数".to_string(),
-        ));
-    }
-    let status = generated_video::Entity::find_by_id(video_id)
-        .select_only()
-        .column(generated_video::Column::Status)
-        .into_tuple::<String>()
-        .one(db)
-        .await?
-        .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    if status == a4n_domain::video_workflow::VIDEO_STATUS_RUNNING {
-        return Err(VideoDbError::InvalidArgument(
-            "视频生成中，不能回写视频实际时长".to_string(),
-        ));
-    }
-    let mut active = generated_video::ActiveModel {
-        id: Set(video_id),
-        ..Default::default()
-    };
-    active.duration_secs = Set(duration_secs);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(VideoDbError::Database)
 }

@@ -396,7 +396,13 @@ mod tests {
             video.id,
             "projects/imported.mp4",
             None,
-            1,
+            &a4n_domain::media::VideoFileProperties {
+                file_size: 1,
+                width: video.width,
+                height: video.height,
+                duration_secs: video.duration_secs,
+                fps: video.fps,
+            },
             None,
             Some(prompt.id),
         )

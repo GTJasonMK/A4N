@@ -95,8 +95,9 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
 
   if (isSystem) {
     return (
-      <div className="self-center text-small text-book-text-muted bg-book-bg-tertiary/80 rounded-full px-3 py-1">
-        {message.content}
+      <div role="alert" className="flex max-w-full items-start gap-2 self-start rounded-lg border border-error/25 bg-error-bg px-3 py-2 text-small text-book-text-main">
+        <AlertTriangle size={16} className="mt-0.5 text-error" aria-hidden="true" />
+        <span className="min-w-0 whitespace-pre-wrap break-words">{message.content}</span>
       </div>
     );
   }

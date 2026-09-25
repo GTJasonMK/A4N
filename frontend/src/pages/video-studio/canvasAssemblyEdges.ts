@@ -37,9 +37,7 @@ function assembleClipEdgesForTarget(edges: StudioEdge[], targetNodeId: string): 
 export function reorderAssembleClipEdges(edges: StudioEdge[], edgeId: string, direction: -1 | 1): StudioEdge[] {
   const moving = edges.find((edge) => edge.id === edgeId);
   if (!moving) return edges;
-  const clips = assembleClipEdgesForTarget(edges, moving.target)
-    .slice()
-    .sort((left, right) => (edgeOrderIndex(left) ?? 0) - (edgeOrderIndex(right) ?? 0));
+  const clips = orderedAssembleClipEdges(edges, moving.target);
   const currentIndex = clips.findIndex((edge) => edge.id === edgeId);
   const nextIndex = currentIndex + direction;
   if (currentIndex < 0 || nextIndex < 0 || nextIndex >= clips.length) return edges;
@@ -48,15 +46,38 @@ export function reorderAssembleClipEdges(edges: StudioEdge[], edgeId: string, di
   if (!item) return edges;
   reordered.splice(nextIndex, 0, item);
   const nextOrderByEdgeId = new Map(reordered.map((edge, index) => [edge.id, index + 1]));
+  return applyClipOrder(edges, nextOrderByEdgeId);
+}
+
+export function renumberAssembleClipEdges(edges: StudioEdge[], targetNodeIds: ReadonlySet<string>): StudioEdge[] {
+  const nextOrderByEdgeId = new Map<string, number>();
+  for (const target of targetNodeIds) {
+    orderedAssembleClipEdges(edges, target).forEach((edge, index) => nextOrderByEdgeId.set(edge.id, index + 1));
+  }
+  return applyClipOrder(edges, nextOrderByEdgeId);
+}
+
+function orderedAssembleClipEdges(edges: StudioEdge[], targetNodeId: string): StudioEdge[] {
+  return assembleClipEdgesForTarget(edges, targetNodeId)
+    .map(edge => {
+      const order = edgeOrderIndex(edge);
+      if (order == null) throw new Error(`组装连线 ${edge.id} 缺少有效的 order_index`);
+      return { edge, order };
+    })
+    .sort((left, right) => left.order - right.order)
+    .map(item => item.edge);
+}
+
+function applyClipOrder(edges: StudioEdge[], nextOrderByEdgeId: ReadonlyMap<string, number>): StudioEdge[] {
   return edges.map((edge) => {
     const orderIndex = nextOrderByEdgeId.get(edge.id);
-    if (!orderIndex) return edge;
+    if (orderIndex === undefined || orderIndex === edgeOrderIndex(edge)) return edge;
     return {
       ...edge,
       data: {
-        role: edge.data?.role ?? "assembly_clip",
+        ...edge.data!,
         config: {
-          ...(edge.data?.config ?? {}),
+          ...edge.data!.config,
           order_index: orderIndex,
         },
       },

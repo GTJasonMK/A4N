@@ -34,6 +34,7 @@ import {
   providerConfigIdOrSystem,
   requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
+  requireSystemDefaultKeyUpdate,
   systemDefaultProviderConfig,
 } from "../config/shared";
 
@@ -161,13 +162,18 @@ export async function updateImageConfig(
   input: UpdateImageConfigInput,
 ): Promise<ImageGenConfig> {
   if (isSystemDefaultImageConfigId(configId)) {
-    if (!usesLocalRuntimeSettings()) rejectSystemDefaultMutation();
-    updateSystemDefaultImageApiKey(input.api_key_encrypted);
-    return requiredSystemDefaultImageConfig(await listServerImageConfigs());
+    rejectSystemDefaultMutation();
   }
   if (usesLocalRuntimeSettings())
     return updateLocalImageConfig(imageConfigId(configId), input);
   return updateServerImageConfig(configId, input);
+}
+
+export async function updateSystemDefaultImageKey(input: Pick<UpdateImageConfigInput, "api_key_encrypted">): Promise<ImageGenConfig> {
+  if (!usesLocalRuntimeSettings()) rejectSystemDefaultMutation();
+  requireSystemDefaultKeyUpdate(input);
+  await updateSystemDefaultImageApiKey(input.api_key_encrypted);
+  return requiredSystemDefaultImageConfig(await listServerImageConfigs());
 }
 
 export async function removeServerImageConfig(configId: Id): Promise<void> {
@@ -179,8 +185,7 @@ export async function removeServerImageConfig(configId: Id): Promise<void> {
 export async function removeImageConfig(configId: Id): Promise<void> {
   if (isSystemDefaultImageConfigId(configId)) rejectSystemDefaultMutation();
   if (usesLocalRuntimeSettings()) {
-    deleteLocalImageConfig(imageConfigId(configId));
-    return;
+    return deleteLocalImageConfig(imageConfigId(configId));
   }
   return removeServerImageConfig(configId);
 }
@@ -194,12 +199,10 @@ export async function setDefaultServerImageConfig(configId: Id): Promise<void> {
 export async function setDefaultImageConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings() && isSystemDefaultImageConfigId(configId)) {
     requiredSystemDefaultImageConfig(await listServerImageConfigs());
-    setSystemDefaultImageConfig();
-    return;
+    return setSystemDefaultImageConfig();
   }
   if (usesLocalRuntimeSettings()) {
-    setDefaultLocalImageConfig(imageConfigId(configId));
-    return;
+    return setDefaultLocalImageConfig(imageConfigId(configId));
   }
   return setDefaultServerImageConfig(configId);
 }

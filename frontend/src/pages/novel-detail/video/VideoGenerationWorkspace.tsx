@@ -12,7 +12,6 @@ import {
   Upload,
   Wand2,
 } from "lucide-react";
-import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { useI18n } from "../../../i18n";
 import type { GeneratedImage } from "../../../api/image";
 import {
@@ -26,6 +25,8 @@ import {
   type VideoTimelineSummary,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
+import { Dropdown } from "../../../components/ui/Dropdown";
+import { ImageZoomButton, ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { toMediaSrc } from "../../../utils/mediaSrc";
@@ -282,6 +283,7 @@ export const VideoGenerationWorkspace: React.FC<
     const mediaReady = Boolean(src && !failedFrameMediaSrcs.has(src));
     const mediaUnavailable = image != null && !mediaReady;
     return (
+      <div className="relative min-w-0">
       <button
         type="button"
         aria-label={t("video.chapter.configureFrame", { label })}
@@ -294,7 +296,7 @@ export const VideoGenerationWorkspace: React.FC<
             emptyText,
           });
         }}
-        className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
+        className={`group w-full min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
           mediaReady
             ? "border-success/35 bg-book-bg-paper/45 hover:border-book-primary/65"
             : mediaUnavailable
@@ -351,6 +353,8 @@ export const VideoGenerationWorkspace: React.FC<
           </span>
         </span>
       </button>
+      {mediaReady ? <ImageZoomButton src={src} alt={label} className="absolute right-2 top-2" /> : null}
+      </div>
     );
   };
 
@@ -361,11 +365,12 @@ export const VideoGenerationWorkspace: React.FC<
     );
     const mediaUnavailable = selectedContinuityTailFrame != null && !mediaReady;
     return (
+      <div className="relative min-w-0">
       <button
         type="button"
         aria-label={t("video.chapter.configureContinuity")}
         onClick={() => setInputDialog({ kind: "continuity" })}
-        className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
+        className={`group w-full min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
           mediaReady
             ? "border-success/35 bg-book-bg-paper/45 hover:border-book-primary/65"
             : mediaUnavailable
@@ -424,6 +429,8 @@ export const VideoGenerationWorkspace: React.FC<
           </span>
         </span>
       </button>
+      {mediaReady ? <ImageZoomButton src={selectedContinuityTailFrameSrc} alt={t("video.chapter.configureContinuity")} className="absolute right-2 top-2" /> : null}
+      </div>
     );
   };
 
@@ -552,11 +559,11 @@ export const VideoGenerationWorkspace: React.FC<
           title={t("video.chapter.segmentConfig", { number: selectedSegmentNumber })}
           subtitle={selectedSegmentCard?.title ?? t("video.chapter.segmentNotInPlan")}
           icon={<SlidersHorizontal size={15} />}
-          maxWidthClassName="max-w-none sm:max-w-[min(96vw,90rem)]"
+          maxWidthClassName="max-w-6xl"
           className="h-[calc(100dvh-0.75rem)] sm:h-[90vh]"
-          bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar"
+          bodyClassName="min-h-0 flex-1 overflow-hidden"
         >
-          <div className="flex min-h-full flex-col gap-3 p-3 lg:h-full lg:min-h-0 lg:p-4">
+          <div className="flex h-full min-h-0 flex-col gap-3 p-3 lg:p-4">
             <section
               aria-label={t("video.chapter.segmentConfigOptions")}
               className="shrink-0 overflow-hidden rounded-[var(--pyqt-radius-lg)] border border-book-border/55 bg-book-bg-paper/45"
@@ -587,12 +594,12 @@ export const VideoGenerationWorkspace: React.FC<
             </section>
             <section
               aria-label={t("video.chapter.segmentGenerationWorkspace")}
-              className="flex min-h-[36rem] flex-1 flex-col overflow-hidden lg:min-h-0"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
             >
               {workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? (
                 referenceMediaWorkspace
               ) : (
-                <div className="flex h-full min-h-0 flex-col overflow-hidden p-3">
+                <div className="flex h-full min-h-0 flex-col overflow-hidden">
                   <VideoGenerationEditor
                     selectedSegmentNumber={selectedSegmentNumber}
                     selectedSegmentCard={selectedSegmentCard}
@@ -646,49 +653,25 @@ export const VideoGenerationWorkspace: React.FC<
         footer={
           inputDialog?.kind === "frame" && selectedSegmentNumber != null ? (
             inputDialogPrompt ? (
-              <>
-                {inputDialogImage ? (
-                  <BookButton
-                    variant="danger"
-                    size="sm"
-                    aria-label={t("video.chapter.deleteFrameImage", { label: inputDialog.label })}
-                    disabled={
-                      acting != null || imageBusyId === inputDialogImage.id
-                    }
-                    onClick={() => void onDeleteFrameImage(inputDialogImage)}
-                  >
-                    {imageBusyId === inputDialogImage.id ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <Trash2 size={12} />
-                    )}
-                    {t("video.chapter.deleteImage")}
-                  </BookButton>
-                ) : null}
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  disabled={
-                    acting != null ||
-                    frameImageLocked ||
-                    framePromptDirty ||
-                    inputDialogPrompt.status === "running"
-                  }
-                  title={
-                    frameImageLocked
-                      ? t("video.chapter.deleteImageBefore", { action: t("video.chapter.optimizePrompt") })
-                      : framePromptDirty
-                        ? t("video.chapter.saveBeforeAction")
-                        : undefined
-                  }
-                  onClick={async () => {
-                    const updated = await onOptimizePrompt(inputDialogPrompt);
-                    if (updated) setFramePromptDraft(updated.visual_prompt);
-                  }}
-                >
-                  <Wand2 size={12} />
-                  {t("video.chapter.optimizePrompt")}
-                </BookButton>
+              <div className="flex w-full flex-wrap items-center justify-end gap-2">
+                <Dropdown items={[
+                  {
+                    label: t("video.chapter.optimizePrompt"),
+                    icon: <Wand2 size={12} />,
+                    disabled: acting != null || frameImageLocked || framePromptDirty || inputDialogPrompt.status === "running",
+                    onClick: async () => {
+                      const updated = await onOptimizePrompt(inputDialogPrompt);
+                      if (updated) setFramePromptDraft(updated.visual_prompt);
+                    },
+                  },
+                  ...(inputDialogImage ? [{
+                    label: t("video.chapter.deleteFrameImage", { label: inputDialog.label }),
+                    icon: <Trash2 size={12} />,
+                    danger: true,
+                    disabled: acting != null || imageBusyId === inputDialogImage.id,
+                    onClick: () => void onDeleteFrameImage(inputDialogImage),
+                  }] : []),
+                ]} />
                 <BookButton
                   variant="secondary"
                   size="sm"
@@ -774,7 +757,7 @@ export const VideoGenerationWorkspace: React.FC<
                   <Wand2 size={12} />
                   {t("video.chapter.generateImage")}
                 </BookButton>
-              </>
+              </div>
             ) : (
               <BookButton
                 variant="primary"
@@ -800,10 +783,10 @@ export const VideoGenerationWorkspace: React.FC<
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-book-bg-tertiary text-small text-book-text-muted">
               {inputDialogFrameSrc &&
               !failedFrameMediaSrcs.has(inputDialogFrameSrc) ? (
-                <img
+                <ZoomableImage
                   src={inputDialogFrameSrc}
                   alt=""
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                   onError={() =>
                     setFailedFrameMediaSrcs((current) =>
                       new Set(current).add(inputDialogFrameSrc),
@@ -839,9 +822,9 @@ export const VideoGenerationWorkspace: React.FC<
                     onChange={(event) =>
                       setFramePromptDraft(event.target.value)
                     }
+                    readOnly={frameImageLocked}
                     disabled={
                       acting != null ||
-                      frameImageLocked ||
                       inputDialogPrompt.status === "running"
                     }
                     title={
@@ -876,7 +859,7 @@ export const VideoGenerationWorkspace: React.FC<
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-book-bg-tertiary text-small text-book-text-muted">
               {selectedContinuityTailFrameSrc &&
               !failedFrameMediaSrcs.has(selectedContinuityTailFrameSrc) ? (
-                <img
+                <ZoomableImage
                   src={selectedContinuityTailFrameSrc}
                   alt=""
                   className="h-full w-full object-cover"

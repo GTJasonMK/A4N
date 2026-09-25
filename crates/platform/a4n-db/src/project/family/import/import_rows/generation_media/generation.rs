@@ -14,9 +14,14 @@ pub(in crate::project::family::import::import_rows) async fn insert_generation_r
     package: &ProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
+    super::super::canvas::insert_canvas_generation_specs(txn, package, maps).await?;
     insert_mapped_import_rows!(
         txn,
-        &package.generation_specs,
+        package
+            .generation_specs
+            .iter()
+            .filter(|spec| spec.source_context_kind.as_deref()
+                != Some(generation_spec::SOURCE_CONTEXT_FREEFORM)),
         spec,
         generation_spec::ActiveModel,
         maps.generation_spec_ids,

@@ -123,9 +123,11 @@ pub struct PersistedVideoResult {
     pub project_id: i64,
     pub file_path: String,
     pub thumbnail_path: Option<String>,
-    pub file_size: i64,
+    pub properties: VideoFileProperties,
     pub metadata_json: Option<serde_json::Value>,
 }
+
+pub use a4n_domain::media::VideoFileProperties;
 
 /// Minimal video facts needed by the Runtime media adapter. The provider host
 /// must not depend on the generated-video ORM entity.

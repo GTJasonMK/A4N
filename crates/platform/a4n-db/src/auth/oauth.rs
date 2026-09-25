@@ -27,7 +27,7 @@ pub async fn login_with_oauth2(
         .map_err(AppError::Database)?
     {
         if !user.is_active {
-            return Err(AppError::Forbidden("账户已被禁用".into()));
+            return Err(AppError::Unauthorized("账户已被禁用".into()));
         }
         let id = user.id;
         let mut active: user::ActiveModel = user.into();
@@ -42,7 +42,7 @@ pub async fn login_with_oauth2(
     let email_addr = required_oauth_email(email)?;
     if let Some(user) = find_by_email_on(db, email_addr).await? {
         if !user.is_active {
-            return Err(AppError::Forbidden("账户已被禁用".into()));
+            return Err(AppError::Unauthorized("账户已被禁用".into()));
         }
         let id = user.id;
         let mut active: user::ActiveModel = user.into();

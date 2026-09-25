@@ -151,7 +151,13 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
         video.id,
         &video_path,
         Some(&video_thumbnail_path),
-        2048,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 2048,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         None,
     )

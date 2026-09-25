@@ -81,6 +81,8 @@ const FIELD_LABEL_KEYS: Record<string, MessageKey> = Object.fromEntries(
     "representative_characters",
     "description",
     "weather_cycle",
+    "scene_profile_id",
+    "members",
   ].map((key) => [key, `novel.world.fieldLabels.${key}` as MessageKey]),
 );
 

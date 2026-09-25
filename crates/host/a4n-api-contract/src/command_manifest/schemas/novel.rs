@@ -224,7 +224,7 @@ pub(crate) fn args_forward_project_status() -> Value {
         "type": "object",
         "properties": {
             "projectId": { "type": "integer", "minimum": 1 },
-            "target": raw_schema::<crate::project::ProjectStatus>(),
+            "target": property_schema::<crate::project::ProjectStatus>("target"),
         },
         "required": ["projectId", "target"],
         "additionalProperties": false,

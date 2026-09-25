@@ -25,6 +25,7 @@ interface UseWritingDeskSaveContentParams {
   activeChapterBusy: boolean;
   activeChapterGeneratingMessage: string;
   editorContent: string;
+  editorRevisionRef: MutableRefObject<string | null>;
   saveContentBusyRef: MutableRefObject<boolean>;
   activeNumberRef: MutableRefObject<number | null>;
   addToast: (message: string, type: "success" | "error" | "info") => void;
@@ -33,9 +34,9 @@ interface UseWritingDeskSaveContentParams {
   setChapters: Dispatch<SetStateAction<ChapterSummary[]>>;
   reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
   getCurrentEditorContent: () => string;
-  removeDraftForChapter: (chapterNumber: number) => void;
+  removeDraftForChapter: (chapterNumber: number) => Promise<void>;
   setEditorState: (content: string, dirty: boolean) => void;
-  saveLocalDraftForCurrent: () => void;
+  saveLocalDraftForCurrent: () => Promise<boolean>;
 }
 
 export const useWritingDeskSaveContent = ({
@@ -48,6 +49,7 @@ export const useWritingDeskSaveContent = ({
   activeChapterBusy,
   activeChapterGeneratingMessage,
   editorContent,
+  editorRevisionRef,
   saveContentBusyRef,
   activeNumberRef,
   addToast,
@@ -88,8 +90,11 @@ export const useWritingDeskSaveContent = ({
     let savedContent = contentToSave;
     let savedChapter: ChapterSummary | null = null;
     if (activeChapter) {
+      const expectedRevision = editorRevisionRef.current;
+      if (!expectedRevision) throw new Error(t("writing.editorRevisionUnavailable"));
       const updated = await updateChapterContent({
         chapter_id: activeChapter.id,
+        expected_revision: expectedRevision,
         content: contentToSave,
         title: activeChapter.title,
       });
@@ -115,12 +120,21 @@ export const useWritingDeskSaveContent = ({
       savedChapter = created ?? imported;
       savedContent = savedChapter.content;
     }
+    if (activeNumberRef.current === chapterNumber) {
+      editorRevisionRef.current = savedChapter.edit_revision;
+    }
     const saveStillMatchesEditor =
       activeNumberRef.current === chapterNumber &&
       getCurrentEditorContent() === contentToSave;
     if (saveStillMatchesEditor) {
-      removeDraftForChapter(chapterNumber);
-      setEditorState(savedContent, false);
+      await removeDraftForChapter(chapterNumber);
+      if (activeNumberRef.current === chapterNumber && getCurrentEditorContent() === contentToSave) {
+        setEditorState(savedContent, false);
+      } else {
+        await saveLocalDraftForCurrent();
+        addToast(t("writing.savedBodyWithUnsavedEdits"), "info");
+        return;
+      }
       if (savedChapter?.derived_sync_status === "failed") {
         addToast(
           t("writing.savedBodySyncFailed"),
@@ -134,7 +148,7 @@ export const useWritingDeskSaveContent = ({
       return;
     }
 
-    saveLocalDraftForCurrent();
+    await saveLocalDraftForCurrent();
     addToast(t("writing.savedBodyWithUnsavedEdits"), "info");
   } catch (err) {
     addToast(extractErrorMessage(err, t("errors.saveFailed")), "error");
@@ -151,6 +165,7 @@ export const useWritingDeskSaveContent = ({
   activeOutline,
   addToast,
   editorContent,
+  editorRevisionRef,
   getCurrentEditorContent,
   lifecycleBlockedReason,
   locale,

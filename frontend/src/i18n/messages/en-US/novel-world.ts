@@ -113,6 +113,8 @@ export const novelWorld = {
       representative_characters: "Representative characters",
       description: "Description",
       weather_cycle: "Weather and tides",
+      scene_profile_id: "Scene profile",
+      members: "Members",
     },
   },
   objectProfilesTab: "Objects",

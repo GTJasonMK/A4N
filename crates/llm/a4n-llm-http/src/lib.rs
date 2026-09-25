@@ -31,7 +31,7 @@ pub fn pick_llm_provider(
     extra_body_json: Option<Value>,
     capabilities: ModelCapabilities,
 ) -> Result<Box<dyn LlmProvider>, AppError> {
-    validate_prompt_cache_options(provider, &model, extra_body_json.as_ref())?;
+    validate_prompt_cache_options(provider, extra_body_json.as_ref())?;
     match LlmProtocolKind::for_provider(provider) {
         Some(
             protocol @ (LlmProtocolKind::OpenAiChatCompletions
@@ -46,7 +46,8 @@ pub fn pick_llm_provider(
                 extra_body_json,
                 capabilities,
             )?
-            .with_protocol(protocol),
+            .with_protocol(protocol)
+            .with_reasoning_replay(provider == "deepseek"),
         )),
         Some(LlmProtocolKind::AnthropicMessages) => Ok(Box::new(AnthropicLlmProvider::new(
             base_url,

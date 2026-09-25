@@ -1,11 +1,12 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React from "react";
-import { Check, Plus, Settings as SettingsIcon, Upload, UserPlus, X } from "lucide-react";
+import { AlertCircle, Check, Plus, RefreshCw, Settings as SettingsIcon, Upload, UserPlus, X } from "lucide-react";
 import type { NovelProject, ProjectAccessScope, ProjectInvite } from "../../api/project";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { StatusBarToggle } from "../../components/ui/StatusBar";
 import {
   AllProjectList,
   RecentProjectList,
@@ -14,6 +15,8 @@ import {
 import type { ProjectFamily, ProjectKindFilter, ProjectTab } from "./novelListUtils";
 import { PROJECT_KIND_FILTERS } from "./novelListUtils";
 import { useI18n } from "../../i18n";
+import { usePackagePreferences } from "../../store/packagePreferences";
+import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
 
 interface ProjectListPanelProps {
   tab: ProjectTab;
@@ -30,6 +33,7 @@ interface ProjectListPanelProps {
   onCreateProject: () => void;
   onImportProject: () => void;
   onOpenSettings: () => void;
+  onRetry: () => void;
   onAccessScopeChange: (scope: ProjectAccessScope) => void;
   onProjectKindFilterChange: (kind: ProjectKindFilter) => void;
   onAcceptInvite: (invite: ProjectInvite) => void;
@@ -54,6 +58,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
   onCreateProject,
   onImportProject,
   onOpenSettings,
+  onRetry,
   onAccessScopeChange,
   onProjectKindFilterChange,
   onAcceptInvite,
@@ -63,6 +68,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
   getActions,
 }) => {
   const { t } = useI18n();
+  const { isVisible } = usePackagePreferences();
   const projectKindLabels: Record<ProjectKindFilter, string> = {
     all: t("common.all"),
     text: t("novel.textProject"),
@@ -76,8 +82,11 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
     collaborating: t("novel.collaborating"),
   };
   return (
-  <section aria-label={t("novel.projectList")} className="a4n-home-content flex min-w-0 flex-1 flex-col bg-book-bg px-3 py-3 sm:px-5 md:overflow-hidden md:px-6 md:py-5 lg:px-8 lg:py-6">
-    <h1 className="sr-only">{t("novel.projectWorkbench")}</h1>
+  <section aria-label={t("novel.projectList")} className="a4n-home-content flex min-w-0 flex-1 flex-col md:overflow-hidden">
+    <header className="a4n-home-heading content-wide">
+      <p className="a4n-kicker">{t("auth.continueCreation")}</p>
+      <h1>{t("novel.projectWorkbench")}</h1>
+    </header>
     <nav aria-label={t("novel.projectFilter")} className="a4n-home-filter-bar content-wide mb-3 border-b border-book-border/60 pb-2.5">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -101,14 +110,14 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
             >
               <Plus size={18} aria-hidden="true" />
             </BookButton>
-            <BookIconButton
+            {isVisible("external-import") ? <BookIconButton
               label={t("novel.importProjectButton")}
               onClick={onImportProject}
               variant="secondary"
               className="!h-11 !w-11"
             >
               <Upload size={17} aria-hidden="true" />
-            </BookIconButton>
+            </BookIconButton> : null}
             <BookIconButton
               label={t("nav.openSettings")}
               onClick={onOpenSettings}
@@ -119,7 +128,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
             </BookIconButton>
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:justify-end">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-end">
             <label className="inline-flex min-w-0 flex-col items-stretch gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1 xl:flex-row xl:items-center">
               <span>{t("novel.projectTypeFilter")}</span>
               <ThemedSelect
@@ -154,6 +163,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
                 ))}
               </ThemedSelect>
             </label>
+            <StatusBarToggle />
             {loading && (
               <span className="col-span-2 inline-flex items-center justify-end sm:col-span-1">
                 <LoadingSpinner size="sm" text={t("common.loading")} />
@@ -165,7 +175,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
 
     <div
       key={`${tab}:${accessScope}:${projectKindFilter}`}
-      className="a4n-motion-panel-enter content-wide min-h-0 flex-1 overflow-visible pr-0 md:overflow-y-auto md:pr-2 custom-scrollbar"
+      className="content-wide min-h-0 flex-1 overflow-visible pr-0 md:overflow-y-auto md:pr-2 custom-scrollbar"
     >
       {pendingInvites.length > 0 && (
         <ProjectInviteBanner
@@ -176,8 +186,16 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
         />
       )}
       {loadError ? (
-        <div className="a4n-flat-surface border-dashed px-6 py-12 text-center text-sm text-error">
-          {loadError}
+        <div role="alert" className="a4n-flat-surface flex flex-col items-center gap-3 px-6 py-10 text-center">
+          <AlertCircle size={24} className="text-error" aria-hidden="true" />
+          <h2 className="text-base font-semibold text-book-text-main">{t("novel.projectLoadFailed")}</h2>
+          {loadError !== t("novel.projectLoadFailed") ? (
+            <p className="max-w-lg text-sm text-book-text-sub">{loadError}</p>
+          ) : null}
+          <BookButton variant="secondary" onClick={onRetry} disabled={loading}>
+            <RefreshCw size={15} aria-hidden="true" />
+            {t("common.retry")}
+          </BookButton>
         </div>
       ) : loading && !hasVisibleProjects(tab, recentProjectFamilies, groupedProjectFamilies) ? (
         <ProjectListSkeleton />
@@ -282,11 +300,11 @@ const ProjectInviteRow: React.FC<{
   return (
   <div className="a4n-flat-surface flex items-center gap-3 px-3 py-2.5 sm:px-4">
     <div className="min-w-0 flex-1">
-      <div className="truncate text-xs font-semibold text-book-text-main">
+      <div className="break-words text-xs font-semibold text-book-text-main">
         {invite.project_title}
       </div>
-      <div className="mt-1 truncate text-small text-book-text-muted">
-        {invite.inviter_username} {t("novel.invited")} · {invite.role}
+      <div className="mt-1 break-words text-small text-book-text-muted">
+        {invite.inviter_username} {t("novel.invited")} · {getProjectAccessRoleLabel(invite.role, t)}
       </div>
     </div>
     {!busy ? (

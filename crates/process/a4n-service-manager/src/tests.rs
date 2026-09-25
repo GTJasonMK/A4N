@@ -587,7 +587,7 @@ fn manager_exposes_sidecar_and_stateful_worker_metadata() {
     assert_eq!(worker.kind, ProcessKind::StatefulWorker);
     assert_eq!(
         worker.capability_version.as_deref(),
-        Some("agent-worker-v1")
+        Some("agent-worker-v2")
     );
     assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
     assert_eq!(worker.binary, "a4n-agent-worker");

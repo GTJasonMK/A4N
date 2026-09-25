@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   apiInvoke: vi.fn(),
   clearCurrentAuth: vi.fn(),
-  readCurrentSessionId: vi.fn(() => "session-1"),
+  readCurrentSessionId: vi.fn<() => string | null>(() => "session-1"),
 }));
 
 vi.mock("./index", () => ({ apiInvoke: mocks.apiInvoke }));
@@ -24,6 +24,7 @@ import {
 beforeEach(() => {
   mocks.apiInvoke.mockReset();
   mocks.clearCurrentAuth.mockClear();
+  mocks.readCurrentSessionId.mockReset().mockReturnValue("session-1");
 });
 
 it("updates only the authenticated user's profile", async () => {
@@ -61,4 +62,18 @@ it("logs out by revoking the current session", async () => {
     input: { session_id: "session-1" },
   });
   expect(mocks.clearCurrentAuth).toHaveBeenCalledOnce();
+});
+
+it("clears incomplete local credentials on sign-out while reporting the missing session", async () => {
+  mocks.readCurrentSessionId.mockReturnValue(null);
+  await expect(logoutUser()).rejects.toThrow("当前会话不存在");
+  expect(mocks.clearCurrentAuth).toHaveBeenCalledOnce();
+});
+
+it("does not clear an account that signed in while the previous sign-out was pending", async () => {
+  mocks.apiInvoke.mockImplementation(async () => {
+    mocks.readCurrentSessionId.mockReturnValue("new-session");
+  });
+  await logoutUser();
+  expect(mocks.clearCurrentAuth).not.toHaveBeenCalled();
 });

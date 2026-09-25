@@ -62,16 +62,13 @@ pub(super) async fn project_family_export_text_anchors<C>(
 where
     C: ConnectionTrait,
 {
-    let mut query =
-        text_anchor::Entity::find().filter(text_anchor::Column::ProjectId.eq(root_project_id));
-    if !snapshot_ids.is_empty() {
-        query = query.filter(
+    text_anchor::Entity::find()
+        .filter(text_anchor::Column::ProjectId.eq(root_project_id))
+        .filter(
             Condition::any()
                 .add(text_anchor::Column::SourceSnapshotId.is_null())
                 .add(text_anchor::Column::SourceSnapshotId.is_in(snapshot_ids.to_vec())),
-        );
-    }
-    query
+        )
         .order_by_asc(text_anchor::Column::Id)
         .all(db)
         .await

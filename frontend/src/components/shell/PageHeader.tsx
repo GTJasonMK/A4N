@@ -1,4 +1,5 @@
 import React from "react";
+import { StatusBarToggle } from "../ui/StatusBar";
 
 interface PageHeaderProps {
   leading?: React.ReactNode;
@@ -44,6 +45,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       {subtitle != null ? <div className="a4n-app-page-header__subtitle">{subtitle}</div> : null}
     </div>
 
-    {actions != null ? <div className="a4n-app-page-header__actions">{actions}</div> : null}
+    <div className="a4n-app-page-header__actions">
+      {actions}
+      <StatusBarToggle />
+    </div>
   </header>
 );

@@ -75,6 +75,9 @@ pub(crate) fn project_family_import_error_to_app_error(
         | ProjectFamilyImportError::Commit(source)
         | ProjectFamilyImportError::DatabaseContext { source, .. } => AppError::Database(source),
         ProjectFamilyImportError::InvalidPackage(message) => AppError::InvalidArgument(message),
+        ProjectFamilyImportError::CanvasImport(error) => {
+            crate::canvas::video_studio_project_import_error(error)
+        }
         ProjectFamilyImportError::MediaImport(source) => {
             AppError::Internal(anyhow::anyhow!(source.to_string()))
         }

@@ -106,6 +106,7 @@ pub use task_lifecycle::{
 };
 
 mod lifecycle_gate;
+pub(crate) use lifecycle_gate::USER_GATE_ACTIVE;
 pub use lifecycle_gate::{
     GenerationLifecycleGateError, PROJECT_GATE_ACTIVE, active_generation_tasks,
     active_generation_tasks_for_project, active_generation_tasks_for_user,

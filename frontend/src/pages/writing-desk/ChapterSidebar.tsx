@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search, X } from "lucide-react";
 import { type ChapterSummary } from "../../api/chapter";
 import {
   isDerivedChapterOutline,
@@ -134,7 +134,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             variant="secondary"
             size="sm"
           >
-            <Plus size={12} />
+            <Plus size={15} />
           </BookIconButton>
           <BookIconButton
             label={t("common.refresh")}
@@ -142,7 +142,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             variant="secondary"
             size="sm"
           >
-            <RefreshCw size={12} />
+            <RefreshCw size={15} />
           </BookIconButton>
         </div>
         <div className="relative mt-1 min-w-0 shrink-0">
@@ -151,6 +151,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             value={chapterQuery}
             onChange={(event) => onChapterQueryChange(event.target.value)}
             placeholder={t("writing.chapterSearchPlaceholder")}
+            aria-label={t("writing.chapterSearchPlaceholder")}
             className="pyqt-input w-full pl-8 pr-8 text-xs"
           />
           <Search
@@ -161,11 +162,11 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             <button
               type="button"
               onClick={onClearChapterQuery}
-              className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-small text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
+              className="absolute right-1 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-small text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
               aria-label={t("writing.clearChapterSearch")}
               title={t("writing.clearSearch")}
             >
-              ×
+              <X size={14} aria-hidden="true" />
             </button>
           )}
         </div>

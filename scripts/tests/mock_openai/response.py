@@ -100,6 +100,8 @@ def response_for(body: dict[str, Any]) -> str:
             return json.dumps(value, ensure_ascii=False) + "]}"
         elif fault == "blueprint-characters" and isinstance(value.get("characters"), list):
             value["characters"].append(value["characters"][0].copy())
+        elif fault == "inspiration" and "conversation_state" in value:
+            del value["conversation_state"]["genre"]
         elif fault == "galgame-branch" and "choices" in value:
             value["choices"][0]["after_beat_ref"]["beat_index"] = 999
         elif fault == "galgame-script" and "scene_lines" in value and "presentation" not in value["scene_lines"][0]["lines"][0]:
@@ -127,6 +129,8 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(value, ensure_ascii=False)
     messages = body.get("messages") or []
     combined = "\n".join(message_text(message.get("content", "")) for message in messages)
+    if "A4N_AGENT_CANVAS_INPUT" in combined:
+        return "镜头：雨水沿钟楼的窗棂滑落。"
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):
         return "pong"
 

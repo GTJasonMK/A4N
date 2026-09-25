@@ -177,8 +177,8 @@ impl From<GenerationRunSummaryRecord> for GenerationRunSummary {
             attempt: run.attempt,
             response_summary_json: run.response_summary_json,
             error_message: run.error_message,
-            created_at: run.created_at.to_string(),
-            completed_at: run.completed_at.map(|value| value.to_string()),
+            created_at: run.created_at.and_utc().to_rfc3339(),
+            completed_at: run.completed_at.map(|value| value.and_utc().to_rfc3339()),
         }
     }
 }

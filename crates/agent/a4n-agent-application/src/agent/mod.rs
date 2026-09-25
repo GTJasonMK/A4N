@@ -26,7 +26,7 @@ pub use a4n_agent_runtime_contract::{
     AgentWorkflowBindingApplicationPort, AgentWorkflowCancelApplicationPort,
     AgentWorkflowCancelSnapshot, EnsureCanonicalSubagentThreadInput, WorkerDelegationInput,
     WorkerDelegationResult, WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage,
-    child_budget_within_parent, enforce_delegation_limits, parse_agent_context_summary,
+    child_budget_for_delegation, enforce_delegation_limits, parse_agent_context_summary,
     validate_agent_budget,
 };
 use a4n_api_contract::agent::{

@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, LogOut } from "lucide-react";
+import { BookOpen, ChevronRight, LogOut } from "lucide-react";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { PageCliPanel, PasswordChanger, ProfileEditor, SessionManager } from "./AccountPanels";
 import { Row } from "./aboutUtils";
@@ -21,7 +21,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
   return (
   <div className="custom-scrollbar h-auto w-full overflow-visible pb-6 md:h-full md:overflow-y-auto md:pr-2">
     <div
-      className={`grid items-start gap-5 ${
+      className={`grid grid-cols-1 items-start gap-5 ${
         user ? "lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]" : ""
       }`}
     >
@@ -34,7 +34,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
                   {user.username}
                 </h2>
                 <p className="mt-0.5 text-small text-book-text-muted">
-                  {user.role === "admin" ? t("settingsAdmin.roleAdmin") : t("settingsAdmin.roleUser")} · {t("settingsAbout.currentAccount")}
+                  {user.role === "admin" ? t("settingsAdmin.roleAdmin") : user.role === "read_only" ? t("settingsAdmin.roleReadOnly") : t("settingsAdmin.roleUser")} · {t("settingsAbout.currentAccount")}
                 </p>
               </div>
               <Dropdown
@@ -70,10 +70,11 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
               </p>
             </div>
           </div>
-          <details className="border-t border-book-border/35 text-xs">
+          <details className="group border-t border-book-border/35 text-xs">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
               <span className="font-medium text-book-text-main">{t("settingsAbout.appDetails")}</span>
               <span className="text-caption text-book-text-muted">{t("settingsAbout.runtimeInfo")}</span>
+              <ChevronRight size={14} className="ml-auto shrink-0 transition-transform group-open:rotate-90" />
             </summary>
             <dl className="space-y-2 border-t border-book-border/35 px-4 py-3">
               <Row label={t("settingsAbout.fullName")}>Agents for Narrative</Row>

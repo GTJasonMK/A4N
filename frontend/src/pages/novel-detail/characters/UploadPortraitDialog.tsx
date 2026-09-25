@@ -8,6 +8,7 @@ import { uploadPortrait, type PortraitType } from "../../../api/portrait";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
@@ -233,10 +234,11 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           ].join(" ")}
         >
           {previewUrl ? (
-            <img
+            <ZoomableImage
               src={previewUrl}
               alt=""
               className="max-h-56 max-w-full rounded-[12px] border border-book-border/50 object-contain"
+              tabIndex={-1}
             />
           ) : (
             <>

@@ -32,7 +32,6 @@ import {
   guidanceModeForWorkflowChange,
   isVideoFramePromptType,
   videoGuidanceConfigurationError,
-  videoAspectRatiosForImageSizes,
 } from "./videoTabConstants";
 import { indexVideoFrameImages, formatVideoDuration } from "./videoImageUtils";
 import {
@@ -123,17 +122,6 @@ it("maps validated range and fixed video duration capabilities", () => {
     supportedDurations: [5, 10, 15],
     configError: null,
   });
-});
-
-it("filters video ratios to image sizes supported by the active image config", () => {
-  expect(
-    videoAspectRatiosForImageSizes([
-      { width: 1600, height: 900 },
-      { width: 1024, height: 768 },
-      { width: 1024, height: 1024 },
-      { width: 1024, height: 1536 },
-    ]),
-  ).toEqual(["16:9", "4:3", "1:1"]);
 });
 
 it("rejects damaged persisted planning options instead of repairing them", () => {

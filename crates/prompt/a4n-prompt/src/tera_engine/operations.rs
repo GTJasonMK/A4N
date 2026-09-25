@@ -71,6 +71,7 @@ impl TeraPromptEngine {
             },
             content_snapshot: entry.content.clone(),
         });
+        history.reverse();
         Ok(history)
     }
 

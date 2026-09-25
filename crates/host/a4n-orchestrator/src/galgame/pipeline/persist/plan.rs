@@ -80,10 +80,8 @@ pub fn build_galgame_script_persist_plan(
     let mut persist_scenes = Vec::with_capacity(scenes.scenes.len());
     let mut branch_scenes = Vec::new();
     for scene in &scenes.scenes {
-        let source_snapshot_chapter_id = source_snapshot_chapter_id_for_scene(
-            scene.source_span_ids.as_slice(),
-            &source_span_by_id,
-        )?;
+        let source_snapshot_chapter_id =
+            source_snapshot_chapter_id_for_scene(scene, &source_span_by_id)?;
         let Some(staged_scene) = staged_by_scene.get(&scene.index) else {
             return Err(invalid(format!(
                 "Galgame persist 缺少 scene_index={} 的 staged lines",

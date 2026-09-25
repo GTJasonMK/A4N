@@ -132,6 +132,10 @@ export const novelAssets = {
     viewObject: "View object details",
     diagnostics: "Diagnostics",
     structuredField: {
+      lighting: "Lighting",
+      weather: "Weather",
+      accessibility: "Access",
+      chapterNumber: "Chapter",
       description: "Description",
       direction: "Direction",
       condition: "Condition",
@@ -600,6 +604,7 @@ export const novelAssets = {
     favorite: "Favorite",
     scopeAria: "Image scope",
     favoritesOnly: "Favorites only",
+    noFavorites: "No favorite images yet. Turn off Favorites only to see all images.",
     refreshing: "Refreshing…",
     refresh: "Refresh image library",
     importing: "Importing…",

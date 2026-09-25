@@ -1,5 +1,5 @@
 import type { LocalEmbeddingConfig } from "./config";
-import type { UpdateEmbeddingInput, UpdateLlmInput } from "./generated/config";
+import type { CreateEmbeddingInput, CreateLlmInput, UpdateEmbeddingInput, UpdateLlmInput } from "./generated/config";
 import type {
   ImageConfigInput,
   ImageGenConfig,
@@ -47,18 +47,39 @@ function readLocalRuntimeSettings(): LocalRuntimeSettings {
   return parseSettings(readPortableItem(STORE_KEY));
 }
 
-function writeLocalRuntimeSettings(
+async function writeLocalRuntimeSettings(
   settings: LocalRuntimeSettings,
-): LocalRuntimeSettings {
-  writePortableItem(STORE_KEY, JSON.stringify(settings));
+): Promise<LocalRuntimeSettings> {
+  await writePortableItem(STORE_KEY, JSON.stringify(settings));
   return settings;
 }
 
-function mutateSettings<T>(mutator: (settings: LocalRuntimeSettings) => T): T {
-  const settings = readLocalRuntimeSettings();
-  const result = mutator(settings);
-  writeLocalRuntimeSettings(settings);
+let settingsWrite: Promise<unknown> = Promise.resolve();
+
+function serializeSettingsWrite<T>(commit: () => Promise<T>): Promise<T> {
+  const result = settingsWrite.then(commit, commit);
+  settingsWrite = result;
   return result;
+}
+
+function mutateSettings<T>(mutator: (settings: LocalRuntimeSettings) => T): Promise<T> {
+  return serializeSettingsWrite(async () => {
+    const settings = readLocalRuntimeSettings();
+    const result = mutator(settings);
+    await writeLocalRuntimeSettings(settings);
+    return result;
+  });
+}
+
+export function exportLocalRuntimeSettingsJson(): string {
+  return JSON.stringify(readLocalRuntimeSettings(), null, 2);
+}
+
+export function importLocalRuntimeSettingsJson(settingsJson: string): Promise<void> {
+  const incoming = parseSettings(settingsJson);
+  return serializeSettingsWrite(async () => {
+    await writeLocalRuntimeSettings(incoming);
+  });
 }
 
 function allocateId(settings: { next_id: number }): number {
@@ -80,11 +101,11 @@ function setSingleDefault<T extends { id: number; is_default: boolean }>(
 function removeConfigById<T extends { id: number; is_default: boolean }>(
   items: T[],
   id: number,
-  allowOnlyDefault: boolean,
+  defaultIsActive: boolean,
 ): void {
   const index = items.findIndex((item) => item.id === id);
   if (index < 0) throw new Error(`本机配置不存在: ${id}`);
-  if (items[index].is_default && !(allowOnlyDefault && items.length === 1)) {
+  if (items[index].is_default && defaultIsActive) {
     throw new Error("不能删除本机默认配置，请先设置其它默认配置");
   }
   items.splice(index, 1);
@@ -117,15 +138,15 @@ function getSystemDefaultApiKey(kind: LocalRuntimeProviderKind): string | null {
 function updateSystemDefaultApiKey(
   kind: LocalRuntimeProviderKind,
   apiKey: string | null | undefined,
-): void {
-  mutateSettings((settings) => {
+): Promise<void> {
+  return mutateSettings((settings) => {
     if (apiKey === undefined) return;
     settings[SYSTEM_API_KEY_FIELDS[kind]] = apiKey?.trim() || null;
   });
 }
 
-function setSystemDefaultConfig(kind: LocalRuntimeProviderKind): void {
-  mutateSettings((settings) => {
+function setSystemDefaultConfig(kind: LocalRuntimeProviderKind): Promise<void> {
+  return mutateSettings((settings) => {
     settings.default_source[kind] = "system";
   });
 }
@@ -140,8 +161,8 @@ export function hasSystemDefaultLlmApiKey(): boolean {
 
 export function updateSystemDefaultLlmApiKey(
   apiKey: string | null | undefined,
-): void {
-  updateSystemDefaultApiKey("llm", apiKey);
+): Promise<void> {
+  return updateSystemDefaultApiKey("llm", apiKey);
 }
 
 export function getSystemDefaultImageApiKey(): string | null {
@@ -154,8 +175,8 @@ export function hasSystemDefaultImageApiKey(): boolean {
 
 export function updateSystemDefaultImageApiKey(
   apiKey: string | null | undefined,
-): void {
-  updateSystemDefaultApiKey("image", apiKey);
+): Promise<void> {
+  return updateSystemDefaultApiKey("image", apiKey);
 }
 
 export function getSystemDefaultVideoApiKey(): string | null {
@@ -168,8 +189,8 @@ export function hasSystemDefaultVideoApiKey(): boolean {
 
 export function updateSystemDefaultVideoApiKey(
   apiKey: string | null | undefined,
-): void {
-  updateSystemDefaultApiKey("video", apiKey);
+): Promise<void> {
+  return updateSystemDefaultApiKey("video", apiKey);
 }
 
 export function getLocalWebSearchConfig(): LocalWebSearchConfig | null {
@@ -185,26 +206,33 @@ export function getLocalWebSearchConfigSummary(): LocalWebSearchConfigSummary {
 
 export function updateLocalWebSearchConfig(
   input: LocalWebSearchConfigInput,
-): LocalWebSearchConfigSummary {
+): Promise<LocalWebSearchConfigSummary> {
   return mutateSettings((settings) => {
-    const current = settings.web_search;
-    const apiKey =
-      input.api_key_encrypted === undefined
-        ? (current?.api_key_encrypted ?? null)
-        : input.api_key_encrypted?.trim() || null;
-    const normalized = normalizeLocalWebSearchConfig({
-      protocol: input.protocol,
-      provider: input.provider,
-      base_url: input.base_url,
-      api_key_encrypted: apiKey,
-      model: input.model,
-      max_results: input.max_results,
-      max_uses: input.max_uses,
-      max_tokens: input.max_tokens,
-      timeout_secs: input.timeout_secs,
-    });
+    const normalized = nextWebSearchConfig(settings.web_search, input);
     settings.web_search = normalized;
     return webSearchSummary(normalized);
+  });
+}
+
+function nextWebSearchConfig(current: LocalWebSearchConfig | null, input: LocalWebSearchConfigInput): LocalWebSearchConfig {
+  return normalizeLocalWebSearchConfig({
+    ...input,
+    api_key_encrypted: input.api_key_encrypted === undefined
+      ? current?.api_key_encrypted ?? null
+      : input.api_key_encrypted?.trim() || null,
+  });
+}
+
+export function updateLocalWebToolsConfig(
+  search: LocalWebSearchConfigInput,
+  fetch: LocalWebFetchConfig,
+): Promise<{ search: LocalWebSearchConfigSummary; fetch: LocalWebFetchConfig }> {
+  return mutateSettings((settings) => {
+    const nextSearch = nextWebSearchConfig(settings.web_search, search);
+    const nextFetch = normalizeLocalWebFetchConfig(fetch);
+    settings.web_search = nextSearch;
+    settings.web_fetch = nextFetch;
+    return { search: webSearchSummary(nextSearch), fetch: nextFetch };
   });
 }
 
@@ -214,7 +242,7 @@ export function getLocalWebFetchConfig(): LocalWebFetchConfig {
 
 export function updateLocalWebFetchConfig(
   input: Partial<LocalWebFetchConfig>,
-): LocalWebFetchConfig {
+): Promise<LocalWebFetchConfig> {
   return mutateSettings((settings) => {
     settings.web_fetch = normalizeLocalWebFetchConfig({
       ...settings.web_fetch,
@@ -250,19 +278,7 @@ export function listLocalLlmConfigs(): LocalLlmConfig[] {
   return readLocalRuntimeSettings().llm;
 }
 
-export function createLocalLlmConfig(input: {
-  name: string;
-  provider: string;
-  base_url: string;
-  api_key_encrypted?: string | null;
-  model: string;
-  max_concurrent: number;
-  timeout_secs: number;
-  max_context_tokens: number;
-  max_output_tokens: number;
-  extra_body_json?: unknown | null;
-  agent_protocol?: string;
-}): LocalLlmConfig {
+export function createLocalLlmConfig(input: CreateLlmInput): Promise<LocalLlmConfig> {
   return mutateSettings((settings) => {
     const isFirstLlmConfig = settings.llm.length === 0;
     if (isFirstLlmConfig) {
@@ -282,6 +298,7 @@ export function createLocalLlmConfig(input: {
       max_context_tokens: input.max_context_tokens,
       max_output_tokens: input.max_output_tokens,
       extra_body_json: input.extra_body_json ?? null,
+      pricing: input.pricing,
       is_default: isFirstLlmConfig,
     });
     settings.llm.push(item);
@@ -292,7 +309,7 @@ export function createLocalLlmConfig(input: {
 export function updateLocalLlmConfig(
   id: number,
   input: UpdateLlmInput,
-): LocalLlmConfig {
+): Promise<LocalLlmConfig> {
   return mutateSettings((settings) => {
     const item = settings.llm.find((row) => row.id === id);
     if (!item) throw new Error(`本机 LLM 配置不存在: ${id}`);
@@ -314,14 +331,15 @@ export function updateLocalLlmConfig(
     item.max_output_tokens = input.max_output_tokens;
     if (input.agent_protocol) item.agent_protocol = input.agent_protocol;
     item.extra_body_json = input.extra_body_json;
+    if (input.pricing !== undefined) item.pricing = input.pricing;
     const normalized = normalizeLocalLlmConfig(item);
     Object.assign(item, normalized);
     return normalized;
   });
 }
 
-export function setDefaultLocalLlmConfig(id: number): void {
-  mutateSettings((settings) => {
+export function setDefaultLocalLlmConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
     const target = settings.llm.find((item) => item.id === id);
     if (!target) throw new Error(`本机配置不存在: ${id}`);
     settings.default_source.llm = "local";
@@ -329,16 +347,16 @@ export function setDefaultLocalLlmConfig(id: number): void {
   });
 }
 
-export function setSystemDefaultLlmConfig(): void {
-  setSystemDefaultConfig("llm");
+export function setSystemDefaultLlmConfig(): Promise<void> {
+  return setSystemDefaultConfig("llm");
 }
 
-export function deleteLocalLlmConfig(id: number): void {
-  mutateSettings((settings) => {
+export function deleteLocalLlmConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
     removeConfigById(
       settings.llm,
       id,
-      settings.default_source.llm === "system",
+      settings.default_source.llm === "local",
     );
   });
 }
@@ -364,7 +382,7 @@ export function listLocalImageConfigs(): ImageGenConfig[] {
 
 export function createLocalImageConfig(
   input: ImageConfigInput,
-): ImageGenConfig {
+): Promise<ImageGenConfig> {
   return mutateSettings((settings) => {
     const isFirstImageConfig = settings.image.length === 0;
     if (isFirstImageConfig) settings.default_source.image = "local";
@@ -377,6 +395,7 @@ export function createLocalImageConfig(
       model: input.model.trim(),
       max_concurrent: input.max_concurrent,
       supported_sizes: input.supported_sizes,
+      pricing: input.pricing,
       is_default: isFirstImageConfig,
     });
     settings.image.push(item);
@@ -387,7 +406,7 @@ export function createLocalImageConfig(
 export function updateLocalImageConfig(
   id: number,
   input: UpdateImageConfigInput,
-): ImageGenConfig {
+): Promise<ImageGenConfig> {
   return mutateSettings((settings) => {
     const item = settings.image.find((row) => row.id === id);
     if (!item) throw new Error(`本机图片配置不存在: ${id}`);
@@ -402,29 +421,30 @@ export function updateLocalImageConfig(
     item.model = input.model.trim();
     item.max_concurrent = input.max_concurrent;
     item.supported_sizes = input.supported_sizes;
+    if (input.pricing !== undefined) item.pricing = input.pricing;
     const normalized = normalizeLocalImageConfig(item);
     Object.assign(item, normalized);
     return normalized;
   });
 }
 
-export function setDefaultLocalImageConfig(id: number): void {
-  mutateSettings((settings) => {
+export function setDefaultLocalImageConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
     settings.default_source.image = "local";
     setSingleDefault(settings.image, id);
   });
 }
 
-export function setSystemDefaultImageConfig(): void {
-  setSystemDefaultConfig("image");
+export function setSystemDefaultImageConfig(): Promise<void> {
+  return setSystemDefaultConfig("image");
 }
 
-export function deleteLocalImageConfig(id: number): void {
-  mutateSettings((settings) => {
+export function deleteLocalImageConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
     removeConfigById(
       settings.image,
       id,
-      settings.default_source.image === "system",
+      settings.default_source.image === "local",
     );
   });
 }
@@ -450,7 +470,7 @@ export function listLocalVideoConfigs(): VideoGenConfig[] {
 
 export function createLocalVideoConfig(
   input: CreateVideoConfigInput,
-): VideoGenConfig {
+): Promise<VideoGenConfig> {
   return mutateSettings((settings) => {
     const isFirstVideoConfig = settings.video.length === 0;
     if (isFirstVideoConfig) settings.default_source.video = "local";
@@ -470,6 +490,7 @@ export function createLocalVideoConfig(
       duration_mode: input.duration_mode,
       supported_durations_json: input.supported_durations_json ?? null,
       default_fps: input.default_fps,
+      pricing: input.pricing,
       is_default: isFirstVideoConfig,
     });
     settings.video.push(item);
@@ -480,7 +501,7 @@ export function createLocalVideoConfig(
 export function updateLocalVideoConfig(
   id: number,
   input: UpdateVideoConfigInput,
-): VideoGenConfig {
+): Promise<VideoGenConfig> {
   return mutateSettings((settings) => {
     const item = settings.video.find((row) => row.id === id);
     if (!item) throw new Error(`本机视频配置不存在: ${id}`);
@@ -499,6 +520,7 @@ export function updateLocalVideoConfig(
     item.duration_mode = input.duration_mode;
     item.supported_durations_json = input.supported_durations_json ?? null;
     item.default_fps = input.default_fps;
+    if (input.pricing !== undefined) item.pricing = input.pricing;
     if (requestedApiKey !== undefined) {
       item.api_key_encrypted = requestedApiKey?.trim() || null;
     }
@@ -508,23 +530,23 @@ export function updateLocalVideoConfig(
   });
 }
 
-export function setDefaultLocalVideoConfig(id: number): void {
-  mutateSettings((settings) => {
+export function setDefaultLocalVideoConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
     settings.default_source.video = "local";
     setSingleDefault(settings.video, id);
   });
 }
 
-export function setSystemDefaultVideoConfig(): void {
-  setSystemDefaultConfig("video");
+export function setSystemDefaultVideoConfig(): Promise<void> {
+  return setSystemDefaultConfig("video");
 }
 
-export function deleteLocalVideoConfig(id: number): void {
-  mutateSettings((settings) => {
+export function deleteLocalVideoConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
     removeConfigById(
       settings.video,
       id,
-      settings.default_source.video === "system",
+      settings.default_source.video === "local",
     );
   });
 }
@@ -546,16 +568,7 @@ export function listLocalEmbeddingConfigs(): LocalEmbeddingConfig[] {
   return readLocalRuntimeSettings().embedding;
 }
 
-export function createLocalEmbeddingConfig(input: {
-  name: string;
-  backend: string;
-  base_url?: string | null;
-  api_key_encrypted?: string | null;
-  model: string;
-  dimension: number;
-  batch_size: number;
-  local_model_path?: string | null;
-}): LocalEmbeddingConfig {
+export function createLocalEmbeddingConfig(input: CreateEmbeddingInput): Promise<LocalEmbeddingConfig> {
   return mutateSettings((settings) => {
     const item = normalizeLocalEmbeddingConfig({
       id: allocateId(settings),
@@ -567,6 +580,7 @@ export function createLocalEmbeddingConfig(input: {
       dimension: input.dimension,
       batch_size: input.batch_size,
       local_model_path: input.local_model_path?.trim() || null,
+      pricing: input.pricing,
       is_default: settings.embedding.length === 0,
     });
     settings.embedding.push(item);
@@ -577,7 +591,7 @@ export function createLocalEmbeddingConfig(input: {
 export function updateLocalEmbeddingConfig(
   id: number,
   input: UpdateEmbeddingInput,
-): LocalEmbeddingConfig {
+): Promise<LocalEmbeddingConfig> {
   return mutateSettings((settings) => {
     const item = settings.embedding.find((row) => row.id === id);
     if (!item) throw new Error(`本机 Embedding 配置不存在: ${id}`);
@@ -596,18 +610,19 @@ export function updateLocalEmbeddingConfig(
     item.dimension = input.dimension;
     item.batch_size = input.batch_size;
     item.local_model_path = input.local_model_path?.trim() || null;
+    if (input.pricing !== undefined) item.pricing = input.pricing;
     const normalized = normalizeLocalEmbeddingConfig(item);
     Object.assign(item, normalized);
     return normalized;
   });
 }
 
-export function setDefaultLocalEmbeddingConfig(id: number): void {
-  mutateSettings((settings) => setSingleDefault(settings.embedding, id));
+export function setDefaultLocalEmbeddingConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => setSingleDefault(settings.embedding, id));
 }
 
-export function deleteLocalEmbeddingConfig(id: number): void {
-  mutateSettings((settings) => {
-    removeConfigById(settings.embedding, id, false);
+export function deleteLocalEmbeddingConfig(id: number): Promise<void> {
+  return mutateSettings((settings) => {
+    removeConfigById(settings.embedding, id, true);
   });
 }

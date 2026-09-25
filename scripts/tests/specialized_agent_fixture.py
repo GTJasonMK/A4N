@@ -6,6 +6,180 @@ import json
 
 MARKER = "A4N_SPECIALIZED "
 GENERAL_MARKER = "A4N_GENERAL "
+STEP_MARKER = "A4N_FIXTURE_CALLS "
+SUMMARY_STATE_MARKER = "A4N_FIXTURE_STATE "
+
+
+def fixture_call(key, name, arguments):
+    # A provider may rename/scoped call IDs before replay. Fixture state belongs
+    # to the assistant decision, not to the transport's opaque identifiers.
+    return {"content": STEP_MARKER + json.dumps([key]),
+            "tool_call": {"id": key, "name": name, "arguments": arguments}}
+
+
+def logical_call_ids(messages):
+    result = {}
+    for message in messages:
+        calls = message.get("tool_calls") or []
+        content = message.get("content") or ""
+        keys = json.loads(content[len(STEP_MARKER):]) if content.startswith(STEP_MARKER) else [call["id"] for call in calls]
+        if len(keys) != len(calls):
+            raise ValueError("fixture call labels do not match its tool batch")
+        result.update((call["id"], key) for call, key in zip(calls, keys))
+    return result
+
+
+def summary_fixture(source):
+    previous = source.get("previous_summary") or {}
+    current = source.get("current_request") or []
+    input_id = current[0]["message_id"] if current else None
+    constraints = list(previous.get("constraints", []))
+    for record in source["messages"]:
+        message = record["message"]
+        if message["role"] == "user" and "约束" in message["content"] and message["content"] not in constraints:
+            constraints.append(message["content"])
+    states = {}
+    for item in previous.get("tool_state", []):
+        if item.startswith(SUMMARY_STATE_MARKER):
+            state = json.loads(item[len(SUMMARY_STATE_MARKER):])
+            if state["input_id"] == input_id:
+                states[state["key"]] = state
+    records = [record for record in source["messages"] if input_id is not None and record["message_id"] >= input_id]
+    aliases = logical_call_ids([record["message"] for record in records])
+    names = {call["id"]: call.get("function", call)["name"] for record in records for call in record["message"].get("tool_calls") or []}
+    for record in records:
+        message = record["message"]
+        if message["role"] != "tool":
+            continue
+        call_id = message["tool_call_id"]
+        name = names[call_id]
+        value = json.loads(message["content"]) if name == "delegate" else observation_data(message)
+        states[aliases[call_id]] = {"input_id": input_id, "key": aliases[call_id], "name": name, "data": value}
+    tool_state = [SUMMARY_STATE_MARKER + json.dumps(state, ensure_ascii=False) for state in states.values()]
+    if len(tool_state) > 64 or any(len(item) > 4000 for item in tool_state):
+        raise ValueError("fixture tool state exceeds the summary contract")
+    goal = current[-1]["content"] if current else previous.get("current_goal", "继续当前任务")
+    return {"content": json.dumps({
+        "schema_version": 2, "current_goal": goal, "constraints": constraints,
+        "decisions": previous.get("decisions", []), "facts_resources": previous.get("facts_resources", []),
+        "completed": ["工具调用已返回：" + state["name"] for state in states.values() if not (isinstance(state["data"], dict) and "error" in state["data"])],
+        "pending": [goal], "tool_state": tool_state,
+        "covered_through_sequence": source["covered_through_sequence"],
+    }, ensure_ascii=False)}
+
+
+def summarized_observations(messages, start):
+    # Compacted current-turn input is pinned before the retained tool batch.
+    # A fresh turn still follows that older batch and must not inherit its steps.
+    first = next((index for index, message in enumerate(messages) if message["role"] != "system"), None)
+    if first != start:
+        return {}
+    summaries = [message["content"] for message in messages if message["role"] == "system" and "<context_summary>" in str(message.get("content", ""))]
+    if not summaries:
+        return {}
+    summary = json.loads(summaries[-1].split("<context_summary>", 1)[1].split("</context_summary>", 1)[0])
+    if summary["current_goal"] != messages[start]["content"]:
+        return {}
+    return {state["key"]: state["data"] for item in summary["tool_state"] if item.startswith(SUMMARY_STATE_MARKER)
+            for state in [json.loads(item[len(SUMMARY_STATE_MARKER):])]}
+
+
+def reliability_fixture(body, messages):
+    marker = "A4N_RELIABILITY "
+    starts = [index for index, message in enumerate(messages) if message.get("role") == "user" and str(message.get("content", "")).startswith(marker)]
+    if not starts:
+        return None
+    start = starts[-1]
+    task = json.JSONDecoder().raw_decode(messages[start]["content"][len(marker):])[0]
+    current = messages[start:]
+    aliases = logical_call_ids(current)
+    observations = {}
+    for message in current:
+        if message.get("role") == "tool":
+            observations[aliases[message["tool_call_id"]]] = observation_data(message)
+    mode = task["mode"]
+    if mode == "summary_final":
+        summaries = [message["content"] for message in messages if message.get("role") == "system" and "<context_summary>" in str(message.get("content", ""))]
+        if not summaries or "白塔" not in summaries[-1]:
+            raise ValueError("compaction lost the original constraint")
+        return {"content": "白塔"}
+    if mode == "question":
+        if "ask" not in observations:
+            return fixture_call("ask", "request_agent_input", {"question": "请输入验收数字。"})
+        if not any(message.get("role") == "user" and message.get("content") == "42" for message in current):
+            raise ValueError("question resumed without its user answer")
+        return {"content": "已收到42"}
+    if mode == "unknown_tool":
+        if "bad" not in observations:
+            result = fixture_call("bad", "a4n_tool_that_does_not_exist", {})
+            result["tool_call"]["id"] = "repeated-provider-id"
+            return result
+        if "error" not in observations["bad"]:
+            raise ValueError("unknown tool was not reported as an error")
+        if "project" not in observations:
+            result = fixture_call("project", "get_project", {"projectId": task["project_id"]})
+            result["tool_call"]["id"] = "repeated-provider-id"
+            return result
+        return {"content": observations["project"]["title"]}
+    if mode == "plain":
+        return {"content": "验收完成"}
+    raise ValueError("unknown reliability fixture mode")
+
+
+def observation_data(message):
+    observation = json.loads(message["content"])
+    if observation.get("observation_version") != 1:
+        raise ValueError("Agent fixture requires observation_version 1")
+    if observation["status"] == "error":
+        return {"error": observation["error"]}
+    if observation["status"] not in {"success", "partial"}:
+        raise ValueError("Agent fixture received an unknown observation status")
+    return observation["data"]
+
+
+def optimization_fixture(body, messages):
+    user_text = "\n".join(message.get("content", "") for message in messages if message.get("role") == "user")
+    if "A4N_OPTIMIZATION_PLAIN" in user_text:
+        return {"content": "补丁须经用户确认才写回正文。"}
+    names = {call["id"]: call.get("function", call)["name"]
+             for message in messages for call in message.get("tool_calls") or []}
+    observations = {names[message["tool_call_id"]]: observation_data(message)
+                    for message in messages if message.get("role") == "tool"}
+    for result in observations.values():
+        if isinstance(result, dict) and "error" in result:
+            raise ValueError("optimization fixture tool failed: " + str(result["error"]))
+    if "inspect_project_context" not in observations:
+        return fixture_call("inspect_context", "inspect_project_context", {"source": "current_chapter"})
+    if "read_project_context" not in observations:
+        return {"tool_call": {"id": "call_a4n_read_optimization", "name": "read_project_context", "arguments": {
+            "source": "current_chapter", "selection": {"kind": "paragraphs", "indexes": [1]},
+            "include": ["content", "source_spans"],
+        }}}
+    if "edit_article" not in observations:
+        source = observations["read_project_context"]
+        if source.get("read_tool") == "read_agent_execution_result":
+            if "read_agent_execution_result" not in observations:
+                return fixture_call("read_original", "read_agent_execution_result", {
+                    "execution_id": source["execution_id"], "pointer": "/content/paragraphs/0/content", "offset": 0, "limit": 2000,
+                })
+            original = observations["read_agent_execution_result"]["text"]
+        else:
+            original = source["content"]["paragraphs"][0]["content"]
+        if not original:
+            raise ValueError("optimization fixture requires a real chapter paragraph")
+        original = original[:original.index("。") + 1]
+        ending = "她将信封压在掌心，没有立即拆开。" if "A4N_REVISION_SECOND" in user_text else "她握紧信封，停下脚步。"
+        return {"tool_call": {"id": "call_a4n_propose_optimization", "name": "edit_article", "arguments": {
+            "summary": "局部表达优化提案", "patches": [{
+                "patch_id": "patch-local-1", "issue_id": None, "operation": "replace",
+                "old_text": original, "new_text": original + ending,
+                "reason": "以可见动作承接原文。", "risk": "low",
+            }],
+        }}}
+    proposal = observations["edit_article"]
+    if proposal.get("mode") != "pending_confirmation" or not proposal.get("patch_set_id"):
+        raise ValueError("optimization fixture requires a persisted pending proposal")
+    return {"content": "已生成局部补丁提案，等待用户审阅；交付说明：正文尚未写回。"}
 
 
 def general_fixture(body, messages):
@@ -21,6 +195,7 @@ def general_fixture(body, messages):
     if start is None:
         return None
     task = json.loads(messages[start]["content"][len(GENERAL_MARKER):])
+    logical_ids = logical_call_ids(messages[start:])
     observations = {}
     pending = set()
     for message in messages[start:]:
@@ -33,14 +208,14 @@ def general_fixture(body, messages):
             if call_id not in pending:
                 raise ValueError("orphan tool observation")
             pending.remove(call_id)
-            observations[call_id] = json.loads(message["content"])
+            observations[logical_ids[call_id]] = observation_data(message)
     if pending:
         raise ValueError("model was called before its tool batch was resolved")
     if any("error" in result for result in observations.values()):
         return {"content": "通用 Agent 操作未完成。"}
 
     def call(key, name, arguments):
-        return {"tool_call": {"id": key, "name": name, "arguments": arguments}}
+        return fixture_call(key, name, arguments)
 
     def host(key, name, arguments):
         return call(key, name, {"input": arguments})
@@ -50,7 +225,7 @@ def general_fixture(body, messages):
     if "describe" not in observations:
         return call("describe", "describe_agent_tool", {"name": "get_project"})
     if "project" not in observations:
-        return host("project", "get_project", {"project_id": task["project_id"]})
+        return call("project", "get_project", {"projectId": task["project_id"]})
     return {"content": "已通过工具发现读取项目，并取得真实项目结果。"}
 
 
@@ -61,7 +236,8 @@ def director_fixture(body, messages):
     if start is None:
         return None
     task = json.loads(messages[start]["content"][len(MARKER):])
-    observations = {}
+    logical_ids = logical_call_ids(messages[start:])
+    observations = summarized_observations(messages, start)
     pending = set()
     for message in messages:
         for call in message.get("tool_calls") or []:
@@ -77,13 +253,13 @@ def director_fixture(body, messages):
         raise ValueError("model was called before its tool batch was resolved")
     for message in messages[start:]:
         if message.get("role") == "tool":
-            observations[message["tool_call_id"]] = json.loads(message["content"])
+            observations[logical_ids[message["tool_call_id"]]] = observation_data(message)
     for result in observations.values():
         if "error" in result:
             return {"content": "操作未完成：" + str(result["error"])}
 
     def call(key, name, arguments):
-        return {"tool_call": {"id": key, "name": name, "arguments": arguments}}
+        return fixture_call(key, name, arguments)
 
     def host(key, name, arguments):
         return call(key, name, {"input": arguments})
@@ -126,8 +302,6 @@ def director_fixture(body, messages):
             })
         return {"content": "已读取历史工具结果：" + observations["result"]["text"]}
     if mode == "discover":
-        if "describe_full" not in observations and "get_chapter_visual_plan" in visible:
-            raise ValueError("full tool schema was activated before describe")
         if "search" not in observations:
             return call("search", "search_agent_tools", {"query": "visual_plan"})
         if any("args_schema" in item or "result_schema" in item for item in observations["search"]["tools"]):
@@ -531,7 +705,7 @@ def director_fixture(body, messages):
         first = host("shot", "read_chapter_visual_plan", {**resource, "view": {"kind": "segment", "segment_id": shot_id}})
         if mode == "batch":
             second = host("source", "read_chapter_visual_plan", {**resource, "view": {"kind": "source", "limit": 30}})
-            return {"tool_calls": [first["tool_call"], second["tool_call"]]}
+            return {"content": STEP_MARKER + json.dumps(["shot", "source"]), "tool_calls": [first["tool_call"], second["tool_call"]]}
         return first
     saved = observations["shot"]["resource"]
     if "edit" not in observations:
@@ -555,10 +729,26 @@ def director_fixture(body, messages):
 
 def main_fixture(body, messages):
     """Read real child artifacts before invoking the explicit review command."""
-    names = {call["id"]: call.get("function", call).get("name")
+    start = max(index for index, message in enumerate(messages) if message.get("role") == "user")
+    messages = messages[start:]
+    logical_ids = logical_call_ids(messages)
+    names = {logical_ids[call["id"]]: call.get("function", call).get("name")
              for message in messages for call in message.get("tool_calls") or []}
-    results = {message["tool_call_id"]: json.loads(message["content"])
-               for message in messages if message.get("role") == "tool"}
+    results = {}
+    for message in messages:
+        if message.get("role") != "tool":
+            continue
+        call_id = logical_ids[message["tool_call_id"]]
+        if names.get(call_id) == "delegate":
+            # Durable child completion uses the delegation result contract,
+            # independently of ordinary Host tool observations.
+            result = json.loads(message["content"])
+            if not all(isinstance(result.get(key), str) and result[key]
+                       for key in ("delegation_id", "child_run_id")):
+                raise ValueError("Agent fixture requires a durable delegation result")
+            results[call_id] = result
+        else:
+            results[call_id] = observation_data(message)
     observations = {names.get(call_id): result for call_id, result in results.items()}
     for result in observations.values():
         if isinstance(result, dict) and "error" in result:
@@ -567,8 +757,8 @@ def main_fixture(body, messages):
 
     def call(name, arguments, call_id=None):
         if body.get("tools") and name not in visible:
-            return {"tool_call": {"id": "describe_" + name, "name": "describe_agent_tool", "arguments": {"name": name}}}
-        return {"tool_call": {"id": call_id or "call_a4n_" + name, "name": name, "arguments": arguments}}
+            return fixture_call("describe_" + name, "describe_agent_tool", {"name": name})
+        return fixture_call(call_id or "call_a4n_" + name, name, arguments)
 
     target = observations.get("locate_writing_target")
     if target is None:
@@ -584,6 +774,16 @@ def main_fixture(body, messages):
         if result["tool_call"]["name"] == "delegate":
             result["tool_call"]["id"] = "call_a4n_delegate_content_optimization"
         return result
+    revised = False
+    for message in messages:
+        content = message.get("content") or ""
+        if message.get("role") == "assistant" and content.startswith("{"):
+            inbox = json.loads(content)
+            if inbox.get("source_kind") == "subagent" and inbox.get("inbox_kind") == "child_result":
+                payload = inbox["payload"]
+                if payload["delegation_id"] == child["delegation_id"]:
+                    child = payload
+                    revised = True
     user_text = "\n".join(message.get("content", "") for message in messages if message.get("role") == "user")
     if "A4N_REVIEW_SKIP" in user_text:
         return {"content": "子任务已返回，尚未验收。"}
@@ -591,17 +791,18 @@ def main_fixture(body, messages):
     readers = {"optimization_patch_set": "list_optimize_patch_sets", "optimization_turn": "list_optimize_turns"}
     if not refs or any(ref["kind"] not in readers for ref in refs):
         raise ValueError("child must deliver versioned optimization artifacts")
-    sessions = observations.get("list_optimize_sessions")
+    sessions_key = "sessions_" + child["child_run_id"]
+    sessions = results.get(sessions_key)
     if sessions is None:
         return call("list_optimize_sessions", {"input": {
             "project_id": int(target["project"]["id"]), "chapter_id": int(target["chapter"]["id"]),
-        }})
+        }}, sessions_key)
     observed = []
     for session in sessions:
         for kind, reader in readers.items():
             if not any(ref["kind"] == kind for ref in refs):
                 continue
-            call_id = f"call_a4n_{reader}_{session['id']}"
+            call_id = f"call_a4n_{reader}_{session['id']}_{child['child_run_id']}"
             if call_id not in results:
                 return call(reader, {"input": {"session_id": session["id"]}}, call_id)
             for row in results[call_id]:
@@ -617,11 +818,13 @@ def main_fixture(body, messages):
     if any(not any(all(ref.get(key) == row.get(key) for key in ("kind", "id", "revision", "hash"))
                    for row in observed) for ref in refs):
         raise ValueError("child artifacts are missing, not pending, or have changed versions")
-    if "review_agent_delegation" not in observations:
+    review_key = "review_" + child["child_run_id"]
+    if review_key not in results:
+        request_revision = "A4N_REVIEW_REVISE" in user_text and not revised
         return call("review_agent_delegation", {"input": {
             "delegation_id": child["delegation_id"], "expected_child_run_id": child["child_run_id"],
-            "decision": "request_revision" if "A4N_REVIEW_REVISE" in user_text else "accept",
-            "reason": "已核对交付的优化资源及版本；提案仍待用户确认，未写回正文。",
+            "decision": "request_revision" if request_revision else "accept",
+            "reason": "A4N_REVISION_SECOND 请把新增动作改为将信封压在掌心、没有立即拆开。" if request_revision else "已核对交付的优化资源及版本；提案仍待用户确认，未写回正文。",
             "reviewed_refs": refs,
-        }})
+        }}, review_key)
     return {"content": "已显式审阅正文优化子 Agent 的补丁提案；正文尚未写回。"}

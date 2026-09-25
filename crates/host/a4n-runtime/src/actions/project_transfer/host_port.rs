@@ -27,6 +27,10 @@ impl<'a> RuntimeProjectPackageTransferHostPort<'a> {
 
 #[async_trait]
 impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_> {
+    async fn rollback_imported_project(&self, user_id: i64, project_id: i64) -> Result<(), String> {
+        crate::actions::project_records::delete_project(self.state, user_id, project_id).await
+    }
+
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,

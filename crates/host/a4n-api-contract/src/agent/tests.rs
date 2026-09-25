@@ -1,10 +1,10 @@
 use super::{
-    AGENT_CAPABILITIES, AGENT_PHASE_APPLY, AGENT_PHASE_DISCOVER, AGENT_PHASE_VERIFY,
-    AgentToolExposure, CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
-    DIRECTOR_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
-    SearchAgentToolsInput, agent_phase_allows_tool, agent_phase_for_tool, agent_tool_descriptor,
-    agent_tool_requires_user_approval, agent_tools_for_capability, capability_allows_tool,
-    initial_agent_tools, scope_agent_tool_search, synthetic_agent_tool_descriptor,
+    AGENT_CAPABILITIES, AGENT_PHASE_APPLY, AGENT_PHASE_VERIFY, AgentToolExposure,
+    CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
+    LocateWritingTargetInput, MAIN_AGENT_CAPABILITY, SearchAgentToolsInput, agent_phase_for_tool,
+    agent_tool_descriptor, agent_tool_requires_user_approval, agent_tools_for_capability,
+    capability_allows_tool, initial_agent_tools, scope_agent_tool_search,
+    synthetic_agent_tool_descriptor,
 };
 use crate::command_manifest::command_descriptor;
 
@@ -85,7 +85,7 @@ fn restricted_tool_search_is_pinned_without_misreading_capability_as_domain() {
 }
 
 #[test]
-fn restricted_capabilities_start_with_operational_tools_only() {
+fn restricted_capabilities_allow_their_complete_catalog_not_just_initial_tools() {
     for capability in [
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
         CANVAS_AGENT_CAPABILITY,
@@ -93,13 +93,12 @@ fn restricted_capabilities_start_with_operational_tools_only() {
     ] {
         let tools = initial_agent_tools(capability);
         assert!(!tools.is_empty());
-        assert!(!tools.contains(&"describe_agent_tool"));
-        assert!(!tools.contains(&"load_agent_skill"));
         assert!(
-            tools
+            agent_tools_for_capability(capability)
                 .iter()
                 .all(|tool| capability_allows_tool(capability, tool))
         );
+        assert!(!capability_allows_tool(capability, "delete_project"));
     }
     assert!(capability_allows_tool(
         MAIN_AGENT_CAPABILITY,
@@ -108,23 +107,19 @@ fn restricted_capabilities_start_with_operational_tools_only() {
 }
 
 #[test]
-fn phase_gate_rejects_write_before_read_and_after_verify() {
+fn phases_describe_operations_without_replacing_permissions() {
     assert_eq!(agent_phase_for_tool("read_project_context"), "context_read");
     assert_eq!(
         agent_phase_for_tool("apply_optimization_patches"),
         AGENT_PHASE_APPLY
     );
-    assert!(!agent_phase_allows_tool(
-        AGENT_PHASE_DISCOVER,
-        "apply_optimization_patches"
-    ));
-    assert!(!agent_phase_allows_tool(
-        AGENT_PHASE_VERIFY,
+    assert_eq!(
+        agent_phase_for_tool("read_agent_execution_result"),
+        AGENT_PHASE_VERIFY
+    );
+    assert!(capability_allows_tool(
+        DIRECTOR_AGENT_CAPABILITY,
         "save_chapter_visual_plan_draft"
-    ));
-    assert!(agent_phase_allows_tool(
-        AGENT_PHASE_VERIFY,
-        "read_agent_execution_result"
     ));
 }
 

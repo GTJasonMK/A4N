@@ -7,31 +7,32 @@ impl AgentRuntimeShared {
         parent_run_id: Option<i64>,
     ) -> CancellationToken {
         let token = CancellationToken::new();
-        self.agent_run_cancellations.lock().await.insert(
-            run_id,
-            AgentRunCancellation {
-                parent_run_id,
-                token: token.clone(),
-            },
-        );
+        let mut runs = self.runs.write().await;
+        let entry = runs.entry(run_id).or_default();
+        entry.parent_run_id = parent_run_id;
+        entry.cancellation = Some(token.clone());
+        entry.finished = false;
         token
     }
 
     pub async fn cancel_agent_run_tree(&self, run_id: i64) {
-        let cancellations = self.agent_run_cancellations.lock().await;
-        for (&active_run_id, cancellation) in cancellations.iter() {
+        let runs = self.runs.read().await;
+        for (&active_run_id, entry) in runs.iter() {
             if is_descendant(active_run_id, run_id, |candidate| {
-                cancellations
-                    .get(&candidate)
-                    .and_then(|run| run.parent_run_id)
-            }) {
-                cancellation.token.cancel();
+                runs.get(&candidate).and_then(|run| run.parent_run_id)
+            }) && let Some(token) = &entry.cancellation
+            {
+                token.cancel();
             }
         }
     }
 
     pub(crate) async fn unregister_agent_run_cancellation(&self, run_id: i64) {
-        self.agent_run_cancellations.lock().await.remove(&run_id);
+        let mut runs = self.runs.write().await;
+        if let Some(entry) = runs.get_mut(&run_id) {
+            entry.cancellation = None;
+        }
+        shared::prune_finished(&mut runs);
     }
 }
 

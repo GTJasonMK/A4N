@@ -54,8 +54,7 @@ export async function setDefaultEmbeddingConfig(
   scope: ModelConfigScope,
 ): Promise<void> {
   if (usesScopedLocalEmbeddingSettings(scope)) {
-    setDefaultLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"));
-    return;
+    return setDefaultLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"));
   }
   return apiInvoke<void>("set_default_embedding_config", {
     configId: idNum(configId, "Embedding 配置 ID"),
@@ -67,8 +66,7 @@ export async function deleteEmbeddingConfig(
   scope: ModelConfigScope,
 ): Promise<void> {
   if (usesScopedLocalEmbeddingSettings(scope)) {
-    deleteLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"));
-    return;
+    return deleteLocalEmbeddingConfig(idNum(configId, "Embedding 配置 ID"));
   }
   return apiInvoke<void>("delete_embedding_config", {
     configId: idNum(configId, "Embedding 配置 ID"),

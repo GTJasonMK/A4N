@@ -11,9 +11,14 @@ pub(crate) fn run() {
 
     let app = tauri::Builder::default()
         .manage(commands::generation_tasks::GenerationSubscriptionRegistry::default())
+        .manage(commands::auth::OAuthBrowserState::default())
         .register_uri_scheme_protocol("a4n-media", media_protocol::handle_request)
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
+                window
+                    .app_handle()
+                    .state::<commands::auth::OAuthBrowserState>()
+                    .cancel_window(window.label());
                 // 与 process 证据共用唯一清理入口，禁止旁路 cancel_window。
                 commands::generation_tasks::handle_window_destroyed(
                     window

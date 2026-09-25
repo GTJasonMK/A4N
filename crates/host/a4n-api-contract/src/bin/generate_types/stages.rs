@@ -38,6 +38,9 @@ pub(super) fn run() {
         &typescript_interface::<TokenPairSummary>("TokenPairSummary"),
         &typescript_interface::<AuthResult>("AuthResult"),
         &typescript_interface::<RefreshTokenInput>("RefreshTokenInput"),
+        &typescript_interface::<OAuth2AuthorizeInput>("OAuth2AuthorizeInput"),
+        &typescript_interface::<OAuth2CallbackInput>("OAuth2CallbackInput"),
+        &typescript_interface::<OAuth2BrowserInput>("OAuth2BrowserInput"),
     ]
     .concat();
 
@@ -141,6 +144,17 @@ pub(super) fn run() {
         &typescript_generation_start_paths(),
         &typescript_runtime_config_policies(),
         &format!(
+            "export const CANVAS_MEDIA_INPUT_REF_TYPES: Readonly<Record<string, string>> = {};\n\
+             export const CANVAS_MEDIA_INPUT_METADATA_KEYS = {} as const;\n\n",
+            serde_json::to_string(
+                &a4n_domain::canvas::CANVAS_MEDIA_INPUT_REF_TYPES
+                    .into_iter()
+                    .collect::<std::collections::BTreeMap<_, _>>()
+            )
+            .unwrap(),
+            serde_json::to_string(&a4n_domain::canvas::CANVAS_MEDIA_INPUT_METADATA_KEYS).unwrap(),
+        ),
+        &format!(
             "export const AGENT_API_PROTOCOL_VERSION = {AGENT_API_PROTOCOL_VERSION};\n\
              export const AGENT_EVENTS_DEFAULT_LIMIT = {AGENT_EVENTS_DEFAULT_LIMIT};\n\
              export const AGENT_EVENTS_MAX_LIMIT = {AGENT_EVENTS_MAX_LIMIT};\n\
@@ -205,6 +219,8 @@ pub(super) fn run() {
         &typescript_interface::<ReadAgentMemoryInput>("ReadAgentMemoryInput"),
         &typescript_interface::<AgentMemorySearchResult>("AgentMemorySearchResult"),
         &typescript_interface::<ReadAgentExecutionResultInput>("ReadAgentExecutionResultInput"),
+        &typescript_interface::<ReadAgentHistoryInput>("ReadAgentHistoryInput"),
+        &typescript_interface::<RequestAgentInput>("RequestAgentInput"),
         &typescript_interface::<AgentExecutionResultPage>("AgentExecutionResultPage"),
         &typescript_interface::<AgentEvent>("AgentEvent"),
         &typescript_interface::<AgentThreadSnapshot>("AgentThreadSnapshot"),
@@ -501,6 +517,7 @@ pub(super) fn run() {
         &typescript_interface::<CanvasNodeSummary>("CanvasNodeSummary"),
         &typescript_interface::<CanvasEdgeSummary>("CanvasEdgeSummary"),
         &typescript_interface::<CanvasGraphDocument>("CanvasGraphDocument"),
+        &typescript_interface::<CanvasGraphSaveResult>("CanvasGraphSaveResult"),
         &typescript_interface::<CanvasNodeIndex>("CanvasNodeIndex"),
         &typescript_type::<CanvasGraphProjection>("CanvasGraphProjection"),
         &typescript_interface::<CanvasGraphReadResult>("CanvasGraphReadResult"),

@@ -1,4 +1,5 @@
 import React from "react";
+import { Check } from "lucide-react";
 import type { CharacterConflictSummary } from "../../api/character";
 import { formatNumber, useI18n, type Locale, type MessageKey, type Messages, type MessageTranslator } from "../../i18n";
 
@@ -185,7 +186,7 @@ export const ConflictView: React.FC<{ conflicts: CharacterConflictSummary[] }> =
   if (conflicts.length === 0) {
     return (
       <div className="inline-flex items-center gap-2 py-4 text-xs text-success">
-        ✓ {t("characterDetail.noConflicts")}
+        <Check size={16} aria-hidden="true" /> {t("characterDetail.noConflicts")}
       </div>
     );
   }

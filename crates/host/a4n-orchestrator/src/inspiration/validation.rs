@@ -28,17 +28,12 @@ pub(super) fn inspiration_call_fingerprint_json(
 
 pub(super) fn validate_inspiration_response_json(raw: &str) -> Result<String, AppError> {
     let trimmed = raw.trim();
-    let value: Value = serde_json::from_str(trimmed).map_err(|err| {
+    a4n_domain::inspiration::parse_inspiration_response(trimmed).map_err(|err| {
         AppError::InvalidArgument(format!(
             "灵感对话必须返回严格 JSON 对象: {err}; 输出预览：{}",
             inspiration_response_preview(trimmed)
         ))
     })?;
-    if !value.is_object() {
-        return Err(AppError::InvalidArgument(
-            "灵感对话必须返回严格 JSON 对象，不能返回数组、字符串或其他 JSON 类型".to_string(),
-        ));
-    }
     Ok(trimmed.to_string())
 }
 

@@ -5,10 +5,10 @@ use a4n_agent_runtime_contract::{
     AgentRunContext, AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
     AgentWorkerExecutionApplicationPort, AgentWorkerFailureApplicationPort,
     AgentWorkerMessageApplicationPort, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
-    WorkerExecutionUpdate, agent_protocol_for_snapshot, agent_protocol_from_request_snapshot,
-    agent_protocol_prompt, agent_skill_directory_prompt, child_budget_within_parent,
-    configure_agent_request, decode_agent_response, enforce_delegation_limits,
-    ensure_agent_scope_allows_tool, restore_model_request_wire, validate_agent_budget,
+    WorkerExecutionUpdate, agent_protocol_from_request_snapshot, agent_protocol_prompt,
+    agent_skill_directory_prompt, child_budget_for_delegation, configure_agent_request,
+    decode_agent_response, enforce_delegation_limits, ensure_agent_scope_allows_tool,
+    restore_model_request_wire, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentSkillSearchResult, AgentToolDescriptor, DescribeAgentToolInput,
@@ -40,13 +40,10 @@ use tokio_util::sync::CancellationToken;
 
 const WORKER_POLL_INTERVAL: Duration = Duration::from_secs(2);
 const WORKER_RENEW_INTERVAL: Duration = Duration::from_secs(10);
-const WORKER_MAX_CLAIMS_PER_WAKEUP: usize = 8;
-const WORKER_MAX_STEPS: u32 = a4n_api_contract::agent::AGENT_DEFAULT_MAX_STEPS;
+const WORKER_MAX_CONCURRENT_RUNS: usize = 4;
 const WORKER_APPROVAL_TTL_SECONDS: i64 = 15 * 60;
-const MAX_BASE_AGENT_TOOLS: usize = 8;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
-// Restricted domains receive their complete operational window; main/general
-// profiles keep discovery room after the base tools.
+// Discovery remains available even when a domain's full catalog does not fit.
 const MAX_AGENT_TOOL_SCHEMAS: usize = 15;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
@@ -73,8 +70,8 @@ mod wire;
 pub use agent_loop::{
     claim_agent_worker_request, execute_claimed_worker_run, maintain_agent_worker, run_worker,
 };
-pub use observation::bounded_observation;
-pub use prompt::action_budget_exhausted;
+pub use observation::{bounded_observation, tool_error_code};
+pub use tool_calls::{append_tool_observation, is_correctable_tool_error};
 pub use tool_window::{enum_string, json_u64};
 pub use tools::{
     collect_scope_ids, editor_request_for_call, ensure_argument_scope, ensure_chapter_scope,
@@ -84,21 +81,17 @@ pub use tools::{
 pub use wire::agent_worker_run_from_wire;
 
 pub(super) use agent_loop::RunProgress;
-pub(super) use context::{
-    compact_context, execution_input_message_id, execution_total_tokens, recover_model_messages,
-};
+pub(super) use context::{compact_context, execution_input_message_id, recover_model_messages};
 pub(super) use model::{model_execution_request, model_response, stream_client_message_id};
 pub(super) use prompt::{chat_message_from_model, chat_messages, with_agent_system_prompt};
 pub(super) use stream::{complete_run, consume_model_stream};
-pub(super) use tool_calls::{
-    ToolBatchContext, append_inbox_messages, append_tool_observation, execute_tool_calls,
-};
+pub(super) use tool_calls::{ToolBatchContext, append_inbox_messages, execute_tool_calls};
 pub(super) use tool_window::{
     available_runtime_tools, discovered_tool_names, discovery_key, extend_discovered_tools,
-    is_discovery_tool, json_u32, record_tool_failure, successful_discovery_cache, usage_object,
+    is_discovery_tool, record_tool_failure, successful_discovery_cache, usage_object,
 };
 pub(super) use tools::{RuntimeAgentToolExecutor, ensure_agent_package_enabled};
-pub(super) use usage::{UsageCounters, persist_usage, record_provider_failure};
+pub(super) use usage::{persist_usage, record_provider_failure};
 pub(super) use wire::validate_claimed_worker_request;
 
 #[cfg(test)]
@@ -112,6 +105,7 @@ mod tests {
             resource_id: None,
             project_id: None,
             chapter_id: None,
+            chapter_number: None,
             allowed_capabilities: Vec::new(),
             allowed_tools: Vec::new(),
         };
@@ -130,9 +124,7 @@ mod tests {
         let tools = available_runtime_tools(
             a4n_api_contract::agent::MAIN_AGENT_CAPABILITY,
             &scope,
-            a4n_api_contract::agent::AGENT_PHASE_ANALYZE,
             &discovered,
-            &[],
         )
         .expect("optional discovered tools should be trimmed");
         assert!(tools.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
@@ -231,6 +223,7 @@ mod tests {
                 resource_id: Some("13".into()),
                 project_id: Some(11),
                 chapter_id: Some(13),
+                chapter_number: Some(1),
                 allowed_capabilities: vec!["content_optimization".into()],
                 allowed_tools: Vec::new(),
             },

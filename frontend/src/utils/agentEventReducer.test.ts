@@ -6,6 +6,7 @@ import type {
 } from "../api/agent";
 import {
   reduceAgentEvent,
+  loadAgentSnapshotWithEvents,
   snapshotCursor,
   streamedAgentMessageIds,
 } from "./agentEventReducer";
@@ -74,6 +75,56 @@ const event = (sequence: number, payload: unknown): AgentEvent => ({
 });
 
 describe("agent event reducer", () => {
+  it.each(["approval_requested", "approval_resolved", "execution_completed", "child_completed", "run_waiting", "run_completed"])("reloads authoritative state for %s", (kind) => {
+    const result = reduceAgentEvent(snapshot(), { ...event(1, null), kind }, 0);
+    expect(result.needsReload).toBe(true);
+    expect(result.cursor).toBe(0);
+  });
+
+  it("replays streaming deltas received while loading a snapshot", async () => {
+    const pending: AgentEvent[] = [];
+    const current = snapshot();
+    current.thread.next_event_sequence = 1;
+    const next = await loadAgentSnapshotWithEvents(async () => {
+      pending.push(event(1, { message: message("arrived during reload") }));
+      return current;
+    }, pending, () => true);
+    expect(next.messages[0].content).toBe("arrived during reload");
+    expect(snapshotCursor(next)).toBe(1);
+    expect(pending).toEqual([]);
+  });
+
+  it("reloads lifecycle changes arriving after the snapshot watermark", async () => {
+    const pending = [{ ...event(1, null), kind: "approval_requested" }];
+    let reads = 0;
+    const next = await loadAgentSnapshotWithEvents(async () => {
+      const current = snapshot();
+      current.thread.next_event_sequence = ++reads;
+      return current;
+    }, pending, () => true);
+    expect(reads).toBe(2);
+    expect(snapshotCursor(next)).toBe(1);
+    expect(pending).toEqual([]);
+  });
+
+  it("keeps buffered events when an older snapshot request is superseded", async () => {
+    const pending = [event(1, { message: message("arrived during both reads") })];
+    let current = 1;
+    let finishOld!: (value: AgentThreadSnapshot) => void;
+    let finishNew!: (value: AgentThreadSnapshot) => void;
+    const old = loadAgentSnapshotWithEvents(() => new Promise((resolve) => { finishOld = resolve; }), pending, () => current === 1);
+    current = 2;
+    const next = loadAgentSnapshotWithEvents(() => new Promise((resolve) => { finishNew = resolve; }), pending, () => current === 2);
+    const beforeEvent = snapshot();
+    beforeEvent.thread.next_event_sequence = 1;
+    finishOld(beforeEvent);
+    await old;
+    expect(pending).toHaveLength(1);
+    finishNew(beforeEvent);
+    expect((await next).messages[0].content).toBe("arrived during both reads");
+    expect(pending).toEqual([]);
+  });
+
   it("identifies streamed messages and can scope them to a run", () => {
     const otherRun = { ...event(2, null), run_id: "run-2", message_id: "message-2" };
     const completed = { ...event(3, null), kind: "message_completed" };
@@ -118,6 +169,7 @@ describe("agent event reducer", () => {
             view_instance_id: "view-1",
             project_id: 1,
             chapter_id: 1,
+            chapter_number: 1,
             editor_revision: "revision-1",
             scene_id: null,
             shot_id: null,

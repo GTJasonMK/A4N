@@ -99,6 +99,15 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
     messages = body.get("messages")
     if not isinstance(messages, list):
         return None
+    messages = [dict(message) for message in messages]
+    for message in messages:
+        content = message.get("content")
+        if message.get("role") == "user" and isinstance(content, str) and content.startswith("[可变上下文]"):
+            message["content"] = content.split("\n[当前任务]\n", 1)[1]
+    if any(message.get("role") == "system" and str(message.get("content", "")).startswith("你负责压缩 A4N Agent 的历史") for message in messages):
+        source = json.loads(next(message["content"] for message in reversed(messages) if message.get("role") == "user"))
+        from specialized_agent_fixture import summary_fixture
+        return summary_fixture(source)
 
     # The main Agent thread is durable, so a new turn carries the previous
     # turns' tool calls and child results as well.  Fixture decisions must be
@@ -117,6 +126,9 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
         0,
     )
     current_messages = messages[current_turn_start:]
+    if any(str(message.get("content", "")).startswith("A4N_RELIABILITY ") for message in messages if message.get("role") == "user"):
+        from specialized_agent_fixture import reliability_fixture
+        return reliability_fixture(body, messages)
 
     capability = None
     for message in messages:
@@ -146,7 +158,8 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
         from specialized_agent_fixture import director_fixture
         return director_fixture(body, messages)
     if capability == "content_optimization":
-        raise ValueError("content_optimization must enter the professional executor without an outer model call")
+        from specialized_agent_fixture import optimization_fixture
+        return optimization_fixture(body, current_messages)
     if capability != "main":
         return None
     from specialized_agent_fixture import main_fixture

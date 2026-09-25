@@ -109,14 +109,23 @@ pub async fn messages_by_thread<C>(
 where
     C: ConnectionTrait,
 {
-    let mut rows = message::Entity::find()
+    messages_before(db, thread_id, None, limit).await
+}
+
+pub async fn messages_before<C: ConnectionTrait>(
+    db: &C,
+    thread_id: i64,
+    before: Option<i64>,
+    limit: u64,
+) -> Result<Vec<message::Model>, AgentDbError> {
+    let mut query = message::Entity::find()
         .filter(message::Column::ThreadId.eq(thread_id))
-        .order_by_desc(message::Column::CreatedAt)
         .order_by_desc(message::Column::Id)
-        .limit(limit)
-        .all(db)
-        .await
-        .map_err(AgentDbError::Database)?;
+        .limit(limit);
+    if let Some(before) = before {
+        query = query.filter(message::Column::Id.lt(before));
+    }
+    let mut rows = query.all(db).await.map_err(AgentDbError::Database)?;
     rows.reverse();
     Ok(rows)
 }
@@ -137,6 +146,27 @@ where
 {
     message::Entity::find()
         .filter(message::Column::RunId.eq(run_id))
+        .order_by_asc(message::Column::Id)
+        .all(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
+/// Full unsummarized history plus the active Run's records needed for replay.
+/// UI pagination must not silently discard instructions from model context.
+pub async fn messages_for_context<C: ConnectionTrait>(
+    db: &C,
+    thread_id: i64,
+    run_id: i64,
+    covered_message_id: i64,
+) -> Result<Vec<message::Model>, AgentDbError> {
+    message::Entity::find()
+        .filter(message::Column::ThreadId.eq(thread_id))
+        .filter(
+            sea_orm::Condition::any()
+                .add(message::Column::Id.gt(covered_message_id))
+                .add(message::Column::RunId.eq(run_id)),
+        )
         .order_by_asc(message::Column::Id)
         .all(db)
         .await

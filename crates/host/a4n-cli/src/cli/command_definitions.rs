@@ -220,8 +220,12 @@ enum AuthCommand {
         yes: bool,
     },
     /// 获取 OAuth2 授权地址
-    OauthAuthorize { provider: String },
-    /// 用 stdin 中的授权 code 完成 OAuth2 登录并保存 token
+    OauthAuthorize {
+        provider: String,
+        #[arg(long)]
+        redirect_uri: Option<String>,
+    },
+    /// 从 stdin 的完整回调 URL 提取授权码、校验 state 并完成 OAuth2 登录
     OauthCallback {
         provider: String,
         #[arg(long)]
@@ -267,7 +271,7 @@ enum TaskCommand {
         #[arg(long)]
         yes: bool,
     },
-    /// 通过 SSE 输出事件，直到任务进入终态
+    /// 读取当前快照并通过 SSE 监听至终态；指定 --after-sequence 时从该游标回放
     Watch {
         task_id: String,
         #[arg(long, default_value_t = 1)]
@@ -394,6 +398,9 @@ enum ChapterCommand {
     Update {
         #[arg(long)]
         chapter_id: Option<i64>,
+        /// 读取章节时返回的 edit_revision，用于拒绝覆盖并发修改
+        #[arg(long)]
+        expected_revision: String,
         #[arg(long, value_name = "TEXT|@FILE|-")]
         content: String,
         #[arg(long)]
@@ -494,6 +501,9 @@ enum AgentCommand {
         /// Run 所属 Thread；用于权限和资源归属校验
         #[arg(long)]
         thread_id: String,
+        /// 新的绝对预算上限 JSON（仅 resume）；不清空已有用量
+        #[arg(long)]
+        budget: Option<String>,
     },
     /// 获取一个持久化 Agent Run
     RunShow { run_id: String },

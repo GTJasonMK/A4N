@@ -77,7 +77,7 @@ pub(crate) const REFERENCES_TASK_IDS: &[&str] = &["task_ids"];
 pub(crate) const REFERENCES_WORKFLOW_RUN_IDS: &[&str] = &["workflow_run_ids"];
 pub(crate) const PROVIDER_SECRET_POINTERS: &[&str] =
     &["/input/api_key_encrypted", "/input/api_key"];
-pub(crate) const OAUTH_CODE_SECRET_POINTERS: &[&str] = &["/input/code"];
+pub(crate) const OAUTH_CODE_SECRET_POINTERS: &[&str] = &["/input/code", "/input/code_verifier"];
 pub(crate) const CHANGE_PASSWORD_SECRET_POINTERS: &[&str] =
     &["/input/old_password", "/input/new_password"];
 pub(crate) const PASSWORD_SECRET_POINTERS: &[&str] = &["/input/password"];

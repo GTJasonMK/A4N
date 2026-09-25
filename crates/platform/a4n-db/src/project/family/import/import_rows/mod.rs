@@ -111,6 +111,7 @@ where
     insert_visual_plan_rows(user_id, txn, package, &mut maps).await?;
     let mut imported_projects = vec![root_project];
     imported_projects.extend(insert_derived_projects(txn, user_id, package, &mut maps).await?);
+    canvas::insert_canvas_rows(txn, package, &mut maps).await?;
     insert_text_anchor_rows(txn, package, &mut maps).await?;
     insert_galgame_rows(txn, package, &mut maps).await?;
     insert_manga_rows(txn, package, &mut maps, media_importer).await?;
@@ -138,9 +139,11 @@ where
         }
     );
     insert_source_sync_rows(txn, package, &mut maps).await?;
+    canvas::finish_canvas_rows(txn, package, &mut maps).await?;
     Ok((imported_projects, maps))
 }
 
+mod canvas;
 mod root_text;
 use root_text::*;
 

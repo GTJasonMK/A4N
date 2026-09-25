@@ -115,6 +115,14 @@ impl TestProjectFamilyTransferHost {
 
 #[async_trait]
 impl ProjectPackageTransferHostPort for TestProjectFamilyTransferHost {
+    async fn rollback_imported_project(
+        &self,
+        _user_id: i64,
+        _project_id: i64,
+    ) -> Result<(), String> {
+        panic!("family import must roll back its transaction");
+    }
+
     async fn render_export_package(
         &self,
         input: ProjectPackageExportInput,
@@ -162,6 +170,14 @@ impl ProjectPackageTransferHostPort for TestProjectFamilyTransferHost {
 
 #[async_trait]
 impl ProjectPackageTransferHostPort for ZipProjectFamilyTransferHost {
+    async fn rollback_imported_project(
+        &self,
+        _user_id: i64,
+        _project_id: i64,
+    ) -> Result<(), String> {
+        panic!("family import must roll back its transaction");
+    }
+
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,

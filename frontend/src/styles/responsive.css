@@ -26,11 +26,6 @@
    移动端结构性约束
    ============================================================================ */
 
-.a4n-app-shell {
-  box-sizing: border-box;
-  padding-top: env(safe-area-inset-top, 0px);
-}
-
 .a4n-modal-panel {
   box-sizing: border-box;
 }
@@ -42,11 +37,6 @@
 
 @media (max-width: 767px) {
   /* 写作桌移动端把身份行与操作行分开，避免项目标题被操作按钮挤成一个字。 */
-  /* 给低优先级悬浮球留出右侧安全区，底部发送/预览按钮保持可见可点。 */
-  .chat-composer {
-    padding-right: calc(4.5rem + env(safe-area-inset-right, 0px));
-  }
-
   .a4n-app-page-header--desk {
     align-items: center;
     flex-wrap: wrap;
@@ -102,7 +92,6 @@
   textarea.pyqt-input,
   input.book-control,
   textarea.book-control {
-    min-height: 44px;
     font-size: 16px;
   }
 
@@ -144,7 +133,7 @@
     min-width: 92px !important;
     max-width: 92px !important;
     flex: 0 0 92px !important;
-    height: 48px;
+    height: 50px;
   }
 
   .a4n-writing-panel-toggle .a4n-seg__btn {
@@ -194,8 +183,7 @@
       touch-action: manipulation;
     }
 
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
-    textarea {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
       min-height: 40px !important;
     }
 
@@ -219,9 +207,13 @@
       touch-action: manipulation;
     }
 
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
-    textarea {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
       min-height: 44px !important;
+      font-size: 16px !important;
+    }
+
+    textarea {
+      min-height: 44px;
       font-size: 16px !important;
     }
 
@@ -249,300 +241,5 @@
     .pyqt-tab {
       min-height: 44px !important;
     }
-  }
-}
-
-/* 项目列表：把“可进入”做成轻量的触觉线索；不增加额外文案噪音。 */
-.a4n-project-row {
-  position: relative;
-  transition:
-    background-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    box-shadow var(--a4n-motion) var(--a4n-ease-out);
-}
-
-.a4n-project-row::before {
-  position: absolute;
-  inset: 10px auto 10px 0;
-  width: 3px;
-  border-radius: 999px;
-  background: rgb(var(--color-primary));
-  content: "";
-  opacity: 0;
-  transform: scaleY(0.45);
-  transition:
-    opacity var(--a4n-motion-fast) var(--a4n-ease-out),
-    transform var(--a4n-motion) var(--a4n-ease-out);
-}
-
-.a4n-project-row:hover::before,
-.a4n-project-row:focus-visible::before {
-  opacity: 0.8;
-  transform: scaleY(1);
-}
-
-.a4n-project-kind {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgb(var(--color-primary) / 0.16);
-  border-radius: var(--pyqt-radius-md);
-  background: rgb(var(--color-primary) / 0.08);
-  color: rgb(var(--color-primary));
-  transition:
-    background-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    color var(--a4n-motion-fast) var(--a4n-ease-out);
-}
-
-.a4n-project-kind[data-project-kind="video"] {
-  border-color: rgb(var(--status-info) / 0.22);
-  background: rgb(var(--status-info-bg));
-  color: rgb(var(--status-info));
-}
-
-.a4n-project-kind[data-project-kind="comic"] {
-  border-color: rgb(var(--color-accent) / 0.24);
-  background: rgb(var(--color-accent) / 0.1);
-  color: rgb(var(--color-accent-dark));
-}
-
-.a4n-project-kind[data-project-kind="galgame"] {
-  border-color: rgb(var(--status-success) / 0.22);
-  background: rgb(var(--status-success-bg));
-  color: rgb(var(--status-success));
-}
-
-.a4n-project-row:hover .a4n-project-kind,
-.a4n-project-row:focus-visible .a4n-project-kind {
-  border-color: currentColor;
-}
-
-.a4n-project-row__disclosure {
-  display: inline-flex;
-  width: 22px;
-  height: 28px;
-  flex: 0 0 22px;
-  align-items: center;
-  justify-content: center;
-  color: rgb(var(--color-text-tertiary));
-  opacity: 0.32;
-  transition:
-    color var(--a4n-motion-fast) var(--a4n-ease-out),
-    opacity var(--a4n-motion-fast) var(--a4n-ease-out);
-}
-
-.a4n-project-row:hover .a4n-project-row__disclosure,
-.a4n-project-row:focus-visible .a4n-project-row__disclosure {
-  color: rgb(var(--color-primary));
-  opacity: 1;
-}
-
-.a4n-project-skeleton-row {
-  display: flex;
-  min-height: 5.15rem;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-}
-
-.a4n-project-skeleton-icon,
-.a4n-project-skeleton-line,
-.a4n-project-skeleton-action {
-  display: block;
-  background: linear-gradient(
-    100deg,
-    rgb(var(--color-bg-tertiary) / 0.72) 20%,
-    rgb(var(--color-bg-secondary)) 45%,
-    rgb(var(--color-bg-tertiary) / 0.72) 70%
-  );
-  background-size: 220% 100%;
-  animation: a4n-skeleton-shimmer 1.35s var(--a4n-ease-out) infinite;
-}
-
-.a4n-seg__btn:active:not(:disabled),
-.a4n-sidebar-item:active {
-  transform: scale(0.985);
-}
-
-.a4n-page-session__activity {
-  display: inline-flex;
-  align-items: center;
-  color: rgb(var(--color-primary));
-}
-
-.a4n-writing-save-state {
-  display: inline-flex;
-  min-width: 0;
-  max-width: min(42vw, 13rem);
-  align-items: center;
-  gap: 0.35rem;
-  overflow: hidden;
-  border: 1px solid rgb(var(--color-border) / 0.55);
-  border-radius: 999px;
-  padding: 0.2rem 0.55rem;
-  color: rgb(var(--color-text-tertiary));
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.a4n-writing-save-state > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.a4n-writing-save-state[data-state="saved"] {
-  border-color: rgb(var(--status-success) / 0.24);
-  background: rgb(var(--status-success-bg));
-  color: rgb(var(--status-success));
-}
-
-.a4n-writing-save-state[data-state="dirty"] {
-  border-color: rgb(var(--status-warning) / 0.3);
-  background: rgb(var(--status-warning-bg));
-  color: rgb(var(--status-warning));
-}
-
-.a4n-writing-save-state[data-state="saving"] {
-  border-color: rgb(var(--color-primary) / 0.25);
-  background: rgb(var(--color-primary) / 0.08);
-  color: rgb(var(--color-primary));
-}
-
-.a4n-draft-badge {
-  display: inline-flex;
-  max-width: 6.5rem;
-  overflow: hidden;
-  border: 1px solid rgb(var(--color-accent) / 0.3);
-  border-radius: 999px;
-  background: rgb(var(--color-accent) / 0.1);
-  padding: 0.1rem 0.35rem;
-  color: rgb(var(--color-accent-dark));
-  font-size: 0.62rem;
-  font-weight: 600;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.a4n-stream-control {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgb(var(--color-border) / 0.38);
-  border-radius: var(--pyqt-radius-md);
-  background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
-  padding: 0.55rem;
-  transition:
-    background-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    box-shadow var(--a4n-motion) var(--a4n-ease-out);
-}
-
-.a4n-stream-control::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: rgb(var(--color-primary));
-  content: "";
-  opacity: 0;
-  transform: scaleX(0.2);
-  transform-origin: left center;
-}
-
-.a4n-stream-control[data-stream-active="true"] {
-  border-color: rgb(var(--color-primary) / 0.28);
-  background: rgb(var(--color-primary) / 0.045);
-  animation: a4n-motion-focus 360ms var(--a4n-ease-out) both;
-}
-
-.a4n-stream-control[data-stream-active="true"]::after {
-  opacity: 0.9;
-  animation: a4n-stream-progress 1.8s var(--a4n-ease-out) infinite;
-}
-
-.a4n-stream-state {
-  color: rgb(var(--color-primary));
-  font-weight: 600;
-}
-
-.a4n-stream-message {
-  border: 1px solid rgb(var(--color-primary) / 0.14);
-  background: rgb(var(--color-primary) / 0.06);
-  color: rgb(var(--color-text-secondary));
-}
-
-@keyframes a4n-stream-progress {
-  0% { transform: scaleX(0.12); }
-  50% { transform: scaleX(0.68); }
-  100% { transform: scaleX(0.12); }
-}
-
-[data-page-session-busy="true"] .a4n-page-session__status {
-  background: rgb(var(--color-primary) / 0.12);
-  color: rgb(var(--color-primary));
-  animation: a4n-motion-focus 360ms var(--a4n-ease-out) both;
-}
-
-.a4n-project-skeleton-icon {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  border-radius: var(--pyqt-radius-md);
-}
-
-.a4n-project-skeleton-line {
-  height: 0.65rem;
-  border-radius: 999px;
-}
-
-.a4n-project-skeleton-line--title {
-  width: min(52%, 15rem);
-}
-
-.a4n-project-skeleton-line--meta {
-  width: min(38%, 11rem);
-}
-
-.a4n-project-skeleton-line--detail {
-  width: min(64%, 19rem);
-}
-
-.a4n-project-skeleton-action {
-  width: 4.5rem;
-  height: 1.8rem;
-  flex: 0 0 4.5rem;
-  border-radius: 999px;
-}
-
-@keyframes a4n-skeleton-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
-  }
-}
-
-@media (max-width: 639px) {
-  .a4n-project-skeleton-row {
-    min-height: 6rem;
-    padding-inline: 0.75rem;
-  }
-
-  .a4n-project-row__disclosure {
-    width: 18px;
-    flex-basis: 18px;
-  }
-
-  .a4n-project-skeleton-action {
-    width: 2.25rem;
-    flex-basis: 2.25rem;
   }
 }

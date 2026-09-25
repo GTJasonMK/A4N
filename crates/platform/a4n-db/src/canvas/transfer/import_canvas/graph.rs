@@ -5,7 +5,7 @@ use super::super::types::{
 use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 
-pub(in crate::canvas::transfer) async fn import_video_studio_canvas_text_assets<C>(
+pub(crate) async fn import_video_studio_canvas_text_assets<C>(
     db: &C,
     project_id: i64,
     assets: &[canvas_text_asset::Model],
@@ -46,7 +46,7 @@ where
     Ok(())
 }
 
-pub(in crate::canvas::transfer) async fn import_video_studio_canvas_graphs<C>(
+pub(crate) async fn import_video_studio_canvas_graphs<C>(
     db: &C,
     project_id: i64,
     rows: &VideoStudioProjectImportRows,

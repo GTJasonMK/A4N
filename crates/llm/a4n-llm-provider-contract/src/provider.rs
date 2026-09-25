@@ -12,7 +12,10 @@ mod wire;
 #[cfg(test)]
 mod tests;
 
-pub use cache::{PromptCacheBreakpoint, PromptCacheMode, validate_prompt_cache_options};
+pub use cache::{
+    PROMPT_CACHE_MODE_FIELD, PROMPT_CACHE_OPTIONS_FIELD, PromptCacheBreakpoint, PromptCacheMode,
+    validate_prompt_cache_options,
+};
 pub use contracts::{
     ChatChunk, ChatImage, ChatMessage, ChatResponse, LLM_PROVIDER_CAPABILITIES, LlmFinishReason,
     LlmProtocolKind, LlmProviderCapabilities, LlmTraceContext, MessageRole, ModelCapabilities,

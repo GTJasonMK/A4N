@@ -32,8 +32,10 @@ ENV RUSTUP_TOOLCHAIN=1.95.0-x86_64-unknown-linux-gnu
 ENV PATH=/usr/local/rustup/toolchains/1.95.0-x86_64-unknown-linux-gnu/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 COPY --from=rust /usr/local/cargo /usr/local/cargo
 COPY --from=rust /usr/local/rustup /usr/local/rustup
-RUN apt-get update \\
-    && apt-get install -y --no-install-recommends \\
+RUN apt-get clean \\
+    && rm -rf /var/lib/apt/lists/* \\
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::No-Cache=true update \\
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \\
        build-essential pkg-config libssl-dev ca-certificates cmake git curl protobuf-compiler libprotobuf-dev \\
        liblzma-dev zlib1g-dev libbz2-dev libzstd-dev \\
     && rm -rf /var/lib/apt/lists/*
@@ -238,14 +240,47 @@ prepare_package() {
     du -sh "$PACKAGE_PATH"
 }
 
+remote_shell_quote() {
+    local value="$1"
+    printf "'%s'" "${value//\'/\'\\\'\'}"
+}
+
 upload_package() {
     log_section "上传部署包"
-    scp "${SSH_OPTS[@]}" "$PACKAGE_PATH" "$REMOTE:$REMOTE_PACKAGE"
 
+    local remote_partial="${REMOTE_PACKAGE}.part"
+    local remote_partial_arg
+    local remote_package_arg
     local local_sum
-    local_sum=$(cut -d' ' -f1 "$PACKAGE_PATH.sha256")
     local remote_sum
-    remote_sum=$(ssh "${SSH_OPTS[@]}" "$REMOTE" "sha256sum '$REMOTE_PACKAGE' | cut -d' ' -f1")
-    [[ "$local_sum" == "$remote_sum" ]] || die "上传包校验和不一致"
+    local rsync_ssh
+    remote_partial_arg="$(remote_shell_quote "$remote_partial")"
+    remote_package_arg="$(remote_shell_quote "$REMOTE_PACKAGE")"
+    local_sum="$(cut -d' ' -f1 "$PACKAGE_PATH.sha256")"
+
+    log_info "上传大小: ${PACKAGE_SIZE:-$(du -h "$PACKAGE_PATH" | cut -f1)}"
+    if command -v rsync >/dev/null 2>&1 \
+        && ssh "${SSH_OPTS[@]}" "$REMOTE" "command -v rsync >/dev/null 2>&1"; then
+        printf -v rsync_ssh '%q ' ssh "${SSH_OPTS[@]}"
+        ssh "${SSH_OPTS[@]}" "$REMOTE" \
+            "if [[ ! -e $remote_partial_arg && -f $remote_package_arg ]]; then cp -a -- $remote_package_arg $remote_partial_arg; fi"
+        log_info "上传方式: rsync（复用上次部署包，支持断点续传；下面显示实时进度）"
+        rsync \
+            --human-readable \
+            --info=progress2 \
+            --partial \
+            --rsh="$rsync_ssh" \
+            "$PACKAGE_PATH" "$REMOTE:$remote_partial"
+    else
+        log_info "上传方式: SSH 流式传输（下面显示已传输字节数）"
+        dd if="$PACKAGE_PATH" bs=4M status=progress \
+            | ssh "${SSH_OPTS[@]}" "$REMOTE" "cat > $remote_partial_arg"
+    fi
+
+    remote_sum="$(ssh "${SSH_OPTS[@]}" "$REMOTE" "sha256sum $remote_partial_arg | cut -d' ' -f1")"
+    if [[ "$local_sum" != "$remote_sum" ]]; then
+        die "上传包校验和不一致，临时文件已保留以便继续上传: $remote_partial"
+    fi
+    ssh "${SSH_OPTS[@]}" "$REMOTE" "mv -f -- $remote_partial_arg $remote_package_arg"
     log_ok "上传完成并通过 SHA256 校验"
 }

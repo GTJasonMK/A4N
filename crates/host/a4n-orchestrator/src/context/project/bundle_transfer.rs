@@ -27,7 +27,7 @@ use crate::project::{
     assemble_project_family_export_package, assemble_video_studio_project_canvas_package,
     imported_project_family_media_path, index_import_media_payload, media_file_key,
     project_family_export_media_files, project_package_export_input, required_package_extension,
-    validate_family_media_manifest, validate_family_package_manifest,
+    validate_family_media_manifest, validate_family_package_manifest_with_canvas,
     validate_package_manifest as validate_video_studio_package_manifest,
     video_studio_export_media_files,
 };
@@ -115,16 +115,30 @@ impl OrchestratorContext {
                 (None, Vec::new(), Vec::new(), Vec::new())
             };
 
-        let canvas_owner_projects = if family.is_some() {
-            Vec::new()
+        let canvas_owner_projects = if let Some(family) = &family {
+            family
+                .projects
+                .iter()
+                .filter(|project| project.project_kind == "video")
+                .cloned()
+                .collect()
         } else {
             vec![project.clone()]
         };
         for canvas_project in canvas_owner_projects {
-            let rows = self
+            let mut rows = self
                 .canvas
                 .video_studio_project_export_rows(canvas_project.id)
                 .await?;
+            if family.is_some() {
+                rows = a4n_db::canvas::VideoStudioProjectExportRows {
+                    canvas_graphs: rows.canvas_graphs,
+                    canvas_nodes: rows.canvas_nodes,
+                    canvas_edges: rows.canvas_edges,
+                    canvas_text_assets: rows.canvas_text_assets,
+                    ..Default::default()
+                };
+            }
             let mut canvas_media = video_studio_export_media_files(&rows)?;
             let prefix = format!("canvas/{}/", canvas_project.id);
             for entry in &mut canvas_media {
@@ -340,7 +354,24 @@ impl OrchestratorContext {
 
             if let Some(family) = package.family.clone() {
                 let old_projects = family.projects.clone();
-                let family_rows = family.into_import_package();
+                let mut family_rows = family.into_import_package();
+                for mut canvas in package
+                    .canvas_projects
+                    .iter()
+                    .filter(|canvas| {
+                        old_projects
+                            .iter()
+                            .any(|project| project.id == canvas.project.id)
+                    })
+                    .cloned()
+                {
+                    remap_canvas_provider_slots(
+                        &mut canvas,
+                        &package.provider_slots,
+                        &provider_resolutions,
+                    );
+                    family_rows.canvas_projects.push(canvas.into_import_rows());
+                }
                 let mut writer = BundleFamilyMediaWriter {
                     host_port,
                     media_payload: &family_payload,
@@ -376,6 +407,10 @@ impl OrchestratorContext {
             }
 
             for mut canvas in package.canvas_projects.clone() {
+                if let Some(new_project_id) = imported_project_ids.get(&canvas.project.id) {
+                    root_project_ids.insert(canvas.project.id, *new_project_id);
+                    continue;
+                }
                 remap_canvas_provider_slots(
                     &mut canvas,
                     &package.provider_slots,
@@ -385,23 +420,7 @@ impl OrchestratorContext {
                     InternalTransferError::Message("画布媒体映射缺失".to_string())
                 })?;
                 let old_project_id = canvas.project.id;
-                let imported = if let Some(new_project_id) =
-                    imported_project_ids.get(&old_project_id).copied()
-                {
-                    let mut writer = BundleCanvasMediaWriter {
-                        host_port,
-                        media_payload: payload,
-                    };
-                    self.canvas
-                        .import_video_studio_package_into_existing(
-                            user_id,
-                            new_project_id,
-                            canvas,
-                            Utc::now().naive_utc(),
-                            &mut writer,
-                        )
-                        .await?
-                } else {
+                let imported = {
                     let mut writer = BundleCanvasMediaWriter {
                         host_port,
                         media_payload: payload,
@@ -447,7 +466,11 @@ impl OrchestratorContext {
         match result {
             Ok(report) => Ok(report),
             Err(error) => match self
-                .rollback_imported_project_ids(imported_project_ids.values().copied())
+                .rollback_imported_project_ids(
+                    user_id,
+                    imported_project_ids.values().copied(),
+                    host_port,
+                )
                 .await
             {
                 Ok(()) => Err(error),
@@ -458,17 +481,22 @@ impl OrchestratorContext {
         }
     }
 
-    async fn rollback_imported_project_ids(
+    async fn rollback_imported_project_ids<Host>(
         &self,
+        user_id: i64,
         project_ids: impl IntoIterator<Item = i64>,
-    ) -> Result<(), String> {
+        host_port: &Host,
+    ) -> Result<(), String>
+    where
+        Host: ProjectPackageTransferHostPort + ?Sized,
+    {
         let mut project_ids = project_ids.into_iter().collect::<Vec<_>>();
         project_ids.sort_unstable_by(|left, right| right.cmp(left));
         project_ids.dedup();
         for project_id in project_ids {
-            self.delete_project_cascade_validated(project_id)
-                .await
-                .map_err(|error| error.to_string())?;
+            host_port
+                .rollback_imported_project(user_id, project_id)
+                .await?;
         }
         Ok(())
     }
@@ -641,7 +669,8 @@ fn validate_bundle_media(
     }
     let family_payload = if let Some(family) = &package.family {
         let payload = scoped_import_media_payload(&family.media_files, media_bytes)?;
-        validate_family_package_manifest(family).map_err(InternalTransferError::Message)?;
+        validate_family_package_manifest_with_canvas(family, &package.canvas_projects)
+            .map_err(InternalTransferError::Message)?;
         validate_family_media_manifest(family, &payload).map_err(InternalTransferError::Message)?;
         payload
     } else {
@@ -668,8 +697,16 @@ fn validate_bundle_media(
                 .map(|entry| entry.package_path.as_str()),
         );
         let payload = scoped_import_media_payload(&canvas.media_files, media_bytes)?;
-        validate_video_studio_package_manifest(canvas, &payload)
-            .map_err(InternalTransferError::Message)?;
+        let family_owned = package.family.as_ref().is_some_and(|family| {
+            family
+                .projects
+                .iter()
+                .any(|project| project.id == canvas.project.id)
+        });
+        if !family_owned {
+            validate_video_studio_package_manifest(canvas, &payload)
+                .map_err(InternalTransferError::Message)?;
+        }
         canvas_payloads.insert(canvas.project.id, payload);
     }
     if nested_paths != root_paths {

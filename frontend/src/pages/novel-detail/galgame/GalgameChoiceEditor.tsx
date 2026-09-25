@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
@@ -11,27 +11,21 @@ import type {
 } from "../../../api/galgame";
 import { sceneSelectLabel } from "./galgameTabShared";
 
-interface ChoiceDraft {
+export interface ChoiceDraft {
   option_text: string;
   target_scene_id: string;
 }
 
 export const ChoiceEditor: React.FC<{
   line: GalgameLine;
-  choices: GalgameChoice[];
+  drafts: ChoiceDraft[];
+  onDraftsChange: (drafts: ChoiceDraft[]) => void;
   scenes: GalgameSceneDetail[];
   sceneById: Map<number, GalgameSceneDetail>;
   disabled: boolean;
   onUpdate: (choices: UpdateGalgameChoiceOptionInput[]) => void;
-}> = ({ line, choices, scenes, sceneById, disabled, onUpdate }) => {
+}> = ({ line, drafts, onDraftsChange, scenes, sceneById, disabled, onUpdate }) => {
   const { t } = useI18n();
-  const [drafts, setDrafts] = useState<ChoiceDraft[]>(() =>
-    buildChoiceDrafts(choices),
-  );
-
-  useEffect(() => {
-    setDrafts(buildChoiceDrafts(choices));
-  }, [choices, line.id]);
 
   const targetInspections = useMemo(
     () =>
@@ -78,8 +72,8 @@ export const ChoiceEditor: React.FC<{
         : t("galgame.choiceCountInvalid");
 
   const updateDraft = (index: number, patch: Partial<ChoiceDraft>) => {
-    setDrafts((current) =>
-      current.map((draft, itemIndex) =>
+    onDraftsChange(
+      drafts.map((draft, itemIndex) =>
         itemIndex === index ? { ...draft, ...patch } : draft,
       ),
     );
@@ -87,8 +81,8 @@ export const ChoiceEditor: React.FC<{
 
   const addDraft = () => {
     if (drafts.length >= 3) return;
-    setDrafts((current) => [
-      ...current,
+    onDraftsChange([
+      ...drafts,
       {
         option_text: "",
         target_scene_id: "",
@@ -98,8 +92,8 @@ export const ChoiceEditor: React.FC<{
 
   const removeDraft = (index: number) => {
     if (drafts.length <= 2) return;
-    setDrafts((current) =>
-      current.filter((_, itemIndex) => itemIndex !== index),
+    onDraftsChange(
+      drafts.filter((_, itemIndex) => itemIndex !== index),
     );
   };
 
@@ -277,7 +271,7 @@ function inspectChoiceTarget(
   };
 }
 
-function buildChoiceDrafts(
+export function buildChoiceDrafts(
   choices: GalgameChoice[],
 ): ChoiceDraft[] {
   if (choices.length > 0) {

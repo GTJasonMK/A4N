@@ -31,7 +31,7 @@ fn build_log_filter_accepts_valid_directives() {
 fn read_recent_logs_returns_tail_lines() {
     let dir = unique_temp_dir("a4n_logging_tail");
     std::fs::create_dir_all(&dir).expect("create log dir");
-    let date_str = chrono::Local::now()
+    let date_str = chrono::Utc::now()
         .date_naive()
         .format("%Y-%m-%d")
         .to_string();

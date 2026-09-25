@@ -109,16 +109,14 @@ fn generation_spec_content_unchanged_preserves_existing_status() {
         "asset_kind": "background",
         "scene": {"id": 100}
     }));
-    let source_version_hash =
-        a4n_db::galgame::galgame_generation_spec_source_hash_for_value(&input.params_json)
-            .expect("source hash");
-    let mut existing = test_generation_spec(&input, &source_version_hash);
+    let source_version_hash = "snapshot-hash";
+    let mut existing = test_generation_spec(&input, source_version_hash);
     existing.status = SPEC_STATUS_COMPLETED_FOR_TEST.to_string();
 
     assert!(!a4n_db::galgame::galgame_generation_spec_content_changed(
         &existing,
         &input,
-        &source_version_hash
+        source_version_hash
     ));
     assert_eq!(existing.status, SPEC_STATUS_COMPLETED_FOR_TEST);
 }
@@ -135,17 +133,15 @@ fn generation_spec_content_change_resets_existing_spec_to_draft_path() {
         "asset_kind": "background",
         "scene": {"id": 100, "background_note": "晴天月台"}
     });
-    let old_hash = a4n_db::galgame::galgame_generation_spec_source_hash_for_value(&old_params)
-        .expect("old source hash");
-    let new_hash =
-        a4n_db::galgame::galgame_generation_spec_source_hash_for_value(&input.params_json)
-            .expect("new source hash");
-    let mut existing = test_generation_spec(&input, &old_hash);
+    let source_version_hash = "same-snapshot-hash";
+    let mut existing = test_generation_spec(&input, source_version_hash);
     existing.params_json = old_params;
     existing.status = SPEC_STATUS_COMPLETED_FOR_TEST.to_string();
 
     assert!(a4n_db::galgame::galgame_generation_spec_content_changed(
-        &existing, &input, &new_hash
+        &existing,
+        &input,
+        source_version_hash,
     ));
 }
 
@@ -156,15 +152,13 @@ fn generation_spec_content_change_detects_legacy_canvas_context() {
         "asset_kind": "background",
         "scene": {"id": 100}
     }));
-    let source_version_hash =
-        a4n_db::galgame::galgame_generation_spec_source_hash_for_value(&input.params_json)
-            .expect("source hash");
-    let mut existing = test_generation_spec(&input, &source_version_hash);
+    let source_version_hash = "snapshot-hash";
+    let mut existing = test_generation_spec(&input, source_version_hash);
     existing.canvas_text_asset_id = Some(99);
 
     assert!(a4n_db::galgame::galgame_generation_spec_content_changed(
         &existing,
         &input,
-        &source_version_hash
+        source_version_hash
     ));
 }

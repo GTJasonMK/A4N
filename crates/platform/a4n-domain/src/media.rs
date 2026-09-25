@@ -3,6 +3,27 @@ use std::path::Path;
 
 use chrono::NaiveDateTime;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoFileProperties {
+    pub width: i32,
+    pub height: i32,
+    pub duration_secs: f32,
+    pub fps: i32,
+    pub file_size: i64,
+}
+
+impl VideoFileProperties {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.width <= 0 || self.height <= 0 || self.fps <= 0 || self.file_size <= 0 {
+            return Err("视频实际尺寸、帧率和文件大小必须大于 0".into());
+        }
+        if !self.duration_secs.is_finite() || self.duration_secs <= 0.0 {
+            return Err("视频实际时长必须是大于 0 的有限数".into());
+        }
+        Ok(())
+    }
+}
+
 /// Facts inspected from a generated media file before publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedMediaArtifactFile {

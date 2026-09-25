@@ -102,6 +102,28 @@ describe("generation web transport", () => {
     expect(task?.terminalReceived).toBe(true);
   });
 
+  it("can apply a newer snapshot when the replay floor advances during handoff", async () => {
+    mocks.authenticatedWebFetch
+      .mockResolvedValueOnce(hostErrorResponse("generation_snapshot_required"))
+      .mockResolvedValueOnce(snapshotResponse("hello", helloHash, undefined, 2))
+      .mockResolvedValueOnce(hostErrorResponse("generation_snapshot_required"))
+      .mockResolvedValueOnce(snapshotResponse(
+        "hello", helloHash, completedEvent(3, [textHash(5, helloHash)]), 3,
+      ));
+    const { generationClient } = await import("./generationTasks");
+
+    await generationClient.attach(handle);
+
+    expect(mocks.authenticatedWebFetch).toHaveBeenCalledTimes(4);
+    const resumedInit = mocks.authenticatedWebFetch.mock.calls[2][1] as RequestInit;
+    expect(new Headers(resumedInit.headers).get("Last-Event-ID")).toBe("1:2");
+    const task = getGenerationTaskViewState(taskId, 1);
+    expect(task?.streams.main?.text).toBe("hello");
+    expect(task?.terminalReceived).toBe(true);
+    expect(task?.taskStatus).toBe("completed");
+    expect(task?.recoveryState).toBe("idle");
+  });
+
   it.each([
     ["expired", null],
     ["expired", chapterResultRef],

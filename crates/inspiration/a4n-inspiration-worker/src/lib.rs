@@ -205,14 +205,22 @@ impl WorkerState {
         )
         .await
         .map_err(collaboration_error)?;
-        a4n_db::inspiration::inspiration_messages(
+        let messages = a4n_db::inspiration::inspiration_messages(
             self.database.connection(),
             project_id,
             a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT,
         )
         .await
-        .map(|messages| messages.into_iter().map(message_summary).collect())
-        .map_err(inspiration_error)
+        .map_err(inspiration_error)?;
+        messages
+            .into_iter()
+            .map(message_summary)
+            .collect::<Result<_, _>>()
+            .map_err(|message| WorkerFailure {
+                code: WorkerErrorCode::Internal,
+                message,
+                retryable: false,
+            })
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {

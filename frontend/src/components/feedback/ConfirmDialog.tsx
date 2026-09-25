@@ -144,6 +144,9 @@ export function ConfirmDialogHost() {
       zIndexClassName="z-[120]"
       footer={
         <>
+          <BookButton variant="secondary" size="sm" onClick={cancel}>
+            {current.cancelText}
+          </BookButton>
           {current.secondaryText ? (
             <BookButton variant="secondary" size="sm" onClick={secondary} className="!min-h-8 !text-xs">
               {current.secondaryText}

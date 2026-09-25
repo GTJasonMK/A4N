@@ -113,6 +113,8 @@ export const novelWorld = {
       representative_characters: "代表角色",
       description: "描述",
       weather_cycle: "天气与潮汐",
+      scene_profile_id: "场景档案",
+      members: "成员",
     },
   },
   objectProfilesTab: "物体",

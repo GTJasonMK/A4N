@@ -2,11 +2,43 @@ use std::collections::BTreeMap;
 
 use a4n_error::AppError;
 
-use super::super::super::GalgamePipelineLineStaged;
+use super::super::super::{GalgamePipelineLineStaged, GalgamePipelineScene};
 use super::contracts::*;
 use super::rules::invalid;
 
 pub(super) fn source_snapshot_chapter_id_for_scene(
+    scene: &GalgamePipelineScene,
+    source_span_by_id: &BTreeMap<&str, &GalgamePipelineSourceSpan>,
+) -> Result<i64, AppError> {
+    let mut chapter_spans = source_span_by_id
+        .values()
+        .filter(|span| span.chapter_number == scene.chapter_number);
+    let source = chapter_spans.next().ok_or_else(|| {
+        invalid(format!(
+            "Galgame 场 {} 的来源章节 {} 不存在",
+            scene.index, scene.chapter_number
+        ))
+    })?;
+    let chapter_id = source.source_snapshot_chapter_id;
+    if chapter_id <= 0 || chapter_spans.any(|span| span.source_snapshot_chapter_id != chapter_id) {
+        return Err(invalid(format!(
+            "Galgame 来源章节 {} 的快照归属不唯一",
+            scene.chapter_number
+        )));
+    }
+    if !scene.source_span_ids.is_empty()
+        && source_snapshot_chapter_id_for_spans(&scene.source_span_ids, source_span_by_id)?
+            != chapter_id
+    {
+        return Err(invalid(format!(
+            "Galgame 场 {} 的原文锚点不属于声明的来源章节",
+            scene.index
+        )));
+    }
+    Ok(chapter_id)
+}
+
+pub(super) fn source_snapshot_chapter_id_for_spans(
     source_span_ids: &[String],
     source_span_by_id: &BTreeMap<&str, &GalgamePipelineSourceSpan>,
 ) -> Result<i64, AppError> {

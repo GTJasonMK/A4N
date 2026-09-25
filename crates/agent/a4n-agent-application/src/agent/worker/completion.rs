@@ -9,39 +9,18 @@ use a4n_worker_contract::AgentWorkerFailureRequest;
 use a4n_worker_contract::{
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire,
 };
 use serde_json::Value;
 
 impl AgentApplication {
-    pub(crate) async fn complete_claimed_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: impl Into<String>,
-        result_refs_json: Option<Value>,
-        observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
-        self.complete_claimed_run_fields(
-            RunLeaseFields {
-                run_id: claimed.run.id,
-                thread_id: claimed.run.thread_id,
-                turn_id: claimed.run.turn_id,
-                lease_token: &claimed.lease_token,
-            },
-            content.into(),
-            result_refs_json,
-            observed_input_message_id,
-        )
-        .await
-    }
-
     pub(super) async fn complete_claimed_run_fields(
         &self,
         fields: RunLeaseFields<'_>,
+        source_execution_id: i64,
         content: String,
         result_refs_json: Option<Value>,
         observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         let completed = agent::finish_run_with_message(
             self.connection(),
             fields.run_id,
@@ -56,14 +35,13 @@ impl AgentApplication {
                 client_message_id: Some(format!("agent-final:{}", fields.run_id)),
                 content,
                 status: "complete".into(),
-                payload_json: None,
+                payload_json: Some(json!({"completion_execution_id": source_execution_id})),
             },
             result_refs_json,
             observed_input_message_id,
         )
-        .await
-        .map_err(agent_db_error_to_app)?;
-        Ok(completed.is_some())
+        .await;
+        completion_receipt(completed)
     }
 
     pub(crate) async fn complete_worker_run_request(
@@ -73,16 +51,110 @@ impl AgentApplication {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
+        let source = execution::Entity::find_by_id(request.source_execution_id)
+            .one(self.connection())
+            .await?
+            .filter(|row| {
+                row.run_id == run.id
+                    && row.status == "succeeded"
+                    && row.execution_key.starts_with("model-call:")
+            })
+            .ok_or_else(|| AppError::InvalidArgument("完成请求缺少本 Run 的成功模型执行".into()))?;
+        if source
+            .resource_preconditions_json
+            .as_ref()
+            .and_then(|value| value.get("input_message_id"))
+            .and_then(Value::as_i64)
+            != Some(request.observed_input_message_id)
+        {
+            return Err(AppError::InvalidArgument(
+                "完成请求的消息边界与模型执行不一致".into(),
+            ));
+        }
+        let response = serde_json::from_value(
+            source
+                .result_json
+                .clone()
+                .ok_or_else(|| AppError::InvalidArgument("模型执行缺少响应".into()))?,
+        )?;
+        let protocol = source
+            .arguments_json
+            .as_ref()
+            .map(a4n_agent_runtime_contract::agent_protocol_from_request_snapshot)
+            .ok_or_else(|| AppError::InvalidArgument("模型执行缺少请求".into()))?;
+        if !matches!(a4n_agent_runtime_contract::decode_agent_response(&response, protocol, source.id)?, a4n_agent_runtime_contract::AgentModelDecision::Final { reply } if reply == request.content)
+        {
+            return Err(AppError::InvalidArgument(
+                "完成内容与已保存的模型决定不一致".into(),
+            ));
+        }
+        if let Some(feedback) = message::Entity::find()
+            .filter(message::Column::RunId.eq(run.id))
+            .filter(message::Column::ClientMessageId.eq(format!("agent-notice:{}", source.id)))
+            .one(self.connection())
+            .await?
+        {
+            let receipt = feedback
+                .payload_json
+                .and_then(|payload| payload.get("completion_receipt").cloned())
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "Agent 完成反馈缺少回执".into(),
+                    operation: "恢复完成检查".into(),
+                })?;
+            return serde_json::from_value(receipt).map_err(AppError::from);
+        }
+        if run.status == "completed" {
+            let finished = turn::Entity::find_by_id(run.turn_id)
+                .one(self.connection())
+                .await?
+                .and_then(|turn| turn.final_message_id);
+            if let Some(finished) = finished {
+                let message = message::Entity::find_by_id(finished)
+                    .one(self.connection())
+                    .await?;
+                if message.is_some_and(|message| {
+                    message.content == request.content
+                        && message
+                            .payload_json
+                            .as_ref()
+                            .and_then(|v| v.get("completion_execution_id"))
+                            .and_then(Value::as_i64)
+                            == Some(source.id)
+                }) {
+                    return Ok(AgentWorkerCompletionSnapshotWire {
+                        completed: true,
+                        blockers: Vec::new(),
+                    });
+                }
+            }
+            return Err(AppError::InvalidArgument(
+                "Run 已由另一个模型决定完成".into(),
+            ));
+        }
+        if run.status == "queued"
+            && message::Entity::find()
+                .filter(message::Column::RunId.eq(run.id))
+                .filter(message::Column::Role.eq("user"))
+                .filter(message::Column::Id.gt(request.observed_input_message_id))
+                .one(self.connection())
+                .await?
+                .is_some()
+        {
+            return Ok(AgentWorkerCompletionSnapshotWire {
+                completed: false,
+                blockers: Vec::new(),
+            });
+        }
         self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
             run_id: request.run_id,
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
-        let completed = if run.parent_run_id.is_some() {
+        let receipt = if run.parent_run_id.is_some() {
             self.complete_child_run_fields(
                 RunLeaseFields {
                     run_id: run.id,
@@ -90,6 +162,7 @@ impl AgentApplication {
                     turn_id: run.turn_id,
                     lease_token: &request.lease.fence_token,
                 },
+                source.id,
                 request.content.clone(),
                 request.result_summary.clone(),
                 request.result_refs_json.clone(),
@@ -104,30 +177,40 @@ impl AgentApplication {
                     turn_id: run.turn_id,
                     lease_token: &request.lease.fence_token,
                 },
+                source.id,
                 request.content.clone(),
                 request.result_refs_json.clone(),
                 request.observed_input_message_id,
             )
             .await?
         };
-        Ok(AgentWorkerCompletionSnapshotWire { completed })
-    }
-
-    pub(crate) async fn run_is_terminal_request(
-        &self,
-        request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.validate_worker_lease_request(request).await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        if !receipt.blockers.is_empty() {
+            agent::append_message_for_run_lease(
+                self.connection(),
+                run.id,
+                &request.lease.fence_token,
+                AgentMessageInput {
+                    thread_id: run.thread_id,
+                    turn_id: Some(run.turn_id),
+                    run_id: Some(run.id),
+                    role: "system".into(),
+                    sender_kind: "agent".into(),
+                    sender_thread_id: None,
+                    client_message_id: Some(format!("agent-notice:{}", source.id)),
+                    content: format!(
+                        "任务还有 {} 项未完成，继续处理后再交付。",
+                        receipt.blockers.len()
+                    ),
+                    status: "complete".into(),
+                    payload_json: Some(
+                        json!({"notice_execution_id": source.id, "completion_receipt": receipt}),
+                    ),
+                },
+            )
             .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
-        Ok(AgentWorkerRunStatusSnapshotWire {
-            terminal: parse_run_status(&run.status)?.is_terminal(),
-        })
+            .map_err(agent_db_error_to_app)?;
+        }
+        Ok(receipt)
     }
 
     pub(super) async fn fail_claimed_run(
@@ -184,7 +267,7 @@ impl AgentApplication {
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
-        if run.parent_run_id.is_none() {
+        let result = if run.parent_run_id.is_none() {
             agent::fail_run_for_lease(
                 self.connection(),
                 request.run_id,
@@ -206,22 +289,17 @@ impl AgentApplication {
             .await
             .map(|_| ())
             .map_err(agent_db_error_to_app)
-        }
+        };
+        result?;
+        agent::cancel_run_tree(self.connection(), run.id, Some(&request.error_message))
+            .await
+            .map_err(agent_db_error_to_app)?;
+        Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl AgentWorkerCompletionApplicationPort for AgentApplication {
-    async fn run_is_terminal(&self, claimed: &AgentWorkerRun) -> Result<bool, AppError> {
-        AgentApplication::show_run(
-            self,
-            claimed.thread.owner_user_id,
-            &claimed.run.id.to_string(),
-        )
-        .await
-        .map(|run| run.status.is_terminal())
-    }
-
     async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
         AgentApplication::result_refs_for_run(self, claimed).await
     }
@@ -239,48 +317,21 @@ impl AgentWorkerCompletionApplicationPort for AgentApplication {
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         AgentApplication::complete_worker_run_request(self, request).await
     }
+}
 
-    async fn run_is_terminal_request(
-        &self,
-        request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
-        AgentApplication::run_is_terminal_request(self, request).await
-    }
-
-    async fn complete_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: String,
-        result_summary: String,
-        result_refs_json: Option<Value>,
-        observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
-        AgentApplication::complete_child_run(
-            self,
-            claimed,
-            content,
-            result_summary,
-            result_refs_json,
-            observed_input_message_id,
-        )
-        .await
-    }
-
-    async fn complete_claimed_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: String,
-        result_refs_json: Option<Value>,
-        observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
-        AgentApplication::complete_claimed_run(
-            self,
-            claimed,
-            content,
-            result_refs_json,
-            observed_input_message_id,
-        )
-        .await
+pub(super) fn completion_receipt<T>(
+    result: Result<Option<T>, AgentDbError>,
+) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
+    match result {
+        Ok(result) => Ok(AgentWorkerCompletionSnapshotWire {
+            completed: result.is_some(),
+            blockers: Vec::new(),
+        }),
+        Err(AgentDbError::CompletionBlocked(blockers)) => Ok(AgentWorkerCompletionSnapshotWire {
+            completed: false,
+            blockers,
+        }),
+        Err(error) => Err(agent_db_error_to_app(error)),
     }
 }
 

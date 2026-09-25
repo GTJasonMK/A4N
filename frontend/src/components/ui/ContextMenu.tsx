@@ -212,7 +212,7 @@ export const ContextMenuHost: React.FC = () => {
             }`}
           >
             {it.icon && (
-              <span className="inline-flex h-4 w-4 items-center justify-center shrink-0 text-book-text-muted">
+              <span className={`inline-flex h-4 w-4 items-center justify-center shrink-0 ${it.danger ? "text-error" : "text-book-text-muted"}`}>
                 {it.icon}
               </span>
             )}

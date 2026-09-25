@@ -233,7 +233,6 @@ impl OrchestratorContext {
             .await
     }
 
-    #[cfg(test)]
     pub(crate) async fn current_chapter_shooting_script(
         &self,
         input: ChapterShootingScriptSourceInput,

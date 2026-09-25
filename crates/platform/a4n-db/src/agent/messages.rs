@@ -318,7 +318,7 @@ where
             inbox_kind: "child_result".into(),
             delivery_mode: "followup".into(),
             priority: 20,
-            dedupe_key: format!("child-recovery:{}", delegation.id),
+            dedupe_key: format!("child-recovery:{}:{}", delegation.id, child_run.id),
             content: format!("Child Agent recovery required: {reason}"),
             payload_json: Some(inbox_payload),
             available_at: None,
@@ -444,6 +444,68 @@ pub async fn update_context_summary_for_run_lease(
         return Err(AgentDbError::Conflict(format!(
             "Agent run 与 thread 不一致: {run_id}"
         )));
+    }
+    let covered = context_summary
+        .get("covered_through_sequence")
+        .and_then(Value::as_i64)
+        .filter(|id| *id > 0)
+        .ok_or_else(|| AgentDbError::InvalidArgument("摘要缺少有效消息边界".into()))?;
+    let boundary = message::Entity::find_by_id(covered)
+        .one(&tx)
+        .await?
+        .filter(|message| message.thread_id == thread_row.id);
+    if boundary.is_none() {
+        return Err(AgentDbError::Conflict(
+            "摘要消息边界不属于当前 Thread".into(),
+        ));
+    }
+    let previous = thread_row
+        .context_summary
+        .as_deref()
+        .map(serde_json::from_str::<Value>)
+        .transpose()
+        .map_err(|error| AgentDbError::InvalidArgument(error.to_string()))?;
+    if let Some(previous) = &previous
+        && previous
+            .get("covered_through_sequence")
+            .and_then(Value::as_i64)
+            .is_some_and(|id| id >= covered)
+    {
+        if previous == &context_summary {
+            tx.commit().await?;
+            return Ok(thread_row);
+        }
+        return Err(AgentDbError::Conflict(
+            "不能覆盖相同或较新消息边界的摘要".into(),
+        ));
+    }
+    let receipts = execution::Entity::find()
+        .filter(execution::Column::RunId.eq(run_id))
+        .filter(execution::Column::ExecutionKind.eq("model_call"))
+        .filter(execution::Column::Status.eq("succeeded"))
+        .all(&tx)
+        .await?;
+    let has_receipt = receipts.iter().any(|execution| {
+        execution.execution_key.starts_with("context-summary:")
+            && execution
+                .resource_preconditions_json
+                .as_ref()
+                .and_then(|value| value.get("covered_through_sequence"))
+                .and_then(Value::as_i64)
+                == Some(covered)
+            && execution
+                .result_json
+                .as_ref()
+                .and_then(|value| value.pointer("/message/content"))
+                .and_then(Value::as_str)
+                .and_then(|text| serde_json::from_str::<Value>(text).ok())
+                .as_ref()
+                == Some(&context_summary)
+    });
+    if !has_receipt {
+        return Err(AgentDbError::Conflict(
+            "摘要缺少匹配的已验证模型回执".into(),
+        ));
     }
     let mut active: thread::ActiveModel = thread_row.into();
     active.context_summary = Set(Some(serialized));

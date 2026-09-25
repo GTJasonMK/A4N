@@ -406,6 +406,7 @@ fn completion_request_requires_content_and_observed_message_boundary() {
         result_summary: "done".into(),
         result_refs_json: Some(serde_json::json!([])),
         observed_input_message_id: 9,
+        source_execution_id: 11,
     };
     request
         .validate()
@@ -488,15 +489,6 @@ fn delegation_review_request_requires_a_positive_user_and_parent_run() {
 }
 
 #[test]
-fn run_status_snapshot_round_trips() {
-    let snapshot = AgentWorkerRunStatusSnapshotWire { terminal: true };
-    let encoded = serde_json::to_string(&snapshot).expect("run status should serialize");
-    let decoded: AgentWorkerRunStatusSnapshotWire =
-        serde_json::from_str(&encoded).expect("run status should deserialize");
-    assert!(decoded.terminal);
-}
-
-#[test]
 fn delegation_thread_request_validates_identity_fields() {
     let request = AgentWorkerDelegationThreadRequest {
         run_id: 7,
@@ -510,6 +502,7 @@ fn delegation_thread_request_validates_identity_fields() {
             resource_id: Some("7".into()),
             project_id: Some(3),
             chapter_id: Some(7),
+            chapter_number: Some(1),
             allowed_capabilities: vec!["director".into()],
             allowed_tools: Vec::new(),
         },
@@ -568,6 +561,7 @@ fn delegation_start_request_validates_transaction_input() {
             resource_id: Some("7".into()),
             project_id: Some(3),
             chapter_id: Some(7),
+            chapter_number: Some(1),
             allowed_capabilities: vec!["director".into()],
             allowed_tools: Vec::new(),
         },
@@ -786,12 +780,14 @@ fn history_request_validates_run_lease() {
     let request = AgentWorkerHistoryRequest {
         run_id: 7,
         lease: valid_request().lease,
+        page: None,
     };
     request.validate().expect("history request should be valid");
     assert!(matches!(
         AgentWorkerHistoryRequest {
             run_id: 0,
             lease: request.lease,
+            page: None,
         }
         .validate(),
         Err(WorkerContractError::InvalidValue {
@@ -832,6 +828,7 @@ fn editor_wait_request_validates_run_lease_and_execution() {
                 view_instance_id: "view-1".into(),
                 project_id: 7,
                 chapter_id: 8,
+                chapter_number: Some(1),
                 editor_revision: "revision-1".into(),
                 scene_id: None,
                 shot_id: None,

@@ -1,37 +1,51 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { getModelUsageReport, type ModelUsageReport } from "../../api/modelUsage";
 import { extractErrorMessage } from "../../api";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
-import { formatNumber, useI18n } from "../../i18n";
+import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../i18n";
+import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+
+const CAPABILITY_LABELS: Record<string, MessageKey> = {
+  chapter_generation: "workflow.taskChapterGeneration",
+  chapter_analysis: "workflow.kindChapterAnalysis",
+  scene_image: "workflow.taskImageGeneration",
+  image_generation: "workflow.taskImageGeneration",
+  video_generation: "workflow.taskVideoGeneration",
+  inspiration: "novel.inspiration",
+};
 
 export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ projectId }) => {
   const { t, locale } = useI18n();
   const { addToast } = useToast();
-  const [report, setReport] = useState<ModelUsageReport | null>(null);
+  const [result, setResult] = useState<{ projectId: number | null; report: ModelUsageReport } | null>(null);
+  const report = result?.projectId === projectId ? result.report : null;
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestRef = useRef(0);
 
   const refresh = async () => {
+    const request = ++requestRef.current;
     setLoading(true);
+    setLoadError(null);
     try {
-      setReport(
-        await getModelUsageReport({
-          projectId,
-          days: 30,
-          limit: 100,
-        }),
-      );
+      const report = await getModelUsageReport({ projectId, days: 30, limit: 100 });
+      if (request === requestRef.current) setResult({ projectId, report });
     } catch (error) {
-      addToast(extractErrorMessage(error, t("novel.costLoadFailed")), "error");
+      if (request !== requestRef.current) return;
+      const message = extractErrorMessage(error, t("novel.costLoadFailed"));
+      setLoadError(message);
+      addToast(message, "error");
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     void refresh();
+    return () => { requestRef.current += 1; };
   }, [projectId]);
 
   if (loading && !report) {
@@ -54,7 +68,8 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
         </BookIconButton>
       </header>
 
-      {!report || report.recent.length === 0 ? (
+      {loadError ? <p role="alert" className="text-sm text-error">{loadError}</p> : null}
+      {loadError && !report ? null : !report || report.recent.length === 0 ? (
         <div className="border-l-2 border-book-border/70 py-3 pl-4 text-sm text-book-text-muted">
           {t("novel.costEmpty")}
         </div>
@@ -94,34 +109,35 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
               })}
             </p>
           )}
-          <div className="overflow-x-auto border-y border-book-border/40">
+          <div className="custom-scrollbar overflow-x-auto border-y border-book-border/40" role="region" tabIndex={0} aria-label={t("novel.costTitle")}>
             <table className="w-full min-w-[680px] text-left text-small">
               <thead className="text-book-text-muted">
                 <tr className="border-b border-book-border/40">
+                  <th className="px-2 py-2 font-medium">{t("novel.costAmount")}</th>
+                  <th className="px-2 py-2 font-medium">{t("novel.costStatus")}</th>
                   <th className="px-2 py-2 font-medium">{t("novel.costCapability")}</th>
                   <th className="px-2 py-2 font-medium">{t("novel.costModel")}</th>
-                  <th className="px-2 py-2 font-medium">{t("novel.costStatus")}</th>
-                  <th className="px-2 py-2 font-medium">{t("novel.costAmount")}</th>
                   <th className="px-2 py-2 font-medium">{t("novel.costTime")}</th>
                 </tr>
               </thead>
               <tbody>
-                {report.recent.slice(0, 50).map((entry) => (
+                {report.recent.map((entry) => (
                   <tr key={entry.id} className="border-b border-book-border/25 last:border-0">
-                    <td className="px-2 py-2 text-book-text-main">{entry.capability}</td>
-                    <td className="max-w-[240px] truncate px-2 py-2 text-book-text-muted">
-                      {entry.provider ?? "-"} · {entry.model ?? "-"}
-                    </td>
-                    <td className="px-2 py-2 text-book-text-muted">
-                      {entry.status} · {entry.confidence}
-                    </td>
-                    <td className="px-2 py-2 font-mono tabular-nums text-book-text-main">
+                    <td className="whitespace-nowrap px-2 py-2 font-mono tabular-nums text-book-text-main">
                       {entry.amountMicros == null
                         ? t("novel.costUnpriced")
                         : entry.currency + " " + formatMicros(entry.amountMicros, locale)}
                     </td>
+                    <td className="px-2 py-2 text-book-text-muted" title={`${entry.status} · ${entry.confidence}`}>
+                      <div className={entry.status === "failed" ? "text-error" : undefined}>{getOperationStatusLabel(entry.status, locale)}</div>
+                      <div className="text-caption">{entry.confidence === "reported" ? t("novel.costReported") : entry.confidence === "partial" ? t("novel.costPartial") : entry.confidence === "unpriced" ? t("novel.costUnpriced") : entry.confidence}</div>
+                    </td>
+                    <td className="px-2 py-2 text-book-text-main">{CAPABILITY_LABELS[entry.capability] ? t(CAPABILITY_LABELS[entry.capability]) : entry.capability}</td>
+                    <td className="max-w-[240px] truncate px-2 py-2 text-book-text-muted" title={`${entry.provider ?? ""} · ${entry.model ?? ""}`}>
+                      {entry.provider ?? "-"} · {entry.model ?? "-"}
+                    </td>
                     <td className="whitespace-nowrap px-2 py-2 text-book-text-muted">
-                      {entry.startedAt}
+                      {formatDateTime(entry.startedAt, locale)}
                     </td>
                   </tr>
                 ))}

@@ -35,7 +35,6 @@ pub(crate) fn galgame_asset_plan_spec_record_error(
         GalgameAssetPlanSpecRecordError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        GalgameAssetPlanSpecRecordError::Serialization(err) => AppError::Serialization(err),
         GalgameAssetPlanSpecRecordError::Database(err) => AppError::Database(err),
     }
 }

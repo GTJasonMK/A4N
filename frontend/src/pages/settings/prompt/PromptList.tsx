@@ -55,7 +55,7 @@ export const PromptList: React.FC<PromptListProps> = ({
               aria-current={isSelected ? "true" : undefined}
               className={`w-full px-3 py-2.5 text-left text-xs transition-colors ${
                 isSelected
-                  ? "bg-book-primary/10 text-book-primary shadow-[inset_3px_0_0_rgb(var(--color-primary))]"
+                  ? "bg-book-primary/10 text-book-primary"
                   : "bg-transparent text-book-text-sub hover:bg-book-bg-tertiary/70 hover:text-book-text-main"
               }`}
             >

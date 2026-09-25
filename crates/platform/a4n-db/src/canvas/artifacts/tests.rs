@@ -169,7 +169,13 @@ async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips(
             video.id,
             &format!("projects/{}/source-{index}.mp4", project.id),
             None,
-            100,
+            &a4n_domain::media::VideoFileProperties {
+                file_size: 100,
+                width: video.width,
+                height: video.height,
+                duration_secs: video.duration_secs,
+                fps: video.fps,
+            },
             None,
             None,
         )
@@ -205,7 +211,13 @@ async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips(
         assembly.id,
         &format!("projects/{}/assembly.mp4", project.id),
         None,
-        300,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 300,
+            width: assembly.width,
+            height: assembly.height,
+            duration_secs: assembly.duration_secs,
+            fps: assembly.fps,
+        },
         None,
         None,
     )

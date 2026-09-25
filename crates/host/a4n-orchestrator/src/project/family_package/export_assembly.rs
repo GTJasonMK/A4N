@@ -150,6 +150,15 @@ fn prepare_rows_for_export(rows: &mut ProjectFamilyExportRows) -> Result<(), Str
     }
     for spec in &mut rows.generation_specs {
         clear_canvas_transfer_runtime_identity(&mut spec.params_json);
+        if spec.source_context_kind.as_deref()
+            == Some(a4n_db_models::models::generation::generation_spec::SOURCE_CONTEXT_FREEFORM)
+        {
+            spec.source_version_hash =
+                a4n_db_models::models::generation::generation_spec::freeform_source_version_hash(
+                    &spec.params_json,
+                )
+                .ok_or_else(|| format!("画布生成意图缺少 source_material: {}", spec.id))?;
+        }
     }
     for provenance in &mut rows.media_provenance {
         provenance.provider_job_id = None;

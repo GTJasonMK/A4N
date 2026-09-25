@@ -5,7 +5,7 @@ mod import_rows;
 mod remap;
 mod rules;
 
-pub(self) use contracts::ImportIdMaps;
+use contracts::ImportIdMaps;
 pub use contracts::{
     ProjectFamilyImportMappings, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
 };
@@ -14,7 +14,7 @@ pub use execution::{
     import_project_family_package_rows, import_project_family_package_rows_with_mappings,
 };
 pub use remap::snapshot_profile_key;
-pub(self) use remap::{
+use remap::{
     remap_chapter_hashes_json, remap_chapter_video_reference_image_ids,
     remap_conflict_affected_refs, remap_generation_spec_params_json,
     remap_generation_spec_source_version_hash, remap_manga_generated_image_metadata,
@@ -28,14 +28,14 @@ use remap::{
     remap_generation_target_id, remap_media_binding_target_id, remap_snapshot_outline_source_id,
     remap_source_sync_target_id, remap_text_anchor_source_id,
 };
-pub(self) use rules::media_asset_status_for_import_insert;
+use rules::media_asset_status_for_import_insert;
 pub use rules::normalize_profile_evidence_role;
 use rules::{
     map_optional, map_required, remap_chapter_source_revision_key, remap_optional_entity_id,
     remap_profile_id, remap_shooting_script_visual_plan_source, remap_visual_plan_identity,
 };
 
-pub(self) use rules::hash_json;
+use rules::hash_json;
 
 use a4n_db_models::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},

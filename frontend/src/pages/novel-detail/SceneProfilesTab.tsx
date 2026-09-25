@@ -490,9 +490,11 @@ export const SceneProfilesTab: React.FC<{
                   </p>
                   <div className="mt-1 truncate text-caption text-book-text-muted">
                     {profile.spatial_layout || profile.atmosphere || t("novel.profile.noLayout")}
-                    {profile.occurrence_count > 0 ? ` · ${t("novel.profile.appearances", { count: profile.occurrence_count })}` : ""}
-                    {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
                   </div>
+                  <p className="mt-1 flex flex-wrap gap-x-3 text-caption text-book-text-muted">
+                    {profile.occurrence_count > 0 ? <span>{t("novel.profile.appearances", { count: profile.occurrence_count })}</span> : null}
+                    {profile.generated_image_count > 0 ? <span>{t("novel.profile.materialImages", { count: profile.generated_image_count })}</span> : null}
+                  </p>
                 </div>
                 <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
               </li>
@@ -658,7 +660,11 @@ function SceneProfileEditModal({
     }
     setSaving(true);
     try {
-      await onSave(draft);
+      await onSave({
+        ...draft,
+        aliases: splitLines(draft.aliases?.join("\n") ?? ""),
+        evidence: splitLines(draft.evidence?.join("\n") ?? ""),
+      });
     } finally {
       setSaving(false);
     }
@@ -741,7 +747,7 @@ function SceneProfileEditModal({
         <TextAreaField
           label={t("novel.profile.aliases")}
           value={(draft.aliases ?? []).join("\n")}
-          onChange={(value) => update("aliases", splitLines(value))}
+          onChange={(value) => update("aliases", value.split("\n"))}
         />
         <TextAreaField
           label={t("novel.profile.baseDefinition")}
@@ -766,7 +772,7 @@ function SceneProfileEditModal({
         <TextAreaField
           label={t("novel.profile.evidence")}
           value={(draft.evidence ?? []).join("\n")}
-          onChange={(value) => update("evidence", splitLines(value))}
+          onChange={(value) => update("evidence", value.split("\n"))}
         />
         <TextAreaField
           label={t("novel.profile.imageDescription")}
@@ -810,6 +816,10 @@ const STRUCTURED_FIELD_LABELS: Record<string, MessageKey> = {
   rule: "novel.profile.structuredField.rule",
   status: "novel.profile.structuredField.status",
   value: "novel.profile.structuredField.value",
+  lighting: "novel.profile.structuredField.lighting",
+  weather: "novel.profile.structuredField.weather",
+  accessibility: "novel.profile.structuredField.accessibility",
+  chapter_number: "novel.profile.structuredField.chapterNumber",
 };
 
 function formatStructuredSummary(
@@ -834,7 +844,7 @@ function formatStructuredSummary(
         const itemText = formatStructuredSummary(item, t);
         const fieldLabel = STRUCTURED_FIELD_LABELS[key]
           ? t(STRUCTURED_FIELD_LABELS[key])
-          : t("novel.profile.structuredField.info");
+          : key.replace(/_/g, " ");
         return `${fieldLabel}: ${itemText}`;
       })
       .join(t("common.summarySeparator"));

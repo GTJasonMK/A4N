@@ -29,7 +29,7 @@ pub(super) fn request_error(
         ));
     }
 
-    AppError::LlmError(format!("{label}请求失败: {error}"))
+    AppError::LlmError(format!("{label}请求失败: {}", error_chain(&error)))
 }
 
 pub(super) fn stream_read_error(

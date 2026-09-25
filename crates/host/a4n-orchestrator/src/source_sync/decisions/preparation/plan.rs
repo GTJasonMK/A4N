@@ -72,6 +72,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
                 id: span.id.clone(),
                 text_anchor_id: span.text_anchor_id,
                 source_snapshot_chapter_id: span.source_snapshot_chapter_id,
+                chapter_number: source.new_snapshot_chapter.chapter_number,
             })
             .collect(),
         speaker_profiles: speaker_profiles.to_vec(),

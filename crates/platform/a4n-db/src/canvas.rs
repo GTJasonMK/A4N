@@ -3,6 +3,14 @@ mod graph_record;
 mod references;
 mod transfer;
 
+pub(crate) use transfer::{
+    DeferredVideoStudioImportGenerationSpecTarget, VideoStudioProjectImportIdMaps,
+    import_video_studio_canvas_graphs, import_video_studio_canvas_text_assets,
+    import_video_studio_generation_specs, update_imported_canvas_node_refs,
+    update_imported_generation_spec_metadata, update_imported_generation_spec_targets,
+    update_imported_media_metadata,
+};
+
 pub use artifacts::{
     CanvasAssemblyContractSyncSummary, CanvasImageMediaAssetEnsureInput,
     CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
@@ -14,15 +22,16 @@ pub use artifacts::{
 };
 pub use graph_record::{
     CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
-    CanvasNodeRecordInput, get_or_create_canvas_graph_record, save_canvas_graph_record,
-    upsert_canvas_text_asset_record, validate_canvas_record_document_edge_contract,
-    validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
+    CanvasGraphRecordSaveResult, CanvasNodeRecordInput, get_or_create_canvas_graph_record,
+    save_canvas_graph_record, upsert_canvas_text_asset_record,
+    validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
+    validate_canvas_record_viewport_json,
 };
 pub use transfer::{
     VideoStudioProjectExportRows, VideoStudioProjectImportError,
     VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter,
     VideoStudioProjectImportRows, import_video_studio_project_record,
-    import_video_studio_project_record_into_existing, video_studio_project_export_rows,
+    video_studio_project_export_rows,
 };
 
 pub(crate) use references::{

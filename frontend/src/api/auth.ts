@@ -1,17 +1,18 @@
-import { apiInvoke } from "./index";
+import { apiInvoke, refreshWebAuthentication } from "./index";
+import { shouldUseHttpBackend } from "./runtime";
 import {
   clearCurrentAuth,
   readCurrentRefreshToken,
   readCurrentSessionId,
-  writeCurrentAccessToken,
-  writeCurrentRefreshToken,
-  writeCurrentSessionId,
-  writeCurrentUserId,
+  writeCurrentAuth,
+  writeCurrentTokens,
 } from "./authStorage";
 import type {
   AuthResult,
   ChangePasswordInput,
   LoginInput,
+  OAuth2AuthorizeInput,
+  OAuth2CallbackInput,
   RefreshTokenInput,
   RegisterInput,
   RevokeSessionInput,
@@ -29,12 +30,7 @@ export type {
 
 export type TokenPair = TokenPairSummary;
 
-const persistAuthResult = (result: AuthResult): void => {
-  writeCurrentUserId(result.user.id);
-  writeCurrentSessionId(result.tokens.session_id);
-  writeCurrentAccessToken(result.tokens.access_token);
-  writeCurrentRefreshToken(result.tokens.refresh_token);
-};
+export const persistAuthResult = writeCurrentAuth;
 
 export async function getCurrentUser(): Promise<UserSummary> {
   return apiInvoke<UserSummary>("get_current_user");
@@ -45,7 +41,7 @@ export async function loginUser(username: string, password: string): Promise<Aut
   const result = await apiInvoke<AuthResult>("login_user", {
     input,
   });
-  persistAuthResult(result);
+  await persistAuthResult(result);
   return result;
 }
 
@@ -64,18 +60,20 @@ export async function registerUser(
   const result = await apiInvoke<AuthResult>("register_user", {
     input,
   });
-  persistAuthResult(result);
+  await persistAuthResult(result);
   return result;
 }
 
 export async function logoutUser(): Promise<void> {
+  const sessionId = readCurrentSessionId();
   try {
-    const input: RevokeSessionInput = { session_id: requireCurrentSessionId() };
+    if (!sessionId) throw new Error("当前会话不存在");
+    const input: RevokeSessionInput = { session_id: sessionId };
     await apiInvoke<void>("revoke_session", {
       input,
     });
   } finally {
-    clearCurrentAuth();
+    if (readCurrentSessionId() === sessionId) await clearCurrentAuth();
   }
 }
 
@@ -97,7 +95,8 @@ export async function updateUserProfile(
 }
 
 /** 后端 refresh_token(input: { refresh_token, session_id }) */
-export async function refreshToken(): Promise<TokenPair> {
+export async function refreshToken(): Promise<void> {
+  if (shouldUseHttpBackend()) return refreshWebAuthentication();
   const token = readCurrentRefreshToken();
   if (!token) throw new Error("当前刷新令牌不存在，无法刷新令牌");
   const sessionId = requireCurrentSessionId();
@@ -105,27 +104,19 @@ export async function refreshToken(): Promise<TokenPair> {
   const pair = await apiInvoke<TokenPair>("refresh_token", {
     input,
   });
-  writeCurrentSessionId(pair.session_id);
-  writeCurrentAccessToken(pair.access_token);
-  writeCurrentRefreshToken(pair.refresh_token);
-  return pair;
+  await writeCurrentTokens(pair);
 }
 
 export async function listSessions(): Promise<SessionSummary[]> {
   return apiInvoke<SessionSummary[]>("list_sessions");
 }
 
-export async function oauth2AuthorizeUrl(provider: string): Promise<string> {
-  return apiInvoke<string>("oauth2_authorize_url", { input: { provider } });
+export async function oauth2AuthorizeUrl(input: OAuth2AuthorizeInput): Promise<string> {
+  return apiInvoke<string>("oauth2_authorize_url", { input });
 }
 
-export async function oauth2Callback(input: {
-  provider: string;
-  code: string;
-}): Promise<AuthResult> {
-  const result = await apiInvoke<AuthResult>("oauth2_callback", { input });
-  persistAuthResult(result);
-  return result;
+export async function oauth2Callback(input: OAuth2CallbackInput): Promise<AuthResult> {
+  return apiInvoke<AuthResult>("oauth2_callback", { input });
 }
 
 function requireCurrentSessionId(): string {

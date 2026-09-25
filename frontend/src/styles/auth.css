@@ -1,42 +1,28 @@
 /* ============================================================================
-   入口与首页：编辑台视觉
+   账号入口：书房配色与 iOS 卡片
    ============================================================================ */
 
 .a4n-auth-page {
+  display: grid;
+  place-items: center;
   box-sizing: border-box;
   min-height: 100%;
   overflow-y: auto;
   padding: clamp(1rem, 4vw, 3.5rem);
-  background:
-    linear-gradient(
-      135deg,
-      rgb(var(--color-bg-primary) / calc(0.96 * var(--a4n-workspace-opacity))),
-      rgb(var(--color-bg-primary) / calc(0.82 * var(--a4n-workspace-opacity)))
-    ),
-    radial-gradient(circle at 12% 18%, rgb(var(--color-accent) / 0.16), transparent 34rem);
-}
-
-.dark .a4n-auth-page {
-  background:
-    linear-gradient(
-      135deg,
-      rgb(var(--color-bg-primary) / calc(0.98 * var(--a4n-workspace-opacity))),
-      rgb(var(--color-bg-primary) / calc(0.88 * var(--a4n-workspace-opacity)))
-    ),
-    radial-gradient(circle at 12% 18%, rgb(var(--color-accent) / 0.1), transparent 34rem);
+  background: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
 }
 
 .a4n-auth-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.72fr);
   width: min(100%, 1050px);
-  min-height: min(680px, calc(100dvh - 2rem));
+  min-height: min(42rem, 80dvh);
   margin: auto;
   overflow: hidden;
   border: 1px solid rgb(var(--color-border) / 0.55);
-  border-radius: 26px;
+  border-radius: var(--pyqt-radius-xl);
   background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
-  box-shadow: var(--shadow-overlay);
+  box-shadow: var(--shadow-card);
 }
 
 .a4n-auth-intro {
@@ -47,26 +33,11 @@
   justify-content: space-between;
   overflow: hidden;
   padding: clamp(1.5rem, 4vw, 3.25rem);
+  --a4n-auth-foreground: var(--color-button-text);
   background:
     linear-gradient(145deg, rgb(var(--color-primary-dark)), rgb(var(--color-primary) / 0.9)),
     rgb(var(--color-primary-dark));
-  color: rgb(var(--color-button-text));
-}
-
-.a4n-auth-intro::after {
-  position: absolute;
-  right: -15%;
-  bottom: -30%;
-  width: 70%;
-  aspect-ratio: 1;
-  border: 1px solid rgb(var(--color-button-text) / 0.16);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 22px rgb(var(--color-button-text) / 0.045),
-    0 0 0 44px rgb(var(--color-button-text) / 0.035),
-    0 0 0 66px rgb(var(--color-button-text) / 0.025);
-  content: "";
-  pointer-events: none;
+  color: rgb(var(--a4n-auth-foreground));
 }
 
 .a4n-auth-brand-lockup {
@@ -91,7 +62,7 @@
 }
 
 .a4n-auth-brand-lockup small {
-  color: rgb(var(--color-button-text) / 0.68);
+  color: rgb(var(--a4n-auth-foreground) / 0.76);
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -103,9 +74,8 @@
   height: 2.65rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(var(--color-button-text) / 0.26);
-  border-radius: 12px;
-  background: rgb(var(--color-button-text) / 0.11);
+  border: 1px solid rgb(var(--a4n-auth-foreground) / 0.3);
+  border-radius: var(--pyqt-radius-sm);
 }
 
 .a4n-auth-intro-copy {
@@ -118,7 +88,7 @@
 
 .a4n-auth-eyebrow {
   margin: 0 0 1.1rem;
-  color: rgb(var(--color-button-text) / 0.68);
+  color: rgb(var(--a4n-auth-foreground) / 0.76);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -130,20 +100,20 @@
   font-family: var(--font-serif);
   font-size: clamp(2.35rem, 5vw, 4.7rem);
   font-weight: 600;
-  letter-spacing: -0.055em;
-  line-height: 1.08;
+  letter-spacing: -0.035em;
+  line-height: 1.22;
   text-wrap: balance;
 }
 
 .a4n-auth-intro h1 span {
   display: block;
-  color: rgb(var(--color-accent-light));
+  color: inherit;
 }
 
 .a4n-auth-intro-copy > p:last-child {
   max-width: 31ch;
   margin: 1.4rem 0 0;
-  color: rgb(var(--color-button-text) / 0.72);
+  color: rgb(var(--a4n-auth-foreground) / 0.8);
   font-size: 0.98rem;
   line-height: 1.8;
 }
@@ -154,14 +124,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
-  color: rgb(var(--color-button-text) / 0.62);
+  color: rgb(var(--a4n-auth-foreground) / 0.76);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
 }
 
 .a4n-auth-intro-footer span {
   padding-right: 0.75rem;
-  border-right: 1px solid rgb(var(--color-button-text) / 0.2);
+  border-right: 1px solid rgb(var(--a4n-auth-foreground) / 0.3);
 }
 
 .a4n-auth-intro-footer span:last-child {
@@ -228,65 +198,8 @@
 }
 
 .a4n-auth-oauth-button:focus-visible {
-  outline: 2px solid rgb(var(--color-primary) / 0.4);
+  outline: 2px solid rgb(var(--color-primary));
   outline-offset: 3px;
-}
-
-.a4n-home-page {
-  background-image:
-    linear-gradient(90deg, rgb(var(--color-primary) / 0.022) 1px, transparent 1px),
-    linear-gradient(rgb(var(--color-primary) / 0.018) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-.a4n-home-sidebar {
-  position: relative;
-  background:
-    linear-gradient(
-      180deg,
-      rgb(var(--color-bg-secondary) / calc(0.94 * var(--a4n-panel-opacity))),
-      rgb(var(--color-bg-secondary) / calc(0.72 * var(--a4n-panel-opacity)))
-    ),
-    radial-gradient(
-      circle at 50% 18%,
-      rgb(var(--color-accent) / calc(0.12 * var(--a4n-panel-opacity))),
-      transparent 18rem
-    );
-  animation: a4n-motion-panel-enter var(--a4n-motion-panel) var(--a4n-ease-out) both;
-}
-
-.a4n-home-sidebar::before {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-  background: linear-gradient(rgb(var(--color-primary)), transparent 72%);
-  content: "";
-  opacity: 0.7;
-}
-
-.a4n-home-quote {
-  border: 1px solid rgb(var(--color-primary) / 0.08);
-  border-left: 3px solid rgb(var(--color-primary) / 0.5);
-  background: rgb(var(--color-primary) / 0.045);
-}
-
-.a4n-home-content {
-  background: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
-  animation: a4n-motion-panel-enter var(--a4n-motion-panel) var(--a4n-ease-out) 44ms both;
-}
-
-.a4n-home-filter-bar {
-  padding-block: 0.35rem 0.75rem;
-}
-
-.a4n-project-row {
-  min-height: 5.15rem;
-}
-
-.a4n-project-row:hover {
-  background: rgb(var(--color-primary) / 0.045);
 }
 
 @media (max-width: 767px) {
@@ -337,48 +250,4 @@
     background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
   }
 
-  .a4n-home-sidebar {
-    background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
-  }
-
-  .a4n-home-sidebar::before {
-    top: auto;
-    right: 0;
-    bottom: 0;
-    width: auto;
-    height: 3px;
-    background: linear-gradient(90deg, rgb(var(--color-primary)), transparent 80%);
-  }
-
-  .a4n-home-content {
-    background: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
-  }
-
-  .a4n-project-row {
-    min-height: 6rem;
-  }
-
-  .a4n-home-page,
-  .a4n-page-container {
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
-  }
-}
-
-@media (max-width: 900px) {
-  .a4n-desk-rail {
-    border: none;
-    border-bottom: 0.5px solid rgb(var(--color-border) / 0.28);
-    max-height: 40vh;
-  }
-
-  .a4n-filter-chips {
-    width: 100%;
-    max-width: 100%;
-  }
-}
-
-@media (max-width: 767px) {
-  .a4n-settings-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

@@ -98,9 +98,9 @@ export const PromptTab: React.FC = () => {
       setItems(list);
       setCategories(cats);
       setSelectedName((current) =>
-        current && !list.some((prompt) => prompt.name === current)
-          ? null
-          : current,
+        current && list.some((prompt) => prompt.name === current)
+          ? current
+          : list[0]?.name ?? null,
       );
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
@@ -403,7 +403,7 @@ export const PromptTab: React.FC = () => {
         onRefresh={() => void handleRefresh()}
       />
 
-      <div className="grid min-h-0 gap-3 md:flex-1 md:grid-cols-[260px_minmax(0,1fr)] md:grid-rows-1">
+      <div className="grid min-h-0 gap-3 md:flex-1 md:grid-cols-[clamp(180px,24%,260px)_minmax(0,1fr)] md:grid-rows-1">
         <PromptList
           prompts={filtered}
           loading={loading}

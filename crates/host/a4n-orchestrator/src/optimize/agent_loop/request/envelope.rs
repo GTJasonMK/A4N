@@ -255,7 +255,12 @@ mod tests {
             .unwrap();
             preview_context_aware_chat_request(&mut request, 1_000_000, 8192).unwrap();
             request
-                .configure_prompt_cache("openai-responses", "gpt-5.6-luna", None, Some(7))
+                .configure_prompt_cache(
+                    "openai-responses",
+                    "gpt-5.6-luna",
+                    Some(&json!({"prompt_cache_options": {"mode": "explicit"}})),
+                    Some(7),
+                )
                 .unwrap();
             request
         };

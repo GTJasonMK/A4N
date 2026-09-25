@@ -44,6 +44,7 @@ pub struct ImportChapterInput {
 pub struct UpdateChapterContentInput {
     #[schemars(range(min = 1))]
     pub chapter_id: i64,
+    pub expected_revision: String,
     pub content: String,
     pub title: Option<String>,
 }
@@ -264,6 +265,7 @@ pub struct ChapterSummary {
     pub chapter_number: i32,
     pub title: Option<String>,
     pub content: String,
+    pub edit_revision: String,
     pub word_count: i32,
     pub status: String,
     pub summary: Option<String>,

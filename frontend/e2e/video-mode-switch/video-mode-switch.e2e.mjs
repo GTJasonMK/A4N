@@ -16,8 +16,58 @@ const segmentConfigDialog = (segmentNumber) =>
     `//div[@role="dialog" and .//h3[normalize-space()="片段 ${segmentNumber} · 配置"]]`,
   );
 
+const revealByWheel = async (element) => {
+  await element.waitForExist();
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const position = await element.execute((node) => {
+      const box = node.getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + box.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      if (box.width > 0 && box.height > 0 && hit && (node === hit || node.contains(hit))) return { reached: true };
+      let scroll = node.parentElement;
+      while (scroll && (!/auto|scroll/.test(getComputedStyle(scroll).overflowY) || scroll.scrollHeight <= scroll.clientHeight + 1)) scroll = scroll.parentElement;
+      if (!scroll) return { reached: false, scrollable: false, top: box.top, height: box.height };
+      const bounds = scroll.getBoundingClientRect();
+      const top = Math.max(0, bounds.top), bottom = Math.min(innerHeight, bounds.bottom);
+      const span = bottom - top;
+      return {
+        reached: false, scrollable: span > 0,
+        x: Math.round(Math.max(1, Math.min(innerWidth - 1, bounds.right - 4))),
+        y: Math.round((top + bottom) / 2),
+        deltaY: Math.round(Math.max(-span / 2, Math.min(span / 2, cy - (top + bottom) / 2))),
+        top: box.top, height: box.height,
+      };
+    });
+    if (position.reached) return;
+    assert(position.scrollable && position.deltaY !== 0, `Control has no reachable scroll path: ${JSON.stringify(position)}`);
+    await browser.performActions([{ type: "wheel", id: "video-mode-wheel", actions: [{
+      type: "scroll", origin: "viewport", x: position.x, y: position.y, deltaX: 0, deltaY: position.deltaY, duration: 120,
+    }] }]);
+    await browser.releaseActions();
+    await browser.pause(80);
+  }
+  assert.fail("Control did not become reachable through real wheel scrolling");
+};
+
+const openFrameMenu = async (dialog) => {
+  const trigger = await dialog.$('button[aria-haspopup="menu"]');
+  await trigger.waitForClickable();
+  await trigger.click();
+  await browser.waitUntil(async () => (await trigger.getAttribute("aria-expanded")) === "true");
+  const id = await trigger.getAttribute("aria-controls");
+  assert(id, "The open frame menu must expose its controlled menu");
+  const menu = await $(`[role="menu"][id=${JSON.stringify(id)}]`);
+  await menu.waitForDisplayed();
+  return { trigger, menu };
+};
+
+const frameMenuItem = (menu, label) =>
+  menu.$(`.//*[@role="menuitem" and normalize-space()=${JSON.stringify(label)}]`);
+
 const openSegmentConfig = async (segmentNumber) => {
   const button = await pageSegmentButton(segmentNumber);
+  await revealByWheel(button);
   await button.waitForClickable();
   if ((await button.getAttribute("aria-current")) !== "true") {
     await button.click();
@@ -257,10 +307,20 @@ describe("video segment mode switching in Chromium", () => {
       );
       const preview = slot?.children[0]?.getBoundingClientRect();
       const rect = slot?.getBoundingClientRect();
+      const endSlot = document.querySelector(
+        '[role="dialog"] button[aria-label="配置尾帧"]',
+      );
+      const endPreview = endSlot?.children[0]?.getBoundingClientRect();
+      const endRect = endSlot?.getBoundingClientRect();
       return {
         slotHeight: rect?.height ?? 0,
         previewWidth: preview?.width ?? 0,
         previewHeight: preview?.height ?? 0,
+        endSlotHeight: endRect?.height ?? 0,
+        endPreviewWidth: endPreview?.width ?? 0,
+        endPreviewHeight: endPreview?.height ?? 0,
+        topDifference: rect && endRect ? Math.abs(rect.top - endRect.top) : null,
+        gap: rect && endRect ? endRect.left - rect.right : null,
       };
     });
     const referenceSlotLayout = await browser.execute(() => {
@@ -268,13 +328,19 @@ describe("video segment mode switching in Chromium", () => {
         '[role="dialog"] button[aria-label="添加参考图或素材"]',
       );
       const rect = slot?.getBoundingClientRect();
-      return { width: rect?.width ?? 0 };
+      return { width: rect?.width ?? 0, height: rect?.height ?? 0 };
     });
-    assert.ok(slotLayout.slotHeight <= 240);
-    assert.ok(slotLayout.previewWidth > slotLayout.previewHeight);
+    assert.ok(slotLayout.slotHeight <= 240, `Required frame slot exceeds its compact height: ${JSON.stringify(slotLayout)}`);
+    assert.ok(slotLayout.endSlotHeight <= 240, `Required tail slot exceeds its compact height: ${JSON.stringify(slotLayout)}`);
+    assert.ok(Math.abs(slotLayout.previewWidth / slotLayout.previewHeight - 16 / 9) < 0.02);
+    assert.ok(Math.abs(slotLayout.endPreviewWidth / slotLayout.endPreviewHeight - 16 / 9) < 0.02);
     assert.ok(
-      Math.abs(slotLayout.previewWidth - referenceSlotLayout.width) <= 4,
+      Math.abs(slotLayout.previewWidth - slotLayout.endPreviewWidth) <= 4,
+      `The required frame pair must have matching widths: ${JSON.stringify(slotLayout)}`,
     );
+    assert.ok(slotLayout.topDifference != null && slotLayout.topDifference <= 1);
+    assert.ok(slotLayout.gap != null && slotLayout.gap >= 0);
+    assert.ok(referenceSlotLayout.width >= 44 && referenceSlotLayout.height >= 44);
 
     const firstFrame = await dialog.$('button[aria-label="配置首帧"]');
     await firstFrame.click();
@@ -292,6 +358,7 @@ describe("video segment mode switching in Chromium", () => {
     const referenceTrigger = await dialog.$(
       'button[aria-label="添加参考图或素材"]',
     );
+    await revealByWheel(referenceTrigger);
     await referenceTrigger.click();
     const materialDialog = await $(
       '//div[@role="dialog" and .//h3[normalize-space()="添加参考图 / 素材"]]',
@@ -342,20 +409,15 @@ describe("video segment mode switching in Chromium", () => {
     );
     await prompt.waitForExist();
     assert.equal(await prompt.getValue(), "storyboard");
-    assert.equal(
-      await frameDialog
-        .$('.//button[normalize-space()="优化提示词"]')
-        .isExisting(),
-      true,
-    );
-
-    assert.equal(await prompt.isEnabled(), false);
-    assert.equal(
-      await frameDialog
-        .$('.//button[normalize-space()="优化提示词"]')
-        .isEnabled(),
-      false,
-    );
+    assert.equal(await prompt.getProperty("readOnly"), true);
+    assert.equal(await prompt.isEnabled(), true, "A locked saved prompt must remain focusable and copyable");
+    await prompt.click();
+    await browser.keys(["Control", "a"]);
+    await browser.releaseActions();
+    assert.equal(await prompt.execute((element) =>
+      element === document.activeElement && element.selectionStart === 0 && element.selectionEnd === element.value.length), true);
+    await browser.keys("不得覆盖已有图片的提示词");
+    assert.equal(await prompt.getValue(), "storyboard", "Read-only prompts must reject typing while an image exists");
     assert.equal(
       await frameDialog
         .$('.//button[normalize-space()="导入图片"]')
@@ -368,7 +430,13 @@ describe("video segment mode switching in Chromium", () => {
         .isEnabled(),
       false,
     );
-    await frameDialog.$('button[aria-label="删除分镜板图片"]').click();
+    const lockedMenu = await openFrameMenu(frameDialog);
+    const lockedOptimize = await frameMenuItem(lockedMenu.menu, "优化提示词");
+    assert.equal(await lockedOptimize.getAttribute("aria-disabled"), "true");
+    await lockedOptimize.click();
+    assert.equal(await $('//div[@role="dialog" and .//h3[normalize-space()="优化文字资产"]]').isExisting(), false);
+    assert.equal((await framePromptMutations()).length, 0);
+    await frameMenuItem(lockedMenu.menu, "删除分镜板图片").click();
     const deleteDialog = await $(
       '//div[@role="dialog" and .//h3[normalize-space()="删除图片"]]',
     );
@@ -377,12 +445,17 @@ describe("video segment mode switching in Chromium", () => {
     await browser.waitUntil(async () => (await deletedImageIds()).length === 1);
     await deleteDialog.waitForExist({ reverse: true });
     await frameDialog.waitForExist();
-    await browser.waitUntil(async () => await prompt.isEnabled());
+    await browser.waitUntil(async () => (await prompt.getProperty("readOnly")) === false);
+    assert.equal(await prompt.isEnabled(), true);
     assert.deepEqual(await deletedImageIds(), [179]);
+    const unlockedMenu = await openFrameMenu(frameDialog);
     assert.equal(
-      await frameDialog.$('button[aria-label="删除分镜板图片"]').isExisting(),
+      await frameMenuItem(unlockedMenu.menu, "删除分镜板图片").isExisting(),
       false,
     );
+    assert.notEqual(await frameMenuItem(unlockedMenu.menu, "优化提示词").getAttribute("aria-disabled"), "true");
+    await unlockedMenu.trigger.click();
+    await unlockedMenu.menu.waitForExist({ reverse: true });
     assert.equal(
       await frameDialog
         .$('.//button[normalize-space()="生成图片"]')
@@ -396,7 +469,7 @@ describe("video segment mode switching in Chromium", () => {
       './/button[normalize-space()="生成图片"]',
     );
     assert.equal(await generate.isEnabled(), false);
-    await frameDialog.$('.//button[normalize-space()="保存提示词"]').click();
+    await frameDialog.$('.//button[normalize-space()="保存更改"]').click();
     await browser.waitUntil(
       async () => (await framePromptMutations()).length === 1,
     );
@@ -406,7 +479,10 @@ describe("video segment mode switching in Chromium", () => {
     );
     assert.equal(await prompt.getValue(), edited);
 
-    await frameDialog.$('.//button[normalize-space()="优化提示词"]').click();
+    const optimizeMenu = await openFrameMenu(frameDialog);
+    const optimize = await frameMenuItem(optimizeMenu.menu, "优化提示词");
+    assert.notEqual(await optimize.getAttribute("aria-disabled"), "true");
+    await optimize.click();
     const optimizeDialog = await $(
       '//div[@role="dialog" and .//h3[normalize-space()="优化文字资产"]]',
     );
@@ -446,9 +522,9 @@ describe("video segment mode switching in Chromium", () => {
     );
     await prompt.waitForExist();
     await prompt.setValue("尚未保存的提示词修改");
-    await browser.waitUntil(async () =>
-      (await dialog.getText()).includes("有未保存更改"),
-    );
+    const dirtyNotice = await dialog.$('.//div[not(*) and contains(normalize-space(), "当前编辑内容未保存")]');
+    await revealByWheel(dirtyNotice);
+    assert.match(await dirtyNotice.getText(), /当前编辑内容未保存.*生成视频前需要先保存/s);
 
     await browser.keys(["Escape"]);
     let confirm = await $(
@@ -701,7 +777,9 @@ describe("video segment mode switching in Chromium", () => {
     const videoTab = await $(
       '//button[@role="tab" and normalize-space()="片段生成"]',
     );
+    await videoTab.waitForClickable();
     await videoTab.click();
+    await browser.waitUntil(async () => (await videoTab.getAttribute("aria-selected")) === "true");
     const { group: firstGroup } = await openSegmentConfig(1);
     await firstGroup.$('.//button[normalize-space()="分镜"]').click();
     await browser.waitUntil(
@@ -964,6 +1042,10 @@ describe("video segment mode switching in Chromium", () => {
 
   it("assembles the valid prefix when a later adopted video is stale", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=mixed-assembly-gap");
+    const assemblyTab = await $('//button[@role="tab" and normalize-space()="成片合成"]');
+    await assemblyTab.waitForClickable();
+    await assemblyTab.click();
+    await browser.waitUntil(async () => (await assemblyTab.getAttribute("aria-selected")) === "true");
 
     const previewTitle = await $('//h3[normalize-space()="成片预览"]');
     await previewTitle.waitForExist();
@@ -993,6 +1075,10 @@ describe("video segment mode switching in Chromium", () => {
 
   it("assembles all valid videos when every current-plan segment is adopted", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=mixed-assembly-ready");
+    const assemblyTab = await $('//button[@role="tab" and normalize-space()="成片合成"]');
+    await assemblyTab.waitForClickable();
+    await assemblyTab.click();
+    await browser.waitUntil(async () => (await assemblyTab.getAttribute("aria-selected")) === "true");
 
     const previewTitle = await $('//h3[normalize-space()="成片预览"]');
     await previewTitle.waitForExist();
@@ -1018,5 +1104,26 @@ describe("video segment mode switching in Chromium", () => {
     await browser.waitUntil(async () =>
       (await body.getText()).includes("更新预览"),
     );
+  });
+
+  it("hides inert background scrollbars while segment configuration is open", async () => {
+    await browser.url("/e2e/video-mode-switch/");
+    await openSegmentConfig(1);
+
+    const state = await browser.execute(() => {
+      const root = document.getElementById("root");
+      const segmentList = [...(root?.querySelectorAll(".custom-scrollbar") ?? [])].find(
+        (element) => element.querySelector("button[data-video-segment]"),
+      );
+      return {
+        rootInert: root?.hasAttribute("inert") ?? false,
+        scrollbarDisplay: segmentList
+          ? getComputedStyle(segmentList, "::-webkit-scrollbar").display
+          : null,
+      };
+    });
+
+    assert.equal(state.rootInert, true);
+    assert.equal(state.scrollbarDisplay, "none");
   });
 });

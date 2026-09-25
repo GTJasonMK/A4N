@@ -29,7 +29,13 @@ async fn video_update_uses_the_public_nullable_patch_contract() {
         video.id,
         "projects/1/videos/video.mp4",
         None,
-        1024,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 1024,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         None,
     )
@@ -152,7 +158,13 @@ async fn cancelled_video_rejects_late_job_waiting_and_completion_updates() {
             video.id,
             "generated/late.mp4",
             None,
-            8,
+            &a4n_domain::media::VideoFileProperties {
+                file_size: 8,
+                width: video.width,
+                height: video.height,
+                duration_secs: video.duration_secs,
+                fps: video.fps,
+            },
             None,
             None,
         )
@@ -377,7 +389,13 @@ async fn mark_completed_rejects_prompt_from_another_chapter_without_partial_comp
         video.id,
         "projects/1/videos/chapter_1/video.mp4",
         None,
-        1024,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 1024,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         Some(prompt.id),
     )
@@ -423,7 +441,13 @@ async fn mark_completed_updates_video_and_matching_prompt_together() {
         video.id,
         "projects/1/videos/chapter_1/video.mp4",
         Some("projects/1/videos/chapter_1/thumb.jpg"),
-        2048,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 2048,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         Some(json!({"job": "done"})),
         Some(prompt.id),
     )
@@ -458,6 +482,35 @@ async fn video_record_application_completion_projects_duration_and_adopts_duplic
     let output_path = format!("projects/{}/videos/chapter_1/video.mp4", project.id);
     let thumbnail_path = format!("projects/{}/videos/chapter_1/thumb.jpg", project.id);
 
+    let invalid = <crate::OrchestratorContext as a4n_api_contract::video::VideoRecordCompletionApplicationPort>::complete(
+        &service,
+        a4n_api_contract::video::CompleteVideoRecordInput {
+            record_id: video.id,
+            output_path: output_path.clone(),
+            thumbnail_path: None,
+            properties: a4n_domain::media::VideoFileProperties { file_size: 2048, width: 320, height: 180, duration_secs: f32::NAN, fps: 25 },
+            prompt_id: Some(prompt.id),
+            metadata_json: None,
+        },
+    ).await;
+    assert!(invalid.is_err());
+    let unchanged = generated_video::Entity::find_by_id(video.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(unchanged.status, video.status);
+    assert_eq!(unchanged.file_path, video.file_path);
+    let unchanged_prompt = chapter_video_prompt::Entity::find_by_id(prompt.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        unchanged_prompt.generated_video_id,
+        prompt.generated_video_id
+    );
+
     let completed =
         <crate::OrchestratorContext as a4n_api_contract::video::VideoRecordCompletionApplicationPort>::complete(
             &service,
@@ -465,10 +518,9 @@ async fn video_record_application_completion_projects_duration_and_adopts_duplic
                 record_id: video.id,
                 output_path: output_path.clone(),
                 thumbnail_path: Some(thumbnail_path),
-                file_size: 2048,
+                properties: a4n_domain::media::VideoFileProperties { file_size: 2048, width: 320, height: 180, duration_secs: 4.5, fps: 25 },
                 prompt_id: Some(prompt.id),
                 metadata_json: Some(json!({"job": "done"})),
-                duration_secs: 4.5,
             },
         )
         .await
@@ -476,6 +528,14 @@ async fn video_record_application_completion_projects_duration_and_adopts_duplic
 
     assert!(!completed.adopted_authoritative);
     assert_eq!(completed.summary.duration_secs, 4.5);
+    assert_eq!(
+        (
+            completed.summary.width,
+            completed.summary.height,
+            completed.summary.fps
+        ),
+        (320, 180, 25)
+    );
     assert_eq!(completed.summary.id, video.id);
     assert_eq!(completed.summary.status, "completed");
     assert_eq!(completed.summary.file_size, Some(2048));
@@ -487,10 +547,9 @@ async fn video_record_application_completion_projects_duration_and_adopts_duplic
                 record_id: video.id,
                 output_path: format!("projects/{}/videos/chapter_1/other.mp4", project.id),
                 thumbnail_path: None,
-                file_size: 4096,
+                properties: a4n_domain::media::VideoFileProperties { file_size: 4096, width: 640, height: 360, duration_secs: 9.0, fps: 30 },
                 prompt_id: None,
                 metadata_json: None,
-                duration_secs: 9.0,
             },
         )
         .await
@@ -547,7 +606,13 @@ async fn mark_completed_accepts_video_project_prompt_for_root_chapter() {
         video.id,
         "projects/2/videos/chapter_1/imported.mp4",
         None,
-        4096,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 4096,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         Some(json!({"source": "manual_import"})),
         Some(prompt.id),
     )

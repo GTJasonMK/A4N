@@ -388,8 +388,8 @@ export const ObjectProfilesTab: React.FC<{
                   </p>
                   <div className="mt-1 truncate text-caption text-book-text-muted">
                     {profile.story_usage || profile.location_context || t("novel.notRecorded")}
-                    {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
                   </div>
+                  {profile.generated_image_count > 0 ? <p className="mt-1 text-caption text-book-text-muted">{t("novel.profile.materialImages", { count: profile.generated_image_count })}</p> : null}
                 </div>
                 <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
               </li>
@@ -620,7 +620,7 @@ function ObjectProfileEditModal({
         <TextAreaField
           label={t("novel.profile.aliases")}
           value={(draft.aliases ?? []).join("\n")}
-          onChange={(value) => update("aliases", splitLines(value))}
+          onChange={(value) => update("aliases", value.split("\n"))}
         />
         <TextAreaField
           label={t("novel.profile.visualDescription")}
@@ -650,7 +650,7 @@ function ObjectProfileEditModal({
         <TextAreaField
           label={t("novel.profile.evidence")}
           value={(draft.evidence ?? []).join("\n")}
-          onChange={(value) => update("evidence", splitLines(value))}
+          onChange={(value) => update("evidence", value.split("\n"))}
         />
         <TextAreaField
           label={t("novel.profile.imageDescription")}

@@ -8,7 +8,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const CHAPTER_CONTENT_WORKER_ID: &str = "chapter-content-worker";
-pub const CHAPTER_CONTENT_WORKER_CONTRACT_VERSION: &str = "chapter-content-v2";
+pub const CHAPTER_CONTENT_WORKER_CONTRACT_VERSION: &str = "chapter-content-v3";
 pub const CHAPTER_CONTENT_LIST_OPERATION: &str = "chapter.content.list";
 pub const CHAPTER_CONTENT_SUMMARY_OPERATION: &str = "chapter.content.summary";
 pub const CHAPTER_CONTENT_UPDATE_OPERATION: &str = "chapter.content.update";
@@ -94,6 +94,7 @@ mod tests {
             runtime_config_snapshot_ref: None,
             lease: lease.clone(),
             payload: UpdateChapterContentInput {
+                expected_revision: "revision".into(),
                 chapter_id: 9,
                 content: "新正文".into(),
                 title: None,

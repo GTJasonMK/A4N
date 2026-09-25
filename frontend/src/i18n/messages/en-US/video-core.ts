@@ -138,7 +138,7 @@ export const videoCore = {
   nodeLibrary: "Node library",
   nodeLibraryHint: "Drag nodes onto the canvas · {count} node types",
   addToCanvas: "Add to the center of the current canvas view",
-  dragToCanvas: "Drag to canvas",
+  dragToCanvas: "Click to add, or drag to canvas",
   edgeProperties: "Edge properties",
   nodeProperties: "Node properties",
   editAfterSelect: "Select a node or edge to edit",

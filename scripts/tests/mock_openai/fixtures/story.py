@@ -119,7 +119,7 @@ def inspiration_response() -> dict[str, Any]:
         "next_question": None,
         "progress_summary": "核心设定、类型、文风、主角、冲突、对手、催化事件、主题和篇幅均已确认。",
         "ui_control": {"type": "info_display"},
-        "conversation_state": {"round": 1, "chapter_count": 6},
+        "conversation_state": {"round": 1, "chapter_count": 6, "genre": "都市时间悬疑"},
         "is_complete": True,
     }
 

@@ -26,6 +26,7 @@ pub const PROJECT_FAMILY_CHARACTER_PORTRAIT_IMAGE_PATH_FIELD: &str = "image_path
 
 #[cfg_attr(test, derive(Default))]
 pub struct ProjectFamilyImportPackage {
+    pub canvas_projects: Vec<crate::canvas::VideoStudioProjectImportRows>,
     pub root_project_id: i64,
     pub projects: Vec<novel_project::Model>,
     pub text_core: ProjectFamilyTextCoreRows,
@@ -71,6 +72,8 @@ pub struct ProjectFamilyImportMappings {
 
 #[derive(Default)]
 pub(super) struct ImportIdMaps {
+    pub(super) canvas: crate::canvas::VideoStudioProjectImportIdMaps,
+    pub(super) canvas_targets: Vec<crate::canvas::DeferredVideoStudioImportGenerationSpecTarget>,
     pub(super) project_ids: HashMap<i64, i64>,
     pub(super) blueprint_ids: HashMap<i64, i64>,
     pub(super) blueprint_version_ids: HashMap<i64, i64>,
@@ -107,6 +110,7 @@ pub(super) struct ImportIdMaps {
     pub(super) galgame_line_ids: HashMap<i64, i64>,
     pub(super) video_segment_ids: HashMap<i64, i64>,
     pub(super) assembly_timeline_ids: HashMap<i64, i64>,
+    pub(super) assembly_clip_ids: HashMap<i64, i64>,
     pub(super) source_sync_run_ids: HashMap<i64, i64>,
     pub(super) source_sync_conflict_ids: HashMap<i64, i64>,
 }

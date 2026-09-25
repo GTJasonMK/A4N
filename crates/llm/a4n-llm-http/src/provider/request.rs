@@ -17,6 +17,8 @@ struct OpenAiMessage {
     tool_calls: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_content: Option<String>,
 }
 
 fn insert_optional<T: serde::Serialize>(
@@ -69,6 +71,24 @@ impl HttpLlmProvider {
                             .collect()
                     }),
                     tool_call_id: message.tool_call_id.clone(),
+                    // Thinking-mode tools require the field even when the
+                    // provider chose a tool without emitting any reasoning.
+                    reasoning_content: (self.replay_reasoning
+                        && message
+                            .tool_calls
+                            .as_ref()
+                            .is_some_and(|calls| !calls.is_empty()))
+                    .then(|| {
+                        message
+                            .tool_calls
+                            .as_ref()
+                            .and_then(|calls| calls.first())
+                            .and_then(|call| call.provider_metadata.as_ref())
+                            .and_then(|metadata| metadata.get("reasoning_content"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string()
+                    }),
                 })
             })
             .collect::<Result<_, AppError>>()?;

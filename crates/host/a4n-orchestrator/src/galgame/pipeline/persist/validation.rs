@@ -11,7 +11,7 @@ use crate::galgame::{
 use super::{
     branches::branch_choices_by_beat_ref,
     rules::{invalid, validate_persist_line},
-    sources::source_snapshot_chapter_id_for_scene,
+    sources::{source_snapshot_chapter_id_for_scene, source_snapshot_chapter_id_for_spans},
 };
 
 pub(in crate::galgame) fn validate_galgame_branch_design(
@@ -69,8 +69,7 @@ pub(in crate::galgame) fn validate_galgame_script_adaptation(
                 "Galgame script_adaptation scene_index 不存在: {scene_index}"
             ))
         })?;
-        let chapter_id =
-            source_snapshot_chapter_id_for_scene(&scene.source_span_ids, &source_spans)?;
+        let chapter_id = source_snapshot_chapter_id_for_scene(scene, &source_spans)?;
         let beats = scene
             .beats
             .iter()
@@ -90,7 +89,7 @@ pub(in crate::galgame) fn validate_galgame_script_adaptation(
                     line.index
                 )));
             }
-            if source_snapshot_chapter_id_for_scene(&line.source_span_ids, &source_spans)?
+            if source_snapshot_chapter_id_for_spans(&line.source_span_ids, &source_spans)?
                 != chapter_id
             {
                 return Err(invalid(format!(

@@ -79,7 +79,7 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                     addMarker();
                   }
                 }}
-                className={`relative mt-1 h-8 rounded-lg bg-book-bg-tertiary ${
+                className={`relative mt-1 h-12 rounded-lg bg-book-bg-tertiary ${
                   markers.length < 2 ? "cursor-crosshair" : "cursor-default"
                 }`}
               >
@@ -190,13 +190,13 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                         ),
                       );
                     }}
-                    className="absolute -top-1 h-10 w-5 -translate-x-1/2 cursor-ew-resize touch-none"
+                    className="absolute -top-1 h-14 w-8 -translate-x-1/2 cursor-ew-resize touch-none"
                     style={{
                       left: `${Math.min(100, Math.max(0, (marker / duration) * 100))}%`,
                     }}
                     title={formatPreciseSeconds(marker, locale, t)}
                   >
-                    <span className="absolute left-1/2 top-1 h-8 w-0.5 -translate-x-1/2 bg-book-primary" />
+                    <span className="absolute left-1/2 top-1 h-12 w-0.5 -translate-x-1/2 bg-book-primary" />
                     <span
                       className={`absolute left-1/2 top-1.5 h-3 w-3 -translate-x-1/2 rounded-full border border-book-primary ${
                         selectedMarkerIndex === index

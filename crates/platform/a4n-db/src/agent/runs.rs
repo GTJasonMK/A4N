@@ -398,7 +398,14 @@ where
     }
     let terminal = is_run_terminal(status);
     let timestamp = now();
+    let mut usage = row.usage_json.clone();
+    if status != "paused"
+        && let Some(usage) = usage.as_object_mut()
+    {
+        usage.remove("paused_by_run_id");
+    }
     let mut active: run::ActiveModel = row.into();
+    active.usage_json = Set(usage);
     active.status = Set(status.to_string());
     active.waiting_reason = Set(waiting_reason.map(str::to_string));
     active.last_error = Set(error_message.map(str::to_string));
@@ -517,6 +524,9 @@ pub async fn wait_run_for_lease_with_request(
         .await?
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {run_id}")))?;
     let tx = db.begin().await?;
+    if waiting_reason == "budget" {
+        budget::lock_budget_tree_on(&tx, run_id).await?;
+    }
     thread::Entity::find_by_id(identity.thread_id)
         .lock_exclusive()
         .one(&tx)
@@ -531,6 +541,28 @@ pub async fn wait_run_for_lease_with_request(
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {run_id}")))?;
     let timestamp = now();
     validate_live_run_lease(&current, lease_token, timestamp)?;
+    let ready = match waiting_reason {
+        "budget" => budget::budget_wait_can_resume(&tx, &current).await?,
+        "child" => delegation::Entity::find()
+            .filter(delegation::Column::ParentRunId.eq(run_id))
+            .filter(delegation::Column::Status.is_in(["pending", "running", "revision_requested"]))
+            .one(&tx)
+            .await?
+            .is_none(),
+        "approval" => approval::Entity::find()
+            .filter(approval::Column::RunId.eq(run_id))
+            .filter(approval::Column::Status.eq("pending"))
+            .one(&tx)
+            .await?
+            .is_none(),
+        _ => false,
+    };
+    if ready {
+        let row = update_run_state_on(&tx, run_id, Some(lease_token), "queued", None, None).await?;
+        refresh_thread_status_on(&tx, row.thread_id).await?;
+        tx.commit().await?;
+        return Ok(row);
+    }
     let mut active: run::ActiveModel = current.into();
     active.status = Set("waiting".to_string());
     active.waiting_reason = Set(Some(waiting_reason.to_string()));
@@ -574,7 +606,11 @@ pub async fn wake_waiting_run_for_reason(
             "Agent waiting_reason 不能为空".into(),
         ));
     }
+    let identity = run_by_id(db, run_id)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
     let tx = db.begin().await?;
+    lock_threads_on(&tx, [identity.thread_id]).await?;
     let row = run::Entity::find_by_id(run_id)
         .lock_exclusive()
         .one(&tx)
@@ -913,6 +949,10 @@ pub async fn finish_run_with_message(
         tx.commit().await?;
         return Ok(None);
     }
+    let blockers = completion_blockers(&tx, run_id).await?;
+    if !blockers.is_empty() {
+        return Err(AgentDbError::CompletionBlocked(blockers));
+    }
     turn::Entity::find_by_id(run_row.turn_id)
         .lock_exclusive()
         .one(&tx)
@@ -992,6 +1032,8 @@ pub(crate) async fn requeue_for_new_input_on<C: ConnectionTrait>(
         return Ok(false);
     }
     update_run_state_on(db, row.id, row.lease_token.as_deref(), "queued", None, None).await?;
+    interrupt_streaming_messages_on(db, [row.id], Some("已有新的用户输入，继续处理后再交付"))
+        .await?;
     refresh_thread_status_on(db, row.thread_id).await?;
     Ok(true)
 }
@@ -1063,10 +1105,29 @@ pub async fn update_run_usage(
     let usage_object = usage_json
         .as_object_mut()
         .ok_or_else(|| AgentDbError::InvalidArgument("Agent run usage_json 必须是对象".into()))?;
+    for field in [
+        "steps_used",
+        "model_calls_used",
+        "tool_calls_used",
+        "tokens_used",
+        "tokens_reserved",
+        "usage_complete",
+        "budget_limiting_run_id",
+    ] {
+        usage_object.remove(field);
+    }
     usage_object.insert(
         "runtime_snapshot_required".into(),
         Value::Bool(snapshot_required),
     );
+    // Control-plane wait/lineage markers cannot be erased by stale Worker
+    // progress. They are not counters and are cleared by their lifecycle owner.
+    for field in ["budget_wait", "paused_by_run_id"] {
+        usage_object.remove(field);
+        if let Some(value) = row.usage_json.get(field) {
+            usage_object.insert(field.into(), value.clone());
+        }
+    }
     let mut active: run::ActiveModel = row.into();
     active.usage_json = Set(usage_json);
     active.updated_at = Set(timestamp);

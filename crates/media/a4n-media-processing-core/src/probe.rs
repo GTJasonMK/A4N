@@ -20,6 +20,18 @@ pub struct VideoProbeProperties {
     pub has_b_frames: Option<i32>,
 }
 
+impl VideoProbeProperties {
+    pub fn file_properties(&self, file_size: i64) -> a4n_domain::media::VideoFileProperties {
+        a4n_domain::media::VideoFileProperties {
+            width: self.width,
+            height: self.height,
+            duration_secs: self.duration_secs,
+            fps: self.fps,
+            file_size,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum FfprobeCommandError {
     #[error("failed to start ffprobe: {source}")]

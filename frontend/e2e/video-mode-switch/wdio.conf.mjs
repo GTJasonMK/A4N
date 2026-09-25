@@ -48,7 +48,8 @@ export const config = {
   onPrepare: async () => {
     viteProcess = spawn(
       process.execPath,
-      ["./node_modules/vite/bin/vite.js", "--host", host, "--port", String(port), "--strictPort"],
+      ["./node_modules/vite/bin/vite.js", "--host", host, "--port", String(port), "--strictPort",
+        ...(process.env.A4N_UI_VITE_CONFIG ? ["--config", process.env.A4N_UI_VITE_CONFIG] : [])],
       {
         cwd: frontendRoot,
         env: { ...process.env, VITE_A4N_API_TRANSPORT: "tauri" },

@@ -1,5 +1,6 @@
 import React from "react";
 import { useI18n } from "../../i18n";
+import { StatusBarToggle } from "../ui/StatusBar";
 
 /**
  * 派生项目头（视频 / 漫画 / Gal）
@@ -43,7 +44,7 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-serif text-base font-semibold text-book-text-main">
+          <h1 className="a4n-app-page-header__title">
             {title}
           </h1>
           {subtitle != null ? (
@@ -52,11 +53,10 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
             </p>
           ) : null}
         </div>
-        {actions != null ? (
-          <div className="flex shrink-0 items-center gap-1.5">
-            {actions}
-          </div>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {actions}
+          <StatusBarToggle />
+        </div>
       </div>
 
       {context && context.length > 0 ? (

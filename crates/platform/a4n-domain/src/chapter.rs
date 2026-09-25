@@ -35,6 +35,11 @@ pub trait ChapterAnalysisSource {
     fn has_available_analysis_content(&self) -> bool;
 }
 
+pub fn chapter_edit_revision(content: &str, title: Option<&str>) -> String {
+    crate::generation::canonical_json_sha256(&(content, title))
+        .expect("chapter content and title are JSON strings")
+}
+
 #[derive(Debug, Clone)]
 pub struct StoreChapterAnalysisRecordInput {
     pub analysis_data: Value,
@@ -53,6 +58,7 @@ pub struct ImportChapterContentInput {
 #[derive(Debug, Clone)]
 pub struct EditChapterContentInput {
     pub chapter_id: i64,
+    pub expected_revision: String,
     pub content: String,
     pub title: Option<String>,
 }

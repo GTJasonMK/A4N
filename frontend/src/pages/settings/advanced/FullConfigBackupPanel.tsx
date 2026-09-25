@@ -2,8 +2,10 @@ import React, { useRef } from "react";
 import { ChevronRight, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { useI18n } from "../../../i18n";
+import type { ConfigBackupScope } from "./useFullConfigBackup";
 
 interface FullConfigBackupPanelProps {
+  scope: ConfigBackupScope;
   overwrite: boolean;
   exporting: boolean;
   importing: boolean;
@@ -14,6 +16,7 @@ interface FullConfigBackupPanelProps {
 }
 
 export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
+  scope,
   overwrite,
   exporting,
   importing,
@@ -23,6 +26,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   onImportFile,
 }) => {
   const { t } = useI18n();
+  const title = t(scope === "local" ? "settingsAdvanced.localBackup" : "settingsAdvanced.serverBackup");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,10 +37,10 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   };
 
   return (
-    <section aria-label={t("settingsAdvanced.configBackup")} className="w-full max-w-3xl">
-      <h3 className="text-sm font-semibold text-book-text-main">{t("settingsAdvanced.configBackup")}</h3>
+    <section aria-label={title} className="w-full max-w-3xl">
+      <h3 className="text-sm font-semibold text-book-text-main">{title}</h3>
       <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-        {t("settingsAdvanced.configBackupHint")}
+        {t(scope === "local" ? "settingsAdvanced.localBackupHint" : "settingsAdvanced.serverBackupHint")}
       </p>
 
       <div className="mt-3 grid items-start gap-2 text-xs sm:grid-cols-2">
@@ -91,7 +95,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             className="hidden"
             onChange={handleFileChange}
           />
-          <details className="border-t border-book-border/35 text-xs text-book-text-muted">
+          {scope === "server" && <details className="border-t border-book-border/35 text-xs text-book-text-muted">
             <summary className="cursor-pointer px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-main">
               {t("settingsAdvanced.importOptions")}
             </summary>
@@ -124,7 +128,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
                 />
               </span>
             </button>
-          </details>
+          </details>}
         </section>
       </div>
     </section>

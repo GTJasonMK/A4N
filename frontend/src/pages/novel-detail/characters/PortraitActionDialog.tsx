@@ -12,9 +12,11 @@ import type { ImageSize } from "../../../api/image";
 import type { Portrait } from "../../../api/portrait";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { useI18n } from "../../../i18n";
+import { portraitTypeLabel } from "./characterUtils";
 
 interface PortraitActionDialogProps {
   portrait: Portrait;
@@ -51,7 +53,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
   const busy = busyId === portrait.id;
   const sizeUnavailable = imageSize == null || imageSizeLoading || imageSizeError != null;
   const imageSrc = toMediaSrc(portrait.image_path);
-  const metadata = [portrait.portrait_type, portrait.expression, portrait.pose]
+  const metadata = [portraitTypeLabel(portrait.portrait_type, t), portrait.expression, portrait.pose]
     .map((item) => item?.trim())
     .filter(Boolean)
     .join(" · ");
@@ -108,7 +110,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
         <div className="min-w-0">
           <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[14px] border border-book-border/55 bg-book-bg-tertiary text-xs text-book-text-muted">
             {imageSrc ? (
-              <img
+              <ZoomableImage
                 src={imageSrc}
                 alt={t("characterDetail.portrait.previewAlt")}
                 className="h-full w-full object-contain"

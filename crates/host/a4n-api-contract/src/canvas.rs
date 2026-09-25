@@ -47,6 +47,13 @@ pub struct CanvasGraphDocument {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct CanvasGraphSaveResult {
+    #[serde(flatten)]
+    pub document: CanvasGraphDocument,
+    pub node_ids: BTreeMap<String, i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CanvasNodeInput {
     pub client_id: String,
@@ -379,7 +386,7 @@ pub trait CanvasMutationApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         input: SaveCanvasGraphInput,
-    ) -> Result<CanvasGraphDocument, a4n_error::AppError>;
+    ) -> Result<CanvasGraphSaveResult, a4n_error::AppError>;
 
     async fn edit_graph(
         &self,

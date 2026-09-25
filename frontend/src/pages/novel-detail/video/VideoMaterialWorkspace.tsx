@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Search, Sparkles } from "lucide-react";
+import { ChevronRight, RefreshCw, Search, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect, useImageGenerationSize } from "../../../components/image/ImageSizeSelect";
 import type { ImageSize } from "../../../api/image";
@@ -588,6 +588,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
           <label className="flex min-h-9 min-w-[180px] flex-1 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:max-w-sm">
             <Search size={13} className="shrink-0 text-book-text-muted" />
             <input
+              aria-label={t("video.material.searchPlaceholder")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               disabled={loading || busyKey != null || batchBusy}
@@ -627,10 +628,29 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
           </button>
         </div>
-        <div className="border-t border-book-border/35 px-3 py-2 text-small leading-relaxed text-book-text-muted">
-          {t("video.material.statsProfiles", { count: groups.length })} · {t("video.material.statsImages", { count: stats.imageCount })}
-          {stats.missingCount > 0 ? ` · ${t("video.material.statsMissing", { count: stats.missingCount })}` : ""}
-          {stats.staleCount > 0 ? ` · ${t("video.material.statsStale", { count: stats.staleCount })}` : ""}
+        <div className="flex flex-wrap items-center gap-3 border-t border-book-border/35 px-3 py-2 text-small leading-relaxed text-book-text-muted">
+          <p className="min-w-0 basis-full sm:flex-1">
+            {t("video.material.statsProfiles", { count: groups.length })} · {t("video.material.statsImages", { count: stats.imageCount })}
+            {stats.missingCount > 0 ? ` · ${t("video.material.statsMissing", { count: stats.missingCount })}` : ""}
+            {stats.staleCount > 0 ? ` · ${t("video.material.statsStale", { count: stats.staleCount })}` : ""}
+          </p>
+          {(stats.missingCount > 0 || stats.staleCount > 0) && (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {stats.missingCount > 0 && (
+                <button type="button" onClick={() => void batchGenerate("missing")} disabled={loading || busyKey != null || batchBusy}
+                  className="pyqt-btn-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs" title={t("video.material.generateMissingTitle")}>
+                  {batchBusy ? <LoadingSpinner size="sm" /> : <Sparkles size={13} />}
+                  {t("video.material.fillMissing", { count: stats.missingCount })}
+                </button>
+              )}
+              {stats.staleCount > 0 && (
+                <button type="button" onClick={() => void batchGenerate("stale")} disabled={loading || busyKey != null || batchBusy}
+                  className="pyqt-btn-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs" title={t("video.material.generateStaleTitle")}>
+                  <RefreshCw size={13} />{t("video.material.updateStale", { count: stats.staleCount })}
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <details className="group border-t border-book-border/35">
           <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 px-3 py-2 text-xs [&::-webkit-details-marker]:hidden">
@@ -638,6 +658,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             <span className="min-w-0 flex-1 truncate text-right text-caption text-book-text-muted">
               {selectedStyleTemplate?.name ?? t("video.material.customStyle")}
             </span>
+            <ChevronRight size={14} className="shrink-0 transition-transform group-open:rotate-90" />
           </summary>
           <div className="grid min-w-0 grid-cols-1 gap-2 border-t border-book-border/25 px-3 pb-3 pt-2 sm:grid-cols-2">
             <ImageSizeSelect
@@ -661,9 +682,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
               ]}
               disabled={busyKey != null || batchBusy}
               onChange={applyStyleTemplate}
-              wide
             />
-            <label className="flex min-h-9 min-w-0 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper">
+            <label className="flex min-h-9 min-w-0 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper sm:col-span-2">
               <span className="shrink-0 text-book-text-muted">{t("video.material.supplement")}</span>
               <input
                 value={selectedStyleTemplate ? "" : customStyle}
@@ -677,34 +697,6 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
                 }
               />
             </label>
-            {(stats.missingCount > 0 || stats.staleCount > 0) && (
-              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:col-span-2">
-                {stats.missingCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => void batchGenerate("missing")}
-                    disabled={loading || busyKey != null || batchBusy}
-                    className="pyqt-btn-primary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
-                    title={t("video.material.generateMissingTitle")}
-                  >
-                    {batchBusy ? <LoadingSpinner size="sm" /> : <Sparkles size={13} />}
-                    {t("video.material.fillMissing", { count: stats.missingCount })}
-                  </button>
-                )}
-                {stats.staleCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => void batchGenerate("stale")}
-                    disabled={loading || busyKey != null || batchBusy}
-                    className="pyqt-btn-secondary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
-                    title={t("video.material.generateStaleTitle")}
-                  >
-                    <RefreshCw size={13} />
-                    {t("video.material.updateStale", { count: stats.staleCount })}
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         </details>
       </section>

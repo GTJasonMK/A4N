@@ -17,10 +17,35 @@ export type {
 } from "./generated/page";
 
 export class PageSessionRequestError extends Error {
-  constructor(readonly status: number) {
-    super("");
+  constructor(readonly status: number, message: string) {
+    super(message);
     this.name = "PageSessionRequestError";
   }
+}
+
+async function pageSessionRequestError(response: Response): Promise<PageSessionRequestError> {
+  const responseText = await response.text();
+  let value: unknown;
+  try {
+    value = JSON.parse(responseText);
+  } catch {
+    const detail = responseText.trim().slice(0, 300);
+    return new PageSessionRequestError(
+      response.status,
+      detail
+        ? `Page Session 请求失败（HTTP ${response.status}）：${detail}`
+        : `Page Session 请求失败（HTTP ${response.status}）`,
+    );
+  }
+  const candidate = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>).message
+    : null;
+  return new PageSessionRequestError(
+    response.status,
+    typeof candidate === "string" && candidate.trim()
+      ? candidate.trim()
+      : `Page Session 请求失败（HTTP ${response.status}）`,
+  );
 }
 
 async function pageRequest<T>(
@@ -32,7 +57,7 @@ async function pageRequest<T>(
   headers.set("X-UI-Session-Token", token);
   if (init.body != null) headers.set("Content-Type", "application/json");
   const response = await authenticatedWebFetch(path, { ...init, headers });
-  if (!response.ok) throw new PageSessionRequestError(response.status);
+  if (!response.ok) throw await pageSessionRequestError(response);
   return (await response.json()) as T;
 }
 
@@ -48,7 +73,7 @@ export function createPageSession(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ client, tab_id: tabId }),
   }).then(async (response) => {
-    if (!response.ok) throw new PageSessionRequestError(response.status);
+    if (!response.ok) throw await pageSessionRequestError(response);
     return (await response.json()) as PageSessionCreateResponse;
   });
 }
@@ -95,8 +120,10 @@ export async function subscribePageEvents(
     headers: { Accept: "text/event-stream", "X-UI-Session-Token": token },
     signal,
   });
-  if (!response.ok) throw new PageSessionRequestError(response.status);
-  if (!response.body) throw new PageSessionRequestError(response.status);
+  if (!response.ok) throw await pageSessionRequestError(response);
+  if (!response.body) {
+    throw new PageSessionRequestError(response.status, "Page Session SSE 响应缺少 body");
+  }
   await readSseStream(response.body, (frame) => {
     if (frame.event !== "page_session") return;
     onEvent(JSON.parse(frame.data) as PageSessionEvent);

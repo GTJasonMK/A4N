@@ -23,6 +23,12 @@ export function rejectSystemDefaultMutation(): never {
   throw new Error("系统默认配置由管理员维护，不能在用户配置页编辑");
 }
 
+export function requireSystemDefaultKeyUpdate(input: object): void {
+  if (Object.keys(input).some((key) => key !== "api_key_encrypted")) {
+    rejectSystemDefaultMutation();
+  }
+}
+
 export function systemDefaultProviderConfig<
   T extends {
     id: number;

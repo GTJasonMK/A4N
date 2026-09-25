@@ -2,7 +2,6 @@ import React from "react";
 import { Edit3, ScrollText, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
-import { Dropdown } from "../../../components/ui/Dropdown";
 import type { WorldObject } from "./worldTabUtils";
 import { useI18n } from "../../../i18n";
 
@@ -59,19 +58,13 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
           {description}
         </p>
       </div>
-      <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
         {!editing ? (
           <>
             {worldObject && hasWorldContent ? (
-              <Dropdown
-                items={[
-                  {
-                    label: t("novel.world.viewFull"),
-                    icon: <ScrollText size={12} />,
-                    onClick: onOpenDetail,
-                  },
-                ]}
-              />
+              <BookButton variant="secondary" size="sm" onClick={onOpenDetail}>
+                <ScrollText size={12} />{t("novel.world.viewFull")}
+              </BookButton>
             ) : null}
             {canEdit ? (
               <BookButton

@@ -2,110 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const project = {
-  id: 1, title: "山海之间", description: "关于记忆与归途的故事", project_kind: "text",
-  project_type: "novel_long", status: "writing", lifecycle_gate: "active", my_role: "owner",
-  root_project_id: null, root_project_title: null, collaboration_root_project_id: 1,
-  source_mode: "self", source_sync_status: "current", derived_chapter_scope: null,
-  owner_username: "写作者", member_count: 1, pending_invite_count: 0, current_chapter: 2,
-  target_chapters: 12, total_chapters: 12, chapters_per_part: null,
-  updated_at: "2026-09-11T12:00:00Z", progress: { label: "写作中", detail: null },
-};
-const projects = [project, {
-  ...project, id: 2, title: "山海之间 · 漫画", project_kind: "comic",
-  root_project_id: 1, root_project_title: project.title, source_mode: "derived",
-}, {
-  ...project, id: 3, title: "山海之间 · 先导短片", project_kind: "video",
-  root_project_id: 1, root_project_title: project.title, source_mode: "derived",
-  lifecycle_gate: "resetting",
-}, {
-  ...project, id: 4, title: "只读协作项目", my_role: "viewer", owner_username: "另一位作者",
-}];
-const chapters = ["旧书店", "未寄出的信"].map((title, index) => ({
-  id: index + 1, project_id: 1, chapter_number: index + 1, title,
-  content: `第 ${index + 1} 章 ${title}\n\n雨从旧书店的屋檐落下。`, word_count: 28,
-  status: "draft", outline_id: null, analysis_data: null, style_tags: null, summary: null,
-  created_at: null, updated_at: null, analysis_sync_status: "not_analyzed",
-  analysis_sync_error: null, analysis_sync_can_resume: false, analysis_sync_has_saved_analysis: false,
-  analysis_sync_resume_block_reason: null, derived_sync_status: index === 0 ? "failed" : "completed", derived_sync_error: null,
-  derived_sync_can_resume: false, derived_sync_workflow_run_id: null, material_updates: [],
-  material_sync: Object.fromEntries(["characters", "objects", "scenes", "content_index", "outline_and_foreshadowing"].map((key) => [key, "completed"])),
-}));
-const agentSnapshots = ["主 Agent", "分镜 Agent"].map((title, index) => ({
-  protocol_version: 1,
-  thread: {
-    id: `thread-${index}`, title, kind: index === 0 ? "main" : "subagent", status: "active",
-    capability: index === 0 ? null : "storyboard", bound_resource: null, context_summary: null,
-    default_model_config_id: null, created_at: "2026-09-11T12:00:00Z", updated_at: "2026-09-11T12:00:00Z",
-    next_event_sequence: 1, next_turn_sequence: 1, owner_user_id: 1, protocol_version: 1, revision: 1,
-    scope: { allowed_capabilities: [], allowed_tools: [], chapter_id: null, project_id: null, resource_id: null, resource_kind: null },
-  },
-  approvals: [], delegations: [], events: [], executions: [], inbox: [], memories: [], turns: [],
-  runs: [{
-    id: `run-${index}`, thread_id: `thread-${index}`, turn_id: `turn-${index}`, attempt: 1,
-    status: "running", waiting_reason: null, lease_owner: null, lease_expires_at: null,
-    budget: {
-      max_children: null, max_cost_micros: null, max_delegation_depth: null,
-      max_duration_seconds: null, max_model_calls: null, max_parallel_tools: null,
-      max_steps: null, max_tokens: null, max_tool_calls: null,
-    },
-    steps_used: 1, model_calls_used: 1, tool_calls_used: 0, tokens_used: 500,
-    context_input_tokens: 420, context_capacity_tokens: 1000,
-    cost_micros: null, error: null, created_at: "2026-09-11T12:00:00Z", started_at: "2026-09-15T12:00:00Z", updated_at: "2026-09-15T12:00:00Z",
-  }],
-  messages: [{
-    id: `reply-${index}`, thread_id: `thread-${index}`, role: "assistant", status: "complete",
-    content: index === 0 ? Array.from({ length: 18 }, (_, paragraph) => `第 ${paragraph + 1} 段审阅：人物的行动应与前文保持一致。保留旧书店和信件的线索，让转场来自角色的选择。`).join("\n\n") : "分镜方案已准备好，可以继续讨论角色的行动。",
-    created_at: "2026-09-11T12:00:00Z", updated_at: null, metadata: null, run_id: null,
-    source_id: null, source_kind: null, turn_id: null,
-  }],
-}));
-const responses = {
-  agentSnapshots,
-  get_current_user: {
-    id: 1, username: "写作者", email: "writer@example.test", role: "user", is_active: true,
-    page_cli_enabled: false, avatar_url: null, created_at: null, updated_at: null,
-    last_login_at: null, oauth_provider: null, oauth_subject: null,
-  },
-  list_projects: { items: projects, page: 1, page_size: 20, total: projects.length },
-  get_project: project,
-  list_chapters: chapters,
-  list_chapter_outlines: [],
-  list_my_project_invites: [],
-  list_themes: [{
-    id: 1, user_id: 1, name: "书房主题", mode: "light", is_active: false, is_system_default: false,
-    document: { version: 1, backgrounds: {}, tokens: { "--color-primary": "151 72 29", "--color-bg-primary": "241 238 232", "--color-bg-secondary": "255 252 245", "--color-text-primary": "44 24 16", "--color-border": "205 194 181" } },
-    resources: [],
-  }],
-  get_theme_preference: { appearance: "light", user_id: 1 },
-  prompt_list: [
-    {
-      name: "story_prompt", title: "写作提示词", description: "写作流程", category: "writing",
-      content: "保留人物行动的因果。", dependencies: [], is_modified: false,
-      path: "prompts/writing/story.md", tags: [], used_by: [], version: "1",
-    },
-    {
-      name: "image_prompt", title: "画面提示词", description: "画面生成", category: "media",
-      content: "保持画面构图稳定。", dependencies: [], is_modified: false,
-      path: "prompts/media/image.md", tags: [], used_by: [], version: "1",
-    },
-  ],
-  prompt_list_categories: [
-    { key: "writing", label: "写作", description: "写作相关提示词", order: 1 },
-    { key: "media", label: "素材", description: "素材相关提示词", order: 2 },
-  ],
-  get_blueprint: null,
-  list_profiles: [],
-  active: [],
-  list_llm_config: [],
-  list_model_provider_catalog: {
-    llm: [
-      { id: "deepseek", display_name: "DeepSeek", default_base_url: "https://api.deepseek.com/v1" },
-      { id: "openai", display_name: "OpenAI", default_base_url: "https://api.openai.com/v1" },
-    ],
-    embedding: [], image: [], video: [],
-  },
-};
+import { installUiFixtures } from "./fixtures.mjs";
 
 const button = (label) => $(`button[aria-label="${label}"]`);
 const commands = () => browser.execute(() => window.__uiAudit.commands);
@@ -144,74 +41,7 @@ const agentMessageCount = () => browser.execute(() => window.__uiAudit.agentMess
 const selectAgentThread = (title) => $(`//button[contains(@class,"a4n-sidebar-item") and .//span[text()="${title}"]]`).click();
 
 describe("UI presentation and workspace continuity", () => {
-  before(async () => {
-    await browser.addInitScript((encodedFixtures) => {
-      const fixtures = JSON.parse(decodeURIComponent(encodedFixtures));
-      localStorage.setItem("a4n:current_user_id", "1");
-      localStorage.setItem("a4n:current_access_token", "ui-test-fixture");
-      localStorage.setItem("a4n:settings:locale", "zh-CN");
-      window.__uiAudit = { commands: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
-      window.addEventListener("error", (event) => window.__uiAudit.errors.push(event.message));
-      window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
-      const fetch = window.fetch.bind(window);
-      window.fetch = async (input, options) => {
-        const url = new URL(typeof input === "string" ? input : input.url, location.href);
-        if (!url.pathname.startsWith("/api/")) return fetch(input, options);
-        const command = url.pathname.split("/").at(-1);
-        window.__uiAudit.commands.push(command);
-        if (url.pathname === "/api/agent-threads") {
-          return new Response(JSON.stringify(fixtures.agentSnapshots.map((item) => item.thread)), { headers: { "Content-Type": "application/json" } });
-        }
-        const agentPath = url.pathname.match(/^\/api\/agent-threads\/(thread-\d)(?:\/(messages|events))?$/);
-        if (agentPath) {
-          const snapshot = fixtures.agentSnapshots.find((item) => item.thread.id === agentPath[1]);
-          if (!snapshot) throw new Error(`Missing Agent fixture: ${agentPath[1]}`);
-          if (agentPath[2] === "messages" && options.method === "POST") {
-            return new Promise((resolve) => window.__uiAudit.agentMessages.push({ input: JSON.parse(options.body), resolve }));
-          }
-          if (agentPath[2] === "events") {
-            return new Response(new ReadableStream({
-              start(controller) {
-                if (options.signal.aborted) controller.close();
-                else options.signal.addEventListener("abort", () => controller.close(), { once: true });
-              },
-            }), { headers: { "Content-Type": "text/event-stream" } });
-          }
-          if (!agentPath[2]) return new Response(JSON.stringify(snapshot), { headers: { "Content-Type": "application/json" } });
-          throw new Error(`Unexpected Agent fixture request: ${options.method} ${url.pathname}`);
-        }
-        if (command === "get_project") {
-          const projectId = JSON.parse(options.body).projectId;
-          const record = fixtures.list_projects.items.find((item) => item.id === projectId);
-          if (!record) throw new Error(`Missing project fixture: ${projectId}`);
-          return new Response(JSON.stringify(record), { headers: { "Content-Type": "application/json" } });
-        }
-        if (command === "update_theme") {
-          const { themeId, input } = JSON.parse(options.body);
-          const record = fixtures.list_themes.find((item) => item.id === themeId);
-          Object.assign(record, input);
-          return new Response(JSON.stringify(record), { headers: { "Content-Type": "application/json" } });
-        }
-        if (command === "detect_llm_config_models") {
-          return new Promise((resolve) => {
-            window.__uiAudit.modelRequests.push({ resolve });
-          });
-        }
-        if (!(command in fixtures)) {
-          window.__uiAudit.unexpected.push(command);
-          return new Response(JSON.stringify({ message: `Missing UI fixture: ${command}` }), { status: 501 });
-        }
-        return new Response(JSON.stringify(fixtures[command]), { headers: { "Content-Type": "application/json" } });
-      };
-      const clearRect = CanvasRenderingContext2D.prototype.clearRect;
-      CanvasRenderingContext2D.prototype.clearRect = function (...args) {
-        if (this.canvas.width === 520 && this.canvas.height === 240) {
-          window.__uiAudit.draws[this.canvas.isConnected ? "attached" : "detached"]++;
-        }
-        return clearRect.apply(this, args);
-      };
-    }, encodeURIComponent(JSON.stringify(responses)));
-  });
+  before(async () => installUiFixtures(browser));
 
   beforeEach(async () => {
     // A same-fragment navigation keeps the previous document and its draft.
@@ -258,6 +88,19 @@ describe("UI presentation and workspace continuity", () => {
     await browser.keys("Escape");
     await $('[role="menu"]').waitForExist({ reverse: true });
     assert.equal(await entry.isFocused(), true);
+  });
+
+  it("keeps project loading failures visible and retries without changing filters", async () => {
+    await browser.url("/?ui-state=error");
+    const alert = await $('[role="alert"]');
+    await alert.waitForDisplayed();
+    assert.match(await alert.getText(), /项目暂时无法加载/);
+    const filter = await button("项目类型").getText();
+    await browser.execute(() => { window.__uiAudit.projectState = null; });
+    await $('//button[normalize-space()="重试"]').click();
+    await $(".a4n-project-row").waitForDisplayed();
+    assert.equal(await $('[role="alert"]').isExisting(), false);
+    assert.equal(await button("项目类型").getText(), filter);
   });
 
   it("preserves the workspace across chapter changes and keeps a new unsaved chapter selected", async () => {
@@ -606,6 +449,7 @@ describe("UI presentation and workspace continuity", () => {
     const input = await $('textarea[aria-label="Agent 消息"]');
     await input.waitForDisplayed();
     await input.setValue("请继续主线程任务");
+    assert.equal(await button("取消运行").isDisplayed(), true, "An active run keeps its cancel action");
     await button("发送消息").click();
     await browser.waitUntil(async () => (await agentMessageCount()) === 1);
     const mainThread = await $('//button[contains(@class,"a4n-sidebar-item") and .//span[text()="主 Agent"]]');
@@ -701,7 +545,15 @@ describe("UI presentation and workspace continuity", () => {
           assert.match(String(transcriptPresentation.stackClass), /agent-message-stack/);
           assert.equal(transcriptPresentation.border, "0px");
           assert.equal(transcriptPresentation.backToLatest, false);
-          assert.ok((await log.getSize()).height >= 180, "Message history needs enough room to read several lines");
+          const layout = await browser.execute(() => Object.fromEntries([
+            ".agent-monitor-page-header", ".agent-monitor-body", ".agent-monitor-thread-rail",
+            ".agent-monitor-session-header", ".agent-monitor-message-log", ".agent-monitor-composer-seat",
+          ].map((selector) => {
+            const element = document.querySelector(selector);
+            const rect = element.getBoundingClientRect();
+            return [selector, { top: rect.top, height: rect.height, padding: getComputedStyle(element).padding }];
+          })));
+          assert.ok((await log.getSize()).height >= 180, `Message history needs enough room to read several lines: ${JSON.stringify(layout)}`);
           await browser.waitUntil(async () => (await log.execute((element) => element.scrollTop)) > 0, {
             timeout: 5_000,
             interval: 50,

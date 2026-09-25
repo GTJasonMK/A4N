@@ -489,20 +489,20 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
     ) -> Result<PersistedVideoResult, AppError> {
         result.metadata = completed_video_artifact_metadata(&result);
         if is_canvas_video_record_fields(target.chapter_id, target.workflow_mode.as_deref()) {
-            let (file_path, file_size) = persist_canvas_video_bytes(
-                self.state.data_dir(),
-                target.project_id,
-                target.video_id,
-                &result.bytes,
-                &result.format,
-            )
-            .map_err(host_error)?;
+            let persisted = self
+                .persist_canvas_video_file(CanvasVideoFileInput {
+                    project_id: target.project_id,
+                    video_id: target.video_id,
+                    bytes: &result.bytes,
+                    format: &result.format,
+                })
+                .await?;
             return Ok(PersistedVideoResult {
                 video_id: target.video_id,
                 project_id: target.project_id,
-                file_path,
+                file_path: persisted.relative_path,
                 thumbnail_path: None,
-                file_size,
+                properties: persisted.properties,
                 metadata_json: Some(json!({
                     "provider": result.metadata,
                     "canvas_video": true,
@@ -808,7 +808,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         .await
     }
 
-    fn persist_canvas_video_file(
+    async fn persist_canvas_video_file(
         &self,
         input: CanvasVideoFileInput<'_>,
     ) -> Result<CanvasVideoPersistedFile, AppError> {
@@ -820,9 +820,22 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             input.format,
         )
         .map_err(host_error)?;
+        let path = self.state.data_dir().join(&relative_path);
+        let properties = a4n_storage::remove_created_file_on_error(&path, "画布视频文件", async {
+            self.state
+                .probe_media_video_properties(
+                    &path,
+                    a4n_media_contract::MediaRoot::Data,
+                    "画布视频",
+                )
+                .await
+                .map(|probe| probe.file_properties(file_size))
+        })
+        .await
+        .map_err(host_error)?;
         Ok(CanvasVideoPersistedFile {
             relative_path,
-            file_size,
+            properties,
         })
     }
 

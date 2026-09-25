@@ -16,7 +16,7 @@ interface UseWritingDeskResetGeneratedDataParams {
   resetGeneratedDataBusyRef: MutableRefObject<boolean>;
   setResetGeneratedDataBusy: (busy: boolean) => void;
   setProject: Dispatch<SetStateAction<NovelProject | null>>;
-  clearResetProjectState: () => void;
+  clearResetProjectState: () => Promise<void>;
   addToast: (message: string, type: "success" | "error" | "info") => void;
   t: MessageTranslator;
 }
@@ -90,7 +90,7 @@ export const useWritingDeskResetGeneratedData = ({
           current ? { ...current, lifecycle_gate: "resetting" } : current,
         );
       }
-      if (formalResetCommitted) clearResetProjectState();
+      if (formalResetCommitted) await clearResetProjectState();
 
       const warningText = warnings.length > 0
         ? `${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}`

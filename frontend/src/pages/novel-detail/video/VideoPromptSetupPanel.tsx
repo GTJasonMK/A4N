@@ -126,9 +126,9 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           <div className="mt-1 text-caption text-book-text-muted">
             {metadata.join(" · ")}
           </div>
-          <div className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
+          {!selectedLayout ? <div className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
             {prompt.visual_prompt}
-          </div>
+          </div> : null}
         </button>
         {deleteBlockedReason == null &&
         acting !== `delete-prompt-${prompt.id}` ? (
@@ -276,12 +276,17 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
         </div>
 
         {variants.length > 0 ? (
+          <details className="mt-2">
+          <summary className="cursor-pointer text-caption text-book-text-muted">
+            {t("video.chapter.promptVersion", { number: shotNumber })} · {variants.length}
+          </summary>
           <ul
             aria-label={t("video.chapter.promptVersion", { number: shotNumber })}
             className="mt-3 grid max-h-40 grid-cols-1 gap-px overflow-y-auto rounded-[var(--pyqt-radius-md)] border border-book-border/40 bg-book-border/35 custom-scrollbar"
           >
             {variants.map(renderPromptRow)}
           </ul>
+          </details>
         ) : null}
       </section>
     );

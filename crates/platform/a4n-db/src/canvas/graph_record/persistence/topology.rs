@@ -5,6 +5,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Query
 use serde_json::json;
 
 use super::super::{types::CanvasGraphRecordInput, validation::required_canvas_record_text};
+use super::media_inputs::clear_media_input_metadata;
 use crate::canvas::CanvasDbError;
 
 const NODE_STATE_READY: &str = "ready";
@@ -15,7 +16,7 @@ pub(super) async fn replace_canvas_graph_topology<C>(
     graph_id: i64,
     input: &CanvasGraphRecordInput,
     now: chrono::NaiveDateTime,
-) -> Result<(), CanvasDbError>
+) -> Result<BTreeMap<String, i64>, CanvasDbError>
 where
     C: ConnectionTrait,
 {
@@ -47,8 +48,9 @@ where
     let mut node_ids = BTreeMap::<String, i64>::new();
     for node in &input.nodes {
         let client_id = required_canvas_record_text(&node.client_id, "node.client_id")?;
-        let config = node.config_json.clone().unwrap_or_else(|| json!({}));
+        let mut config = node.config_json.clone().unwrap_or_else(|| json!({}));
         let kind = required_canvas_record_text(&node.node_kind, "node.node_kind")?;
+        clear_media_input_metadata(&kind, &mut config)?;
         let state = node
             .state
             .as_deref()
@@ -133,10 +135,10 @@ where
         .await?;
     canvas_node::Entity::delete_many()
         .filter(canvas_node::Column::GraphId.eq(graph_id))
-        .filter(canvas_node::Column::Id.is_not_in(node_ids.into_values()))
+        .filter(canvas_node::Column::Id.is_not_in(node_ids.values().copied()))
         .exec(db)
         .await?;
-    Ok(())
+    Ok(node_ids)
 }
 
 fn resolve_canvas_record_edge_node_id(

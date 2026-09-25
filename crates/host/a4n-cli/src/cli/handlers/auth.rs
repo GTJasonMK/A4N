@@ -130,14 +130,12 @@ async fn run_auth(
                 output,
             )
         }
-        AuthCommand::OauthAuthorize { provider } => {
-            let value = client
-                .send_json(routing::command_request(
-                    "oauth2_authorize_url",
-                    json!({ "input": { "provider": provider } }),
-                )?)
-                .await?;
-            print_json(&value, output)
+        AuthCommand::OauthAuthorize {
+            provider,
+            redirect_uri,
+        } => {
+            let url = client.oauth2_authorize(provider, redirect_uri).await?;
+            print_json(&json!(url), output)
         }
         AuthCommand::OauthCallback {
             provider,
@@ -145,7 +143,7 @@ async fn run_auth(
         } => {
             let code = read_secret_line(
                 code_stdin,
-                "必须使用 --code-stdin 从 stdin 提供 OAuth2 code",
+                "必须使用 --code-stdin 从 stdin 提供 OAuth2 完整回调 URL",
             )?;
             let auth = client.oauth2_callback(provider, code).await?;
             print_json(
@@ -163,4 +161,3 @@ async fn run_auth(
         }
     }
 }
-

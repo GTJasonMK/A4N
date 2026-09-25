@@ -10,6 +10,8 @@ use a4n_storage::paths::AppPaths;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+const DEFAULT_CONTROL_ADDR: &str = "127.0.0.1:18080";
+
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub database_url: String,
@@ -33,14 +35,8 @@ impl ServerConfig {
 
         let jwt_secret = required_non_empty_env_string("A4N_JWT_SECRET")?;
         let agent_worker_token = required_non_empty_env_string("A4N_AGENT_WORKER_TOKEN")?;
-        let bind_addr_value = match optional_non_empty_env_string("A4N_CONTROL_ADDR")? {
-            Some(value) => value,
-            None => optional_non_empty_env_string("A4N_WEB_ADDR")?
-                .unwrap_or_else(|| "127.0.0.1:8080".to_string()),
-        };
-        let bind_addr = bind_addr_value.parse().map_err(|e| {
-            AppError::ConfigError(format!("A4N_CONTROL_ADDR/A4N_WEB_ADDR 无效: {e}"))
-        })?;
+        let bind_addr =
+            parse_control_addr(optional_non_empty_env_string("A4N_CONTROL_ADDR")?.as_deref())?;
         let bootstrap_admin = bootstrap_admin_from_env()?;
 
         Ok(Self {
@@ -51,6 +47,13 @@ impl ServerConfig {
             bootstrap_admin,
         })
     }
+}
+
+fn parse_control_addr(value: Option<&str>) -> Result<SocketAddr, AppError> {
+    value
+        .unwrap_or(DEFAULT_CONTROL_ADDR)
+        .parse()
+        .map_err(|error| AppError::ConfigError(format!("A4N_CONTROL_ADDR 无效: {error}")))
 }
 
 #[derive(Clone)]
@@ -164,5 +167,23 @@ fn bootstrap_admin_from_env() -> Result<Option<BootstrapAdmin>, AppError> {
             "A4N_BOOTSTRAP_ADMIN_USERNAME、A4N_BOOTSTRAP_ADMIN_EMAIL、A4N_BOOTSTRAP_ADMIN_PASSWORD 必须同时设置"
                 .into(),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn control_address_uses_the_internal_default_without_web_fallback() {
+        assert_eq!(
+            parse_control_addr(None).unwrap(),
+            "127.0.0.1:18080".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            parse_control_addr(Some("127.0.0.1:19080")).unwrap(),
+            "127.0.0.1:19080".parse::<SocketAddr>().unwrap()
+        );
+        assert!(parse_control_addr(Some("not-an-address")).is_err());
     }
 }

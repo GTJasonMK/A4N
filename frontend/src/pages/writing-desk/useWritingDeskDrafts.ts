@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChapterSummary } from "../../api/chapter";
+import { extractErrorMessage } from "../../api";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../components/feedback/Toast";
 import {
   getProjectWritingDraftSet,
   getWritingDraftKey,
+  getWritingDraftProjectPrefix,
   readWritingDraft,
   removeWritingDraft,
   writeWritingDraft,
@@ -36,12 +38,31 @@ export function useWritingDeskDrafts({
   const [dirty, setDirty] = useState(false);
   const [draftRevision, setDraftRevision] = useState(0);
   const editorContentRef = useRef("");
+  const editorRevisionRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
   const activeNumberRef = useRef<number | null>(null);
-  const draftPromptedRef = useRef<Set<string>>(new Set());
+  const draftPromptedRef = useRef<Map<string, string>>(new Map());
+  const draftPromptOpenRef = useRef(false);
+  const mountedRef = useRef(true);
+  const projectIdKeyRef = useRef(projectIdKey);
   const draftSaveWarnedRef = useRef(false);
-  const editorChapterKeyRef = useRef<string | null>(null);
   const editorActiveNumberRef = useRef<number | null>(null);
+  projectIdKeyRef.current = projectIdKey;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea !== window.localStorage) return;
+      if (event.key !== null && !event.key.startsWith(getWritingDraftProjectPrefix(projectIdKey))) return;
+      setDraftRevision((value) => value + 1);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [projectIdKey]);
 
   const setEditorState = useCallback((content: string, isDirty: boolean) => {
     editorContentRef.current = content;
@@ -75,38 +96,45 @@ export function useWritingDeskDrafts({
     [],
   );
 
-  const saveLocalDraftForCurrent = useCallback(() => {
+  const reportDraftError = useCallback((error: unknown) => {
+    if (!draftSaveWarnedRef.current) {
+      draftSaveWarnedRef.current = true;
+      addToast(extractErrorMessage(error, t("writing.localDraftSaveFailed")), "error");
+    }
+  }, [addToast, t]);
+
+  const saveLocalDraftForCurrent = useCallback(async () => {
     const chapterNumber = activeNumberRef.current;
     if (!projectIdKey || !chapterNumber || !dirtyRef.current) return true;
 
-    const ok = writeWritingDraft(
-      getWritingDraftKey(projectIdKey, chapterNumber),
-      editorContentRef.current,
-    );
-    if (ok) {
+    try {
+      const ok = await writeWritingDraft(
+        getWritingDraftKey(projectIdKey, chapterNumber),
+        editorContentRef.current,
+      );
+      if (!ok) throw new Error(t("writing.localDraftSaveFailed"));
+      draftSaveWarnedRef.current = false;
       setDraftRevision((value) => value + 1);
       return true;
+    } catch (error) {
+      reportDraftError(error);
+      return false;
     }
-
-    if (!draftSaveWarnedRef.current) {
-      draftSaveWarnedRef.current = true;
-      addToast(
-        t("writing.localDraftSaveFailed"),
-        "info",
-      );
-    }
-    return false;
-  }, [addToast, projectIdKey]);
+  }, [projectIdKey, reportDraftError, t]);
 
   const getCurrentEditorContent = useCallback(
     () => editorContentRef.current,
     [],
   );
 
+  useEffect(() => () => {
+    void saveLocalDraftForCurrent();
+  }, [saveLocalDraftForCurrent]);
+
   const confirmCurrentEdit = useCallback(
     async (actionText: string) => {
       if (!dirtyRef.current) return true;
-      const draftOk = saveLocalDraftForCurrent();
+      const draftOk = await saveLocalDraftForCurrent();
       const ok = await confirmDialog({
         title: t("writing.unsavedEditTitle"),
         message: draftOk
@@ -124,7 +152,7 @@ export function useWritingDeskDrafts({
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return;
-      saveLocalDraftForCurrent();
+      void saveLocalDraftForCurrent();
       event.preventDefault();
       event.returnValue = "";
     };
@@ -134,32 +162,26 @@ export function useWritingDeskDrafts({
   }, [saveLocalDraftForCurrent]);
 
   useEffect(() => {
-    let cancelled = false;
     const baseContent = chapterContentForEditor(activeChapter);
-    const chapterKey =
-      activeChapter != null
-        ? `chapter:${activeChapter.id}`
-        : activeNumber != null
-          ? `outline:${activeNumber}`
-          : null;
     const activeNumberChanged = editorActiveNumberRef.current !== activeNumber;
-    const chapterChanged = editorChapterKeyRef.current !== chapterKey;
     if (
       activeNumberChanged ||
       !dirtyRef.current ||
       editorContentRef.current === baseContent
     ) {
       setEditorState(baseContent, false);
+      editorRevisionRef.current = activeChapter?.edit_revision ?? null;
     }
-    editorChapterKeyRef.current = chapterKey;
     editorActiveNumberRef.current = activeNumber;
 
-    if (chapterChanged && projectIdKey && activeNumber != null) {
+    if (!dirtyRef.current && !draftPromptOpenRef.current && projectIdKey && activeNumber != null) {
       const draftKey = getWritingDraftKey(projectIdKey, activeNumber);
-      if (!draftPromptedRef.current.has(draftKey)) {
-        draftPromptedRef.current.add(draftKey);
-        const draft = readWritingDraft(draftKey);
+      const draft = readWritingDraft(draftKey);
+      const draftVersion = JSON.stringify(draft);
+      if (draftPromptedRef.current.get(draftKey) !== draftVersion) {
         if (draft && draft.content !== baseContent) {
+          draftPromptedRef.current.set(draftKey, draftVersion);
+          draftPromptOpenRef.current = true;
           const ts = formatDateTime(draft.updatedAt, locale, t("common.unknown"));
           void confirmDialog({
             title: t("writing.restoreDraftTitle"),
@@ -168,25 +190,34 @@ export function useWritingDeskDrafts({
             cancelText: t("writing.keepCurrent"),
             dialogType: "warning",
           }).then((ok) => {
-            if (!ok || cancelled || activeNumberRef.current !== activeNumber)
+            if (!ok || !mountedRef.current || projectIdKeyRef.current !== projectIdKey
+              || activeNumberRef.current !== activeNumber || dirtyRef.current)
               return;
-            setEditorState(draft.content, true);
+            const currentDraft = readWritingDraft(draftKey);
+            if (!currentDraft) {
+              addToast(t("writing.draftRemovedElsewhere"), "info");
+              return;
+            }
+            draftPromptedRef.current.set(draftKey, JSON.stringify(currentDraft));
+            setEditorState(currentDraft.content, true);
             addToast(t("writing.draftRestored"), "success");
+          }).catch(reportDraftError).finally(() => {
+            draftPromptOpenRef.current = false;
           });
         }
       }
     }
 
-    return () => {
-      cancelled = true;
-    };
   }, [
     activeNumber,
     activeChapter?.id,
     activeChapter?.content,
+    activeChapter?.edit_revision,
     addToast,
+    draftRevision,
     locale,
     projectIdKey,
+    reportDraftError,
     setEditorState,
     t,
   ]);
@@ -197,73 +228,68 @@ export function useWritingDeskDrafts({
     const chapterNumber = activeNumber;
     const content = editorContent;
     const baseContent = chapterContentForEditor(activeChapter);
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    const save = async () => {
       if (activeNumberRef.current !== chapterNumber || !dirtyRef.current)
         return;
-
-      if (content === baseContent) {
-        const key = getWritingDraftKey(projectIdKey, chapterNumber);
-        removeWritingDraft(key);
-        setDraftRevision((value) => value + 1);
-        setEditorState(content, false);
-        return;
+      try {
+        if (content === baseContent) {
+          await removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+          if (!cancelled && editorContentRef.current === content) setEditorState(content, false);
+        } else {
+          const ok = await writeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber), content);
+          if (!ok) throw new Error(t("writing.localDraftSaveFailed"));
+        }
+        draftSaveWarnedRef.current = false;
+        if (!cancelled) setDraftRevision((value) => value + 1);
+      } catch (error) {
+        reportDraftError(error);
       }
+    };
+    const timer = window.setTimeout(() => void save(), 800);
 
-      const ok = writeWritingDraft(
-        getWritingDraftKey(projectIdKey, chapterNumber),
-        content,
-      );
-      if (ok) {
-        setDraftRevision((value) => value + 1);
-        return;
-      }
-      if (!draftSaveWarnedRef.current) {
-        draftSaveWarnedRef.current = true;
-        addToast(
-          t("writing.localDraftSaveFailed"),
-          "info",
-        );
-      }
-    }, 800);
-
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [
     activeChapter?.content,
     activeNumber,
-    addToast,
     dirty,
     editorContent,
     projectIdKey,
+    reportDraftError,
     setEditorState,
+    t,
   ]);
 
   const removeDraftForChapter = useCallback(
-    (chapterNumber: number) => {
+    async (chapterNumber: number) => {
       if (!projectIdKey) return;
-      removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+      await removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
       setDraftRevision((value) => value + 1);
     },
     [projectIdKey],
   );
 
-  const clearProjectDrafts = useCallback(() => {
+  const clearProjectDrafts = useCallback(async () => {
     if (!projectIdKey) return;
     for (const chapterNumber of Array.from(
       getProjectWritingDraftSet(projectIdKey),
     )) {
-      removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+      await removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
     }
     setDraftRevision((value) => value + 1);
   }, [projectIdKey]);
 
   const resetDraftTracking = useCallback(() => {
-    editorChapterKeyRef.current = null;
     editorActiveNumberRef.current = null;
     draftPromptedRef.current.clear();
   }, []);
 
   return {
     editorContent,
+    editorRevisionRef,
     dirty,
     dirtyRef,
     activeNumberRef,

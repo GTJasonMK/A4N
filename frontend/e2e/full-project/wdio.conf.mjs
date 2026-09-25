@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const baseUrl = process.env.A4N_BROWSER_E2E_BASE_URL ?? "http://127.0.0.1:5173";
 const artifactDir = process.env.A4N_BROWSER_E2E_ARTIFACT_DIR ?? "target/browser-full-project-e2e";
@@ -50,6 +51,10 @@ export const config = {
   logLevel: "warn",
   baseUrl,
   before: async () => {
+    await browser.sendCommand("Browser.setDownloadBehavior", {
+      behavior: "allow",
+      downloadPath: resolve(downloadDir),
+    });
     await browser.setWindowSize(1440, 1000);
   },
   afterTest: async (test, _context, result) => {

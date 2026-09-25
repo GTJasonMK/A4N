@@ -95,6 +95,8 @@ export const settings = {
   testingSavedConfig: "正在测试当前已保存配置…",
   latestTest: "最近测试{status}",
   testConnection: "测试连接",
+  testSavedConnection: "测试已保存配置",
+  webToolsSaveHint: "同时保存搜索连接与网页读取设置。",
   viewModelRequest: "查看模型请求",
   deleteConfig: "删除配置",
   deleteConfigTitle: "删除{name}",
@@ -134,6 +136,7 @@ export const settingsAgent = {
 } as const;
 
 export const settingsForm = {
+  integerRequired: "请为{label}填写整数",
   configName: "配置名称",
   configNamePlaceholder: "例如：默认 / 创作主力",
   videoModelPlaceholder: "例如：video-01 / kling-v1 / runway-gen3",
@@ -239,6 +242,7 @@ export const settingsForm = {
   imageSizesRequired: "至少配置一个图片尺寸",
   imageSizeUnavailable: "当前图片配置没有可用尺寸，暂时无法生成",
   pricingTitle: "模型价格",
+  pricingOtherCapabilities: "其他能力的价格",
   pricingCurrency: "币种",
   pricingCurrencyHint: "使用 3 位大写 ISO 货币代码；不同 Provider 不做汇率换算",
   pricingLlmInput: "LLM 输入 / 百万 token",

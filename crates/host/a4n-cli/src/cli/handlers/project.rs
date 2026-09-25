@@ -201,6 +201,7 @@ async fn run_chapter(
         }
         ChapterCommand::Update {
             chapter_id,
+            expected_revision,
             content,
             title,
         } => {
@@ -215,6 +216,7 @@ async fn run_chapter(
                 json!({
                     "input": {
                         "chapter_id": chapter_id,
+                        "expected_revision": expected_revision,
                         "content": content,
                         "title": title,
                     }
@@ -225,4 +227,3 @@ async fn run_chapter(
         }
     }
 }
-

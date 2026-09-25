@@ -88,7 +88,7 @@ pub fn project_summary_from_parts(
         member_count: info.member_count,
         pending_invite_count: info.pending_invite_count,
         progress,
-        updated_at: project.updated_at.to_string(),
+        updated_at: project.updated_at.and_utc().to_rfc3339(),
     }
 }
 

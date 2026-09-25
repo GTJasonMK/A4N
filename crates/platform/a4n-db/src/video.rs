@@ -63,8 +63,7 @@ pub use generated_videos::{
     mark_generated_video_job_and_prompt_record,
     mark_generated_videos_error_status_and_prompt_records, merge_video_provider_response_metadata,
     missing_video_reference_project_ids, recover_stale_generated_videos_without_provider_job,
-    update_generated_video_duration_record, update_generated_video_record,
-    update_generated_video_waiting_status_and_prompt_record,
+    update_generated_video_record, update_generated_video_waiting_status_and_prompt_record,
     validate_video_metadata_update_preserves_system_fields,
 };
 

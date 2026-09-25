@@ -6,7 +6,7 @@ pub(crate) fn args_apply_assembly_postprocess_edit() -> Value {
         "type": "object",
         "properties": {
             "pushVideoId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::ApplyAssemblyPostprocessEditInput>(),
+            "input": property_schema::<crate::video::ApplyAssemblyPostprocessEditInput>("input"),
         },
         "required": ["pushVideoId", "input"],
         "additionalProperties": false,
@@ -224,7 +224,7 @@ pub(crate) fn args_optimize_chapter_video_prompt() -> Value {
         "type": "object",
         "properties": {
             "promptId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::OptimizeChapterVideoPromptInput>(),
+            "input": property_schema::<crate::video::OptimizeChapterVideoPromptInput>("input"),
         },
         "required": ["promptId", "input"],
         "additionalProperties": false,
@@ -245,7 +245,7 @@ pub(crate) fn args_preview_chapter_video_request() -> Value {
             "chapterId": { "type": "integer", "minimum": 1 },
             "promptId": { "type": "integer", "minimum": 1 },
             "configId": { "type": ["integer", "null"], "minimum": 1 },
-            "promptOverride": raw_schema::<crate::video::PreviewChapterVideoPromptOverrideInput>(),
+            "promptOverride": property_schema::<crate::video::PreviewChapterVideoPromptOverrideInput>("promptOverride"),
             "runtime_config_snapshot": { "type": ["object", "null"] },
         },
         "required": ["projectId", "chapterId", "promptId"],
@@ -259,7 +259,7 @@ pub(crate) fn args_preview_reference_media_video_request() -> Value {
         "properties": {
             "projectId": { "type": "integer", "minimum": 1 },
             "chapterId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::ReferenceMediaVideoInput>(),
+            "input": property_schema::<crate::video::ReferenceMediaVideoInput>("input"),
             "runtime_config_snapshot": { "type": ["object", "null"] },
         },
         "required": ["projectId", "chapterId", "input"],
@@ -338,7 +338,7 @@ pub(crate) fn args_push_assembled_chapter_video() -> Value {
             "projectId": { "type": "integer", "minimum": 1 },
             "chapterId": { "type": "integer", "minimum": 1 },
             "workflowMode": { "type": "string", "minLength": 1 },
-            "input": raw_schema::<crate::video::PushAssembledChapterVideoInput>(),
+            "input": property_schema::<crate::video::PushAssembledChapterVideoInput>("input"),
         },
         "required": ["projectId", "chapterId", "workflowMode", "input"],
         "additionalProperties": false,
@@ -382,7 +382,7 @@ pub(crate) fn args_select_segment_video() -> Value {
             "projectId": { "type": "integer", "minimum": 1 },
             "chapterId": { "type": "integer", "minimum": 1 },
             "videoId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::SelectSegmentVideoInput>(),
+            "input": property_schema::<crate::video::SelectSegmentVideoInput>("input"),
         },
         "required": ["projectId", "chapterId", "videoId", "input"],
         "additionalProperties": false,
@@ -412,7 +412,7 @@ pub(crate) fn args_update_chapter_video_prompt() -> Value {
         "type": "object",
         "properties": {
             "promptId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::UpdateChapterVideoPromptInput>(),
+            "input": property_schema::<crate::video::UpdateChapterVideoPromptInput>("input"),
         },
         "required": ["promptId", "input"],
         "additionalProperties": true,
@@ -424,7 +424,7 @@ pub(crate) fn args_update_chapter_video_segment_plan() -> Value {
         "type": "object",
         "properties": {
             "promptId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::UpdateChapterVideoSegmentPlanInput>(),
+            "input": property_schema::<crate::video::UpdateChapterVideoSegmentPlanInput>("input"),
         },
         "required": ["promptId", "input"],
         "additionalProperties": true,
@@ -436,7 +436,7 @@ pub(crate) fn args_update_chapter_video_segment_recipe() -> Value {
         "type": "object",
         "properties": {
             "promptId": { "type": "integer", "minimum": 1 },
-            "recipe": raw_schema::<crate::video::VideoSegmentExecutionRecipeV1>(),
+            "recipe": property_schema::<crate::video::VideoSegmentExecutionRecipeV1>("recipe"),
         },
         "required": ["promptId", "recipe"],
         "additionalProperties": false,
@@ -479,7 +479,7 @@ pub(crate) fn args_update_assembly_push_status() -> Value {
         "type": "object",
         "properties": {
             "videoId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::UpdateAssemblyPushStatusInput>(),
+            "input": property_schema::<crate::video::UpdateAssemblyPushStatusInput>("input"),
         },
         "required": ["videoId", "input"],
         "additionalProperties": false,
@@ -491,7 +491,7 @@ pub(crate) fn args_update_video() -> Value {
         "type": "object",
         "properties": {
             "videoId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::UpdateGeneratedVideoInput>(),
+            "input": property_schema::<crate::video::UpdateGeneratedVideoInput>("input"),
         },
         "required": ["videoId", "input"],
         "additionalProperties": false,
@@ -508,7 +508,7 @@ pub(crate) fn args_upload_assembly_insert_video() -> Value {
             "projectId": { "type": "integer", "minimum": 1 },
             "chapterId": { "type": "integer", "minimum": 1 },
             "workflowMode": { "type": "string", "minLength": 1 },
-            "input": raw_schema::<crate::video::UploadAssemblyInsertVideoInput>(),
+            "input": property_schema::<crate::video::UploadAssemblyInsertVideoInput>("input"),
         },
         "required": ["projectId", "chapterId", "workflowMode", "input"],
         "additionalProperties": false,
@@ -521,7 +521,7 @@ pub(crate) fn args_upload_chapter_video() -> Value {
         "properties": {
             "projectId": { "type": "integer", "minimum": 1 },
             "chapterId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::UploadChapterVideoInput>(),
+            "input": property_schema::<crate::video::UploadChapterVideoInput>("input"),
         },
         "required": ["projectId", "chapterId", "input"],
         "additionalProperties": false,
@@ -540,7 +540,7 @@ pub(crate) fn args_upload_reference_media_video() -> Value {
         "properties": {
             "projectId": { "type": "integer", "minimum": 1 },
             "chapterId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::video::UploadReferenceMediaVideoInput>(),
+            "input": property_schema::<crate::video::UploadReferenceMediaVideoInput>("input"),
         },
         "required": ["projectId", "chapterId", "input"],
         "additionalProperties": false,
@@ -600,6 +600,9 @@ pub(crate) fn result_generate_next_chapter_shooting_script_unit() -> Value {
 }
 pub(crate) fn result_get_canvas_graph() -> Value {
     typed_schema::<crate::canvas::CanvasGraphDocument>()
+}
+pub(crate) fn result_save_canvas_graph() -> Value {
+    typed_schema::<crate::canvas::CanvasGraphSaveResult>()
 }
 pub(crate) fn result_get_canvas_node_contracts() -> Value {
     typed_schema::<Vec<crate::canvas::CanvasNodeContract>>()

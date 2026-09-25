@@ -197,10 +197,11 @@ fn responses_preserves_all_stable_boundaries_and_skips_dynamic_cache_writes() {
     request
         .add_cache_breakpoint(1, "shared context".len())
         .unwrap();
+    let options = json!({"prompt_cache_options": {"mode": "explicit"}});
     request
-        .configure_prompt_cache("openai-responses", "gpt-5.6-luna", None, Some(7))
+        .configure_prompt_cache("openai-responses", "proxy-alias", Some(&options), Some(7))
         .unwrap();
-    let body = responses::request_body(&request, "gpt-5.6-luna", Default::default()).unwrap();
+    let body = responses::request_body(&request, "proxy-alias", Default::default()).unwrap();
     assert_eq!(body["prompt_cache_options"]["mode"], "explicit");
     for (index, text) in [(0, "stable rules"), (1, "shared context")] {
         assert_eq!(body["input"][index]["content"][0]["text"], text);
@@ -220,10 +221,11 @@ fn responses_preserves_all_stable_boundaries_and_skips_dynamic_cache_writes() {
 #[test]
 fn responses_caches_native_dialogue_from_its_first_user_message() {
     let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
+    let options = json!({"prompt_cache_options": {}});
     request
-        .configure_prompt_cache("openai-responses", "gpt-5.6-luna", None, Some(7))
+        .configure_prompt_cache("openai-responses", "proxy-alias", Some(&options), Some(7))
         .unwrap();
-    let body = responses::request_body(&request, "gpt-5.6-luna", Default::default()).unwrap();
+    let body = responses::request_body(&request, "proxy-alias", Default::default()).unwrap();
     assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
     assert_eq!(body["input"][1]["content"], "initial task");
 }

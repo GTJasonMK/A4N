@@ -165,7 +165,13 @@ pub(super) async fn generated_video_with_asset(
         video.id,
         &format!("projects/{project_id}/videos/{file_name}"),
         None,
-        2048,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 2048,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         None,
     )

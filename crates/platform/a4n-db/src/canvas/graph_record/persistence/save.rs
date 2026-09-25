@@ -2,7 +2,7 @@ use sea_orm::{ConnectionTrait, TransactionTrait};
 
 use super::super::{
     references::validate_canvas_graph_record_references,
-    types::{CanvasGraphRecordDocument, CanvasGraphRecordInput},
+    types::{CanvasGraphRecordInput, CanvasGraphRecordSaveResult},
     validation::validate_canvas_graph_record_input,
 };
 use super::{
@@ -16,7 +16,7 @@ pub async fn save_canvas_graph_record<C>(
     project_id: i64,
     input: CanvasGraphRecordInput,
     now: chrono::NaiveDateTime,
-) -> Result<CanvasGraphRecordDocument, CanvasDbError>
+) -> Result<CanvasGraphRecordSaveResult, CanvasDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -25,8 +25,8 @@ where
     let tx = db.begin().await?;
     validate_canvas_graph_record_references(&tx, project_id, &input).await?;
     let graph = upsert_canvas_graph_record(&tx, &project, project_id, &input, now).await?;
-    replace_canvas_graph_topology(&tx, graph.id, &input, now).await?;
+    let node_ids = replace_canvas_graph_topology(&tx, graph.id, &input, now).await?;
     let document = canvas_graph_record_document(&tx, graph).await?;
     tx.commit().await?;
-    Ok(document)
+    Ok(CanvasGraphRecordSaveResult { document, node_ids })
 }

@@ -1661,7 +1661,7 @@ fn task_and_workflow_terminal_states_use_stable_exit_codes() {
         let (server, server_thread) = spawn_reply("200 OK", body.into_bytes(), None);
         write_config(&config, &server);
         let output = cli(&temp, &config)
-            .args(["task", "watch", "task-1"])
+            .args(["task", "watch", "task-1", "--after-sequence", "0"])
             .output()
             .unwrap();
         assert_eq!(output.status.code(), Some(expected_code));
@@ -2321,7 +2321,9 @@ fn auth_commands_use_stdin_and_persist_or_clear_sessions() {
             "expires_at": "2026-08-23T00:00:00Z",
             "last_used_at": null
         }])),
-        json_response(json!({"url": "https://example.test/oauth"})),
+        json_response(json!(
+            "https://github.com/login/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1420%2Fauth%2Fcallback"
+        )),
         json_response(json!({})),
         json_response(auth_value("access-oauth", "refresh-oauth", "session-oauth")),
         json_response(json!({})),
@@ -2379,11 +2381,20 @@ fn auth_commands_use_stdin_and_persist_or_clear_sessions() {
 
     let output = run_with_stdin(
         cli(&temp, &config).args(["auth", "oauth-callback", "github", "--code-stdin"]),
-        "oauth-code-secret\n",
+        "http://localhost:1420/auth/callback?state=wrong-state&code=oauth-code-secret\n",
+    );
+    assert!(!output.status.success());
+    let pending: Value = serde_json::from_slice(&fs::read(&config).unwrap()).unwrap();
+    let nonce = pending["pending_oauth"]["state"].as_str().unwrap();
+    let verifier = pending["pending_oauth"]["code_verifier"].as_str().unwrap();
+    let output = run_with_stdin(
+        cli(&temp, &config).args(["auth", "oauth-callback", "github", "--code-stdin"]),
+        &format!("http://localhost:1420/auth/callback?state={nonce}&code=oauth-code-secret\n"),
     );
     assert!(output.status.success());
     assert!(!String::from_utf8_lossy(&output.stdout).contains("oauth-code-secret"));
     assert!(!String::from_utf8_lossy(&output.stderr).contains("oauth-code-secret"));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(verifier));
 
     success_data(
         &cli(&temp, &config)
@@ -2456,6 +2467,19 @@ fn auth_commands_use_stdin_and_persist_or_clear_sessions() {
         request_json_body(&requests[7])["input"]["code"],
         "oauth-code-secret"
     );
+    assert_eq!(
+        request_json_body(&requests[7])["input"]["code_verifier"],
+        verifier
+    );
+    {
+        use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+        use sha2::{Digest, Sha256};
+        assert_eq!(
+            request_json_body(&requests[5])["input"]["code_challenge"],
+            URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+        );
+        assert_eq!(request_json_body(&requests[5])["input"]["state"], nonce);
+    }
     assert!(requests[8].starts_with("POST /api/commands/revoke_session "));
     assert_eq!(
         request_json_body(&requests[8])["input"]["session_id"],
@@ -2927,7 +2951,7 @@ fn task_watch_succeeds_reconnects_with_last_event_id_and_honors_after_sequence()
     ]);
     write_config(&config, &server);
     let output = cli(&temp, &config)
-        .args(["task", "watch", "task-1"])
+        .args(["task", "watch", "task-1", "--after-sequence", "0"])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -2956,6 +2980,103 @@ fn task_watch_succeeds_reconnects_with_last_event_id_and_honors_after_sequence()
     assert!(output.status.success());
     let request = server_thread.join().unwrap().pop().unwrap();
     assert!(request.to_ascii_lowercase().contains("last-event-id: 1:7"));
+}
+
+#[test]
+fn task_watch_acknowledges_snapshot_and_reports_persisted_terminal_result() {
+    let temp = TempDir::new().unwrap();
+    let config = temp.path().join("cli.json");
+    let task_id = "00000000-0000-4000-8000-000000000017";
+    let running = json!({
+        "schema_version": 1, "task_id": task_id, "attempt": 1,
+        "covers_through_sequence": 5, "status": "running",
+        "started": {
+            "task_kind": "llm_call", "delivery_mode": "stream",
+            "project_id": 1, "root_project_id": 1,
+            "target": {"kind": "chapter", "id": "1", "revision": null},
+            "root_task_id": task_id, "parent_task_id": null, "retry_of_task_id": null,
+            "generation_run_id": null, "workflow_run_id": null, "item_key": null,
+            "batch_policy": null
+        },
+        "cancel_reason": null, "progress": null, "streams": [], "artifacts": [],
+        "usage": null, "latest_checkpoint": null, "terminal_event": null, "updated_at_ms": 0
+    });
+    let (server, server_thread) = spawn_scripted_replies(vec![
+        json_response(running.clone()),
+        sse_response(b"data: {\"sequence\":6,\"event\":{\"kind\":\"completed\"}}\n\n"),
+    ]);
+    write_config(&config, &server);
+    let output = cli(&temp, &config)
+        .args(["task", "watch", task_id])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        output_documents(&output)[0]["data"]["covers_through_sequence"],
+        5
+    );
+    let requests = server_thread.join().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0].starts_with(&format!(
+        "GET /api/generation-tasks/{task_id}/snapshot?attempt=1 "
+    )));
+    assert!(
+        requests[1]
+            .to_ascii_lowercase()
+            .contains("last-event-id: 1:5")
+    );
+
+    for (kind, data, expected_exit) in [
+        (
+            "completed",
+            json!({
+                "result_ref": null, "final_text_hashes": [], "final_usage": null,
+                "finish_reason": "stop", "summary": "Done", "batch_summary": null
+            }),
+            0,
+        ),
+        (
+            "failed",
+            json!({
+                "error": {"code": "provider_job_failed", "message": "Upstream rejected the request",
+                    "retryable": false, "stage_code": "generate", "trace_id": null, "source_error": null},
+                "draft_disposition": "retained_until_expiry", "batch_summary": null
+            }),
+            8,
+        ),
+    ] {
+        let mut snapshot = running.clone();
+        snapshot["status"] = json!(kind);
+        snapshot["covers_through_sequence"] = json!(6);
+        snapshot["terminal_event"] = json!({
+            "schema_version": 1, "task_id": task_id, "attempt": 1,
+            "sequence": 6, "emitted_at_ms": 0, "event": {"kind": kind, "data": data}
+        });
+        let (server, server_thread) = spawn_scripted_replies(vec![json_response(snapshot)]);
+        write_config(&config, &server);
+        let output = cli(&temp, &config)
+            .args(["task", "watch", task_id])
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(expected_exit),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output_documents(&output)[0]["data"]["event"]["kind"], kind);
+        if kind == "failed" {
+            assert_eq!(agent_error(&output)["error"]["code"], "task_failed");
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("Upstream rejected the request")
+            );
+        }
+        assert_eq!(server_thread.join().unwrap().len(), 1);
+    }
 }
 
 #[test]
@@ -3123,7 +3244,7 @@ fn task_sse_handles_chunked_multiline_json_and_jsonl_output() {
     write_config(&config, &server);
 
     let output = cli_with_output(&temp, &config, "jsonl")
-        .args(["task", "watch", "task-1"])
+        .args(["task", "watch", "task-1", "--after-sequence", "0"])
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -3153,7 +3274,7 @@ fn malformed_task_sse_frames_fail_without_retrying_as_success() {
         let (server, server_thread) = spawn_chunked_response("text/event-stream", vec![body]);
         write_config(&config, &server);
         let output = cli(&temp, &config)
-            .args(["task", "watch", "task-1"])
+            .args(["task", "watch", "task-1", "--after-sequence", "0"])
             .output()
             .unwrap();
         assert_eq!(output.status.code(), Some(2));

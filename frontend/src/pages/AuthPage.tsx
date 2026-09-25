@@ -2,6 +2,7 @@ import { ThemedSelect } from "../components/ui/ThemedSelect";
 import React, { useEffect, useRef, useState } from "react";
 import { BookOpen, Globe } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
+import { StatusBarToggle } from "../components/ui/StatusBar";
 import { BookButton } from "../components/ui/BookButton";
 import { BookInput } from "../components/ui/BookInput";
 import { BookCard } from "../components/ui/BookCard";
@@ -9,9 +10,9 @@ import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { useAuthStore } from "../store/auth";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
-import { oauth2AuthorizeUrl } from "../api/auth";
-import { copyTextToClipboard } from "../utils/clipboard";
+import { beginOAuthLogin, cancelOAuthLogin } from "../api/oauth";
 import { useI18n } from "../i18n";
+import { logger } from "../utils/logger";
 
 const OAUTH_PROVIDERS = ["github", "google"] as const;
 const OAUTH_PROVIDER_LABELS: Record<(typeof OAUTH_PROVIDERS)[number], string> = {
@@ -32,11 +33,6 @@ export const AuthPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const [oauthProvider, setOauthProvider] = useState("github");
-  const [oauthCode, setOauthCode] = useState("");
-  const [oauthAuthorizeUrl, setOauthAuthorizeUrl] = useState<string | null>(
-    null,
-  );
-  const [oauthLinkCopied, setOauthLinkCopied] = useState(false);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [showOauth, setShowOauth] = useState(false);
   const submitBusyRef = useRef(false);
@@ -57,6 +53,9 @@ export const AuthPage: React.FC = () => {
       submitBusyRef.current = false;
       oauthBusyRef.current = false;
       oauthSeqRef.current += 1;
+      void cancelOAuthLogin().catch((error: unknown) => {
+        logger.scoped("OAuth").error("Failed to cancel browser authorization", { error });
+      });
     };
   }, []);
 
@@ -64,9 +63,6 @@ export const AuthPage: React.FC = () => {
     oauthProviderRef.current = nextProvider;
     oauthSeqRef.current += 1;
     setOauthProvider(nextProvider);
-    setOauthAuthorizeUrl(null);
-    setOauthLinkCopied(false);
-    setOauthCode("");
     oauthBusyRef.current = false;
     setOauthBusy(false);
   };
@@ -123,7 +119,7 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  const handleGetAuthorizeUrl = async () => {
+  const handleOauthLogin = async () => {
     const requestProvider = oauthProvider.trim();
     if (!requestProvider) {
       addToast(t("auth.selectLoginService"), "error");
@@ -135,7 +131,7 @@ export const AuthPage: React.FC = () => {
     oauthBusyRef.current = true;
     setOauthBusy(true);
     try {
-      const url = await oauth2AuthorizeUrl(requestProvider);
+      const callbackUrl = await beginOAuthLogin(requestProvider);
       if (
         !mountedRef.current ||
         oauthSeqRef.current !== requestSeq ||
@@ -143,15 +139,9 @@ export const AuthPage: React.FC = () => {
       ) {
         return;
       }
-      setOauthAuthorizeUrl(url);
-      setOauthLinkCopied(false);
-      try {
-        await copyTextToClipboard(url);
-        setOauthLinkCopied(true);
-        addToast(t("auth.authLinkCopied"), "success");
-      } catch {
-        setOauthLinkCopied(false);
-        addToast(t("auth.authLinkCopyFailed"), "error");
+      if (callbackUrl) {
+        const { user } = await oauthLogin(callbackUrl);
+        addToast(t("auth.oauthLoginSuccess", { name: user.username }), "success");
       }
     } catch (err) {
       if (
@@ -161,7 +151,7 @@ export const AuthPage: React.FC = () => {
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, t("auth.oauthUrlFailed")), "error");
+      addToast(extractErrorMessage(err, t("auth.oauthLoginFailed")), "error");
     } finally {
       if (oauthSeqRef.current === requestSeq) oauthBusyRef.current = false;
       if (mountedRef.current && oauthSeqRef.current === requestSeq)
@@ -169,29 +159,16 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  const handleOauthCallback = async () => {
-    const requestProvider = oauthProvider.trim();
-    const requestCode = oauthCode.trim();
-    if (!requestProvider || !requestCode) {
-      addToast(t("auth.fillAuthCode"), "error");
-      return;
-    }
-    if (oauthBusyRef.current) return;
-    const requestSeq = oauthSeqRef.current + 1;
-    oauthSeqRef.current = requestSeq;
-    oauthBusyRef.current = true;
-    setOauthBusy(true);
+  const handleCancelOauth = async () => {
+    oauthSeqRef.current += 1;
     try {
-      const user = await oauthLogin(requestProvider, requestCode);
-      if (!mountedRef.current || oauthSeqRef.current !== requestSeq) return;
-      addToast(t("auth.oauthLoginSuccess", { name: user.username }), "success");
+      await cancelOAuthLogin();
+      if (!mountedRef.current) return;
+      setShowOauth(false);
+      handleOauthProviderChange(oauthProvider);
     } catch (err) {
-      if (!mountedRef.current || oauthSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("auth.oauthLoginFailed")), "error");
-    } finally {
-      if (oauthSeqRef.current === requestSeq) oauthBusyRef.current = false;
-      if (mountedRef.current && oauthSeqRef.current === requestSeq)
-        setOauthBusy(false);
     }
   };
 
@@ -227,7 +204,10 @@ export const AuthPage: React.FC = () => {
 
         <BookCard className="a4n-auth-card">
           <header className="a4n-auth-form-header">
-            <p className="a4n-kicker">{t("auth.continueCreation")}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="a4n-kicker">{t("auth.continueCreation")}</p>
+              <StatusBarToggle />
+            </div>
             <h2>
               {showOauth
                 ? t("auth.oauthLogin")
@@ -359,7 +339,7 @@ export const AuthPage: React.FC = () => {
                 <ThemedSelect
                   value={oauthProvider}
                   onChange={handleOauthProviderChange}
-                  disabled={oauthBusy || oauthAuthorizeUrl !== null}
+                  disabled={oauthBusy}
                   className="pyqt-input min-w-0"
                 >
                   {OAUTH_PROVIDERS.map((provider) => (
@@ -369,67 +349,19 @@ export const AuthPage: React.FC = () => {
                   ))}
                 </ThemedSelect>
               </label>
-              {oauthAuthorizeUrl == null ? (
-                <BookButton
-                  variant="primary"
-                  onClick={handleGetAuthorizeUrl}
-                  disabled={oauthBusy}
-                  className="w-full"
-                >
-                  {oauthBusy ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> {t("auth.generatingAuthLink")}
-                    </span>
-                  ) : (
-                    t("auth.generateAuthLink")
-                  )}
-                </BookButton>
-              ) : (
-                <>
-                  <div className="rounded-xl bg-book-primary/8 px-3 py-2.5 text-small leading-relaxed text-book-text-sub">
-                    {oauthLinkCopied
-                      ? t("auth.authLinkCopied")
-                      : t("auth.authLinkCopyFailed")}
-                  </div>
-                  <details className="text-caption text-book-text-muted">
-                    <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("auth.viewAuthLink")}</summary>
-                    <div className="mt-1 break-all rounded-xl bg-book-bg-tertiary/50 p-2.5 font-mono text-small leading-relaxed text-book-text-sub">
-                      {oauthAuthorizeUrl}
-                    </div>
-                  </details>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-body-sm font-medium text-book-text-sub">{t("auth.authCode")}</span>
-                    <BookInput
-                      value={oauthCode}
-                      onChange={(e) => setOauthCode(e.target.value)}
-                      placeholder={t("auth.authCodePlaceholder")}
-                      disabled={oauthBusy}
-                      autoComplete="one-time-code"
-                    />
-                  </label>
-                  <BookButton
-                    variant="primary"
-                    onClick={handleOauthCallback}
-                    disabled={oauthBusy || !oauthCode.trim()}
-                    className="w-full"
-                  >
-                    {oauthBusy ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <LoadingSpinner size="sm" /> {t("auth.completingLogin")}
-                      </span>
-                    ) : (
-                      t("auth.completeLogin")
-                    )}
-                  </BookButton>
-                </>
-              )}
+              <BookButton
+                variant="primary"
+                onClick={handleOauthLogin}
+                disabled={oauthBusy}
+                className="w-full"
+              >
+                {oauthBusy ? t("auth.awaitingAuthorization") : t("auth.continueWithProvider", {
+                  provider: OAUTH_PROVIDER_LABELS[oauthProvider as keyof typeof OAUTH_PROVIDER_LABELS],
+                })}
+              </BookButton>
               <button
                 type="button"
-                onClick={() => {
-                  setShowOauth(false);
-                  handleOauthProviderChange(oauthProvider);
-                }}
-                disabled={oauthBusy}
+                onClick={() => void handleCancelOauth()}
                 className="a4n-auth-oauth-button"
               >
                 {t("auth.backToUsernameLogin")}

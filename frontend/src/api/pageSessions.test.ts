@@ -24,6 +24,7 @@ function response(value: unknown, status = 200, body: ReadableStream<Uint8Array>
     status,
     body,
     json: vi.fn().mockResolvedValue(value),
+    text: vi.fn().mockResolvedValue(JSON.stringify(value)),
   } as unknown as Response;
 }
 
@@ -92,6 +93,43 @@ describe("Page Session API", () => {
     expect(path).toBe("/ui-sessions/session%2F1/control/pause");
     expect(headers(init)).toMatchObject({ "x-ui-session-token": "ui-token" });
     expect(headers(init)).not.toHaveProperty("x-agent-token");
+  });
+
+  it("preserves the server error message for failed session requests", async () => {
+    mocks.authenticatedWebFetch.mockResolvedValue(
+      response(
+        {
+          code: "conflict",
+          details: {},
+          message: "Page Session 已被其他 Agent 接管",
+          retryable: false,
+          trace_id: null,
+        },
+        409,
+      ),
+    );
+
+    await expect(controlPageSession("session/1", "ui-token", "takeover"))
+      .rejects.toMatchObject({
+        name: "PageSessionRequestError",
+        status: 409,
+        message: "Page Session 已被其他 Agent 接管",
+      });
+  });
+
+  it("preserves a useful detail when the server error body is not JSON", async () => {
+    mocks.authenticatedWebFetch.mockResolvedValue({
+      ok: false,
+      status: 502,
+      text: vi.fn().mockResolvedValue("upstream unavailable"),
+    } as unknown as Response);
+
+    await expect(controlPageSession("session/1", "ui-token", "detach"))
+      .rejects.toMatchObject({
+        name: "PageSessionRequestError",
+        status: 502,
+        message: "Page Session 请求失败（HTTP 502）：upstream unavailable",
+      });
   });
 
   it("filters Page SSE events and preserves the caller AbortSignal", async () => {

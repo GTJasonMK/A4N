@@ -55,26 +55,32 @@ impl SettingsAllHostPort for RuntimeSettingsAllHostPort<'_> {
         Ok(snapshots)
     }
 
-    async fn import_prompts(&self, rows: Vec<PromptRow>) -> Result<usize, AppError> {
+    async fn import_prompts(
+        &self,
+        rows: Vec<PromptRow>,
+        overwrite: bool,
+    ) -> Result<Vec<String>, AppError> {
         if rows.is_empty() {
-            return Ok(0);
+            return Ok(Vec::new());
         }
-        let count = rows.len();
         let updates = rows
             .into_iter()
             .map(|row| (row.name, row.content))
             .collect();
-        prompt_update_many_runtime(self.state, updates, "settings_import")
-            .await
-            .map_err(|error| AppError::InvalidArgument(format!("提示词批量导入失败：{error}")))?;
-        Ok(count)
+        let imported =
+            prompt_update_many_runtime(self.state, updates, "settings_import", overwrite)
+                .await
+                .map_err(|error| {
+                    AppError::InvalidArgument(format!("提示词批量导入失败：{error}"))
+                })?;
+        Ok(imported.into_iter().map(|entry| entry.name).collect())
     }
 
     async fn rollback_prompts(&self, snapshots: Vec<(String, String)>) -> Result<(), AppError> {
         if snapshots.is_empty() {
             return Ok(());
         }
-        prompt_update_many_runtime(self.state, snapshots, "settings_import_rollback")
+        prompt_update_many_runtime(self.state, snapshots, "settings_import_rollback", true)
             .await
             .map(|_| ())
             .map_err(|error| AppError::InvalidArgument(error.to_string()))

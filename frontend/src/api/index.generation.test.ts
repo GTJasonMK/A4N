@@ -14,9 +14,7 @@ vi.mock("./authStorage", () => ({
   readCurrentAccessToken: vi.fn(() => null),
   readCurrentRefreshToken: vi.fn(() => null),
   readCurrentSessionId: vi.fn(() => null),
-  writeCurrentAccessToken: vi.fn(),
-  writeCurrentRefreshToken: vi.fn(),
-  writeCurrentSessionId: vi.fn(),
+  writeCurrentTokens: vi.fn(),
 }));
 vi.mock("../utils/logger", () => ({
   logger: { scoped: () => ({ error: mocks.logError }) },

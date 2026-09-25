@@ -28,17 +28,82 @@ fn request_body_json(request: Result<reqwest::RequestBuilder, AppError>) -> Valu
 }
 
 #[test]
+fn thinking_tool_state_is_replayed_only_for_the_matching_provider() {
+    let mut message = ChatMessage::assistant("");
+    message.tool_calls = Some(vec![a4n_llm_provider_contract::ToolCall {
+        id: "opaque-id".into(),
+        name: "get_project".into(),
+        arguments: json!({}),
+        stream_index: None,
+        provider_metadata: Some(json!({"native_signature":"preserved"})),
+    }]);
+    message
+        .preserve_tool_reasoning(Some("provider replay state"))
+        .unwrap();
+    let request = ChatRequest::new(vec![message], None, Some(100));
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test/v1", "deepseek-flash", None, 60)
+            .with_reasoning_replay(true);
+    let value = request_body_json(provider.build_request(&request, true));
+    assert_eq!(
+        value["messages"][0]["reasoning_content"],
+        "provider replay state"
+    );
+    assert!(
+        value["messages"][0]["tool_calls"][0]
+            .get("provider_metadata")
+            .is_none()
+    );
+    let other = HttpLlmProvider::new_with_timeout("https://example.test/v1", "gpt", None, 60);
+    assert!(
+        request_body_json(other.build_request(&request, true))["messages"][0]
+            .get("reasoning_content")
+            .is_none()
+    );
+    let snapshot = request.snapshot_value().unwrap();
+    let replayed = ChatRequest::from_snapshot_value(snapshot).unwrap();
+    assert_eq!(
+        request_body_json(provider.build_request(&replayed, true))["messages"][0]["reasoning_content"],
+        "provider replay state"
+    );
+    let mut direct_tool = replayed;
+    direct_tool.messages[0].tool_calls.as_mut().unwrap()[0].provider_metadata = None;
+    assert_eq!(
+        request_body_json(provider.build_request(&direct_tool, true))["messages"][0]["reasoning_content"],
+        ""
+    );
+}
+
+#[test]
 fn native_agent_initial_request_keeps_implicit_cache_on_the_wire() {
     let provider =
-        HttpLlmProvider::new_with_timeout("https://example.test/v1", "gpt-5.6-luna", None, 30);
+        HttpLlmProvider::new_with_timeout("https://example.test/v1", "proxy-alias", None, 30);
     let mut request = ChatRequest::system_user("agent rules", "initial task", None, None);
-    request.cache_system_prefix = true;
+    let options = json!({"prompt_cache_options": {}});
     request
-        .configure_prompt_cache("openai", "gpt-5.6-luna", None, Some(7))
+        .configure_prompt_cache("openai", "proxy-alias", Some(&options), Some(7))
         .unwrap();
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["prompt_cache_options"]["mode"], "implicit");
     assert_eq!(body["messages"][1]["content"], "initial task");
+}
+
+#[test]
+fn model_name_alone_does_not_add_openai_cache_fields() {
+    let provider =
+        HttpLlmProvider::new_with_timeout("https://example.test/v1", "gpt-6-luna", None, 30);
+    for provider_name in ["openai", "custom-chat-completions"] {
+        let mut request = ChatRequest::system_user("rules", "task", None, None);
+        request
+            .configure_prompt_cache(provider_name, "gpt-6-luna", None, Some(7))
+            .unwrap();
+
+        let body = request_body_json(provider.build_request(&request, true));
+        assert_eq!(body["messages"][0]["content"], "rules");
+        assert_eq!(body["messages"][1]["content"], "task");
+        assert!(body.get("prompt_cache_key").is_none());
+        assert!(body.get("prompt_cache_options").is_none());
+    }
 }
 
 #[test]
@@ -444,9 +509,9 @@ fn stream_request_usage_merges_existing_stream_options() {
 }
 
 #[test]
-fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
+fn request_marks_stable_system_prefixes_for_cache_reuse() {
     let provider =
-        HttpLlmProvider::new_with_timeout("https://example.test", "gpt-5.6-luna", None, 120);
+        HttpLlmProvider::new_with_timeout("https://example.test", "proxy-alias", None, 120);
     let mut request = ChatRequest::new(
         vec![
             ChatMessage::system("stable session"),
@@ -457,7 +522,12 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
         None,
     );
     request.cache_scope_key = Some("a4n:workflow_run:299".to_string());
-    request.cache_system_prefix = true;
+    request
+        .add_cache_breakpoint(0, "stable session".len())
+        .unwrap();
+    request
+        .add_cache_breakpoint(1, "stable shared context".len())
+        .unwrap();
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["prompt_cache_key"], json!("a4n:workflow_run:299"));
@@ -481,7 +551,7 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
 #[test]
 fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
     let provider =
-        HttpLlmProvider::new_with_timeout("https://example.test", "gpt-5.6-luna", None, 120);
+        HttpLlmProvider::new_with_timeout("https://example.test", "proxy-alias", None, 120);
     let mut request = ChatRequest::system_user(
         "stable session",
         "[稳定上下文]\nshared chapter\n\n[当前任务]\npage 2",
@@ -489,8 +559,12 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
         None,
     );
     request.cache_scope_key = Some("a4n:workflow_run:299:prefix:abc".to_string());
-    request.cache_system_prefix = true;
-    request.cache_user_prefix_len = Some("[稳定上下文]\nshared chapter".len());
+    request
+        .add_cache_breakpoint(0, "stable session".len())
+        .unwrap();
+    request
+        .add_cache_breakpoint(1, "[稳定上下文]\nshared chapter".len())
+        .unwrap();
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(

@@ -1029,7 +1029,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         <div>
           <AdvancedActionRow
             title={t("outline.advancedPanel.generateSelectedPart")}
-            description={t("outline.advancedPanel.batchDescription")}
+            description={t("outline.advancedPanel.generateSelectedPartDescription")}
             actionLabel={t("outline.advancedPanel.generateSelectedPartAction")}
             actionBusyLabel={t(
               "outline.advancedPanel.generateSelectedPartBusy",
@@ -1055,9 +1055,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         <div className="grid gap-2">
           <AdvancedActionRow
             title={t("outline.advancedPanel.batchGenerate")}
-            description={t(
-              "outline.advancedPanel.generateSelectedPartDescription",
-            )}
+            description={t("outline.advancedPanel.batchDescription")}
             actionLabel={t("outline.advancedPanel.batchAction")}
             actionBusyLabel={t(
               "outline.advancedPanel.generateSelectedPartBusy",

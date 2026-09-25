@@ -225,7 +225,7 @@ pub(crate) fn args_update_project_member_role() -> Value {
         "type": "object",
         "properties": {
             "memberUserId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::collaboration::UpdateProjectMemberRoleInput>(),
+            "input": property_schema::<crate::collaboration::UpdateProjectMemberRoleInput>("input"),
         },
         "required": ["memberUserId", "input"],
         "additionalProperties": false,
@@ -237,7 +237,7 @@ pub(crate) fn args_update_theme() -> Value {
         "type": "object",
         "properties": {
             "themeId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::theme::UpdateThemeInput>(),
+            "input": property_schema::<crate::theme::UpdateThemeInput>("input"),
         },
         "required": ["themeId", "input"],
         "additionalProperties": false,
@@ -252,7 +252,7 @@ pub(crate) fn args_update_user_role() -> Value {
         "type": "object",
         "properties": {
             "userId": { "type": "integer", "minimum": 1 },
-            "input": raw_schema::<crate::admin::UpdateUserRoleInput>(),
+            "input": property_schema::<crate::admin::UpdateUserRoleInput>("input"),
         },
         "required": ["userId", "input"],
         "additionalProperties": false,

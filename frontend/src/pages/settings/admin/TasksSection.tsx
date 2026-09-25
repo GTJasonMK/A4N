@@ -30,7 +30,7 @@ export const TasksSection: React.FC = () => {
   cancellingIdsRef.current = cancellingIds;
 
   const loadTasks = useCallback(() => listPendingTasks(), []);
-  const { loading, load } =
+  const { loading, error, load } =
     useAdminSectionLoader("admin-tasks", loadTasks, setTasks, t("settingsAdmin.loadFailed"), {
       intervalMs: 5000,
     });
@@ -70,12 +70,13 @@ export const TasksSection: React.FC = () => {
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
+      {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {loading && tasks.length === 0 ? (
         <div className="a4n-flat-surface inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" />
           {t("settingsAdmin.loadPendingTasks")}
         </div>
-      ) : tasks.length === 0 ? (
+      ) : error && tasks.length === 0 ? null : tasks.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--framed text-xs">
           {t("settingsAdmin.noPendingTasks")}
         </div>

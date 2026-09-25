@@ -93,7 +93,7 @@ export const SingleThemeImportPanel: React.FC<SingleThemeImportPanelProps> = ({
         disabled={disabled}
         aria-label={t("settingsTheme.import")}
         placeholder={t("settingsTheme.importPlaceholder")}
-        className="pyqt-input h-24 w-full resize-y text-xs font-mono"
+        className="pyqt-input min-h-56 w-full resize-y text-xs font-mono"
       />
       <div className="flex justify-end">
         <BookButton

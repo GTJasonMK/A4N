@@ -1,5 +1,6 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { UserPlus } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -33,6 +34,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const navigate = useNavigate();
   const memberRoleOptions: Array<{ value: ProjectMemberRole; label: string }> = [
     { value: "manager", label: t("novel.managerRole") },
     { value: "editor", label: t("novel.editorRole") },
@@ -211,7 +213,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       await leaveProject(rootProjectId);
       if (!mountedRef.current) return;
       addToast(t("novel.collaborationActions.left"), "success");
-      await onRefresh();
+      navigate("/", { replace: true });
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.leaveFailed")), "error");

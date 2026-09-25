@@ -17,6 +17,11 @@ use crate::wire::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentWorkerMessageOperation {
+    AppendQuestion {
+        execution_id: i64,
+        content: String,
+        observation: serde_json::Value,
+    },
     AppendTool {
         execution_id: i64,
         tool_name: String,
@@ -26,6 +31,7 @@ pub enum AgentWorkerMessageOperation {
     AppendAssistantTool {
         content: String,
         tool_calls: serde_json::Value,
+        client_message_id: String,
     },
     UpsertAssistantStreaming {
         client_message_id: String,
@@ -59,6 +65,14 @@ impl AgentWorkerMessageRequest {
         }
         .validate()?;
         match &self.operation {
+            AgentWorkerMessageOperation::AppendQuestion {
+                execution_id,
+                content,
+                ..
+            } => {
+                validate_positive_id("operation.execution_id", *execution_id)?;
+                validate_non_blank("operation.content", content)
+            }
             AgentWorkerMessageOperation::AppendTool {
                 execution_id,
                 tool_name,
@@ -72,7 +86,9 @@ impl AgentWorkerMessageRequest {
                 }
                 validate_non_blank("operation.tool_name", tool_name)
             }
-            AgentWorkerMessageOperation::AppendAssistantTool { .. } => Ok(()),
+            AgentWorkerMessageOperation::AppendAssistantTool {
+                client_message_id, ..
+            } => validate_non_blank("operation.client_message_id", client_message_id),
             AgentWorkerMessageOperation::UpsertAssistantStreaming {
                 client_message_id, ..
             }
@@ -162,6 +178,7 @@ pub struct AgentWorkerCompletionRequest {
     pub result_summary: String,
     pub result_refs_json: Option<serde_json::Value>,
     pub observed_input_message_id: i64,
+    pub source_execution_id: i64,
 }
 
 impl AgentWorkerCompletionRequest {
@@ -173,6 +190,7 @@ impl AgentWorkerCompletionRequest {
         .validate()?;
         validate_non_blank("content", &self.content)?;
         validate_non_blank("result_summary", &self.result_summary)?;
+        validate_positive_id("source_execution_id", self.source_execution_id)?;
         if self.observed_input_message_id <= 0 {
             return Err(WorkerContractError::InvalidValue {
                 field: "observed_input_message_id",
@@ -187,6 +205,8 @@ impl AgentWorkerCompletionRequest {
 #[serde(deny_unknown_fields)]
 pub struct AgentWorkerCompletionSnapshotWire {
     pub completed: bool,
+    #[serde(default)]
+    pub blockers: Vec<a4n_domain::agent::AgentCompletionBlocker>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

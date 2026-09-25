@@ -42,6 +42,13 @@ from mock_openai.fixtures.reverse import agent_chat_fixture
 from mock_openai.response import response_for
 
 
+def agent_observation(data):
+    return {"observation_version": 1, "status": "success", "data": data,
+            "text": "fixture observation", "error": None, "result_refs": [],
+            "execution": {"id": "1", "complete": True, "read_tool": None},
+            "stats": {"duration_ms": 1, "result_bytes": len(json.dumps(data).encode())}}
+
+
 class MockOpenAIProviderTest(unittest.TestCase):
     def test_cache_content_blocks_and_immutable_loop_observations(self) -> None:
         self.assertEqual(response_for({"messages": [{"role": "user", "content": [
@@ -297,6 +304,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
             "locate_writing_target",
         )
         self.assertEqual(locate["arguments"], {})
+        self.assertTrue(any("A4N_FIXTURE_CALLS" in choice.get("delta", {}).get("content", "") for chunk in locate_chunks for choice in chunk.get("choices", [])))
 
         locate_assistant = {
             "role": "assistant",
@@ -321,7 +329,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
         locate_tool = {
             "role": "tool",
             "tool_call_id": locate["id"],
-            "content": json.dumps(locate_observation, ensure_ascii=False),
+            "content": json.dumps(agent_observation(locate_observation), ensure_ascii=False),
         }
         delegate_chunks = self.request_sse_chunks(
             {
@@ -344,9 +352,9 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(delegate["arguments"]["chapterId"], 11)
         self.assertTrue(delegate["arguments"]["successCriteria"])
 
-        with self.assertRaisesRegex(ValueError, "without an outer model call"):
-            agent_chat_fixture({"messages": [{"role": "system", "content":
-                "你是 A4N 项目 Agent。\n当前能力域：content_optimization"}]})
+        optimization = agent_chat_fixture({"messages": [{"role": "system", "content":
+            "你是 A4N 项目 Agent。\n当前能力域：content_optimization"}]})
+        self.assertEqual(optimization["tool_call"]["name"], "inspect_project_context")
 
         delegate_assistant = {
             "role": "assistant",
@@ -376,8 +384,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     },
                 ]
         for name, call_id, arguments, result in [
-            ("list_optimize_sessions", "call_a4n_list_optimize_sessions", {"input": {"project_id": 7, "chapter_id": 11}}, [{"id": 21}]),
-            ("list_optimize_patch_sets", "call_a4n_list_optimize_patch_sets_21", {"input": {"session_id": 21}}, [
+            ("list_optimize_sessions", "sessions_5", {"input": {"project_id": 7, "chapter_id": 11}}, [{"id": 21}]),
+            ("list_optimize_patch_sets", "call_a4n_list_optimize_patch_sets_21_5", {"input": {"session_id": 21}}, [
                 {"id": 31, "updated_at": delivered["revision"], "base_content_hash": delivered["hash"], "status": "pending", "patches": [{"old_text": "旧句", "new_text": "新句"}]},
             ]),
         ]:
@@ -386,18 +394,40 @@ class MockOpenAIProviderTest(unittest.TestCase):
             self.assertEqual(read["arguments"], arguments)
             parent_messages.extend([
                 {"role": "assistant", "content": "", "tool_calls": [{"id": call_id, "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}]},
-                {"role": "tool", "tool_call_id": call_id, "content": json.dumps(result)},
+                {"role": "tool", "tool_call_id": call_id, "content": json.dumps(agent_observation(result))},
             ])
         chunks = self.request_sse_chunks({"model": "a4n-virtual-text", "messages": parent_messages})
-        review = self.streamed_tool_call(chunks, "call_a4n_review_agent_delegation", "review_agent_delegation")
+        review = self.streamed_tool_call(chunks, "review_5", "review_agent_delegation")
         self.assertEqual(review["arguments"]["input"]["reviewed_refs"], [delivered])
         self.assertEqual(review["arguments"]["input"]["decision"], "accept")
 
         changed = json.loads(parent_messages[-1]["content"])
-        changed[0]["updated_at"] = "2026-09-21T13:00:00Z"
+        changed["data"][0]["updated_at"] = "2026-09-21T13:00:00Z"
         parent_messages[-1]["content"] = json.dumps(changed)
         with self.assertRaisesRegex(ValueError, "changed versions"):
             agent_chat_fixture({"messages": parent_messages})
+
+    def test_summary_keeps_current_tool_results_and_does_not_reuse_a_previous_turn(self) -> None:
+        from specialized_agent_fixture import fixture_call, summary_fixture, summarized_observations
+        task = {"role": "user", "content": "A4N_SPECIALIZED {\"mode\":\"image_generate\"}"}
+        call = fixture_call("start", "start_image_generation", {})
+        call["tool_call"]["id"] = "agent-call-4-0"
+        source = {
+            "previous_summary": None,
+            "current_request": [{"message_id": 10, "content": task["content"]}],
+            "covered_through_sequence": 12,
+            "messages": [
+                {"message_id": 11, "message": {"role": "assistant", "content": call["content"], "tool_calls": [call["tool_call"]]}},
+                {"message_id": 12, "message": {"role": "tool", "tool_call_id": "agent-call-4-0", "content": json.dumps(agent_observation({"task_id": "t1", "attempt": 1}))}},
+            ],
+        }
+        summary = json.loads(summary_fixture(source)["content"])
+        messages = [{"role": "system", "content": "<context_summary>" + json.dumps(summary) + "</context_summary>"}, task, {"role": "assistant", "content": "retained batch"}]
+        self.assertEqual(summarized_observations(messages, 1), {"start": {"task_id": "t1", "attempt": 1}})
+        self.assertEqual(summarized_observations([*messages, task], 3), {})
+        source["previous_summary"] = summary
+        source["current_request"][0]["message_id"] = 20
+        self.assertEqual(json.loads(summary_fixture(source)["content"])["tool_state"], [])
 
     def test_agent_fixture_scopes_decisions_to_latest_turn(self) -> None:
         system = {
@@ -419,7 +449,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
         historical_result = {
             "role": "tool",
             "tool_call_id": "old-delegate",
-            "content": '{"summary":"旧任务已完成"}',
+            "content": json.dumps(agent_observation({"summary": "旧任务已完成"})),
         }
         historical_inbox = {
             "role": "user",
@@ -446,13 +476,58 @@ class MockOpenAIProviderTest(unittest.TestCase):
         observation = {
             "role": "tool",
             "tool_call_id": "new-locate",
-            "content": '{"project":{"id":7},"chapter":{"id":11}}',
+            "content": json.dumps(agent_observation({"project": {"id": 7}, "chapter": {"id": 11}})),
         }
         second = agent_chat_fixture(
             {"messages": [system, historical_user, historical_delegate, historical_result, historical_inbox, current_user, locate, observation]}
         )
         self.assertEqual(second["tool_call"]["name"], "delegate")
         self.assertEqual(second["tool_call"]["arguments"]["projectId"], 7)
+
+    def test_optimization_agent_uses_observed_text_and_requires_a_saved_proposal(self) -> None:
+        messages = [{"role": "system", "content": "你是 A4N 项目 Agent。\n当前能力域：content_optimization"},
+                    {"role": "user", "content": "优化当前章节"}]
+        inspect = agent_chat_fixture({"messages": messages})["tool_call"]
+        self.assertEqual(inspect["name"], "inspect_project_context")
+        messages.extend([
+            {"role": "assistant", "tool_calls": [{"id": inspect["id"], "function": {"name": inspect["name"]}}]},
+            {"role": "tool", "tool_call_id": inspect["id"], "content": json.dumps(agent_observation({"content": {"paragraphs": [{"index": 1}]}}))},
+        ])
+        read = agent_chat_fixture({"messages": messages})["tool_call"]
+        self.assertEqual(read["name"], "read_project_context")
+        messages.extend([
+            {"role": "assistant", "tool_calls": [{"id": read["id"], "function": {"name": read["name"]}}]},
+            {"role": "tool", "tool_call_id": read["id"], "content": json.dumps(agent_observation({
+                "content": {"paragraphs": [{"content": "林岚读完了信。"}]},
+            }))},
+        ])
+        edit = agent_chat_fixture({"messages": messages})["tool_call"]
+        self.assertEqual(edit["name"], "edit_article")
+        self.assertEqual(edit["arguments"]["patches"][0]["old_text"], "林岚读完了信。")
+        messages.extend([
+            {"role": "assistant", "tool_calls": [{"id": edit["id"], "function": {"name": edit["name"]}}]},
+            {"role": "tool", "tool_call_id": edit["id"], "content": json.dumps(agent_observation({
+                "mode": "pending_confirmation", "patch_set_id": 31,
+            }))},
+        ])
+        self.assertIn("正文尚未写回", agent_chat_fixture({"messages": messages})["content"])
+        messages[-1]["content"] = json.dumps(agent_observation({"mode": "pending_confirmation"}))
+        with self.assertRaisesRegex(ValueError, "persisted pending proposal"):
+            agent_chat_fixture({"messages": messages})
+
+    def test_agent_fixture_handles_context_envelope_and_opaque_call_ids(self) -> None:
+        messages = [
+            {"role": "system", "content": "你是 A4N 项目 Agent。\n当前能力域：general"},
+            {"role": "user", "content": '[可变上下文]\n元数据\n\n[当前任务]\nA4N_GENERAL {"project_id":7}'},
+        ]
+        first = agent_chat_fixture({"messages": messages})
+        self.assertEqual(first["tool_call"]["name"], "search_agent_tools")
+        messages.extend([
+            {"role": "assistant", "content": first["content"], "tool_calls": [{"id": "opaque-runtime-id", "function": {"name": "search_agent_tools", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "opaque-runtime-id", "content": json.dumps(agent_observation({"tools": []}))},
+        ])
+        second = agent_chat_fixture({"messages": messages})
+        self.assertEqual(second["tool_call"]["name"], "describe_agent_tool")
 
     def test_content_optimization_chat_fixture_matches_current_workflow(self) -> None:
         response = json.loads(

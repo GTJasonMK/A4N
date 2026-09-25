@@ -16,6 +16,7 @@ import {
 } from "../../api/project";
 import type { ProjectActionItems } from "./ProjectLists";
 import type { MessageKey } from "../../i18n";
+import type { PackageId } from "../../api/generated/page";
 import { getProjectHomeEntryRoute, getProjectPrimaryRoute } from "../../utils/projectRouting";
 
 type DerivedProjectKind = Exclude<ProjectKind, "text">;
@@ -34,6 +35,7 @@ export const createProjectActions = (
   project: NovelProject,
   handlers: ProjectActionHandlers,
   t: (key: MessageKey) => string,
+  isPackageVisible: (id: PackageId) => boolean,
 ): ProjectActionItems => {
   const isOwner = project.my_role === "owner";
   const canEdit = canEditProjectMaterials(project);
@@ -47,37 +49,37 @@ export const createProjectActions = (
           }] : []),
           ...(canEdit
             ? [
-                {
+                ...(isPackageVisible("ai-workflow") ? [{
                   label: t("novel.inspiration"),
                   icon: <Sparkles size={14} />,
                   onClick: () => handlers.onOpenInspiration(project),
-                },
-                {
+                }] : []),
+                ...(isPackageVisible("manga") ? [{
                   label: t("novel.createComic"),
                   icon: <PanelsTopLeft size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "comic"),
-                },
-                {
+                }] : []),
+                ...(isPackageVisible("video") ? [{
                   label: t("novel.createVideo"),
                   icon: <Film size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "video"),
-                },
-                {
+                }] : []),
+                ...(isPackageVisible("galgame") ? [{
                   label: t("novel.createGalgame"),
                   icon: <Gamepad2 size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "galgame"),
-                },
-                { type: "divider" as const },
+                }] : []),
+                ...((["ai-workflow", "manga", "video", "galgame"] as const).some(isPackageVisible) ? [{ type: "divider" as const }] : []),
                 {
                   label: t("novel.duplicate"),
                   icon: <Copy size={14} />,
                   onClick: () => handlers.onDuplicate(project),
                 },
-                {
+                ...(isPackageVisible("external-import") ? [{
                   label: t("novel.importTextToProject"),
                   icon: <Upload size={14} />,
                   onClick: () => handlers.onImportText(project),
-                },
+                }] : []),
               ]
             : []),
         ]
@@ -88,12 +90,11 @@ export const createProjectActions = (
     ...(isOwner
       ? [
           ...(textProjectActions.length ? [{ type: "divider" as const }] : []),
-          {
+          ...(isPackageVisible("export") ? [{
             label: project.project_kind === "text" ? t("novel.exportFamily") : t("novel.exportDerived"),
             icon: <Download size={14} />,
             onClick: () => handlers.onExport(project),
-          },
-          { type: "divider" as const },
+          }, { type: "divider" as const }] : []),
           {
             label: t("novel.deleteProject"),
             icon: <Trash2 size={14} />,

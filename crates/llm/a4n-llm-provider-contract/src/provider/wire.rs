@@ -24,8 +24,6 @@ impl From<ChatRequest> for LlmChatRequest {
                 .map(Into::into)
                 .collect(),
             cache_mode: request.cache_mode.map(Into::into),
-            cache_system_prefix: request.cache_system_prefix,
-            cache_user_prefix_len: request.cache_user_prefix_len,
             tools: request.tools,
             tool_choice: request.tool_choice,
             stop_sequences: request.stop_sequences,
@@ -49,8 +47,6 @@ impl From<LlmChatRequest> for ChatRequest {
                 .map(Into::into)
                 .collect(),
             cache_mode: request.cache_mode.map(Into::into),
-            cache_system_prefix: request.cache_system_prefix,
-            cache_user_prefix_len: request.cache_user_prefix_len,
             trace_context: None,
             context_manifest_json: None,
             tools: request.tools,
@@ -235,8 +231,6 @@ mod tests {
                 byte_offset: 6,
             }],
             cache_mode: Some(PromptCacheMode::Explicit),
-            cache_system_prefix: true,
-            cache_user_prefix_len: Some(4),
             trace_context: Some(LlmTraceContext {
                 project_id: Some(1),
                 root_project_id: Some(1),

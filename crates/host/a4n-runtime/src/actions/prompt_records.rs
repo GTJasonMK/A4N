@@ -203,11 +203,12 @@ pub(crate) async fn prompt_update_many_runtime(
     state: &AppState,
     updates: Vec<(String, String)>,
     author: &str,
+    overwrite: bool,
 ) -> Result<Vec<PromptEntry>, String> {
     let context = prompt_context(state);
     state
         .prompt_mutation_application()
-        .update_many_runtime(&context, updates, author)
+        .update_many_runtime(&context, updates, author, overwrite)
         .await
         .map_err(prompt_error)
 }

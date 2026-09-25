@@ -39,7 +39,7 @@ export const welcomeMessage = (title: string, t: MessageTranslator): Message => 
 export const generationFailureMessage = (id: string, message: string): Message => ({
   id,
   role: "system",
-  content: `❌ ${message}`,
+  content: message,
   createdAt: Date.now(),
 });
 

@@ -21,8 +21,10 @@ import {
 } from "./components/ui/StatusBar";
 import { ContextMenuHost } from "./components/ui/ContextMenu";
 import { Dropdown } from "./components/ui/Dropdown";
+import { ImageLightboxProvider } from "./components/ui/ImageLightbox";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { useAuthStore } from "./store/auth";
+import { usePackagePreferences } from "./store/packagePreferences";
 import { ProgressTaskProvider } from "./hooks/useProgressTask";
 import {
   loadAndApplyActiveTheme,
@@ -36,6 +38,7 @@ import { logger } from "./utils/logger";
 import { useI18n } from "./i18n";
 import { usePageSession } from "./hooks/usePageSession";
 import { PageSessionControlBar } from "./components/page/PageSessionControlBar";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 
 const NovelList = lazy(() =>
   import("./pages/NovelList").then((m) => ({ default: m.NovelList })),
@@ -196,17 +199,21 @@ function RouteContent() {
 function Layout({ children }: { children: React.ReactNode }) {
   const { initialized, user } = useAuthStore();
   const { addToast } = useToast();
+  const { isVisible: isPackageVisible, error: packagePreferencesError } = usePackagePreferences();
+  useEffect(() => {
+    if (packagePreferencesError) addToast(packagePreferencesError, "error");
+  }, [addToast, packagePreferencesError]);
   const { locale, setLocale, t } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const pageSession = usePageSession();
   const projectId = currentProjectIdFromPath(location.pathname);
   const dependencyGraphAvailable =
-    projectId != null &&
+    projectId != null && isPackageVisible("lineage-view") &&
     !/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname);
   const settingsShortcutAvailable =
     location.pathname !== "/" && location.pathname !== "/settings";
-  const agentMonitorAvailable = user != null && location.pathname !== "/agents";
+  const agentMonitorAvailable = user != null && location.pathname !== "/agents" && isPackageVisible("agent");
   const [dependencyGraphOpen, setDependencyGraphOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() =>
     document.documentElement.dataset.themeMode === "dark" ? "dark" : "light",
@@ -349,17 +356,22 @@ function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const location = useLocation();
   return (
-    <StatusBarProvider>
-      <ProgressTaskProvider>
-        <Layout>
-          <ErrorBoundary>
-            <AuthGate>
-              <RouteContent />
-            </AuthGate>
-          </ErrorBoundary>
-        </Layout>
-      </ProgressTaskProvider>
-    </StatusBarProvider>
+    <ImageLightboxProvider>
+      <StatusBarProvider>
+        <ProgressTaskProvider>
+          <Layout>
+            <ErrorBoundary>
+              {location.pathname === "/auth/callback" ? <OAuthCallbackPage /> : (
+                <AuthGate>
+                  <RouteContent />
+                </AuthGate>
+              )}
+            </ErrorBoundary>
+          </Layout>
+        </ProgressTaskProvider>
+      </StatusBarProvider>
+    </ImageLightboxProvider>
   );
 }

@@ -78,7 +78,7 @@ describe("generation consistency presentation", () => {
     expect(failed).toEqual(expect.objectContaining({
       id: "message-options",
       role: "system",
-      content: "❌ 生成失败",
+      content: "生成失败",
     }));
     expect(failed).not.toHaveProperty("streaming");
     expect(failed).not.toHaveProperty("options");

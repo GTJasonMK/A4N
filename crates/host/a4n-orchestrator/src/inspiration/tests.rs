@@ -55,15 +55,10 @@ fn inspiration_dynamic_user_content_keeps_history_dynamic_and_context_referenced
 
 #[test]
 fn validate_inspiration_response_json_accepts_object() {
-    let output = validate_inspiration_response_json(
-        r#" { "reply": "可以从主角误解切入", "is_complete": false } "#,
-    )
-    .expect("json object should be accepted");
+    let raw = r#" { "ai_message": "可以从主角误解切入", "next_question": null, "progress_summary": null, "ui_control": {"type": "info_display"}, "conversation_state": {}, "is_complete": false } "#;
+    let output = validate_inspiration_response_json(raw).expect("json object should be accepted");
 
-    assert_eq!(
-        output,
-        r#"{ "reply": "可以从主角误解切入", "is_complete": false }"#
-    );
+    assert_eq!(output, raw.trim());
 }
 
 #[test]

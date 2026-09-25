@@ -111,10 +111,9 @@ mod generation_specs;
 pub(crate) use generation_specs::galgame_portrait_spec_references_lines;
 pub use generation_specs::{
     completed_galgame_portrait_record, galgame_asset_generation_specs,
-    galgame_generation_spec_content_changed, galgame_generation_spec_source_hash_for_value,
-    galgame_portrait_spec_target_profile, galgame_prompt_artifact_by_generation_spec,
-    galgame_webgal_portraits, mark_galgame_generation_spec_status_record,
-    primary_galgame_portrait_reference_image_ids,
+    galgame_generation_spec_content_changed, galgame_portrait_spec_target_profile,
+    galgame_prompt_artifact_by_generation_spec, galgame_webgal_portraits,
+    mark_galgame_generation_spec_status_record, primary_galgame_portrait_reference_image_ids,
     upsert_galgame_asset_plan_spec_records_transaction, upsert_galgame_prompt_artifact_record,
 };
 #[cfg(test)]

@@ -192,7 +192,7 @@ impl AgentApplication {
                 });
             }
         };
-        let (project_id, chapter_id) = self
+        let (project_id, chapter_id, chapter_number) = self
             .verify_thread_scope(
                 claimed.thread.owner_user_id,
                 &child_scope,
@@ -201,6 +201,7 @@ impl AgentApplication {
             .await?;
         child_scope.project_id = child_scope.project_id.or(project_id);
         child_scope.chapter_id = child_scope.chapter_id.or(chapter_id);
+        child_scope.chapter_number = chapter_number;
         validate_subagent_resource(&capability, &child_scope, child_resource.as_ref())?;
         let parent_turn = turn::Entity::find_by_id(claimed.run.turn_id)
             .one(self.connection())
@@ -219,7 +220,7 @@ impl AgentApplication {
             });
         }
         let scope_json = serde_json::to_value(&child_scope)?;
-        let client_message_id = format!("delegation:{delegation_key}");
+        let client_message_id = format!("delegation:{}:{delegation_key}", claimed.run.id);
         let (delegation, child_turn, child_run, child_message) = agent::create_child_delegation(
             self.connection(),
             a4n_db::agent::AgentChildDelegationInput {
@@ -312,67 +313,40 @@ impl AgentApplication {
         })
     }
 
-    pub(crate) async fn complete_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        content: impl Into<String>,
-        result_summary: impl Into<String>,
-        result_refs_json: Option<Value>,
-        observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
-        if claimed.run.parent_run_id.is_none() {
-            return Err(AppError::InvalidArgument(
-                "只有 child Agent run 可以回传 delegation result".into(),
-            ));
-        }
-        self.complete_child_run_fields(
-            RunLeaseFields {
-                run_id: claimed.run.id,
-                thread_id: claimed.run.thread_id,
-                turn_id: claimed.run.turn_id,
-                lease_token: &claimed.lease_token,
-            },
-            content.into(),
-            result_summary.into(),
-            result_refs_json,
-            observed_input_message_id,
-        )
-        .await
-    }
-
     pub(super) async fn complete_child_run_fields(
         &self,
         fields: RunLeaseFields<'_>,
+        source_execution_id: i64,
         content: String,
         result_summary: String,
         result_refs_json: Option<Value>,
         observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
-        agent::complete_child_delegation(
-            self.connection(),
-            a4n_db::agent::AgentChildCompletionInput {
-                child_run_id: fields.run_id,
-                child_lease_token: fields.lease_token.to_string(),
-                final_message: AgentMessageInput {
-                    thread_id: fields.thread_id,
-                    turn_id: Some(fields.turn_id),
-                    run_id: Some(fields.run_id),
-                    role: "assistant".into(),
-                    sender_kind: "agent".into(),
-                    sender_thread_id: None,
-                    client_message_id: Some(format!("agent-final:{}", fields.run_id)),
-                    content,
-                    status: "complete".into(),
-                    payload_json: None,
+    ) -> Result<a4n_worker_contract::AgentWorkerCompletionSnapshotWire, AppError> {
+        super::completion::completion_receipt(
+            agent::complete_child_delegation(
+                self.connection(),
+                a4n_db::agent::AgentChildCompletionInput {
+                    child_run_id: fields.run_id,
+                    child_lease_token: fields.lease_token.to_string(),
+                    final_message: AgentMessageInput {
+                        thread_id: fields.thread_id,
+                        turn_id: Some(fields.turn_id),
+                        run_id: Some(fields.run_id),
+                        role: "assistant".into(),
+                        sender_kind: "agent".into(),
+                        sender_thread_id: None,
+                        client_message_id: Some(format!("agent-final:{}", fields.run_id)),
+                        content,
+                        status: "complete".into(),
+                        payload_json: Some(json!({"completion_execution_id": source_execution_id})),
+                    },
+                    result_refs_json,
+                    result_summary,
+                    observed_input_message_id,
                 },
-                result_refs_json,
-                result_summary,
-                observed_input_message_id,
-            },
+            )
+            .await,
         )
-        .await
-        .map(|result| result.is_some())
-        .map_err(agent_db_error_to_app)
     }
 
     pub(crate) async fn update_worker_execution(

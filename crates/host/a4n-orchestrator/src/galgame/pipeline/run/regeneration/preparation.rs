@@ -33,6 +33,7 @@ pub(super) fn prepare_galgame_scene_regeneration(
             id: span.id.clone(),
             text_anchor_id: span.text_anchor_id,
             source_snapshot_chapter_id: span.source_snapshot_chapter_id,
+            chapter_number: input.chapter_number,
         })
         .collect::<Vec<_>>();
     let mut directing_scene = input.directing_scene.clone();

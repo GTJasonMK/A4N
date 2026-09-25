@@ -253,6 +253,7 @@ export const generationClient = {
     const key = generationTaskKey(handle.task_id, handle.attempt);
     if (pendingRecovery.has(key)) return;
     pendingRecovery.add(key);
+    let resumeAfterSequence: number | undefined;
     try {
       useGenerationTasksStore.getState().dispatch(key, {
         type: "recovery_state",
@@ -276,7 +277,7 @@ export const generationClient = {
       if (state) {
         await closeTransport(key);
         if (!state.terminalReceived) {
-          await attachTransport(handle, snapshot.covers_through_sequence);
+          resumeAfterSequence = snapshot.covers_through_sequence;
         }
       }
     } catch (error) {
@@ -311,6 +312,9 @@ export const generationClient = {
       }
     } finally {
       pendingRecovery.delete(key);
+    }
+    if (resumeAfterSequence !== undefined) {
+      await attachTransport(handle, resumeAfterSequence);
     }
   },
 };

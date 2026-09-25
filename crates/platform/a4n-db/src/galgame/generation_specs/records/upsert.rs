@@ -1,8 +1,6 @@
 use crate::galgame::{GALGAME_SPEC_SOURCE_CONTEXT_SNAPSHOT_BACKED, GALGAME_SPEC_STATUS_DRAFT};
 use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::galgame::GalgameGenerationSpecUpsertInput;
-use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 pub(super) fn new_galgame_generation_spec_model(
     input: GalgameGenerationSpecUpsertInput,
@@ -69,17 +67,4 @@ pub fn galgame_generation_spec_content_changed(
         || existing.target_entity_id != input.target_entity_id
         || existing.source_version_hash != source_version_hash
         || existing.params_json != input.params_json
-}
-
-pub fn galgame_generation_spec_source_hash_for_value(
-    value: &Value,
-) -> Result<String, serde_json::Error> {
-    let serialized = serde_json::to_string(value)?;
-    Ok(content_sha256(&serialized))
-}
-
-fn content_sha256(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
 }

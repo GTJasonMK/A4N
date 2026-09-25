@@ -3,6 +3,7 @@ import React, { useImperativeHandle, useMemo, useState } from "react";
 import { Check, ChevronDown, Plus, Save, Trash2, Wand2 } from "lucide-react";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../../components/ui/BookButton";
+import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import type { GeneratedImage } from "../../../api/image";
 import type {
@@ -14,7 +15,7 @@ import type {
   VideoTimelineSummary,
 } from "../../../api/video";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import { MAX_REFERENCE_IMAGES, type VideoAspectRatio } from "./videoTabConstants";
+import { MAX_REFERENCE_IMAGES, VIDEO_ASPECT_RATIOS, type VideoAspectRatio } from "./videoTabConstants";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
 export interface InsertedSegmentGap {
@@ -50,8 +51,6 @@ export interface InsertedSegmentTimelinePanelProps {
   defaultDurationSecs: number;
   defaultDurationOptions: number[];
   defaultAspectRatio: string;
-  supportedAspectRatios: readonly VideoAspectRatio[];
-  aspectRatioLoading: boolean;
   loading: boolean;
   acting: string | null;
   onGenerate: (
@@ -174,8 +173,6 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
       defaultDurationSecs,
       defaultDurationOptions,
       defaultAspectRatio,
-      supportedAspectRatios,
-      aspectRatioLoading,
       loading,
       acting,
       onGenerate,
@@ -238,9 +235,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
     const openCreate = (nextGap: InsertedSegmentGap) => {
       if (
         loading ||
-        acting != null ||
-        aspectRatioLoading ||
-        supportedAspectRatios.length === 0
+        acting != null
       ) {
         return;
       }
@@ -354,8 +349,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   disabled={
                     acting != null ||
                     form.user_prompt.trim().length === 0 ||
-                    aspectRatioLoading ||
-                    !supportedAspectRatios.includes(
+                    !VIDEO_ASPECT_RATIOS.includes(
                       form.aspect_ratio as VideoAspectRatio,
                     )
                   }
@@ -450,24 +444,20 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   <span className="text-xs text-book-text-muted">{t("video.chapter.aspectRatioLabel")}</span>
                   <ThemedSelect
                     value={form.aspect_ratio}
-                    disabled={
-                      acting != null ||
-                      aspectRatioLoading ||
-                      supportedAspectRatios.length === 0
-                    }
+                    disabled={acting != null}
                     onChange={(selectedValue) =>
                       updateForm({ aspect_ratio: selectedValue })
                     }
                     className="book-control mt-1 h-9 w-full px-2 text-xs"
                   >
-                    {!supportedAspectRatios.includes(
+                    {!VIDEO_ASPECT_RATIOS.includes(
                       form.aspect_ratio as VideoAspectRatio,
                     ) && (
                       <option value={form.aspect_ratio} disabled>
                         {form.aspect_ratio} · {t("video.chapter.unsupportedAspectRatio")}
                       </option>
                     )}
-                    {supportedAspectRatios.map((ratio) => (
+                    {VIDEO_ASPECT_RATIOS.map((ratio) => (
                       <option key={ratio} value={ratio}>
                         {ratio}
                       </option>
@@ -483,9 +473,11 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   {referenceImages.map((image) => {
                     const checked = form.reference_image_ids.includes(image.id);
                     return (
+                      <div key={image.id} className="relative min-w-0">
                       <button
                         type="button"
-                        key={image.id}
+                        aria-label={t("video.reference.imageNumber", { id: image.id })}
+                        aria-pressed={checked}
                         disabled={acting != null}
                         onClick={() => {
                           const next = checked
@@ -498,7 +490,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                               : [...form.reference_image_ids, image.id];
                           updateForm({ reference_image_ids: next });
                         }}
-                        className={`relative overflow-hidden rounded border ${
+                        className={`relative w-full overflow-hidden rounded border ${
                           checked
                             ? "border-book-primary ring-1 ring-book-primary"
                             : "border-book-border/40"
@@ -515,6 +507,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                           </span>
                         ) : null}
                       </button>
+                      <ImageZoomButton src={toMediaSrc(image.file_path)} alt={image.prompt} className="absolute bottom-1 left-1" />
+                      </div>
                     );
                   })}
                 </div>

@@ -118,7 +118,7 @@ const SegmentEditor: React.FC<{
               {t("video.chapter.segment", { number: segment.segment_number })}
             </h3>
             <span className="text-small text-book-text-muted">
-              {segment.source_shot_id} · {segment.duration_secs}s · {segment.aspect_ratio}
+              {segment.duration_secs}s · {segment.aspect_ratio}
             </span>
           </div>
           <div className="mt-0.5 truncate text-small text-book-text-muted">
@@ -149,12 +149,6 @@ const SegmentEditor: React.FC<{
               onChange={update}
             />
           </div>
-          <StringListField
-            label={t("video.chapter.planCoveredBeats")}
-            value={segment.covered_beat_ids}
-            path={[...base, "covered_beat_ids"]}
-            onChange={update}
-          />
           <SpatialAnchorsField
             value={segment.spatial_anchors}
             path={[...base, "spatial_anchors"]}
@@ -258,6 +252,10 @@ const SegmentEditor: React.FC<{
             <dt>{t("video.chapter.planDuration")}</dt><dd>{segment.duration_secs}s</dd>
             <dt>{t("video.chapter.planAspectRatio")}</dt><dd>{segment.aspect_ratio}</dd>
           </dl>
+          <div className="mt-3">
+            <StringListField label={t("video.chapter.planCoveredBeats")} value={segment.covered_beat_ids}
+              path={[...base, "covered_beat_ids"]} onChange={update} />
+          </div>
         </details>
       </div>
     </details>

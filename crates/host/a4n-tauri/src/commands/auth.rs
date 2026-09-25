@@ -8,6 +8,9 @@ use a4n_runtime::host_api::oauth::{OAuth2AuthorizeInput, OAuth2CallbackInput};
 use auth_actions::{AuthResult, LoginInput, RefreshTokenInput, RegisterInput, TokenPairSummary};
 use tauri::State;
 
+pub(crate) mod browser;
+pub(crate) use browser::OAuthBrowserState;
+
 macro_rules! auth_command {
     ($name:ident($state:ident $(, $arg:ident: $ty:ty)*) -> $output:ty, $body:expr) => {
         #[tauri::command]

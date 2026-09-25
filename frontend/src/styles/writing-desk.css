@@ -1,0 +1,214 @@
+/* 写作桌：正文、辅助栏与保存/生成状态。 */
+
+/* 写作桌右栏（实际布局列宽由 WritingDesk 内联 grid 控制，含拖拽分隔条） */
+.a4n-desk-rail {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
+  border-left: 0.5px solid rgb(var(--color-border) / 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: a4n-motion-panel-enter var(--a4n-motion-panel) var(--a4n-ease-out) both;
+}
+
+.a4n-writing-sidebar {
+  background: rgb(var(--color-bg-secondary) / var(--a4n-panel-opacity));
+  backdrop-filter: blur(var(--a4n-surface-blur));
+  -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
+  animation: a4n-motion-panel-enter var(--a4n-motion-panel) var(--a4n-ease-out) both;
+}
+
+.a4n-writing-workspace {
+  background: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
+  backdrop-filter: blur(var(--a4n-surface-blur));
+  -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
+}
+
+/* 保持编辑面铺满工作区，只限制正文行宽，不改变选择、滚动或保存行为。 */
+.a4n-writing-editor {
+  padding-block: 28px;
+  padding-inline: max(24px, calc((100% - 52rem) / 2));
+  background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
+  border-color: rgb(var(--color-border) / 0.6);
+  border-radius: var(--pyqt-radius-md);
+  font-size: 18px;
+  line-height: 1.9;
+  scrollbar-gutter: stable;
+}
+
+.a4n-writing-editor:focus {
+  outline-offset: -2px;
+}
+
+@media (max-width: 767px) {
+  .a4n-writing-editor {
+    padding: 20px 16px;
+    font-size: 16px;
+  }
+}
+
+.content-diff-preview__body {
+  overflow-wrap: anywhere;
+}
+
+.content-diff-preview__removed {
+  background: rgb(var(--status-error-bg) / 0.72);
+  color: rgb(var(--status-error));
+  text-decoration-color: rgb(var(--status-error) / 0.8);
+}
+
+.content-diff-preview__added {
+  background: rgb(var(--status-success-bg) / 0.82);
+  color: rgb(var(--status-success));
+  box-shadow: inset 0 -1px 0 rgb(var(--status-success) / 0.35);
+}
+
+.a4n-writing-tabs {
+  background: transparent;
+  backdrop-filter: blur(var(--a4n-surface-blur));
+  -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
+}
+
+.a4n-writing-tab-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.a4n-writing-tabs .pyqt-tab {
+  transition:
+    background var(--a4n-motion-fast) var(--a4n-ease-out),
+    color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    transform var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-writing-save-state {
+  transition:
+    background-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    color var(--a4n-motion-fast) var(--a4n-ease-out),
+    transform var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-writing-save-state[data-state="saving"] {
+  transform: translateY(-1px);
+}
+
+.a4n-writing-save-state[data-state="saved"] > svg,
+.a4n-writing-save-state[data-state="dirty"] > svg {
+  animation: a4n-motion-focus 360ms var(--a4n-ease-out) both;
+}
+
+.a4n-writing-save-state {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(42vw, 13rem);
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border) / 0.55);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  color: rgb(var(--color-text-tertiary));
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a4n-writing-save-state > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.a4n-writing-save-state[data-state="saved"] {
+  border-color: rgb(var(--status-success) / 0.24);
+  background: rgb(var(--status-success-bg));
+  color: rgb(var(--status-success));
+}
+
+.a4n-writing-save-state[data-state="dirty"] {
+  border-color: rgb(var(--status-warning) / 0.3);
+  background: rgb(var(--status-warning-bg));
+  color: rgb(var(--status-warning));
+}
+
+.a4n-writing-save-state[data-state="saving"] {
+  border-color: rgb(var(--color-primary) / 0.25);
+  background: rgb(var(--color-primary) / 0.08);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-draft-badge {
+  display: inline-flex;
+  max-width: 6.5rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-accent) / 0.3);
+  border-radius: 999px;
+  background: rgb(var(--color-accent) / 0.1);
+  padding: 0.1rem 0.35rem;
+  color: rgb(var(--color-accent-dark));
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a4n-stream-control {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border) / 0.38);
+  border-radius: var(--pyqt-radius-md);
+  background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
+  padding: 0.55rem;
+  transition:
+    background-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    box-shadow var(--a4n-motion) var(--a4n-ease-out);
+}
+
+.a4n-stream-control::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgb(var(--color-primary));
+  content: "";
+  opacity: 0;
+  transform: scaleX(0.2);
+  transform-origin: left center;
+}
+
+.a4n-stream-control[data-stream-active="true"] {
+  border-color: rgb(var(--color-primary) / 0.28);
+  background: rgb(var(--color-primary) / 0.045);
+  animation: a4n-motion-focus 360ms var(--a4n-ease-out) both;
+}
+
+.a4n-stream-control[data-stream-active="true"]::after {
+  opacity: 0.9;
+  animation: a4n-stream-progress 1.8s var(--a4n-ease-out) infinite;
+}
+
+.a4n-stream-state {
+  color: rgb(var(--color-primary));
+  font-weight: 600;
+}
+
+.a4n-stream-message {
+  border: 1px solid rgb(var(--color-primary) / 0.14);
+  background: rgb(var(--color-primary) / 0.06);
+  color: rgb(var(--color-text-secondary));
+}
+
+@keyframes a4n-stream-progress {
+  0% { transform: scaleX(0.12); }
+  50% { transform: scaleX(0.68); }
+  100% { transform: scaleX(0.12); }
+}

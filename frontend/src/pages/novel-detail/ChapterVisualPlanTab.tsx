@@ -12,6 +12,7 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { ZoomableImage } from "../../components/ui/ImageLightbox";
 import { Modal } from "../../components/ui/Modal";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
@@ -238,7 +239,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const getEditorSource = (): AgentEditorSource | null => {
     if (!plan || chapterId == null) return null;
     const owner = point ? segmentAt(plan, point.at_ms) : segment;
-    return { view_instance_id: model.viewInstanceId.current, project_id: projectId, chapter_id: chapterId,
+    return { view_instance_id: model.viewInstanceId.current, project_id: projectId, chapter_id: chapterId, chapter_number: chapter?.chapter_number ?? null,
       editor_revision: model.editorRevision.current, scene_id: null, shot_id: owner?.id ?? null,
       keyframe_id: point?.id ?? null, entity_id: null };
   };
@@ -451,7 +452,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     </Modal>
     <Modal isOpen={modalPanel === "media"} title={point ? `${point.label || "图片点"} · 选择分镜与参考图` : "图片素材库"} onClose={closeModal} maxWidthClassName="max-w-5xl">
       {!point && <p className="director-context-line">在时间线上选中图片点后，可以绑定分镜与参考图。</p>}
-      <div className="director-media-grid">{images.map((image) => <article key={image.id}><img src={toMediaSrc(image.file_path)} alt={image.prompt || "图片素材"} loading="lazy" /><div className="director-inline-actions">
+      <div className="director-media-grid">{images.map((image) => <article key={image.id}><ZoomableImage src={toMediaSrc(image.file_path)} alt={image.prompt || "图片素材"} loading="lazy" /><div className="director-inline-actions">
         <BookButton variant="secondary" size="sm" disabled={!point || disabled} onClick={() => { if (point) void adoptImage(point.id, image).then(() => { closeModal(); setInspectorOpen(true); }).catch(model.report); }}>{point?.image_id === image.id ? "已绑定" : "选作分镜"}</BookButton>
         <BookButton variant="ghost" size="sm" disabled={!point || disabled} onClick={() => { if (point) updatePoint(point.id, { reference_image_ids: point.reference_image_ids.includes(image.id) ? point.reference_image_ids.filter((id) => id !== image.id) : [...point.reference_image_ids, image.id] }); }}>{point?.reference_image_ids.includes(image.id) ? "取消参考" : "选作参考"}</BookButton>
       </div></article>)}</div>{images.length === 0 && <p className="director-empty">暂无图片。可以在图片点属性中上传或生成分镜。</p>}
@@ -463,7 +464,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
           {pointCandidates.map((image, index) => {
             const bound = point?.image_id === image.id;
             return <article key={image.id} className={`director-point-candidate ${bound ? "is-bound" : ""}`} role="listitem">
-              <img src={toMediaSrc(image.file_path)} alt={image.prompt || `分镜候选 ${index + 1}`} loading="lazy" />
+              <ZoomableImage src={toMediaSrc(image.file_path)} alt={image.prompt || `分镜候选 ${index + 1}`} loading="lazy" />
               <span className="director-point-candidate-label">候选 {index + 1}</span>
               <BookButton variant={bound ? "primary" : "secondary"} size="sm" disabled={disabled || bound} aria-label={bound ? "当前绑定候选图" : "切换绑定为此候选图"} aria-pressed={bound} onClick={() => { if (point) void adoptImage(point.id, image).catch(model.report); }}>{bound ? <><Check size={13} />当前绑定</> : "切换为此图"}</BookButton>
             </article>;
@@ -596,7 +597,7 @@ function DirectorFrame({ plan, clock, imageById }: { plan: ChapterVisualPlanV3; 
     const image = next?.image_id ? imageById.get(next.image_id) : null;
     if (image) { const preload = new Image(); preload.src = toMediaSrc(image.file_path); }
   }, [imageById, plan.points, pointId]);
-  return <>{image && !failed ? <img className="director-frame-image" src={toMediaSrc(image.file_path)} alt={point.description || point.label || "当前分镜"} onError={() => setFailed(true)} />
+  return <>{image && !failed ? <ZoomableImage className="director-frame-image" src={toMediaSrc(image.file_path)} alt={point.description || point.label || "当前分镜"} onError={() => setFailed(true)} />
     : <div className="director-frame-empty"><ImagePlus size={34} strokeWidth={1.2} /><strong>{point.image_id ? "分镜图片无法加载" : "此处尚未绑定图片"}</strong><span>{formatTime(point.at_ms)} · {point.label || "图片点"}</span></div>}
     <div className="director-frame-caption">{point.label || "分镜"} <span>{formatTime(point.at_ms)}</span></div></>;
 }

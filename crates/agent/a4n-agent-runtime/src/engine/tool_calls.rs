@@ -9,16 +9,11 @@ pub(crate) struct ToolBatchContext<'a> {
     pub(crate) context: &'a AgentRunContext,
     pub(crate) executor: &'a RuntimeAgentToolExecutor,
     pub(crate) budget: &'a AgentBudget,
-    pub(crate) prepared_calls: &'a mut HashSet<String>,
     pub(crate) discovery_cache: &'a Arc<Mutex<HashMap<String, Value>>>,
     pub(crate) retry_counts: &'a Arc<Mutex<HashMap<String, u8>>>,
     pub(crate) discovered_tools: &'a mut Vec<String>,
     pub(crate) messages: &'a mut Vec<ChatMessage>,
     pub(crate) usage: &'a mut Value,
-    pub(crate) tool_calls: &'a mut u32,
-    pub(crate) steps: u32,
-    pub(crate) model_calls: u32,
-    pub(crate) tokens: u64,
 }
 
 pub(crate) struct ToolCallContext<'a> {
@@ -29,7 +24,6 @@ pub(crate) struct ToolCallContext<'a> {
     executor: &'a RuntimeAgentToolExecutor,
     discovery_cache: Arc<Mutex<HashMap<String, Value>>>,
     retry_counts: Arc<Mutex<HashMap<String, u8>>>,
-    phase: &'static str,
 }
 
 pub(crate) async fn execute_tool_calls(
@@ -40,9 +34,52 @@ pub(crate) async fn execute_tool_calls(
         .state
         .worker_execution_application(batch_context.claimed);
     let parallelism = usize::from(batch_context.budget.max_parallel_tools.unwrap_or(1).max(1));
+    if calls.len() > 1 && calls.iter().any(|call| call.name == "request_agent_input") {
+        for call in &calls {
+            let Some(execution) =
+                prepare_tool_call(&execution_application, batch_context.claimed, call).await?
+            else {
+                batch_context
+                    .state
+                    .wait_agent_worker_run(batch_context.claimed, "budget")
+                    .await?;
+                return Ok(RunProgress::Released);
+            };
+            if execution.status == "prepared" {
+                record_tool_failure(
+                    &execution_application,
+                    &batch_context
+                        .state
+                        .worker_message_application(batch_context.claimed),
+                    batch_context.claimed,
+                    &execution,
+                    call,
+                    AppError::InvalidArgument(
+                        "request_agent_input 必须单独调用；收到用户回复后再决定其他操作".into(),
+                    ),
+                    batch_context.messages,
+                )
+                .await?;
+            } else {
+                append_tool_observation(
+                    &batch_context
+                        .state
+                        .worker_message_application(batch_context.claimed),
+                    batch_context.claimed,
+                    &execution,
+                    call,
+                    observation::execution_result(&execution)?,
+                    batch_context.messages,
+                )
+                .await?;
+            }
+        }
+        return Ok(RunProgress::Continue);
+    }
     let mut index = 0;
     while index < calls.len() {
-        let is_read = tool_descriptor(&calls[index].name)?.effect == "read"
+        let is_read = tool_descriptor(&calls[index].name)
+            .is_ok_and(|descriptor| descriptor.effect == "read")
             && !editor::is_editor_tool(&calls[index].name)
             && !task_wait::is_wait(&calls[index].name)
             && !is_discovery_tool(&calls[index].name);
@@ -81,9 +118,6 @@ pub(crate) async fn execute_tool_calls(
             else {
                 break;
             };
-            if batch_context.prepared_calls.insert(call.id.clone()) {
-                *batch_context.tool_calls = (*batch_context.tool_calls).saturating_add(1);
-            }
             batch.push((call.clone(), execution));
             index += 1;
         }
@@ -91,10 +125,6 @@ pub(crate) async fn execute_tool_calls(
             batch_context.state,
             batch_context.claimed,
             batch_context.usage,
-            batch_context.steps,
-            batch_context.model_calls,
-            *batch_context.tool_calls,
-            batch_context.tokens,
         )
         .await?;
         if batch.is_empty() {
@@ -113,7 +143,6 @@ pub(crate) async fn execute_tool_calls(
                 executor: batch_context.executor,
                 discovery_cache: Arc::clone(batch_context.discovery_cache),
                 retry_counts: Arc::clone(batch_context.retry_counts),
-                phase: a4n_api_contract::agent::agent_phase_for_tool(&call.name),
             };
             Box::pin(async move {
                 let mut local_messages = Vec::new();
@@ -144,7 +173,9 @@ pub(crate) async fn prepare_tool_call(
     claimed: &AgentWorkerRun,
     call: &ToolCall,
 ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
-    let descriptor = tool_descriptor(&call.name)?;
+    // Invalid catalog names still get an execution and an explicit error
+    // observation; they are never dispatched as a guessed read or write.
+    let descriptor = tool_descriptor(&call.name).ok();
     let execution_key = format!("tool-call:{}", call.id);
     let resource_preconditions_json = match execution_application
         .worker_execution_by_key(claimed.run.id, &execution_key)
@@ -167,9 +198,11 @@ pub(crate) async fn prepare_tool_call(
             }
             .into(),
             tool_name: Some(call.name.clone()),
-            effect: Some(descriptor.effect),
+            effect: descriptor
+                .as_ref()
+                .map(|descriptor| descriptor.effect.clone()),
             replay_policy: descriptor
-                .agent_policy
+                .and_then(|descriptor| descriptor.agent_policy)
                 .map(|policy| enum_string(policy.replay_policy)),
             arguments_json: Some(call.arguments.clone()),
             resource_preconditions_json,
@@ -255,6 +288,39 @@ pub(crate) async fn execute_tool_call(
     execution: AgentExecutionSnapshot,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
+    let state = execution_context.state;
+    let claimed = execution_context.claimed;
+    let application = execution_context.execution_application;
+    match execute_tool_call_inner(execution_context, &call, &execution, messages).await {
+        Err(error) if is_correctable_tool_error(&error) => {
+            record_tool_failure(
+                application,
+                &state.worker_message_application(claimed),
+                claimed,
+                &execution,
+                &call,
+                error,
+                messages,
+            )
+            .await
+        }
+        outcome => outcome,
+    }
+}
+
+pub fn is_correctable_tool_error(error: &AppError) -> bool {
+    matches!(
+        error,
+        AppError::InvalidArgument(_) | AppError::NotFound(_) | AppError::Forbidden(_)
+    )
+}
+
+async fn execute_tool_call_inner(
+    execution_context: ToolCallContext<'_>,
+    call: &ToolCall,
+    execution: &AgentExecutionSnapshot,
+    messages: &mut Vec<ChatMessage>,
+) -> Result<(RunProgress, Vec<String>), AppError> {
     let ToolCallContext {
         state,
         execution_application,
@@ -263,7 +329,6 @@ pub(crate) async fn execute_tool_call(
         executor,
         discovery_cache,
         retry_counts,
-        phase,
     } = execution_context;
     let message_application = state.worker_message_application(claimed);
     let descriptor = match tool_descriptor(&call.name) {
@@ -273,9 +338,9 @@ pub(crate) async fn execute_tool_call(
                 execution_application,
                 &message_application,
                 claimed,
-                &execution,
-                &call,
-                error.to_string(),
+                execution,
+                call,
+                error,
                 messages,
             )
             .await;
@@ -286,29 +351,19 @@ pub(crate) async fn execute_tool_call(
             execution_application,
             &message_application,
             claimed,
-            &execution,
-            &call,
-            format!(
-                "Agent capability {} 当前阶段不允许工具 {}",
+            execution,
+            call,
+            AppError::Forbidden(format!(
+                "Agent capability {} 不允许工具 {}",
                 context.profile_id, call.name
-            ),
+            )),
             messages,
         )
         .await;
     }
-    if !a4n_api_contract::agent::agent_phase_allows_tool(phase, &call.name) {
-        return record_tool_failure(
-            execution_application,
-            &message_application,
-            claimed,
-            &execution,
-            &call,
-            format!("Agent 当前阶段 {phase} 不允许工具 {}", call.name),
-            messages,
-        )
-        .await;
-    }
-    if observation::retry_limit_reached(&retry_counts, &call.name, &call.arguments).await? {
+    if execution.status == "prepared"
+        && observation::retry_limit_reached(&retry_counts, &call.name, &call.arguments).await?
+    {
         let error_text = "同一工具参数已连续失败 3 次，停止自动重试";
         let value = json!({"error": error_text, "code": "TOOL_RETRY_LIMIT"});
         execution_application
@@ -317,7 +372,7 @@ pub(crate) async fn execute_tool_call(
                 lease_token: claimed.lease_token.clone(),
                 execution_id: execution.id,
                 status: "failed".into(),
-                result_json: None,
+                result_json: Some(value.clone()),
                 result_summary: Some(error_text.into()),
                 result_refs_json: None,
                 error_message: Some(error_text.into()),
@@ -326,8 +381,8 @@ pub(crate) async fn execute_tool_call(
         append_tool_observation(
             &message_application,
             claimed,
-            &execution,
-            &call,
+            execution,
+            call,
             value,
             messages,
         )
@@ -338,46 +393,22 @@ pub(crate) async fn execute_tool_call(
 
     // A completed idempotent execution is a durable replay, not a reason to
     // call an external provider twice after a worker restart.
-    if execution.status == "succeeded" {
-        let value = execution
-            .result_json
-            .clone()
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!(
-                    "Agent execution {} succeeded 但缺少 result_json",
-                    execution.id
-                ),
-                operation: "恢复工具结果，禁止重复执行".into(),
-            })?;
-        append_tool_observation(
-            &message_application,
-            claimed,
-            &execution,
-            &call,
-            value,
-            messages,
-        )
-        .await?;
-        return Ok((
-            RunProgress::Continue,
-            discovered_tool_names(&call.name, &execution.result_json)?,
-        ));
-    }
     if matches!(
         execution.status.as_str(),
-        "failed" | "rejected" | "cancelled"
+        "succeeded" | "failed" | "rejected" | "cancelled"
     ) {
-        let value = json!({"error": execution.error_message.clone().unwrap_or_else(|| "Agent 操作未完成".into())});
+        let value = observation::execution_result(execution)?;
+        let discovered = discovered_tool_names(&call.name, &Some(value.clone()))?;
         append_tool_observation(
             &message_application,
             claimed,
-            &execution,
-            &call,
+            execution,
+            call,
             value,
             messages,
         )
         .await?;
-        return Ok((RunProgress::Continue, Vec::new()));
+        return Ok((RunProgress::Continue, discovered));
     }
     if let Some(key) = discovery_key(&call.name, &call.arguments)
         && let Some(value) = discovery_cache.lock().await.get(&key).cloned()
@@ -400,8 +431,8 @@ pub(crate) async fn execute_tool_call(
         append_tool_observation(
             &message_application,
             claimed,
-            &execution,
-            &call,
+            execution,
+            call,
             value,
             messages,
         )
@@ -410,6 +441,12 @@ pub(crate) async fn execute_tool_call(
     }
     if execution.status == "outcome_unknown" {
         state.wait_agent_worker_run(claimed, "reconcile").await?;
+        return Ok((RunProgress::Released, Vec::new()));
+    }
+    if call.name == "delegate" && execution.status == "running" {
+        // A paused parent resumes its existing child instead of returning with
+        // a live lease or constructing a duplicate delegation.
+        state.wait_agent_worker_run(claimed, "child").await?;
         return Ok((RunProgress::Released, Vec::new()));
     }
 
@@ -449,12 +486,36 @@ pub(crate) async fn execute_tool_call(
         return Ok((RunProgress::Released, Vec::new()));
     }
 
+    ensure_agent_scope_allows_tool(&context.scope, &call.name)?;
+    ensure_argument_scope(&context.scope, &descriptor, &call.arguments)?;
+    let delegate_input = if call.name == "delegate" {
+        let input = parse_arguments::<DelegateToolInput>(call.arguments.clone(), "delegate")?;
+        if input.capability.trim().is_empty() || input.task.trim().is_empty() {
+            return Err(AppError::InvalidArgument(
+                "delegate 的 capability/task 不能为空".into(),
+            ));
+        }
+        if let Some(budget) = &input.budget {
+            validate_agent_budget(budget)?;
+        }
+        Some(input)
+    } else {
+        None
+    };
+    if execution.status == "awaiting_user"
+        && !approval_application
+            .approved_execution(claimed.run.thread_id, execution.id)
+            .await?
+    {
+        state.wait_agent_worker_run(claimed, "approval").await?;
+        return Ok((RunProgress::Released, Vec::new()));
+    }
     if request_approval_if_needed(
         &approval_application,
         claimed,
         context,
-        &call,
-        &execution,
+        call,
+        execution,
         &descriptor.effect,
     )
     .await?
@@ -462,24 +523,21 @@ pub(crate) async fn execute_tool_call(
         return Ok((RunProgress::Released, Vec::new()));
     }
 
-    if call.name == "delegate" {
-        if execution.status == "awaiting_user" {
-            // An approved delegation is resumed through the same durable
-            // execution state transition as every other guarded write.
-            execution_application
-                .update_worker_execution(WorkerExecutionUpdate {
-                    run_id: claimed.run.id,
-                    lease_token: claimed.lease_token.clone(),
-                    execution_id: execution.id,
-                    status: "dispatching".into(),
-                    result_json: None,
-                    result_summary: None,
-                    result_refs_json: None,
-                    error_message: None,
-                })
-                .await?;
-        }
-        let input = parse_arguments::<DelegateToolInput>(call.arguments.clone(), "delegate")?;
+    if call.name == "request_agent_input" {
+        let input = parse_arguments::<a4n_api_contract::agent::RequestAgentInput>(
+            call.arguments.clone(),
+            &call.name,
+        )?;
+        input.validate().map_err(AppError::InvalidArgument)?;
+        let value = json!({"question": input.question, "waiting_for_user": true});
+        let observation = observation::from_result(execution.id, &call.name, value)?;
+        state
+            .append_question(claimed, execution.id, input.question, observation)
+            .await?;
+        return Ok((RunProgress::Released, Vec::new()));
+    }
+
+    if let Some(input) = delegate_input {
         let parent_budget: AgentBudget =
             serde_json::from_value(context.budget.clone()).map_err(|error| {
                 AppError::InvalidState {
@@ -493,22 +551,10 @@ pub(crate) async fn execute_tool_call(
             context.delegation_depth,
             &parent_budget,
         )?;
-        let worker_budget = state
-            .worker_budget_application(claimed)
-            .worker_budget_snapshot(claimed.run.id)
-            .await?;
-        let child_budget = child_budget_within_parent(
-            input.budget.unwrap_or_default(),
-            &parent_budget,
-            &worker_budget.usage,
-        )?;
+        let child_budget =
+            child_budget_for_delegation(input.budget.unwrap_or_default(), &parent_budget)?;
         let capability = input.capability.trim().to_string();
         let task = input.task.trim().to_string();
-        if capability.is_empty() || task.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "delegate 的 capability/task 不能为空".into(),
-            ));
-        }
         let project_id = input.project_id.or(context.scope.project_id);
         let chapter_id = input.chapter_id.or(context.scope.chapter_id);
         if let Some(project_id) = project_id {
@@ -568,7 +614,7 @@ pub(crate) async fn execute_tool_call(
                 WorkerDelegationInput {
                     capability,
                     objective: task,
-                    delegation_key: call.id,
+                    delegation_key: call.id.clone(),
                     child_thread_id: child_thread.id,
                     scope: child_scope,
                     success_criteria: input.success_criteria,
@@ -588,51 +634,22 @@ pub(crate) async fn execute_tool_call(
     }
 
     if context.editor_source.is_some() && editor::needs_editor(&call.name) {
-        match editor_request_for_call(context, &execution, &call) {
+        match editor_request_for_call(context, execution, call) {
             Ok(request) => {
                 state.wait_for_editor(claimed, &request).await?;
                 return Ok((RunProgress::Released, Vec::new()));
             }
             Err(error) => {
-                // An approved execution still needs its authorized transition
-                // before recording a validation failure.
-                if execution.status == "awaiting_user" {
-                    execution_application
-                        .update_worker_execution(WorkerExecutionUpdate {
-                            run_id: claimed.run.id,
-                            lease_token: claimed.lease_token.clone(),
-                            execution_id: execution.id,
-                            status: "dispatching".into(),
-                            result_json: None,
-                            result_summary: None,
-                            result_refs_json: None,
-                            error_message: None,
-                        })
-                        .await?;
-                }
-                let error = error.to_string();
-                execution_application
-                    .update_worker_execution(WorkerExecutionUpdate {
-                        run_id: claimed.run.id,
-                        lease_token: claimed.lease_token.clone(),
-                        execution_id: execution.id,
-                        status: "failed".into(),
-                        result_json: None,
-                        result_summary: None,
-                        result_refs_json: None,
-                        error_message: Some(error.clone()),
-                    })
-                    .await?;
-                append_tool_observation(
+                return record_tool_failure(
+                    execution_application,
                     &message_application,
                     claimed,
-                    &execution,
-                    &call,
-                    json!({"error": error}),
+                    execution,
+                    call,
+                    error,
                     messages,
                 )
-                .await?;
-                return Ok((RunProgress::Continue, Vec::new()));
+                .await;
             }
         }
     }
@@ -675,11 +692,12 @@ pub(crate) async fn execute_tool_call(
             &call.name,
             call.arguments.clone(),
             approved,
-            Some(&execution),
+            Some(execution),
         )
         .await
     {
         Ok(value) => {
+            observation::record_success(&retry_counts, &call.name, &call.arguments).await?;
             if task_wait::is_wait(&call.name) && !task_wait::is_terminal(&call.name, &value)? {
                 task_wait::release_wait(state, claimed).await?;
                 return Ok((RunProgress::Released, Vec::new()));
@@ -704,14 +722,41 @@ pub(crate) async fn execute_tool_call(
             value
         }
         Err(error) => {
+            // Explicit domain-state conflicts can be corrected by reading the
+            // current version. A lost lease still cannot persist an observation
+            // because the execution update below remains fenced.
+            if !is_correctable_tool_error(&error) && !matches!(error, AppError::InvalidState { .. })
+            {
+                // The remote owner may have committed before its response was
+                // lost. Never turn an uncertain write into an ordinary failed
+                // observation that invites a new, duplicate tool call.
+                if descriptor.effect != "read"
+                    && !matches!(
+                        execution.replay_policy.as_deref(),
+                        Some("safe" | "idempotent")
+                    )
+                {
+                    execution_application
+                        .update_worker_execution(WorkerExecutionUpdate {
+                            run_id: claimed.run.id,
+                            lease_token: claimed.lease_token.clone(),
+                            execution_id: execution.id,
+                            status: "outcome_unknown".into(),
+                            result_json: None,
+                            result_summary: None,
+                            result_refs_json: None,
+                            error_message: Some(error.to_string()),
+                        })
+                        .await?;
+                    state.wait_agent_worker_run(claimed, "reconcile").await?;
+                    return Ok((RunProgress::Released, Vec::new()));
+                }
+                return Err(error);
+            }
             let error_text = error.to_string();
-            let (error_code, failure_count) = observation::record_failure(
-                &retry_counts,
-                &call.name,
-                &call.arguments,
-                &error_text,
-            )
-            .await?;
+            let error_code = observation::tool_error_code(&error).to_string();
+            let failure_count =
+                observation::record_failure(&retry_counts, &call.name, &call.arguments).await?;
             let (error_text, error_code) = if failure_count >= 3 {
                 (
                     "同一工具参数已连续失败 3 次，停止自动重试".to_string(),
@@ -720,31 +765,38 @@ pub(crate) async fn execute_tool_call(
             } else {
                 (error_text, error_code)
             };
+            let value = json!({"error": error_text, "code": error_code});
             execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
                     lease_token: claimed.lease_token.clone(),
                     execution_id: execution.id,
                     status: "failed".into(),
-                    result_json: None,
+                    result_json: Some(value.clone()),
                     result_summary: None,
                     result_refs_json: None,
                     error_message: Some(error_text.clone()),
                 })
                 .await?;
-            json!({"error": error_text, "code": error_code})
+            value
         }
     };
     let discovered = discovered_tool_names(&call.name, &Some(value.clone()))?;
+    let revision_started = call.name == "review_agent_delegation"
+        && value.get("status").and_then(Value::as_str) == Some("running");
     append_tool_observation(
         &message_application,
         claimed,
-        &execution,
-        &call,
+        execution,
+        call,
         value,
         messages,
     )
     .await?;
+    if revision_started {
+        state.wait_agent_worker_run(claimed, "child").await?;
+        return Ok((RunProgress::Released, discovered));
+    }
     Ok((RunProgress::Continue, discovered))
 }
 
@@ -783,7 +835,7 @@ pub(crate) async fn request_approval_if_needed(
     Ok(true)
 }
 
-pub(crate) async fn append_tool_observation(
+pub async fn append_tool_observation(
     message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
     claimed: &AgentWorkerRun,
     execution: &AgentExecutionSnapshot,
@@ -791,11 +843,7 @@ pub(crate) async fn append_tool_observation(
     value: Value,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(), AppError> {
-    let result_bytes = serde_json::to_vec(&value)?.len();
-    let result_refs = tool_result_refs(&call.name, &value)?;
-    let value = bounded_observation(execution.id, value)?;
-    let value =
-        observation::from_result(execution.id, &call.name, value, result_refs, result_bytes)?;
+    let value = observation::from_result(execution.id, &call.name, value)?;
     message_application
         .append_tool_message(
             claimed,

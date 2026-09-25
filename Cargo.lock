@@ -651,6 +651,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "shlex",
  "tempfile",
  "tokio",
@@ -769,6 +770,7 @@ dependencies = [
  "tokio-util",
  "tower-http",
  "tracing",
+ "tracing-appender",
  "tracing-subscriber",
  "uuid",
 ]
@@ -1383,6 +1385,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-db-models",
+ "a4n-domain",
 ]
 
 [[package]]
@@ -2916,6 +2919,7 @@ dependencies = [
  "a4n-storage",
  "a4n-task-runtime",
  "a4n-test-support",
+ "axum 0.8.9",
  "base64 0.22.1",
  "parking_lot",
  "reqwest 0.12.28",
@@ -3217,6 +3221,7 @@ name = "a4n-worker-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-domain",
  "chrono",
  "serde",
  "serde_json",

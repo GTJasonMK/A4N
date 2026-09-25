@@ -12,7 +12,7 @@ interface AgentMessageListProps {
   locale: Locale;
   streamedMessageIds?: ReadonlySet<string>;
   pendingMessages?: AgentMessageView[];
-  activeRun?: Pick<AgentRunView, "status" | "created_at" | "started_at"> | null;
+  activeRun?: Pick<AgentRunView, "status" | "created_at" | "started_at" | "error"> | null;
   compactAssistantMessages?: boolean;
 }
 
@@ -70,6 +70,7 @@ export function AgentMessageList({
     status: "running" as AgentRunView["status"],
     created_at: streamingMessage.created_at,
     started_at: null,
+    error: null,
   } : null);
   return (
     <div className="agent-message-list">
@@ -92,7 +93,7 @@ function AgentRunStatus({
   run,
   locale,
 }: {
-  run: Pick<AgentRunView, "status" | "created_at" | "started_at">;
+  run: Pick<AgentRunView, "status" | "created_at" | "started_at" | "error">;
   locale: Locale;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -116,13 +117,18 @@ function AgentRunStatus({
     : minutes > 0
       ? `${minutes}:${seconds}`
       : `${elapsed}s`;
-  const labels: Record<string, string> = locale === "zh-CN" ? {
+  const labels: Record<AgentRunView["status"], string> = locale === "zh-CN" ? {
       queued: "正在排队",
       running: "Agent 正在处理任务",
       waiting: "等待你的确认",
       pausing: "正在暂停任务",
       paused: "任务已暂停，可继续",
       cancelling: "正在取消任务",
+      cancelled: "任务已取消",
+      completed: "Agent 已完成",
+      failed: "Agent 任务失败",
+      interrupted: "Agent 任务已中断",
+      recovery_required: "Agent 任务需要恢复",
     } : {
       queued: "Queued",
       running: "Agent is working",
@@ -130,17 +136,23 @@ function AgentRunStatus({
       pausing: "Pausing task",
       paused: "Task paused",
       cancelling: "Cancelling task",
+      cancelled: "Task cancelled",
+      completed: "Agent complete",
+      failed: "Agent task failed",
+      interrupted: "Agent task interrupted",
+      recovery_required: "Agent task requires recovery",
     };
-  const label = labels[run.status] ?? (locale === "zh-CN" ? "Agent 已完成" : "Agent complete");
+  const label = labels[run.status];
 
   return (
     <div
-      className={`agent-message-run-status ${run.status === "running" ? "agent-message-run-status--running" : ""}`}
-      role="status"
+      className={`agent-message-run-status min-w-0 max-w-full flex-wrap ${run.status === "running" ? "agent-message-run-status--running" : ""}`}
+      role={run.status === "failed" || run.error ? "alert" : "status"}
       aria-live="polite"
     >
       <span className="agent-message-run-status__dot" aria-hidden="true" />
       <span>{label}</span>
+      {run.error ? <span className="w-full min-w-0 whitespace-pre-wrap break-words text-error">{run.error}</span> : null}
       {isRunning && elapsed >= 15 ? (
         <time className="agent-message-run-status__time">
           {elapsedLabel}

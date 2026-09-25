@@ -69,11 +69,13 @@ fn builds_persist_plan_from_staged_pipeline_outputs() {
             id: "s1".to_string(),
             text_anchor_id: 100,
             source_snapshot_chapter_id: 20,
+            chapter_number: 1,
         },
         GalgamePipelineSourceSpan {
             id: "s2".to_string(),
             text_anchor_id: 101,
             source_snapshot_chapter_id: 20,
+            chapter_number: 1,
         },
     ];
 

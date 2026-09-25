@@ -245,7 +245,7 @@ describe("AgentMessageRow", () => {
       <AgentMessageList
         messages={[]}
         pendingMessages={[createPendingAgentMessage("thread-1", "继续处理", "client-1")]}
-        activeRun={{ status: "waiting", created_at: timestamp, started_at: null }}
+        activeRun={{ status: "waiting", created_at: timestamp, started_at: null, error: null }}
         locale="zh-CN"
       />,
     );
@@ -264,6 +264,7 @@ describe("AgentMessageRow", () => {
           status: "running",
           created_at: "2020-01-01T00:00:00Z",
           started_at: new Date(Date.now() - 16_000).toISOString(),
+          error: null,
         }}
         locale="zh-CN"
       />,
@@ -277,6 +278,7 @@ describe("AgentMessageRow", () => {
           status: "running",
           created_at: "2020-01-01T00:00:00Z",
           started_at: new Date(Date.now() - (8 * 3_600 + 1 * 60 + 2) * 1_000).toISOString(),
+          error: null,
         }}
         locale="zh-CN"
       />,
@@ -290,11 +292,26 @@ describe("AgentMessageRow", () => {
           status: "waiting",
           created_at: "2020-01-01T00:00:00Z",
           started_at: "2020-01-01T00:00:00Z",
+          error: null,
         }}
         locale="zh-CN"
       />,
     );
     expect(waiting).not.toMatch(/\d+:\d{2}/);
+  });
+
+  it("shows terminal failures and their cause instead of a completion fallback", () => {
+    const html = renderToStaticMarkup(
+      <AgentMessageList
+        messages={[]}
+        activeRun={{ status: "failed", created_at: timestamp, started_at: null, error: "模型配置不可用" }}
+        locale="zh-CN"
+      />,
+    );
+    expect(html).toContain("Agent 任务失败");
+    expect(html).toContain("模型配置不可用");
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain("Agent 已完成");
   });
 
   it("collapses long assistant replies for the compact domain console", () => {

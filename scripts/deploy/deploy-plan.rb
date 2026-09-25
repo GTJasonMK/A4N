@@ -15,6 +15,10 @@ IGNORED_DEPLOY_PATHS = [
   %r{\Ascripts/deploy/deploy-cloud\.env\z},
   %r{\Ascripts/deploy/},
   %r{\Ascripts/lib/},
+  %r{\Ascripts/tests/},
+  %r{\Adocs/},
+  %r{\Afrontend/e2e/},
+  %r{\A[^/]+\.md\z},
   %r{\Atarget/},
   %r{\Afrontend/(?:node_modules|dist|\.vite|\.tauri)/},
 ].freeze
